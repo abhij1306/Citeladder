@@ -92,6 +92,7 @@ from app.core.config.site_health import (
     ERROR_HTTP_4XX,
     ERROR_HTTP_5XX,
     ERROR_ROBOTS_DENIED,
+    ERROR_ROBOTS_UNAVAILABLE,
     EVENT_ANALYSIS_PROGRESS,
     EVENT_CRAWL_COMPLETED,
     EVENT_DISCOVERY_PROGRESS,
@@ -233,6 +234,9 @@ class _LinkProbeOutcome:
     reachable: bool
     method: str
     status_code: int | None
+    # True when the target's own robots.txt policy denied the probe (no
+    # request was made — recorded as policy-skipped, never a fetch failure).
+    skipped_by_policy: bool = False
 
 
 def _utcnow() -> datetime:
@@ -301,6 +305,45 @@ def _authority_key(url: str) -> str:
     return f"{scheme}://{host}:{port}"
 
 
+def _robots_denial_error(policy: RobotsPolicy) -> tuple[str, str]:
+    """The (error_code, detail) for a robots-denied fetch.
+
+    A 5xx robots.txt (RFC 9309 complete/temporary disallow) surfaces as
+    ``robots_unavailable`` — distinct from a real robots-rule disallow so the
+    UI can explain the site is misbehaving rather than blocking crawlers.
+    """
+    if policy.unavailable:
+        return (
+            ERROR_ROBOTS_UNAVAILABLE,
+            "robots.txt responded 5xx; fetches paused for this site",
+        )
+    return (
+        ERROR_ROBOTS_DENIED,
+        "robots.txt disallows the crawler user-agent for this URL",
+    )
+
+
+def _canonical_or_empty(url: str) -> str:
+    """The canonical form of ``url``, or ``""`` when it fails normalization.
+
+    The finalize pass canonicalizes persisted URLs (link targets, hreflang
+    alternates, sitemap observations) that may no longer parse — an
+    unnormalizable URL simply contributes nothing.
+    """
+    try:
+        return canonical_identity(url)[0]
+    except UrlPolicyError:
+        return ""
+
+
+def _crawl_root_identity(crawl: SiteCrawl) -> tuple[str, str]:
+    """``(canonical, url_hash)`` of the crawl root, or ``("", "")``."""
+    try:
+        return canonical_identity(crawl.root_url)
+    except UrlPolicyError:
+        return "", ""
+
+
 class _SystemDnsResolver:
     """Production DNS resolver using the event loop's ``getaddrinfo``.
 
@@ -356,15 +399,16 @@ class SiteHealthWorker:
         # once this drops to zero AND the polite start-delay window has
         # elapsed, so cleanup can never race active crawling of the host.
         self._host_refcounts: dict[str, int] = {}
-        # v2 P2: per-authority robots policy cache (policy + raw body for the
-        # per-bot AI-crawler stance + fetch status for site_facts), with a
-        # per-authority lock so concurrent tasks never duplicate the fetch.
-        # DELIBERATELY never evicted: a worker process is bounded by the
-        # number of distinct authorities it crawls (a crawl is scoped to one
-        # registrable domain), so the map stays tiny for the process lifetime.
-        self._robots_policies: dict[str, RobotsPolicy] = {}
-        self._robots_bodies: dict[str, str | None] = {}
-        self._robots_status: dict[str, int | None] = {}
+        # v2 P2: per-authority robots cache — one (policy, raw body, status)
+        # triple per authority (the raw body feeds the per-bot AI-crawler
+        # stance in site setup) — plus a per-authority lock so concurrent
+        # tasks never duplicate the fetch. Entries expire after
+        # ``robots_cache_ttl_seconds`` (RFC 9309 ~24h guidance) so a
+        # long-lived worker re-reads changed policies; the maps are bounded
+        # by the number of distinct authorities a worker crawls (a crawl is
+        # scoped to one registrable domain), so they stay tiny.
+        self._robots_cache: dict[str, tuple[RobotsPolicy, str | None, int | None]] = {}
+        self._robots_cache_ts: dict[str, float] = {}
         self._robots_locks: dict[str, asyncio.Lock] = {}
 
     async def run_once(self) -> int:
@@ -433,11 +477,9 @@ class SiteHealthWorker:
                     # — never fetch robots.txt here. The first request to an
                     # authority goes with the default delay; once the fetch
                     # path has cached the policy, later requests honor it.
-                    policy = self._robots_policies.get(
-                        _authority_key(task.requested_url)
-                    )
-                    if policy is not None:
-                        delay = max(delay, policy.crawl_delay())
+                    cached = self._robots_cache.get(_authority_key(task.requested_url))
+                    if cached is not None:
+                        delay = max(delay, cached[0].crawl_delay())
                     elapsed = time.monotonic() - self._host_last_started.get(host, 0.0)
                     if elapsed < delay:
                         await asyncio.sleep(delay - elapsed)
@@ -704,11 +746,10 @@ class SiteHealthWorker:
             )
 
         if policy is not None and not policy.can_fetch(requested_url):
+            error_code, error_detail = _robots_denial_error(policy)
             return _DiscoverOutcome(
-                error_code=ERROR_ROBOTS_DENIED,
-                error_detail=(
-                    "robots.txt disallows the crawler user-agent for this URL"
-                ),
+                error_code=error_code,
+                error_detail=error_detail,
                 retryable=False,
                 site_facts=site_facts,
                 sitemap_urls=sitemap_urls,
@@ -790,6 +831,19 @@ class SiteHealthWorker:
 
     # --- v2 P2: robots policy cache + site setup ---------------------------
 
+    def _cached_robots_entry(
+        self, authority: str
+    ) -> tuple[RobotsPolicy, str | None, int | None] | None:
+        """The cached entry when present AND still within the config TTL."""
+        cached = self._robots_cache.get(authority)
+        if cached is None:
+            return None
+        fetched_at = self._robots_cache_ts.get(authority, 0.0)
+        ttl = site_health_settings.robots_cache_ttl_seconds
+        if time.monotonic() - fetched_at >= ttl:
+            return None
+        return cached
+
     async def _ensure_robots_policy(
         self, authority: str
     ) -> tuple[RobotsPolicy, str | None, int | None]:
@@ -797,29 +851,24 @@ class SiteHealthWorker:
 
         Returns ``(policy, body, status_code)``: the parsed policy for the
         crawler user-agent (allow-all on any fetch failure — standard
-        crawler behavior, per ``RobotsPolicy``), the raw body (for the
-        per-bot AI-crawler stance in site setup), and the HTTP status. The
-        fetch goes through the SSRF-safe fetcher with a tight decoded-byte
-        cap; a per-authority lock dedupes concurrent first fetches. The
-        cache is never evicted (bounded by distinct authorities per worker
-        process — a crawl is scoped to one registrable domain).
+        crawler behavior, per ``RobotsPolicy``; a 5xx response is the
+        RFC 9309 complete-temporary-disallow stance, a deny-all
+        ``RobotsPolicy.deny_all``), the raw body (for the per-bot AI-crawler
+        stance in site setup), and the HTTP status. The fetch goes through
+        the SSRF-safe fetcher with a tight decoded-byte cap; a per-authority
+        lock dedupes concurrent first fetches. Entries expire after
+        ``robots_cache_ttl_seconds``; the cache maps are bounded by distinct
+        authorities per worker process (a crawl is scoped to one registrable
+        domain).
         """
-        cached = self._robots_policies.get(authority)
+        cached = self._cached_robots_entry(authority)
         if cached is not None:
-            return (
-                cached,
-                self._robots_bodies.get(authority),
-                self._robots_status.get(authority),
-            )
+            return cached
         lock = self._robots_locks.setdefault(authority, asyncio.Lock())
         async with lock:
-            cached = self._robots_policies.get(authority)
+            cached = self._cached_robots_entry(authority)
             if cached is not None:
-                return (
-                    cached,
-                    self._robots_bodies.get(authority),
-                    self._robots_status.get(authority),
-                )
+                return cached
             body_text: str | None = None
             status: int | None = None
             robots_url = f"{authority}{ROBOTS_TXT_PATH}"
@@ -838,13 +887,20 @@ class SiteHealthWorker:
             except Exception:  # defensive: robots must never break a crawl
                 body_text = None
                 status = None
-            policy = RobotsPolicy.parse(
-                body_text or "", user_agent=SITE_HEALTH_USER_AGENT
-            )
-            self._robots_policies[authority] = policy
-            self._robots_bodies[authority] = body_text
-            self._robots_status[authority] = status
-            return policy, body_text, status
+            if status is not None and 500 <= status < 600:
+                # RFC 9309: a 5xx robots.txt is a complete (temporary)
+                # disallow — deny fetches until the TTL re-read.
+                policy = RobotsPolicy.deny_all(user_agent=SITE_HEALTH_USER_AGENT)
+            else:
+                # 2xx parses its body; 4xx / unfetchable is allow-all
+                # (RFC 9309: no robots.txt == no restrictions).
+                policy = RobotsPolicy.parse(
+                    body_text or "", user_agent=SITE_HEALTH_USER_AGENT
+                )
+            entry = (policy, body_text, status)
+            self._robots_cache[authority] = entry
+            self._robots_cache_ts[authority] = time.monotonic()
+            return entry
 
     async def _fetch_well_known(
         self, url: str, *, purpose: str, max_bytes: int
@@ -1784,11 +1840,10 @@ class SiteHealthWorker:
         if authority:
             policy, _, _ = await self._ensure_robots_policy(authority)
             if not policy.can_fetch(requested_url):
+                error_code, error_detail = _robots_denial_error(policy)
                 return _AnalyzeOutcome(
-                    error_code=ERROR_ROBOTS_DENIED,
-                    error_detail=(
-                        "robots.txt disallows the crawler user-agent for this URL"
-                    ),
+                    error_code=error_code,
+                    error_detail=error_detail,
                     retryable=False,
                 )
         request = FetchRequest(
@@ -1986,10 +2041,7 @@ class SiteHealthWorker:
         # The injection happens after the artifact flush, so the persisted
         # normalized_facts deliberately do NOT carry it (same as page_type).
         if crawl.site_facts:
-            try:
-                _root_canonical, root_hash = canonical_identity(crawl.root_url)
-            except UrlPolicyError:
-                root_hash = ""
+            _root_canonical, root_hash = _crawl_root_identity(crawl)
             if root_hash and root_hash == task.url_hash:
                 facts["site"] = crawl.site_facts
         evaluations: list[RuleEvaluation] = [
@@ -2275,8 +2327,20 @@ class SiteHealthWorker:
         """Best-effort HEAD-first + GET-fallback reachability probe.
 
         Returns method/status/reachability evidence. Never raises — link
-        checking must not crash the task.
+        checking must not crash the task. Honors the target authority's
+        robots.txt (shared policy cache): a denied target is NOT probed and
+        comes back policy-skipped instead of a fabricated fetch failure.
         """
+        authority = _authority_key(url)
+        if authority:
+            policy, _, _ = await self._ensure_robots_policy(authority)
+            if not policy.can_fetch(url):
+                return _LinkProbeOutcome(
+                    reachable=False,
+                    method="-",
+                    status_code=None,
+                    skipped_by_policy=True,
+                )
         timeout = site_health_settings.link_check_timeout_seconds
         for method in ("HEAD", "GET"):
             request = FetchRequest(
@@ -2323,10 +2387,17 @@ class SiteHealthWorker:
             (
                 f"{target['kind']}|{target['rel']}|{target['anchor_text']}|"
                 f"{target['url']}|{probe.method}|{probe.status_code}|"
-                f"reachable={probe.reachable}"
+                f"reachable={probe.reachable}|skipped={probe.skipped_by_policy}"
             ).encode()
         ).hexdigest()
-        outcome_prefix = "reachable:" if probe.reachable else "unreachable:"
+        # Outcome prefixes: reachable:/unreachable: feed the finalize pass's
+        # broken_internal_link evidence; policy_skipped: records a
+        # robots-denied probe distinctly (never counted as checked — no
+        # reachability was observed).
+        if probe.skipped_by_policy:
+            outcome_prefix = "policy_skipped:"
+        else:
+            outcome_prefix = "reachable:" if probe.reachable else "unreachable:"
         fingerprint = outcome_prefix + evidence_digest[: 64 - len(outcome_prefix)]
         await session.execute(
             pg_insert(SiteLinkReference)
@@ -2596,7 +2667,9 @@ class SiteHealthWorker:
         # --- broken_internal_link: per analysis, from its link probes. -----
         # Reachability rides the evidence_fingerprint prefix written by
         # ``_write_link_reference`` ("reachable:" / "unreachable:"); ALL link
-        # kinds count as internal targets.
+        # kinds count as internal targets. ``policy_skipped:`` rows (a
+        # robots-denied target that was never probed) are excluded: no
+        # reachability was observed, so they are neither checked nor broken.
         link_rows = (
             await session.execute(
                 select(
@@ -2612,8 +2685,11 @@ class SiteHealthWorker:
         checked: dict[uuid.UUID, int] = {}
         broken: dict[uuid.UUID, list[str]] = {}
         for source_analysis_id, target_url, fingerprint in link_rows:
+            fp = str(fingerprint or "")
+            if fp.startswith("policy_skipped:"):
+                continue
             checked[source_analysis_id] = checked.get(source_analysis_id, 0) + 1
-            if str(fingerprint or "").startswith("unreachable:"):
+            if fp.startswith("unreachable:"):
                 bucket = broken.setdefault(source_analysis_id, [])
                 if target_url not in bucket:
                     bucket.append(target_url)
@@ -2644,15 +2720,14 @@ class SiteHealthWorker:
         # canonical identity of each analyzed page's final URL -> alternates.
         alternates_by_page: dict[str, list[dict]] = {}
         canonical_by_artifact: dict[uuid.UUID, str] = {}
-        for artifact_id, final_url, _facts in artifacts:
-            try:
-                canonical, _h = canonical_identity(str(final_url or ""))
-            except UrlPolicyError:
+        for artifact_id, final_url, facts in artifacts:
+            canonical = _canonical_or_empty(str(final_url or ""))
+            if not canonical:
                 continue
             canonical_by_artifact[artifact_id] = canonical
             alternates_by_page.setdefault(
                 canonical,
-                list((_facts or {}).get("hreflang_alternates") or []),
+                list((facts or {}).get("hreflang_alternates") or []),
             )
         for artifact_id, _final_url, facts in artifacts:
             analysis_id = analysis_by_artifact[artifact_id]
@@ -2676,9 +2751,8 @@ class SiteHealthWorker:
             missing: list[str] = []
             for alternate in alternates:
                 target_url = str(alternate.get("url") or "")
-                try:
-                    target_canonical, _h = canonical_identity(target_url)
-                except UrlPolicyError:
+                target_canonical = _canonical_or_empty(target_url)
+                if not target_canonical:
                     unchecked_count += 1
                     continue
                 # A self-referencing alternate is always fine.
@@ -2691,17 +2765,11 @@ class SiteHealthWorker:
                     unchecked_count += 1
                     continue
                 checked_count += 1
-                return_tag_found = False
-                for back in target_alternates:
-                    try:
-                        back_canonical, _h = canonical_identity(
-                            str(back.get("url") or "")
-                        )
-                    except UrlPolicyError:
-                        continue
-                    if back_canonical == source_canonical:
-                        return_tag_found = True
-                        break
+                return_tag_found = any(
+                    _canonical_or_empty(str(back.get("url") or ""))
+                    == source_canonical
+                    for back in target_alternates
+                )
                 if not return_tag_found and target_url not in missing:
                     missing.append(target_url)
             evaluations.append(
@@ -2717,10 +2785,7 @@ class SiteHealthWorker:
             )
 
         # --- sitemap_orphan: crawl-wide, anchored on the root analysis. -----
-        try:
-            root_canonical, root_hash = canonical_identity(crawl.root_url)
-        except UrlPolicyError:
-            root_canonical, root_hash = "", ""
+        root_canonical, root_hash = _crawl_root_identity(crawl)
         if root_hash:
             site_url_rows = (
                 await session.execute(
@@ -2765,17 +2830,14 @@ class SiteHealthWorker:
                 ).all()
                 linked_targets: set[str] = set()
                 for (target_url,) in anchor_rows:
-                    try:
-                        target_canonical, _h = canonical_identity(str(target_url))
-                    except UrlPolicyError:
-                        continue
-                    linked_targets.add(target_canonical)
+                    target_canonical = _canonical_or_empty(str(target_url))
+                    if target_canonical:
+                        linked_targets.add(target_canonical)
                 orphans: list[str] = []
                 for _site_url_id, observed_url in sitemap_rows:
                     observed = str(observed_url or "")
-                    try:
-                        observed_canonical, _h = canonical_identity(observed)
-                    except UrlPolicyError:
+                    observed_canonical = _canonical_or_empty(observed)
+                    if not observed_canonical:
                         continue
                     # The crawl root is definitionally reachable (it seeds the
                     # crawl), never an orphan.

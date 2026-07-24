@@ -25,8 +25,11 @@ from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
     validate_microdata_types,
 )
+from app.connectors.web_evidence.url_policy import registrable_domain
 from app.core.config.site_health import (
+    ANSWER_FIRST_MAX_HOPS,
     EXTRACTOR_VERSION,
+    INLINE_SCRIPT_JAVASCRIPT_TYPES,
     LINK_KIND_ANCHOR,
     LINK_KIND_IMAGE,
     LINK_KIND_SCRIPT,
@@ -472,9 +475,13 @@ def _outbound_domains(anchors: list[dict], *, base_host: str) -> list[str]:
     """Unique external anchor hosts (sorted, bounded).
 
     Reads the already-bounded anchor facts: an anchor counts as outbound when
-    it is absolute, HTTP(S), and NOT same-host. Relative/anchorless URLs are
-    same-origin by the link extractor's own heuristic and never count.
+    it is absolute, HTTP(S), and NOT same-SITE — hosts on the page's own
+    registrable domain (apex, www, or any sibling subdomain) are the same
+    site, never citations. Relative/anchorless URLs are same-origin by the
+    link extractor's own heuristic and never count. When the page host has
+    no registrable domain (e.g. an IP), falls back to exact-host matching.
     """
+    base_registrable = registrable_domain(base_host) if base_host else ""
     domains: set[str] = set()
     for entry in anchors or []:
         if bool(entry.get("is_internal")):
@@ -487,7 +494,10 @@ def _outbound_domains(anchors: list[dict], *, base_host: str) -> list[str]:
         host = (parts.hostname or "").lower()
         if not host or parts.scheme not in ("http", "https"):
             continue
-        if base_host and host == base_host.lower():
+        if base_registrable:
+            if registrable_domain(host) == base_registrable:
+                continue
+        elif base_host and host == base_host.lower():
             continue
         domains.add(host[:_MAX_DOMAIN_CHARS])
         if len(domains) >= _MAX_OUTBOUND_DOMAINS:
@@ -572,11 +582,17 @@ def _hreflang_alternates(root: Any, *, final_url: str) -> list[dict[str, str]]:
 
 
 def _first_answer_text(root: Any) -> str:
-    """Text of the first non-empty block sibling after the first h1/h2.
+    """Text of the first non-empty block after the first h1/h2.
 
     The bounded answer-first heuristic input (spec §5.3): what an answer
     engine reads directly under the page's first heading. Empty when the
     page has no h1/h2 or no following content block.
+
+    The fast path reads following siblings within the heading's parent. When
+    the heading is wrapped in its own container (e.g.
+    ``<header><h1/></header><main><p>answer</p></main>`` — no following
+    siblings), a bounded document-order walk past the parent finds the first
+    non-empty block-level text within ``ANSWER_FIRST_MAX_HOPS`` elements.
     """
     first_heading = None
     try:
@@ -595,13 +611,38 @@ def _first_answer_text(root: Any) -> str:
                 return " ".join(text.split())[:_MAX_FIRST_ANSWER_CHARS]
     except Exception:
         return ""
+    # Container-wrapped heading: walk the elements AFTER the heading in
+    # document order (bounded), skipping non-content subtrees.
+    hops = 0
+    seen_heading = False
+    try:
+        for node in root.iter():
+            if node is first_heading:
+                seen_heading = True
+                continue
+            if not seen_heading:
+                continue
+            hops += 1
+            if hops > ANSWER_FIRST_MAX_HOPS:
+                break
+            if node.tag in ("script", "style", "noscript", "template"):
+                continue
+            text = _text(node)
+            if text:
+                return " ".join(text.split())[:_MAX_FIRST_ANSWER_CHARS]
+    except Exception:
+        return ""
     return ""
 
 
 def _inline_script_chars(root: Any) -> int:
-    """Bounded total character count of src-less <script> bodies.
+    """Bounded total character count of src-less JAVASCRIPT <script> bodies.
 
-    Read by ``aeo.server_rendered_content`` to tell a JS shell from real
+    Only scripts that execute as JS count: an omitted ``type`` (JS per the
+    HTML spec) or a JavaScript MIME in ``INLINE_SCRIPT_JAVASCRIPT_TYPES``.
+    JSON-LD / importmap / template bodies are data, not code — a large
+    JSON-LD block must not read as a JS shell. Read by
+    ``aeo.server_rendered_content`` to tell a JS shell from real
     server-rendered content. Must run BEFORE ``_body_text`` (which removes
     script subtrees from the tree).
     """
@@ -609,6 +650,9 @@ def _inline_script_chars(root: Any) -> int:
     try:
         for script in root.iter("script"):
             if (script.get("src") or "").strip():
+                continue
+            script_type = (script.get("type") or "").strip().lower()
+            if script_type and script_type not in INLINE_SCRIPT_JAVASCRIPT_TYPES:
                 continue
             total += len(script.text_content() or "")
             if total >= _MAX_INLINE_SCRIPT_CHARS:

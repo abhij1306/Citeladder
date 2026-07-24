@@ -122,15 +122,11 @@ def is_question_heading(text: str) -> bool:
     return first_word in _config.PAGE_TYPE_QUESTION_WORDS
 
 
-# Back-compat private alias (the heuristic predates the public name).
-_is_question_heading = is_question_heading
-
-
 def _content_heuristic(facts: dict) -> dict[str, Any] | None:
     """Signal 3: the first matching content heuristic (faq -> product ->
     article), or None. Reads only bounded parser facts."""
     # FAQ: question-form heading ratio over the bounded h2 + h3 texts (spec
-    # §5.1; h3 texts arrive with the P2 sh-extractor-2 — absent h3s simply
+    # §5.1; h3 texts are extracted since sh-extractor-2 — absent h3s simply
     # contribute nothing, preserving P1 outcomes for h2-only pages).
     headings = facts.get("headings") or {}
     heading_texts = [str(t) for t in (headings.get("h2_texts") or [])]

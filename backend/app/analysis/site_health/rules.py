@@ -237,28 +237,41 @@ def _check_canonical_conflict(facts: dict) -> tuple[str, dict]:
     }
 
 
-def _check_title_length_band(facts: dict) -> tuple[str, dict]:
-    title = (facts.get("title") or "").strip()
-    if not title:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "empty_title"}
-    low, high = TITLE_LENGTH_BAND
-    length = len(title)
+def _length_band_check(
+    value: object, *, band: tuple[int, int], empty_reason: str, length_key: str
+) -> tuple[str, dict]:
+    """Shared body for the title / meta-description length-band rules.
+
+    N/A when the field is empty (the v1 presence rules own that finding);
+    otherwise pass when the length falls inside the inclusive config band.
+    """
+    text = (str(value or "")).strip()
+    if not text:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": empty_reason}
+    low, high = band
+    length = len(text)
     return _pass_fail(low <= length <= high), {
-        "title_length": length,
+        length_key: length,
         "band": [low, high],
     }
+
+
+def _check_title_length_band(facts: dict) -> tuple[str, dict]:
+    return _length_band_check(
+        facts.get("title"),
+        band=TITLE_LENGTH_BAND,
+        empty_reason="empty_title",
+        length_key="title_length",
+    )
 
 
 def _check_meta_description_length_band(facts: dict) -> tuple[str, dict]:
-    desc = (facts.get("meta_description") or "").strip()
-    if not desc:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "empty_meta_description"}
-    low, high = META_DESCRIPTION_LENGTH_BAND
-    length = len(desc)
-    return _pass_fail(low <= length <= high), {
-        "description_length": length,
-        "band": [low, high],
-    }
+    return _length_band_check(
+        facts.get("meta_description"),
+        band=META_DESCRIPTION_LENGTH_BAND,
+        empty_reason="empty_meta_description",
+        length_key="description_length",
+    )
 
 
 def _check_hsts_present(facts: dict) -> tuple[str, dict]:
@@ -313,13 +326,21 @@ def _check_ai_crawler_access(facts: dict) -> tuple[str, dict]:
     bounded_stance = {
         bot: stance.get(bot, "") for bot in AI_CRAWLER_BOTS
     }
+    if not robots.get("fetched"):
+        # The stance is the fail-open default (robots.txt unfetchable): a
+        # PASS would be vacuous for a HIGH-severity signal. N/A instead.
+        return RULE_OUTCOME_NOT_APPLICABLE, {
+            "reason": "robots_not_fetched",
+            "robots_fetched": False,
+            "ai_crawlers": bounded_stance,
+        }
     blocked = [
         bot
         for bot in AI_CRAWLER_BOTS
         if stance.get(bot) == AI_CRAWLER_STANCE_BLOCK
     ]
     return _pass_fail(not blocked), {
-        "robots_fetched": bool(robots.get("fetched")),
+        "robots_fetched": True,
         "ai_crawlers": bounded_stance,
         "blocked": blocked,
     }
@@ -381,46 +402,54 @@ def _missing_paths(block: dict, paths: tuple[str, ...]) -> list[str]:
     return [path for path in paths if path not in present]
 
 
-def _check_schema_required_valid(facts: dict) -> tuple[str, dict]:
+def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict]:
+    """Shared body for the required/recommended schema-property rules.
+
+    The best-annotated expected-type block decides: one complete block
+    passes. N/A when the page carries no expected-type block (the
+    ``aeo.schema_expected_for_type`` rule owns that failure — these rules
+    never double-report it, and can never be circular since the page type
+    comes from URL/content signals first, spec §5.1) or — recommended only —
+    when the expectation recommends nothing.
+    """
+    label = "recommended" if recommended else "required"
     expectation = _expectation_for(facts)
+    paths = (
+        expectation.recommended_properties
+        if recommended
+        else expectation.required_properties
+    )
+    if not paths:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": f"no_{label}_properties"}
     blocks = _expected_blocks(facts, expectation)
     if not blocks:
-        # aeo.schema_expected_for_type owns the missing-type failure (this
-        # rule never double-reports it — and can never be circular, since the
-        # page type comes from URL/content signals first, spec §5.1).
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
-    required = expectation.required_properties
-    # The best-annotated expected block decides: one complete block passes.
-    best_missing = min(
-        (_missing_paths(block, required) for block in blocks), key=len
-    )
-    return _pass_fail(not best_missing), {
+    best_missing = min((_missing_paths(block, paths) for block in blocks), key=len)
+    evidence = {
         "page_type": expectation.page_type,
         "expected_types": list(expectation.expected_types),
-        "required": list(required),
+        label: list(paths),
         "missing": best_missing,
         "checked_blocks": len(blocks),
     }
+    if best_missing and any(
+        str(block.get("syntax") or "") == "microdata"
+        and not (block.get("props_present") or [])
+        for block in blocks
+    ):
+        # Microdata extraction is shallow (no per-property walk): a failing
+        # block with empty props_present may be fully marked up in the HTML.
+        # Record the limitation so the UI can explain the finding.
+        evidence["extraction"] = "microdata_shallow"
+    return _pass_fail(not best_missing), evidence
+
+
+def _check_schema_required_valid(facts: dict) -> tuple[str, dict]:
+    return _schema_property_check(facts, recommended=False)
 
 
 def _check_schema_recommended_present(facts: dict) -> tuple[str, dict]:
-    expectation = _expectation_for(facts)
-    recommended = expectation.recommended_properties
-    if not recommended:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_recommended_properties"}
-    blocks = _expected_blocks(facts, expectation)
-    if not blocks:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
-    best_missing = min(
-        (_missing_paths(block, recommended) for block in blocks), key=len
-    )
-    return _pass_fail(not best_missing), {
-        "page_type": expectation.page_type,
-        "expected_types": list(expectation.expected_types),
-        "recommended": list(recommended),
-        "missing": best_missing,
-        "checked_blocks": len(blocks),
-    }
+    return _schema_property_check(facts, recommended=True)
 
 
 def _check_schema_matches_content(facts: dict) -> tuple[str, dict]:

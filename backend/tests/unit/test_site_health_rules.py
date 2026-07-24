@@ -588,6 +588,20 @@ def test_ai_crawler_access_passes_when_all_bots_allowed():
     assert set(ev.evidence["ai_crawlers"]) == set(AI_CRAWLER_BOTS)
 
 
+def test_ai_crawler_access_not_applicable_when_robots_not_fetched():
+    # An unfetched robots.txt yields the fail-open all-allow stance: passing
+    # a HIGH-severity signal on that would be vacuous — N/A instead.
+    facts = _html_facts()
+    facts["site"]["robots"]["fetched"] = False
+    facts["site"]["robots"]["status_code"] = None
+    ev = _outcome(facts, "technical.ai_crawler_access")
+    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert ev.evidence["reason"] == "robots_not_fetched"
+    assert ev.evidence["robots_fetched"] is False
+    # The stance evidence is still carried (bounded, all bots).
+    assert set(ev.evidence["ai_crawlers"]) == set(AI_CRAWLER_BOTS)
+
+
 def test_ai_crawler_access_fails_when_any_bot_blocked():
     facts = _html_facts()
     facts["site"]["robots"]["ai_crawlers"]["GPTBot"] = AI_CRAWLER_STANCE_BLOCK
@@ -724,6 +738,43 @@ def test_schema_recommended_present():
     ev = _outcome(facts, "aeo.schema_recommended_present")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["missing"] == ["logo"]
+
+
+def test_schema_property_rules_record_microdata_shallow_extraction():
+    # A microdata Product block (shallow extraction: props_present is always
+    # empty) still FAILS the property rules, but the evidence records the
+    # limitation so the UI can explain the finding may be fully marked up.
+    microdata_block = {
+        "type": "Product",
+        "syntax": "microdata",
+        "required": ["name", "offers"],
+        "present": [],
+        "missing": ["name", "offers"],
+        "valid": False,
+        "name": "",
+        "author": "",
+        "date_published": "",
+        "date_modified": "",
+        "same_as": [],
+        "props_present": [],
+    }
+    facts = _html_facts(
+        page_type="product", structured_data=_sd([microdata_block])
+    )
+    ev = _outcome(facts, "aeo.schema_required_valid")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert ev.evidence["extraction"] == "microdata_shallow"
+    # JSON-LD blocks (full extraction) never carry the marker, even on fail.
+    jsonld_block = {
+        "type": "Product",
+        "syntax": "json-ld",
+        "name": "Widget",
+        "props_present": ["name"],
+    }
+    facts = _html_facts(page_type="product", structured_data=_sd([jsonld_block]))
+    ev = _outcome(facts, "aeo.schema_required_valid")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert "extraction" not in ev.evidence
 
 
 def test_schema_recommended_present_not_applicable_when_none_recommended():

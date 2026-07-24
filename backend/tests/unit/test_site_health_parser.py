@@ -14,7 +14,11 @@ from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
     validate_microdata_types,
 )
-from app.core.config.site_health import EXTRACTOR_VERSION, site_health_settings
+from app.core.config.site_health import (
+    ANSWER_FIRST_MAX_HOPS,
+    EXTRACTOR_VERSION,
+    site_health_settings,
+)
 
 _FULL_PAGE = b"""
 <html>
@@ -394,6 +398,24 @@ def test_outbound_domains_sorted_deduped_external_only():
     assert facts["outbound_domains"] == ["docs.example.org", "external.org"]
 
 
+def test_outbound_domains_exclude_same_registrable_domain():
+    # www / apex / sibling subdomains of the page's own site are the SAME
+    # site, never citations — only genuinely external hosts count.
+    body = (
+        b"<html><body><p>x</p>"
+        b'<a href="https://www.example.com/y">www subdomain</a>'
+        b'<a href="https://example.com/z">apex</a>'
+        b'<a href="https://blog.example.com/w">sibling subdomain</a>'
+        b'<a href="https://external.org/x">external</a>'
+        b"</body></html>"
+    )
+    facts = _facts(body, final_url="https://example.com/widgets")
+    assert facts["outbound_domains"] == ["external.org"]
+    # And from the www host's perspective, apex is same-site too.
+    facts = _facts(body, final_url="https://www.example.com/widgets")
+    assert facts["outbound_domains"] == ["external.org"]
+
+
 def test_landmarks_detected():
     facts = _facts(_V2_PAGE)
     assert facts["landmarks"] == {"main": True, "article": True, "nav": True}
@@ -421,6 +443,47 @@ def test_first_answer_text_is_first_block_after_first_heading():
     assert _facts(b"<html><body><p>x</p></body></html>")["first_answer_text"] == ""
 
 
+def test_first_answer_text_container_wrapped_heading():
+    # Regression (review MAJOR-1): an h1 wrapped in its own container has no
+    # following siblings — the bounded document-order walk past the parent
+    # must still find the answer block.
+    body = (
+        b"<html><body>"
+        b"<header><h1>Widget Guide</h1></header>"
+        b"<main><p>The answer paragraph lives right here.</p></main>"
+        b"</body></html>"
+    )
+    assert _facts(body)["first_answer_text"] == (
+        "The answer paragraph lives right here."
+    )
+
+
+def test_first_answer_text_walk_skips_script_subtrees():
+    # The document-order walk never returns script/style bodies as "answers".
+    body = (
+        b"<html><body>"
+        b"<header><h1>Widget Guide</h1></header>"
+        b"<script>var notAnAnswer = true;</script>"
+        b"<main><p>Real answer text after the script.</p></main>"
+        b"</body></html>"
+    )
+    assert _facts(body)["first_answer_text"] == (
+        "Real answer text after the script."
+    )
+
+
+def test_first_answer_text_hop_bound_gives_up():
+    # More elements than the config hop bound between the wrapped heading and
+    # the first content block -> empty (bounded, deterministic).
+    empties = "<div></div>" * (ANSWER_FIRST_MAX_HOPS + 2)
+    body = (
+        b"<html><body><header><h1>Widget Guide</h1></header>"
+        + empties.encode()
+        + b"<main><p>Too far away to be the answer.</p></main></body></html>"
+    )
+    assert _facts(body)["first_answer_text"] == ""
+
+
 def test_inline_script_chars_count_srcless_scripts_only():
     # Only the src-less <script> body counts; the src script contributes 0.
     body = (
@@ -431,10 +494,27 @@ def test_inline_script_chars_count_srcless_scripts_only():
     )
     assert _facts(body)["inline_script_chars"] == len("var a = 1;")
     assert _facts(b"<html><body><p>x</p></body></html>")["inline_script_chars"] == 0
-    # The richer page's inline scripts (JSON-LD + inline app script) count.
-    assert _facts(_V2_PAGE)["inline_script_chars"] > len(
+    # The richer page's inline JS app script counts exactly — its JSON-LD
+    # block is data, not JS, and contributes nothing.
+    assert _facts(_V2_PAGE)["inline_script_chars"] == len(
         'var appState = {"boot": true};'
     )
+
+
+def test_inline_script_chars_skip_non_js_types():
+    # JSON-LD / importmap / template bodies never count; JS MIME types and
+    # type-less scripts do.
+    body = (
+        b"<html><body><p>x</p>"
+        b'<script type="application/ld+json">{"@type":"WebPage","name":"x"}</script>'
+        b'<script type="importmap">{"imports":{}}</script>'
+        b"<script>var js = 1;</script>"
+        b'<script type="module">export const m = 1;</script>'
+        b'<script type="text/javascript">var tj = 1;</script>'
+        b"</body></html>"
+    )
+    expected = len("var js = 1;") + len("export const m = 1;") + len("var tj = 1;")
+    assert _facts(body)["inline_script_chars"] == expected
 
 
 def test_expand_gated_ratio_counts_collapsed_subtrees():

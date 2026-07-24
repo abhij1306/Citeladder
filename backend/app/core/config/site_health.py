@@ -406,6 +406,10 @@ AI_CRAWLER_STANCE_BLOCK: Final = "block"
 # Safe per-task error tokens (never persist raw bodies/sensitive headers)
 # =========================================================================
 ERROR_ROBOTS_DENIED: Final = "robots_denied"
+# robots.txt answered 5xx: RFC 9309 treats this as a complete (temporary)
+# disallow. Distinct from a real disallow so the UI can say "robots
+# unavailable" instead of "blocked by robots rules".
+ERROR_ROBOTS_UNAVAILABLE: Final = "robots_unavailable"
 ERROR_DNS_RESOLUTION_FAILED: Final = "dns_resolution_failed"
 ERROR_SSRF_BLOCKED: Final = "ssrf_blocked"
 ERROR_REDIRECT_LIMIT: Final = "redirect_limit"
@@ -419,6 +423,7 @@ ERROR_MALFORMED_RESPONSE: Final = "malformed_response"
 SITE_FETCH_ERROR_TOKENS: Final[frozenset[str]] = frozenset(
     {
         ERROR_ROBOTS_DENIED,
+        ERROR_ROBOTS_UNAVAILABLE,
         ERROR_DNS_RESOLUTION_FAILED,
         ERROR_SSRF_BLOCKED,
         ERROR_REDIRECT_LIMIT,
@@ -438,6 +443,7 @@ SITE_FETCH_ERROR_TOKENS: Final[frozenset[str]] = frozenset(
 POLICY_BLOCKING_ERROR_CODES: Final[frozenset[str]] = frozenset(
     {
         ERROR_ROBOTS_DENIED,
+        ERROR_ROBOTS_UNAVAILABLE,
         ERROR_SSRF_BLOCKED,
     }
 )
@@ -589,7 +595,7 @@ PAGE_TYPE_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
 # wins. All token tables, patterns, and thresholds live here.
 #
 # FAQ: question-form heading ratio over the bounded h2 + h3 texts (spec
-# §5.1; h3 texts arrive with the P2 sh-extractor-2). A heading is
+# §5.1; h3 texts are extracted since sh-extractor-2). A heading is
 # question-form when it ends with "?" or starts with a question word.
 PAGE_TYPE_QUESTION_WORDS: Final[frozenset[str]] = frozenset(
     {
@@ -635,8 +641,8 @@ PAGE_TYPE_CART_MARKERS: Final[frozenset[str]] = frozenset(
     }
 )
 # Article: author byline + date within a bounded prefix of the body text
-# (the v1 extractor has no author/date facts; those land with P2's
-# sh-extractor-2, at which point this heuristic can read structured facts).
+# (the sh-extractor-2 author/date facts exist too, but this heuristic keeps
+# reading the visible body text — byline+date co-location is the signal).
 PAGE_TYPE_ARTICLE_SCAN_CHARS: Final = 2000
 PAGE_TYPE_BYLINE_PATTERN: Final = (
     r"\b[Bb]y\s+[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){1,2}\b"
@@ -653,10 +659,9 @@ PAGE_TYPE_DATE_PATTERN: Final = (
 # URL/content type wins and the schema-suggested type is recorded in the
 # evidence instead, so the schema's claim about the page can never decide
 # the page's type (which would make type-expected-schema rules circular).
-# NOTE: the sh-extractor-1 parser only records the 7
-# STRUCTURED_DATA_REQUIRED_PROPERTIES types into facts["structured_data"]["types"],
-# so BlogPosting / NewsArticle / TechArticle below cannot fire until the P2
-# extractor bump widens recognition — they are forward-looking, not dormant bugs.
+# NOTE: the sh-extractor-2 parser recognizes the full
+# STRUCTURED_DATA_RECOGNIZED_TYPES set into
+# facts["structured_data"]["types"], so every type below can fire.
 PAGE_TYPE_SCHEMA_TYPE_MAP: Final[dict[str, str]] = {
     "Article": PAGE_TYPE_ARTICLE,
     "BlogPosting": PAGE_TYPE_ARTICLE,
@@ -1469,11 +1474,29 @@ TTFB_WARN_MS: Final = 800
 RENDER_BLOCKING_MAX_RESOURCES: Final = 2
 # aeo.answer_first: minimum words in the first block under the first heading.
 ANSWER_FIRST_MIN_WORDS: Final = 10
+# aeo.answer_first: element hops the extractor may walk PAST the first
+# heading's parent when the heading is wrapped in its own container (e.g.
+# <header><h1/></header><main><p>answer</p></main>) — the first non-empty
+# block-level text within this many following elements is the answer.
+ANSWER_FIRST_MAX_HOPS: Final = 8
 # aeo.no_expand_gating: maximum fraction of body words behind click-to-expand.
 EXPAND_GATED_MAX_RATIO: Final = 0.5
 # aeo.server_rendered_content: below this body word count AND a script-dominated
 # document, the page reads as a JS shell.
 SERVER_RENDERED_MIN_WORDS: Final = 20
+# aeo.server_rendered_content: <script type> values counted as JavaScript for
+# the script-domination heuristic (an omitted type attribute is always JS per
+# HTML spec; JSON-LD / importmap / template blocks are NOT JS and never count).
+INLINE_SCRIPT_JAVASCRIPT_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        "module",
+        "text/javascript",
+        "application/javascript",
+        "text/ecmascript",
+        "application/ecmascript",
+        "text/jscript",
+    }
+)
 # aeo.question_headings passes when the question-form h2/h3 ratio exceeds this.
 QUESTION_HEADINGS_MIN_RATIO: Final = 0.0
 # Social/UGC hosts that do NOT count as outbound citations (spec §5.3:
@@ -1636,6 +1659,9 @@ class SiteHealthSettings(BaseSettings):
     # page-fetch cap: these files are small; anything larger is abuse/error).
     robots_max_decoded_bytes: int = 512_000
     llms_txt_max_decoded_bytes: int = 262_144
+    # How long a cached per-authority robots policy stays fresh before the
+    # worker re-fetches it (RFC 9309 caching guidance is ~24h).
+    robots_cache_ttl_seconds: float = 86_400.0
 
     # --- Parser bounds (bounded, deterministic extraction) ---
     max_links_per_page: int = 2000

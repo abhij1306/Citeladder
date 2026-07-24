@@ -23,7 +23,7 @@ from app.core.config.site_health import site_health_settings
 class RobotsPolicy:
     """A parsed robots policy for one host, evaluated for a fixed user-agent."""
 
-    __slots__ = ("_parser", "_user_agent", "_allow_all")
+    __slots__ = ("_parser", "_user_agent", "_allow_all", "_deny_all")
 
     def __init__(
         self,
@@ -31,15 +31,28 @@ class RobotsPolicy:
         *,
         user_agent: str,
         allow_all: bool = False,
+        deny_all: bool = False,
     ) -> None:
         self._parser = parser
         self._user_agent = user_agent
         self._allow_all = allow_all
+        self._deny_all = deny_all
 
     @classmethod
     def allow_all(cls, *, user_agent: str) -> RobotsPolicy:
         """A fail-open policy that permits every URL (no robots restrictions)."""
         return cls(None, user_agent=user_agent, allow_all=True)
+
+    @classmethod
+    def deny_all(cls, *, user_agent: str) -> RobotsPolicy:
+        """A deny-everything policy (RFC 9309: a 5xx robots.txt response is a
+        complete, temporary disallow)."""
+        return cls(None, user_agent=user_agent, deny_all=True)
+
+    @property
+    def unavailable(self) -> bool:
+        """Whether this policy is the 5xx temporary-disallow stance."""
+        return self._deny_all
 
     @classmethod
     def parse(cls, body: str | bytes, *, user_agent: str) -> RobotsPolicy:
@@ -57,6 +70,8 @@ class RobotsPolicy:
         return cls(parser, user_agent=user_agent)
 
     def can_fetch(self, url: str) -> bool:
+        if self._deny_all:
+            return False
         if self._allow_all or self._parser is None:
             return True
         try:

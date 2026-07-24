@@ -31,6 +31,11 @@ from app.core.config.site_health import (
 _MAX_EVIDENCE_URLS = 10
 
 
+def _bounded_urls(urls: list[str]) -> list[str]:
+    """The bounded, JSON-safe evidence form of a URL list."""
+    return [str(url)[:2048] for url in urls[:_MAX_EVIDENCE_URLS]]
+
+
 def _catalog_rule(rule_id: str) -> SiteHealthRule:
     """The catalog entry for a finalize rule (a missing entry is a hard bug)."""
     rule = rule_for(rule_id)
@@ -69,7 +74,6 @@ def evaluate_broken_internal_link(
         return _evaluation(
             rule, RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_internal_links"}
         )
-    bounded_broken = [str(url)[:2048] for url in broken_urls[:_MAX_EVIDENCE_URLS]]
     outcome = RULE_OUTCOME_FAIL if broken_urls else RULE_OUTCOME_PASS
     return _evaluation(
         rule,
@@ -77,7 +81,7 @@ def evaluate_broken_internal_link(
         {
             "checked_count": int(checked_count),
             "broken_count": len(broken_urls),
-            "broken_urls": bounded_broken,
+            "broken_urls": _bounded_urls(broken_urls),
         },
     )
 
@@ -98,7 +102,6 @@ def evaluate_sitemap_orphan(
         return _evaluation(
             rule, RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_sitemap"}
         )
-    bounded_orphans = [str(url)[:2048] for url in orphan_urls[:_MAX_EVIDENCE_URLS]]
     outcome = RULE_OUTCOME_FAIL if orphan_urls else RULE_OUTCOME_PASS
     return _evaluation(
         rule,
@@ -106,7 +109,7 @@ def evaluate_sitemap_orphan(
         {
             "sitemap_url_count": int(sitemap_url_count),
             "orphan_count": len(orphan_urls),
-            "orphan_urls": bounded_orphans,
+            "orphan_urls": _bounded_urls(orphan_urls),
         },
     )
 
@@ -143,9 +146,6 @@ def evaluate_hreflang_conflict(
                 "unchecked_count": int(unchecked_count),
             },
         )
-    bounded_missing = [
-        str(url)[:2048] for url in missing_return_tags[:_MAX_EVIDENCE_URLS]
-    ]
     outcome = RULE_OUTCOME_FAIL if missing_return_tags else RULE_OUTCOME_PASS
     return _evaluation(
         rule,
@@ -154,6 +154,6 @@ def evaluate_hreflang_conflict(
             "alternate_count": int(alternate_count),
             "checked_count": int(checked_count),
             "unchecked_count": int(unchecked_count),
-            "missing_return_tags": bounded_missing,
+            "missing_return_tags": _bounded_urls(missing_return_tags),
         },
     )
