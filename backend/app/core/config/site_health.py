@@ -317,6 +317,8 @@ FETCH_PURPOSE_ANALYZE: Final = "analyze"
 FETCH_PURPOSE_LINK_CHECK: Final = "link_check"
 FETCH_PURPOSE_ROBOTS: Final = "robots"
 FETCH_PURPOSE_SITEMAP: Final = "sitemap"
+# v2 P2: the llms.txt probe at the site root (site_root rules / site_facts).
+FETCH_PURPOSE_LLMS: Final = "llms"
 
 # =========================================================================
 # Rule dimensions / outcomes / severities / categories
@@ -360,6 +362,45 @@ CATEGORY_STRUCTURED_DATA: Final = "structured_data"
 CATEGORY_PERFORMANCE: Final = "performance"
 CATEGORY_LINKS: Final = "links"
 CATEGORY_SECURITY: Final = "security"
+# v2 P2 (spec §5.3): the one new rule category — citability signals (author /
+# dates / outbound citations / organization identity).
+CATEGORY_CITABILITY: Final = "citability"
+
+# =========================================================================
+# Rule applicability scope tokens (v2 P2 — spec §5.2/§5.3)
+# =========================================================================
+# ``always`` / ``has_html`` / ``page_type:<type>`` stay per-page. ``site_root``
+# rules evaluate exactly once per crawl inside the ROOT URL's own analysis
+# (applicable only when the worker injected ``facts["site"]`` from the crawl's
+# ``site_facts``). ``crawl_finalize`` rules are never applicable in the
+# per-page pass; the finalize-writer in ``_reconcile_crawl_status`` owns their
+# evaluation rows (single-writer per rule scope).
+APPLICABILITY_SITE_ROOT: Final = "site_root"
+APPLICABILITY_CRAWL_FINALIZE: Final = "crawl_finalize"
+
+# =========================================================================
+# Site setup fetch targets + AI-crawler stance (v2 P2 — spec §5.3)
+# =========================================================================
+# The crawler's own user-agent (also the SecureFetcher default) — robots.txt
+# policy is evaluated for this identity.
+SITE_HEALTH_USER_AGENT: Final = "SearchifySiteHealthBot/1.0 (+https://searchify)"
+# Well-known paths probed once per crawl during the root discover task.
+ROBOTS_TXT_PATH: Final = "/robots.txt"
+LLMS_TXT_PATH: Final = "/llms.txt"
+# Default sitemap probe paths when robots.txt declares no Sitemap directive.
+SITEMAP_DEFAULT_PATHS: Final[tuple[str, ...]] = ("/sitemap.xml",)
+# The AI crawlers whose robots.txt stance the ``technical.ai_crawler_access``
+# rule reports on (spec §5.3; Cloudflare made AI-bot blocking the default for
+# new domains in July 2025, so an explicit allow matters).
+AI_CRAWLER_BOTS: Final[tuple[str, ...]] = (
+    "GPTBot",
+    "ClaudeBot",
+    "PerplexityBot",
+    "Google-Extended",
+)
+# Stance tokens recorded per bot in ``site_facts.robots.ai_crawlers``.
+AI_CRAWLER_STANCE_ALLOW: Final = "allow"
+AI_CRAWLER_STANCE_BLOCK: Final = "block"
 
 # =========================================================================
 # Safe per-task error tokens (never persist raw bodies/sensitive headers)
@@ -428,12 +469,16 @@ EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 # every derived row (facts, evaluations, issues, scores) is traceable to the
 # exact rules that produced it (invariant 4). Each version is bumped by
 # exactly one v2 phase (docs/roadmap/site-health-v2-page-aware.md §6): P1
-# bumped ANALYZER/SCORING and introduced CLASSIFIER; RULE_CATALOG stays
-# sh-rules-1 (no rule-set change in P1) and EXTRACTOR stays sh-extractor-1
-# (the worker injects page_type into facts; the extractor is unchanged).
-EXTRACTOR_VERSION: Final = "sh-extractor-1"
+# bumped ANALYZER/SCORING and introduced CLASSIFIER; P2 bumps EXTRACTOR (new
+# bounded fact fields: author/dates/outbound_domains/landmarks/
+# question_heading_ratio/expand_gated_ratio/hreflang_alternates/
+# first_answer_text/inline_script_chars/h3 texts, plus wider structured-data
+# recognition) and RULE_CATALOG (the expanded 33-rule sh-rules-2 catalog);
+# SCORING stays sh-scoring-2 (formula unchanged; weight-0 rules score through
+# the existing formula) and CLASSIFIER stays sh-classifier-1.
+EXTRACTOR_VERSION: Final = "sh-extractor-2"
 ANALYZER_VERSION: Final = "sh-analyzer-2"
-RULE_CATALOG_VERSION: Final = "sh-rules-1"
+RULE_CATALOG_VERSION: Final = "sh-rules-2"
 SCORING_VERSION: Final = "sh-scoring-2"
 CLASSIFIER_VERSION: Final = "sh-classifier-1"
 
@@ -543,8 +588,8 @@ PAGE_TYPE_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
 # (faq -> product -> article, per the spec table); first matched heuristic
 # wins. All token tables, patterns, and thresholds live here.
 #
-# FAQ: question-form heading ratio over the bounded h2 texts the v1
-# extractor captures (h3 texts arrive with the P2 extractor). A heading is
+# FAQ: question-form heading ratio over the bounded h2 + h3 texts (spec
+# §5.1; h3 texts arrive with the P2 sh-extractor-2). A heading is
 # question-form when it ends with "?" or starts with a question word.
 PAGE_TYPE_QUESTION_WORDS: Final[frozenset[str]] = frozenset(
     {
@@ -651,9 +696,11 @@ class PageTypeProfile:
     The profile key doubles as the rule ``applicability_key`` token this
     page type answers to (``page_type:<type>`` — unknown tokens stay
     fail-closed in the evaluator). ``min_sufficient_words`` is the per-type
-    thin-content minimum read by ``aeo.sufficient_text`` (the v1 global
+    thin-content minimum read by ``technical.thin_content`` (the v1 global
     ``MIN_SUFFICIENT_WORDS`` analysis constant moved here in v2 — invariant
-    1). ``rule_weight_overrides`` maps ``rule_id -> weight`` resolved at
+    1; the check itself moved from ``aeo.sufficient_text`` to
+    ``technical.thin_content`` in the sh-rules-2 catalog, spec §5.3).
+    ``rule_weight_overrides`` maps ``rule_id -> weight`` resolved at
     evaluation time; sparse by design.
     """
 
@@ -681,11 +728,11 @@ class PageTypeProfile:
 # overrides start sparse (the mechanism is exercised at evaluation time).
 PAGE_TYPE_PROFILES: Final[dict[str, PageTypeProfile]] = {
     # Homepages are naturally link-heavy/thin; a lower minimum and a
-    # reduced sufficient-text weight keep them from reading as thin.
+    # reduced thin-content weight keep them from reading as thin.
     PAGE_TYPE_HOMEPAGE: PageTypeProfile(
         page_type=PAGE_TYPE_HOMEPAGE,
         min_sufficient_words=40,
-        rule_weight_overrides={"aeo.sufficient_text": 1.0},
+        rule_weight_overrides={"technical.thin_content": 1.0},
     ),
     PAGE_TYPE_ARTICLE: PageTypeProfile(
         page_type=PAGE_TYPE_ARTICLE, min_sufficient_words=300
@@ -708,6 +755,116 @@ PAGE_TYPE_PROFILES: Final[dict[str, PageTypeProfile]] = {
         page_type=PAGE_TYPE_OTHER, min_sufficient_words=100
     ),
 }
+
+
+class PageTypeSchemaExpectation:
+    """Per-page-type expected structured-data contract (frozen, config-owned).
+
+    ``expected_types`` are the schema.org types a page of this type should
+    carry (any one of them satisfies ``aeo.schema_expected_for_type``);
+    ``required_properties`` / ``recommended_properties`` are the property
+    paths (dotted for one-level nesting, e.g. ``offers.price``) validated by
+    ``aeo.schema_required_valid`` / ``aeo.schema_recommended_present``
+    (spec §5.2). Property presence is checked against the extractor's
+    bounded ``props_present`` per structured-data block.
+    """
+
+    __slots__ = (
+        "page_type",
+        "expected_types",
+        "required_properties",
+        "recommended_properties",
+    )
+
+    def __init__(
+        self,
+        *,
+        page_type: str,
+        expected_types: tuple[str, ...],
+        required_properties: tuple[str, ...],
+        recommended_properties: tuple[str, ...],
+    ) -> None:
+        self.page_type = page_type
+        self.expected_types = expected_types
+        self.required_properties = required_properties
+        self.recommended_properties = recommended_properties
+
+
+# Per-type expected schema.org types + required/recommended property splits
+# (spec §5.2 table, verbatim). Extends — never replaces — the v1
+# presence-only ``STRUCTURED_DATA_REQUIRED_PROPERTIES`` map below.
+PAGE_TYPE_EXPECTED_SCHEMA: Final[dict[str, PageTypeSchemaExpectation]] = {
+    PAGE_TYPE_HOMEPAGE: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_HOMEPAGE,
+        expected_types=("Organization", "WebSite"),
+        required_properties=("name", "url"),
+        recommended_properties=("sameAs", "logo"),
+    ),
+    PAGE_TYPE_ARTICLE: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_ARTICLE,
+        expected_types=("Article", "BlogPosting", "NewsArticle"),
+        required_properties=("headline", "author", "datePublished"),
+        recommended_properties=("image", "dateModified"),
+    ),
+    PAGE_TYPE_PRODUCT: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_PRODUCT,
+        expected_types=("Product",),
+        required_properties=("name", "offers"),
+        recommended_properties=(
+            "offers.price",
+            "offers.priceCurrency",
+            "aggregateRating",
+        ),
+    ),
+    PAGE_TYPE_CATEGORY: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_CATEGORY,
+        expected_types=("BreadcrumbList", "CollectionPage", "ItemList"),
+        required_properties=("itemListElement",),
+        recommended_properties=(),
+    ),
+    PAGE_TYPE_PRICING: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_PRICING,
+        expected_types=("Product", "Service"),
+        required_properties=("offers",),
+        recommended_properties=("price", "priceCurrency"),
+    ),
+    PAGE_TYPE_DOCS: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_DOCS,
+        expected_types=("TechArticle",),
+        required_properties=("headline",),
+        recommended_properties=("author", "dateModified"),
+    ),
+    PAGE_TYPE_FAQ: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_FAQ,
+        expected_types=("FAQPage",),
+        required_properties=("mainEntity",),
+        recommended_properties=(),
+    ),
+    PAGE_TYPE_ABOUT_CONTACT: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_ABOUT_CONTACT,
+        expected_types=("Organization", "LocalBusiness", "ContactPage"),
+        required_properties=("name",),
+        recommended_properties=("contactPoint", "address"),
+    ),
+    PAGE_TYPE_OTHER: PageTypeSchemaExpectation(
+        page_type=PAGE_TYPE_OTHER,
+        expected_types=("WebPage",),
+        required_properties=("name",),
+        recommended_properties=(),
+    ),
+}
+
+# Every property path (incl. dotted one-level paths like ``offers.price``)
+# any expectation references. The extractor records per-block presence of
+# exactly this bounded set as ``props_present``, so the schema rules never
+# re-walk raw JSON-LD at evaluation time.
+SCHEMA_PROPERTY_PATHS: Final[frozenset[str]] = frozenset(
+    path
+    for expectation in PAGE_TYPE_EXPECTED_SCHEMA.values()
+    for path in (
+        expectation.required_properties + expectation.recommended_properties
+    )
+)
 
 # =========================================================================
 # Deterministic scoring weights (config-owned)
@@ -771,9 +928,16 @@ class SiteHealthRule:
         self.display_label = display_label or rule_id
 
 
-# The rule catalog. Task 5 evaluates these; defined here so the catalog has one
-# owner and a stable version. This is an initial representative set covering
-# both dimensions; later tasks extend it (bumping ``RULE_CATALOG_VERSION``).
+# The rule catalog (sh-rules-2 — v2 P2, spec §5.3). Defined here so the
+# catalog has one owner and a stable version (invariant 1). The v1 set is kept
+# with one deliberate rename: ``aeo.sufficient_text`` became
+# ``technical.thin_content`` — the per-type-minimum word-count check belongs
+# to the technical/content row of the spec table, and keeping both ids would
+# double-penalize one signal in two dimensions. New in sh-rules-2:
+# site_root scope (AI-crawler access, llms.txt), per-type schema validity,
+# citability, extractability, and hygiene rules, plus the weight-0
+# crawl_finalize trio (broken internal links, sitemap orphans, hreflang
+# reciprocity) whose rows the finalize-writer owns.
 SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     SiteHealthRule(
         rule_id="technical.title_present",
@@ -871,17 +1035,387 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         remediation="Add og:title and og:description meta tags.",
         display_label="Missing Open Graph metadata",
     ),
+    # --- v2 P2: hygiene (per-page) ----------------------------------------
     SiteHealthRule(
-        rule_id="aeo.sufficient_text",
+        rule_id="technical.thin_content",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_MEDIUM,
+        weight=2.0,
+        applicability_key="has_html",
+        description=(
+            "Word count is below the per-page-type minimum "
+            "(PAGE_TYPE_PROFILES)."
+        ),
+        remediation="Add substantive, answer-oriented body content to the page.",
+        display_label="Thin content",
+    ),
+    SiteHealthRule(
+        rule_id="technical.canonical_conflict",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_INDEXABILITY,
+        severity=SEVERITY_MEDIUM,
+        weight=1.5,
+        applicability_key="has_html",
+        description="Declared canonical URL differs from the final fetched URL.",
+        remediation=(
+            "Point the canonical at the page's final URL (or redirect the "
+            "canonical target consistently)."
+        ),
+        display_label="Canonical URL conflict",
+    ),
+    SiteHealthRule(
+        rule_id="technical.title_length_band",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_METADATA,
+        severity=SEVERITY_LOW,
+        weight=1.0,
+        applicability_key="has_html",
+        description="Title length falls inside the recommended band (30-60 chars).",
+        remediation="Rewrite the <title> to roughly 30-60 characters.",
+        display_label="Title length outside recommended band",
+    ),
+    SiteHealthRule(
+        rule_id="technical.meta_description_length_band",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_METADATA,
+        severity=SEVERITY_LOW,
+        weight=1.0,
+        applicability_key="has_html",
+        description=(
+            "Meta description length falls inside the recommended band "
+            "(70-160 chars)."
+        ),
+        remediation="Rewrite the meta description to roughly 70-160 characters.",
+        display_label="Meta description length outside recommended band",
+    ),
+    SiteHealthRule(
+        rule_id="technical.hsts_present",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_SECURITY,
+        severity=SEVERITY_LOW,
+        weight=1.0,
+        applicability_key="always",
+        description="Response sends a Strict-Transport-Security header.",
+        remediation=(
+            "Serve Strict-Transport-Security on HTTPS responses to enforce "
+            "secure transport."
+        ),
+        display_label="Missing HSTS header",
+    ),
+    SiteHealthRule(
+        rule_id="technical.ttfb_band",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_PERFORMANCE,
+        severity=SEVERITY_LOW,
+        weight=1.0,
+        applicability_key="always",
+        description="Time to first byte is within the recommended band (<= 800 ms).",
+        remediation="Reduce server response time (caching, CDN, faster origin).",
+        display_label="Slow time to first byte",
+    ),
+    SiteHealthRule(
+        rule_id="technical.uncompressed_html",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_PERFORMANCE,
+        severity=SEVERITY_LOW,
+        weight=1.0,
+        applicability_key="always",
+        description="HTML response is served compressed (gzip/deflate/br).",
+        remediation="Enable gzip or brotli compression for HTML responses.",
+        display_label="HTML served uncompressed",
+    ),
+    SiteHealthRule(
+        rule_id="technical.render_blocking",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_PERFORMANCE,
+        severity=SEVERITY_LOW,
+        weight=1.0,
+        applicability_key="has_html",
+        description=(
+            "Synchronous scripts + stylesheets stay under the render-blocking "
+            "resource limit."
+        ),
+        remediation=(
+            "Defer/async non-critical scripts and reduce render-blocking "
+            "stylesheets."
+        ),
+        display_label="Too many render-blocking resources",
+    ),
+    # --- v2 P2: site_root scope (evaluated once per crawl, weight 0) -------
+    SiteHealthRule(
+        rule_id="technical.ai_crawler_access",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_INDEXABILITY,
+        severity=SEVERITY_HIGH,
+        weight=0.0,
+        applicability_key=APPLICABILITY_SITE_ROOT,
+        description=(
+            "robots.txt does not block the major AI crawlers (GPTBot, "
+            "ClaudeBot, PerplexityBot, Google-Extended)."
+        ),
+        remediation=(
+            "Allow the AI crawlers you want citing your content in robots.txt "
+            "(check CDN-managed default bot blocks)."
+        ),
+        display_label="AI crawlers blocked by robots.txt",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.llms_txt_present",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CITABILITY,
+        severity=SEVERITY_LOW,
+        weight=0.0,
+        applicability_key=APPLICABILITY_SITE_ROOT,
+        description="Site serves an llms.txt file at the root.",
+        remediation=(
+            "Publish /llms.txt summarizing the site for AI answer engines."
+        ),
+        display_label="Missing llms.txt",
+    ),
+    # --- v2 P2: per-type schema validity (per-page) -------------------------
+    SiteHealthRule(
+        rule_id="aeo.schema_expected_for_type",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_STRUCTURED_DATA,
+        severity=SEVERITY_HIGH,
+        weight=3.0,
+        applicability_key="has_html",
+        description=(
+            "Structured data includes a schema.org type expected for the "
+            "classified page type."
+        ),
+        remediation=(
+            "Add the expected schema.org type for this page type "
+            "(PAGE_TYPE_EXPECTED_SCHEMA)."
+        ),
+        display_label="Missing expected schema type for page type",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.schema_required_valid",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_STRUCTURED_DATA,
+        severity=SEVERITY_HIGH,
+        weight=3.0,
+        applicability_key="has_html",
+        description=(
+            "Expected-type structured data carries every required property "
+            "for the page type."
+        ),
+        remediation="Add the missing required properties to the schema markup.",
+        display_label="Required schema properties missing",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.schema_recommended_present",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_STRUCTURED_DATA,
+        severity=SEVERITY_LOW,
+        weight=0.5,
+        applicability_key="has_html",
+        description=(
+            "Expected-type structured data carries the recommended properties "
+            "for the page type."
+        ),
+        remediation=(
+            "Add the recommended properties to strengthen the schema markup."
+        ),
+        display_label="Recommended schema properties missing",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.schema_matches_content",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_STRUCTURED_DATA,
+        severity=SEVERITY_MEDIUM,
+        weight=1.5,
+        applicability_key="has_html",
+        description=(
+            "Structured-data names match the visible <title>/h1 content "
+            "(bounded cross-check)."
+        ),
+        remediation=(
+            "Align schema name/headline values with the visible page content."
+        ),
+        display_label="Schema markup does not match visible content",
+    ),
+    # --- v2 P2: citability (per-page) ---------------------------------------
+    SiteHealthRule(
+        rule_id="aeo.author_present",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CITABILITY,
+        severity=SEVERITY_MEDIUM,
+        weight=1.5,
+        applicability_key="has_html",
+        description="Page exposes an author byline (schema, meta, or article:author).",
+        remediation="Add an author byline (JSON-LD author or meta name=author).",
+        display_label="Missing author byline",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.date_present",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CITABILITY,
+        severity=SEVERITY_MEDIUM,
+        weight=1.5,
+        applicability_key="has_html",
+        description="Page exposes a published or modified date.",
+        remediation=(
+            "Add machine-readable dates (JSON-LD datePublished/dateModified, "
+            "article:published_time, or <time datetime>)."
+        ),
+        display_label="Missing published/modified date",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.outbound_citations",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CITABILITY,
+        severity=SEVERITY_LOW,
+        weight=1.0,
+        applicability_key="has_html",
+        description="Page links out to at least one non-social external domain.",
+        remediation="Cite authoritative external sources relevant to the content.",
+        display_label="No outbound citations",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.organization_identity",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CITABILITY,
+        severity=SEVERITY_MEDIUM,
+        weight=1.0,
+        applicability_key=f"{PAGE_TYPE_APPLICABILITY_PREFIX}{PAGE_TYPE_HOMEPAGE}",
+        description="Homepage Organization markup carries sameAs identity links.",
+        remediation=(
+            "Add sameAs links (official profiles) to the homepage Organization "
+            "schema."
+        ),
+        display_label="Missing organization identity links",
+    ),
+    # --- v2 P2: extractability (per-page) -----------------------------------
+    SiteHealthRule(
+        rule_id="aeo.answer_first",
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
         weight=2.0,
         applicability_key="has_html",
-        description="Page has enough extractable body text to answer queries.",
-        remediation="Add substantive, answer-oriented body content to the page.",
-        display_label="Insufficient page text",
+        description=(
+            "The first block under the first heading is a substantive "
+            "answer/definitional paragraph."
+        ),
+        remediation=(
+            "Open each section with a direct answer before elaborating."
+        ),
+        display_label="No answer-first content structure",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.question_headings",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_LOW,
+        weight=1.0,
+        applicability_key="has_html",
+        description="Page uses question-form h2/h3 headings.",
+        remediation="Phrase section headings as the questions users ask.",
+        display_label="No question-form headings",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.server_rendered_content",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_HIGH,
+        weight=2.0,
+        applicability_key="has_html",
+        description=(
+            "Key text is present in the server-rendered HTML (not a "
+            "script-only shell)."
+        ),
+        remediation=(
+            "Server-render or pre-render primary content so crawlers can "
+            "extract it without executing JavaScript."
+        ),
+        display_label="Content not present in server HTML",
+    ),
+    SiteHealthRule(
+        rule_id="aeo.no_expand_gating",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_AEO,
+        category=CATEGORY_CONTENT,
+        severity=SEVERITY_MEDIUM,
+        weight=1.0,
+        applicability_key="has_html",
+        description=(
+            "Most body text is not hidden behind click-to-expand elements "
+            "(collapsed details / aria-expanded=false)."
+        ),
+        remediation=(
+            "Keep primary content visible without interaction; avoid gating "
+            "answers behind expandable sections."
+        ),
+        display_label="Content hidden behind expand controls",
+    ),
+    # --- v2 P2: crawl_finalize scope (weight 0; finalize-writer owned) ------
+    SiteHealthRule(
+        rule_id="technical.broken_internal_link",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_LINKS,
+        severity=SEVERITY_HIGH,
+        weight=0.0,
+        applicability_key=APPLICABILITY_CRAWL_FINALIZE,
+        description="Internal link targets probed by the crawl are reachable.",
+        remediation="Fix or remove links to unreachable internal targets.",
+        display_label="Broken internal links",
+    ),
+    SiteHealthRule(
+        rule_id="technical.sitemap_orphan",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_INDEXABILITY,
+        severity=SEVERITY_LOW,
+        weight=0.0,
+        applicability_key=APPLICABILITY_CRAWL_FINALIZE,
+        description=(
+            "Sitemap URLs are reachable through internal links (not "
+            "sitemap-only orphans)."
+        ),
+        remediation=(
+            "Link sitemap-listed pages from crawlable internal navigation."
+        ),
+        display_label="Sitemap orphan URLs",
+    ),
+    SiteHealthRule(
+        rule_id="technical.hreflang_conflict",
+        rule_version=RULE_CATALOG_VERSION,
+        dimension=DIMENSION_TECHNICAL,
+        category=CATEGORY_INDEXABILITY,
+        severity=SEVERITY_MEDIUM,
+        weight=0.0,
+        applicability_key=APPLICABILITY_CRAWL_FINALIZE,
+        description="Hreflang alternates carry reciprocal return tags.",
+        remediation=(
+            "Add return hreflang annotations on every alternate page so "
+            "clusters are reciprocal."
+        ),
+        display_label="Hreflang return-tag conflict",
     ),
 )
 
@@ -905,6 +1439,60 @@ STRUCTURED_DATA_REQUIRED_PROPERTIES: Final[dict[str, tuple[str, ...]]] = {
     "FAQPage": ("mainEntity",),
     "BreadcrumbList": ("itemListElement",),
 }
+
+# v2 P2: every schema.org type the extractor RECOGNIZES into
+# facts["structured_data"] — the v1 required-property map's types UNION every
+# type any page-type expectation names (adds BlogPosting, NewsArticle,
+# TechArticle, Service, LocalBusiness, ContactPage, CollectionPage, ItemList).
+# Newly recognized types carry no v1 required-property contract: their blocks
+# validate with ``required=()``, ``valid=True`` (the per-type expectation
+# rules own required/recommended validation for them).
+STRUCTURED_DATA_RECOGNIZED_TYPES: Final[frozenset[str]] = frozenset(
+    STRUCTURED_DATA_REQUIRED_PROPERTIES
+) | frozenset(
+    schema_type
+    for expectation in PAGE_TYPE_EXPECTED_SCHEMA.values()
+    for schema_type in expectation.expected_types
+)
+
+# =========================================================================
+# Rule thresholds (v2 P2 — spec §5.3; config-owned, invariant 1)
+# =========================================================================
+# Length bands complementing the v1 presence rules (N/A when the field is
+# empty — presence stays owned by the v1 rules).
+TITLE_LENGTH_BAND: Final[tuple[int, int]] = (30, 60)
+META_DESCRIPTION_LENGTH_BAND: Final[tuple[int, int]] = (70, 160)
+# TTFB above this (ms) fails technical.ttfb_band.
+TTFB_WARN_MS: Final = 800
+# Synchronous scripts + stylesheets above this count fail
+# technical.render_blocking.
+RENDER_BLOCKING_MAX_RESOURCES: Final = 2
+# aeo.answer_first: minimum words in the first block under the first heading.
+ANSWER_FIRST_MIN_WORDS: Final = 10
+# aeo.no_expand_gating: maximum fraction of body words behind click-to-expand.
+EXPAND_GATED_MAX_RATIO: Final = 0.5
+# aeo.server_rendered_content: below this body word count AND a script-dominated
+# document, the page reads as a JS shell.
+SERVER_RENDERED_MIN_WORDS: Final = 20
+# aeo.question_headings passes when the question-form h2/h3 ratio exceeds this.
+QUESTION_HEADINGS_MIN_RATIO: Final = 0.0
+# Social/UGC hosts that do NOT count as outbound citations (spec §5.3:
+# "outbound links to non-social external domains").
+SOCIAL_DOMAINS: Final[frozenset[str]] = frozenset(
+    {
+        "facebook.com",
+        "twitter.com",
+        "x.com",
+        "instagram.com",
+        "linkedin.com",
+        "youtube.com",
+        "tiktok.com",
+        "pinterest.com",
+    }
+)
+# aeo.schema_matches_content: bounded candidate names cross-checked against
+# the visible <title>/h1 text.
+SCHEMA_CONTENT_MATCH_MAX_CANDIDATES: Final = 5
 
 # =========================================================================
 # Query-normalization: tracking parameters stripped during canonicalization
@@ -1038,6 +1626,16 @@ class SiteHealthSettings(BaseSettings):
     max_sitemap_index_depth: int = 3
     max_sitemap_urls: int = 50000
     max_sitemap_decoded_bytes: int = 50_000_000
+    # v2 P2 site-setup ingestion (Starter crawls): how many sitemap DOCUMENTS
+    # (index children included) one crawl fetches, and how many sitemap URLs
+    # one crawl admits into the frontier (bounded, deterministic).
+    max_sitemap_documents: int = 32
+    max_sitemap_admitted_urls: int = 5000
+    # --- Site setup fetch caps (v2 P2: robots.txt / llms.txt probes) ---
+    # Decoded-byte caps for the well-known file fetches (much tighter than the
+    # page-fetch cap: these files are small; anything larger is abuse/error).
+    robots_max_decoded_bytes: int = 512_000
+    llms_txt_max_decoded_bytes: int = 262_144
 
     # --- Parser bounds (bounded, deterministic extraction) ---
     max_links_per_page: int = 2000

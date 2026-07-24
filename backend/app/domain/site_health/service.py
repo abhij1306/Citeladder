@@ -246,6 +246,9 @@ def project_crawl(crawl: SiteCrawl) -> dict:
         ),
         "has_more_site_urls": ((not crawl.inventory_complete) if disclose else None),
         "score_summary": _score_summary(crawl),
+        # v2 P2: bounded site-level facts (robots AI-crawler stance, llms.txt,
+        # sitemap files). Contains no discovered totals — safe for Free.
+        "site_facts": crawl.site_facts or None,
         "extractor_version": crawl.extractor_version,
         "analyzer_version": crawl.analyzer_version,
         "rule_version": crawl.rule_catalog_version,

@@ -48,6 +48,7 @@ from app.core.config.site_health import (
     ERROR_TIMEOUT,
     ERROR_UNSUPPORTED_CONTENT_TYPE,
     PERSISTED_RESPONSE_HEADERS,
+    SITE_HEALTH_USER_AGENT,
     site_health_settings,
 )
 
@@ -132,7 +133,7 @@ class SecureFetcher:
         resolver: DnsResolver,
         transport: httpx.AsyncBaseTransport | None = None,
         settings=site_health_settings,
-        user_agent: str = "SearchifySiteHealthBot/1.0 (+https://searchify)",
+        user_agent: str = SITE_HEALTH_USER_AGENT,
     ) -> None:
         self._resolver = resolver
         self._settings = settings

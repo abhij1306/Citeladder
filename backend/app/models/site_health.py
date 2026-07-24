@@ -239,6 +239,12 @@ class SiteCrawl(Base):
     failed_url_count: Mapped[int] = mapped_column(Integer, default=0)
     inventory_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     score_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # v2 P2 (spec §5.5): bounded site-level facts written ONCE by the root
+    # discover task's site setup (robots.txt AI-crawler stance, llms.txt
+    # result, sitemap file list). Both the dashboard display copy and the
+    # injection source for the site_root-scoped rules (facts["site"]); it
+    # carries NO discovered totals, so Free non-disclosure is untouched.
+    site_facts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     extractor_version: Mapped[str] = mapped_column(String(32), default="")
     analyzer_version: Mapped[str] = mapped_column(String(32), default="")
     rule_catalog_version: Mapped[str] = mapped_column(String(32), default="")

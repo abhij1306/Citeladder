@@ -148,6 +148,9 @@ class CrawlResponse(_Model):
     total_url_count: int | None = None
     has_more_site_urls: bool | None = None
     score_summary: ScoreSummary | None = None
+    # v2 P2: bounded site-level facts (robots AI stance / llms.txt / sitemap
+    # files); no discovered totals inside, so it is never redacted.
+    site_facts: dict | None = None
     extractor_version: str
     analyzer_version: str
     rule_version: str

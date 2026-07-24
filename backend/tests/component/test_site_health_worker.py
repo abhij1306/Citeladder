@@ -20,6 +20,7 @@ injected fake DNS resolver + ``httpx.MockTransport`` (fully offline). Covers:
 from __future__ import annotations
 
 import asyncio
+import gzip
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -99,24 +100,35 @@ class _ByteStream(httpx.AsyncByteStream):
         return None
 
 
-def _site_transport(pages: dict[str, bytes]) -> httpx.MockTransport:
+def _site_transport(
+    pages: dict[str, bytes | tuple[bytes, dict[str, str]]],
+) -> httpx.MockTransport:
     """A mock transport serving ``pages`` (keyed by path) as text/html.
+
+    Values are either raw body bytes (served with a bare text/html content
+    type) or a ``(body, extra_headers)`` tuple for pages that need specific
+    response headers (e.g. gzip content-encoding / HSTS).
 
     Any unknown path returns 404 so an out-of-scope/absent link is a clean
     fetch failure rather than an exception.
     """
 
     def handler(request: httpx.Request) -> httpx.Response:
-        body = pages.get(request.url.path)
-        if body is None:
+        entry = pages.get(request.url.path)
+        if entry is None:
             return httpx.Response(
                 404,
                 headers={"content-type": "text/html"},
                 stream=_ByteStream(b"not found"),
             )
+        if isinstance(entry, tuple):
+            body, extra_headers = entry
+            headers = {"content-type": "text/html", **extra_headers}
+        else:
+            body, headers = entry, {"content-type": "text/html"}
         return httpx.Response(
             200,
-            headers={"content-type": "text/html"},
+            headers=headers,
             stream=_ByteStream(body),
         )
 
@@ -740,26 +752,56 @@ async def test_stolen_lease_does_not_terminalize_crawl(
 
 
 def _rich_html() -> bytes:
-    """A page that passes most rules (title, meta, canonical, single h1, og,
-    JSON-LD Organization, and >=100 words of body text)."""
+    """A page that passes most rules (in-band title + meta description,
+    canonical, single h1, og, JSON-LD WebPage + Organization, author + date
+    meta, a question heading, >=100 words of body text, one external
+    citation).
+
+    Served via :func:`_rich_page` (gzip + HSTS) it passes EVERY per-page rule
+    applicable to an ``other`` page. Note the 140-word body is deliberately
+    thin FOR AN ARTICLE (>= 300 words) so the per-type thin-content minimum
+    stays testable.
+    """
     words = " ".join(f"word{i}" for i in range(140))
     return (
         "<html><head>"
-        "<title>Rich Page</title>"
-        '<meta name="description" content="A rich descriptive page.">'
+        "<title>Rich Page - everything about Acme widgets</title>"
+        '<meta name="description" content="A rich descriptive page about Acme '
+        'widgets, their features, and pricing plans.">'
         '<link rel="canonical" href="https://example.com/rich">'
         '<meta property="og:title" content="Rich Page">'
         '<meta property="og:description" content="Rich desc">'
+        '<meta name="author" content="Jane Doe">'
+        '<meta property="article:published_time" content="2026-01-01T00:00:00Z">'
         '<script type="application/ld+json">'
-        '{"@type":"Organization","name":"Acme","url":"https://example.com"}'
+        '{"@type":"Organization","name":"Acme","url":"https://example.com",'
+        '"sameAs":["https://twitter.com/acme"],'
+        '"logo":"https://example.com/logo.png"}'
+        "</script>"
+        '<script type="application/ld+json">'
+        '{"@type":"WebPage","name":"Rich Page","url":"https://example.com/rich"}'
         "</script>"
         "</head><body>"
         "<h1>Rich Page Heading</h1>"
         f"<p>{words}</p>"
+        "<h2>What makes Acme widgets reliable?</h2>"
         '<a href="https://example.com/other">internal</a>'
         '<a href="https://external.org/x">external</a>'
         "</body></html>"
     ).encode()
+
+
+def _rich_page() -> tuple[bytes, dict[str, str]]:
+    """The rich page served the way a well-run site serves it: gzipped and
+    with HSTS, so the delivery rules (``technical.uncompressed_html`` /
+    ``technical.hsts_present``) pass too."""
+    return (
+        gzip.compress(_rich_html()),
+        {
+            "content-encoding": "gzip",
+            "strict-transport-security": "max-age=63072000; includeSubDomains",
+        },
+    )
 
 
 def _thin_html() -> bytes:
@@ -1195,7 +1237,10 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
     )
 
     seed, site_url_id, _task_id = await _seed_analyze_ready(session_factory)
-    pages = {"/rich": _rich_html()}
+    # /other is served too so the rich page's internal link checks out
+    # reachable (otherwise the finalize pass's broken_internal_link rule
+    # correctly fails + snapshots an issue).
+    pages = {"/rich": _rich_page(), "/other": _rich_html()}
     worker = _worker(session_factory, pages, owner="analyze-rich")
     await worker.run_until_idle()
 
@@ -1218,8 +1263,11 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             .select_from(SiteRuleEvaluation)
             .where(SiteRuleEvaluation.analysis_id == analysis.id)
         )
-        # One evaluation per catalog rule.
-        assert eval_count == 9
+        # 30 per-page evaluations from the analyze writer + 3 crawl_finalize
+        # evaluations from the finalize pass (broken_internal_link,
+        # sitemap_orphan, hreflang_conflict), which ran when the crawl
+        # terminalized.
+        assert eval_count == 33
 
         # A rich page passes every rule, so no issues are snapshotted.
         issue_count = await session.scalar(
@@ -1233,7 +1281,10 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
         artifact = await session.get(SiteFetchArtifact, analysis.artifact_id)
         assert artifact is not None
         assert artifact.normalized_facts is not None
-        assert artifact.normalized_facts.get("title") == "Rich Page"
+        assert (
+            artifact.normalized_facts.get("title")
+            == "Rich Page - everything about Acme widgets"
+        )
 
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
@@ -1293,21 +1344,21 @@ async def test_analyze_persists_page_type_classifier_and_v2_versions(
         assert analysis.analyzer_version == "sh-analyzer-2"
         assert analysis.scoring_version == "sh-scoring-2"
 
-        # facts["page_type"] reached rule evaluation: the sufficient-text
-        # check read the per-type (article) minimum, not the v1 global.
-        sufficient = (
+        # facts["page_type"] reached rule evaluation: the thin-content check
+        # read the per-type (article) minimum, not the v1 global.
+        thin = (
             await session.execute(
                 select(SiteRuleEvaluation).where(
                     SiteRuleEvaluation.analysis_id == analysis.id,
-                    SiteRuleEvaluation.rule_id == "aeo.sufficient_text",
+                    SiteRuleEvaluation.rule_id == "technical.thin_content",
                 )
             )
         ).scalar_one()
         article_min = PAGE_TYPE_PROFILES["article"].min_sufficient_words
-        assert sufficient.evidence["page_type"] == "article"
-        assert sufficient.evidence["minimum"] == article_min
+        assert thin.evidence["page_type"] == "article"
+        assert thin.evidence["minimum"] == article_min
         # The rich page (140 words) is thin FOR AN ARTICLE (>= 300 words).
-        assert sufficient.outcome == RULE_OUTCOME_FAIL
+        assert thin.outcome == RULE_OUTCOME_FAIL
 
         # The crawl rollup carries the per-page-type breakdown.
         crawl = await session.get(SiteCrawl, seed.crawl_id)
@@ -1344,10 +1395,10 @@ async def test_thin_page_generates_multiple_issues(
             .all()
         )
         # Thin page fails: meta description, canonical, https, single h1,
-        # structured data, open graph, sufficient text.
+        # structured data, open graph, thin content.
         assert "technical.meta_description_present" in issues
         assert "technical.canonical_present" in issues
-        assert "aeo.sufficient_text" in issues
+        assert "technical.thin_content" in issues
         assert len(issues) >= 5
 
 
@@ -2427,13 +2478,14 @@ async def test_rerun_from_completed_crawl_worker_analyzes_only_reran_url(
             CRAWL_STATUS_RUNNING,
         )
 
-    # The worker performed exactly one GET — the analyze fetch of the reran
-    # URL. It never re-crawled the site (no discover of the root and no other
+    # The worker performed exactly two GETs — the robots.txt policy fetch
+    # (v2 P2: analyze honors robots) and the analyze fetch of the reran URL.
+    # It never re-crawled the site (no discover of the root and no other
     # GET). The only other requests are the analyze task's auto-enqueued
     # link-check HEAD probes of the page's referenced links, which are
     # legitimate and target external link URLs, not a site re-crawl.
     gets = [path for method, path in requests if method == "GET"]
-    assert gets == ["/rich"]
+    assert gets == ["/robots.txt", "/rich"]
 
 
 @pytest.mark.asyncio
@@ -2543,3 +2595,772 @@ async def test_free_recrawl_allowance_only_decrements_on_new_activation(
             .where(MonitoredSiteUrl.workspace_id == seed.workspace_id)
         )
         assert total_rows == 1
+
+
+# --- v2 P2: robots / llms.txt / sitemap ingestion / site_facts / finalize ---
+
+
+def _tracking_worker(
+    session_factory: async_sessionmaker[AsyncSession],
+    pages: dict[str, bytes | tuple[bytes, dict[str, str]]],
+    requests: list[tuple[str, str]],
+    *,
+    owner: str,
+) -> SiteHealthWorker:
+    """A worker whose transport records every (method, path) it serves."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, request.url.path))
+        entry = pages.get(request.url.path)
+        if entry is None:
+            return httpx.Response(
+                404,
+                headers={"content-type": "text/html"},
+                stream=_ByteStream(b"not found"),
+            )
+        if isinstance(entry, tuple):
+            body, extra = entry
+            headers = {"content-type": "text/html", **extra}
+        else:
+            body, headers = entry, {"content-type": "text/html"}
+        return httpx.Response(200, headers=headers, stream=_ByteStream(body))
+
+    return SiteHealthWorker(
+        session_factory=session_factory,
+        owner=owner,
+        resolver=_FakeResolver(),
+        transport=httpx.MockTransport(handler),
+    )
+
+
+async def _seed_root_discover(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    root: str,
+    capability: str = CAPABILITY_STARTER,
+    sample_mode: bool = False,
+):
+    """Seed a crawl with a single QUEUED root discover task (the planner's
+    output), ready for one worker run."""
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=0, root_url=root)
+        await set_entitlement(session, seed.workspace_id, capability)
+        await session.commit()
+        await _configure_crawl(
+            session,
+            crawl_id=seed.crawl_id,
+            sample_mode=sample_mode,
+            count_disclosure=True,
+        )
+        _canonical, root_hash = canonical_identity(root)
+        session.add(
+            SiteCrawlTask(
+                crawl_id=seed.crawl_id,
+                workspace_id=seed.workspace_id,
+                task_kind=TASK_KIND_DISCOVER,
+                requested_url=root,
+                url_hash=root_hash,
+                generation=0,
+                idempotency_key=f"{seed.crawl_id}:{TASK_KIND_DISCOVER}:root:0",
+                status=TASK_STATUS_QUEUED,
+                randomized_position=0,
+            )
+        )
+        await session.commit()
+        return seed
+
+
+@pytest.mark.asyncio
+async def test_discover_robots_denied_short_circuits_and_records_site_facts(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A robots.txt that disallows our crawler denies the root WITHOUT a page
+    fetch (non-retryable), yet the depth-0 site setup still records the
+    AI-crawler stance (llms.txt + sitemap probes honor the same policy, so
+    they are skipped too)."""
+    from app.core.config.site_health import (
+        AI_CRAWLER_BOTS,
+        CRAWL_STATUS_FAILED,
+        ERROR_ROBOTS_DENIED,
+    )
+    from app.core.config.task_queue import TASK_STATUS_FAILED
+
+    root = "https://example.com/"
+    seed = await _seed_root_discover(session_factory, root=root)
+    pages = {
+        "/robots.txt": b"User-agent: *\nDisallow: /\n",
+        "/llms.txt": b"# Acme llms\n",
+    }
+    requests: list[tuple[str, str]] = []
+    worker = _tracking_worker(session_factory, pages, requests, owner="p2-deny")
+    await worker.run_until_idle()
+
+    # robots.txt was fetched once; the denied root page was NEVER fetched, and
+    # the llms/sitemap probes were skipped (they honor the same policy).
+    assert ("GET", "/robots.txt") in requests
+    assert ("GET", "/") not in requests
+    assert ("GET", "/llms.txt") not in requests
+    assert ("GET", "/sitemap.xml") not in requests
+
+    async with session_factory() as session:
+        task = await session.scalar(
+            select(SiteCrawlTask).where(SiteCrawlTask.crawl_id == seed.crawl_id)
+        )
+        assert task is not None
+        assert task.status == TASK_STATUS_FAILED
+        assert task.error_code == ERROR_ROBOTS_DENIED
+
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert crawl.status == CRAWL_STATUS_FAILED
+        # The site setup evidence survived the denied root (display copy).
+        site_facts = crawl.site_facts or {}
+        robots = site_facts.get("robots") or {}
+        assert robots.get("fetched") is True
+        assert robots.get("status_code") == 200
+        assert robots.get("ai_crawlers") == {
+            bot: "block" for bot in AI_CRAWLER_BOTS
+        }
+        llms = site_facts.get("llms_txt") or {}
+        assert llms.get("fetched") is False
+        assert llms.get("present") is False
+        sitemap = site_facts.get("sitemap") or {}
+        assert sitemap.get("fetched") is False
+        assert sitemap.get("files") == []
+
+
+@pytest.mark.asyncio
+async def test_analyze_robots_denied_fails_task_without_page_fetch(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The analyze task enforces robots too: denied URL -> non-retryable
+    ``robots_denied`` failure (mapped to ``blocked`` in presentation), no
+    page fetch, no analysis row."""
+    from app.core.config.site_health import (
+        ANALYSIS_STATUS_FAILED,
+        CRAWL_STATUS_PARTIALLY_COMPLETED,
+        ERROR_ROBOTS_DENIED,
+    )
+    from app.core.config.task_queue import TASK_STATUS_FAILED
+    from app.models.site_health import SitePageAnalysis
+
+    seed, _site_url_id, task_id = await _seed_analyze_ready(session_factory)
+    pages = {"/robots.txt": b"User-agent: *\nDisallow: /\n"}
+    requests: list[tuple[str, str]] = []
+    worker = _tracking_worker(session_factory, pages, requests, owner="p2-adeny")
+    await worker.run_until_idle()
+
+    # Only the robots fetch happened — never the denied page.
+    assert requests == [("GET", "/robots.txt")]
+
+    async with session_factory() as session:
+        task = await session.get(SiteCrawlTask, task_id)
+        assert task is not None
+        assert task.status == TASK_STATUS_FAILED
+        assert task.error_code == ERROR_ROBOTS_DENIED
+
+        analysis_count = await session.scalar(
+            select(func.count())
+            .select_from(SitePageAnalysis)
+            .where(SitePageAnalysis.crawl_id == seed.crawl_id)
+        )
+        assert analysis_count == 0
+
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert crawl.analysis_status == ANALYSIS_STATUS_FAILED
+        assert crawl.status == CRAWL_STATUS_PARTIALLY_COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Full Starter pipeline in ONE run (the real production flow):
+
+    The depth-0 site setup parses robots (per-bot stance + declared sitemap),
+    probes llms.txt, ingests the sitemap tree into in-scope admissions, caches
+    the robots policy across every task, and persists the bounded
+    ``site_facts`` display copy on the crawl row. When the crawl terminalizes,
+    the crawl_finalize pass runs: ``sitemap_orphan`` fails for the sitemap URL
+    no internal link reaches, ``broken_internal_link`` passes (the one linked
+    target is reachable), and ``hreflang_conflict`` is N/A — all at weight
+    0.0, with the orphan issue in the snapshot rollup.
+    """
+    from app.core.config.site_health import (
+        AI_CRAWLER_BOTS,
+        OBSERVATION_SOURCE_SITEMAP,
+        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_NOT_APPLICABLE,
+        RULE_OUTCOME_PASS,
+        SELECTION_SOURCE_USER,
+    )
+
+    root = "https://example.com/"
+    seed = await _seed_root_discover(session_factory, root=root)
+    # Seed the root's monitored membership + analyze task UPFRONT (next to the
+    # planner's discover task) so discovery, sitemap ingestion, and analysis
+    # all land inside one terminalization/snapshot.
+    _root_canonical, root_hash = canonical_identity(root)
+    async with session_factory() as session:
+        root_site_url = SiteUrl(
+            workspace_id=seed.workspace_id,
+            project_id=seed.project_id,
+            normalized_url=root,
+            url_hash=root_hash,
+            display_url=root,
+            host="example.com",
+            depth=0,
+        )
+        session.add(root_site_url)
+        await session.flush()
+        session.add(
+            MonitoredSiteUrl(
+                workspace_id=seed.workspace_id,
+                project_id=seed.project_id,
+                profile_id=seed.profile_id,
+                site_url_id=root_site_url.id,
+                active=True,
+                selection_source=SELECTION_SOURCE_USER,
+            )
+        )
+        session.add(
+            SiteCrawlTask(
+                crawl_id=seed.crawl_id,
+                workspace_id=seed.workspace_id,
+                site_url_id=root_site_url.id,
+                task_kind=TASK_KIND_ANALYZE,
+                requested_url=root,
+                url_hash=root_hash,
+                generation=0,
+                idempotency_key=f"{seed.crawl_id}:{TASK_KIND_ANALYZE}:{root_hash}:0",
+                status=TASK_STATUS_QUEUED,
+                priority=1,
+                randomized_position=0,
+            )
+        )
+        await session.commit()
+
+    robots = (
+        b"User-agent: GPTBot\n"
+        b"Disallow: /\n\n"
+        b"User-agent: *\n"
+        b"Allow: /\n"
+        b"Sitemap: https://example.com/sitemap.xml\n"
+    )
+    urlset = (
+        b'<?xml version="1.0" encoding="UTF-8"?>\n'
+        b'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        b"<url><loc>https://example.com/sm-1</loc></url>"
+        b"<url><loc>https://example.com/sm-2</loc></url>"
+        b"<url><loc>https://external.org/out-of-scope</loc></url>"
+        b"</urlset>"
+    )
+    pages: dict[str, bytes | tuple[bytes, dict[str, str]]] = {
+        "/robots.txt": robots,
+        "/llms.txt": b"# Acme\nSee https://example.com/docs\n",
+        "/sitemap.xml": (urlset, {"content-type": "application/xml"}),
+        # The root links /sm-1 only: /sm-2 reaches inventory via the sitemap
+        # alone, which is exactly the orphan signal.
+        "/": _html(["https://example.com/sm-1"]),
+        "/sm-1": _html([]),
+        "/sm-2": _html([]),
+    }
+    requests: list[tuple[str, str]] = []
+    worker = _tracking_worker(session_factory, pages, requests, owner="p2-setup")
+    await worker.run_until_idle()
+
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert crawl.status == CRAWL_STATUS_COMPLETED
+
+        # The robots policy was fetched ONCE for the whole crawl (the root +
+        # both child discovers + the sitemap-tree walk + the analyze task all
+        # share the per-authority cache).
+        assert requests.count(("GET", "/robots.txt")) == 1
+        assert ("GET", "/llms.txt") in requests
+        assert ("GET", "/sitemap.xml") in requests
+
+        site_facts = crawl.site_facts or {}
+        robots_facts = site_facts.get("robots") or {}
+        assert robots_facts.get("fetched") is True
+        assert robots_facts.get("status_code") == 200
+        assert robots_facts.get("ai_crawlers") == {
+            **{bot: "allow" for bot in AI_CRAWLER_BOTS},
+            "GPTBot": "block",
+        }
+        assert robots_facts.get("sitemaps") == [
+            "https://example.com/sitemap.xml"
+        ]
+        llms = site_facts.get("llms_txt") or {}
+        assert llms.get("fetched") is True
+        assert llms.get("status_code") == 200
+        assert llms.get("present") is True
+        sitemap_facts = site_facts.get("sitemap") or {}
+        assert sitemap_facts.get("fetched") is True
+        assert sitemap_facts.get("files") == ["https://example.com/sitemap.xml"]
+
+        # Sitemap URLs admitted at depth 1; the out-of-scope one filtered.
+        urls = (
+            (
+                await session.execute(
+                    select(SiteUrl.normalized_url, SiteUrl.depth).where(
+                        SiteUrl.project_id == seed.project_id
+                    )
+                )
+            )
+            .all()
+        )
+        by_url = {row[0]: row[1] for row in urls}
+        assert by_url.get("https://example.com/sm-1") == 1
+        assert by_url.get("https://example.com/sm-2") == 1
+        assert not any("external.org" in url for url in by_url)
+
+        # /sm-2 (never linked) carries the sitemap provenance observation.
+        sm2_obs = await session.scalar(
+            select(SiteUrlObservation.source_kind)
+            .select_from(SiteUrlObservation)
+            .join(SiteUrl, SiteUrl.id == SiteUrlObservation.site_url_id)
+            .where(
+                SiteUrlObservation.crawl_id == seed.crawl_id,
+                SiteUrl.normalized_url == "https://example.com/sm-2",
+            )
+        )
+        assert sm2_obs == OBSERVATION_SOURCE_SITEMAP
+
+        # --- The finalize pass ran at terminalization (single snapshot). ---
+        analysis = (
+            await session.execute(
+                select(SitePageAnalysis).where(
+                    SitePageAnalysis.crawl_id == seed.crawl_id
+                )
+            )
+        ).scalar_one()
+        evals = {
+            row.rule_id: row
+            for row in (
+                await session.execute(
+                    select(SiteRuleEvaluation).where(
+                        SiteRuleEvaluation.analysis_id == analysis.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        }
+        orphan = evals["technical.sitemap_orphan"]
+        assert orphan.outcome == RULE_OUTCOME_FAIL
+        assert orphan.evidence["orphan_count"] == 1
+        assert orphan.evidence["orphan_urls"] == ["https://example.com/sm-2"]
+        # Both admitted sitemap URLs carry the sitemap-source observation.
+        assert orphan.evidence["sitemap_url_count"] == 2
+
+        broken = evals["technical.broken_internal_link"]
+        assert broken.outcome == RULE_OUTCOME_PASS
+        assert broken.evidence["checked_count"] == 1
+        assert broken.evidence["broken_count"] == 0
+
+        hreflang = evals["technical.hreflang_conflict"]
+        assert hreflang.outcome == RULE_OUTCOME_NOT_APPLICABLE
+        assert hreflang.evidence["reason"] == "no_hreflang"
+
+        # Every crawl_finalize rule is weight-0: issues, never denominators.
+        assert orphan.weight == 0.0
+        assert broken.weight == 0.0
+        assert hreflang.weight == 0.0
+
+        # The orphan issue landed and the (single) snapshot counted it.
+        issues = (
+            (
+                await session.execute(
+                    select(SiteIssue.rule_id).where(
+                        SiteIssue.crawl_id == seed.crawl_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert "technical.sitemap_orphan" in issues
+
+        snapshot = (
+            await session.execute(
+                select(SiteHealthSnapshot).where(
+                    SiteHealthSnapshot.crawl_id == seed.crawl_id
+                )
+            )
+        ).scalar_one()
+        assert snapshot.analyzed_url_count == 1
+        assert snapshot.issue_count == len(issues)
+
+
+@pytest.mark.asyncio
+async def test_finalize_pass_broken_link_and_hreflang_conflict_end_to_end(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The finalize pass reads link_check probe evidence + counterpart page
+    facts: the root's unreachable internal link fails ``broken_internal_link``
+    and its hreflang alternate (analyzed, but not linking back) fails
+    ``hreflang_conflict`` — while the counterpart page's own rows are N/A."""
+    from app.core.config.site_health import (
+        ANALYZER_VERSION,
+        EXTRACTOR_VERSION,
+        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_NOT_APPLICABLE,
+        SCORING_VERSION,
+        SELECTION_SOURCE_USER,
+    )
+    from app.models.site_health import (
+        SiteIssue,
+        SitePageAnalysis,
+        SiteRuleEvaluation,
+    )
+
+    root = "https://example.com/rich"
+    second = "https://example.com/fr"
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=0, root_url=root)
+        await set_entitlement(session, seed.workspace_id, CAPABILITY_STARTER)
+        await session.commit()
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        crawl.discovery_status = DISCOVERY_STATUS_COMPLETED
+        crawl.discovered_url_count = 2
+        crawl.inventory_complete = True
+        crawl.extractor_version = EXTRACTOR_VERSION
+        crawl.analyzer_version = ANALYZER_VERSION
+        crawl.scoring_version = SCORING_VERSION
+        crawl.configuration = {
+            "root_registrable_domain": "example.com",
+            "include_globs": None,
+            "exclude_globs": None,
+            "count_disclosure": True,
+        }
+        for url in (root, second):
+            canonical, url_hash = canonical_identity(url)
+            site_url = SiteUrl(
+                workspace_id=seed.workspace_id,
+                project_id=seed.project_id,
+                normalized_url=canonical,
+                url_hash=url_hash,
+                display_url=canonical,
+                host="example.com",
+                depth=0,
+            )
+            session.add(site_url)
+            await session.flush()
+            session.add(
+                MonitoredSiteUrl(
+                    workspace_id=seed.workspace_id,
+                    project_id=seed.project_id,
+                    profile_id=seed.profile_id,
+                    site_url_id=site_url.id,
+                    active=True,
+                    selection_source=SELECTION_SOURCE_USER,
+                )
+            )
+            session.add(
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    site_url_id=site_url.id,
+                    task_kind=TASK_KIND_ANALYZE,
+                    requested_url=url,
+                    url_hash=url_hash,
+                    generation=0,
+                    idempotency_key=(
+                        f"{seed.crawl_id}:{TASK_KIND_ANALYZE}:{url_hash}:0"
+                    ),
+                    status=TASK_STATUS_QUEUED,
+                    priority=1,
+                    randomized_position=0,
+                )
+            )
+        await session.commit()
+
+    root_html = (
+        b"<html><head><title>Root page about widgets and gadgets</title>"
+        b'<link rel="alternate" hreflang="fr" href="https://example.com/fr">'
+        b"</head><body><h1>Root</h1>"
+        b"<p>Root body text with enough words to matter for the checks.</p>"
+        b'<a href="https://example.com/fr">fr</a>'
+        b'<a href="https://example.com/broken">broken</a>'
+        b"</body></html>"
+    )
+    fr_html = (
+        b"<html><head><title>FR</title></head><body><p>bonjour</p></body></html>"
+    )
+    pages = {"/rich": root_html, "/fr": fr_html}  # /broken -> 404
+    worker = _worker(session_factory, pages, owner="p2-hreflang")
+    await worker.run_until_idle()
+
+    async with session_factory() as session:
+        analyses = (
+            (
+                await session.execute(
+                    select(SitePageAnalysis).where(
+                        SitePageAnalysis.crawl_id == seed.crawl_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(analyses) == 2
+        url_by_site_url_id = {
+            row[0]: row[1]
+            for row in (
+                await session.execute(
+                    select(SiteUrl.id, SiteUrl.normalized_url).where(
+                        SiteUrl.project_id == seed.project_id
+                    )
+                )
+            ).all()
+        }
+        by_url = {url_by_site_url_id[a.site_url_id]: a for a in analyses}
+        root_analysis = by_url["https://example.com/rich"]
+        fr_analysis = by_url["https://example.com/fr"]
+
+        async def _evals(analysis_id):
+            rows = (
+                await session.execute(
+                    select(SiteRuleEvaluation).where(
+                        SiteRuleEvaluation.analysis_id == analysis_id
+                    )
+                )
+            ).scalars().all()
+            return {row.rule_id: row for row in rows}
+
+        root_evals = await _evals(root_analysis.id)
+        broken = root_evals["technical.broken_internal_link"]
+        assert broken.outcome == RULE_OUTCOME_FAIL
+        assert broken.evidence["checked_count"] == 2
+        assert broken.evidence["broken_count"] == 1
+        assert broken.evidence["broken_urls"] == ["https://example.com/broken"]
+
+        hreflang = root_evals["technical.hreflang_conflict"]
+        assert hreflang.outcome == RULE_OUTCOME_FAIL
+        assert hreflang.evidence["alternate_count"] == 1
+        assert hreflang.evidence["checked_count"] == 1
+        assert hreflang.evidence["missing_return_tags"] == [
+            "https://example.com/fr"
+        ]
+
+        # The counterpart page's own finalize rows are clean N/As.
+        fr_evals = await _evals(fr_analysis.id)
+        assert fr_evals["technical.broken_internal_link"].outcome == (
+            RULE_OUTCOME_NOT_APPLICABLE
+        )
+        fr_hreflang = fr_evals["technical.hreflang_conflict"]
+        assert fr_hreflang.outcome == RULE_OUTCOME_NOT_APPLICABLE
+        assert fr_hreflang.evidence["reason"] == "no_hreflang"
+
+        # Both failures surfaced as issues and in the snapshot rollup count.
+        issues = (
+            (
+                await session.execute(
+                    select(SiteIssue.rule_id).where(
+                        SiteIssue.crawl_id == seed.crawl_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert "technical.broken_internal_link" in issues
+        assert "technical.hreflang_conflict" in issues
+
+        snapshot = (
+            await session.execute(
+                select(SiteHealthSnapshot).where(
+                    SiteHealthSnapshot.crawl_id == seed.crawl_id
+                )
+            )
+        ).scalar_one()
+        assert snapshot.analyzed_url_count == 2
+        assert snapshot.issue_count == len(issues)
+
+
+@pytest.mark.asyncio
+async def test_analyze_injects_site_facts_on_root_analysis_only(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """``facts["site"]`` is injected ONLY into the crawl root's analysis: the
+    site_root rules (AI-crawler stance, llms.txt) evaluate exactly once per
+    crawl, anchored there; every other page's rows for them are N/A. The
+    injected copy never leaks into the persisted artifact facts."""
+    from app.core.config.site_health import (
+        AI_CRAWLER_BOTS,
+        ANALYZER_VERSION,
+        EXTRACTOR_VERSION,
+        RULE_CATALOG_VERSION,
+        RULE_OUTCOME_FAIL,
+        RULE_OUTCOME_NOT_APPLICABLE,
+        RULE_OUTCOME_PASS,
+        SCORING_VERSION,
+        SELECTION_SOURCE_USER,
+    )
+    from app.models.site_health import SitePageAnalysis, SiteRuleEvaluation
+
+    root = "https://example.com/"
+    second = "https://example.com/a"
+    site_facts = {
+        "robots": {
+            "fetched": True,
+            "url": "https://example.com/robots.txt",
+            "status_code": 200,
+            "ai_crawlers": {
+                **{bot: "allow" for bot in AI_CRAWLER_BOTS},
+                "GPTBot": "block",
+            },
+            "sitemaps": ["https://example.com/sitemap.xml"],
+        },
+        "llms_txt": {
+            "fetched": True,
+            "url": "https://example.com/llms.txt",
+            "status_code": 200,
+            "present": True,
+        },
+        "sitemap": {"fetched": True, "files": ["https://example.com/sitemap.xml"]},
+    }
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=0, root_url=root)
+        await set_entitlement(session, seed.workspace_id, CAPABILITY_STARTER)
+        await session.commit()
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        crawl.discovery_status = DISCOVERY_STATUS_COMPLETED
+        crawl.discovered_url_count = 2
+        crawl.inventory_complete = True
+        crawl.extractor_version = EXTRACTOR_VERSION
+        crawl.analyzer_version = ANALYZER_VERSION
+        crawl.scoring_version = SCORING_VERSION
+        crawl.site_facts = site_facts
+        crawl.configuration = {
+            "root_registrable_domain": "example.com",
+            "include_globs": None,
+            "exclude_globs": None,
+            "count_disclosure": True,
+        }
+        for url in (root, second):
+            canonical, url_hash = canonical_identity(url)
+            site_url = SiteUrl(
+                workspace_id=seed.workspace_id,
+                project_id=seed.project_id,
+                normalized_url=canonical,
+                url_hash=url_hash,
+                display_url=canonical,
+                host="example.com",
+                depth=0,
+            )
+            session.add(site_url)
+            await session.flush()
+            session.add(
+                MonitoredSiteUrl(
+                    workspace_id=seed.workspace_id,
+                    project_id=seed.project_id,
+                    profile_id=seed.profile_id,
+                    site_url_id=site_url.id,
+                    active=True,
+                    selection_source=SELECTION_SOURCE_USER,
+                )
+            )
+            session.add(
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    site_url_id=site_url.id,
+                    task_kind=TASK_KIND_ANALYZE,
+                    requested_url=url,
+                    url_hash=url_hash,
+                    generation=0,
+                    idempotency_key=(
+                        f"{seed.crawl_id}:{TASK_KIND_ANALYZE}:{url_hash}:0"
+                    ),
+                    status=TASK_STATUS_QUEUED,
+                    priority=1,
+                    randomized_position=0,
+                )
+            )
+        await session.commit()
+
+    pages = {"/": _html([]), "/a": _html([])}
+    worker = _worker(session_factory, pages, owner="p2-inject")
+    await worker.run_until_idle()
+
+    async with session_factory() as session:
+        analyses = (
+            (
+                await session.execute(
+                    select(SitePageAnalysis).where(
+                        SitePageAnalysis.crawl_id == seed.crawl_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(analyses) == 2
+        url_by_site_url_id = {
+            row[0]: row[1]
+            for row in (
+                await session.execute(
+                    select(SiteUrl.id, SiteUrl.normalized_url).where(
+                        SiteUrl.project_id == seed.project_id
+                    )
+                )
+            ).all()
+        }
+        by_url = {url_by_site_url_id[a.site_url_id]: a for a in analyses}
+        root_analysis = by_url["https://example.com/"]
+        other_analysis = by_url["https://example.com/a"]
+
+        async def _eval(rule_id, analysis_id):
+            return await session.scalar(
+                select(SiteRuleEvaluation).where(
+                    SiteRuleEvaluation.analysis_id == analysis_id,
+                    SiteRuleEvaluation.rule_id == rule_id,
+                )
+            )
+
+        # Root: the injected stance blocks GPTBot -> the stance rule FAILS;
+        # llms.txt is present -> PASS. Provenance is sh-rules-2.
+        stance = await _eval("technical.ai_crawler_access", root_analysis.id)
+        assert stance is not None
+        assert stance.outcome == RULE_OUTCOME_FAIL
+        assert stance.evidence["blocked"] == ["GPTBot"]
+        assert stance.rule_version == RULE_CATALOG_VERSION == "sh-rules-2"
+        llms = await _eval("aeo.llms_txt_present", root_analysis.id)
+        assert llms is not None
+        assert llms.outcome == RULE_OUTCOME_PASS
+
+        # Non-root: the same rules are N/A (no injection).
+        other_stance = await _eval(
+            "technical.ai_crawler_access", other_analysis.id
+        )
+        assert other_stance is not None
+        assert other_stance.outcome == RULE_OUTCOME_NOT_APPLICABLE
+        other_llms = await _eval("aeo.llms_txt_present", other_analysis.id)
+        assert other_llms is not None
+        assert other_llms.outcome == RULE_OUTCOME_NOT_APPLICABLE
+
+        # The injected site copy never lands in the immutable artifact facts,
+        # which DO carry the sh-extractor-2 stamp + the new P2 fields.
+        artifact = await session.get(SiteFetchArtifact, root_analysis.artifact_id)
+        assert artifact is not None
+        facts = artifact.normalized_facts or {}
+        assert "site" not in facts
+        assert facts.get("extractor_version") == "sh-extractor-2"
+        for key in (
+            "author",
+            "dates",
+            "outbound_domains",
+            "landmarks",
+            "question_heading_ratio",
+            "expand_gated_ratio",
+            "hreflang_alternates",
+            "first_answer_text",
+            "inline_script_chars",
+        ):
+            assert key in facts, key

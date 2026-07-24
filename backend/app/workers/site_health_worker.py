@@ -35,12 +35,17 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.analysis.site_health.finalize import (
+    evaluate_broken_internal_link,
+    evaluate_hreflang_conflict,
+    evaluate_sitemap_orphan,
+)
 from app.analysis.site_health.page_types import classify
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import RuleEvaluation, evaluate_all
@@ -54,10 +59,20 @@ from app.connectors.web_evidence.contracts import (
     FetchResult,
 )
 from app.connectors.web_evidence.fetcher import SecureFetcher
+from app.connectors.web_evidence.robots import RobotsPolicy
+from app.connectors.web_evidence.sitemaps import (
+    SitemapCollector,
+    SitemapParseError,
+)
 from app.connectors.web_evidence.url_policy import (
+    UrlPolicyError,
+    is_admissible,
     split_host_port,
 )
 from app.core.config.site_health import (
+    AI_CRAWLER_BOTS,
+    AI_CRAWLER_STANCE_ALLOW,
+    AI_CRAWLER_STANCE_BLOCK,
     ANALYSIS_STATUS_CANCELLED,
     ANALYSIS_STATUS_COMPLETED,
     ANALYSIS_STATUS_FAILED,
@@ -65,6 +80,7 @@ from app.core.config.site_health import (
     ANALYSIS_STATUS_PENDING,
     ANALYSIS_STATUS_RUNNING,
     ANALYZER_VERSION,
+    APPLICABILITY_CRAWL_FINALIZE,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,
@@ -75,6 +91,7 @@ from app.core.config.site_health import (
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
     ERROR_HTTP_4XX,
     ERROR_HTTP_5XX,
+    ERROR_ROBOTS_DENIED,
     EVENT_ANALYSIS_PROGRESS,
     EVENT_CRAWL_COMPLETED,
     EVENT_DISCOVERY_PROGRESS,
@@ -82,13 +99,24 @@ from app.core.config.site_health import (
     FETCH_PURPOSE_ANALYZE,
     FETCH_PURPOSE_DISCOVER,
     FETCH_PURPOSE_LINK_CHECK,
+    FETCH_PURPOSE_LLMS,
+    FETCH_PURPOSE_ROBOTS,
+    FETCH_PURPOSE_SITEMAP,
     HTML_CONTENT_TYPES,
+    LINK_KIND_ANCHOR,
+    LLMS_TXT_PATH,
     OBSERVATION_SOURCE_LINK,
     OBSERVATION_SOURCE_ROOT,
+    OBSERVATION_SOURCE_SITEMAP,
     PAGE_ANALYSIS_STATUS_COMPLETED,
+    ROBOTS_TXT_PATH,
     RULE_OUTCOME_FAIL,
     SCORING_VERSION,
     SITE_CRAWL_QUEUE_SPEC,
+    SITE_HEALTH_RULES_BY_ID,
+    SITE_HEALTH_USER_AGENT,
+    SITEMAP_CONTENT_TYPES,
+    SITEMAP_DEFAULT_PATHS,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_CHECK,
@@ -160,6 +188,10 @@ class _DiscoverOutcome:
     failure (``error_code`` + ``retryable``), never both, so the persist step
     can branch on ``output is not None``. ``result`` is present for HTTP
     4xx/5xx (the fetcher returns them) so an artifact can still be written.
+    The v2 P2 site-setup fields are populated only by the depth-0 (root)
+    task: ``site_facts`` for the crawl row, plus the sitemap-ingested URL /
+    file lists (empty on Free sample crawls — sitemap page ingestion is a
+    Starter behavior).
     """
 
     result: FetchResult | None = None
@@ -170,6 +202,9 @@ class _DiscoverOutcome:
     latency_ms: int | None = None
     status_code: int | None = None
     retry_after_seconds: float | None = None
+    site_facts: dict | None = None
+    sitemap_urls: tuple[str, ...] = ()
+    sitemap_files: tuple[str, ...] = ()
 
 
 @dataclass(slots=True)
@@ -223,6 +258,12 @@ def _count_disclosure(crawl: SiteCrawl) -> bool:
     return bool((crawl.configuration or {}).get("count_disclosure", False))
 
 
+def _is_crawl_finalize_rule(rule_id: str) -> bool:
+    """Whether a catalog rule is scoped ``crawl_finalize`` (finalize-owned)."""
+    rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
+    return rule is not None and rule.applicability_key == APPLICABILITY_CRAWL_FINALIZE
+
+
 def _serialize_redirect_chain(result: FetchResult) -> list[dict]:
     """Serialize a fetch result's redirect hops to plain JSON-safe dicts."""
     return [
@@ -233,6 +274,31 @@ def _serialize_redirect_chain(result: FetchResult) -> list[dict]:
         }
         for hop in result.redirect_chain
     ]
+
+
+def _authority_key(url: str) -> str:
+    """The ``scheme://host:port`` authority a robots.txt policy is keyed by.
+
+    Robots policies are per (scheme, host, port); the default port is filled
+    in so ``https://example.com`` and ``https://example.com:443`` share one
+    policy. Returns ``""`` for an unparseable URL (the caller then skips
+    robots enforcement — the URL policy will reject it downstream anyway).
+    """
+    try:
+        parts = urlsplit(url)
+        scheme = (parts.scheme or "").lower()
+        host = (parts.hostname or "").lower()
+        try:
+            port = parts.port
+        except ValueError:
+            port = None
+    except Exception:
+        return ""
+    if not scheme or not host:
+        return ""
+    if port is None:
+        port = 443 if scheme == "https" else 80
+    return f"{scheme}://{host}:{port}"
 
 
 class _SystemDnsResolver:
@@ -290,6 +356,16 @@ class SiteHealthWorker:
         # once this drops to zero AND the polite start-delay window has
         # elapsed, so cleanup can never race active crawling of the host.
         self._host_refcounts: dict[str, int] = {}
+        # v2 P2: per-authority robots policy cache (policy + raw body for the
+        # per-bot AI-crawler stance + fetch status for site_facts), with a
+        # per-authority lock so concurrent tasks never duplicate the fetch.
+        # DELIBERATELY never evicted: a worker process is bounded by the
+        # number of distinct authorities it crawls (a crawl is scoped to one
+        # registrable domain), so the map stays tiny for the process lifetime.
+        self._robots_policies: dict[str, RobotsPolicy] = {}
+        self._robots_bodies: dict[str, str | None] = {}
+        self._robots_status: dict[str, int | None] = {}
+        self._robots_locks: dict[str, asyncio.Lock] = {}
 
     async def run_once(self) -> int:
         """Sweep expired leases, claim a batch of all task kinds, execute it.
@@ -352,6 +428,16 @@ class SiteHealthWorker:
             async with semaphore:
                 async with start_lock:
                     delay = max(0.0, site_health_settings.per_host_delay_seconds)
+                    # v2 P2: honor a robots-declared crawl-delay (clamped by
+                    # the config max inside RobotsPolicy) from the CACHE ONLY
+                    # — never fetch robots.txt here. The first request to an
+                    # authority goes with the default delay; once the fetch
+                    # path has cached the policy, later requests honor it.
+                    policy = self._robots_policies.get(
+                        _authority_key(task.requested_url)
+                    )
+                    if policy is not None:
+                        delay = max(delay, policy.crawl_delay())
                     elapsed = time.monotonic() - self._host_last_started.get(host, 0.0)
                     if elapsed < delay:
                         await asyncio.sleep(delay - elapsed)
@@ -526,6 +612,7 @@ class SiteHealthWorker:
             kind = task.task_kind
             requested_url = task.requested_url
             depth = task.depth
+            sample_mode = bool(crawl.sample_mode)
             config = dict(crawl.configuration or {})
             root_registrable_domain = config.get("root_registrable_domain") or ""
             include_globs = config.get("include_globs")
@@ -544,6 +631,8 @@ class SiteHealthWorker:
                 root_registrable_domain=root_registrable_domain,
                 include_globs=include_globs,
                 exclude_globs=exclude_globs,
+                depth=depth,
+                sample_mode=sample_mode,
             )
         finally:
             heartbeat.cancel()
@@ -565,6 +654,8 @@ class SiteHealthWorker:
         root_registrable_domain: str,
         include_globs: list[str] | None,
         exclude_globs: list[str] | None,
+        depth: int,
+        sample_mode: bool,
     ) -> _DiscoverOutcome:
         """Fetch + parse one target into a bounded ``_DiscoverOutcome``.
 
@@ -572,7 +663,58 @@ class SiteHealthWorker:
         error token on an HTTP 4xx/5xx or a ``FetchError`` (SSRF, redirect
         limit, oversize, timeout, DNS). Never raises for an expected fetch
         failure — the caller persists an attempt row either way.
+
+        v2 P2: enforces the per-authority robots.txt policy before fetching
+        (a denied URL short-circuits to ``ERROR_ROBOTS_DENIED`` without a
+        request), and the depth-0 (root) task additionally runs the one-shot
+        site setup — AI-crawler stance, llms.txt probe, and (Starter only)
+        sitemap ingestion — whose bounded results ride the outcome into
+        ``_persist_discover``.
         """
+        authority = _authority_key(requested_url)
+        policy: RobotsPolicy | None = None
+        robots_body: str | None = None
+        robots_status: int | None = None
+        if authority:
+            policy, robots_body, robots_status = await self._ensure_robots_policy(
+                authority
+            )
+
+        # Site setup runs at depth 0 even when the root page itself is
+        # robots-denied or fails: the AI-crawler stance / llms.txt result is
+        # site-level evidence the dashboard shows regardless (spec §5.3).
+        site_facts: dict | None = None
+        sitemap_urls: tuple[str, ...] = ()
+        sitemap_files: tuple[str, ...] = ()
+        if depth == 0:
+            (
+                site_facts,
+                sitemap_urls,
+                sitemap_files,
+            ) = await self._site_setup(
+                requested_url=requested_url,
+                authority=authority,
+                robots_policy=policy,
+                robots_body=robots_body,
+                robots_status=robots_status,
+                root_registrable_domain=root_registrable_domain,
+                include_globs=include_globs,
+                exclude_globs=exclude_globs,
+                sample_mode=sample_mode,
+            )
+
+        if policy is not None and not policy.can_fetch(requested_url):
+            return _DiscoverOutcome(
+                error_code=ERROR_ROBOTS_DENIED,
+                error_detail=(
+                    "robots.txt disallows the crawler user-agent for this URL"
+                ),
+                retryable=False,
+                site_facts=site_facts,
+                sitemap_urls=sitemap_urls,
+                sitemap_files=sitemap_files,
+            )
+
         request = FetchRequest(
             url=requested_url,
             purpose=FETCH_PURPOSE_DISCOVER,
@@ -599,6 +741,9 @@ class SiteHealthWorker:
                 latency_ms=latency,
                 status_code=exc.status_code,
                 retry_after_seconds=exc.retry_after_seconds,
+                site_facts=site_facts,
+                sitemap_urls=sitemap_urls,
+                sitemap_files=sitemap_files,
             )
 
         status = result.status_code
@@ -612,6 +757,9 @@ class SiteHealthWorker:
                 retryable=retryable,
                 latency_ms=result.latency_ms,
                 status_code=status,
+                site_facts=site_facts,
+                sitemap_urls=sitemap_urls,
+                sitemap_files=sitemap_files,
             )
 
         # Success: parse in-scope canonical links (HTML only; empty otherwise).
@@ -632,7 +780,280 @@ class SiteHealthWorker:
             links=tuple(links),
             redirect_chain=tuple(_serialize_redirect_chain(result)),
         )
-        return _DiscoverOutcome(result=result, output=output)
+        return _DiscoverOutcome(
+            result=result,
+            output=output,
+            site_facts=site_facts,
+            sitemap_urls=sitemap_urls,
+            sitemap_files=sitemap_files,
+        )
+
+    # --- v2 P2: robots policy cache + site setup ---------------------------
+
+    async def _ensure_robots_policy(
+        self, authority: str
+    ) -> tuple[RobotsPolicy, str | None, int | None]:
+        """Fetch + cache the per-authority robots.txt policy (fail-open).
+
+        Returns ``(policy, body, status_code)``: the parsed policy for the
+        crawler user-agent (allow-all on any fetch failure — standard
+        crawler behavior, per ``RobotsPolicy``), the raw body (for the
+        per-bot AI-crawler stance in site setup), and the HTTP status. The
+        fetch goes through the SSRF-safe fetcher with a tight decoded-byte
+        cap; a per-authority lock dedupes concurrent first fetches. The
+        cache is never evicted (bounded by distinct authorities per worker
+        process — a crawl is scoped to one registrable domain).
+        """
+        cached = self._robots_policies.get(authority)
+        if cached is not None:
+            return (
+                cached,
+                self._robots_bodies.get(authority),
+                self._robots_status.get(authority),
+            )
+        lock = self._robots_locks.setdefault(authority, asyncio.Lock())
+        async with lock:
+            cached = self._robots_policies.get(authority)
+            if cached is not None:
+                return (
+                    cached,
+                    self._robots_bodies.get(authority),
+                    self._robots_status.get(authority),
+                )
+            body_text: str | None = None
+            status: int | None = None
+            robots_url = f"{authority}{ROBOTS_TXT_PATH}"
+            try:
+                result = await self._fetch_well_known(
+                    robots_url,
+                    purpose=FETCH_PURPOSE_ROBOTS,
+                    max_bytes=site_health_settings.robots_max_decoded_bytes,
+                )
+                if result is not None:
+                    status = result.status_code
+                    if 200 <= result.status_code < 300:
+                        body_text = (result.body or b"").decode(
+                            "utf-8", errors="replace"
+                        )
+            except Exception:  # defensive: robots must never break a crawl
+                body_text = None
+                status = None
+            policy = RobotsPolicy.parse(
+                body_text or "", user_agent=SITE_HEALTH_USER_AGENT
+            )
+            self._robots_policies[authority] = policy
+            self._robots_bodies[authority] = body_text
+            self._robots_status[authority] = status
+            return policy, body_text, status
+
+    async def _fetch_well_known(
+        self, url: str, *, purpose: str, max_bytes: int
+    ) -> FetchResult | None:
+        """One bounded well-known-file fetch (robots/llms); None on failure.
+
+        4xx/5xx responses are RETURNED (the caller reads the status) while
+        transport/policy failures collapse to ``None`` — a missing or
+        unfetchable well-known file is never a crawl error.
+        """
+        request = FetchRequest(
+            url=url,
+            purpose=purpose,
+            max_wire_bytes=max_bytes,
+            max_decoded_bytes=max_bytes,
+        )
+        try:
+            async with SecureFetcher(
+                resolver=self._resolver, transport=self._transport
+            ) as fetcher:
+                return await fetcher.fetch(request, enforce_scope=False)
+        except FetchError:
+            return None
+
+    async def _site_setup(
+        self,
+        *,
+        requested_url: str,
+        authority: str,
+        robots_policy: RobotsPolicy | None,
+        robots_body: str | None,
+        robots_status: int | None,
+        root_registrable_domain: str,
+        include_globs: list[str] | None,
+        exclude_globs: list[str] | None,
+        sample_mode: bool,
+    ) -> tuple[dict, tuple[str, ...], tuple[str, ...]]:
+        """The one-shot site crawl setup run by the depth-0 discover task.
+
+        Builds the bounded ``site_facts`` display/injection copy (robots
+        AI-crawler stance + llms.txt result + sitemap file list — NO
+        discovered totals, so Free non-disclosure holds), probes llms.txt,
+        and (Starter only — Free sample crawls skip sitemap page ingestion so
+        un-admitted URLs never leak into inventory) ingests the sitemap tree
+        into a bounded, in-scope URL list. Network I/O only; the caller
+        persists under the crawl lock.
+        """
+        # AI-crawler stance: re-parse the SAME raw robots body per bot and
+        # ask whether that bot may fetch the root URL. A missing/failed
+        # robots fetch is allow-all (fail-open).
+        stance: dict[str, str] = {}
+        for bot in AI_CRAWLER_BOTS:
+            allowed = True
+            if robots_body:
+                allowed = RobotsPolicy.parse(
+                    robots_body, user_agent=bot
+                ).can_fetch(requested_url)
+            stance[bot] = (
+                AI_CRAWLER_STANCE_ALLOW if allowed else AI_CRAWLER_STANCE_BLOCK
+            )
+        declared_sitemaps: list[str] = []
+        if robots_policy is not None:
+            declared_sitemaps = [
+                str(url)[:2048] for url in robots_policy.sitemaps()[:16]
+            ]
+
+        # llms.txt probe (honors the same robots policy — a good citizen).
+        llms_url = f"{authority}{LLMS_TXT_PATH}" if authority else ""
+        llms_fetched = False
+        llms_status: int | None = None
+        llms_present = False
+        if llms_url and (
+            robots_policy is None or robots_policy.can_fetch(llms_url)
+        ):
+            result = await self._fetch_well_known(
+                llms_url,
+                purpose=FETCH_PURPOSE_LLMS,
+                max_bytes=site_health_settings.llms_txt_max_decoded_bytes,
+            )
+            if result is not None:
+                llms_fetched = True
+                llms_status = result.status_code
+                llms_present = 200 <= result.status_code < 300 and bool(
+                    (result.body or b"").strip()
+                )
+
+        # Sitemap ingestion: Starter crawls only (Free sample crawls record
+        # no sitemap URLs — see the docstring above).
+        sitemap_urls: tuple[str, ...] = ()
+        sitemap_files: tuple[str, ...] = ()
+        if not sample_mode and authority:
+            seeds = declared_sitemaps or [
+                f"{authority}{path}" for path in SITEMAP_DEFAULT_PATHS
+            ]
+            sitemap_urls, sitemap_files = await self._ingest_sitemaps(
+                seeds,
+                root_registrable_domain=root_registrable_domain,
+                include_globs=include_globs,
+                exclude_globs=exclude_globs,
+            )
+
+        site_facts = {
+            "robots": {
+                "fetched": robots_body is not None,
+                "url": f"{authority}{ROBOTS_TXT_PATH}" if authority else "",
+                "status_code": robots_status,
+                "ai_crawlers": stance,
+                "sitemaps": declared_sitemaps,
+            },
+            "llms_txt": {
+                "fetched": llms_fetched,
+                "url": llms_url,
+                "status_code": llms_status,
+                "present": llms_present,
+            },
+            "sitemap": {
+                "fetched": bool(sitemap_files),
+                "files": list(sitemap_files)[
+                    : site_health_settings.max_sitemap_documents
+                ],
+            },
+        }
+        return site_facts, sitemap_urls, sitemap_files
+
+    async def _ingest_sitemaps(
+        self,
+        seeds: list[str],
+        *,
+        root_registrable_domain: str,
+        include_globs: list[str] | None,
+        exclude_globs: list[str] | None,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Bounded, loop-safe sitemap-tree walk into in-scope canonical URLs.
+
+        Fetches up to ``max_sitemap_documents`` sitemap documents BFS-style
+        (robots-honored per authority, sitemap-index recursion capped by the
+        ``SitemapCollector``), then canonicalizes, scope-filters
+        (``is_admissible``), de-duplicates, and caps the extracted page URLs
+        at ``max_sitemap_admitted_urls``. Returns ``(page_urls, file_urls)``,
+        both deterministically ordered. Every fetch/parse failure simply
+        skips that document — sitemap ingestion is best-effort evidence.
+        """
+        settings = site_health_settings
+        collector = SitemapCollector()
+        files: list[str] = []
+        queue: list[tuple[str, int]] = [(seed, 0) for seed in seeds]
+        queued = {seed for seed in seeds}
+        async with SecureFetcher(
+            resolver=self._resolver, transport=self._transport
+        ) as fetcher:
+            while queue and len(files) < settings.max_sitemap_documents:
+                url, depth = queue.pop(0)
+                if url in files:
+                    continue
+                authority = _authority_key(url)
+                if authority:
+                    policy, _, _ = await self._ensure_robots_policy(authority)
+                    if not policy.can_fetch(url):
+                        continue
+                try:
+                    result = await fetcher.fetch(
+                        FetchRequest(
+                            url=url,
+                            purpose=FETCH_PURPOSE_SITEMAP,
+                            allowed_content_types=SITEMAP_CONTENT_TYPES,
+                            max_decoded_bytes=settings.max_sitemap_decoded_bytes,
+                        ),
+                        enforce_scope=False,
+                    )
+                except FetchError:
+                    continue
+                if not (200 <= result.status_code < 300):
+                    continue
+                files.append(url)
+                try:
+                    child_refs = collector.add_document(
+                        url,
+                        result.body,
+                        content_type=result.content_type,
+                        depth=depth,
+                    )
+                except SitemapParseError:
+                    continue
+                for ref in child_refs:
+                    if ref not in queued:
+                        queued.add(ref)
+                        queue.append((ref, depth + 1))
+
+        page_urls: list[str] = []
+        seen_hashes: set[str] = set()
+        for raw in collector.urls:
+            if len(page_urls) >= settings.max_sitemap_admitted_urls:
+                break
+            try:
+                canonical, url_hash_value = canonical_identity(raw)
+            except UrlPolicyError:
+                continue
+            if url_hash_value in seen_hashes:
+                continue
+            if not is_admissible(
+                canonical,
+                root_registrable_domain=root_registrable_domain,
+                include_globs=include_globs,
+                exclude_globs=exclude_globs,
+            ):
+                continue
+            seen_hashes.add(url_hash_value)
+            page_urls.append(canonical)
+        return tuple(page_urls), tuple(files)
 
     async def _heartbeat_loop(
         self, task_id: uuid.UUID
@@ -712,6 +1133,13 @@ class SiteHealthWorker:
                 return
             task, crawl = locked
 
+            # v2 P2: the root task's site setup persists its bounded facts
+            # even when the root page fetch itself failed — the AI-crawler
+            # stance / llms.txt result is site-level evidence that stays
+            # visible on the dashboard (spec §5.3).
+            if depth == 0 and outcome.site_facts is not None:
+                crawl.site_facts = outcome.site_facts
+
             artifact_id: uuid.UUID | None = None
             if outcome.output is not None and outcome.result is not None:
                 # Success: write the immutable artifact + observation, admit the
@@ -735,6 +1163,28 @@ class SiteHealthWorker:
                     crawl=crawl,
                     candidates=self._candidates_for(outcome.output, depth),
                 )
+                # v2 P2 (Starter only): admit the sitemap-ingested URLs AFTER
+                # the root's own admission, so the root's frontier priority
+                # holds and admission order stays deterministic; then write
+                # their sparse admission-time observation rows (mirrors
+                # ``_add_free_sample``) so sitemap-sourced URLs appear in
+                # inventory. Free sample crawls never ingest sitemaps, so
+                # un-admitted URLs never leak into a Free inventory.
+                if depth == 0 and outcome.sitemap_urls and not crawl.sample_mode:
+                    sitemap_candidates = self._sitemap_candidates(
+                        outcome.sitemap_urls
+                    )
+                    sitemap_admission = await admit_candidates(
+                        session,
+                        crawl=crawl,
+                        candidates=sitemap_candidates,
+                    )
+                    await self._write_sitemap_observations(
+                        session,
+                        crawl=crawl,
+                        candidates=sitemap_candidates,
+                        admission=sitemap_admission,
+                    )
                 crawl.discovered_url_count += 1
                 # Link the queue row to its immutable artifact (mirrors the
                 # audit worker's result_artifact_id contract).
@@ -816,6 +1266,67 @@ class SiteHealthWorker:
                 )
             )
         return candidates
+
+    def _sitemap_candidates(self, urls: tuple[str, ...]) -> list[FrontierCandidate]:
+        """Turn ingested sitemap URLs into deterministically-ordered candidates.
+
+        Depth 1 keeps sitemap-sourced URLs within the max-depth ceiling;
+        ``link_ordinal`` is the ingestion order so frontier admission order
+        reproduces exactly from the sitemap document order (invariant 9).
+        """
+        candidates: list[FrontierCandidate] = []
+        for ordinal, url in enumerate(urls):
+            try:
+                canonical, url_hash_value = canonical_identity(url)
+            except UrlPolicyError:
+                continue
+            candidates.append(
+                FrontierCandidate(
+                    url=canonical,
+                    url_hash=url_hash_value,
+                    depth=1,
+                    source_kind=OBSERVATION_SOURCE_SITEMAP,
+                    parent_position=0,
+                    link_ordinal=ordinal,
+                )
+            )
+        return candidates
+
+    async def _write_sitemap_observations(
+        self,
+        session: AsyncSession,
+        *,
+        crawl: SiteCrawl,
+        candidates: list[FrontierCandidate],
+        admission,
+    ) -> None:
+        """Sparse admission-time observations for sitemap-sourced URLs.
+
+        Mirrors ``_add_free_sample``'s observation row: the pages/inventory
+        read paths scope strictly through ``SiteUrlObservation``, so a URL
+        admitted only via the sitemap needs this row to be visible before
+        its own discover task runs. Conflict-safe on ``(crawl_id,
+        site_url_id)`` — a richer discover-path observation wins if it ran
+        first.
+        """
+        for candidate in candidates:
+            site_url_id = admission.site_url_ids.get(candidate.url_hash)
+            if site_url_id is None:
+                continue
+            await session.execute(
+                pg_insert(SiteUrlObservation)
+                .values(
+                    workspace_id=crawl.workspace_id,
+                    project_id=crawl.project_id,
+                    crawl_id=crawl.id,
+                    site_url_id=site_url_id,
+                    source_kind=OBSERVATION_SOURCE_SITEMAP,
+                    depth=candidate.depth,
+                    observed_url=candidate.url,
+                    final_url=candidate.url,
+                )
+                .on_conflict_do_nothing(index_elements=["crawl_id", "site_url_id"])
+            )
 
     async def _write_artifact(
         self,
@@ -1264,7 +1775,22 @@ class SiteHealthWorker:
         Returns parsed page facts on success (2xx), a classified error token on
         an HTTP 4xx/5xx or a ``FetchError``. Never raises for an expected fetch
         failure — the caller records an attempt row either way.
+
+        v2 P2: enforces the per-authority robots.txt policy before fetching —
+        a denied URL short-circuits to ``ERROR_ROBOTS_DENIED`` (non-retryable;
+        presentation maps it to ``blocked`` via POLICY_BLOCKING_ERROR_CODES).
         """
+        authority = _authority_key(requested_url)
+        if authority:
+            policy, _, _ = await self._ensure_robots_policy(authority)
+            if not policy.can_fetch(requested_url):
+                return _AnalyzeOutcome(
+                    error_code=ERROR_ROBOTS_DENIED,
+                    error_detail=(
+                        "robots.txt disallows the crawler user-agent for this URL"
+                    ),
+                    retryable=False,
+                )
         request = FetchRequest(
             url=requested_url,
             purpose=FETCH_PURPOSE_ANALYZE,
@@ -1454,7 +1980,27 @@ class SiteHealthWorker:
         )
         facts["page_type"] = assessment.page_type
         facts["page_type_evidence"] = assessment.to_evidence()
-        evaluations: list[RuleEvaluation] = evaluate_all(facts)
+        # v2 P2 (spec §5.3): inside the crawl ROOT's own analysis only, inject
+        # the crawl's site_facts so site_root-scoped rules (AI-crawler access,
+        # llms.txt) evaluate exactly once per crawl, anchored on this analysis.
+        # The injection happens after the artifact flush, so the persisted
+        # normalized_facts deliberately do NOT carry it (same as page_type).
+        if crawl.site_facts:
+            try:
+                _root_canonical, root_hash = canonical_identity(crawl.root_url)
+            except UrlPolicyError:
+                root_hash = ""
+            if root_hash and root_hash == task.url_hash:
+                facts["site"] = crawl.site_facts
+        evaluations: list[RuleEvaluation] = [
+            ev
+            for ev in evaluate_all(facts)
+            # The analyze writer NEVER persists crawl_finalize-scoped
+            # evaluations (no placeholder not_applicable rows): the unique
+            # (analysis_id, rule_id) slot stays free for the finalize pass,
+            # which solely owns those rules' rows (single-writer per scope).
+            if not _is_crawl_finalize_rule(ev.rule_id)
+        ]
         scores = score_analysis(evaluations)
         # Refresh the lightweight identity/observation state from the analyze
         # fetch. A Free sample URL is fetched ONLY by its analyze task (no
@@ -1900,6 +2446,11 @@ class SiteHealthWorker:
                 analysis_terminalized = True
 
             if analysis_terminalized:
+                # v2 P2 (spec §5.3): the crawl_finalize-scoped rules run as a
+                # second evaluation pass here — after analysis terminalization
+                # (all link_check evidence is terminal) and BEFORE the snapshot
+                # so their issues land in the severity/category rollups.
+                await self._run_crawl_finalize_pass(session, crawl=crawl)
                 await self._persist_snapshot(session, crawl=crawl)
 
             if crawl.status == CRAWL_STATUS_RUNNING:
@@ -1976,6 +2527,322 @@ class SiteHealthWorker:
             "analyze_succeeded": analyze_succeeded,
             "analyze_cancelled": analyze_cancelled,
         }
+
+    # --- v2 P2: crawl_finalize evaluation pass -----------------------------
+
+    async def _run_crawl_finalize_pass(
+        self, session: AsyncSession, *, crawl: SiteCrawl
+    ) -> None:
+        """Evaluate the crawl_finalize-scoped rules from cross-page evidence.
+
+        Runs under the crawl ``FOR UPDATE`` lock that already guarantees
+        exactly-once terminalization (spec §5.3). Writes NEW
+        ``SiteRuleEvaluation`` rows — one per (analysis, crawl_finalize rule),
+        ``ON CONFLICT DO NOTHING`` on the unique slot — plus one ``SiteIssue``
+        per fail. Never mutates existing rows (invariant 3); this writer is
+        the sole owner of crawl_finalize-scope rows (the analyze writer
+        filtered them out, so the unique slots are free). Anchors:
+
+          - ``technical.broken_internal_link`` / ``technical.hreflang_conflict``:
+            every latest-completed analysis in this crawl (their evidence is
+            per-page: link probes / hreflang alternates).
+          - ``technical.sitemap_orphan``: the crawl ROOT's latest completed
+            analysis only (a site-wide condition, like the site_root rules);
+            simply absent when the root has no completed analysis.
+
+        All URL normalization happens here via ``canonical_identity`` — the
+        pure evaluators in ``analysis/site_health/finalize.py`` only receive
+        pre-normalized, bounded inputs.
+        """
+        # Latest completed analysis per URL in this crawl (the same ranking
+        # rule the snapshot aggregator uses, minus its active-membership join:
+        # finalize evidence attaches to the URL's own latest analysis).
+        ranked = (
+            select(
+                SitePageAnalysis.id.label("id"),
+                SitePageAnalysis.site_url_id.label("site_url_id"),
+                SitePageAnalysis.artifact_id.label("artifact_id"),
+                func.row_number()
+                .over(
+                    partition_by=SitePageAnalysis.site_url_id,
+                    order_by=(
+                        SitePageAnalysis.created_at.desc(),
+                        SitePageAnalysis.id.desc(),
+                    ),
+                )
+                .label("latest_rank"),
+            )
+            .where(
+                SitePageAnalysis.crawl_id == crawl.id,
+                SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
+            )
+            .subquery()
+        )
+        rows = (
+            await session.execute(
+                select(
+                    ranked.c.id, ranked.c.site_url_id, ranked.c.artifact_id
+                ).where(ranked.c.latest_rank == 1)
+            )
+        ).all()
+        if not rows:
+            return
+        analysis_ids = [row.id for row in rows]
+        artifact_by_analysis = {row.id: row.artifact_id for row in rows}
+        site_url_by_analysis = {row.id: row.site_url_id for row in rows}
+
+        evaluations: list[tuple[uuid.UUID, RuleEvaluation]] = []
+
+        # --- broken_internal_link: per analysis, from its link probes. -----
+        # Reachability rides the evidence_fingerprint prefix written by
+        # ``_write_link_reference`` ("reachable:" / "unreachable:"); ALL link
+        # kinds count as internal targets.
+        link_rows = (
+            await session.execute(
+                select(
+                    SiteLinkReference.source_analysis_id,
+                    SiteLinkReference.target_url,
+                    SiteLinkReference.evidence_fingerprint,
+                ).where(
+                    SiteLinkReference.source_analysis_id.in_(analysis_ids),
+                    SiteLinkReference.is_internal.is_(True),
+                )
+            )
+        ).all()
+        checked: dict[uuid.UUID, int] = {}
+        broken: dict[uuid.UUID, list[str]] = {}
+        for source_analysis_id, target_url, fingerprint in link_rows:
+            checked[source_analysis_id] = checked.get(source_analysis_id, 0) + 1
+            if str(fingerprint or "").startswith("unreachable:"):
+                bucket = broken.setdefault(source_analysis_id, [])
+                if target_url not in bucket:
+                    bucket.append(target_url)
+        for analysis_id in analysis_ids:
+            evaluations.append(
+                (
+                    analysis_id,
+                    evaluate_broken_internal_link(
+                        checked_count=checked.get(analysis_id, 0),
+                        broken_urls=broken.get(analysis_id, []),
+                    ),
+                )
+            )
+
+        # --- hreflang_conflict: per analysis, from artifact facts. ----------
+        artifacts = (
+            await session.execute(
+                select(
+                    SiteFetchArtifact.id,
+                    SiteFetchArtifact.final_url,
+                    SiteFetchArtifact.normalized_facts,
+                )
+                .where(SiteFetchArtifact.id.in_(artifact_by_analysis.values()))
+                .order_by(SiteFetchArtifact.id)
+            )
+        ).all()
+        analysis_by_artifact = {row.artifact_id: row.id for row in rows}
+        # canonical identity of each analyzed page's final URL -> alternates.
+        alternates_by_page: dict[str, list[dict]] = {}
+        canonical_by_artifact: dict[uuid.UUID, str] = {}
+        for artifact_id, final_url, _facts in artifacts:
+            try:
+                canonical, _h = canonical_identity(str(final_url or ""))
+            except UrlPolicyError:
+                continue
+            canonical_by_artifact[artifact_id] = canonical
+            alternates_by_page.setdefault(
+                canonical,
+                list((_facts or {}).get("hreflang_alternates") or []),
+            )
+        for artifact_id, _final_url, facts in artifacts:
+            analysis_id = analysis_by_artifact[artifact_id]
+            alternates = list((facts or {}).get("hreflang_alternates") or [])
+            source_canonical = canonical_by_artifact.get(artifact_id)
+            if not alternates or not source_canonical:
+                evaluations.append(
+                    (
+                        analysis_id,
+                        evaluate_hreflang_conflict(
+                            alternate_count=0,
+                            checked_count=0,
+                            unchecked_count=0,
+                            missing_return_tags=[],
+                        ),
+                    )
+                )
+                continue
+            checked_count = 0
+            unchecked_count = 0
+            missing: list[str] = []
+            for alternate in alternates:
+                target_url = str(alternate.get("url") or "")
+                try:
+                    target_canonical, _h = canonical_identity(target_url)
+                except UrlPolicyError:
+                    unchecked_count += 1
+                    continue
+                # A self-referencing alternate is always fine.
+                if target_canonical == source_canonical:
+                    continue
+                target_alternates = alternates_by_page.get(target_canonical)
+                if target_alternates is None:
+                    # The target was not analyzed in this crawl: it cannot be
+                    # verified, so it neither passes nor fails (spec §5.3).
+                    unchecked_count += 1
+                    continue
+                checked_count += 1
+                return_tag_found = False
+                for back in target_alternates:
+                    try:
+                        back_canonical, _h = canonical_identity(
+                            str(back.get("url") or "")
+                        )
+                    except UrlPolicyError:
+                        continue
+                    if back_canonical == source_canonical:
+                        return_tag_found = True
+                        break
+                if not return_tag_found and target_url not in missing:
+                    missing.append(target_url)
+            evaluations.append(
+                (
+                    analysis_id,
+                    evaluate_hreflang_conflict(
+                        alternate_count=len(alternates),
+                        checked_count=checked_count,
+                        unchecked_count=unchecked_count,
+                        missing_return_tags=missing,
+                    ),
+                )
+            )
+
+        # --- sitemap_orphan: crawl-wide, anchored on the root analysis. -----
+        try:
+            root_canonical, root_hash = canonical_identity(crawl.root_url)
+        except UrlPolicyError:
+            root_canonical, root_hash = "", ""
+        if root_hash:
+            site_url_rows = (
+                await session.execute(
+                    select(SiteUrl.id, SiteUrl.url_hash).where(
+                        SiteUrl.id.in_(site_url_by_analysis.values())
+                    )
+                )
+            ).all()
+            hash_by_site_url = dict(site_url_rows)
+            root_analysis_id = next(
+                (
+                    row.id
+                    for row in rows
+                    if hash_by_site_url.get(row.site_url_id) == root_hash
+                ),
+                None,
+            )
+            if root_analysis_id is not None:
+                sitemap_rows = (
+                    await session.execute(
+                        select(
+                            SiteUrlObservation.site_url_id,
+                            SiteUrlObservation.observed_url,
+                        ).where(
+                            SiteUrlObservation.crawl_id == crawl.id,
+                            SiteUrlObservation.source_kind
+                            == OBSERVATION_SOURCE_SITEMAP,
+                        )
+                    )
+                ).all()
+                # Internal anchor targets observed anywhere in this crawl: a
+                # sitemap URL that no analyzed page links to is an orphan.
+                anchor_rows = (
+                    await session.execute(
+                        select(SiteLinkReference.target_url)
+                        .where(
+                            SiteLinkReference.source_analysis_id.in_(analysis_ids),
+                            SiteLinkReference.is_internal.is_(True),
+                            SiteLinkReference.kind == LINK_KIND_ANCHOR,
+                        )
+                    )
+                ).all()
+                linked_targets: set[str] = set()
+                for (target_url,) in anchor_rows:
+                    try:
+                        target_canonical, _h = canonical_identity(str(target_url))
+                    except UrlPolicyError:
+                        continue
+                    linked_targets.add(target_canonical)
+                orphans: list[str] = []
+                for _site_url_id, observed_url in sitemap_rows:
+                    observed = str(observed_url or "")
+                    try:
+                        observed_canonical, _h = canonical_identity(observed)
+                    except UrlPolicyError:
+                        continue
+                    # The crawl root is definitionally reachable (it seeds the
+                    # crawl), never an orphan.
+                    if observed_canonical == root_canonical:
+                        continue
+                    if observed_canonical not in linked_targets:
+                        if observed not in orphans:
+                            orphans.append(observed)
+                evaluations.append(
+                    (
+                        root_analysis_id,
+                        evaluate_sitemap_orphan(
+                            sitemap_url_count=len(sitemap_rows),
+                            orphan_urls=orphans,
+                        ),
+                    )
+                )
+
+        # Persist: new rows only, conflict-safe on the unique
+        # (analysis_id, rule_id) slot; one issue per fail.
+        for analysis_id, ev in evaluations:
+            artifact_id = artifact_by_analysis[analysis_id]
+            inserted_id = await session.scalar(
+                pg_insert(SiteRuleEvaluation)
+                .values(
+                    workspace_id=crawl.workspace_id,
+                    analysis_id=analysis_id,
+                    source_artifact_id=artifact_id,
+                    rule_id=ev.rule_id,
+                    dimension=ev.dimension,
+                    category=ev.category,
+                    severity=ev.severity,
+                    weight=ev.weight,
+                    outcome=ev.outcome,
+                    evidence=ev.evidence,
+                    supporting_artifact_ids=[artifact_id],
+                    extractor_version=crawl.extractor_version or EXTRACTOR_VERSION,
+                    analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
+                    rule_version=ev.rule_version,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=["analysis_id", "rule_id"]
+                )
+                .returning(SiteRuleEvaluation.id)
+            )
+            if inserted_id is None:
+                continue
+            if ev.outcome == RULE_OUTCOME_FAIL:
+                session.add(
+                    SiteIssue(
+                        workspace_id=crawl.workspace_id,
+                        project_id=crawl.project_id,
+                        crawl_id=crawl.id,
+                        site_url_id=site_url_by_analysis[analysis_id],
+                        analysis_id=analysis_id,
+                        evaluation_id=inserted_id,
+                        source_artifact_id=artifact_id,
+                        rule_id=ev.rule_id,
+                        dimension=ev.dimension,
+                        category=ev.category,
+                        severity=ev.severity,
+                        evidence=ev.evidence,
+                        remediation=ev.remediation,
+                        analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
+                        rule_version=ev.rule_version,
+                    )
+                )
 
     async def _persist_snapshot(
         self, session: AsyncSession, *, crawl: SiteCrawl

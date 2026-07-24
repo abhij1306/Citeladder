@@ -240,3 +240,39 @@ def test_collector_accumulates_urls():
     )
     assert collector.url_count == 2
     assert "https://example.com/a" in collector.urls
+
+
+def test_robots_per_bot_group_applies_only_to_that_bot():
+    # v2 P2 AI-crawler stance: a bot-specific group governs that bot only;
+    # our crawler falls through to the wildcard group.
+    body = (
+        "User-agent: GPTBot\n"
+        "Disallow: /\n\n"
+        "User-agent: *\n"
+        "Allow: /\n"
+    )
+    gpt = RobotsPolicy.parse(body, user_agent="GPTBot")
+    assert gpt.can_fetch("https://example.com/") is False
+    ours = RobotsPolicy.parse(body, user_agent=_UA)
+    assert ours.can_fetch("https://example.com/") is True
+
+
+def test_robots_wildcard_group_applies_when_no_specific_group():
+    policy = RobotsPolicy.parse(
+        "User-agent: *\nDisallow: /private\n", user_agent="ClaudeBot"
+    )
+    assert policy.can_fetch("https://example.com/private/x") is False
+    assert policy.can_fetch("https://example.com/") is True
+
+
+def test_robots_specific_group_outranks_wildcard():
+    body = (
+        "User-agent: PerplexityBot\n"
+        "Allow: /\n\n"
+        "User-agent: *\n"
+        "Disallow: /\n"
+    )
+    perp = RobotsPolicy.parse(body, user_agent="PerplexityBot")
+    assert perp.can_fetch("https://example.com/") is True
+    ours = RobotsPolicy.parse(body, user_agent=_UA)
+    assert ours.can_fetch("https://example.com/") is False

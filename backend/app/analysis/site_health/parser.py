@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import codecs
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from lxml import etree
 from lxml import html as lxml_html
 
+from app.analysis.site_health.page_types import is_question_heading
 from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
     validate_microdata_types,
@@ -41,6 +42,15 @@ _MAX_HEADING_CHARS = 512
 _MAX_HEADINGS_KEPT = 50
 _MAX_URL_CHARS = 2048
 _MAX_ANCHOR_TEXT_CHARS = 512
+# v2 P2 (sh-extractor-2) field caps.
+_MAX_AUTHOR_CHARS = 256
+_MAX_DATE_CHARS = 64
+_MAX_OUTBOUND_DOMAINS = 100
+_MAX_DOMAIN_CHARS = 255
+_MAX_HREFLANG_ALTERNATES = 50
+_MAX_HREFLANG_CHARS = 35
+_MAX_FIRST_ANSWER_CHARS = 512
+_MAX_INLINE_SCRIPT_CHARS = 500_000
 
 # The security response headers whose mere presence the delivery facts record.
 _SECURITY_HEADERS = (
@@ -160,10 +170,11 @@ def _canonical_href(root: Any) -> str:
 
 
 def _headings(root: Any) -> dict[str, Any]:
-    """Count h1..h6 and capture bounded h1/h2 text (deterministic order)."""
+    """Count h1..h6 and capture bounded h1/h2/h3 text (deterministic order)."""
     counts: dict[str, int] = {}
     h1_texts: list[str] = []
     h2_texts: list[str] = []
+    h3_texts: list[str] = []
     for level in range(1, 7):
         tag = f"h{level}"
         try:
@@ -177,11 +188,15 @@ def _headings(root: Any) -> dict[str, Any]:
         elif level == 2:
             for node in nodes[:_MAX_HEADINGS_KEPT]:
                 h2_texts.append(_text(node)[:_MAX_HEADING_CHARS])
+        elif level == 3:
+            for node in nodes[:_MAX_HEADINGS_KEPT]:
+                h3_texts.append(_text(node)[:_MAX_HEADING_CHARS])
     return {
         "counts": counts,
         "h1_count": counts.get("h1", 0),
         "h1_texts": h1_texts,
         "h2_texts": h2_texts,
+        "h3_texts": h3_texts,
     }
 
 
@@ -406,6 +421,203 @@ def _delivery_facts(
     }
 
 
+def _author_and_dates(
+    root: Any, structured_data: dict[str, Any], article_meta: dict[str, str]
+) -> tuple[str, dict[str, str]]:
+    """Author byline + published/modified dates (bounded, precedence-ordered).
+
+    Author precedence: JSON-LD ``author`` -> ``<meta name="author">`` ->
+    ``article:author``. Date precedence: JSON-LD
+    ``datePublished``/``dateModified`` -> ``article:published_time`` /
+    ``article:modified_time`` -> the first ``<time datetime>``. The first
+    non-empty value wins at each level (deterministic).
+    """
+    author = ""
+    published = ""
+    modified = ""
+    for block in structured_data.get("blocks") or []:
+        if not author:
+            author = str(block.get("author") or "").strip()
+        if not published:
+            published = str(block.get("date_published") or "").strip()
+        if not modified:
+            modified = str(block.get("date_modified") or "").strip()
+    if not author:
+        author = _meta_content(root, name="author").strip()
+    if not author:
+        author = (article_meta.get("article:author") or "").strip()
+    if not published:
+        published = (article_meta.get("article:published_time") or "").strip()
+    if not modified:
+        modified = (article_meta.get("article:modified_time") or "").strip()
+    if not published:
+        try:
+            for node in root.xpath("//time[@datetime]"):
+                candidate = (node.get("datetime") or "").strip()
+                if candidate:
+                    published = candidate
+                    break
+        except Exception:
+            pass
+    return (
+        author[:_MAX_AUTHOR_CHARS],
+        {
+            "published": published[:_MAX_DATE_CHARS],
+            "modified": modified[:_MAX_DATE_CHARS],
+        },
+    )
+
+
+def _outbound_domains(anchors: list[dict], *, base_host: str) -> list[str]:
+    """Unique external anchor hosts (sorted, bounded).
+
+    Reads the already-bounded anchor facts: an anchor counts as outbound when
+    it is absolute, HTTP(S), and NOT same-host. Relative/anchorless URLs are
+    same-origin by the link extractor's own heuristic and never count.
+    """
+    domains: set[str] = set()
+    for entry in anchors or []:
+        if bool(entry.get("is_internal")):
+            continue
+        raw = str(entry.get("url") or "").strip()
+        try:
+            parts = urlsplit(raw)
+        except Exception:
+            continue
+        host = (parts.hostname or "").lower()
+        if not host or parts.scheme not in ("http", "https"):
+            continue
+        if base_host and host == base_host.lower():
+            continue
+        domains.add(host[:_MAX_DOMAIN_CHARS])
+        if len(domains) >= _MAX_OUTBOUND_DOMAINS:
+            break
+    return sorted(domains)
+
+
+def _landmarks(root: Any) -> dict[str, bool]:
+    """Presence of the main/article/nav landmark elements."""
+    out = {"main": False, "article": False, "nav": False}
+    for tag in out:
+        try:
+            out[tag] = bool(root.xpath(f"//{tag}"))
+        except Exception:
+            out[tag] = False
+    return out
+
+
+def _question_heading_ratio(headings: dict[str, Any]) -> float:
+    """Question-form ratio over the bounded h2 + h3 heading texts (0..1)."""
+    texts = [str(t) for t in (headings.get("h2_texts") or [])]
+    texts += [str(t) for t in (headings.get("h3_texts") or [])]
+    if not texts:
+        return 0.0
+    questions = sum(1 for text in texts if is_question_heading(text))
+    return round(questions / len(texts), 4)
+
+
+def _expand_gated_words(root: Any) -> int:
+    """Words inside click-to-expand subtrees (collapsed details / expanded=false).
+
+    A subtree nested inside an already-counted gated subtree is skipped so
+    nested gates never double-count. Bounded by the tree size already parsed.
+    """
+    candidates: list[Any] = []
+    try:
+        candidates = root.xpath(".//details[not(@open)] | .//*[@aria-expanded='false']")
+    except Exception:
+        return 0
+    counted: set[Any] = set()
+    words = 0
+    for node in candidates:
+        if any(ancestor in counted for ancestor in node.iterancestors()):
+            continue
+        counted.add(node)
+        words += len(_text(node).split())
+    return words
+
+
+def _hreflang_alternates(root: Any, *, final_url: str) -> list[dict[str, str]]:
+    """Bounded ``<link rel="alternate" hreflang>`` annotations (absolute URLs).
+
+    Feeds the ``crawl_finalize`` hreflang reciprocity check (spec §5.3), so
+    hrefs are resolved against the page's final URL at extraction time.
+    """
+    alternates: list[dict[str, str]] = []
+    try:
+        nodes = root.xpath("//link[@hreflang]")
+    except Exception:
+        return alternates
+    for node in nodes:
+        if len(alternates) >= _MAX_HREFLANG_ALTERNATES:
+            break
+        rel_tokens = (node.get("rel") or "").lower().split()
+        if "alternate" not in rel_tokens:
+            continue
+        hreflang = (node.get("hreflang") or "").strip()
+        href = (node.get("href") or "").strip()
+        if not hreflang or not href:
+            continue
+        try:
+            absolute = urljoin(final_url or "", href)
+        except Exception:
+            continue
+        alternates.append(
+            {
+                "hreflang": hreflang[:_MAX_HREFLANG_CHARS],
+                "url": absolute[:_MAX_URL_CHARS],
+            }
+        )
+    return alternates
+
+
+def _first_answer_text(root: Any) -> str:
+    """Text of the first non-empty block sibling after the first h1/h2.
+
+    The bounded answer-first heuristic input (spec §5.3): what an answer
+    engine reads directly under the page's first heading. Empty when the
+    page has no h1/h2 or no following content block.
+    """
+    first_heading = None
+    try:
+        for node in root.iter():
+            if node.tag in ("h1", "h2"):
+                first_heading = node
+                break
+    except Exception:
+        return ""
+    if first_heading is None:
+        return ""
+    try:
+        for sibling in first_heading.itersiblings():
+            text = _text(sibling)
+            if text:
+                return " ".join(text.split())[:_MAX_FIRST_ANSWER_CHARS]
+    except Exception:
+        return ""
+    return ""
+
+
+def _inline_script_chars(root: Any) -> int:
+    """Bounded total character count of src-less <script> bodies.
+
+    Read by ``aeo.server_rendered_content`` to tell a JS shell from real
+    server-rendered content. Must run BEFORE ``_body_text`` (which removes
+    script subtrees from the tree).
+    """
+    total = 0
+    try:
+        for script in root.iter("script"):
+            if (script.get("src") or "").strip():
+                continue
+            total += len(script.text_content() or "")
+            if total >= _MAX_INLINE_SCRIPT_CHARS:
+                return _MAX_INLINE_SCRIPT_CHARS
+    except Exception:
+        return total
+    return total
+
+
 def _empty_facts() -> dict[str, Any]:
     return {
         "has_html": False,
@@ -420,6 +632,7 @@ def _empty_facts() -> dict[str, Any]:
             "h1_count": 0,
             "h1_texts": [],
             "h2_texts": [],
+            "h3_texts": [],
         },
         "images": {"count": 0, "missing_alt": 0},
         "body": {"text": "", "word_count": 0},
@@ -437,6 +650,16 @@ def _empty_facts() -> dict[str, Any]:
             "stylesheets": [],
         },
         "blocking_resources": {"scripts": 0, "stylesheets": 0, "total": 0},
+        # v2 P2 (sh-extractor-2) fields.
+        "author": "",
+        "dates": {"published": "", "modified": ""},
+        "outbound_domains": [],
+        "landmarks": {"main": False, "article": False, "nav": False},
+        "question_heading_ratio": 0.0,
+        "expand_gated_ratio": 0.0,
+        "hreflang_alternates": [],
+        "first_answer_text": "",
+        "inline_script_chars": 0,
     }
 
 
@@ -511,6 +734,8 @@ def extract_page_facts(
     facts["canonical_url"] = _canonical_href(root)
     facts["open_graph"] = _meta_property_map(root, prefix="og:")
     facts["twitter"] = _meta_property_map(root, prefix="twitter:")
+    # article:* OG properties (byline/dates) are a separate prefix family.
+    article_meta = _meta_property_map(root, prefix="article:")
     facts["headings"] = _headings(root)
     facts["images"] = _images(root)
     facts["structured_data"] = _structured_data(
@@ -525,6 +750,21 @@ def extract_page_facts(
     facts["links"] = _links_and_assets(
         root, base_host=base_host, max_links=settings.max_links_per_page
     )
+
+    # v2 P2 (sh-extractor-2) fields: citability + extractability + hreflang.
+    facts["author"], facts["dates"] = _author_and_dates(
+        root, facts["structured_data"], article_meta
+    )
+    facts["outbound_domains"] = _outbound_domains(
+        facts["links"]["anchors"], base_host=base_host
+    )
+    facts["landmarks"] = _landmarks(root)
+    facts["question_heading_ratio"] = _question_heading_ratio(facts["headings"])
+    facts["hreflang_alternates"] = _hreflang_alternates(root, final_url=final_url)
+    facts["first_answer_text"] = _first_answer_text(root)
+    # Inline-script sizing must read the tree BEFORE _body_text removes the
+    # script subtrees.
+    facts["inline_script_chars"] = _inline_script_chars(root)
 
     # Static blocking-resource heuristic: synchronous <script src> (no async/
     # defer) plus stylesheet <link>s block first render.
@@ -547,4 +787,13 @@ def extract_page_facts(
 
     # Body text last (it mutates the tree by removing script/style subtrees).
     facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
+
+    # Click-to-expand gating: gated words as a fraction of the visible body
+    # word count (details/aria-expanded subtrees survive _body_text's junk
+    # removal, so this reads the post-body tree deliberately).
+    body_words = int(facts["body"].get("word_count", 0) or 0)
+    gated_words = _expand_gated_words(root)
+    facts["expand_gated_ratio"] = (
+        round(min(1.0, gated_words / body_words), 4) if body_words > 0 else 0.0
+    )
     return facts

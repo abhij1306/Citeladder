@@ -1,4 +1,4 @@
-# Deterministic rule evaluation (Task 5).
+# Deterministic rule evaluation (Task 5; expanded to sh-rules-2 in v2 P2).
 #
 # Evaluates the config-owned ``SITE_HEALTH_RULES`` catalog against a page-facts
 # dict (produced by ``parser.extract_page_facts``) into one ``RuleEvaluation``
@@ -7,30 +7,51 @@
 # the rule's dimension/category/severity/weight/version for provenance.
 #
 # PURE + deterministic (no I/O, no ORM). Applicability is driven by the rule's
-# ``applicability_key`` ("always" | "has_html" | "page_type:<type>" — v2 P1,
-# resolved against ``facts["page_type"]`` via the config-owned
-# ``PAGE_TYPE_PROFILES``). If a rule's check raises, its outcome is ERROR
-# (preserved, given zero scoring credit) — a single broken check never aborts
-# the whole evaluation. Per-type thin-content minimums and rule-weight
-# overrides are config-owned (``PAGE_TYPE_PROFILES``, invariant 1); the v1
-# analysis-owned ``MIN_SUFFICIENT_WORDS`` constant moved there in v2.
+# ``applicability_key`` ("always" | "has_html" | "page_type:<type>" (v2 P1) |
+# "site_root" | "crawl_finalize" (v2 P2, spec §5.2/§5.3)). ``site_root`` rules
+# resolve against the worker-injected ``facts["site"]`` (present only in the
+# crawl root's own analysis, so they evaluate exactly once per crawl);
+# ``crawl_finalize`` rules are NEVER applicable here — the finalize-writer in
+# the worker owns their rows (single-writer per rule scope), and the analyze
+# writer filters them out before persisting. If a rule's check raises, its
+# outcome is ERROR (preserved, given zero scoring credit) — a single broken
+# check never aborts the whole evaluation. Per-type thin-content minimums and
+# rule-weight overrides are config-owned (``PAGE_TYPE_PROFILES``, invariant 1);
+# the v1 analysis-owned ``MIN_SUFFICIENT_WORDS`` constant moved there in v2.
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.core.config.site_health import (
+    AI_CRAWLER_BOTS,
+    AI_CRAWLER_STANCE_BLOCK,
+    ANSWER_FIRST_MIN_WORDS,
+    APPLICABILITY_CRAWL_FINALIZE,
+    APPLICABILITY_SITE_ROOT,
+    EXPAND_GATED_MAX_RATIO,
+    META_DESCRIPTION_LENGTH_BAND,
     PAGE_TYPE_APPLICABILITY_PREFIX,
+    PAGE_TYPE_EXPECTED_SCHEMA,
     PAGE_TYPE_OTHER,
     PAGE_TYPE_PROFILES,
+    QUESTION_HEADINGS_MIN_RATIO,
+    RENDER_BLOCKING_MAX_RESOURCES,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
+    SCHEMA_CONTENT_MATCH_MAX_CANDIDATES,
+    SERVER_RENDERED_MIN_WORDS,
     SITE_HEALTH_RULES,
     SITE_HEALTH_RULES_BY_ID,
+    SOCIAL_DOMAINS,
+    TITLE_LENGTH_BAND,
+    TTFB_WARN_MS,
     PageTypeProfile,
+    PageTypeSchemaExpectation,
     SiteHealthRule,
 )
 
@@ -151,7 +172,7 @@ def _check_open_graph_present(facts: dict) -> tuple[str, dict]:
     }
 
 
-def _check_sufficient_text(facts: dict) -> tuple[str, dict]:
+def _check_thin_content(facts: dict) -> tuple[str, dict]:
     body = facts.get("body") or {}
     word_count = int(body.get("word_count", 0) or 0)
     minimum, page_type = _sufficient_word_minimum(facts)
@@ -162,8 +183,388 @@ def _check_sufficient_text(facts: dict) -> tuple[str, dict]:
     }
 
 
+# --- v2 P2: hygiene checks -------------------------------------------------
+
+
+def _normalized_url_for_compare(url: str) -> str:
+    """Canonical form for canonical-vs-final comparison (deterministic).
+
+    Lowercases scheme/host, strips the fragment, drops default ports, and
+    strips trailing slashes (except the root path). NOT the admission-time
+    canonicalizer — a comparison-only normalization local to this check.
+    """
+    raw = str(url or "").strip()
+    try:
+        parts = urlsplit(raw)
+        scheme = (parts.scheme or "").lower()
+        host = (parts.hostname or "").lower()
+        try:
+            port = parts.port
+        except ValueError:
+            port = None
+    except Exception:
+        return raw.lower()
+    if not scheme or not host:
+        return raw.lower()
+    netloc = host
+    if port is not None and not (
+        (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
+    ):
+        netloc = f"{host}:{port}"
+    path = parts.path or ""
+    while len(path) > 1 and path.endswith("/"):
+        path = path[:-1]
+    out = f"{scheme}://{netloc}{path or '/'}"
+    if parts.query:
+        out += f"?{parts.query}"
+    return out
+
+
+def _check_canonical_conflict(facts: dict) -> tuple[str, dict]:
+    canonical = (facts.get("canonical_url") or "").strip()
+    if not canonical:
+        # No canonical declared: the v1 presence rule owns that finding.
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_canonical"}
+    delivery = facts.get("delivery") or {}
+    final_url = str(delivery.get("final_url") or "")
+    match = _normalized_url_for_compare(canonical) == _normalized_url_for_compare(
+        final_url
+    )
+    return _pass_fail(match), {
+        "canonical_url": canonical[:2048],
+        "final_url": final_url[:2048],
+        "matches_final_url": match,
+    }
+
+
+def _check_title_length_band(facts: dict) -> tuple[str, dict]:
+    title = (facts.get("title") or "").strip()
+    if not title:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "empty_title"}
+    low, high = TITLE_LENGTH_BAND
+    length = len(title)
+    return _pass_fail(low <= length <= high), {
+        "title_length": length,
+        "band": [low, high],
+    }
+
+
+def _check_meta_description_length_band(facts: dict) -> tuple[str, dict]:
+    desc = (facts.get("meta_description") or "").strip()
+    if not desc:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "empty_meta_description"}
+    low, high = META_DESCRIPTION_LENGTH_BAND
+    length = len(desc)
+    return _pass_fail(low <= length <= high), {
+        "description_length": length,
+        "band": [low, high],
+    }
+
+
+def _check_hsts_present(facts: dict) -> tuple[str, dict]:
+    delivery = facts.get("delivery") or {}
+    security = delivery.get("security_headers") or {}
+    present = bool(security.get("strict-transport-security"))
+    return _pass_fail(present), {
+        "present": present,
+        "scheme": delivery.get("scheme", ""),
+    }
+
+
+def _check_ttfb_band(facts: dict) -> tuple[str, dict]:
+    delivery = facts.get("delivery") or {}
+    ttfb = delivery.get("ttfb_ms")
+    if ttfb is None:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_ttfb_measurement"}
+    ttfb_ms = int(ttfb)
+    return _pass_fail(ttfb_ms <= TTFB_WARN_MS), {
+        "ttfb_ms": ttfb_ms,
+        "threshold_ms": TTFB_WARN_MS,
+    }
+
+
+def _check_uncompressed_html(facts: dict) -> tuple[str, dict]:
+    delivery = facts.get("delivery") or {}
+    compressed = bool(delivery.get("is_compressed"))
+    return _pass_fail(compressed), {
+        "content_encoding": delivery.get("content_encoding", ""),
+        "is_compressed": compressed,
+    }
+
+
+def _check_render_blocking(facts: dict) -> tuple[str, dict]:
+    blocking = facts.get("blocking_resources") or {}
+    total = int(blocking.get("total", 0) or 0)
+    return _pass_fail(total <= RENDER_BLOCKING_MAX_RESOURCES), {
+        "scripts": int(blocking.get("scripts", 0) or 0),
+        "stylesheets": int(blocking.get("stylesheets", 0) or 0),
+        "total": total,
+        "max_allowed": RENDER_BLOCKING_MAX_RESOURCES,
+    }
+
+
+# --- v2 P2: site_root checks (facts["site"] injected by the worker) --------
+
+
+def _check_ai_crawler_access(facts: dict) -> tuple[str, dict]:
+    site = facts.get("site") or {}
+    robots = site.get("robots") or {}
+    stance = robots.get("ai_crawlers") or {}
+    bounded_stance = {
+        bot: stance.get(bot, "") for bot in AI_CRAWLER_BOTS
+    }
+    blocked = [
+        bot
+        for bot in AI_CRAWLER_BOTS
+        if stance.get(bot) == AI_CRAWLER_STANCE_BLOCK
+    ]
+    return _pass_fail(not blocked), {
+        "robots_fetched": bool(robots.get("fetched")),
+        "ai_crawlers": bounded_stance,
+        "blocked": blocked,
+    }
+
+
+def _check_llms_txt_present(facts: dict) -> tuple[str, dict]:
+    site = facts.get("site") or {}
+    llms = site.get("llms_txt") or {}
+    present = bool(llms.get("present"))
+    return _pass_fail(present), {
+        "fetched": bool(llms.get("fetched")),
+        "present": present,
+        "url": str(llms.get("url") or "")[:2048],
+    }
+
+
+# --- v2 P2: per-type schema validity checks --------------------------------
+
+
+def _expectation_for(facts: dict) -> PageTypeSchemaExpectation:
+    """The config schema expectation for the page's classified type.
+
+    Falls back to the ``other`` expectation for an absent/unknown page type
+    (same fallback convention as the thin-content minimum).
+    """
+    page_type = str(facts.get("page_type") or "").strip().lower()
+    return PAGE_TYPE_EXPECTED_SCHEMA.get(
+        page_type, PAGE_TYPE_EXPECTED_SCHEMA[PAGE_TYPE_OTHER]
+    )
+
+
+def _expected_blocks(
+    facts: dict, expectation: PageTypeSchemaExpectation
+) -> list[dict]:
+    """Structured-data blocks whose type is expected for the page type."""
+    sd = facts.get("structured_data") or {}
+    expected = set(expectation.expected_types)
+    return [
+        block
+        for block in (sd.get("blocks") or [])
+        if str(block.get("type") or "") in expected
+    ]
+
+
+def _check_schema_expected_for_type(facts: dict) -> tuple[str, dict]:
+    expectation = _expectation_for(facts)
+    sd = facts.get("structured_data") or {}
+    found_types = sorted(str(t) for t in (sd.get("types") or []))
+    blocks = _expected_blocks(facts, expectation)
+    return _pass_fail(bool(blocks)), {
+        "page_type": expectation.page_type,
+        "expected_types": list(expectation.expected_types),
+        "found_types": found_types[:20],
+    }
+
+
+def _missing_paths(block: dict, paths: tuple[str, ...]) -> list[str]:
+    present = set(block.get("props_present") or [])
+    return [path for path in paths if path not in present]
+
+
+def _check_schema_required_valid(facts: dict) -> tuple[str, dict]:
+    expectation = _expectation_for(facts)
+    blocks = _expected_blocks(facts, expectation)
+    if not blocks:
+        # aeo.schema_expected_for_type owns the missing-type failure (this
+        # rule never double-reports it — and can never be circular, since the
+        # page type comes from URL/content signals first, spec §5.1).
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
+    required = expectation.required_properties
+    # The best-annotated expected block decides: one complete block passes.
+    best_missing = min(
+        (_missing_paths(block, required) for block in blocks), key=len
+    )
+    return _pass_fail(not best_missing), {
+        "page_type": expectation.page_type,
+        "expected_types": list(expectation.expected_types),
+        "required": list(required),
+        "missing": best_missing,
+        "checked_blocks": len(blocks),
+    }
+
+
+def _check_schema_recommended_present(facts: dict) -> tuple[str, dict]:
+    expectation = _expectation_for(facts)
+    recommended = expectation.recommended_properties
+    if not recommended:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_recommended_properties"}
+    blocks = _expected_blocks(facts, expectation)
+    if not blocks:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
+    best_missing = min(
+        (_missing_paths(block, recommended) for block in blocks), key=len
+    )
+    return _pass_fail(not best_missing), {
+        "page_type": expectation.page_type,
+        "expected_types": list(expectation.expected_types),
+        "recommended": list(recommended),
+        "missing": best_missing,
+        "checked_blocks": len(blocks),
+    }
+
+
+def _check_schema_matches_content(facts: dict) -> tuple[str, dict]:
+    expectation = _expectation_for(facts)
+    blocks = _expected_blocks(facts, expectation)
+    if not blocks:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
+    candidates = [
+        str(block.get("name") or "").strip()
+        for block in blocks
+        if str(block.get("name") or "").strip()
+    ][:SCHEMA_CONTENT_MATCH_MAX_CANDIDATES]
+    if not candidates:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_schema_names"}
+    headings = facts.get("headings") or {}
+    haystacks = [str(facts.get("title") or "")]
+    haystacks += [str(t) for t in (headings.get("h1_texts") or [])]
+    lowered = [hay.lower() for hay in haystacks if hay]
+    matched = any(
+        candidate.lower() in hay for candidate in candidates for hay in lowered
+    )
+    return _pass_fail(matched), {
+        "page_type": expectation.page_type,
+        "candidates": [c[:256] for c in candidates],
+        "matched_visible_content": matched,
+    }
+
+
+# --- v2 P2: citability checks -----------------------------------------------
+
+
+def _check_author_present(facts: dict) -> tuple[str, dict]:
+    author = (facts.get("author") or "").strip()
+    return _pass_fail(bool(author)), {
+        "present": bool(author),
+        "author": author[:256],
+    }
+
+
+def _check_date_present(facts: dict) -> tuple[str, dict]:
+    dates = facts.get("dates") or {}
+    published = bool((dates.get("published") or "").strip())
+    modified = bool((dates.get("modified") or "").strip())
+    return _pass_fail(published or modified), {
+        "has_published": published,
+        "has_modified": modified,
+    }
+
+
+def _is_social_domain(host: str) -> bool:
+    host = host.lower()
+    return any(
+        host == social or host.endswith(f".{social}") for social in SOCIAL_DOMAINS
+    )
+
+
+def _check_outbound_citations(facts: dict) -> tuple[str, dict]:
+    domains = [str(d) for d in (facts.get("outbound_domains") or [])]
+    non_social = [d for d in domains if not _is_social_domain(d)]
+    return _pass_fail(bool(non_social)), {
+        "outbound_domain_count": len(domains),
+        "non_social_domain_count": len(non_social),
+        "non_social_domains": non_social[:10],
+    }
+
+
+def _check_organization_identity(facts: dict) -> tuple[str, dict]:
+    sd = facts.get("structured_data") or {}
+    org_blocks = [
+        block
+        for block in (sd.get("blocks") or [])
+        if str(block.get("type") or "") == "Organization"
+    ]
+    same_as: list[str] = []
+    for block in org_blocks:
+        for entry in block.get("same_as") or []:
+            text = str(entry).strip()
+            if text and text not in same_as:
+                same_as.append(text)
+    return _pass_fail(bool(same_as)), {
+        "has_organization": bool(org_blocks),
+        "same_as_count": len(same_as),
+        "same_as": same_as[:8],
+    }
+
+
+# --- v2 P2: extractability checks -------------------------------------------
+
+
+def _check_answer_first(facts: dict) -> tuple[str, dict]:
+    headings = facts.get("headings") or {}
+    counts = headings.get("counts") or {}
+    has_heading = int(headings.get("h1_count", 0) or 0) > 0 or int(
+        counts.get("h2", 0) or 0
+    ) > 0
+    if not has_heading:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_headings"}
+    answer = str(facts.get("first_answer_text") or "")
+    word_count = len(answer.split())
+    return _pass_fail(word_count >= ANSWER_FIRST_MIN_WORDS), {
+        "answer_word_count": word_count,
+        "minimum_words": ANSWER_FIRST_MIN_WORDS,
+        "answer_preview": answer[:256],
+    }
+
+
+def _check_question_headings(facts: dict) -> tuple[str, dict]:
+    ratio = float(facts.get("question_heading_ratio", 0.0) or 0.0)
+    return _pass_fail(ratio > QUESTION_HEADINGS_MIN_RATIO), {
+        "question_heading_ratio": ratio,
+        "minimum_ratio": QUESTION_HEADINGS_MIN_RATIO,
+    }
+
+
+def _check_server_rendered_content(facts: dict) -> tuple[str, dict]:
+    body = facts.get("body") or {}
+    word_count = int(body.get("word_count", 0) or 0)
+    text_chars = len(str(body.get("text") or ""))
+    inline_script_chars = int(facts.get("inline_script_chars", 0) or 0)
+    # A page fails only when it is BOTH text-thin AND script-dominated: the
+    # signature of a JS shell whose content never made it into the HTML.
+    is_shell = (
+        word_count < SERVER_RENDERED_MIN_WORDS and inline_script_chars > text_chars
+    )
+    return _pass_fail(not is_shell), {
+        "word_count": word_count,
+        "minimum_words": SERVER_RENDERED_MIN_WORDS,
+        "body_text_chars": text_chars,
+        "inline_script_chars": inline_script_chars,
+    }
+
+
+def _check_no_expand_gating(facts: dict) -> tuple[str, dict]:
+    ratio = float(facts.get("expand_gated_ratio", 0.0) or 0.0)
+    return _pass_fail(ratio <= EXPAND_GATED_MAX_RATIO), {
+        "expand_gated_ratio": ratio,
+        "max_ratio": EXPAND_GATED_MAX_RATIO,
+    }
+
+
 # Map each config rule_id to its concrete check. A rule in the catalog with no
 # mapped check evaluates to ERROR (a wiring bug, preserved with zero credit).
+# ``crawl_finalize`` rules are deliberately ABSENT here: their checks live in
+# ``analysis/site_health/finalize.py`` (the finalize-writer owns those rows).
 _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "technical.title_present": _check_title_present,
     "technical.meta_description_present": _check_meta_description_present,
@@ -171,9 +572,30 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "technical.indexable": _check_indexable,
     "technical.https": _check_https,
     "technical.single_h1": _check_single_h1,
+    "technical.thin_content": _check_thin_content,
+    "technical.canonical_conflict": _check_canonical_conflict,
+    "technical.title_length_band": _check_title_length_band,
+    "technical.meta_description_length_band": _check_meta_description_length_band,
+    "technical.hsts_present": _check_hsts_present,
+    "technical.ttfb_band": _check_ttfb_band,
+    "technical.uncompressed_html": _check_uncompressed_html,
+    "technical.render_blocking": _check_render_blocking,
+    "technical.ai_crawler_access": _check_ai_crawler_access,
     "aeo.structured_data_present": _check_structured_data_present,
     "aeo.open_graph_present": _check_open_graph_present,
-    "aeo.sufficient_text": _check_sufficient_text,
+    "aeo.llms_txt_present": _check_llms_txt_present,
+    "aeo.schema_expected_for_type": _check_schema_expected_for_type,
+    "aeo.schema_required_valid": _check_schema_required_valid,
+    "aeo.schema_recommended_present": _check_schema_recommended_present,
+    "aeo.schema_matches_content": _check_schema_matches_content,
+    "aeo.author_present": _check_author_present,
+    "aeo.date_present": _check_date_present,
+    "aeo.outbound_citations": _check_outbound_citations,
+    "aeo.organization_identity": _check_organization_identity,
+    "aeo.answer_first": _check_answer_first,
+    "aeo.question_headings": _check_question_headings,
+    "aeo.server_rendered_content": _check_server_rendered_content,
+    "aeo.no_expand_gating": _check_no_expand_gating,
 }
 
 
@@ -193,6 +615,16 @@ def _is_applicable(rule: SiteHealthRule, facts: dict) -> bool:
             profile is not None
             and key == f"{PAGE_TYPE_APPLICABILITY_PREFIX}{profile.page_type}"
         )
+    if key == APPLICABILITY_SITE_ROOT:
+        # Site-level rules apply only inside the crawl root's own analysis,
+        # where the worker injected facts["site"] from the crawl's
+        # site_facts (spec §5.3 — exactly once per crawl).
+        return facts.get("site") is not None
+    if key == APPLICABILITY_CRAWL_FINALIZE:
+        # Never applicable in the per-page pass: the finalize-writer owns
+        # these rows (single-writer per rule scope) and the analyze writer
+        # filters them out before persisting.
+        return False
     # Unknown applicability key: treat as inapplicable (fail-closed).
     return False
 

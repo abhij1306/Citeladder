@@ -249,3 +249,15 @@ def test_by_page_type_key_order_follows_taxonomy():
     ]
     rollup = aggregate_by_page_type(analyses)
     assert list(rollup) == ["homepage", "article", "other", "legacy_type"]
+
+
+def test_zero_weight_contributes_neither_numerator_nor_denominator():
+    # v2 P2: the crawl_finalize rules are weight-0.0 — even a FAIL must not
+    # move any score (they produce issues, never score denominators).
+    evals = [
+        _s(RULE_OUTCOME_PASS, 3.0),
+        _s(RULE_OUTCOME_FAIL, 0.0),
+    ]
+    ds = score_dimension(evals, dimension=DIMENSION_TECHNICAL)
+    assert ds.score == pytest.approx(100.0)
+    assert ds.applicable_count == 2

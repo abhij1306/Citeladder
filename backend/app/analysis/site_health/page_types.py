@@ -107,8 +107,12 @@ def _signal(signal: str, page_type: str, detail: str) -> dict[str, Any]:
     }
 
 
-def _is_question_heading(text: str) -> bool:
-    """Question-form heading: ends with "?" or starts with a question word."""
+def is_question_heading(text: str) -> bool:
+    """Question-form heading: ends with "?" or starts with a question word.
+
+    Public since sh-extractor-2: the parser's ``question_heading_ratio`` fact
+    and the FAQ content heuristic share this one definition.
+    """
     normalized = " ".join(str(text or "").split()).lower()
     if not normalized:
         return False
@@ -118,21 +122,27 @@ def _is_question_heading(text: str) -> bool:
     return first_word in _config.PAGE_TYPE_QUESTION_WORDS
 
 
+# Back-compat private alias (the heuristic predates the public name).
+_is_question_heading = is_question_heading
+
+
 def _content_heuristic(facts: dict) -> dict[str, Any] | None:
     """Signal 3: the first matching content heuristic (faq -> product ->
     article), or None. Reads only bounded parser facts."""
-    # FAQ: question-form heading ratio over the bounded h2 texts (h3 texts
-    # arrive with the P2 extractor — sh-extractor stays v1 in P1).
+    # FAQ: question-form heading ratio over the bounded h2 + h3 texts (spec
+    # §5.1; h3 texts arrive with the P2 sh-extractor-2 — absent h3s simply
+    # contribute nothing, preserving P1 outcomes for h2-only pages).
     headings = facts.get("headings") or {}
-    h2_texts = [str(t) for t in (headings.get("h2_texts") or [])]
-    if len(h2_texts) >= _config.PAGE_TYPE_FAQ_MIN_HEADINGS:
-        question_count = sum(1 for text in h2_texts if _is_question_heading(text))
-        ratio = question_count / len(h2_texts)
+    heading_texts = [str(t) for t in (headings.get("h2_texts") or [])]
+    heading_texts += [str(t) for t in (headings.get("h3_texts") or [])]
+    if len(heading_texts) >= _config.PAGE_TYPE_FAQ_MIN_HEADINGS:
+        question_count = sum(1 for text in heading_texts if is_question_heading(text))
+        ratio = question_count / len(heading_texts)
         if ratio >= _config.PAGE_TYPE_FAQ_QUESTION_RATIO:
             return _signal(
                 _config.PAGE_TYPE_SIGNAL_CONTENT_HEURISTIC,
                 _config.PAGE_TYPE_FAQ,
-                f"question_headings:{question_count}/{len(h2_texts)}",
+                f"question_headings:{question_count}/{len(heading_texts)}",
             )
 
     body = facts.get("body") or {}

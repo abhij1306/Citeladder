@@ -1,9 +1,23 @@
-# Structured-data (JSON-LD / microdata) parse + validation (Task 5).
+# Structured-data (JSON-LD / microdata) parse + validation (Task 5; widened in
+# v2 P2 / sh-extractor-2).
 #
 # Pure, deterministic, hardened helpers that turn the raw structured-data blocks
 # an HTML page carries into bounded, normalized fact dicts and validate each
-# recognized schema.org type against the config-owned
-# ``STRUCTURED_DATA_REQUIRED_PROPERTIES`` map. No I/O, no ORM.
+# recognized schema.org type against the config-owned maps. No I/O, no ORM.
+#
+# Recognition (P2): a block is recorded when its ``@type`` is in the config
+# ``STRUCTURED_DATA_RECOGNIZED_TYPES`` set — the v1
+# ``STRUCTURED_DATA_REQUIRED_PROPERTIES`` types UNION every type named by
+# ``PAGE_TYPE_EXPECTED_SCHEMA``. The v1 map keeps owning the back-compat
+# ``required``/``present``/``missing``/``valid`` fields (types outside it
+# validate with ``required=()``, ``valid=True``; the per-type expectation
+# rules own required/recommended validation for them, spec §5.2).
+#
+# Enrichment (P2): each recognized JSON-LD block also carries bounded,
+# pre-extracted fields the sh-rules-2 checks read — ``name``, ``author``,
+# ``date_published``, ``date_modified``, ``same_as``, and ``props_present``
+# (the config ``SCHEMA_PROPERTY_PATHS`` set present on the object, incl.
+# dotted one-level paths like ``offers.price``).
 #
 # Hardening: JSON-LD is parsed with the stdlib ``json`` loader (no XML external
 # entity surface); microdata is walked over an already-parsed lxml tree. Any
@@ -14,11 +28,23 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.core.config.site_health import STRUCTURED_DATA_REQUIRED_PROPERTIES
+from app.core.config.site_health import (
+    SCHEMA_PROPERTY_PATHS,
+    STRUCTURED_DATA_RECOGNIZED_TYPES,
+    STRUCTURED_DATA_REQUIRED_PROPERTIES,
+)
 
 # Absolute ceiling on how deep we descend into a JSON-LD object graph so a
 # deeply-nested (or self-referential) payload can never blow the stack.
 _MAX_JSONLD_DEPTH = 12
+
+# Bounded per-field caps for the P2 enrichment fields (same convention as
+# parser.py: a single hostile attribute can never bloat the facts dict).
+_MAX_NAME_CHARS = 256
+_MAX_AUTHOR_CHARS = 256
+_MAX_DATE_CHARS = 64
+_MAX_SAME_AS_ENTRIES = 8
+_MAX_SAME_AS_CHARS = 256
 
 
 def _clean_type(value: Any) -> str:
@@ -77,17 +103,87 @@ def _present_properties(obj: dict, required: tuple[str, ...]) -> list[str]:
     return present
 
 
+def _path_value(obj: Any, path: str) -> Any:
+    """Resolve a (possibly dotted, one-level) property path on a JSON-LD object.
+
+    A list at any level collapses to its first dict entry (schema.org
+    properties like ``offers`` are commonly single-object or single-item
+    lists). Returns ``None`` when any segment is absent.
+    """
+    current = obj
+    for segment in path.split("."):
+        if isinstance(current, list):
+            current = next((item for item in current if isinstance(item, dict)), None)
+        if not isinstance(current, dict):
+            return None
+        current = current.get(segment)
+        if current is None:
+            return None
+    return current
+
+
+def _props_present(obj: dict) -> list[str]:
+    """Sorted config ``SCHEMA_PROPERTY_PATHS`` present + non-empty on ``obj``."""
+    present: list[str] = []
+    for path in sorted(SCHEMA_PROPERTY_PATHS):
+        value = _path_value(obj, path)
+        if value is not None and value not in ("", [], {}):
+            present.append(path)
+    return present
+
+
+def _first_string(value: Any) -> str:
+    """First non-empty plain string in a scalar/dict/list JSON-LD value."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        return _first_string(value.get("name"))
+    if isinstance(value, list):
+        for item in value:
+            text = _first_string(item)
+            if text:
+                return text
+    return ""
+
+
+def _enrichment(obj: dict) -> dict[str, Any]:
+    """The bounded P2 enrichment fields for one recognized JSON-LD object."""
+    name = _first_string(obj.get("name")) or _first_string(obj.get("headline"))
+    author = _first_string(obj.get("author"))
+    date_published = _first_string(obj.get("datePublished"))
+    date_modified = _first_string(obj.get("dateModified"))
+    same_as_raw = obj.get("sameAs")
+    if isinstance(same_as_raw, str):
+        same_as_raw = [same_as_raw]
+    same_as: list[str] = []
+    if isinstance(same_as_raw, list):
+        for entry in same_as_raw[:_MAX_SAME_AS_ENTRIES]:
+            if isinstance(entry, str) and entry.strip():
+                same_as.append(entry.strip()[:_MAX_SAME_AS_CHARS])
+    return {
+        "name": name[:_MAX_NAME_CHARS],
+        "author": author[:_MAX_AUTHOR_CHARS],
+        "date_published": date_published[:_MAX_DATE_CHARS],
+        "date_modified": date_modified[:_MAX_DATE_CHARS],
+        "same_as": same_as,
+        "props_present": _props_present(obj),
+    }
+
+
 def _validate_object(obj: dict) -> dict | None:
-    """Validate one JSON-LD object against the required-property map.
+    """Validate one JSON-LD object against the recognized-type set.
 
     Returns a bounded fact dict (``type`` + required/present/missing property
-    lists + a ``valid`` flag) for a RECOGNIZED type, or ``None`` when the object
-    carries no recognized ``@type`` (so callers only record understood types).
+    lists + a ``valid`` flag + the P2 enrichment fields) for a RECOGNIZED
+    type, or ``None`` when the object carries no recognized ``@type`` (so
+    callers only record understood types).
     """
     schema_type = _clean_type(obj.get("@type"))
-    if not schema_type or schema_type not in STRUCTURED_DATA_REQUIRED_PROPERTIES:
+    if not schema_type or schema_type not in STRUCTURED_DATA_RECOGNIZED_TYPES:
         return None
-    required = STRUCTURED_DATA_REQUIRED_PROPERTIES[schema_type]
+    # v1 back-compat: only the v1 map's types carry a required-property
+    # contract; newly recognized types validate with an empty contract.
+    required = STRUCTURED_DATA_REQUIRED_PROPERTIES.get(schema_type, ())
     present = _present_properties(obj, required)
     missing = [prop for prop in required if prop not in present]
     return {
@@ -97,6 +193,7 @@ def _validate_object(obj: dict) -> dict | None:
         "present": present,
         "missing": missing,
         "valid": not missing,
+        **_enrichment(obj),
     }
 
 
@@ -152,12 +249,12 @@ def validate_microdata_types(itemtypes: list[str], *, max_blocks: int) -> list[d
             if len(facts) >= max_blocks:
                 break
             schema_type = _clean_type(candidate)
-            if (
-                not schema_type
-                or schema_type not in STRUCTURED_DATA_REQUIRED_PROPERTIES
-            ):
+            if not schema_type or schema_type not in STRUCTURED_DATA_RECOGNIZED_TYPES:
                 continue
-            required = STRUCTURED_DATA_REQUIRED_PROPERTIES[schema_type]
+            # v1 back-compat: microdata property extraction stays shallow, so
+            # v1-map types record their full required list as missing/invalid;
+            # newly recognized types carry an empty contract (valid=True).
+            required = STRUCTURED_DATA_REQUIRED_PROPERTIES.get(schema_type, ())
             facts.append(
                 {
                     "type": schema_type,
@@ -165,7 +262,13 @@ def validate_microdata_types(itemtypes: list[str], *, max_blocks: int) -> list[d
                     "required": list(required),
                     "present": [],
                     "missing": list(required),
-                    "valid": False,
+                    "valid": not required,
+                    "name": "",
+                    "author": "",
+                    "date_published": "",
+                    "date_modified": "",
+                    "same_as": [],
+                    "props_present": [],
                 }
             )
     return facts

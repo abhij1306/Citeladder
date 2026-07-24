@@ -300,3 +300,255 @@ def test_valid_declared_charset_is_honored():
     )
     facts = _facts(body, charset="ISO-8859-1")
     assert facts["title"] == "Caf\u00e9"
+
+
+# --- v2 P2 (sh-extractor-2): citability / extractability / hreflang fields ---
+
+_V2_PAGE = b"""
+<html>
+  <head>
+    <title>Acme Widgets Guide</title>
+    <meta name="author" content="Meta Author">
+    <meta property="article:published_time" content="2026-01-15T10:00:00Z">
+    <meta property="article:modified_time" content="2026-06-01T10:00:00Z">
+    <link rel="alternate" hreflang="en" href="https://acme.example.com/widgets">
+    <link rel="alternate" hreflang="fr" href="/fr/widgets">
+    <link rel="stylesheet" href="/styles.css">
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Article",
+       "headline":"Acme Widgets Guide",
+       "author":{"@type":"Person","name":"JSONLD Author"},
+       "datePublished":"2026-01-10","dateModified":"2026-05-30"}
+    </script>
+  </head>
+  <body>
+    <nav><a href="/nav">nav</a></nav>
+    <main>
+      <article>
+        <h1>Acme Widgets Guide</h1>
+        <p>Widgets are reliable little gadgets that just work for everyone.</p>
+        <h2>What are widgets?</h2>
+        <p>Answer text here.</p>
+        <h2>Installation</h2>
+        <h3>Do widgets work offline?</h3>
+        <a href="https://docs.example.org/setup">Docs</a>
+        <a href="https://external.org/x">External</a>
+        <a href="https://docs.example.org/api">Docs API</a>
+      </article>
+    </main>
+    <script>var appState = {"boot": true};</script>
+    <script src="/app.js"></script>
+  </body>
+</html>
+"""
+
+
+def test_extractor_version_is_sh_extractor_2():
+    # Pin the P2 provenance stamp (config-derived everywhere else).
+    assert EXTRACTOR_VERSION == "sh-extractor-2"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-2"
+
+
+def test_h3_texts_and_question_heading_ratio():
+    facts = _facts(_V2_PAGE)
+    headings = facts["headings"]
+    assert headings["h3_texts"] == ["Do widgets work offline?"]
+    # h2 ("What are widgets?", "Installation") + h3 ("Do widgets work
+    # offline?"): 2 questions out of 3 headings.
+    assert facts["question_heading_ratio"] == round(2 / 3, 4)
+
+
+def test_author_and_dates_jsonld_wins_over_meta():
+    facts = _facts(_V2_PAGE)
+    # JSON-LD author/datePublished outrank the meta tags.
+    assert facts["author"] == "JSONLD Author"
+    assert facts["dates"] == {"published": "2026-01-10", "modified": "2026-05-30"}
+
+
+def test_author_and_dates_meta_fallbacks():
+    body = (
+        b"<html><head>"
+        b'<meta name="author" content="Meta Author">'
+        b'<meta property="article:published_time" content="2026-01-15T10:00:00Z">'
+        b"</head><body><p>text</p></body></html>"
+    )
+    facts = _facts(body)
+    assert facts["author"] == "Meta Author"
+    assert facts["dates"]["published"] == "2026-01-15T10:00:00Z"
+    assert facts["dates"]["modified"] == ""
+
+
+def test_dates_time_element_fallback():
+    body = (
+        b"<html><body><p>text</p>"
+        b'<time datetime="2026-03-01">March 2026</time>'
+        b"</body></html>"
+    )
+    facts = _facts(body)
+    assert facts["dates"]["published"] == "2026-03-01"
+
+
+def test_outbound_domains_sorted_deduped_external_only():
+    facts = _facts(_V2_PAGE)
+    # Relative /nav is same-origin; the two docs.example.org links dedupe.
+    assert facts["outbound_domains"] == ["docs.example.org", "external.org"]
+
+
+def test_landmarks_detected():
+    facts = _facts(_V2_PAGE)
+    assert facts["landmarks"] == {"main": True, "article": True, "nav": True}
+    assert _facts(b"<html><body><p>x</p></body></html>")["landmarks"] == {
+        "main": False,
+        "article": False,
+        "nav": False,
+    }
+
+
+def test_hreflang_alternates_resolved_absolute():
+    facts = _facts(_V2_PAGE)
+    assert facts["hreflang_alternates"] == [
+        {"hreflang": "en", "url": "https://acme.example.com/widgets"},
+        {"hreflang": "fr", "url": "https://acme.example.com/fr/widgets"},
+    ]
+
+
+def test_first_answer_text_is_first_block_after_first_heading():
+    facts = _facts(_V2_PAGE)
+    assert facts["first_answer_text"] == (
+        "Widgets are reliable little gadgets that just work for everyone."
+    )
+    # No heading -> no answer text.
+    assert _facts(b"<html><body><p>x</p></body></html>")["first_answer_text"] == ""
+
+
+def test_inline_script_chars_count_srcless_scripts_only():
+    # Only the src-less <script> body counts; the src script contributes 0.
+    body = (
+        b"<html><body><p>x</p>"
+        b"<script>var a = 1;</script>"
+        b'<script src="/x.js"></script>'
+        b"</body></html>"
+    )
+    assert _facts(body)["inline_script_chars"] == len("var a = 1;")
+    assert _facts(b"<html><body><p>x</p></body></html>")["inline_script_chars"] == 0
+    # The richer page's inline scripts (JSON-LD + inline app script) count.
+    assert _facts(_V2_PAGE)["inline_script_chars"] > len(
+        'var appState = {"boot": true};'
+    )
+
+
+def test_expand_gated_ratio_counts_collapsed_subtrees():
+    body = (
+        b"<html><body>"
+        b"<p>visible words one two three four five six seven eight</p>"
+        b"<details><p>gated alpha beta gamma</p></details>"
+        b"</body></html>"
+    )
+    facts = _facts(body)
+    # 4 gated words out of 13 body words (the visible <p> and the details
+    # text concatenate without a separator in the body text, merging
+    # "eight"+"gated" into one word).
+    assert facts["body"]["word_count"] == 13
+    assert facts["expand_gated_ratio"] == round(4 / 13, 4)
+    # Nothing gated -> 0.0.
+    assert _facts(b"<html><body><p>x y</p></body></html>")[
+        "expand_gated_ratio"
+    ] == 0.0
+
+
+def test_expand_gated_ratio_never_double_counts_nested_gates():
+    body = (
+        b"<html><body>"
+        b"<p>visible words one two three four five six seven eight</p>"
+        b'<div aria-expanded="false"><p>gated alpha beta gamma</p>'
+        b"<details><p>nested delta epsilon</p></details></div>"
+        b"</body></html>"
+    )
+    facts = _facts(body)
+    # The outer div's text is counted ONCE (its own concatenated text merges
+    # "gamma"+"nested" -> 6 gated words); the nested details adds nothing —
+    # double-counting it would push the ratio to 9/15.
+    assert facts["body"]["word_count"] == 15
+    assert facts["expand_gated_ratio"] == round(6 / 15, 4)
+
+
+# --- v2 P2 (sh-extractor-2): structured-data recognition + enrichment --------
+
+
+def test_newly_recognized_type_kept_with_empty_required_contract():
+    # Service is recognized by the P2 set but carries no v1 required contract.
+    blocks = parse_jsonld_blocks(
+        ['{"@type":"Service","name":"Consulting","provider":"Acme"}'],
+        max_blocks=10,
+    )
+    assert len(blocks) == 1
+    block = blocks[0]
+    assert block["type"] == "Service"
+    assert block["required"] == []
+    assert block["missing"] == []
+    assert block["valid"] is True
+    # Enrichment still lands.
+    assert block["name"] == "Consulting"
+    assert "name" in block["props_present"]
+
+
+def test_jsonld_enrichment_name_author_dates_same_as():
+    blocks = parse_jsonld_blocks(
+        [
+            '{"@type":"Organization","name":"Acme","url":"https://acme.example",'
+            '"author":[{"@type":"Person","name":"First Author"}],'
+            '"datePublished":"2026-01-10","dateModified":"2026-05-30",'
+            '"sameAs":["https://twitter.com/acme","https://linkedin.com/acme"]}'
+        ],
+        max_blocks=10,
+    )
+    block = blocks[0]
+    assert block["name"] == "Acme"
+    # list-of-dicts author collapses to the first resolvable name.
+    assert block["author"] == "First Author"
+    assert block["date_published"] == "2026-01-10"
+    assert block["date_modified"] == "2026-05-30"
+    assert block["same_as"] == [
+        "https://twitter.com/acme",
+        "https://linkedin.com/acme",
+    ]
+
+
+def test_jsonld_name_falls_back_to_headline():
+    payload = (
+        '{"@type":"Article","headline":"The Headline",'
+        '"author":"A","datePublished":"D"}'
+    )
+    blocks = parse_jsonld_blocks([payload], max_blocks=10)
+    assert blocks[0]["name"] == "The Headline"
+
+
+def test_props_present_supports_dotted_offer_paths():
+    blocks = parse_jsonld_blocks(
+        [
+            '{"@type":"Product","name":"Widget",'
+            '"offers":{"@type":"Offer","price":"9.99","priceCurrency":"USD"}}'
+        ],
+        max_blocks=10,
+    )
+    props = blocks[0]["props_present"]
+    assert "name" in props
+    assert "offers" in props
+    assert "offers.price" in props
+    assert "offers.priceCurrency" in props
+    # Sorted + bounded to the config path set.
+    assert props == sorted(props)
+
+
+def test_microdata_blocks_carry_empty_enrichment_fields():
+    blocks = validate_microdata_types(
+        ["https://schema.org/Organization"], max_blocks=10
+    )
+    assert len(blocks) == 1
+    block = blocks[0]
+    assert block["name"] == ""
+    assert block["author"] == ""
+    assert block["date_published"] == ""
+    assert block["date_modified"] == ""
+    assert block["same_as"] == []
+    assert block["props_present"] == []
