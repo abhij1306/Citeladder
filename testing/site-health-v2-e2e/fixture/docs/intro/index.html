@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Getting started — Fixture Co Docs</title>
+<meta name="description" content="Getting started with Fixture Co fixtures.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"Getting started with Fixture Co"}
+</script>
+</head>
+<body>
+<header><nav><a href="/">Home</a></nav></header>
+<main>
+<h1>Getting started with Fixture Co</h1>
+<p>This guide walks through creating your first fixture site, pointing a
+crawler at it, and reading the resulting site health report. No account is
+required to crawl the public fixtures, and every fixture is stable so test
+suites can depend on byte-identical responses across runs.</p>
+<h2>Creating a fixture site</h2>
+<p>A fixture site is a directory of static HTML pages served by any web
+server. Place an index page at the root that links to every other page so a
+discovery crawler can reach the whole site in one hop. Keep the markup
+simple: one h1 per page, descriptive titles, and server-rendered body text.</p>
+<h2>Running the crawler</h2>
+<p>Point the crawler at the root URL of the fixture site. The crawler
+discovers linked pages, fetches each one, extracts facts, classifies the
+page type, evaluates the rule catalog, and aggregates scores. The finished
+report breaks results down by page type so thin articles and missing schema
+are visible at a glance.</p>
+<h2>Reading the report</h2>
+<p>Each analyzed page shows its classified type, its technical and AEO scores,
+and any issues the rule catalog raised. Filters narrow the pages, inventory,
+and issues lists to a single page type, and exports carry the same column so
+spreadsheets stay in sync with the dashboard.</p>
+</main>
+<footer><p>Fixture Co Docs.</p></footer>
+</body>
+</html>

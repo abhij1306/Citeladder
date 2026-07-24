@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Frequently asked questions — Fixture Co</title>
+<meta name="description" content="Answers to common questions about Fixture Co fixtures.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is a fixture site?","acceptedAnswer":{"@type":"Answer","text":"A static site used to test crawlers."}}]}
+</script>
+</head>
+<body>
+<header><nav><a href="/">Home</a></nav></header>
+<main>
+<h1>Frequently asked questions</h1>
+<p>Answers to the questions teams ask most often about building and crawling
+Fixture Co fixture sites.</p>
+<h2>What is a fixture site?</h2>
+<p>A fixture site is a small static website whose content never changes, built
+so crawler tests are deterministic. Every page exists to exercise one
+classification signal or rule.</p>
+<h2>How does the crawler classify a page?</h2>
+<p>The crawler reads the URL path first, then content heuristics such as
+question headings, price tokens, and bylines, and finally the structured data
+types. The highest priority matched signal decides the type.</p>
+<h2>Why did my page classify as other?</h2>
+<p>A page classifies as other when no signal matches or the summed confidence
+falls below the threshold. Ambiguous pages are placed in the neutral bucket
+instead of being forced into a type they do not fit.</p>
+<h2>Can the classification change between crawls?</h2>
+<p>Only when the page itself changes. The classifier is deterministic: the same
+URL and content always produce the same type, confidence, and evidence.</p>
+</main>
+<footer><p>Fixture Co FAQ.</p></footer>
+</body>
+</html>

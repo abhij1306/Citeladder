@@ -1,0 +1,17 @@
+# Fixture Co
+
+> Fixture Co publishes small, stable, deterministic websites so crawler and
+> site-health pipelines can be tested end to end. Every page is static,
+> server-rendered HTML with frozen content.
+
+## Pages
+
+- [Home](https://swk5bwh3qdbz.preview.us1.vorflux.com/): fixture root and navigation hub
+- [Blog: How deterministic crawlers classify pages](https://swk5bwh3qdbz.preview.us1.vorflux.com/blog/post-1/): article fixture
+- [Pricing](https://swk5bwh3qdbz.preview.us1.vorflux.com/pricing/): pricing fixture
+- [Docs: Getting started](https://swk5bwh3qdbz.preview.us1.vorflux.com/docs/intro/): documentation fixture
+- [FAQ](https://swk5bwh3qdbz.preview.us1.vorflux.com/faq/): frequently asked questions fixture
+- [Product: Fixture Widget](https://swk5bwh3qdbz.preview.us1.vorflux.com/product/widget/): product fixture
+- [Category: Shoes](https://swk5bwh3qdbz.preview.us1.vorflux.com/category/shoes/): category fixture
+- [About](https://swk5bwh3qdbz.preview.us1.vorflux.com/about/): about/contact fixture
+- [Misc notes](https://swk5bwh3qdbz.preview.us1.vorflux.com/misc/plain/): signal-free control page

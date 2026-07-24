@@ -1,0 +1,4102 @@
+{
+ "/": {
+  "expected_type": "homepage",
+  "page_type": "homepage",
+  "type_match": true,
+  "word_count": 153,
+  "scores": {
+   "technical_score": 77.3,
+   "aeo_score": 71.7,
+   "overall_score": 74.5,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 35,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 66,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 2,
+     "has_json_ld": true,
+     "has_microdata": false,
+     "types": [
+      "Organization",
+      "WebSite"
+     ]
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 153,
+     "minimum": 40,
+     "page_type": "homepage"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 35,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 66,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "fail",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "robots_fetched": true,
+     "ai_crawlers": {
+      "GPTBot": "block",
+      "ClaudeBot": "allow",
+      "PerplexityBot": "allow",
+      "Google-Extended": "allow"
+     },
+     "blocked": [
+      "GPTBot"
+     ]
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "pass",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "fetched": true,
+     "present": true,
+     "url": ""
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "homepage",
+     "expected_types": [
+      "Organization",
+      "WebSite"
+     ],
+     "found_types": [
+      "Organization",
+      "WebSite"
+     ]
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "homepage",
+     "expected_types": [
+      "Organization",
+      "WebSite"
+     ],
+     "required": [
+      "name",
+      "url"
+     ],
+     "missing": [],
+     "checked_blocks": 2
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "fail",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "homepage",
+     "expected_types": [
+      "Organization",
+      "WebSite"
+     ],
+     "recommended": [
+      "sameAs",
+      "logo"
+     ],
+     "missing": [
+      "logo"
+     ],
+     "checked_blocks": 2
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "pass",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "homepage",
+     "candidates": [
+      "Fixture Co",
+      "Fixture Co"
+     ],
+     "matched_visible_content": true
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_organization": true,
+     "same_as_count": 1,
+     "same_as": [
+      "https://twitter.com/fixtureco"
+     ]
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 49,
+     "minimum_words": 10,
+     "answer_preview": "Fixture Co publishes small, stable websites that exercising crawlers can discover, fetch, and analyze. Every page on this site exists so that a site health crawler can classify it into exactly one page type. This homepage is intentionally link heavy and li"
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 153,
+     "minimum_words": 20,
+     "body_text_chars": 943,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/blog/post-1/": {
+  "expected_type": "article",
+  "page_type": "article",
+  "type_match": true,
+  "word_count": 339,
+  "scores": {
+   "technical_score": 82.6,
+   "aeo_score": 79.5,
+   "overall_score": 81.0,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 59,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 76,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/blog/post-1/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 1,
+     "has_json_ld": true,
+     "has_microdata": false,
+     "types": [
+      "BlogPosting"
+     ]
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 339,
+     "minimum": 300,
+     "page_type": "article"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 59,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 76,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "article",
+     "expected_types": [
+      "Article",
+      "BlogPosting",
+      "NewsArticle"
+     ],
+     "found_types": [
+      "BlogPosting"
+     ]
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "article",
+     "expected_types": [
+      "Article",
+      "BlogPosting",
+      "NewsArticle"
+     ],
+     "required": [
+      "headline",
+      "author",
+      "datePublished"
+     ],
+     "missing": [],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "fail",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "article",
+     "expected_types": [
+      "Article",
+      "BlogPosting",
+      "NewsArticle"
+     ],
+     "recommended": [
+      "image",
+      "dateModified"
+     ],
+     "missing": [
+      "dateModified"
+     ],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "pass",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "article",
+     "candidates": [
+      "How deterministic crawlers classify pages"
+     ],
+     "matched_visible_content": true
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "pass",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": true,
+     "author": "Jane Doe"
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "pass",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": true,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 3,
+     "minimum_words": 10,
+     "answer_preview": "By Jane Doe"
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.3333,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 339,
+     "minimum_words": 20,
+     "body_text_chars": 2037,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/pricing/": {
+  "expected_type": "pricing",
+  "page_type": "pricing",
+  "type_match": true,
+  "word_count": 143,
+  "scores": {
+   "technical_score": 73.9,
+   "aeo_score": 63.6,
+   "overall_score": 68.8,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 20,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 49,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/pricing/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 1,
+     "has_json_ld": true,
+     "has_microdata": false,
+     "types": [
+      "Product"
+     ]
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 143,
+     "minimum": 80,
+     "page_type": "pricing"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 20,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 49,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "pricing",
+     "expected_types": [
+      "Product",
+      "Service"
+     ],
+     "found_types": [
+      "Product"
+     ]
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "pricing",
+     "expected_types": [
+      "Product",
+      "Service"
+     ],
+     "required": [
+      "offers"
+     ],
+     "missing": [],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "fail",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "pricing",
+     "expected_types": [
+      "Product",
+      "Service"
+     ],
+     "recommended": [
+      "price",
+      "priceCurrency"
+     ],
+     "missing": [
+      "price",
+      "priceCurrency"
+     ],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "pricing",
+     "candidates": [
+      "Fixture Co Starter"
+     ],
+     "matched_visible_content": false
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 47,
+     "minimum_words": 10,
+     "answer_preview": "Fixture Co offers simple plans that scale with the number of fixture sites you need to crawl. Every plan includes unlimited deterministic crawls, full page type classification, and exportable reports. Choose the plan that fits your team and upgrade or down"
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 143,
+     "minimum_words": 20,
+     "body_text_chars": 914,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/docs/intro/": {
+  "expected_type": "docs",
+  "page_type": "docs",
+  "type_match": true,
+  "word_count": 216,
+  "scores": {
+   "technical_score": 78.3,
+   "aeo_score": 70.5,
+   "overall_score": 74.4,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 33,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 41,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/docs/intro/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 1,
+     "has_json_ld": true,
+     "has_microdata": false,
+     "types": [
+      "TechArticle"
+     ]
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 216,
+     "minimum": 150,
+     "page_type": "docs"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 33,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 41,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "docs",
+     "expected_types": [
+      "TechArticle"
+     ],
+     "found_types": [
+      "TechArticle"
+     ]
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "docs",
+     "expected_types": [
+      "TechArticle"
+     ],
+     "required": [
+      "headline"
+     ],
+     "missing": [],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "fail",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "docs",
+     "expected_types": [
+      "TechArticle"
+     ],
+     "recommended": [
+      "author",
+      "dateModified"
+     ],
+     "missing": [
+      "author",
+      "dateModified"
+     ],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "pass",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "docs",
+     "candidates": [
+      "Getting started with Fixture Co"
+     ],
+     "matched_visible_content": true
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 45,
+     "minimum_words": 10,
+     "answer_preview": "This guide walks through creating your first fixture site, pointing a crawler at it, and reading the resulting site health report. No account is required to crawl the public fixtures, and every fixture is stable so test suites can depend on byte-identical "
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 216,
+     "minimum_words": 20,
+     "body_text_chars": 1279,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/faq/": {
+  "expected_type": "faq",
+  "page_type": "faq",
+  "type_match": true,
+  "word_count": 167,
+  "scores": {
+   "technical_score": 78.3,
+   "aeo_score": 75.0,
+   "overall_score": 76.7,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 39,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 54,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/faq/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 1,
+     "has_json_ld": true,
+     "has_microdata": false,
+     "types": [
+      "FAQPage"
+     ]
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 167,
+     "minimum": 120,
+     "page_type": "faq"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 39,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 54,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "faq",
+     "expected_types": [
+      "FAQPage"
+     ],
+     "found_types": [
+      "FAQPage"
+     ]
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "faq",
+     "expected_types": [
+      "FAQPage"
+     ],
+     "required": [
+      "mainEntity"
+     ],
+     "missing": [],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "not_applicable",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_recommended_properties"
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_schema_names"
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 16,
+     "minimum_words": 10,
+     "answer_preview": "Answers to the questions teams ask most often about building and crawling Fixture Co fixture sites."
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 1.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 167,
+     "minimum_words": 20,
+     "body_text_chars": 1029,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/product/widget/": {
+  "expected_type": "product",
+  "page_type": "product",
+  "type_match": true,
+  "word_count": 115,
+  "scores": {
+   "technical_score": 73.9,
+   "aeo_score": 70.5,
+   "overall_score": 72.2,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 27,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 58,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/product/widget/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 1,
+     "has_json_ld": true,
+     "has_microdata": false,
+     "types": [
+      "Product"
+     ]
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 115,
+     "minimum": 80,
+     "page_type": "product"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 27,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 58,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "product",
+     "expected_types": [
+      "Product"
+     ],
+     "found_types": [
+      "Product"
+     ]
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "product",
+     "expected_types": [
+      "Product"
+     ],
+     "required": [
+      "name",
+      "offers"
+     ],
+     "missing": [],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "fail",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "product",
+     "expected_types": [
+      "Product"
+     ],
+     "recommended": [
+      "offers.price",
+      "offers.priceCurrency",
+      "aggregateRating"
+     ],
+     "missing": [
+      "aggregateRating"
+     ],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "pass",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "product",
+     "candidates": [
+      "Fixture Widget"
+     ],
+     "matched_visible_content": true
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 31,
+     "minimum_words": 10,
+     "answer_preview": "The Fixture Widget is the dependable workhorse of every fixture site. Machined from solid virtual aluminum, it holds pages together through the most demanding crawl schedules and never drifts between runs."
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 115,
+     "minimum_words": 20,
+     "body_text_chars": 730,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/category/shoes/": {
+  "expected_type": "category",
+  "page_type": "category",
+  "type_match": true,
+  "word_count": 99,
+  "scores": {
+   "technical_score": 73.9,
+   "aeo_score": 58.1,
+   "overall_score": 66.0,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 27,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 37,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/category/shoes/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 1,
+     "has_json_ld": true,
+     "has_microdata": false,
+     "types": [
+      "CollectionPage"
+     ]
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 99,
+     "minimum": 60,
+     "page_type": "category"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 27,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 37,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "category",
+     "expected_types": [
+      "BreadcrumbList",
+      "CollectionPage",
+      "ItemList"
+     ],
+     "found_types": [
+      "CollectionPage"
+     ]
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "fail",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "category",
+     "expected_types": [
+      "BreadcrumbList",
+      "CollectionPage",
+      "ItemList"
+     ],
+     "required": [
+      "itemListElement"
+     ],
+     "missing": [
+      "itemListElement"
+     ],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "not_applicable",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_recommended_properties"
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "pass",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "category",
+     "candidates": [
+      "Shoes"
+     ],
+     "matched_visible_content": true
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 26,
+     "minimum_words": 10,
+     "answer_preview": "Browse every shoe fixture in the catalog. This category page lists the current collection with short summaries so crawlers and visitors can scan the range quickly."
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 99,
+     "minimum_words": 20,
+     "body_text_chars": 628,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/about/": {
+  "expected_type": "about_contact",
+  "page_type": "about_contact",
+  "type_match": true,
+  "word_count": 112,
+  "scores": {
+   "technical_score": 73.9,
+   "aeo_score": 70.5,
+   "overall_score": 72.2,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 16,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 45,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/about/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 1,
+     "has_json_ld": true,
+     "has_microdata": false,
+     "types": [
+      "ContactPage"
+     ]
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 112,
+     "minimum": 60,
+     "page_type": "about_contact"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 16,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 45,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "about_contact",
+     "expected_types": [
+      "Organization",
+      "LocalBusiness",
+      "ContactPage"
+     ],
+     "found_types": [
+      "ContactPage"
+     ]
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "about_contact",
+     "expected_types": [
+      "Organization",
+      "LocalBusiness",
+      "ContactPage"
+     ],
+     "required": [
+      "name"
+     ],
+     "missing": [],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "fail",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "about_contact",
+     "expected_types": [
+      "Organization",
+      "LocalBusiness",
+      "ContactPage"
+     ],
+     "recommended": [
+      "contactPoint",
+      "address"
+     ],
+     "missing": [
+      "contactPoint",
+      "address"
+     ],
+     "checked_blocks": 1
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "pass",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "about_contact",
+     "candidates": [
+      "About Fixture Co"
+     ],
+     "matched_visible_content": true
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 32,
+     "minimum_words": 10,
+     "answer_preview": "Fixture Co was founded to make crawler testing boring. We believe the best fixture is the one nobody has to think about: stable markup, stable content, and stable responses, release after release."
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 112,
+     "minimum_words": 20,
+     "body_text_chars": 692,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/misc/plain/": {
+  "expected_type": "other",
+  "page_type": "other",
+  "type_match": true,
+  "word_count": 133,
+  "scores": {
+   "technical_score": 78.3,
+   "aeo_score": 29.4,
+   "overall_score": 53.8,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 32,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 56,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/misc/plain/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "fail",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 0,
+     "has_json_ld": false,
+     "has_microdata": false,
+     "types": []
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 133,
+     "minimum": 100,
+     "page_type": "other"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 32,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 56,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "fail",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "other",
+     "expected_types": [
+      "WebPage"
+     ],
+     "found_types": []
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "not_applicable",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_expected_type_block"
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "not_applicable",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_recommended_properties"
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_expected_type_block"
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 44,
+     "minimum_words": 10,
+     "answer_preview": "This page intentionally carries no classification signal. The path matches no pattern in the classifier tables, the headings ask no questions, the text mentions no prices and no carts, no byline appears beside a date, and no structured data is embedded in "
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 133,
+     "minimum_words": 20,
+     "body_text_chars": 785,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ },
+ "/misc/orphan/": {
+  "expected_type": "other",
+  "page_type": "other",
+  "type_match": true,
+  "word_count": 143,
+  "scores": {
+   "technical_score": 73.9,
+   "aeo_score": 29.4,
+   "overall_score": 51.7,
+   "scoring_version": "sh-scoring-2"
+  },
+  "evaluations": {
+   "technical.title_present": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 25,
+     "present": true
+    }
+   },
+   "technical.meta_description_present": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 56,
+     "present": true
+    }
+   },
+   "technical.canonical_present": {
+    "outcome": "fail",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "canonical_url": "",
+     "present": false
+    }
+   },
+   "technical.indexable": {
+    "outcome": "pass",
+    "weight": 4.0,
+    "severity": "critical",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "noindex": false,
+     "nofollow": false
+    }
+   },
+   "technical.https": {
+    "outcome": "pass",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "scheme": "https",
+     "final_url": "https://swk5bwh3qdbz.preview.us1.vorflux.com/misc/orphan/",
+     "is_https": true
+    }
+   },
+   "technical.single_h1": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "h1_count": 1
+    }
+   },
+   "aeo.structured_data_present": {
+    "outcome": "fail",
+    "weight": 3.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "block_count": 0,
+     "has_json_ld": false,
+     "has_microdata": false,
+     "types": []
+    }
+   },
+   "aeo.open_graph_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "metadata",
+    "evidence": {
+     "has_og_title": false,
+     "has_og_description": false,
+     "property_count": 0
+    }
+   },
+   "technical.thin_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "content",
+    "evidence": {
+     "word_count": 143,
+     "minimum": 100,
+     "page_type": "other"
+    }
+   },
+   "technical.canonical_conflict": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "no_canonical"
+    }
+   },
+   "technical.title_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "title_length": 25,
+     "band": [
+      30,
+      60
+     ]
+    }
+   },
+   "technical.meta_description_length_band": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "metadata",
+    "evidence": {
+     "description_length": 56,
+     "band": [
+      70,
+      160
+     ]
+    }
+   },
+   "technical.hsts_present": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "security",
+    "evidence": {
+     "present": false,
+     "scheme": "https"
+    }
+   },
+   "technical.ttfb_band": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "ttfb_ms": 50,
+     "threshold_ms": 800
+    }
+   },
+   "technical.uncompressed_html": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "content_encoding": "",
+     "is_compressed": false
+    }
+   },
+   "technical.render_blocking": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "performance",
+    "evidence": {
+     "scripts": 0,
+     "stylesheets": 0,
+     "total": 0,
+     "max_allowed": 2
+    }
+   },
+   "technical.ai_crawler_access": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.llms_txt_present": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.schema_expected_for_type": {
+    "outcome": "fail",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "page_type": "other",
+     "expected_types": [
+      "WebPage"
+     ],
+     "found_types": []
+    }
+   },
+   "aeo.schema_required_valid": {
+    "outcome": "not_applicable",
+    "weight": 3.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_expected_type_block"
+    }
+   },
+   "aeo.schema_recommended_present": {
+    "outcome": "not_applicable",
+    "weight": 0.5,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_recommended_properties"
+    }
+   },
+   "aeo.schema_matches_content": {
+    "outcome": "not_applicable",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "structured_data",
+    "evidence": {
+     "reason": "no_expected_type_block"
+    }
+   },
+   "aeo.author_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "present": false,
+     "author": ""
+    }
+   },
+   "aeo.date_present": {
+    "outcome": "fail",
+    "weight": 1.5,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "has_published": false,
+     "has_modified": false
+    }
+   },
+   "aeo.outbound_citations": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "outbound_domain_count": 0,
+     "non_social_domain_count": 0,
+     "non_social_domains": []
+    }
+   },
+   "aeo.organization_identity": {
+    "outcome": "not_applicable",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "citability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "aeo.answer_first": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "answer_word_count": 53,
+     "minimum_words": 10,
+     "answer_preview": "This page exists only in the XML sitemap. No navigation item, article, or listing on the fixture site links here, which makes it a deliberate sitemap orphan: a real, fetchable page that internal linking never reaches. Site health crawlers that compare the "
+    }
+   },
+   "aeo.question_headings": {
+    "outcome": "fail",
+    "weight": 1.0,
+    "severity": "low",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "question_heading_ratio": 0.0,
+     "minimum_ratio": 0.0
+    }
+   },
+   "aeo.server_rendered_content": {
+    "outcome": "pass",
+    "weight": 2.0,
+    "severity": "high",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "word_count": 143,
+     "minimum_words": 20,
+     "body_text_chars": 863,
+     "inline_script_chars": 0
+    }
+   },
+   "aeo.no_expand_gating": {
+    "outcome": "pass",
+    "weight": 1.0,
+    "severity": "medium",
+    "dimension": "aeo",
+    "category": "content",
+    "evidence": {
+     "expand_gated_ratio": 0.0,
+     "max_ratio": 0.5
+    }
+   },
+   "technical.broken_internal_link": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "high",
+    "dimension": "technical",
+    "category": "links",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.sitemap_orphan": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "low",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   },
+   "technical.hreflang_conflict": {
+    "outcome": "not_applicable",
+    "weight": 0.0,
+    "severity": "medium",
+    "dimension": "technical",
+    "category": "indexability",
+    "evidence": {
+     "reason": "not_applicable"
+    }
+   }
+  }
+ }
+}

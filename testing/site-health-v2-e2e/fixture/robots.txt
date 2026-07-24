@@ -1,0 +1,17 @@
+# Fixture Co robots.txt — Site Health v2 P2 fixture (variant A: main).
+# Deliberate AI-bot stance: GPTBot blocked; ClaudeBot + PerplexityBot allowed;
+# Google-Extended unmentioned (inherits the wildcard allow). The wildcard group
+# keeps the SearchifySiteHealthBot crawler itself allowed on every path.
+User-agent: *
+Allow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+Sitemap: https://swk5bwh3qdbz.preview.us1.vorflux.com/sitemap.xml

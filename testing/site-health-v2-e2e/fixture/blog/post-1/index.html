@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How deterministic crawlers classify pages | Fixture Co Blog</title>
+<meta name="description" content="A deep dive into deterministic page classification for site health crawlers.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","headline":"How deterministic crawlers classify pages","author":{"@type":"Person","name":"Jane Doe"},"datePublished":"2026-07-10","image":"https://fixture.example/img/cover.png"}
+</script>
+</head>
+<body>
+<header><nav><a href="/">Home</a></nav></header>
+<main>
+<article>
+<h1>How deterministic crawlers classify pages</h1>
+<p>By Jane Doe</p>
+<p>July 10, 2026</p>
+<p>Deterministic classification is the backbone of any trustworthy site health
+report. When a crawler assigns a page type, it must do so from evidence that
+is stable: the URL path, the visible content, and only then the structured
+data the page claims about itself. This article explains why that ordering
+matters and how it keeps audits honest.</p>
+<h2>Why URL evidence comes first</h2>
+<p>The URL of a page is chosen by the site owner long before any markup is
+written. A path like /blog/ or /docs/ expresses intent that rarely lies.
+Content heuristics such as author bylines, publication dates, question-shaped
+headings, and price tokens add a second layer of evidence that is still
+grounded in what a visitor actually sees on the page.</p>
+<h2>The role of structured data</h2>
+<p>Schema.org markup is a claim a page makes about itself. Claims are useful,
+but they cannot be allowed to decide what a page is, or a mislabeled page
+would pass every expectation check trivially. A product page marked up as an
+article should be reported, not believed. That is why structured data acts as
+the lowest priority signal and why conflicts between evidence and markup are
+recorded rather than resolved in favor of the markup.</p>
+<h2>Confidence and fallback</h2>
+<p>Every matched signal contributes a weight, and the sum becomes the
+classification confidence. Pages that clear the threshold keep their winning
+type; pages that do not fall back to a neutral bucket. This keeps ambiguous
+pages honest instead of forcing them into a taxonomy they do not fit, and it
+keeps the whole pipeline explainable because every decision carries its
+evidence with it.</p>
+<p>Teams that adopt deterministic classification get audits they can diff over
+time. The same input always produces the same type, which means a changed
+classification always signals a real change on the page rather than noise in
+the pipeline. That property is what makes page-type-aware analysis safe to
+build scoring, filtering, and reporting on top of.</p>
+</article>
+</main>
+<footer><p>Fixture Co Blog.</p></footer>
+</body>
+</html>
