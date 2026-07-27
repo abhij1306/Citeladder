@@ -51,6 +51,14 @@ describe('Blog index (public marketing `/blog`)', () => {
     expect(container.querySelector('.post-grid')).toBeNull();
   });
 
+  it('centres the hero like the other marketing subpages', () => {
+    render(<BlogPage />);
+
+    const h1 = screen.getByRole('heading', { level: 1 });
+    expect(h1).toHaveClass('mx-auto');
+    expect(h1.closest('.text-center')).not.toBeNull();
+  });
+
   // Deferred until finalized editorial fixtures provide a featured post plus grid entries.
   it.skip('maps posts beyond the featured one to the card grid', () => {
     const second: BlogPost = {

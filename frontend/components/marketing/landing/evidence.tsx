@@ -22,35 +22,31 @@ import { ExampleDataNote, GlassPanel, WallpaperPanel } from '../scenes/wallpaper
 const ROWS: readonly {
   answer: string;
   engine: EngineKey;
-  artifact: string;
   finding: string;
   tone: 'good' | 'proof' | 'warn';
 }[] = [
   {
     answer: 'Best analytics platforms for enterprise teams',
     engine: 'openai',
-    artifact: '09F3C21E',
     finding: 'Mentioned',
     tone: 'good',
   },
   {
     answer: 'How to measure brand visibility in AI answers',
     engine: 'claude',
-    artifact: '1A64D0BC',
     finding: 'Cited',
     tone: 'proof',
   },
   {
     answer: 'Searchify alternatives for global agencies',
     engine: 'gemini',
-    artifact: '3E92BA71',
     finding: 'Review',
     tone: 'warn',
   },
 ];
 
 const TABLE_GRID =
-  'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 lg:grid-cols-[minmax(0,1fr)_8.5rem_7rem_8rem] lg:gap-x-4';
+  'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 lg:grid-cols-[minmax(0,1fr)_8.5rem_8rem] lg:gap-x-4';
 
 export function Evidence() {
   const { evidence } = LANDING_CONTENT;
@@ -96,13 +92,12 @@ export function Evidence() {
                   </div>
                 </div>
                 <Meta className="text-mkt-slate-soft hidden lg:block">Provider</Meta>
-                <Meta className="text-mkt-slate-soft hidden lg:block">Artifact</Meta>
                 <Meta className="text-mkt-slate-soft justify-self-start">Finding</Meta>
               </div>
 
-              {ROWS.map(({ answer, engine, artifact, finding, tone }, index) => (
+              {ROWS.map(({ answer, engine, finding, tone }, index) => (
                 <div
-                  key={artifact}
+                  key={answer}
                   className={`${TABLE_GRID} border-mkt-glass-line group min-h-[6.25rem] border-b px-5 py-4 last:border-b-0 sm:px-6`}
                 >
                   <div className="grid grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-3">
@@ -115,12 +110,10 @@ export function Evidence() {
                       </strong>
                       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
                         <EngineDot engine={engine} />
-                        <Meta>{artifact}</Meta>
                       </div>
                     </div>
                   </div>
                   <EngineDot engine={engine} className="hidden lg:inline-flex" />
-                  <Meta className="text-mkt-slate hidden lg:block">{artifact}</Meta>
                   <Badge tone={tone} className="justify-self-end lg:justify-self-start">
                     {finding}
                   </Badge>

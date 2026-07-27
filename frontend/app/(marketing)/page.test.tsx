@@ -80,6 +80,16 @@ describe('Landing page (public marketing `/`)', () => {
     expect(cta).toHaveAttribute('href', DEMO_HREF);
   });
 
+  it('keeps the evaluation-gating note and scene artifact ids off the page', () => {
+    stubAnonymous();
+    renderWithProviders(<Page />);
+
+    expect(screen.queryByText(/limited workspace/i)).toBeNull();
+    for (const id of ['09F3C21E', '1A64D0BC', '3E92BA71']) {
+      expect(screen.queryByText(id)).toBeNull();
+    }
+  });
+
   it('keeps illustrative scene figures out of the page copy', () => {
     stubAnonymous();
     const { container } = renderWithProviders(<Page />);

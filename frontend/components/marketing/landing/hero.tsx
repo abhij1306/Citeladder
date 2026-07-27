@@ -5,7 +5,7 @@ import { DEMO_CTA, DEMO_HREF } from '@/lib/marketing-content/nav';
 
 import { ButtonLink } from '../primitives/button';
 import { ALL_ENGINES, EngineWordmark } from '../primitives/engine-chip';
-import { Eyebrow, Meta } from '../primitives/label';
+import { Eyebrow } from '../primitives/label';
 import { Marquee } from '../primitives/marquee';
 import { Container } from '../primitives/section';
 import { Reveal } from '../primitives/reveal';
@@ -41,9 +41,6 @@ export function Hero() {
                 {hero.secondaryCta}
               </ButtonLink>
             </div>
-            <Meta as="p" className="mt-4">
-              {hero.note}
-            </Meta>
           </Reveal>
         </Container>
       </div>

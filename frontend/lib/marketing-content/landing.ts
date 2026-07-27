@@ -27,7 +27,6 @@ export const LANDING_CONTENT = {
     title: 'See your market through',
     accent: 'AI’s eyes.',
     body: 'Understand how the world’s answer engines describe your brand, products and competitors — then turn observed evidence into a sharper strategy.',
-    note: 'A limited workspace is available after product evaluation.',
     secondaryCta: 'Explore the platform',
   },
 
