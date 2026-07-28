@@ -457,7 +457,7 @@ const requiredBridged = [
 // them silently drops classes across the whole marketing surface, which is
 // exactly the failure this guard exists to catch.
 const requiredMktVars = [
-  // Type — one face (Geist alias), eight steps
+  // Type — Plus Jakarta Sans display alias, eight steps
   'font-mkt-display',
   'color-mkt-line-soft',
   'text-mkt-d1',

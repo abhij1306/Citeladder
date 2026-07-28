@@ -261,9 +261,9 @@
      shipped; the "mono" family aliases Google Sans so numeric contexts keep
      their tabular-nums recipe), Plus Jakarta Sans for headings/display.
      Marketing aliases the same display family (marketing-theme.css). */
-  --font-primary-family: var(--font-sans), system-ui, sans-serif;
-  --font-mono-family: var(--font-sans), system-ui, sans-serif;
-  --font-display-family: var(--font-jakarta), var(--font-sans), system-ui, sans-serif;
+  --font-primary-family: var(--font-google-sans), system-ui, sans-serif;
+  --font-mono-family: var(--font-google-sans), system-ui, sans-serif;
+  --font-display-family: var(--font-jakarta), var(--font-google-sans), system-ui, sans-serif;
 
   /* ── Surfaces — the flat tint ladder ──────────────────────────────────
      The app canvas is SUNKEN and panels sit on it as plain white fills.
@@ -596,8 +596,9 @@ html[data-theme-transition] *::after {
 
 /* ─── Numeric utility — tabular numerals for every metric (§5). No
    monospace face is shipped: --font-mono-family aliases Google Sans, so
-   .mono/code/kbd keep their tabular alignment without a second font. ─── */
+   .mono/font-mono/code/kbd keep their tabular alignment without a second font. ─── */
 .mono,
+.font-mono,
 code,
 pre,
 kbd,

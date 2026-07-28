@@ -14,7 +14,7 @@ import './globals.css';
 const sans = Google_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-sans',
+  variable: '--font-google-sans',
   display: 'swap',
 });
 
@@ -40,11 +40,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className={`${sans.variable} ${display.variable}`}
-    >
+    <html lang="en" suppressHydrationWarning className={`${sans.variable} ${display.variable}`}>
       <head>
         {/* Pre-hydration theme bootstrap — sets data-theme before first paint
             to avoid a flash (see lib/theme.ts). Must run before hydration. */}

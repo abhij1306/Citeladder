@@ -129,7 +129,7 @@ export function BillingSettings({ enabled = true }: Readonly<{ enabled?: boolean
             ? 'Payment confirmed. Paid capabilities are active.'
             : confirmationTimedOut
               ? 'Payment is still confirming — your plan has not changed.'
-              : 'Confirming payment — this page refreshes once verified.'}
+              : 'Confirming payment — your plan will update here after verification completes.'}
         </Alert>
       ) : null}
 

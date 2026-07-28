@@ -90,7 +90,7 @@ export function BlogIndex() {
       {featured ? (
         <>
           <Section rhythm="tight" aria-label="Featured post">
-            <Reveal className="rounded-mkt-lg bg-mkt-surface grid overflow-hidden shadow-card lg:grid-cols-[1.2fr_0.8fr]">
+            <Reveal className="rounded-mkt-lg bg-mkt-surface shadow-card grid overflow-hidden lg:grid-cols-[1.2fr_0.8fr]">
               <div className="p-8 md:p-10">
                 <TagRow tags={featured.tags} />
                 <p
@@ -124,7 +124,7 @@ export function BlogIndex() {
                 {rest.map((post) => (
                   <StaggerItem
                     key={post.slug}
-                    className="rounded-mkt-lg bg-mkt-surface h-full shadow-card p-7"
+                    className="rounded-mkt-lg bg-mkt-surface shadow-card h-full p-7"
                   >
                     <TagRow tags={post.tags} />
                     <p

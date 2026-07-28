@@ -294,7 +294,7 @@ export function TrafficScreen() {
     onSuccess: (runs) => {
       if (runs.length === 0) {
         setSyncNotice(
-          'No Search Console or GA4 connection yet — connect one in Settings to start syncing.',
+          'No active mapped sync connection — connect and map one in Settings to start syncing.',
         );
         return;
       }

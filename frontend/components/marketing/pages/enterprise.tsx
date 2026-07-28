@@ -102,7 +102,7 @@ function CheckList({ points }: Readonly<{ points: readonly string[] }>) {
 
 function CapabilityCard({ icon: Icon, title, blurb, points }: Capability) {
   return (
-    <div className="rounded-mkt-lg bg-mkt-surface h-full shadow-card p-7">
+    <div className="rounded-mkt-lg bg-mkt-surface shadow-card h-full p-7">
       <span className="border-mkt-proof-line bg-mkt-wash text-mkt-proof grid size-9 place-items-center rounded-sm border">
         <Icon aria-hidden strokeWidth={1.8} className="size-4.5" />
       </span>
@@ -156,7 +156,7 @@ export function EnterpriseOps() {
       {/* `Reveal` forwards only children/className, so the landmark wrapper
           carries the label — the architecture proof stays queryable. */}
       <div role="region" aria-label="Platform data flow">
-        <Reveal className="bg-mkt-surface rounded-mkt-lg mt-4 flex flex-wrap items-center gap-x-3 gap-y-2.5 shadow-card p-6">
+        <Reveal className="bg-mkt-surface rounded-mkt-lg shadow-card mt-4 flex flex-wrap items-center gap-x-3 gap-y-2.5 p-6">
           {ARCH_FLOW.map((step) => (
             <Fragment key={step.node}>
               <span className="border-mkt-line bg-mkt-surface text-mkt-ink-soft text-mkt-sm rounded-sm border px-2.5 py-1.5">
@@ -189,7 +189,7 @@ export function EnterpriseLimits() {
         {LIMIT_CELLS.map((cell) => (
           <StaggerItem
             key={cell.label}
-            className="rounded-mkt-lg bg-mkt-surface h-full shadow-card p-6"
+            className="rounded-mkt-lg bg-mkt-surface shadow-card h-full p-6"
           >
             <Meta as="p">{cell.label}</Meta>
             <p className="font-mkt-display text-mkt-ink text-mkt-d4 mt-4 font-medium">Custom</p>

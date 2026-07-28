@@ -26,7 +26,7 @@ const SCENES = {
   verify: (
     <div className="relative min-h-[8rem]">
       <span className="bg-mkt-line-soft absolute inset-x-0 bottom-0 h-px" />
-      <div className="bg-mkt-paper-raised rounded-mkt-sm absolute bottom-4 left-1/2 w-36 -translate-x-1/2 shadow-card p-4">
+      <div className="bg-mkt-paper-raised rounded-mkt-sm shadow-card absolute bottom-4 left-1/2 w-36 -translate-x-1/2 p-4">
         <i className="bg-mkt-ink/15 mb-2 block h-1 w-3/5 rounded-full" />
         <i className="bg-mkt-surface-sunk block h-1 w-5/6 rounded-full" />
       </div>
@@ -39,7 +39,7 @@ const SCENES = {
         <div
           key={label}
           style={{ animationDelay: `${index * 0.8}s` }}
-          className="bg-mkt-paper-raised animate-mkt-verify grid grid-cols-[1fr_auto] items-center gap-3 rounded-sm shadow-card px-2.5 py-2.5"
+          className="bg-mkt-paper-raised animate-mkt-verify shadow-card grid grid-cols-[1fr_auto] items-center gap-3 rounded-sm px-2.5 py-2.5"
         >
           <span className="bg-mkt-ink/10 h-1 rounded-full" />
           <b className="text-mkt-meta text-mkt-evidence-text uppercase">{label}</b>
@@ -73,7 +73,7 @@ export function HowItWorks() {
           </Meta>
           <ExampleDataNote />
         </div>
-        <StaggerGroup className="bg-mkt-surface grid overflow-hidden rounded-lg shadow-card md:grid-cols-3">
+        <StaggerGroup className="bg-mkt-surface shadow-card grid overflow-hidden rounded-lg md:grid-cols-3">
           {howItWorks.steps.map((step, index) => (
             <StaggerItem
               key={step.num}

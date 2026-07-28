@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -17,6 +18,26 @@ const marketingCss = readFileSync(join(here, '(marketing)', 'marketing-theme.css
 // hold the type and space ladders that were split out of globals.css.
 // Name-set checks span all of them.
 const allCss = `${dsCss}\n${css}\n${dsTypeCss}\n${dsSpaceCss}\n${appChromeCss}`;
+
+function buildEmittedCss(): string {
+  const frontendRoot = join(here, '..');
+  const command = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'pnpm';
+  const args = process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm build'] : ['build'];
+
+  execFileSync(command, args, {
+    cwd: frontendRoot,
+    env: { ...process.env, BACKEND_ORIGIN: 'https://api.example.com' },
+    stdio: 'pipe',
+  });
+
+  const chunksDir = join(frontendRoot, '.next', 'static', 'chunks');
+  if (!existsSync(chunksDir)) throw new Error('Next build emitted no static CSS chunks');
+
+  return readdirSync(chunksDir)
+    .filter((file) => file.endsWith('.css'))
+    .map((file) => readFileSync(join(chunksDir, file), 'utf8'))
+    .join('\n');
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    Parsing + WCAG helpers
@@ -468,14 +489,43 @@ describe('Atlassian-based palette', () => {
     // Typography policy: exactly two faces — Google Sans for UI/body/data
     // (no monospace is shipped; the mono family aliases Google Sans) and
     // Plus Jakarta Sans for display across the app AND the marketing site.
-    expect(css).toMatch(/--font-mono-family:\s*var\(--font-sans\)/);
+    expect(css).toMatch(/--font-mono-family:\s*var\(--font-google-sans\)/);
     expect(css).toMatch(/--font-display-family:\s*var\(--font-jakarta\)/);
     expect(marketingCss).toMatch(/--font-mkt-display:\s*var\(--font-display-family\)/);
-    expect(layoutTsx).toMatch(/const sans = Google_Sans\([\s\S]*?variable:\s*'--font-sans'/);
-    expect(layoutTsx).toMatch(/const display = Plus_Jakarta_Sans\([\s\S]*?variable:\s*'--font-jakarta'/);
+    expect(layoutTsx).toMatch(/const sans = Google_Sans\([\s\S]*?variable:\s*'--font-google-sans'/);
+    expect(layoutTsx).toMatch(
+      /const display = Plus_Jakarta_Sans\([\s\S]*?variable:\s*'--font-jakarta'/,
+    );
     expect(layoutTsx).not.toMatch(/Geist|Space_Grotesk|Inter/);
     expect(layoutTsx).toMatch(/className=\{`\$\{sans\.variable\} \$\{display\.variable\}`\}/);
   });
+
+  it('emits the intended font families and applies tabular numerals to font-mono at runtime', () => {
+    const emittedCss = buildEmittedCss();
+
+    expect(emittedCss).toMatch(
+      /--font-primary-family:var\(--font-google-sans\),\s*system-ui,\s*sans-serif/,
+    );
+    expect(emittedCss).toMatch(
+      /--font-display-family:var\(--font-jakarta\),\s*var\(--font-google-sans\),\s*system-ui,\s*sans-serif/,
+    );
+    expect(emittedCss).not.toMatch(/--font-sans:var\(--font-sans\)/);
+    expect(emittedCss).toMatch(
+      /\.mono,\.font-mono,code,pre,kbd,samp\{[^}]*font-variant-numeric:tabular-nums/,
+    );
+
+    const style = document.createElement('style');
+    style.textContent = emittedCss;
+    document.head.append(style);
+    const metric = document.createElement('span');
+    metric.className = 'font-mono';
+    document.body.append(metric);
+
+    expect(getComputedStyle(metric).fontVariantNumeric).toBe('tabular-nums');
+
+    metric.remove();
+    style.remove();
+  }, 180_000);
 
   it('declares NO letter-spacing tokens anywhere — ADS tracking is 0 at every step', () => {
     // The --tracking-* namespace was removed with the ADS ladder: no token in

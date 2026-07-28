@@ -148,9 +148,7 @@ export function UrlDetail({
         onRerunStart={() => setRerunError(null)}
         onRerunError={(error) => {
           if (error instanceof ApiError && error.status === 409) {
-            setRerunError(
-              'This page is not in your monitored set — add it before re-auditing.',
-            );
+            setRerunError('This page is not in your monitored set — add it before re-auditing.');
           } else if (error instanceof ApiError && error.status === 403) {
             setRerunError('Re-auditing pages requires a Starter plan.');
           } else {

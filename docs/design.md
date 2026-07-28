@@ -100,7 +100,7 @@ value layer restyled the whole app without touching component code.
 | `elevation.shadow.overlay` | `--shadow-3`, `--shadow-4`, `--shadow-card-hover-value`, `--shadow-lg-value`, `--shadow-modal` | overlays, plus the hover lift of interactive cards. `--shadow-1` and `--shadow-xs/sm/elevated` are `none` |
 | `radius.{xsmall,small,medium,large,xlarge}` (2/4/8/12/16) | `--radius-xs/sm/md/lg/xl`; `--radius-2xl` = 16; `--radius-full` kept | **buttons are rounded-md (8px), not pills**; badges are `rounded-sm` (4px) |
 | `space.025…1000` | existing `--space-1..20` 4px grid, **unchanged** | the two scales already agree; renaming would churn ~40 contract entries for no visual gain |
-| Google Sans, Plus Jakarta Sans | `--font-primary-family` = Google Sans stack; `--font-display-family` = Plus Jakarta Sans stack; `--font-mono-family` aliases the Google Sans stack (no monospace shipped) | next/font in `app/layout.tsx`; `--font-sans` remains the body/UI variable; marketing `--font-mkt-display` aliases the same display family |
+| Google Sans, Plus Jakarta Sans | `--font-primary-family` = Google Sans stack; `--font-display-family` = Plus Jakarta Sans stack; `--font-mono-family` aliases the Google Sans stack (no monospace shipped) | next/font in `app/layout.tsx` loads `--font-google-sans`; `--font-sans` remains the Tailwind body/UI bridge; marketing `--font-mkt-display` aliases the same display family |
 
 ## 4. Token values
 
@@ -236,7 +236,7 @@ in `globals.test.ts` rather than silently deleted:
 
 ## 7. Type scale — Figma verbatim
 
-Body/UI sans = **Google Sans** 400/500/600/700 (`--font-sans` → `--font-primary-family`);
+Body/UI sans = **Google Sans** 400/500/600/700 (`--font-google-sans` → `--font-primary-family`);
 headings/display = **Plus Jakarta Sans** 500/600 (`--font-jakarta` → `--font-display-family`).
 **No monospace is shipped** — `--font-mono-family` aliases the Google Sans stack, and the
 `.mono` / `font-mono` recipe keeps **tabular numerals**
@@ -750,7 +750,7 @@ are quoted and italic so they read as things buyers ask rather than as claims we
 8. Ship `prefers-reduced-motion`, `forced-colors`, `print`, and theme-swap suppression rules.
 9. Load exactly two faces — **Google Sans** (400/500/600/700) and **Plus Jakarta Sans**
    (500/600) — via
-   next/font in `app/layout.tsx` (`--font-sans`, `--font-jakarta`).
+   next/font in `app/layout.tsx` (`--font-google-sans`, `--font-jakarta`).
    `--font-display-family` resolves to Plus Jakarta Sans and marketing `--font-mkt-display`
    aliases it. Never name a next/font variable `--font-display`: that name is the bridged `@theme` token.
 10. **Marketing is still a separate system, for now.** Folding `--mkt-*` onto the ADS layer is

@@ -42,7 +42,7 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
         'relative flex h-[var(--nav-item-height)] items-center gap-2 rounded-sm px-2 text-sm transition-colors',
         active
           ? 'bg-accent-border text-accent-hover font-semibold'
-          : 'text-foreground font-medium hover:bg-background-alt',
+          : 'text-foreground hover:bg-background-alt font-medium',
       )}
     >
       {active ? (

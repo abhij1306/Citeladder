@@ -11,12 +11,20 @@ import { cn } from '@/lib/utils';
 export function WallpaperPanel({
   children,
   className,
+  rounded = true,
   ...rest
-}: Readonly<{ children: ReactNode; className?: string; id?: string; 'aria-hidden'?: boolean }>) {
+}: Readonly<{
+  children: ReactNode;
+  className?: string;
+  rounded?: boolean;
+  id?: string;
+  'aria-hidden'?: boolean;
+}>) {
   return (
     <div
       className={cn(
-        'mkt-wallpaper rounded-mkt-lg relative overflow-hidden shadow-card',
+        'mkt-wallpaper shadow-card relative overflow-hidden',
+        rounded && 'rounded-mkt-lg',
         className,
       )}
       {...rest}
@@ -48,9 +56,7 @@ export function Panel({
   className,
 }: Readonly<{ children: ReactNode; className?: string }>) {
   return (
-    <div className={cn('bg-mkt-surface rounded-mkt-sm shadow-card', className)}>
-      {children}
-    </div>
+    <div className={cn('bg-mkt-surface rounded-mkt-sm shadow-card', className)}>{children}</div>
   );
 }
 

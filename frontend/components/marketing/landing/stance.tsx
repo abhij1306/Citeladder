@@ -29,10 +29,7 @@ export function Stance() {
       />
       <StaggerGroup className="grid gap-4 md:grid-cols-2">
         {columns.map(({ title, items, Icon, tone }) => (
-          <StaggerItem
-            key={title}
-            className="rounded-mkt-lg bg-mkt-surface shadow-card p-8 md:p-9"
-          >
+          <StaggerItem key={title} className="rounded-mkt-lg bg-mkt-surface shadow-card p-8 md:p-9">
             <h3 className="font-mkt-display text-mkt-ink text-heading-sm mb-6 font-semibold">
               {title}
             </h3>

@@ -47,7 +47,7 @@ export function Shift() {
         ))}
       </StaggerGroup>
 
-      <div className="rounded-mkt-lg mt-14 grid overflow-hidden shadow-card lg:grid-cols-[1.15fr_0.85fr]">
+      <div className="rounded-mkt-lg shadow-card mt-14 grid overflow-hidden lg:grid-cols-[1.15fr_0.85fr]">
         <div className="bg-mkt-surface flex min-h-[15rem] flex-col justify-center p-9 md:p-11">
           <Meta as="p" className="mb-6">
             {voice.kicker}
@@ -58,7 +58,7 @@ export function Shift() {
           </p>
         </div>
 
-        <WallpaperPanel className="rounded-none border-0 border-t lg:border-t-0 lg:border-l">
+        <WallpaperPanel rounded={false} className="border-0 border-t lg:border-t-0 lg:border-l">
           <div className="relative z-1 p-9 md:p-11">
             <Meta as="p" className="text-mkt-ink-muted mb-6">
               {voice.rulesLabel}

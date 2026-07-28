@@ -42,7 +42,10 @@ export function AuthWordmark({ compact = false }: Readonly<{ compact?: boolean }
 
 export function AuthBrandPanel() {
   return (
-    <WallpaperPanel className="relative col-span-5 flex flex-col rounded-none border-0 border-r px-10 py-8 max-[900px]:hidden xl:px-12">
+    <WallpaperPanel
+      rounded={false}
+      className="relative col-span-5 flex flex-col border-0 border-r px-10 py-8 max-[900px]:hidden xl:px-12"
+    >
       <div className="relative z-1 flex min-h-full flex-1 flex-col">
         <AuthWordmark />
 

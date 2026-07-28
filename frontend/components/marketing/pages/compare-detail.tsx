@@ -73,7 +73,7 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
           <Meta as="p">Quick facts</Meta>
           <Meta>Searchify column sourced from our source code</Meta>
         </div>
-        <Reveal className="rounded-mkt-lg bg-mkt-surface overflow-hidden shadow-card">
+        <Reveal className="rounded-mkt-lg bg-mkt-surface shadow-card overflow-hidden">
           {/* Wider than a phone: scrolls inside its own box so the page body
               never scrolls sideways. */}
           <div className="overflow-x-auto">

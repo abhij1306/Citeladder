@@ -46,8 +46,8 @@ function TierCard({ tier }: Readonly<{ tier: PricingTier }>) {
       data-tier={tier.key}
       data-highlighted={tier.highlighted ? 'true' : undefined}
       className={cn(
-        'rounded-mkt-lg flex h-full flex-col shadow-card p-7',
-        tier.highlighted ? 'bg-mkt-wash ring-1 ring-mkt-proof-line' : 'bg-mkt-surface',
+        'rounded-mkt-lg shadow-card flex h-full flex-col p-7',
+        tier.highlighted ? 'bg-mkt-wash ring-mkt-proof-line ring-1' : 'bg-mkt-surface',
       )}
     >
       <div className="flex items-center justify-between gap-3">
@@ -113,7 +113,7 @@ export function PricingTable() {
         intro="Every plan runs the same deterministic engine. Tiers differ on monitoring scope, web-search grounding, exports and support."
         headingId="pricing-compare-title"
       />
-      <Reveal className="rounded-mkt-lg bg-mkt-surface overflow-hidden shadow-card">
+      <Reveal className="rounded-mkt-lg bg-mkt-surface shadow-card overflow-hidden">
         {/* The table is wider than a phone: it scrolls inside its own box so
             the page body never scrolls sideways. */}
         <div className="overflow-x-auto">

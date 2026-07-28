@@ -45,7 +45,7 @@ export function CompareIndex() {
               <StaggerItem key={competitor.slug} className="h-full">
                 <Link
                   href={`/compare/${competitor.slug}`}
-                  className="bg-mkt-surface rounded-mkt-lg flex h-full flex-col p-6 shadow-card transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
+                  className="bg-mkt-surface rounded-mkt-lg shadow-card hover:shadow-card-hover flex h-full flex-col p-6 transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5"
                 >
                   <span className="flex items-center gap-3">
                     <span
