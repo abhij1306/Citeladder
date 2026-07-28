@@ -82,7 +82,8 @@
   --color-mkt-ink: #172b4d; /* 12.9:1 — ADS text */
   --color-mkt-ink-soft: #44546f; /* 7.0:1 — body copy */
   --color-mkt-ink-muted: #626f86; /* 4.6:1 — meta, captions (tightest pair) */
-  --color-mkt-line: #091e4224; /* ADS border — alpha hairline over warm paper */
+  --color-mkt-line-soft: #091e420f; /* 6% — structural hairlines, overlay edges */
+  --color-mkt-line: #091e4224; /* 14% — outline chips + form fields only */
   --color-mkt-line-strong: #758195; /* ADS border-bold */
 
   --color-mkt-proof: #0c66e4; /* 4.76:1 — mark AND text */
@@ -119,9 +120,10 @@
   --radius-mkt-sm: 8px;
   --radius-mkt-lg: 16px;
 
-  /* ─── Elevation ── none. Surfaces separate by a tint step and a 1px
-     hairline; the only shadow on the surface is `shadow-modal-value` on the
-     nav's two floating overlays (docs/design.md §4a). */
+  /* ─── Elevation ── same borderless model as the app (docs/design.md §4a):
+     cards cast `shadow-card` and carry no border, interactive cards lift to
+     `shadow-card-hover`, and the nav's floating overlays keep
+     `shadow-modal-value` with a `--color-mkt-line-soft` edge. */
 
   /* ─── Layout ── one container and one gutter for the whole surface. */
   --container-mkt: 1240px;

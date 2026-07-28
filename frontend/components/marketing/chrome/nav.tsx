@@ -192,7 +192,7 @@ export function MarketingNav() {
       className={cn(
         'fixed inset-x-0 top-0 z-50 border-b transition-colors duration-300',
         'bg-mkt-paper-raised',
-        scrolled ? 'border-mkt-line' : 'border-transparent',
+        scrolled ? 'border-mkt-line-soft' : 'border-transparent',
       )}
     >
       <nav
@@ -226,7 +226,7 @@ export function MarketingNav() {
               style={{ left: lens.left, width: lens.width }}
               transition={{ layout: { duration: 0.18, ease: EASE_OUT } }}
               className={cn(
-                'border-mkt-line bg-mkt-surface shadow-modal-value pointer-events-none rounded-sm',
+                'border-mkt-line-soft bg-mkt-surface shadow-modal-value pointer-events-none rounded-sm',
                 'absolute inset-y-0 border',
               )}
             />
@@ -325,7 +325,7 @@ export function MarketingNav() {
                   maxWidth: 'calc(100vw - 2rem)',
                 }}
                 className={cn(
-                  'border-mkt-line bg-mkt-surface shadow-modal-value rounded-mkt-sm absolute top-full',
+                  'border-mkt-line-soft bg-mkt-surface shadow-modal-value rounded-mkt-sm absolute top-full',
                   'mt-1.5 overflow-hidden border',
                 )}
               >
@@ -337,7 +337,7 @@ export function MarketingNav() {
                       // unrelated rows.
                       <div
                         key={group.label}
-                        className="border-mkt-line bg-mkt-paper-raised border-t p-2 sm:border-t-0 sm:border-l"
+                        className="border-mkt-line-soft bg-mkt-paper-raised border-t p-2 sm:border-t-0 sm:border-l"
                       >
                         <p className="text-mkt-meta text-mkt-ink-muted px-2.5 pt-2 pb-2 uppercase">
                           {group.label}
@@ -398,10 +398,10 @@ export function MarketingNav() {
       {mobileOpen && (
         <div
           id="mobile-menu"
-          className="border-mkt-line bg-mkt-paper-raised px-mkt-gutter max-h-[calc(100dvh-var(--spacing-mkt-nav))] overflow-y-auto border-t py-4 lg:hidden"
+          className="border-mkt-line-soft bg-mkt-paper-raised px-mkt-gutter max-h-[calc(100dvh-var(--spacing-mkt-nav))] overflow-y-auto border-t py-4 lg:hidden"
         >
           {NAV_DROPS.map(({ key, label, href, groups }) => (
-            <div key={key} className="border-mkt-line border-b last:border-b-0">
+            <div key={key} className="border-mkt-line-soft border-b last:border-b-0">
               <div className="flex items-center">
                 <Link
                   href={href}

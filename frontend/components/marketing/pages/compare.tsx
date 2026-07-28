@@ -30,7 +30,7 @@ export function CompareIndex() {
       />
 
       <Section tone="surface" rhythm="tight" aria-label="Competitors">
-        <div className="border-mkt-line mb-6 flex items-center justify-between gap-4 border-b pb-4">
+        <div className="border-mkt-line-soft mb-6 flex items-center justify-between gap-4 border-b pb-4">
           <Meta as="p">Choose a tool</Meta>
           <Meta>{COMPETITORS.length} comparisons</Meta>
         </div>
@@ -45,7 +45,7 @@ export function CompareIndex() {
               <StaggerItem key={competitor.slug} className="h-full">
                 <Link
                   href={`/compare/${competitor.slug}`}
-                  className="border-mkt-line bg-mkt-paper hover:border-mkt-line-strong rounded-mkt-lg flex h-full flex-col border p-6 transition-[border-color] duration-300"
+                  className="bg-mkt-surface rounded-mkt-lg flex h-full flex-col p-6 shadow-card transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
                 >
                   <span className="flex items-center gap-3">
                     <span
@@ -82,7 +82,7 @@ export function CompareIndex() {
           headingId="compare-fair-title"
         />
         <Reveal className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="border-mkt-line rounded-mkt-lg bg-mkt-surface border p-8">
+          <div className="rounded-mkt-lg bg-mkt-surface shadow-card p-8">
             <p className="text-mkt-body text-mkt-ink-soft max-w-[62ch]">
               Searchify scores deterministically — explicit analyzer and scoring-rule versions ride
               with every projection, so every claim on these pages can be traced back to persisted
@@ -102,7 +102,7 @@ export function CompareIndex() {
             </ul>
           </div>
 
-          <div className="border-mkt-line rounded-mkt-lg bg-mkt-paper-raised border p-8">
+          <div className="rounded-mkt-lg bg-mkt-paper-raised shadow-card p-8">
             <Meta as="p" className="mb-5">
               Searchify at a glance
             </Meta>
@@ -110,7 +110,7 @@ export function CompareIndex() {
               {FACT_ROWS.map((row) => (
                 <div
                   key={row.key}
-                  className="border-mkt-line grid grid-cols-[7rem_minmax(0,1fr)] gap-4 border-b py-3 last:border-b-0 last:pb-0"
+                  className="border-mkt-line-soft grid grid-cols-[7rem_minmax(0,1fr)] gap-4 border-b py-3 last:border-b-0 last:pb-0"
                 >
                   <dt className="text-mkt-sm text-mkt-ink-muted">{row.key}</dt>
                   <dd className="text-mkt-sm text-mkt-ink m-0">{row.value}</dd>

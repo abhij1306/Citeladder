@@ -25,8 +25,8 @@ const SCENES = {
   /** A record settling into place — 24px of travel, then stillness. */
   verify: (
     <div className="relative min-h-[8rem]">
-      <span className="bg-mkt-line absolute inset-x-0 bottom-0 h-px" />
-      <div className="border-mkt-line bg-mkt-paper-raised rounded-mkt-sm absolute bottom-4 left-1/2 w-36 -translate-x-1/2 border p-4">
+      <span className="bg-mkt-line-soft absolute inset-x-0 bottom-0 h-px" />
+      <div className="bg-mkt-paper-raised rounded-mkt-sm absolute bottom-4 left-1/2 w-36 -translate-x-1/2 shadow-card p-4">
         <i className="bg-mkt-ink/15 mb-2 block h-1 w-3/5 rounded-full" />
         <i className="bg-mkt-surface-sunk block h-1 w-5/6 rounded-full" />
       </div>
@@ -39,7 +39,7 @@ const SCENES = {
         <div
           key={label}
           style={{ animationDelay: `${index * 0.8}s` }}
-          className="border-mkt-line bg-mkt-paper-raised animate-mkt-verify grid grid-cols-[1fr_auto] items-center gap-3 rounded-sm border px-2.5 py-2.5"
+          className="bg-mkt-paper-raised animate-mkt-verify grid grid-cols-[1fr_auto] items-center gap-3 rounded-sm shadow-card px-2.5 py-2.5"
         >
           <span className="bg-mkt-ink/10 h-1 rounded-full" />
           <b className="text-mkt-meta text-mkt-evidence-text uppercase">{label}</b>
@@ -73,11 +73,11 @@ export function HowItWorks() {
           </Meta>
           <ExampleDataNote />
         </div>
-        <StaggerGroup className="border-mkt-line bg-mkt-surface grid overflow-hidden rounded-lg border md:grid-cols-3">
+        <StaggerGroup className="bg-mkt-surface grid overflow-hidden rounded-lg shadow-card md:grid-cols-3">
           {howItWorks.steps.map((step, index) => (
             <StaggerItem
               key={step.num}
-              className="border-mkt-line flex flex-col border-b p-6 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+              className="border-mkt-line-soft flex flex-col border-b p-6 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
             >
               <Meta as="p" className="text-mkt-ink-muted">
                 {step.num} / {step.kicker}

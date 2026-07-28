@@ -85,7 +85,7 @@ export function Evidence() {
           >
             <Panel className="overflow-hidden">
               {/* Mobile: one honest card header. Desktop: the table header. */}
-              <div className="border-mkt-line bg-mkt-paper-raised flex items-center justify-between gap-3 border-b px-4 py-2.5 lg:hidden">
+              <div className="border-mkt-line-soft bg-mkt-paper-raised flex items-center justify-between gap-3 border-b px-4 py-2.5 lg:hidden">
                 <Meta as="p" className="text-mkt-ink-muted">
                   Observed answers
                 </Meta>
@@ -94,7 +94,7 @@ export function Evidence() {
                 </Meta>
               </div>
               <div
-                className={`${DESKTOP_GRID} border-mkt-line bg-mkt-paper-raised border-b px-5 py-3 sm:px-6`}
+                className={`${DESKTOP_GRID} border-mkt-line-soft bg-mkt-paper-raised border-b px-5 py-3 sm:px-6`}
               >
                 <div className="grid grid-cols-[1.75rem_minmax(0,1fr)] items-center gap-3">
                   <span aria-hidden className="size-7" />
@@ -112,7 +112,7 @@ export function Evidence() {
               {ROWS.map(({ answer, engine, finding, tone }, index) => (
                 <div
                   key={answer}
-                  className="border-mkt-line group border-b px-4 py-3 last:border-b-0 sm:px-6 lg:px-5"
+                  className="border-mkt-line-soft group border-b px-4 py-3 last:border-b-0 sm:px-6 lg:px-5"
                 >
                   {/* Mobile: answer full width, one meta line, badge pinned right. */}
                   <div className="lg:hidden">
@@ -177,7 +177,7 @@ export function Evidence() {
                 </div>
               </div>
 
-              <div className="border-mkt-line mt-5 grid grid-cols-3 border-y py-3">
+              <div className="border-mkt-line-soft mt-5 grid grid-cols-3 border-y py-3">
                 {[
                   ['3 / 3', 'Artifacts'],
                   ['2', 'Signals'],
@@ -185,7 +185,7 @@ export function Evidence() {
                 ].map(([value, label], index) => (
                   <div
                     key={label}
-                    className={`px-3 first:pl-0 last:pr-0 ${index > 0 ? 'border-mkt-line border-l' : ''}`}
+                    className={`px-3 first:pl-0 last:pr-0 ${index > 0 ? 'border-mkt-line-soft border-l' : ''}`}
                   >
                     <strong className="text-mkt-ink block font-mono text-base font-medium tabular-nums">
                       {value}

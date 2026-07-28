@@ -46,8 +46,8 @@ function TierCard({ tier }: Readonly<{ tier: PricingTier }>) {
       data-tier={tier.key}
       data-highlighted={tier.highlighted ? 'true' : undefined}
       className={cn(
-        'rounded-mkt-lg flex h-full flex-col border p-7',
-        tier.highlighted ? 'border-mkt-proof-line bg-mkt-wash' : 'border-mkt-line bg-mkt-paper',
+        'rounded-mkt-lg flex h-full flex-col shadow-card p-7',
+        tier.highlighted ? 'bg-mkt-wash ring-1 ring-mkt-proof-line' : 'bg-mkt-surface',
       )}
     >
       <div className="flex items-center justify-between gap-3">
@@ -71,7 +71,7 @@ function TierCard({ tier }: Readonly<{ tier: PricingTier }>) {
         </Meta>
       )}
 
-      <ul className="border-mkt-line mt-6 grid gap-3 border-t pt-6">
+      <ul className="border-mkt-line-soft mt-6 grid gap-3 border-t pt-6">
         {tier.features.map((feature) =>
           feature.startsWith('Everything in') ? (
             <li key={feature} className="text-mkt-sm text-mkt-ink font-semibold">
@@ -113,13 +113,13 @@ export function PricingTable() {
         intro="Every plan runs the same deterministic engine. Tiers differ on monitoring scope, web-search grounding, exports and support."
         headingId="pricing-compare-title"
       />
-      <Reveal className="border-mkt-line rounded-mkt-lg bg-mkt-surface overflow-hidden border">
+      <Reveal className="rounded-mkt-lg bg-mkt-surface overflow-hidden shadow-card">
         {/* The table is wider than a phone: it scrolls inside its own box so
             the page body never scrolls sideways. */}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[46rem] border-collapse text-left">
             <thead>
-              <tr className="border-mkt-line bg-mkt-paper-raised border-b">
+              <tr className="border-mkt-line-soft bg-mkt-paper-raised border-b">
                 <th scope="col" className="text-mkt-meta text-mkt-ink-muted p-4 uppercase">
                   Capability
                 </th>
@@ -140,7 +140,7 @@ export function PricingTable() {
             </thead>
             <tbody>
               {PRICING_TABLE_ROWS.map((row) => (
-                <tr key={row.dimension} className="border-mkt-line border-b last:border-b-0">
+                <tr key={row.dimension} className="border-mkt-line-soft border-b last:border-b-0">
                   <th scope="row" className="text-mkt-sm text-mkt-ink-soft p-4 font-normal">
                     {row.dimension}
                   </th>

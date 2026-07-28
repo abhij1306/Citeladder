@@ -89,14 +89,14 @@ export function FaqGroups() {
       <div className="grid gap-14">
         {FAQ_GROUPS.map((group) => (
           <section key={group.heading} id={groupAnchor(group)} aria-label={group.heading}>
-            <div className="border-mkt-line mb-2 flex items-baseline justify-between gap-4 border-b pb-4">
+            <div className="border-mkt-line-soft mb-2 flex items-baseline justify-between gap-4 border-b pb-4">
               <h2 className="font-mkt-display text-mkt-d4 text-mkt-ink font-medium">
                 {group.heading}
               </h2>
               <Meta>{group.items.length} answers</Meta>
             </div>
             {group.items.map((item) => (
-              <details key={item.q} className="border-mkt-line group border-b">
+              <details key={item.q} className="border-mkt-line-soft group border-b">
                 <summary className="text-mkt-body text-mkt-ink hover:text-mkt-proof flex cursor-pointer list-none items-center justify-between gap-6 py-5 font-semibold transition-colors [&::-webkit-details-marker]:hidden">
                   {item.q}
                   <Plus

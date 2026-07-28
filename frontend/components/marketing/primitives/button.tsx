@@ -13,8 +13,8 @@ import { cn } from '@/lib/utils';
 const INTENT = {
   /** Default page action — exact ink on paper. */
   primary: 'bg-mkt-ink text-mkt-surface hover:bg-mkt-ink/90',
-  /** Companion action — hairline on surface. */
-  secondary: 'bg-mkt-surface text-mkt-ink border-mkt-line hover:border-mkt-line-strong',
+  /** Companion action — borderless, elevated; hover shifts toward the canvas. */
+  secondary: 'bg-mkt-surface text-mkt-ink shadow-card hover:bg-mkt-paper',
   /** In-product / active-state action. */
   proof: 'bg-mkt-proof text-mkt-surface hover:bg-mkt-proof-hover',
   /** For use ON the wallpaper, where a white button would disappear. */

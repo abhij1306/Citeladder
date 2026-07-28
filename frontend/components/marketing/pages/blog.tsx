@@ -90,7 +90,7 @@ export function BlogIndex() {
       {featured ? (
         <>
           <Section rhythm="tight" aria-label="Featured post">
-            <Reveal className="border-mkt-line rounded-mkt-lg bg-mkt-paper grid overflow-hidden border lg:grid-cols-[1.2fr_0.8fr]">
+            <Reveal className="rounded-mkt-lg bg-mkt-surface grid overflow-hidden shadow-card lg:grid-cols-[1.2fr_0.8fr]">
               <div className="p-8 md:p-10">
                 <TagRow tags={featured.tags} />
                 <p
@@ -114,7 +114,7 @@ export function BlogIndex() {
 
           {rest.length > 0 && (
             <Section tone="paper" rhythm="tight" aria-label="All posts">
-              <div className="border-mkt-line mb-6 flex items-center justify-between gap-4 border-b pb-4">
+              <div className="border-mkt-line-soft mb-6 flex items-center justify-between gap-4 border-b pb-4">
                 <Meta as="p">All notes</Meta>
                 <Meta>
                   {rest.length} {rest.length === 1 ? 'post' : 'posts'}
@@ -124,7 +124,7 @@ export function BlogIndex() {
                 {rest.map((post) => (
                   <StaggerItem
                     key={post.slug}
-                    className="border-mkt-line rounded-mkt-lg bg-mkt-surface h-full border p-7"
+                    className="rounded-mkt-lg bg-mkt-surface h-full shadow-card p-7"
                   >
                     <TagRow tags={post.tags} />
                     <p
@@ -234,7 +234,7 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
             {/* The byline is owner-supplied: the row renders only once at
                 least one of author/date/readTime exists. */}
             {(post.author ?? post.date ?? post.readTime) && (
-              <div className="border-mkt-line mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-6">
+              <div className="border-mkt-line-soft mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-6">
                 {post.author && (
                   <span className="text-mkt-sm text-mkt-ink flex items-center gap-2.5 font-semibold">
                     <span

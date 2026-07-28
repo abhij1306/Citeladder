@@ -90,7 +90,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
         {['Pages sampled', 'Prompts run', 'Answers persisted'].map((row, index) => (
           <div
             key={row}
-            className="border-mkt-line flex items-center justify-between gap-4 border-b pb-3 last:border-b-0 last:pb-0"
+            className="border-mkt-line-soft flex items-center justify-between gap-4 border-b pb-3 last:border-b-0 last:pb-0"
           >
             <span className="text-mkt-sm text-mkt-ink-soft">{row}</span>
             <Placeholder width={`${[64, 48, 56][index]}px`} />

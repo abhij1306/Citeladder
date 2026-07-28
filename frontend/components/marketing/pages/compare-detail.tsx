@@ -69,17 +69,17 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
       </header>
 
       <Section tone="surface" rhythm="tight" aria-label="Quick facts">
-        <div className="border-mkt-line mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+        <div className="border-mkt-line-soft mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
           <Meta as="p">Quick facts</Meta>
           <Meta>Searchify column sourced from our source code</Meta>
         </div>
-        <Reveal className="border-mkt-line rounded-mkt-lg bg-mkt-paper overflow-hidden border">
+        <Reveal className="rounded-mkt-lg bg-mkt-surface overflow-hidden shadow-card">
           {/* Wider than a phone: scrolls inside its own box so the page body
               never scrolls sideways. */}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[44rem] border-collapse text-left align-top">
               <thead>
-                <tr className="border-mkt-line bg-mkt-paper-raised border-b">
+                <tr className="border-mkt-line-soft bg-mkt-paper-raised border-b">
                   <th scope="col" className="text-mkt-meta text-mkt-ink-muted p-4 uppercase">
                     Dimension
                   </th>
@@ -93,7 +93,7 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
               </thead>
               <tbody>
                 {competitor.rows.map((row) => (
-                  <tr key={row.dimension} className="border-mkt-line border-b last:border-b-0">
+                  <tr key={row.dimension} className="border-mkt-line-soft border-b last:border-b-0">
                     <td className="text-mkt-sm text-mkt-ink w-52 p-4 align-top font-semibold">
                       {row.dimension}
                     </td>

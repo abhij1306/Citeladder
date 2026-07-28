@@ -115,7 +115,7 @@ function SocialButton({ social }: Readonly<{ social: SocialLink }>) {
  */
 export function MarketingFooter() {
   return (
-    <footer className="border-mkt-line bg-mkt-surface-sunk border-t">
+    <footer className="border-mkt-line-soft bg-mkt-surface-sunk border-t">
       <Container className="py-16">
         <nav
           aria-label="Footer"
@@ -151,7 +151,7 @@ export function MarketingFooter() {
           ))}
         </nav>
 
-        <div className="border-mkt-line mt-12 flex flex-wrap items-center justify-between gap-4 border-t pt-8">
+        <div className="border-mkt-line-soft mt-12 flex flex-wrap items-center justify-between gap-4 border-t pt-8">
           <Meta>© {new Date().getFullYear()} Searchify · A CUBE27 product</Meta>
           <Meta>Audits run on your own provider keys</Meta>
         </div>

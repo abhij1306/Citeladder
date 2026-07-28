@@ -35,7 +35,7 @@ export function Compositions() {
             <ExampleDataNote />
           </div>
 
-          <Panel className="lg:divide-mkt-line relative grid min-w-0 overflow-hidden lg:grid-cols-3 lg:divide-x">
+          <Panel className="lg:divide-mkt-line-soft relative grid min-w-0 overflow-hidden lg:grid-cols-3 lg:divide-x">
             <article
               className="mkt-flow-stage flex min-w-0 flex-col p-5 sm:p-6"
               data-flow-stage="1"
@@ -130,7 +130,7 @@ export function Compositions() {
 
 function MobileArrow() {
   return (
-    <div className="border-mkt-line grid place-items-center border-y py-2 lg:hidden">
+    <div className="border-mkt-line-soft grid place-items-center border-y py-2 lg:hidden">
       <ArrowRight className="text-mkt-ink-muted size-4 rotate-90" aria-hidden />
     </div>
   );

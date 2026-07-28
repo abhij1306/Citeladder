@@ -69,7 +69,7 @@ export function Section({
   return (
     <section
       id={id}
-      className={cn(TONE[tone], RHYTHM[rhythm], divided && 'border-mkt-line border-t', className)}
+      className={cn(TONE[tone], RHYTHM[rhythm], divided && 'border-mkt-line-soft border-t', className)}
       {...aria}
     >
       {bleed ? children : <Container>{children}</Container>}

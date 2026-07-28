@@ -358,8 +358,8 @@ bridged names (`bg-background`, `text-foreground`, `border-border`, `bg-accent`,
 `marketing-theme.css`) — `globals.css` now authors none at all; components use bridged tokens
 only (no-raw-hex guard) and never a bare `--ds-*` name; **both themes are always fully
 defined**; `data-theme` is set pre-hydration. `--shadow-1..4` stay raw-only (bridging them as
-`--shadow-1: var(--shadow-1)` would be circular) — components consume the semantic aliases,
-of which only `shadow-modal-value` is non-empty.
+`--shadow-1: var(--shadow-1)` would be circular) — components consume the semantic aliases
+(`shadow-card`, `shadow-card-hover`, and the allowlisted `shadow-modal-value`).
 
 ## 10. Component-primitive inventory
 
@@ -578,7 +578,8 @@ identity and evidence marks — never to headlines.
 | primary ink | `#172B4D` (12.9:1) | `--color-mkt-ink` |
 | body copy | `#44546F` (7.0:1) | `--color-mkt-ink-soft` |
 | meta / captions (paper/surface only) | `#626F86` (4.6:1) | `--color-mkt-ink-muted` |
-| hairline | `#091E4224` | `--color-mkt-line` |
+| structural hairline | `#091E420F` | `--color-mkt-line-soft` |
+| chip / field outline | `#091E4224` | `--color-mkt-line` |
 | wallpaper base | `#CBDAF1` | `--color-mkt-sky` |
 
 The paper is the brand; the ink ramp and the hairline are the **same ADS values the app
@@ -636,17 +637,19 @@ face, and the ADS ladder has no rungs between Regular and Medium.
 **Shape and rhythm.** Marketing shares the ADS shape scale (`2 / 4 / 8 / 12 / 16 / full`)
 with the app — the deck's fifteen-radius sprawl and the six-name marketing alias set are
 gone; only two named aliases remain, `radius-mkt-sm` (8px) and `radius-mkt-lg` (16px), and
-everything else uses the shared `rounded-*` utilities. Marketing is **flat**: separation
-comes from a tint step plus a 1px `border-mkt-line` hairline, never from elevation — the
-only shadow left in the section is `shadow-modal-value` on the nav's two overlays (lens and
-dropdown), the same modal token the app uses. One container (1240px) and one gutter
+everything else uses the shared `rounded-*` utilities. Marketing follows the app's
+**borderless elevation model** (§4a): cards are borderless and rest on `shadow-card`,
+interactive cards lift to `shadow-card-hover` with a 2px rise, and structural hairlines run
+at 6% alpha (`--color-mkt-line-soft`) while the 14% `--color-mkt-line` is reserved for
+outline chips and form fields — the two-tier border policy, mirrored. The nav's two overlays
+(lens and dropdown) keep `shadow-modal-value`, the same modal token the app uses. One container (1240px) and one gutter
 (`clamp(20px, 4vw, 40px)`). Vertical rhythm belongs to the `<Section>` primitive — sections
 never set their own padding, which is what keeps every page breathing identically.
 
 **Scenes.** One recurring wallpaper (`public/brand/wallpaper.svg` — sky/coral/mint) stays
 behind every product moment as display art, but the windows inset on it are now **opaque
-white panels with hairline borders** — no glass, no backdrop blur, no alpha to police (flat
-rule 5). The slate scene-ink ramp is gone with the glass: scene copy uses the shared ink
+white panels carried by `shadow-card`** — no borders, no glass, no backdrop blur, no alpha
+to police. The slate scene-ink ramp is gone with the glass: scene copy uses the shared ink
 ramp, so contrast inside a scene is the same measured contrast as everywhere else.
 Illustrative figures live inside `aria-hidden` scenes and always carry a visible
 "Example data" mark; page copy contains no invented numbers.

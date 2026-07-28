@@ -459,6 +459,7 @@ const requiredBridged = [
 const requiredMktVars = [
   // Type — one face (Geist alias), eight steps
   'font-mkt-display',
+  'color-mkt-line-soft',
   'text-mkt-d1',
   'text-mkt-d2',
   'text-mkt-d3',

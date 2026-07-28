@@ -31,7 +31,7 @@ export function Stance() {
         {columns.map(({ title, items, Icon, tone }) => (
           <StaggerItem
             key={title}
-            className="border-mkt-line rounded-mkt-lg bg-mkt-surface border p-8 md:p-9"
+            className="rounded-mkt-lg bg-mkt-surface shadow-card p-8 md:p-9"
           >
             <h3 className="font-mkt-display text-mkt-ink text-heading-sm mb-6 font-semibold">
               {title}

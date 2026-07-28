@@ -27,11 +27,11 @@ export function Shift() {
         headingId="shift-title"
       />
 
-      <StaggerGroup className="border-mkt-line grid border-y md:grid-cols-3">
+      <StaggerGroup className="border-mkt-line-soft grid border-y md:grid-cols-3">
         {shift.items.map((item) => (
           <StaggerItem
             key={item.num}
-            className="border-mkt-line flex min-h-[15rem] flex-col border-b p-8 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+            className="border-mkt-line-soft flex min-h-[15rem] flex-col border-b p-8 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
           >
             <Meta className="text-mkt-ink-soft">{item.num}</Meta>
             {/* A FIXED gap under the number, not `mt-auto`. Pushing the block
@@ -47,7 +47,7 @@ export function Shift() {
         ))}
       </StaggerGroup>
 
-      <div className="border-mkt-line rounded-mkt-lg mt-14 grid overflow-hidden border lg:grid-cols-[1.15fr_0.85fr]">
+      <div className="rounded-mkt-lg mt-14 grid overflow-hidden shadow-card lg:grid-cols-[1.15fr_0.85fr]">
         <div className="bg-mkt-surface flex min-h-[15rem] flex-col justify-center p-9 md:p-11">
           <Meta as="p" className="mb-6">
             {voice.kicker}
@@ -67,7 +67,7 @@ export function Shift() {
               {voice.rules.map((rule) => (
                 <li
                   key={rule.num}
-                  className="border-mkt-line text-mkt-ink-soft text-mkt-sm flex gap-3.5 border-b pb-4 last:border-b-0 last:pb-0"
+                  className="border-mkt-line-soft text-mkt-ink-soft text-mkt-sm flex gap-3.5 border-b pb-4 last:border-b-0 last:pb-0"
                 >
                   <b className="text-mkt-meta text-mkt-proof shrink-0 pt-0.5 font-mono tabular-nums">
                     {rule.num}

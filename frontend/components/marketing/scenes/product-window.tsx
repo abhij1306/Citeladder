@@ -49,7 +49,7 @@ const RANKING = [
   ['Claude', '68'],
 ] as const;
 
-const PANEL = 'border-mkt-line rounded-mkt-sm bg-mkt-paper-raised border p-4';
+const PANEL = 'rounded-mkt-sm bg-mkt-paper-raised shadow-card p-4';
 
 export function ProductWindow() {
   return (
@@ -62,7 +62,7 @@ export function ProductWindow() {
       </div>
 
       <div aria-hidden className="grid lg:grid-cols-[13.75rem_minmax(0,1fr)]">
-        <aside className="border-mkt-line bg-mkt-surface hidden rounded-lg border p-5 lg:block lg:rounded-r-none lg:border-r-0">
+        <aside className="bg-mkt-surface hidden rounded-lg p-5 shadow-card lg:block lg:rounded-r-none">
           {SIDEBAR.map(({ group, items }) => (
             <div key={group} className="mb-5 last:mb-0">
               <Meta as="p" className="text-mkt-ink-muted mb-2 px-2">
@@ -86,7 +86,7 @@ export function ProductWindow() {
           ))}
         </aside>
 
-        <div className="border-mkt-line bg-mkt-surface rounded-lg border p-4 sm:p-5 lg:rounded-l-none">
+        <div className="bg-mkt-surface rounded-lg p-4 shadow-card sm:p-5 lg:rounded-l-none">
           <div className="mb-4 flex items-center justify-between gap-3">
             <p className="font-mkt-display text-mkt-ink text-heading-sm font-semibold">
               Market overview
@@ -94,12 +94,12 @@ export function ProductWindow() {
             <Meta className="border-mkt-line rounded-sm border px-2 py-1">Apr 01 — Jun 30</Meta>
           </div>
 
-          <div className="border-mkt-line rounded-mkt-sm grid grid-cols-2 border md:grid-cols-4">
+          <div className="border-mkt-line-soft rounded-mkt-sm grid grid-cols-2 border md:grid-cols-4">
             {METRICS.map((metric, index) => (
               <div
                 key={metric.label}
                 className={cn(
-                  'border-mkt-line p-3 sm:p-4',
+                  'border-mkt-line-soft p-3 sm:p-4',
                   // Two columns below md, four above: the middle divider only
                   // exists once the strip is a single row.
                   index % 2 === 0 && 'border-r',
@@ -153,7 +153,7 @@ export function ProductWindow() {
               {RANKING.map(([engine, score], index) => (
                 <div
                   key={engine}
-                  className="border-mkt-line text-mkt-ink-soft text-mkt-sm grid grid-cols-[1.125rem_1fr_auto] items-center gap-2 border-b py-2 last:border-b-0"
+                  className="border-mkt-line-soft text-mkt-ink-soft text-mkt-sm grid grid-cols-[1.125rem_1fr_auto] items-center gap-2 border-b py-2 last:border-b-0"
                 >
                   <b className="bg-mkt-proof-soft text-mkt-proof text-mkt-meta grid size-4.5 place-items-center rounded-sm font-mono tabular-nums">
                     {index + 1}
