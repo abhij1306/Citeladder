@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Geist, Google_Sans, Space_Grotesk } from 'next/font/google';
+import { Google_Sans, Plus_Jakarta_Sans } from 'next/font/google';
 
 import { QueryProvider } from '@/lib/providers/query-provider';
 import { SITE_NAME, SITE_TAGLINE, siteOrigin } from '@/lib/seo/site';
@@ -7,10 +7,10 @@ import { THEME_BOOTSTRAP_SCRIPT } from '@/lib/theme';
 
 import './globals.css';
 
-// Google Sans is the single face for UI, body, and data — no monospace is
-// shipped; numeric contexts use Google Sans with tabular-nums. Space
-// Grotesk is the app display face for headings. Geist stays loaded for the
-// marketing display only (the landing pages keep their own headline face).
+// Two faces total: Google Sans for UI, body, and data (no monospace is
+// shipped; numeric contexts use Google Sans with tabular-nums), and Plus
+// Jakarta Sans for headings/display across both the app and the marketing
+// site. No other family is loaded anywhere.
 const sans = Google_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
@@ -18,17 +18,10 @@ const sans = Google_Sans({
   display: 'swap',
 });
 
-const display = Space_Grotesk({
+const display = Plus_Jakarta_Sans({
   subsets: ['latin'],
-  weight: ['500'],
-  variable: '--font-space-grotesk',
-  display: 'swap',
-});
-
-const marketingDisplay = Geist({
-  subsets: ['latin'],
-  weight: ['500'],
-  variable: '--font-geist',
+  weight: ['500', '600'],
+  variable: '--font-jakarta',
   display: 'swap',
 });
 
@@ -50,7 +43,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${sans.variable} ${display.variable} ${marketingDisplay.variable}`}
+      className={`${sans.variable} ${display.variable}`}
     >
       <head>
         {/* Pre-hydration theme bootstrap — sets data-theme before first paint

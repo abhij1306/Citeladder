@@ -38,9 +38,9 @@
 
 @theme {
   /* ─── Type ────────────────────────────────────────────────────────────
-     Marketing display copy keeps Geist Medium — the app's Space Grotesk
-     display face is product-only by design. */
-  --font-mkt-display: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+     Marketing display copy shares the app's Plus Jakarta Sans heading face
+     — one display family across the whole product and site. */
+  --font-mkt-display: var(--font-display-family);
 
   /* Eight names, no ad-hoc sizes: d1/d2 ride the two fluid display steps
      above the ADS ceiling; everything else is a rung of the app ladder.

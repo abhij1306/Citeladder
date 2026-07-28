@@ -465,19 +465,16 @@ describe('Atlassian-based palette', () => {
     expect(allCss).toMatch(/--weight-bold:\s*700/);
     expect(allCss).toMatch(/--text-heading-xs--font-weight:\s*500/);
     expect(allCss).toMatch(/--text-heading-sm--font-weight:\s*500/);
-    // Typography policy: Google Sans is the only UI/data face (no monospace
-    // is shipped — the mono family aliases Google Sans), Space Grotesk is
-    // the app display face, and marketing alone keeps Geist for headlines.
+    // Typography policy: exactly two faces — Google Sans for UI/body/data
+    // (no monospace is shipped; the mono family aliases Google Sans) and
+    // Plus Jakarta Sans for display across the app AND the marketing site.
     expect(css).toMatch(/--font-mono-family:\s*var\(--font-sans\)/);
-    expect(css).toMatch(/--font-display-family:\s*var\(--font-space-grotesk\)/);
-    expect(marketingCss).toMatch(/--font-mkt-display:\s*var\(--font-geist\)/);
+    expect(css).toMatch(/--font-display-family:\s*var\(--font-jakarta\)/);
+    expect(marketingCss).toMatch(/--font-mkt-display:\s*var\(--font-display-family\)/);
     expect(layoutTsx).toMatch(/const sans = Google_Sans\([\s\S]*?variable:\s*'--font-sans'/);
-    expect(layoutTsx).toMatch(/const display = Space_Grotesk\([\s\S]*?variable:\s*'--font-space-grotesk'/);
-    expect(layoutTsx).not.toMatch(/Geist_Mono/);
-    expect(layoutTsx).not.toMatch(/--font-mono'/);
-    expect(layoutTsx).toMatch(
-      /className=\{`\$\{sans\.variable\} \$\{display\.variable\} \$\{marketingDisplay\.variable\}`\}/,
-    );
+    expect(layoutTsx).toMatch(/const display = Plus_Jakarta_Sans\([\s\S]*?variable:\s*'--font-jakarta'/);
+    expect(layoutTsx).not.toMatch(/Geist|Space_Grotesk|Inter/);
+    expect(layoutTsx).toMatch(/className=\{`\$\{sans\.variable\} \$\{display\.variable\}`\}/);
   });
 
   it('declares NO letter-spacing tokens anywhere — ADS tracking is 0 at every step', () => {

@@ -257,13 +257,13 @@
 :root {
   color-scheme: light;
 
-  /* Fonts — Google Sans for UI/body/data (no monospace is shipped; the
-     "mono" family aliases Google Sans so numeric contexts keep their
-     tabular-nums recipe), Space Grotesk for app headings. Marketing's
-     display face stays Geist (marketing-theme.css). */
+  /* Fonts — two faces total: Google Sans for UI/body/data (no monospace is
+     shipped; the "mono" family aliases Google Sans so numeric contexts keep
+     their tabular-nums recipe), Plus Jakarta Sans for headings/display.
+     Marketing aliases the same display family (marketing-theme.css). */
   --font-primary-family: var(--font-sans), system-ui, sans-serif;
   --font-mono-family: var(--font-sans), system-ui, sans-serif;
-  --font-display-family: var(--font-space-grotesk), var(--font-sans), system-ui, sans-serif;
+  --font-display-family: var(--font-jakarta), var(--font-sans), system-ui, sans-serif;
 
   /* ── Surfaces — the flat tint ladder ──────────────────────────────────
      The app canvas is SUNKEN and panels sit on it as plain white fills.
