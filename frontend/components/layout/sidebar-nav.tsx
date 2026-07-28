@@ -12,14 +12,15 @@ import { NAV_GROUPS, type NavItem } from './nav-items';
 /**
  * SidebarNav — grouped sidebar navigation in the ADS shell language.
  *
- * Rows are 32px (`--nav-item-height`, ADS's default menu-item rung). The
- * active item is an accent statement — a `bg-accent-border` fill (ADS's
- * selected-nav tint; the old `bg-accent-subtle` sat ΔE 1.8 from the sidebar
- * surface and was invisible), a `text-accent-hover` label (4.94:1 light /
- * 6.11:1 dark on the fill — `text-accent-text` on the same fill is 3.88:1
- * and fails AA, so the label steps one rung darker), a 4px accent
- * rail on the leading edge, and a full-opacity icon. Idle icons sit at 80%
- * so the active row reads first without dropping below usable contrast.
+ * Rows are 32px (`--nav-item-height`, ADS's default menu-item rung). Idle
+ * labels run near-ink (`text-foreground`) at 500 — nav is primary wayfinding,
+ * not meta text. The active item is an accent statement — a `bg-accent-border`
+ * fill (ADS's selected-nav tint; the old `bg-accent-subtle` sat ΔE 1.8 from
+ * the sidebar surface and was invisible), a `text-accent-hover` label at 600
+ * (4.94:1 light / 6.11:1 dark on the fill — `text-accent-text` on the same
+ * fill is 3.88:1 and fails AA, so the label steps one rung darker), a 4px
+ * accent rail on the leading edge, and a full-opacity icon. Idle icons sit
+ * at 80% so the active row reads first without dropping below usable contrast.
  *
  * Group labels use the shared `eyebrowClasses` recipe — 12/16 @600, sentence
  * case, matching ADS's side-nav heading item.
@@ -40,8 +41,8 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
       className={cn(
         'relative flex h-[var(--nav-item-height)] items-center gap-2 rounded-sm px-2 text-sm transition-colors',
         active
-          ? 'bg-accent-border text-accent-hover font-medium'
-          : 'text-secondary hover:text-foreground hover:bg-background-alt',
+          ? 'bg-accent-border text-accent-hover font-semibold'
+          : 'text-foreground font-medium hover:bg-background-alt',
       )}
     >
       {active ? (
