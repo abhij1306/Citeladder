@@ -528,9 +528,8 @@ function NoAuditEmpty({
           <p className="text-secondary max-w-md text-sm">
             {selectedRun
               ? 'No product metrics in this run — pick another run, or launch one that scores your catalog.'
-              : `Once a run completes with products in your catalog, each product’s share of
-            voice, rank distribution, and price accuracy appear here. An empty catalog measures
-            nothing — add products first, then launch a run.`}
+              : `Once a run completes with products in your catalog, share of voice, rank
+            distribution, and price accuracy appear here.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
