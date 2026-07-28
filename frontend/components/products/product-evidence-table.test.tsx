@@ -200,7 +200,7 @@ describe('ProductEvidenceTable kind sub-tabs', () => {
     renderTable();
 
     await waitFor(() =>
-      expect(screen.getByText(/No persisted mentions of this product yet/)).toBeInTheDocument(),
+      expect(screen.getByText(/No mentions of this product yet/)).toBeInTheDocument(),
     );
   });
 

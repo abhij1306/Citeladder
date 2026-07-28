@@ -183,7 +183,7 @@ describe('ProductVisibilityPanel states', () => {
     );
     expect(screen.getByText('No product visibility yet')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Select run' })).toBeInTheDocument();
-    expect(screen.getByText(/without product metrics/)).toBeInTheDocument();
+    expect(screen.getByText(/No product metrics in this run/)).toBeInTheDocument();
   });
 
   it('hides the run selector on a 404 with no explicit run selection', () => {

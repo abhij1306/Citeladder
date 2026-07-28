@@ -35,7 +35,7 @@ function actionErrorMessage(error: unknown): string {
   if (httpErrorStatus(error) === 409) {
     const body = error instanceof ApiError ? error.body : '';
     if (body.includes('provider_not_configured')) {
-      return 'Content generation is not configured yet — the provider API key is missing. Contact your administrator.';
+      return 'Content generation is not configured — a provider API key is missing.';
     }
     if (body.includes('cancel_not_allowed')) {
       return 'This generation already finished, so it can no longer be cancelled.';

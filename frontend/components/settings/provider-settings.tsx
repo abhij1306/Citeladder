@@ -42,8 +42,8 @@ export function ProviderSettings() {
   return (
     <div className="grid gap-6" data-tour="provider-settings">
       <p className="text-secondary max-w-2xl text-sm">
-        Bring your own API keys. Configure a route per engine, save a key, then run a connection
-        test. Keys are write-only — Searchify never displays a stored secret.
+        Bring your own API keys — save one per engine, then run a connection test. Keys are
+        write-only.
       </p>
 
       {isError ? (

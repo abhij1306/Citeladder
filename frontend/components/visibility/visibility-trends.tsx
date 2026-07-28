@@ -88,8 +88,8 @@ export function VisibilityTrends({
             <h2 className={displayHeadingLgClasses}>No trend history yet</h2>
             <p className="text-secondary max-w-md text-sm">
               {hasRuns
-                ? 'This project has runs but no dashboard-ready snapshots to plot yet. Once more audits complete, their history shows up here.'
-                : 'Launch audits over time to see how your Visibility Score and Share of Voice move across runs.'}
+                ? 'No snapshots to plot yet — history appears here as audits complete.'
+                : 'Launch audits over time to track Visibility Score and Share of Voice.'}
             </p>
           </div>
           <Button asChild variant="ghost" size="md">

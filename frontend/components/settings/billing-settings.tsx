@@ -128,8 +128,8 @@ export function BillingSettings({ enabled = true }: Readonly<{ enabled?: boolean
           {summary.tier_key === 'paid'
             ? 'Payment confirmed. Paid capabilities are active.'
             : confirmationTimedOut
-              ? 'Payment is still confirming. Your plan has not changed; contact support if Razorpay shows a completed payment.'
-              : 'Confirming payment with Razorpay. Access changes only after a verified webhook; this page will refresh automatically.'}
+              ? 'Payment is still confirming — your plan has not changed.'
+              : 'Confirming payment — this page refreshes once verified.'}
         </Alert>
       ) : null}
 
@@ -251,7 +251,7 @@ export function BillingSettings({ enabled = true }: Readonly<{ enabled?: boolean
             <Alert tone="info">
               {summary.checkout_block_reason === 'billing_country_required'
                 ? 'Save your billing country to see the available checkout route.'
-                : 'Live checkout is not enabled yet. Your Free plan remains active while Razorpay account approval and production configuration are completed.'}
+                : 'Live checkout is not enabled yet — your Free plan remains active.'}
             </Alert>
           ) : null}
           {checkoutMutation.isError ? (

@@ -399,7 +399,7 @@ describe('UrlDetail', () => {
     // find the alert and assert on its text.
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(
-      'This page is not part of the active monitored selection, so it cannot be re-audited. Add it to your monitored set first.',
+      'This page is not in your monitored set — add it before re-auditing.',
     );
   });
 

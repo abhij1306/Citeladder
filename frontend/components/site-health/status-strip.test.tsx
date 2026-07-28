@@ -185,7 +185,7 @@ describe('StatusStrip — lifecycle content', () => {
     renderStrip({ crawlStarting: true, phase: 'selection', crawl: crawl({ status: 'cancelled' }) });
 
     expect(screen.getByText(/Starting a fresh crawl/)).toBeInTheDocument();
-    expect(screen.queryByText(/Discovery was cancelled/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Discovery cancelled/)).not.toBeInTheDocument();
   });
 
   it('keeps the strip container mounted in every phase (canonical-screen invariant)', () => {

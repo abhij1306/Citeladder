@@ -96,7 +96,7 @@ function StripContent({
     return (
       <Alert tone="info">
         {crawl
-          ? 'Starting a fresh crawl — your results and monitored selection stay in view until the new run takes over.'
+          ? 'Starting a fresh crawl — current results stay visible until the new run completes.'
           : 'Starting discovery — pages will appear below as they are found.'}
       </Alert>
     );
@@ -140,8 +140,8 @@ function StripContent({
     return (
       <Alert tone="info">
         {crawl.status === 'cancelled'
-          ? 'Discovery was cancelled — the pages found so far are kept below. Select the pages to monitor, save your selection, then start the analysis.'
-          : 'Discovery finished. Select the pages to monitor below, then start the analysis — results will appear on this screen.'}
+          ? 'Discovery cancelled — found pages are kept below. Select pages to monitor, save, then start the analysis.'
+          : 'Discovery finished — select pages to monitor, then start the analysis.'}
       </Alert>
     );
   }

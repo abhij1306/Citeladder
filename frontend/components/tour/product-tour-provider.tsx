@@ -31,8 +31,7 @@ export const PRODUCT_TOUR_STEPS: readonly TourStep[] = [
     path: '/projects',
     selector: '[data-tour="dashboard-overview"]',
     title: 'Your Dashboard',
-    description:
-      'This is the active project summary. Each card links to persisted evidence and the source surface.',
+    description: 'Your active project at a glance — every card links to its evidence.',
     side: 'bottom',
     align: 'start',
   },
@@ -41,8 +40,7 @@ export const PRODUCT_TOUR_STEPS: readonly TourStep[] = [
     path: '/projects',
     selector: '[data-tour="dashboard-report"]',
     title: 'Share an executive report',
-    description:
-      'Download a PDF generated only from persisted projections. It never starts a provider or crawl request.',
+    description: 'Download a PDF built from persisted results — never a live provider call.',
     side: 'bottom',
     align: 'end',
   },
@@ -51,8 +49,7 @@ export const PRODUCT_TOUR_STEPS: readonly TourStep[] = [
     path: '/settings?tab=providers',
     selector: '[data-tour="provider-settings"]',
     title: 'Connect answer engines',
-    description:
-      'Add your own provider keys here before launching an audit. Keys are write-only after saving.',
+    description: 'Add provider keys before launching an audit. Keys are write-only.',
     side: 'top',
     align: 'center',
   },

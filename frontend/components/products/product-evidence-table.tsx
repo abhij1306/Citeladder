@@ -230,7 +230,7 @@ function MentionEvidenceCard({ items, truncated, engineParam }: EvidenceKindCard
       emptyCopy={
         engineParam
           ? `No persisted mentions of this product on ${engineLabel(engineParam)} yet.`
-          : 'No persisted mentions of this product yet. Once a run completes, every mention appears here.'
+          : 'No mentions of this product yet — they appear here once a run completes.'
       }
       notice={`Showing the first ${EVIDENCE_LIMIT} mentions for this product; older mentions are truncated.`}
     >

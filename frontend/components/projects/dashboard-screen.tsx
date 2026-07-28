@@ -281,7 +281,7 @@ export function DashboardScreen() {
               {data.project.brand_name || data.project.name}
             </h2>
             <p className="text-muted mt-1 text-sm">
-              A live summary of your persisted Searchify results · Snapshot{' '}
+              A live summary of your Searchify results · Snapshot{' '}
               {generatedAt.toLocaleString(undefined, {
                 dateStyle: 'medium',
                 timeStyle: 'short',

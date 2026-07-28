@@ -64,7 +64,7 @@ const RANK_SEGMENT_CLASS: Record<(typeof RANK_BUCKET_ORDER)[number], string> = {
 
 /** Exact v1 mixed-version alert copy (analyzer v1 recorded no direction). */
 const V1_DIRECTION_ALERT =
-  'This run was analyzed by product analyzer v1, which recorded price mismatches without a direction. Price relation reads Direction unavailable for those mentions.';
+  'Analyzed by product analyzer v1 — price direction was not recorded for these mentions.';
 
 /**
  * Visibility tab (agentic commerce): the selected run's product-vs-competitor
@@ -527,7 +527,7 @@ function NoAuditEmpty({
           <h2 className={displayHeadingLgClasses}>No product visibility yet</h2>
           <p className="text-secondary max-w-md text-sm">
             {selectedRun
-              ? 'This run completed without product metrics — product visibility is only measured for runs that score your catalog. Pick another run above, or launch a new one.'
+              ? 'No product metrics in this run — pick another run, or launch one that scores your catalog.'
               : `Once a run completes with products in your catalog, each product’s share of
             voice, rank distribution, and price accuracy appear here. An empty catalog measures
             nothing — add products first, then launch a run.`}

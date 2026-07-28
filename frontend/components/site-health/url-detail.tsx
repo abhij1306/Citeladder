@@ -149,7 +149,7 @@ export function UrlDetail({
         onRerunError={(error) => {
           if (error instanceof ApiError && error.status === 409) {
             setRerunError(
-              'This page is not part of the active monitored selection, so it cannot be re-audited. Add it to your monitored set first.',
+              'This page is not in your monitored set — add it before re-auditing.',
             );
           } else if (error instanceof ApiError && error.status === 403) {
             setRerunError('Re-auditing pages requires a Starter plan.');

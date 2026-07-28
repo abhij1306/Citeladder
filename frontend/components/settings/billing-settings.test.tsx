@@ -87,7 +87,7 @@ describe('BillingSettings', () => {
 
     renderWithProviders(<BillingSettings />);
 
-    expect(await screen.findByText(/confirming payment with razorpay/i)).toBeInTheDocument();
+    expect(await screen.findByText(/confirming payment/i)).toBeInTheDocument();
     await waitFor(() => expect(window.location.search).toBe('?tab=billing'));
   });
 

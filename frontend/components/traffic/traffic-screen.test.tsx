@@ -443,7 +443,7 @@ describe('TrafficScreen — sync now', () => {
     await ue.click(screen.getByTestId('sync-now-button'));
 
     expect(
-      await screen.findByText(/No active Search Console or GA4 connection is mapped/),
+      await screen.findByText(/No Search Console or GA4 connection yet/),
     ).toBeInTheDocument();
     await waitFor(() => expect(postCalls).toBe(1));
     // No runs enqueued → no banner, and the button returns to its idle state.

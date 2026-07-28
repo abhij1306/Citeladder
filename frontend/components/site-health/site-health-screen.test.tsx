@@ -208,7 +208,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     renderScreen();
 
     expect(
-      await screen.findByText(/Discovery was cancelled — the pages found so far are kept/),
+      await screen.findByText(/Discovery cancelled — found pages are kept/),
     ).toBeInTheDocument();
     // The persisted inventory row itself is visible and selectable.
     expect(await screen.findByLabelText('Monitor https://acme.com/pricing')).toBeInTheDocument();
@@ -415,7 +415,7 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
     // mode (inventory persists), no navigation, no terminal dead-end.
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(
-      await screen.findByText(/Discovery was cancelled — the pages found so far are kept/),
+      await screen.findByText(/Discovery cancelled — found pages are kept/),
     ).toBeInTheDocument();
     expect(screen.getByTestId('site-health-canonical')).toBe(canonical);
 
