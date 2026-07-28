@@ -28,8 +28,9 @@
 - **Aesthetic**: dense, confident **B2B analytics** in the Atlassian visual language — a
   `#F7F8F9` sunken canvas, white panels separated by **a tint step and a 1px alpha hairline**,
   one **ADS blue accent `#0C66E4`** reserved for data, links, active states and focus rings,
-  the ADS accent ramp for every semantic hue, **Inter** for UI text, **Geist Medium** for
-  headings/display, and **Geist Mono** tabular numerals for every metric, 4px grid, WCAG 2.1 AA.
+  the ADS accent ramp for every semantic hue, **Google Sans** for UI text and data
+  (tabular numerals — no monospace is shipped), **Space Grotesk** for app
+  headings/display (marketing headlines stay **Geist Medium**), 4px grid, WCAG 2.1 AA.
 - **Elevation is the ADS surface/shadow pairing, and it is a hard rule** — see §4a. Cards
   rest on the raised rung and carry **no border** (light, not an outline, separates the
   card); interactive cards lift to the overlay rung on hover; true overlays own the overlay
@@ -99,7 +100,7 @@ value layer restyled the whole app without touching component code.
 | `elevation.shadow.overlay` | `--shadow-3`, `--shadow-4`, `--shadow-card-hover-value`, `--shadow-lg-value`, `--shadow-modal` | overlays, plus the hover lift of interactive cards. `--shadow-1` and `--shadow-xs/sm/elevated` are `none` |
 | `radius.{xsmall,small,medium,large,xlarge}` (2/4/8/12/16) | `--radius-xs/sm/md/lg/xl`; `--radius-2xl` = 16; `--radius-full` kept | **buttons are rounded-md (8px), not pills**; badges are `rounded-sm` (4px) |
 | `space.025…1000` | existing `--space-1..20` 4px grid, **unchanged** | the two scales already agree; renaming would churn ~40 contract entries for no visual gain |
-| Inter, Geist, Geist Mono | `--font-primary-family` = Inter stack; `--font-display-family` = Geist Medium stack; `--font-mono-family` = Geist Mono stack | next/font in `app/layout.tsx`; `--font-sans` remains the body/UI variable |
+| Google Sans, Space Grotesk, Geist | `--font-primary-family` = Google Sans stack; `--font-display-family` = Space Grotesk stack; `--font-mono-family` aliases the Google Sans stack (no monospace shipped) | next/font in `app/layout.tsx`; `--font-sans` remains the body/UI variable; marketing `--font-mkt-display` keeps the Geist stack |
 
 ## 4. Token values
 
@@ -235,12 +236,14 @@ in `globals.test.ts` rather than silently deleted:
 
 ## 7. Type scale — Figma verbatim
 
-Body/UI sans = **Inter** 400/500/600/700 (`--font-sans` → `--font-primary-family`);
-headings/display = **Geist Medium** 500 (`--font-geist` → `--font-display-family`); mono =
-**Geist Mono** (`--font-mono` → `--font-mono-family`) with **tabular numerals**
-(`font-variant-numeric: tabular-nums`) — mono is reserved for **metric values, percentages,
+Body/UI sans = **Google Sans** 400/500/600/700 (`--font-sans` → `--font-primary-family`);
+headings/display = **Space Grotesk** 500 (`--font-space-grotesk` → `--font-display-family`).
+**No monospace is shipped** — `--font-mono-family` aliases the Google Sans stack, and the
+`.mono` / `font-mono` recipe keeps **tabular numerals**
+(`font-variant-numeric: tabular-nums`) for **metric values, percentages,
 counts, positions, timestamps, code and keyboard hints** so columns align; it is never used
-for labels. Semantic `h1`–`h6` elements and marketing display utilities resolve to Geist Medium.
+for labels. Semantic `h1`–`h6` elements resolve to Space Grotesk; marketing display
+utilities resolve to Geist Medium (marketing-only face, §11).
 
 The ladder is the ADS `font.*` composite scale. **13px and 15px do not exist.** Every step
 carries its own line-height, and the heading steps bake their weight into the token, so call
@@ -271,7 +274,7 @@ token.
 - Weights: `--weight-normal: 400`, `--weight-medium: 500`, `--weight-semibold: 600`,
   `--weight-bold: 700` — heading tokens run at 500. Intentional 600-weight call sites use
   explicit `font-semibold`, including the eyebrow recipe above, table headers, and form labels;
-  `bold` is a true 700 (the Inter 700 cut is loaded).
+  `bold` is a true 700 (the Google Sans 700 cut is loaded).
 - **There is no letter-spacing anywhere.** ADS defines no tracking rungs, so the
   `--tracking-*` namespace is removed from the bridge (`--tracking-*: initial`), every
   `tracking-*` utility class is deleted (zero-ceiling guard in `check-ads-scale.mjs`), and no
@@ -327,7 +330,7 @@ bridged names (`bg-background`, `text-foreground`, `border-border`, `bg-accent`,
 @theme inline {
   --font-sans: var(--font-primary-family);
   --font-mono: var(--font-mono-family);
-  --font-display: var(--font-display-family); /* Geist Medium */
+  --font-display: var(--font-display-family); /* Space Grotesk */
   --color-background: var(--bg-base);
   --color-panel: var(--bg-panel);
   --color-foreground: var(--text-primary);
@@ -608,13 +611,15 @@ passing there passes on white too. Machine-enforced in `frontend/app/globals.tes
 ("the Proof contract"), which also asserts the system is light-only and that every state hue
 except proof has a `-text` sibling.
 
-**Type.** Marketing body copy remains **Inter** while display copy uses the same **Geist
-Medium** face as the app — `--font-mkt-display` aliases `--font-display-family`, and every
+**Type.** Marketing body copy is **Google Sans** like the app, while display copy keeps its
+own **Geist Medium** face — `--font-mkt-display` aliases the Geist stack directly (the app's
+Space Grotesk display face is product-only), and every
 `--text-mkt-*` step aliases the shared ADS ladder in `ds-type.css` (§7), so
 13px and 15px do not exist here either and there is no letter-spacing at any step. Figures
-and "meta" labels render in **Geist Mono** (`font-mono tabular-nums`) — the deck faked
-tabular figures with a font-feature hack (`.mkt-num`), and the fix is the real mono face the
-app already loads, the same way every number in the app is mono. Eight names
+and "meta" labels use the shared `font-mono tabular-nums` recipe (Google Sans with tabular
+numerals — no monospace is shipped) — the deck faked
+tabular figures with a font-feature hack (`.mkt-num`), and the fix is the real tabular
+recipe the app already uses, the same way every number in the app aligns. Eight names
 (`text-mkt-d1 … text-mkt-meta`) — d1/d2 ride the two fluid display steps, d3 = `--text-2xl`,
 d4 = `--text-xl`, lead/body = `--text-base` (marketing body stays one step above the app's
 14px), sm = `--text-sm`, meta = `--text-xs`.
@@ -624,7 +629,7 @@ d4 = `--text-xl`, lead/body = `--text-base` (marketing body stays one step above
 at 72px and floored at **44px**, which wrapped an 18ch headline into four or five stubby
 lines on a phone — so headlines read as oversized and cramped at once.
 
-**Weights.** Inter's static cuts only — display runs at `font-medium` (500), body at 400,
+**Weights.** Google Sans static cuts only — display runs at `font-medium` (500), body at 400,
 meta at 600. The off-axis 460/540 stops are gone with Manrope: they required the variable
 face, and the ADS ladder has no rungs between Regular and Medium.
 
@@ -737,12 +742,14 @@ are quoted and italic so they read as things buyers ask rather than as claims we
    carry `shadow-modal-value`. Nothing else casts a shadow.
 6. **Both themes always defined**; `data-theme` set pre-hydration; **light is the default**
    (stored choice → light; the OS preference is not consulted).
-7. Mono font gets `font-variant-numeric: tabular-nums`; all metrics use mono.
+7. The numeric recipe (`.mono` / `font-mono`) gets `font-variant-numeric: tabular-nums`;
+   all metrics use it. No monospace face is loaded.
 8. Ship `prefers-reduced-motion`, `forced-colors`, `print`, and theme-swap suppression rules.
-9. Load **Inter** (weights 400/500/600/700), **Geist Medium** (500), and **Geist Mono** via
-   next/font in `app/layout.tsx` (`--font-sans`, `--font-geist`, `--font-mono`).
-   `--font-display-family` resolves to Geist Medium and marketing `--font-mkt-display` aliases
-   it. Never name a next/font variable `--font-display`: that name is the bridged `@theme` token.
+9. Load **Google Sans** (weights 400/500/600/700), **Space Grotesk** (500), and **Geist
+   Medium** (500, marketing-only) via
+   next/font in `app/layout.tsx` (`--font-sans`, `--font-space-grotesk`, `--font-geist`).
+   `--font-display-family` resolves to Space Grotesk and marketing `--font-mkt-display` aliases
+   the Geist stack. Never name a next/font variable `--font-display`: that name is the bridged `@theme` token.
 10. **Marketing is still a separate system, for now.** Folding `--mkt-*` onto the ADS layer is
     Phase 2 of the ADS adoption; until then marketing and the logged-out auth screens stay
     light-only.

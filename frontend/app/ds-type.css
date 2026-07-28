@@ -69,7 +69,7 @@
   --text-display-2--font-weight: 500;
 
   /* Font weights — ADS font.weight.*. Headings run at 500/600; `bold` is a
-     true 700 again (the Inter 700 cut is loaded in app/layout.tsx). */
+     true 700 again (the Google Sans 700 cut is loaded in app/layout.tsx). */
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;

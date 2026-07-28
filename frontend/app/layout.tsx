@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono, Inter } from 'next/font/google';
+import { Geist, Google_Sans, Space_Grotesk } from 'next/font/google';
 
 import { QueryProvider } from '@/lib/providers/query-provider';
 import { SITE_NAME, SITE_TAGLINE, siteOrigin } from '@/lib/seo/site';
@@ -7,27 +7,28 @@ import { THEME_BOOTSTRAP_SCRIPT } from '@/lib/theme';
 
 import './globals.css';
 
-// Inter remains the UI/body face. Geist Medium is the shared display face
-// for headings across the product and marketing surfaces. Geist Mono stays
-// reserved for numeric/data contexts.
-const sans = Inter({
+// Google Sans is the single face for UI, body, and data — no monospace is
+// shipped; numeric contexts use Google Sans with tabular-nums. Space
+// Grotesk is the app display face for headings. Geist stays loaded for the
+// marketing display only (the landing pages keep their own headline face).
+const sans = Google_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-sans',
   display: 'swap',
 });
 
-const display = Geist({
+const display = Space_Grotesk({
   subsets: ['latin'],
   weight: ['500'],
-  variable: '--font-geist',
+  variable: '--font-space-grotesk',
   display: 'swap',
 });
 
-const mono = Geist_Mono({
+const marketingDisplay = Geist({
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-mono',
+  weight: ['500'],
+  variable: '--font-geist',
   display: 'swap',
 });
 
@@ -49,7 +50,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${sans.variable} ${display.variable} ${mono.variable}`}
+      className={`${sans.variable} ${display.variable} ${marketingDisplay.variable}`}
     >
       <head>
         {/* Pre-hydration theme bootstrap — sets data-theme before first paint

@@ -15,8 +15,8 @@ import { JsonLd, organizationJsonLd } from '@/components/marketing/seo/json-ld';
  * the focus ring. Everything else is built from mkt-namespaced utilities —
  * there is no marketing stylesheet to keep in sync.
  *
- * No fonts are loaded here: the root layout puts Inter and Geist Mono on
- * <html>, so --font-mkt-display (an Inter alias) is already in scope.
+ * No fonts are loaded here: the root layout puts Google Sans and Geist on
+ * <html>, so --font-mkt-display (a Geist alias) is already in scope.
  */
 export default function MarketingLayout({ children }: Readonly<{ children: ReactNode }>) {
   // Omitted while no canonical origin exists (B3) — Organization without url
