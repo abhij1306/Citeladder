@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -51,6 +52,20 @@ logger = logging.getLogger("app.orchestration.postgres_task_queue")
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class ExpiredLeaseSweep:
+    """What one ``release_expired`` pass reclaimed.
+
+    ``failed_parent_ids`` carries the de-duplicated owning-run ids of rows the
+    sweeper terminalized at max attempts — the reclaims no worker's finalize
+    will ever observe. Empty for queues whose spec sets no ``parent_id_attr``.
+    """
+
+    reclaimed: int
+    failed_task_ids: tuple[uuid.UUID, ...] = ()
+    failed_parent_ids: tuple[uuid.UUID, ...] = ()
 
 
 class PostgresTaskQueue[
@@ -337,10 +352,31 @@ class PostgresTaskQueue[
         large frontier never holds one long-running transaction or stalls
         live claims; a caller polling this repeatedly drains the remainder
         across subsequent calls.
+
+        Returns the number of rows reclaimed. Callers that must react to a
+        TERMINAL reclaim (the sweeper failing a task at max attempts drains
+        the owning run's queue without any worker running its finalize) should
+        use ``release_expired_detailed`` instead, which reports those rows.
+        """
+        outcome = await self.release_expired_detailed(batch_size=batch_size)
+        return outcome.reclaimed
+
+    async def release_expired_detailed(
+        self, *, batch_size: int = 500
+    ) -> ExpiredLeaseSweep:
+        """``release_expired`` that also reports which rows went TERMINAL.
+
+        The terminal set matters because nothing else observes it: a task the
+        sweeper fails at max attempts never runs a worker's ``finally``, so a
+        run whose LAST outstanding task is terminalized here would otherwise
+        sit non-terminal forever. Callers reconcile the reported parents.
         """
         model = self._model
         now = _utcnow()
         reclaimed = 0
+        failed_task_ids: list[uuid.UUID] = []
+        failed_parent_ids: list[uuid.UUID] = []
+        parent_attr = self._spec.parent_id_attr
         async with self._session_factory() as session:
             stmt = (
                 select(model)
@@ -361,6 +397,25 @@ class PostgresTaskQueue[
                     if not task.error_code:
                         task.error_code = self._spec.max_attempts_error
                         task.error_detail = "lease expired after max attempts exhausted"
+                    failed_task_ids.append(task.id)
+                    if parent_attr is not None:
+                        parent_id = getattr(task, parent_attr, None)
+                        if parent_id is not None:
+                            failed_parent_ids.append(parent_id)
+                    # Attributable per-row record: this is the only trace that a
+                    # task died without a worker finalize, so an aggregate count
+                    # alone leaves a stalled run un-diagnosable.
+                    logger.warning(
+                        "sweeper failed task at max attempts",
+                        extra={
+                            "task_id": str(task.id),
+                            "queue": model.__tablename__,
+                            "attempt_count": task.attempt_count,
+                            "parent_id": str(getattr(task, parent_attr, ""))
+                            if parent_attr
+                            else None,
+                        },
+                    )
                 else:
                     task.status = TASK_STATUS_RETRY_WAIT
                     task.available_at = now
@@ -369,6 +424,12 @@ class PostgresTaskQueue[
             if reclaimed:
                 logger.info(
                     "sweeper reclaimed expired leases",
-                    extra={"reclaimed": reclaimed},
+                    extra={"reclaimed": reclaimed, "failed": len(failed_task_ids)},
                 )
-            return reclaimed
+            # De-duplicate parents (one run commonly loses several leases in the
+            # same sweep) while keeping first-seen order deterministic.
+            return ExpiredLeaseSweep(
+                reclaimed=reclaimed,
+                failed_task_ids=tuple(failed_task_ids),
+                failed_parent_ids=tuple(dict.fromkeys(failed_parent_ids)),
+            )

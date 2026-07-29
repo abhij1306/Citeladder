@@ -26,8 +26,8 @@ import { segmentedItemClasses, segmentedTrackClasses } from '@/components/ui/seg
 import { cn } from '@/lib/utils';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
 import {
+  crawlPollInterval,
   PAGE_LIMIT,
-  POLL_INTERVAL_MS,
   statusLabel,
   type InventoryMode,
 } from '@/lib/site-health/status';
@@ -146,7 +146,7 @@ function DiscoveringInventory({
     ...siteHealthQueries.inventory(crawl.id, { cursor: pager.cursor, limit: PAGE_LIMIT }),
     // Only the FIRST page polls — deeper cursor pages stay static so the rows
     // under review don't shift as new URLs are discovered.
-    refetchInterval: active && pager.cursor === undefined ? POLL_INTERVAL_MS : false,
+    refetchInterval: active && pager.cursor === undefined ? crawlPollInterval(crawl) : false,
   });
   const rows = inventoryQuery.data?.items ?? [];
   const nextCursor = inventoryQuery.data?.next_cursor ?? null;
@@ -280,7 +280,7 @@ function ScoredInventory({
     // While analysis is active only the FIRST page of a tab polls (polling
     // baseline) — deeper cursor pages stay static so rows under review don't
     // shift as more pages finish scoring.
-    refetchInterval: active && pager.cursor === undefined ? POLL_INTERVAL_MS : false,
+    refetchInterval: active && pager.cursor === undefined ? crawlPollInterval(crawl) : false,
   });
 
   const rows = pagesQuery.data?.items ?? [];

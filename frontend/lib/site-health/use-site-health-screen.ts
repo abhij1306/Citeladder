@@ -13,8 +13,9 @@ import {
 } from '@/lib/site-health/download';
 import { useCrawlEvents } from '@/lib/site-health/use-crawl-events';
 import {
+  crawlPollInterval,
   inventoryModeForPhase,
-  POLL_INTERVAL_MS,
+  isCrawlStalled,
   primaryActionForPhase,
   resolveSiteHealthPhase,
   shouldPollCrawl,
@@ -44,18 +45,26 @@ export function useSiteHealthScreen(projectId: string | null) {
   const dashboardQuery = useQuery({
     ...siteHealthQueries.dashboard(projectId ?? ''),
     enabled: Boolean(projectId),
+    // Backed off by crawl age, and stops entirely on a crawl that has gone
+    // silent — an active-forever crawl must not pin the tab to a 4s poll of
+    // five queries indefinitely.
     refetchInterval: (query) => {
       const polled = query.state.data?.crawl;
-      return polled && shouldPollCrawl(polled) ? POLL_INTERVAL_MS : false;
+      return polled ? crawlPollInterval(polled) : false;
     },
   });
 
   const crawl: SiteCrawl | null = dashboardQuery.data?.crawl ?? null;
   const active = crawl ? shouldPollCrawl(crawl) : false;
+  // An active crawl the client has stopped polling: surfaced so the screen can
+  // say so explicitly rather than showing a progress state that never advances.
+  const stalled = isCrawlStalled(crawl);
   const plan: SiteHealthEntitlement['plan_key'] = entitlementQuery.data?.plan_key ?? 'free';
 
-  // SSE invalidation accelerator (polling stays the baseline).
-  useCrawlEvents(crawl?.id, projectId, active);
+  // SSE invalidation accelerator (polling stays the baseline). Dropped for a
+  // stalled crawl too: if we have given up polling it, holding a reconnecting
+  // stream open for it is the same waste by another route.
+  useCrawlEvents(crawl?.id, projectId, active && !stalled);
 
   // Poll pages while active so per-page rows advance without a reload. Scoped
   // to `monitored: true` so the per-page table shows only selected rows. This
@@ -63,10 +72,14 @@ export function useSiteHealthScreen(projectId: string | null) {
   // preview — with env-raised limits the monitored set may be far larger, so
   // the progress COUNTS come from server counters (crawl `analyzed_count` /
   // `failed_count` and the dashboard quota), never from this page fetch.
+  // Shares the crawl's backed-off cadence rather than owning a second 4s timer:
+  // two independent timers over the same crawl land out of order and render
+  // counts from different moments.
+  const pagesPollInterval = crawl ? crawlPollInterval(crawl) : false;
   const pagesQuery = useQuery({
     ...siteHealthQueries.pages(crawl?.id ?? '', { limit: 200, monitored: true }),
     enabled: Boolean(crawl?.id),
-    refetchInterval: active ? POLL_INTERVAL_MS : false,
+    refetchInterval: pagesPollInterval,
   });
 
   // Per-PROJECT monitored set. Feeds BOTH the phase resolution (an active
@@ -175,6 +188,7 @@ export function useSiteHealthScreen(projectId: string | null) {
     pagesQuery,
     crawl,
     active,
+    stalled,
     phase,
     primaryAction,
     inventoryMode,

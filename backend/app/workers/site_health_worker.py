@@ -33,8 +33,9 @@ import hashlib
 import logging
 import time
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urljoin, urlsplit
 
 from sqlalchemy import func, select
@@ -83,6 +84,7 @@ from app.core.config.site_health import (
     ANALYSIS_STATUS_RUNNING,
     ANALYZER_VERSION,
     APPLICABILITY_CRAWL_FINALIZE,
+    CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,
@@ -464,9 +466,17 @@ class SiteHealthWorker:
         together — claiming a kind we do not route would force-fail it, and
         routing a kind we do not claim would leave it queued forever.
         """
-        await self._queue.release_expired(
+        sweep = await self._queue.release_expired_detailed(
             batch_size=site_health_settings.lease_reclaim_batch_size
         )
+        # A task the sweeper failed at max attempts never runs ``_execute_task``,
+        # so its ``finally`` reconcile never fires. If that was a crawl's last
+        # outstanding task the crawl would stay non-terminal forever; reconcile
+        # the affected crawls here. Idempotent — reconcile no-ops on a crawl
+        # that is already terminal.
+        for crawl_id in sweep.failed_parent_ids:
+            await self._reconcile_crawl_status(crawl_id)
+        await self._reconcile_stalled_crawls()
         self._evict_idle_hosts()
         claim_limit = min(
             site_health_settings.worker_concurrency,
@@ -713,9 +723,11 @@ class SiteHealthWorker:
             # wiring bug (never a silent no-op).
             raise NotImplementedError(f"unexpected task kind '{kind}'")
 
-        # Fetch (heartbeating the lease during the possibly-slow call).
-        heartbeat = asyncio.create_task(self._heartbeat_loop(task_id))
-        try:
+        # Heartbeat the lease across BOTH the slow fetch and the persist that
+        # follows it (see ``_leased``): the write phase contends for the crawl
+        # row, so leaving it unheartbeated is what let the sweeper reclaim a
+        # task that was still writing.
+        async with self._leased(task_id):
             outcome = await self._fetch_discover(
                 requested_url=requested_url,
                 root_registrable_domain=root_registrable_domain,
@@ -725,18 +737,13 @@ class SiteHealthWorker:
                 sample_mode=sample_mode,
                 fetch_mode=fetch_mode,
             )
-        finally:
-            heartbeat.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await heartbeat
-
-        await self._persist_discover(
-            task_id=task_id,
-            crawl_id=crawl_id,
-            requested_url=requested_url,
-            depth=depth,
-            outcome=outcome,
-        )
+            await self._persist_discover(
+                task_id=task_id,
+                crawl_id=crawl_id,
+                requested_url=requested_url,
+                depth=depth,
+                outcome=outcome,
+            )
 
     async def _fetch_discover(
         self,
@@ -1197,6 +1204,27 @@ class SiteHealthWorker:
                 logger.exception(
                     "heartbeat failed; retrying", extra={"task_id": str(task_id)}
                 )
+
+    @contextlib.asynccontextmanager
+    async def _leased(self, task_id: uuid.UUID) -> AsyncIterator[None]:
+        """Heartbeat ``task_id``'s lease for the whole body, fetch AND persist.
+
+        The persist phase is NOT cheap — it takes the crawl row ``FOR UPDATE``
+        (contending with every sibling task's finalize), writes the artifact,
+        page analysis, rule evaluations, issues and the link-check enqueue, and
+        only then acknowledges the queue row. Ending the heartbeat when the
+        fetch returned left that whole window running against the remaining
+        lease: a slow persist expired the lease, the sweeper reclaimed the task
+        and (at max attempts) failed it terminally, which is what stalls a
+        crawl. One heartbeat spans both phases; never two loops for one task.
+        """
+        heartbeat = asyncio.create_task(self._heartbeat_loop(task_id))
+        try:
+            yield
+        finally:
+            heartbeat.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat
 
     async def _lock_owned_running_task(
         self,
@@ -1813,24 +1841,19 @@ class SiteHealthWorker:
             # The crawl's frozen fetch-ladder mode (v2 P3), as in discover.
             fetch_mode = config.get("fetch_mode") or FETCH_MODE_AUTO
 
-        heartbeat = asyncio.create_task(self._heartbeat_loop(task_id))
-        try:
+        # One heartbeat across fetch + persist (see ``_leased``).
+        async with self._leased(task_id):
             outcome = await self._fetch_analyze(
                 requested_url=requested_url,
                 root_registrable_domain=root_registrable_domain,
                 fetch_mode=fetch_mode,
             )
-        finally:
-            heartbeat.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await heartbeat
-
-        await self._persist_analyze(
-            task_id=task_id,
-            crawl_id=crawl_id,
-            requested_url=requested_url,
-            outcome=outcome,
-        )
+            await self._persist_analyze(
+                task_id=task_id,
+                crawl_id=crawl_id,
+                requested_url=requested_url,
+                outcome=outcome,
+            )
 
     async def _persisted_discover_artifact_id(
         self, task_id: uuid.UUID
@@ -2387,35 +2410,31 @@ class SiteHealthWorker:
         analysis_id, artifact_id, source_final_url, facts = source
         targets = self._link_check_targets(facts, source_final_url=source_final_url)
 
-        heartbeat = asyncio.create_task(self._heartbeat_loop(task_id))
-        try:
+        # One heartbeat across the probes + the write (see ``_leased``).
+        async with self._leased(task_id):
             for target in targets:
                 target["probe"] = await self._probe_link(target["url"])
-        finally:
-            heartbeat.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await heartbeat
 
-        async with self._session_factory() as session:
-            locked = await self._lock_owned_running_task(
-                session, task_id=task_id, crawl_id=crawl_id
-            )
-            if locked is None:
-                await session.rollback()
-                return
-            _task, crawl = locked
-            for target in targets:
-                await self._write_link_reference(
-                    session,
-                    crawl=crawl,
-                    analysis_id=analysis_id,
-                    artifact_id=artifact_id,
-                    task_id=task_id,
-                    target=target,
+            async with self._session_factory() as session:
+                locked = await self._lock_owned_running_task(
+                    session, task_id=task_id, crawl_id=crawl_id
                 )
-            await session.commit()
+                if locked is None:
+                    await session.rollback()
+                    return
+                _task, crawl = locked
+                for target in targets:
+                    await self._write_link_reference(
+                        session,
+                        crawl=crawl,
+                        analysis_id=analysis_id,
+                        artifact_id=artifact_id,
+                        task_id=task_id,
+                        target=target,
+                    )
+                await session.commit()
 
-        await self._queue.succeed(task_id=task_id, owner=self.owner)
+            await self._queue.succeed(task_id=task_id, owner=self.owner)
 
     async def _load_link_check_source(
         self,
@@ -2711,6 +2730,54 @@ class SiteHealthWorker:
                     count_disclosure=_count_disclosure(crawl),
                 )
             await session.commit()
+
+    async def _reconcile_stalled_crawls(self) -> int:
+        """Force-reconcile active crawls that have no outstanding work left.
+
+        The backstop for the whole terminalization path. ``_reconcile_crawl_status``
+        is normally reached from a task's ``finally``, so ANY route that drains a
+        crawl's last non-terminal task without running a worker's finalize
+        (sweeper reclaim, an out-of-band status write, a process killed between
+        the queue ack and the finalize) strands the crawl in an active status
+        forever: no snapshot, no ``crawl.completed`` event, and clients polling
+        it indefinitely.
+
+        Rather than enumerate those routes, this asks the terminal question
+        directly — active crawl, zero non-terminal tasks, untouched for longer
+        than the stall threshold — and reconciles. Idempotent and safe to run
+        every loop: reconcile short-circuits on terminal crawls, and requiring
+        BOTH an empty queue and a quiet period keeps it clear of live crawls
+        that are merely between tasks.
+        """
+        threshold = site_health_settings.stalled_crawl_reconcile_seconds
+        if threshold <= 0:  # disabled
+            return 0
+        cutoff = _utcnow() - timedelta(seconds=threshold)
+        async with self._session_factory() as session:
+            outstanding = (
+                select(SiteCrawlTask.id)
+                .where(SiteCrawlTask.crawl_id == SiteCrawl.id)
+                .where(SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)))
+            )
+            stalled = list(
+                (
+                    await session.scalars(
+                        select(SiteCrawl.id)
+                        .where(SiteCrawl.status.in_(list(CRAWL_ACTIVE_STATUSES)))
+                        .where(SiteCrawl.updated_at < cutoff)
+                        .where(~outstanding.exists())
+                        .order_by(SiteCrawl.updated_at.asc())
+                        .limit(site_health_settings.stalled_crawl_reconcile_batch)
+                    )
+                ).all()
+            )
+        for crawl_id in stalled:
+            logger.warning(
+                "reconciling stalled crawl with no outstanding tasks",
+                extra={"crawl_id": str(crawl_id)},
+            )
+            await self._reconcile_crawl_status(crawl_id)
+        return len(stalled)
 
     async def _task_counts(
         self, session: AsyncSession, crawl_id: uuid.UUID

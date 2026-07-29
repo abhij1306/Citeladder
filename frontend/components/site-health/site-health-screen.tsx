@@ -29,6 +29,7 @@ export function SiteHealthScreen() {
     phase,
     primaryAction,
     active,
+    stalled,
     crawlStarting,
     createMutation,
     startCrawl,
@@ -110,6 +111,16 @@ export function SiteHealthScreen() {
       {exportError ? <Alert tone="danger">{exportError}</Alert> : null}
       {createMutation.isError ? (
         <Alert tone="danger">Could not start a crawl. It may already be running.</Alert>
+      ) : null}
+      {stalled ? (
+        // We have stopped polling this crawl, so say so rather than leaving a
+        // progress state that silently never advances. Whatever it managed to
+        // analyze is still below; refreshing picks up a late server-side
+        // resolution.
+        <Alert tone="warning">
+          This crawl hasn&apos;t reported progress for a while and may have stopped. Any results
+          collected so far are shown below — refresh to check again, or start a new crawl.
+        </Alert>
       ) : null}
 
       <SiteHealthDashboardLayout

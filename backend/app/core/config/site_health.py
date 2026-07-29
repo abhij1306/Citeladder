@@ -1778,6 +1778,18 @@ class SiteHealthSettings(BaseSettings):
     # long-running transaction and stall live claims; the sweeper instead
     # drains the remainder across subsequent polls.
     lease_reclaim_batch_size: int = 500
+    # Backstop for crawl terminalization. A crawl normally goes terminal from a
+    # task's finalize; any path that drains the last non-terminal task without
+    # running one (a sweeper reclaim at max attempts, a killed process between
+    # the queue ack and the finalize) would strand it in an active status
+    # forever. The worker force-reconciles active crawls that have no
+    # outstanding tasks and have not been touched for this long. Defaults to
+    # 2x the lease TTL so a crawl merely between tasks is never swept up. Set
+    # to 0 to disable.
+    stalled_crawl_reconcile_seconds: float = 240.0
+    # Bound on how many stalled crawls one sweep reconciles, keeping the
+    # backstop's cost per loop iteration flat.
+    stalled_crawl_reconcile_batch: int = 50
 
     # --- Link checking ---
     max_link_checks_per_page: int = 200
@@ -1831,6 +1843,20 @@ class SiteHealthSettings(BaseSettings):
             )
         if self.lease_reclaim_batch_size <= 0:
             raise ValueError("lease_reclaim_batch_size must be positive")
+        if self.stalled_crawl_reconcile_batch <= 0:
+            raise ValueError("stalled_crawl_reconcile_batch must be positive")
+        if self.stalled_crawl_reconcile_seconds < 0:
+            raise ValueError("stalled_crawl_reconcile_seconds must not be negative")
+        if (
+            0 < self.stalled_crawl_reconcile_seconds
+            and self.stalled_crawl_reconcile_seconds <= self.lease_ttl_seconds
+        ):
+            # A threshold inside the lease window could force-reconcile a crawl
+            # whose last task is still legitimately leased and about to write.
+            raise ValueError(
+                "stalled_crawl_reconcile_seconds must exceed lease_ttl_seconds "
+                "(or be 0 to disable)"
+            )
         for name in (
             "global_concurrency",
             "per_host_concurrency",
@@ -1889,4 +1915,10 @@ SITE_CRAWL_QUEUE_SPEC: Final[PostgresQueueSpec[SiteCrawlTask]] = PostgresQueueSp
     lease_ttl=lambda: site_health_settings.lease_ttl_seconds,
     claim_order=_site_task_claim_order,
     max_attempts_error=ERROR_MAX_ATTEMPTS,
+    # A crawl terminalizes only via the worker's reconcile, which runs in a
+    # task's finalize. The sweeper failing a task at max attempts bypasses that
+    # path entirely, so it must report the owning crawl for reconciliation —
+    # otherwise a crawl whose LAST task the sweeper failed stays 'running'
+    # forever (no snapshot, no completion event, endless client polling).
+    parent_id_attr="crawl_id",
 )

@@ -50,11 +50,6 @@ APPROVED_ROUTES: Final[dict[str, dict[str, str]]] = {
 }
 
 
-def transports_for_engine(logical_engine: str) -> frozenset[str]:
-    """Approved transports for a logical engine (empty if unknown)."""
-    return frozenset(APPROVED_ROUTES.get(logical_engine, {}))
-
-
 def is_route_approved(logical_engine: str, transport_provider: str) -> bool:
     """True when (engine, transport) is an approved active route."""
     return transport_provider in APPROVED_ROUTES.get(logical_engine, {})

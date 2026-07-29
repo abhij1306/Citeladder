@@ -9,7 +9,8 @@ the domain form the adapters need so parsing has no cross-subsystem dependency.
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import urlsplit
+
+from app.analysis.normalization import normalize_domain
 
 
 def annotation_offset(annotation: dict[str, Any], *keys: str) -> int | None:
@@ -51,16 +52,10 @@ def coerce_int(value: object, default: int = 0) -> int:
         return default
 
 
-def normalize_domain(value: object) -> str:
-    """Lowercase host, strip ``www.`` and any leading scheme/path.
-
-    Accepts a bare domain (``Kmart.com.au``), a full URL, or a citation title
-    that is itself a domain (as Gemini returns).
-    """
-    text = str(value or "").strip().lower()
-    if not text:
-        return ""
-    if "://" not in text:
-        text = "https://" + text
-    host = urlsplit(text).hostname or ""
-    return host.removeprefix("www.")
+# Re-exported, not reimplemented: this was a byte-identical copy of the
+# analysis implementation, so the two could drift and silently classify the
+# same citation host differently on either side of the pipeline. The analysis
+# module is the authoritative home (it owns the wider text/alias normalization
+# suite); the adapters keep importing it from here so their call sites are
+# unchanged and this file stays their single normalization entry point.
+__all__ = ["annotation_offset", "coerce_int", "normalize_domain"]

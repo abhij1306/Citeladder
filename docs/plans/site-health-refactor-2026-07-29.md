@@ -1,0 +1,248 @@
+# Refactoring Plan — Technical Debt & Site Health Stability
+
+**Date:** July 29, 2026
+**Source audit:** [static-analysis-audit-2026-07-29.md](../audits/static-analysis-audit-2026-07-29.md)
+**Scope:** Backend (`backend/app`, `backend/tests`) + Frontend (`frontend/lib/site-health`, `frontend/components/site-health`)
+**Primary goal:** Eliminate the Site Health flakiness. **Secondary goal:** pay down the complexity/duplication/dead-code debt the audit measured.
+
+---
+
+## 0. How this plan differs from the audit
+
+The audit is a metrics snapshot. This plan is driven by a **root-cause trace of the Site Health flakiness**, done by reading the execution paths rather than the metrics. That trace found a compounding three-bug chain (§2) that explains "flaky at times" — load-dependent, non-deterministic stuck crawls. Complexity reduction is sequenced *behind* those fixes, because the correctness fixes are small and the decomposition is large.
+
+Two audit findings were re-verified and **corrected**:
+
+| Audit claim | Verified status |
+| :--- | :--- |
+| §4.B.5–7 — 5 config validators may be missing `@model_validator` decorators (Open Question 3) | **False positive.** All are correctly decorated (`site_health.py:1796,1815`, `analytics.py:335`, `suggestions.py:82,126`, `workspaces/schemas.py:41`). No work needed. |
+| §5.4 / Open Question 5 — duplicated `normalize_citation_url` | **Misnamed.** No such function exists. The real duplication is a byte-identical `normalize_domain` in `app/analysis/normalization.py:53` and `app/connectors/answer_engines/normalization.py:54`. Still worth consolidating. |
+
+Also note the monoliths have **grown since the audit ran**: `site_health_worker.py` is now 3,099 LOC (audit: 2,899) and `domain/site_health/service.py` is 2,005 LOC (audit: 1,632). The debt is actively accruing, which argues for putting a structural brake in place (§7).
+
+---
+
+## 1. Priority summary
+
+| Phase | Theme | Effort | Risk | Why this order |
+| :--- | :--- | :---: | :---: | :--- |
+| **P0** | Backend crawl-lifecycle correctness | S | Low | Fixes the actual flakiness. Small, surgical, independently shippable. |
+| **P1** | Frontend polling & state-derivation | S–M | Low | Removes the UI half of the flakiness + a 5× request amplification. |
+| **P2** | `site_health_worker.py` decomposition | L | Med | Makes P0 invariants enforceable instead of comment-documented. |
+| **P3** | `domain/site_health/service.py` decomposition | M | Low | Highest-duplication, highest-CC read path. |
+| **P4** | Dead code + cross-cutting duplication sweep | S | Low | Pure cleanup; can run in parallel with anything. |
+| **P5** | Test suite decomposition | M | Low | Do last — P2/P3 will rewrite what these tests touch. |
+
+**Ship P0 and P1 first and independently.** They are the user-visible fix.
+
+---
+
+## 2. Root cause: why Site Health is flaky
+
+Three defects compound. Individually each is survivable; together they produce load-dependent stuck crawls.
+
+### F1 — The lease sweeper terminalizes tasks without reconciling the crawl *(the stuck-crawl bug)*
+
+`PostgresTaskQueue.release_expired` ([postgres_task_queue.py:327-374](../../backend/app/orchestration/postgres_task_queue.py#L327-L374)) can set a task to `TASK_STATUS_FAILED` when its lease expires with attempts exhausted:
+
+```python
+if task.attempt_count >= task.max_attempts:
+    task.status = TASK_STATUS_FAILED          # terminal
+    task.completed_at = now
+```
+
+But `_reconcile_crawl_status` — the *only* thing that terminalizes a crawl — has exactly **two callers, both inside `_execute_task`** ([site_health_worker.py:632](../../backend/app/workers/site_health_worker.py#L632), [:663](../../backend/app/workers/site_health_worker.py#L663)). There is no watchdog, no reaper, no periodic reconcile (verified by repo-wide grep).
+
+**Consequence:** if the sweeper terminalizes the *last* non-terminal task of a crawl, `run_once` then claims nothing, returns 0, and **nobody ever reconciles**. The crawl stays `status='running'` / `analysis_status='running'` forever. No snapshot is persisted, no `crawl.completed` event fires. The frontend — whose `shouldPollCrawl` only stops on a terminal status (§F7) — polls that crawl every 4s indefinitely.
+
+This is the headline bug and the direct cause of "sometimes a crawl just never finishes."
+
+### F2 — Reconcile holds the crawl row lock across the entire finalize pass
+
+`_reconcile_crawl_status` ([:2603](../../backend/app/workers/site_health_worker.py#L2603), CC=26) opens `session.get(SiteCrawl, crawl_id, with_for_update=True)` and, on the terminalizing call, performs **inside that lock**: 6 count queries (`_task_counts`), the full `_run_crawl_finalize_pass` (cross-page broken-link / orphan / hreflang evaluation over every analysis in the crawl), and `_persist_snapshot`.
+
+It runs in the `finally:` of **every** task, of every kind. With `worker_concurrency: 8` ([site_health.py:1773](../../backend/app/core/config/site_health.py#L1773)), 8 concurrently-finishing tasks serialize on one row, and the tail of a crawl serializes behind a finalize pass that scales with crawl size.
+
+### F3 — The persist phase runs with no heartbeat
+
+Heartbeats are started per fetch and **cancelled when the fetch returns** ([:1816-1826](../../backend/app/workers/site_health_worker.py#L1816-L1826)). Everything after — `_persist_analyze`, `_write_page_analysis` (CC=24), artifact write, link-check enqueue, event record, `_finalize_queue_row` — runs **unheartbeated** against a `lease_ttl_seconds: 120.0` budget. That phase includes `_lock_guarded_analyze_task`, which contends for the same crawl row that F2 is holding.
+
+### The compounding chain
+
+> **F2** (long lock hold, ×8 concurrency) → **F3** (unheartbeated persist blocked on that lock exceeds the 120s lease) → sweeper reclaims → attempts exhaust → **F1** (terminal task, no reconcile) → **crawl stuck forever** → frontend polls forever.
+
+Every link is load-dependent, which is exactly why it presents as intermittent: small crawls finish fine, larger or slower ones intermittently hang.
+
+### P0 fixes
+
+| ID | Fix | File |
+| :--- | :--- | :--- |
+| **P0.1** | Make reconcile reachable outside task execution. Call `_reconcile_crawl_status` for every distinct `crawl_id` the sweeper touched — have `release_expired` return the affected task rows (not just a count), and reconcile those crawls in `run_once` after the sweep. | `postgres_task_queue.py`, `site_health_worker.py:459-469` |
+| **P0.2** | Add a **stuck-crawl watchdog**: in `run_once`, reconcile any crawl that is non-terminal, has zero non-terminal tasks, and whose `updated_at` is older than a threshold. This is the belt-and-braces guarantee that no crawl can hang regardless of which path terminalized the last task. Idempotent by construction (reconcile already short-circuits on terminal crawls). | `site_health_worker.py` |
+| **P0.3** | ~~Move `_run_crawl_finalize_pass` + `_persist_snapshot` out of the crawl `FOR UPDATE` window.~~ **Dropped during implementation — see note below.** | — |
+| **P0.4** | Keep the heartbeat alive through the persist phase. Extend heartbeat coverage from "fetch only" to "fetch + persist", ending at `_finalize_queue_row`. Removes the lease-expiry window entirely. | `site_health_worker.py:1816-1826`, `:717-731`, `:2390-2397` |
+| **P0.5** | Log loudly when the sweeper terminalizes a task at max attempts (currently a single aggregate `info` with only a count — a stuck crawl leaves no attributable trace). Include `crawl_id` + `task_kind`. | `postgres_task_queue.py:369-373` |
+
+> **Implementation note — why P0.3 was dropped.** Splitting the finalize pass and
+> snapshot out of the terminalizing transaction trades a fixed bug for a worse
+> one. Today, "crawl went terminal" and "snapshot + finalize issues exist" commit
+> atomically under one lock; that atomicity *is* the exactly-once guarantee.
+> Moving them to a follow-up transaction opens a crash window that leaves a
+> terminal crawl with no snapshot and no finalize-scoped issues — a permanently
+> wrong dashboard, unreachable by retry because the crawl is already terminal
+> (`persist_crawl_snapshot` is `ON CONFLICT DO NOTHING`, so it cannot self-heal
+> a missed write, and reconcile short-circuits on terminal crawls).
+>
+> Crucially, P0.3 was never the correctness fix — **P0.4 is**. Lock contention
+> only caused failures *because* the persist phase was unheartbeated; with the
+> heartbeat spanning fetch + persist, contention costs waiting, not lease loss.
+> Reducing the lock hold is a latency optimization and belongs in P2, where
+> `lifecycle.py` can be restructured with the exactly-once invariant made
+> explicit and tested rather than preserved by accident.
+
+**Tests to add** (component, against the real queue):
+- Sweeper fails the last analyze task of a crawl → crawl reaches a terminal status and persists a snapshot.
+- Watchdog terminalizes a crawl whose tasks were all terminalized out-of-band.
+- Concurrent finalize of N tasks on one crawl terminalizes exactly once (regression guard for P0.3).
+- A persist phase artificially slowed beyond `lease_ttl_seconds` does not lose its lease (P0.4).
+
+---
+
+## 3. P1 — Frontend polling and state derivation
+
+### F4 — Five independent 4s polls, plus SSE invalidating all of them
+
+Active-crawl polling at `POLL_INTERVAL_MS = 4_000` runs in **five** places:
+
+- [use-site-health-screen.ts:47](../../frontend/lib/site-health/use-site-health-screen.ts#L47) — dashboard
+- [use-site-health-screen.ts:69](../../frontend/lib/site-health/use-site-health-screen.ts#L69) — pages
+- [inventory-section.tsx:149](../../frontend/components/site-health/inventory-section.tsx#L149) and [:283](../../frontend/components/site-health/inventory-section.tsx#L283)
+- [url-detail.tsx:93](../../frontend/components/site-health/url-detail.tsx#L93)
+
+On top of that, `useCrawlEvents` invalidates **5 query keys on every single SSE frame** ([use-crawl-events.ts](../../frontend/lib/site-health/use-crawl-events.ts)) — and the backend emits an `analysis.progress` event *per analyzed URL* ([site_health_worker.py:2135-2142](../../backend/app/workers/site_health_worker.py#L2135-L2142)). A 500-URL crawl therefore triggers ~2,500 invalidations, each racing the 4s timers.
+
+**Consequence:** overlapping in-flight requests land out of order, so different panels render state from different moments — counts that tick backwards, a phase that flips, a score that appears then vanishes. This is the visible "flakiness" even when the backend is healthy.
+
+**P1.1** — Debounce/coalesce SSE invalidation (trailing edge, ~500ms). One burst of events → one invalidation round.
+**P1.2** — Collapse the five polls to a **single** subscription driven by the dashboard query; derive the rest from cache invalidation on crawl-version change rather than each component owning a timer.
+**P1.3** — Back off the poll interval as the crawl ages (4s → 10s → 30s) instead of a flat 4s for the crawl's entire lifetime.
+
+### F5 — SSE never reconnects
+
+The stream is opened once per `useEffect`. The server closes it at `sse_max_duration_seconds: 300.0` ([site_health.py:1794](../../backend/app/core/config/site_health.py#L1794)). When the reader hits `done`, the loop simply exits — **no reconnect**.
+
+**Consequence:** crawls under 5 minutes feel instant and responsive; crawls over 5 minutes silently degrade to 4s polling partway through. Identical code, two different behaviours — a classic "it's flaky" report.
+
+**P1.4** — Reconnect with capped exponential backoff on clean stream end while the crawl is still active, passing `last_event_id` (the endpoint already supports it, [site_health.py:689](../../backend/app/api/site_health.py#L689)).
+
+### F6 — No poll ceiling
+
+`shouldPollCrawl` ([status.ts:69-71](../../frontend/lib/site-health/status.ts#L69-L71)) returns `!TERMINAL_OVERALL.has(crawl.status)` — unbounded. Paired with F1, a stuck crawl polls forever, in every open tab, until the browser closes.
+
+**P1.5** — Add a poll ceiling and a stalled-crawl UI state ("This crawl hasn't progressed in N minutes"), following the existing `BILLING_CONFIRM_MAX_POLLS` precedent in [lib/api/billing.ts:18](../../frontend/lib/api/billing.ts#L18). This is a **safety net, not a substitute for P0** — with P0 shipped it should never trigger.
+
+### F7 — Phase derived from three independently-resolving queries
+
+`resolveSiteHealthPhase(crawl, plan, hasMonitoredSelection)` combines `dashboardQuery`, `entitlementQuery`, and `monitoredQuery`. As those settle in varying orders the phase transiently mis-resolves. The `crawlStarting` flag and the `createMutation.reset()` effect ([use-site-health-screen.ts:126-155](../../frontend/lib/site-health/use-site-health-screen.ts#L126-L155)) are patches for this — the code comment says so outright: *"which is what used to bounce the UI back to the selection list after 'Start analysis'"*.
+
+**P1.6** — Make phase resolution total over loading state: return an explicit `'resolving'` phase until all three inputs have settled once, rather than resolving against partial data and correcting afterwards. This should let the `crawlStarting` / `reset()` workarounds be deleted, which is the real test that the root cause is gone.
+
+---
+
+## 4. P2 — `site_health_worker.py` decomposition (3,099 LOC, MI 0.0)
+
+**Answering the audit's Open Question 4:** do **not** split into `DiscoverWorker` / `AnalyzeWorker` / `LinkCheckWorker` / `FinalizeWorker` process classes. The single claim loop is what makes cross-kind reconcile correct and the per-host politeness gate (`_host_semaphores`, `_host_start_locks`, `_host_last_started`) coherent; four workers would need four gates over the same hosts and a distributed terminalization protocol. **Split by collaborator, not by process.**
+
+Extract from `SiteHealthWorker`, keeping one worker class as the queue-loop shell:
+
+| New module | Moved from | Rationale |
+| :--- | :--- | :--- |
+| `workers/site_health/host_gate.py` | `_execute_claimed`, `_release_host_gate`, `_evict_idle_hosts`, `_evict_host`, `_host_*` dicts | Self-contained politeness state machine; independently unit-testable without a DB. |
+| `workers/site_health/lifecycle.py` | `_reconcile_crawl_status`, `_task_counts`, `_ensure_running` | The exactly-once terminalization invariant — currently the most-commented, least-isolated logic. This is where P0.1–P0.3 land. |
+| `workers/site_health/phases/discover.py` | `_run_discover` + `_fetch_discover`, `_ensure_robots_policy`, `_fetch_well_known`, `_site_setup` (CC=18), `_ingest_sitemaps` (CC=18), `_persist_discover` | |
+| `workers/site_health/phases/analyze.py` | `_run_analyze`, `_evaluate_analyze_guard`, `_fetch_analyze`, `_persist_analyze`, `_write_page_analysis` (CC=24) | |
+| `workers/site_health/phases/link_check.py` | `_run_link_check`, `_load_link_check_source`, `_link_check_targets`, `_probe_link`, `_write_link_reference` | |
+| `workers/site_health/persistence.py` | `_write_artifact`, `_write_attempt` (CC=16), `_finalize_queue_row`, `_record_crash` | Shared write helpers; removes the inline-AsyncSession sprawl driving MI to 0.0. |
+
+**Sequencing:** pure moves first (host gate, persistence), then phases, then lifecycle last — lifecycle carries the P0 changes and deserves an isolated diff.
+
+**Targets:** no function above CC 15; `site_health_worker.py` under 400 LOC; MI back into Rank A. Each extraction is behaviour-preserving and verified by the existing component suite before the next begins.
+
+---
+
+## 5. P3 — `domain/site_health/service.py` decomposition (2,005 LOC, MI 0.0)
+
+Highest-value split in the read path. `get_inventory` (CC=35) and `get_pages` (CC=34) share the 37-line 100%-identical keyset-pagination block the audit flagged ([§5.1](../audits/static-analysis-audit-2026-07-29.md)).
+
+- **P3.1** — Extract a shared keyset paginator (`_decode_url_keyset` / `_decode_created_id_keyset` + filter construction) used by `get_inventory`, `get_pages`, and `get_issues`. Kills the top duplication block and a large share of both CC scores.
+- **P3.2** — Split into `service/queries.py` (inventory/pages/issues reads), `service/presentation.py` (`_page_facts`, `_delivery_facts`, `_evaluation_row`, `_link_reference_row`, `_issue_row`, `presentation_status_for`, `project_crawl`), and `service/lifecycle.py` (`cancel_crawl`, `get_dashboard`, `load_events`, `load_crawl_for_stream`).
+- **P3.3** — The row-shaping helpers are pure functions over ORM rows; give them direct unit tests so the component suite stops being the only coverage.
+
+---
+
+## 6. P4 — Dead code and duplication sweep
+
+### Confirmed removable (re-verified against current HEAD)
+
+| Symbol | Location | Evidence |
+| :--- | :--- | :--- |
+| `transports_for_engine` | [provider_catalog.py:53](../../backend/app/core/config/provider_catalog.py#L53) | 1 repo-wide hit. Sibling helpers (`is_route_approved`, `is_active_transport`) cover routing. **Removed.** |
+| ~~`url_count` property~~ | [web_evidence/sitemaps.py:142](../../backend/app/connectors/web_evidence/sitemaps.py#L142) | **KEPT.** Removing it broke `test_collector_accumulates_urls`, which asserts on `collector.url_count`. My verification grep filtered out `*_url_count` to skip the ~140 unrelated `discovered_url_count` hits and discarded this real caller with them — the audit's "needs verification" label was right. |
+
+**`enqueue_order_retention_sweep` — KEPT (audit §4.A.1 / Open Question 1 answered "no").** The
+audit's call-count evidence was right but the conclusion was wrong. Its task kind
+`ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP` is registered in the analytics worker's live
+`_executors` table ([analytics_worker.py:98](../../backend/app/workers/analytics_worker.py#L98)) against
+a real implementation (`run_order_retention_sweep`), and it is the exact structural twin of
+`enqueue_referral_retention_sweep`, which has no production caller either — both are
+scheduler-facing entry points for a queue whose consumer side is fully wired. Deleting one
+half of a live queue contract because no *caller* exists yet would break the sweep the moment
+a cron is attached. Not dead code; an un-scheduled feature.
+
+### Tested-but-unused (decide: promote or delete)
+
+`normalize_prompt_rows` ([projects/normalization.py:40](../../backend/app/domain/projects/normalization.py#L40)) and `can_transition` ([orchestration/audit_state.py:76](../../backend/app/orchestration/audit_state.py#L76)) are exercised only by their own unit tests. Each is a test asserting nothing about production behaviour. Delete both unless a caller is planned.
+
+`fetch_subscription` ([billing/base.py:43](../../backend/app/connectors/billing/base.py#L43), [razorpay.py:162](../../backend/app/connectors/billing/razorpay.py#L162)) is an abstract-interface method — **keep**; removing it would make the connector interface asymmetric for a webhook-outage fallback that is genuinely wanted.
+
+### Duplication
+
+- **P4.1** — Consolidate the identical `normalize_domain` into one shared module and re-export (corrects audit §5.4).
+- **P4.2** — Extract the shared snapshot-provenance column mixin (`models/analytics.py:271-297` ≡ `models/site_health.py:973-999`) and the score-aggregation mixin repeated 3× in `models/analysis.py`.
+- **P4.3** — Extract the OAuth refresh-retry loop shared by [ga4.py:41-62](../../backend/app/connectors/integrations/ga4.py#L41-L62) and [gsc.py:23-44](../../backend/app/connectors/integrations/gsc.py#L23-L44).
+- **P4.4** — Hoist the duplicated `run_until_idle` drain loop into a shared worker mixin (content/integration/site-health/analytics all reimplement it).
+
+---
+
+## 7. P5 — Test suite and a structural brake
+
+`test_site_health_worker.py` is 3,327 LOC at MI 0.0, with single tests at CC=40 and CC=28. A 40-branch test is not a specification — it is a second system to debug, and it is likely a contributor to *test* flakiness alongside the product flakiness.
+
+- **P5.1** — Split by phase, mirroring the P2 module layout (`test_discover.py`, `test_analyze.py`, `test_link_check.py`, `test_lifecycle.py`).
+- **P5.2** — Decompose the CC=40 and CC=28 end-to-end tests into a shared fixture builder plus focused assertions. The audit's duplicated blocks at [:1746-1771 ≡ :1916-1941](../../backend/tests/component/test_site_health_worker.py#L1746-L1771) are the obvious seed for that builder.
+- **P5.3** — Do the same for the CC=79 and CC=72 tests in `test_product_analysis_worker.py` and `test_integration_ga4.py`.
+
+**Structural brake (recommended):** the two monoliths grew ~15% *during the audit window*. Add a CI check — Radon MI floor and a per-function CC ceiling on `app/` — starting at today's values as a ratchet, so this debt cannot silently re-accumulate while P2/P3 land.
+
+---
+
+## 8. Suggested sequencing
+
+1. **P0.1 + P0.2** (stuck-crawl fix + watchdog) — ship alone, with the component regression tests. This is the fix.
+2. **P0.3 + P0.4 + P0.5** (lock window, heartbeat, logging) — removes the conditions that trigger F1 at all.
+3. **P1.1 + P1.4 + P1.5** (invalidation debounce, SSE reconnect, poll ceiling) — user-visible stability.
+4. **P1.2 + P1.3 + P1.6** — polling consolidation and phase-resolution cleanup; success criterion is deleting the `crawlStarting` workaround.
+5. **P4** — cleanup, parallelizable with anything above.
+6. **P2** then **P3** — decomposition, one extraction per PR, green suite between each.
+7. **P5** — after the code it tests has settled.
+
+**Do not start P2 before P0 lands.** Restructuring the worker while a live correctness bug is open makes the bug harder to attribute, and the P0 diffs are small enough to review carefully on today's code.
+
+---
+
+## 9. Open questions for the owner
+
+1. **P0.2 watchdog threshold** — what is the maximum acceptable time for a crawl to sit non-terminal before the watchdog force-reconciles? Suggest 2× `lease_ttl_seconds` (240s).
+2. **Retention sweep & provider catalog** (audit OQ 1–2) — delete, or are they staged for an unreleased feature?
+3. **P1.5 stalled-crawl UX** — with P0 shipped this should be unreachable. Show a stalled state with a retry, or just stop polling silently?
+4. **P1.3 poll backoff** — acceptable to trade worst-case 30s latency on long crawls for the reduced request load?

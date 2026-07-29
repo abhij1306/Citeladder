@@ -90,6 +90,11 @@ class PostgresQueueSpec[
       ``ORDER BY`` expressions used to pick the next claimable rows.
     - ``max_attempts_error`` — the error token the sweeper stamps when a task's
       attempt budget is exhausted.
+    - ``parent_id_attr`` — optional name of the column linking a row to the run
+      that owns it (``SiteCrawlTask.crawl_id``). Set it when a terminal sweeper
+      reclaim must be reconciled against that parent, because the sweeper
+      terminalizes rows OUTSIDE any worker's finalize path. ``None`` (the
+      default) leaves every other queue's behavior unchanged.
 
     Every queue-row model must carry the shared column contract (``status``,
     ``lease_owner``, ``lease_expires_at``, ``heartbeat_at``, ``attempt_count``,
@@ -102,6 +107,7 @@ class PostgresQueueSpec[
     lease_ttl: Callable[[], float]
     claim_order: Callable[[type[T]], Sequence[Any]]
     max_attempts_error: str = field(default=ERROR_MAX_ATTEMPTS)
+    parent_id_attr: str | None = field(default=None)
 
     @property
     def model(self) -> type[T]:
