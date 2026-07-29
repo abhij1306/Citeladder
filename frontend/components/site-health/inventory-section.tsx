@@ -25,12 +25,7 @@ import type { SiteCrawl, SiteHealthEntitlement } from '@/lib/api/types';
 import { segmentedItemClasses, segmentedTrackClasses } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
-import {
-  crawlPollInterval,
-  PAGE_LIMIT,
-  statusLabel,
-  type InventoryMode,
-} from '@/lib/site-health/status';
+import { PAGE_LIMIT, statusLabel, type InventoryMode } from '@/lib/site-health/status';
 
 /**
  * Always-mounted inventory section of the canonical Site Health screen.
@@ -142,12 +137,13 @@ function DiscoveringInventory({
   cancelPending: boolean;
 }>) {
   const pager = useCursorStack();
-  const inventoryQuery = useQuery({
-    ...siteHealthQueries.inventory(crawl.id, { cursor: pager.cursor, limit: PAGE_LIMIT }),
-    // Only the FIRST page polls — deeper cursor pages stay static so the rows
-    // under review don't shift as new URLs are discovered.
-    refetchInterval: active && pager.cursor === undefined ? crawlPollInterval(crawl) : false,
-  });
+  // No timer here: the screen polls the crawl once and invalidates this query's
+  // FIRST page when the crawl actually moved (`invalidateCrawlViews`). Deeper
+  // cursor pages stay static either way, so the rows under review don't shift
+  // as new URLs are discovered.
+  const inventoryQuery = useQuery(
+    siteHealthQueries.inventory(crawl.id, { cursor: pager.cursor, limit: PAGE_LIMIT }),
+  );
   const rows = inventoryQuery.data?.items ?? [];
   const nextCursor = inventoryQuery.data?.next_cursor ?? null;
 
@@ -270,18 +266,18 @@ function ScoredInventory({
     errorsPager.reset();
   };
 
-  const pagesQuery = useQuery({
-    ...siteHealthQueries.pages(crawl.id, {
+  // No timer here either: the screen's single crawl subscription invalidates
+  // the FIRST page of every tab when the crawl moved, so rows advance
+  // queued → running → completed in place. Deeper cursor pages stay static so
+  // rows under review don't shift as more pages finish scoring.
+  const pagesQuery = useQuery(
+    siteHealthQueries.pages(crawl.id, {
       ...activeTab.params,
       page_type: pageType || undefined,
       cursor: pager.cursor,
       limit: PAGE_LIMIT,
     }),
-    // While analysis is active only the FIRST page of a tab polls (polling
-    // baseline) — deeper cursor pages stay static so rows under review don't
-    // shift as more pages finish scoring.
-    refetchInterval: active && pager.cursor === undefined ? crawlPollInterval(crawl) : false,
-  });
+  );
 
   const rows = pagesQuery.data?.items ?? [];
   const nextCursor = pagesQuery.data?.next_cursor ?? null;

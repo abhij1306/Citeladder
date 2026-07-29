@@ -202,7 +202,41 @@ export function canShowDiscoveredTotal(
 
 /** Which phase of the Site Health flow to render for the active crawl. */
 export type SiteHealthPhase =
-  'empty' | 'discovering' | 'selection' | 'analyzing' | 'dashboard' | 'terminal';
+  'resolving' | 'empty' | 'discovering' | 'selection' | 'analyzing' | 'dashboard' | 'terminal';
+
+/**
+ * Fingerprint of everything on a crawl that means "progress happened".
+ *
+ * The screen polls ONE query (the dashboard). Every other crawl-derived list —
+ * pages, inventory, issues — refreshes when this value changes rather than
+ * owning a timer of its own: five independent 4s timers over the same crawl
+ * resolve out of order, so panels rendered state from different moments (counts
+ * ticking backwards, a score appearing then vanishing). `updated_at` alone
+ * would nearly always suffice; the counters and sub-states are included so a
+ * missed timestamp write cannot freeze the whole screen.
+ */
+export function crawlProgressVersion(
+  crawl: Pick<
+    SiteCrawl,
+    | 'status'
+    | 'discovery_status'
+    | 'analysis_status'
+    | 'visible_url_count'
+    | 'analyzed_count'
+    | 'failed_count'
+    | 'updated_at'
+  >,
+): string {
+  return [
+    crawl.status,
+    crawl.discovery_status,
+    crawl.analysis_status,
+    crawl.visible_url_count,
+    crawl.analyzed_count,
+    crawl.failed_count,
+    crawl.updated_at ?? '',
+  ].join('|');
+}
 
 /** True when the crawl produced score data (a dashboard-worthy summary). */
 export function hasScoreData(crawl: Pick<SiteCrawl, 'score_summary'>): boolean {
@@ -215,6 +249,7 @@ export function hasScoreData(crawl: Pick<SiteCrawl, 'score_summary'>): boolean {
  * mutually exclusive and evaluated top-to-bottom, so there is exactly one
  * outcome per crawl shape (no duplicated local flags in the components):
  *
+ *   0. any input not yet settled      → 'resolving'
  *   1. no crawl                       → 'empty'
  *   2. completed / partially_completed → 'dashboard'
  *   3. cancelled WITH score data       → 'dashboard' (labelled Cancelled, keeps
@@ -237,14 +272,31 @@ export function hasScoreData(crawl: Pick<SiteCrawl, 'score_summary'>): boolean {
  *  11. otherwise (Free auto-analysis)  → 'analyzing'
  */
 export function resolveSiteHealthPhase(
-  crawl: Pick<
-    SiteCrawl,
-    'status' | 'discovery_status' | 'analysis_status' | 'score_summary' | 'visible_url_count'
-  > | null,
-  plan: SiteHealthEntitlement['plan_key'],
-  /** True when the project has at least one ACTIVE monitored URL committed. */
-  hasMonitoredSelection = false,
+  /** The crawl, `null` for "settled: no crawl", `undefined` for "not settled". */
+  crawl:
+    | Pick<
+        SiteCrawl,
+        'status' | 'discovery_status' | 'analysis_status' | 'score_summary' | 'visible_url_count'
+      >
+    | null
+    | undefined,
+  /** The plan, or `null` while the entitlement query has not settled. */
+  plan: SiteHealthEntitlement['plan_key'] | null,
+  /**
+   * True when the project has at least one ACTIVE monitored URL committed;
+   * `null` while the monitored query has not settled.
+   */
+  hasMonitoredSelection: boolean | null = false,
 ): SiteHealthPhase {
+  // 0. TOTAL over loading state. This resolution reads three independently
+  // resolving queries; resolving against whichever landed first and correcting
+  // afterwards is what made the phase visibly flip (and what the `crawlStarting`
+  // flag used to paper over). An unsettled input has exactly one honest
+  // answer — "not yet" — so say that instead of guessing.
+  if (crawl === undefined || plan === null || hasMonitoredSelection === null) {
+    return 'resolving';
+  }
+
   // 1. Nothing yet.
   if (!crawl) return 'empty';
 
@@ -341,7 +393,7 @@ export function inventoryModeForPhase(phase: SiteHealthPhase): InventoryMode {
       // changes NOTHING structurally — statuses and scores update in place.
       return 'scored';
     default:
-      // 'empty' | 'terminal'
+      // 'resolving' | 'empty' | 'terminal'
       return 'none';
   }
 }

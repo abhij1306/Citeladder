@@ -5,10 +5,14 @@ state without any build ever objecting, because nothing in CI measures module
 size or function complexity. This script is that missing watcher — added
 alongside the work that split them, so the reduction actually holds.
 
-It is a RATCHET, not a standard: the checked-in baseline records today's worst
-values, and the build fails when a module gets longer or a function gets more
-branching than its recorded budget. Improving a number never fails the build —
-it just prints how much slack was earned, so the baseline can be tightened.
+It is a RATCHET, not a standard: the checked-in baseline records today's LOC
+per module and today's complexity per FUNCTION, and the build fails when a
+module gets longer or a function gets more branching than its recorded budget.
+Budgets are per-function so one function's improvement cannot pay for another's
+regression. A function the baseline does not know — new, or renamed — has no
+budget to inherit and must meet ``NEW_FUNCTION_CC_CEILING``. Improving a number
+never fails the build; it just prints how much slack was earned, so the
+baseline can be tightened.
 
 Deliberately dependency-free (stdlib ``ast``): CI installs from a frozen lock,
 so a checker that needed radon would mean lockfile churn on every touch. The
@@ -100,9 +104,41 @@ def collect() -> dict[str, dict]:
                 continue
             rel = path.relative_to(BACKEND).as_posix()
             loc, functions = measure(path)
-            worst = max(functions.values(), default=0)
-            out[rel] = {"loc": loc, "max_cc": worst}
+            out[rel] = {
+                "loc": loc,
+                "max_cc": max(functions.values(), default=0),
+                # Per-FUNCTION budgets, keyed by qualified name. The module max
+                # alone let one function's improvement pay for another's
+                # regression: dropping a CC 34 hotspot to 20 silently bought
+                # every other function in that module 20 points of headroom.
+                "functions": dict(sorted(functions.items())),
+            }
     return out
+
+
+def _compare_functions(rel: str, now: dict, was: dict, failures: list[str]) -> None:
+    """Check each function against its own recorded budget."""
+    budgets = was.get("functions")
+    if budgets is None:
+        # A pre-per-function baseline: all we recorded was the module max, so
+        # that is all we can enforce until the next `--update`.
+        if now["max_cc"] > was["max_cc"]:
+            failures.append(
+                f"{rel}: max function complexity {was['max_cc']} -> {now['max_cc']}"
+            )
+        return
+    for name, cc in now["functions"].items():
+        budget = budgets.get(name)
+        if budget is None:
+            # New (or renamed) function in an existing module: no grandfathered
+            # budget to inherit, so it meets the ceiling like any new code.
+            if cc > NEW_FUNCTION_CC_CEILING:
+                failures.append(
+                    f"{rel}: new function {name} is at CC {cc} "
+                    f"(ceiling {NEW_FUNCTION_CC_CEILING})"
+                )
+        elif cc > budget:
+            failures.append(f"{rel}: {name} complexity {budget} -> {cc}")
 
 
 def _compare(
@@ -114,22 +150,20 @@ def _compare(
 ) -> None:
     """Record one module's regressions and improvements against its baseline."""
     if was is None:
-        # A NEW module gets no grandfathering: it must meet the ceiling.
-        if now["max_cc"] > NEW_FUNCTION_CC_CEILING:
-            failures.append(
-                f"{rel}: new module has a function at CC {now['max_cc']} "
-                f"(ceiling {NEW_FUNCTION_CC_CEILING})"
-            )
+        # A NEW module gets no grandfathering: every function meets the ceiling.
+        for name, cc in now["functions"].items():
+            if cc > NEW_FUNCTION_CC_CEILING:
+                failures.append(
+                    f"{rel}: new module's {name} is at CC {cc} "
+                    f"(ceiling {NEW_FUNCTION_CC_CEILING})"
+                )
         return
     if now["loc"] > was["loc"]:
         failures.append(
             f"{rel}: {was['loc']} -> {now['loc']} LOC "
             f"(+{now['loc'] - was['loc']}); split it or justify a new baseline"
         )
-    if now["max_cc"] > was["max_cc"]:
-        failures.append(
-            f"{rel}: max function complexity {was['max_cc']} -> {now['max_cc']}"
-        )
+    _compare_functions(rel, now, was, failures)
     if now["loc"] < was["loc"] or now["max_cc"] < was["max_cc"]:
         improvements.append(
             f"{rel}: LOC {was['loc']}->{now['loc']}, "

@@ -37,7 +37,7 @@ export function SiteHealthDashboardLayout({
     pagesQuery,
     projectSelectedTotal,
     projectSelectedError,
-    crawlStarting,
+    startPending,
     cancelMutation,
     cancelCrawl,
     startCrawl,
@@ -64,7 +64,7 @@ export function SiteHealthDashboardLayout({
         phase={phase}
         entitlement={entitlement}
         cancelPending={cancelMutation.isPending}
-        crawlStarting={crawlStarting}
+        startPending={startPending}
         pages={pagesQuery.data?.items ?? []}
         selectedTotal={projectSelectedTotal}
         selectedError={projectSelectedError}
@@ -87,10 +87,10 @@ export function SiteHealthDashboardLayout({
         onCancel={cancelCrawl}
         cancelPending={cancelMutation.isPending}
         onStartAnalysis={startCrawl}
-        // Disabled for the FULL starting window (create in flight AND the
-        // post-success gap until the dashboard returns the new crawl) so a
-        // second click can never fire a duplicate create.
-        startPending={crawlStarting}
+        // Disabled while the create request is in flight so a second click can
+        // never fire a duplicate. There is no post-success gap to cover: the
+        // create writes the new crawl into the dashboard cache itself.
+        startPending={startPending}
       />
     </div>
   );

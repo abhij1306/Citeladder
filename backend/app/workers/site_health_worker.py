@@ -112,6 +112,12 @@ logger = logging.getLogger("app.workers.site_health_worker")
 _OUTCOME_SUCCESS = "success"
 _OUTCOME_ERROR = "error"
 
+# Floor for the heartbeat cadence. The configured interval is the operative
+# value (validated positive and strictly below the lease TTL); this only stops
+# a pathological setting from spinning the loop, and is low enough that a test
+# can drive the loop with a sub-second interval instead of real seconds.
+_MIN_HEARTBEAT_INTERVAL_SECONDS = 0.05
+
 
 class SiteHealthWorker(
     DiscoverPhaseMixin,
@@ -340,7 +346,10 @@ class SiteHealthWorker(
     async def _heartbeat_loop(
         self, task_id: uuid.UUID
     ) -> None:  # pragma: no cover - timing loop
-        interval = max(1.0, site_health_settings.heartbeat_interval_seconds)
+        interval = max(
+            _MIN_HEARTBEAT_INTERVAL_SECONDS,
+            site_health_settings.heartbeat_interval_seconds,
+        )
         while True:
             await asyncio.sleep(interval)
             try:

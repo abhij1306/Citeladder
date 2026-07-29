@@ -23,6 +23,7 @@ import {
   isSampleMode,
   pageStatusBadgeValue,
   primaryActionForPhase,
+  crawlProgressVersion,
   resolveSiteHealthPhase,
   shouldPollCrawl,
   statusLabel,
@@ -457,6 +458,47 @@ describe('resolveSiteHealthPhase', () => {
     expect(
       resolveSiteHealthPhase({ ...base, discovery_status: 'completed' }, 'starter', false),
     ).toBe('selection');
+  });
+
+  it('is TOTAL over loading state: any unsettled input resolves to "resolving"', () => {
+    // The three inputs come from three independently-resolving queries. Guessing
+    // from whichever landed first and correcting afterwards is what made the
+    // phase visibly flip (e.g. selection → analyzing once the monitored set
+    // arrived), which the `crawlStarting` flag existed to hide.
+    expect(resolveSiteHealthPhase(undefined, 'starter', true)).toBe('resolving');
+    expect(resolveSiteHealthPhase(base, null, true)).toBe('resolving');
+    expect(
+      resolveSiteHealthPhase({ ...base, discovery_status: 'completed' }, 'starter', null),
+    ).toBe('resolving');
+    // A settled "no crawl" (null, not undefined) is still the empty state.
+    expect(resolveSiteHealthPhase(null, 'starter', false)).toBe('empty');
+  });
+});
+
+describe('crawlProgressVersion (single-subscription fan-out key)', () => {
+  const base = {
+    status: 'running' as const,
+    discovery_status: 'running' as const,
+    analysis_status: 'pending' as const,
+    visible_url_count: 10,
+    analyzed_count: 2,
+    failed_count: 0,
+    updated_at: '2026-07-16T00:00:00Z',
+  };
+
+  it('is stable for an unchanged crawl (a no-op poll refreshes nothing)', () => {
+    expect(crawlProgressVersion(base)).toBe(crawlProgressVersion({ ...base }));
+  });
+
+  it('changes on every kind of progress the screen must react to', () => {
+    const version = crawlProgressVersion(base);
+    expect(crawlProgressVersion({ ...base, status: 'completed' })).not.toBe(version);
+    expect(crawlProgressVersion({ ...base, discovery_status: 'completed' })).not.toBe(version);
+    expect(crawlProgressVersion({ ...base, analysis_status: 'running' })).not.toBe(version);
+    expect(crawlProgressVersion({ ...base, visible_url_count: 11 })).not.toBe(version);
+    expect(crawlProgressVersion({ ...base, analyzed_count: 3 })).not.toBe(version);
+    expect(crawlProgressVersion({ ...base, failed_count: 1 })).not.toBe(version);
+    expect(crawlProgressVersion({ ...base, updated_at: '2026-07-16T00:00:05Z' })).not.toBe(version);
   });
 });
 

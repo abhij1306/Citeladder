@@ -169,7 +169,6 @@ async def test_run_once_terminalizes_crawl_the_sweeper_drained(
 @pytest.mark.asyncio
 async def test_stalled_crawl_with_no_tasks_is_reconciled(
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The backstop: an active crawl with a fully-drained queue terminalizes.
 
@@ -273,22 +272,22 @@ async def test_leased_heartbeats_across_the_whole_body(
         return True
 
     monkeypatch.setattr(worker._queue, "heartbeat", _record)
-    # ``_heartbeat_loop`` floors the interval at 1.0s, so the body has to
-    # outlast one real tick — keep it just over, not a long sleep.
+    # The loop takes the configured interval down to a 50ms floor, so this
+    # exercises real beats without spending real seconds of wall clock.
     monkeypatch.setattr(
-        site_health_settings, "heartbeat_interval_seconds", 1.0, raising=False
+        site_health_settings, "heartbeat_interval_seconds", 0.1, raising=False
     )
 
     async with worker._leased(task_id):
         # Stand in for the fetch + the persist that follows it.
-        await asyncio.sleep(1.2)
+        await asyncio.sleep(0.35)
 
     assert beats, "no heartbeat fired inside the leased body"
     assert set(beats) == {task_id}
 
     # And it stops on exit: the lease must not be held past the body.
     settled = len(beats)
-    await asyncio.sleep(1.2)
+    await asyncio.sleep(0.35)
     assert len(beats) == settled, "heartbeat outlived the leased body"
 
 

@@ -37,7 +37,7 @@ export function StatusStrip({
   phase,
   entitlement,
   cancelPending,
-  crawlStarting,
+  startPending,
   pages,
   selectedTotal,
   selectedError,
@@ -47,7 +47,7 @@ export function StatusStrip({
   entitlement: SiteHealthEntitlement;
   cancelPending: boolean;
   /** A fresh crawl create is in flight — freeze current content behind a notice. */
-  crawlStarting: boolean;
+  startPending: boolean;
   /** Bounded monitored-page window (observed "running" rows only, never totals). */
   pages: PageSummary[];
   /** This project's active monitored count; null until loaded. */
@@ -64,7 +64,7 @@ export function StatusStrip({
         phase={phase}
         entitlement={entitlement}
         cancelPending={cancelPending}
-        crawlStarting={crawlStarting}
+        startPending={startPending}
         pages={pages}
         selectedTotal={selectedTotal}
         selectedError={selectedError}
@@ -78,7 +78,7 @@ function StripContent({
   phase,
   entitlement,
   cancelPending,
-  crawlStarting,
+  startPending,
   pages,
   selectedTotal,
   selectedError,
@@ -87,12 +87,12 @@ function StripContent({
   phase: SiteHealthPhase;
   entitlement: SiteHealthEntitlement;
   cancelPending: boolean;
-  crawlStarting: boolean;
+  startPending: boolean;
   pages: PageSummary[];
   selectedTotal: number | null;
   selectedError: boolean;
 }>) {
-  if (crawlStarting) {
+  if (startPending) {
     return (
       <Alert tone="info">
         {crawl
@@ -101,6 +101,11 @@ function StripContent({
       </Alert>
     );
   }
+
+  // The phase inputs have not all settled: say nothing rather than narrate a
+  // state that is about to be corrected. (The screen holds its skeleton for
+  // this beat, so it is not normally reached from there.)
+  if (phase === 'resolving') return null;
 
   if (!crawl || phase === 'empty') {
     // Midnight empty state (Phase D6): mono eyebrow + display heading. The

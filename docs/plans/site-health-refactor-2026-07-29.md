@@ -27,16 +27,16 @@ A note on LOC figures, since two counts appear in this document: the audit repor
 | Phase | Theme | Effort | Risk | Status |
 | :--- | :--- | :---: | :---: | :--- |
 | **P0** | Backend crawl-lifecycle correctness | S | Low | **Done** — stall bug fixed, regression-pinned |
-| **P1** | Frontend polling & state-derivation | S–M | Low | **Done** — P1.1/1.3/1.4/1.5 + poll consolidation |
-| **P2** | `site_health_worker.py` decomposition | L | Med | **Done** — 3,099 → 751 LOC across 10 modules |
-| **P3** | `domain/site_health/service.py` dedup | M | Low | **Partial** — shared keyset builder landed; the file/module split (P3.2/P3.3) is still open |
+| **P1** | Frontend polling & state-derivation | S–M | Low | **Done** — all of P1.1–P1.6 |
+| **P2** | `site_health_worker.py` decomposition | L | Med | **Done** — 3,099 → 760 LOC across 10 modules |
+| **P3** | `domain/site_health/service.py` dedup | M | Low | **Done** — shared keyset builder + the package split |
 | **P4** | Dead code + duplication sweep | S | Low | **Done** — 2 of 5 findings were false positives (see §6) |
 | **P5** | Test suite decomposition | M | Low | **Done except P5.3**, which is declined with reasons (§7) |
 
-Items still open: **P1.2/P1.6** (single-subscription polling, `'resolving'` phase to retire the
-`crawlStarting` workaround) and **P3.2/P3.3** (splitting `service.py` into
-queries/presentation/lifecycle). Both are behaviour-neutral cleanups; neither blocks the
-flakiness fix.
+Nothing in this plan is open. The last two items to land were **P1.2/P1.6**
+(single-subscription polling, the `'resolving'` phase that retired the `crawlStarting`
+workaround) and **P3.2/P3.3** (the `service.py` package split + direct unit tests for the row
+shapers) — both behaviour-neutral, and neither on the critical path of the flakiness fix.
 
 **Ship P0 and P1 first and independently.** They are the user-visible fix.
 
@@ -52,7 +52,7 @@ Three defects compound. Individually each is survivable; together they produce l
 
 ```python
 if task.attempt_count >= task.max_attempts:
-    task.status = TASK_STATUS_FAILED          # terminal
+    task.status = TASK_STATUS_FAILED  # terminal
     task.completed_at = now
 ```
 
@@ -129,7 +129,14 @@ On top of that, `useCrawlEvents` invalidates **5 query keys on every single SSE 
 **Consequence:** overlapping in-flight requests land out of order, so different panels render state from different moments — counts that tick backwards, a phase that flips, a score that appears then vanishes. This is the visible "flakiness" even when the backend is healthy.
 
 **P1.1** — Debounce/coalesce SSE invalidation (trailing edge, ~500ms). One burst of events → one invalidation round.
-**P1.2** — Collapse the five polls to a **single** subscription driven by the dashboard query; derive the rest from cache invalidation on crawl-version change rather than each component owning a timer.
+**P1.2 — DONE.** The dashboard query owns the ONE timer. Every other crawl-derived view refreshes
+when `crawlProgressVersion(crawl)` changes — a fingerprint of the crawl's status/sub-states/counters/
+`updated_at` — so a poll that returns an unchanged crawl now costs nothing downstream. The screen's
+pages query and both `inventory-section` timers are gone. Poll and stream share ONE definition of
+what a crawl change refreshes ([invalidate.ts](../../frontend/lib/site-health/invalidate.ts)), which
+also narrowed the SSE path: only the FIRST page of each list is invalidated, so deeper cursor pages
+no longer shift under a reader mid-crawl. (`url-detail.tsx`'s timer is NOT part of this: it is the
+per-page rerun poll, a different subject with its own ceiling.)
 **P1.3** — Back off the poll interval as the crawl ages (4s → 10s → 30s) instead of a flat 4s for the crawl's entire lifetime.
 
 ### F5 — SSE never reconnects
@@ -150,7 +157,21 @@ The stream is opened once per `useEffect`. The server closes it at `sse_max_dura
 
 `resolveSiteHealthPhase(crawl, plan, hasMonitoredSelection)` combines `dashboardQuery`, `entitlementQuery`, and `monitoredQuery`. As those settle in varying orders the phase transiently mis-resolves. The `crawlStarting` flag and the `createMutation.reset()` effect ([use-site-health-screen.ts:126-155](../../frontend/lib/site-health/use-site-health-screen.ts#L126-L155)) are patches for this — the code comment says so outright: *"which is what used to bounce the UI back to the selection list after 'Start analysis'"*.
 
-**P1.6** — Make phase resolution total over loading state: return an explicit `'resolving'` phase until all three inputs have settled once, rather than resolving against partial data and correcting afterwards. This should let the `crawlStarting` / `reset()` workarounds be deleted, which is the real test that the root cause is gone.
+**P1.6 — DONE.** `resolveSiteHealthPhase` is now total over loading state: `crawl === undefined`,
+`plan === null`, or `hasMonitoredSelection === null` means "not settled" and resolves to
+`'resolving'`, which the screen renders as its skeleton. `null` still means a settled "no crawl", so
+the empty state is unchanged. A FAILED query counts as settled (it has an answer; waiting forever
+would be worse).
+
+Both workarounds are deleted — but note that `'resolving'` alone was NOT sufficient, and finding
+that out was the useful part. It closes the FIRST-LOAD window (the monitored query settling last),
+while `crawlStarting` was mostly covering a second window: after a create succeeded, the dashboard
+still returned the PREVIOUS crawl, so the phase re-resolved against a stale (often terminal) crawl.
+The fix for that is to stop the stale input existing at all — `createCrawl`'s `onSuccess` writes the
+new crawl straight into the dashboard cache (the same shape the cancel mutation already used). With
+the input correct there is no gap to freeze, so the compound flag and the `reset()` effect both go,
+and what remains is an ordinary `startPending` for the in-flight request. The canonical-flow
+regression test (`walks discover → cancel → select → start analysis → finish`) is what pins it.
 
 ---
 
@@ -180,8 +201,30 @@ Extract from `SiteHealthWorker`, keeping one worker class as the queue-loop shel
 Highest-value split in the read path. `get_inventory` (CC=35) and `get_pages` (CC=34) share the 37-line 100%-identical keyset-pagination block the audit flagged ([§5.1](../audits/static-analysis-audit-2026-07-29.md)).
 
 - **P3.1** — Extract a shared keyset paginator (`_decode_url_keyset` / `_decode_created_id_keyset` + filter construction) used by `get_inventory`, `get_pages`, and `get_issues`. Kills the top duplication block and a large share of both CC scores.
-- **P3.2** — Split into `service/queries.py` (inventory/pages/issues reads), `service/presentation.py` (`_page_facts`, `_delivery_facts`, `_evaluation_row`, `_link_reference_row`, `_issue_row`, `presentation_status_for`, `project_crawl`), and `service/lifecycle.py` (`cancel_crawl`, `get_dashboard`, `load_events`, `load_crawl_for_stream`).
-- **P3.3** — The row-shaping helpers are pure functions over ORM rows; give them direct unit tests so the component suite stops being the only coverage.
+- **P3.2 — DONE.** `service.py` is now a package whose `__init__.py` is a pure façade, so every
+  existing `from app.domain.site_health.service import x` still resolves (including the two private
+  names the router and the unit tests import). Five modules, not the three planned: `presentation.py`
+  (363) and `lifecycle.py` (241) as specified, plus `common.py` (115) for the plumbing every read
+  path shares (the two error types, the limit clamp, the workspace-scoped loaders, the cursor
+  decoders) and a split of the "queries" bucket into `queries.py` (815 — entitlement/crawls/
+  inventory/pages/page detail) and `issues.py` (647 — the grouped catalog, detail, history). One
+  1,460-line `queries.py` would have been worse than the file it replaced; grouping is its own
+  algorithm rather than another row projection, which is the seam. Every moved function is
+  byte-identical to what it replaced (the split was done by slicing the original), so the component
+  suite verifies it as a pure move.
+- **P3.3 — DONE.** [test_site_health_presentation.py](../../backend/tests/unit/test_site_health_presentation.py)
+  tests the row shapers directly: the `project_crawl` aliases, the Free redaction (including the
+  frozen-capability fallback), `total_url_count` withheld until the inventory closes, the derived
+  `_page_facts` counts, `_delivery_facts` distinguishing unknown from zero, current-catalog titles on
+  persisted evidence, and the two shared filter predicates.
+
+**Baseline note.** The split moved five functions that are still above the ratchet's CC-15 ceiling
+(`get_inventory` 30, `get_pages` 29, `_page_facts` 24, `get_page_detail` 19, `get_issues` 16 by the
+checker's count). New modules get no grandfathering, so the ratchet failed until the baseline was
+rewritten. It was — and because the baseline is now per-FUNCTION (see §7), those five carry their own
+budgets instead of hiding under one module-wide max of 30, which is strictly tighter than what they
+had before the move. Their CC is unchanged by this work; reducing it is separate work on the
+functions themselves.
 
 ---
 
@@ -227,7 +270,18 @@ a cron is attached. Not dead code; an un-scheduled feature.
 - **P5.2 — DONE.** All shared setup — fake resolver, stub transports, HTML fixtures, crawl seeders — moved to `site_health_worker_helpers.py`, imported explicitly (no star imports) by each phase file.
 - **P5.3 — NOT DONE, deliberately.** The CC=79 / CC=72 tests in `test_product_analysis_worker.py` (169 lines) and `test_integration_ga4.py` (205 lines) are single end-to-end scenarios whose assertions run against one accumulated state. The suite empties every table between tests ([conftest.py](../../backend/tests/conftest.py#L45-L66)), so a shared seeded fixture **cannot** span split tests — each fragment would re-run the full seed plus a worker pass. Splitting one such test five ways multiplies its setup cost fivefold and gains no coverage; high CC is the honest shape of an e2e test that asserts a whole pipeline. Revisit only if these tests become a debugging problem in practice, and then by extracting assertion helpers rather than splitting the scenario.
 
-**Structural brake (recommended):** nothing in CI currently measures module size or function complexity, so the two MI-0.0 monoliths reached that state without any build ever objecting. Add a check on `app/` — module LOC and per-function complexity — baselined at today's values as a downward ratchet, so the debt P2/P3 pays down cannot quietly return.
+**Structural brake — DONE.** Nothing in CI measured module size or function complexity, so the two
+MI-0.0 monoliths reached that state without any build ever objecting.
+[check_complexity.py](../../backend/scripts/check_complexity.py) is that watcher: stdlib-`ast` only
+(CI installs from a frozen lock, so needing radon would mean lockfile churn on every touch), it runs
+in the backend job, and it fails only on regression against a checked-in baseline.
+
+The baseline is per-FUNCTION, not per-module-max. A single module max let one function's improvement
+pay for another's regression — dropping a CC-34 hotspot to 20 silently bought every other function in
+that module 20 points of headroom. Now each function carries its own budget, a function the baseline
+does not know (new, or renamed) has no budget to inherit and must meet the CC-15 ceiling, and a
+module's LOC still cannot grow. Baselines without the per-function map are read compatibly (module
+max only) so the file can be regenerated on its own schedule.
 
 ---
 

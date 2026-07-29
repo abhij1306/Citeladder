@@ -108,7 +108,7 @@ function renderStrip(props: Partial<Parameters<typeof StatusStrip>[0]> = {}) {
       phase="analyzing"
       entitlement={entitlement}
       cancelPending={false}
-      crawlStarting={false}
+      startPending={false}
       pages={[]}
       selectedTotal={null}
       selectedError={false}
@@ -180,9 +180,9 @@ describe('StatusStrip — lifecycle content', () => {
   });
 
   it('freezes behind a starting notice while a fresh crawl create is in flight', () => {
-    // The post-"Start analysis" window: the old crawl's phase must not flash
-    // back into view (the reported bounce) — a single notice covers it.
-    renderStrip({ crawlStarting: true, phase: 'selection', crawl: crawl({ status: 'cancelled' }) });
+    // The in-flight "Start analysis" window: the old crawl's phase must not
+    // stay in view while the create is running — a single notice covers it.
+    renderStrip({ startPending: true, phase: 'selection', crawl: crawl({ status: 'cancelled' }) });
 
     expect(screen.getByText(/Starting a fresh crawl/)).toBeInTheDocument();
     expect(screen.queryByText(/Discovery cancelled/)).not.toBeInTheDocument();
@@ -205,7 +205,7 @@ describe('StatusStrip — lifecycle content', () => {
           phase={phase}
           entitlement={entitlement}
           cancelPending={false}
-          crawlStarting={false}
+          startPending={false}
           pages={[]}
           selectedTotal={null}
           selectedError={false}

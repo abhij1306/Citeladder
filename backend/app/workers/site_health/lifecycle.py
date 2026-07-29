@@ -297,56 +297,47 @@ class CrawlLifecycle:
     async def _task_counts(
         self, session: AsyncSession, crawl_id: uuid.UUID
     ) -> dict[str, int]:
-        """Aggregate per-kind terminal/non-terminal task counts for a crawl."""
+        """Aggregate per-kind terminal/non-terminal task counts for a crawl.
 
-        async def _non_terminal(kind: str) -> int:
-            return int(
-                await session.scalar(
-                    select(func.count())
-                    .select_from(SiteCrawlTask)
-                    .where(SiteCrawlTask.crawl_id == crawl_id)
-                    .where(SiteCrawlTask.task_kind == kind)
-                    .where(SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)))
+        ONE grouped scan with conditional (``FILTER``) counts rather than six
+        serial ``COUNT(*)`` round trips over the same rows: this runs inside
+        the crawl's ``FOR UPDATE`` window on every task's finalize, so the five
+        extra round trips were five extra chances for a sibling task to queue
+        behind the lock.
+        """
+        rows = (
+            await session.execute(
+                select(
+                    SiteCrawlTask.task_kind,
+                    func.count().label("total"),
+                    func.count()
+                    .filter(SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)))
+                    .label("non_terminal"),
+                    func.count()
+                    .filter(SiteCrawlTask.status == TASK_STATUS_SUCCEEDED)
+                    .label("succeeded"),
+                    func.count()
+                    .filter(SiteCrawlTask.status == TASK_STATUS_CANCELLED)
+                    .label("cancelled"),
                 )
-                or 0
+                .where(SiteCrawlTask.crawl_id == crawl_id)
+                .group_by(SiteCrawlTask.task_kind)
             )
+        ).all()
+        # A kind with no rows simply has no group; every count defaults to 0.
+        by_kind = {row.task_kind: row for row in rows}
 
-        analyze_total = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteCrawlTask)
-                .where(SiteCrawlTask.crawl_id == crawl_id)
-                .where(SiteCrawlTask.task_kind == TASK_KIND_ANALYZE)
-            )
-            or 0
-        )
-        analyze_succeeded = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteCrawlTask)
-                .where(SiteCrawlTask.crawl_id == crawl_id)
-                .where(SiteCrawlTask.task_kind == TASK_KIND_ANALYZE)
-                .where(SiteCrawlTask.status == TASK_STATUS_SUCCEEDED)
-            )
-            or 0
-        )
-        analyze_cancelled = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteCrawlTask)
-                .where(SiteCrawlTask.crawl_id == crawl_id)
-                .where(SiteCrawlTask.task_kind == TASK_KIND_ANALYZE)
-                .where(SiteCrawlTask.status == TASK_STATUS_CANCELLED)
-            )
-            or 0
-        )
+        def count(kind: str, field: str) -> int:
+            row = by_kind.get(kind)
+            return int(getattr(row, field)) if row is not None else 0
+
         return {
-            "discover_non_terminal": await _non_terminal(TASK_KIND_DISCOVER),
-            "analyze_non_terminal": await _non_terminal(TASK_KIND_ANALYZE),
-            "link_non_terminal": await _non_terminal(TASK_KIND_LINK_CHECK),
-            "analyze_total": analyze_total,
-            "analyze_succeeded": analyze_succeeded,
-            "analyze_cancelled": analyze_cancelled,
+            "discover_non_terminal": count(TASK_KIND_DISCOVER, "non_terminal"),
+            "analyze_non_terminal": count(TASK_KIND_ANALYZE, "non_terminal"),
+            "link_non_terminal": count(TASK_KIND_LINK_CHECK, "non_terminal"),
+            "analyze_total": count(TASK_KIND_ANALYZE, "total"),
+            "analyze_succeeded": count(TASK_KIND_ANALYZE, "succeeded"),
+            "analyze_cancelled": count(TASK_KIND_ANALYZE, "cancelled"),
         }
 
     # --- v2 P2: crawl_finalize evaluation pass -----------------------------

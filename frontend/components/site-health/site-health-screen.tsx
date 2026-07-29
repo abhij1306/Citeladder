@@ -30,7 +30,7 @@ export function SiteHealthScreen() {
     primaryAction,
     active,
     stalled,
-    crawlStarting,
+    startPending,
     createMutation,
     startCrawl,
     runExport,
@@ -38,7 +38,14 @@ export function SiteHealthScreen() {
     exportError,
   } = screen;
 
-  if (projectLoading || (projectId && (entitlementQuery.isLoading || dashboardQuery.isLoading))) {
+  // A 'resolving' phase means one of the three inputs the phase reads has not
+  // settled yet. Holding the skeleton for that beat is the whole point of the
+  // explicit phase: rendering a guess and correcting it is what made the screen
+  // visibly flip between the URL list and the analysis view.
+  if (
+    projectLoading ||
+    (projectId && (entitlementQuery.isLoading || dashboardQuery.isLoading || phase === 'resolving'))
+  ) {
     return <ScreenSkeleton />;
   }
 
@@ -64,8 +71,8 @@ export function SiteHealthScreen() {
     switch (primaryAction) {
       case 'start':
         return (
-          <Button size="sm" onClick={startCrawl} disabled={crawlStarting}>
-            {crawlStarting ? 'Starting…' : 'Start discovery'}
+          <Button size="sm" onClick={startCrawl} disabled={startPending}>
+            {startPending ? 'Starting…' : 'Start discovery'}
           </Button>
         );
       case 'cancel':
@@ -74,8 +81,8 @@ export function SiteHealthScreen() {
         return null;
       case 'recrawl':
         return (
-          <Button size="sm" onClick={startCrawl} disabled={crawlStarting || active}>
-            {crawlStarting
+          <Button size="sm" onClick={startCrawl} disabled={startPending || active}>
+            {startPending
               ? 'Starting…'
               : phase === 'terminal'
                 ? 'Start a new crawl'

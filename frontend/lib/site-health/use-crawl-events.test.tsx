@@ -52,10 +52,12 @@ describe('useCrawlEvents', () => {
     expect(init.headers['X-Workspace-Id']).toBe('99999999-9999-4999-8999-999999999999');
 
     // A data frame invalidates the crawl + pages queries (progress accelerator).
+    // The list views carry a first-page predicate (`invalidateCrawlViews`), so
+    // the assertion is on the key, not the whole filter object.
     await waitFor(() =>
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: queryKeys.siteHealth.pages(CRAWL),
-      }),
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: queryKeys.siteHealth.pages(CRAWL) }),
+      ),
     );
     vi.unstubAllGlobals();
   });
@@ -86,9 +88,9 @@ describe('useCrawlEvents', () => {
     renderHook(() => useCrawlEvents(CRAWL, PROJECT, true), { wrapper: wrapper(client) });
 
     await waitFor(() =>
-      expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: queryKeys.siteHealth.pages(CRAWL),
-      }),
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: queryKeys.siteHealth.pages(CRAWL) }),
+      ),
     );
     // 40 events, 5 query keys: un-debounced that is 200 invalidate calls.
     const pagesCalls = invalidateSpy.mock.calls.filter(

@@ -41,10 +41,13 @@ Hardcoding values such as model identifiers (`"gpt-5.4"`), timeout seconds (`30`
   ```python
   # BAD: Hardcoded model name, timeout, and max retry in service/connector code
   async def call_provider(prompt: str):
-      client = httpx.AsyncClient(timeout=30.0) # Hardcoded timeout!
+      client = httpx.AsyncClient(timeout=30.0)  # Hardcoded timeout!
       response = await client.post(
-          "https://api.openai.com/v1/chat/completions", # Hardcoded endpoint!
-          json={"model": "gpt-5.4", "messages": [{"role": "user", "content": prompt}]} # Hardcoded model!
+          "https://api.openai.com/v1/chat/completions",  # Hardcoded endpoint!
+          json={
+              "model": "gpt-5.4",
+              "messages": [{"role": "user", "content": prompt}],
+          },  # Hardcoded model!
       )
   ```
 * **Correct (Backend):**
@@ -53,12 +56,16 @@ Hardcoding values such as model identifiers (`"gpt-5.4"`), timeout seconds (`30`
   from app.core.config import settings
   from app.core.config.provider_catalog import ACTIVE_TRANSPORTS
 
+
   async def call_provider(prompt: str):
       route = ACTIVE_TRANSPORTS["openai"]
       client = httpx.AsyncClient(timeout=settings.PROVIDER_TIMEOUT_SECONDS)
       response = await client.post(
           f"{settings.OPENAI_BASE_URL}/v1/chat/completions",
-          json={"model": route.transport_model, "messages": [{"role": "user", "content": prompt}]}
+          json={
+              "model": route.transport_model,
+              "messages": [{"role": "user", "content": prompt}],
+          },
       )
   ```
 
@@ -87,12 +94,15 @@ Accepting `base_url`, `provider_endpoint`, or logo/favicon URLs as arbitrary str
   ```python
   # BAD: Accepting unconstrained URL and sending bearer token directly
   client = httpx.AsyncClient(base_url=provider.base_url)
-  response = await client.post("/v1/chat/completions", headers={"Authorization": f"Bearer {key}"})
+  response = await client.post(
+      "/v1/chat/completions", headers={"Authorization": f"Bearer {key}"}
+  )
   ```
 * **Correct:**
   ```python
   # GOOD: Validating URL scheme, host, and disallowing unsafe protocols
   from pydantic import HttpUrl, AnyHttpUrl
+
 
   def validate_provider_url(url_str: str) -> str:
       parsed = urllib.parse.urlparse(url_str)
@@ -116,8 +126,11 @@ Truncating UUIDs or string IDs (e.g., `uuid[:4]` or `int(uuid[:8], 16)`) to fit 
   # GOOD: Stable 64-bit BLAKE2b hash with namespace
   import hashlib
 
+
   def get_advisory_lock_key(namespace: str, resource_id: str) -> int:
-      digest = hashlib.blake2b(f"{namespace}:{resource_id}".encode(), digest_size=8).digest()
+      digest = hashlib.blake2b(
+          f"{namespace}:{resource_id}".encode(), digest_size=8
+      ).digest()
       return int.from_bytes(digest, byteorder="big", signed=True)
   ```
 
@@ -138,7 +151,7 @@ Catching generic `IntegrityError` and assuming it was caused by a specific dupli
       db.commit()
   except IntegrityError:
       db.rollback()
-      raise PromptSetNotFoundError("Prompt set deleted") # Misleading!
+      raise PromptSetNotFoundError("Prompt set deleted")  # Misleading!
   ```
 * **Correct:**
   ```python
@@ -185,7 +198,7 @@ Trimming string fields inside service methods *after* Pydantic validation allows
   ```python
   # BAD: Schema allowed whitespace, service converted it to invalid empty string
   def create_topic(payload: TopicCreate):
-      clean_name = payload.name.strip() # Might become ""!
+      clean_name = payload.name.strip()  # Might become ""!
       db.add(Topic(name=clean_name))
   ```
 * **Correct:**

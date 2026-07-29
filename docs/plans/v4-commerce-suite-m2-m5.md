@@ -210,11 +210,14 @@ inventing a direction.
 ```python
 @dataclass(frozen=True)
 class AttributeDimension:
-    key: str            # "battery_life"
-    group: str          # characteristics | facts | ratings
-    phrases: tuple[str, ...]   # casefolded match literals + synonyms
+    key: str  # "battery_life"
+    group: str  # characteristics | facts | ratings
+    phrases: tuple[str, ...]  # casefolded match literals + synonyms
 
-ATTRIBUTE_DIMENSIONS: Final[dict[str, tuple[AttributeDimension, ...]]]  # keyed by product category
+
+ATTRIBUTE_DIMENSIONS: Final[
+    dict[str, tuple[AttributeDimension, ...]]
+]  # keyed by product category
 ATTRIBUTE_DIMENSION_GROUPS: Final[frozenset[str]]
 PRODUCT_ATTRIBUTE_WINDOW_CHARS: Final = 200
 ```
@@ -584,10 +587,10 @@ Extends the shipped LLM Analytics surface from sessions to revenue.
 Add two GA4 dataset templates to `INTEGRATION_DATASET_TEMPLATES`:
 
 ```python
-DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY   # dims (sessionSource, sessionMedium, date)
-                                            # metrics (transactions, purchaseRevenue, sessions)
-DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY        # dims (itemId, sessionSource, sessionMedium, date)
-                                            # metrics (itemRevenue, itemsPurchased)
+DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY  # dims (sessionSource, sessionMedium, date)
+# metrics (transactions, purchaseRevenue, sessions)
+DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY  # dims (itemId, sessionSource, sessionMedium, date)
+# metrics (itemRevenue, itemsPurchased)
 ```
 
 GA4 has already performed the session → purchase attribution. Searchify reads the attributed

@@ -33,18 +33,26 @@ class HostGate:
 
     ``delay_for`` is injected rather than read here so the caller can widen the
     wait to a robots-declared crawl-delay from its own cache; the gate itself
-    never fetches anything.
+    never fetches anything. It is called with the FULL URL of the next request
+    (not a bare host), because a robots policy is scheme+host scoped and the
+    caller's cache is keyed that way.
     """
 
     def __init__(self, *, delay_for: Callable[[str], float] | None = None) -> None:
         self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._start_locks: dict[str, asyncio.Lock] = {}
         self._last_started: dict[str, float] = {}
-        # Waiters + holders per host: the three maps above are only evicted
-        # once this drops to zero AND the polite start-delay window has
-        # elapsed, so cleanup can never race active crawling of the host.
+        # The delay actually applied to each host's last start. Eviction must
+        # compare against THIS, not the config floor: a robots crawl-delay of
+        # 30s over a 1s floor would otherwise let the maps be dropped one
+        # second in, discarding `_last_started` and letting the next task for
+        # that host start immediately — silently ignoring the declared delay.
+        self._applied_delays: dict[str, float] = {}
+        # Waiters + holders per host: the maps above are only evicted once this
+        # drops to zero AND the polite start-delay window has elapsed, so
+        # cleanup can never race active crawling of the host.
         self._refcounts: dict[str, int] = {}
-        self._delay_for = delay_for or (lambda _host: 0.0)
+        self._delay_for = delay_for or (lambda _url: 0.0)
 
     def _base_delay(self) -> float:
         return max(0.0, site_health_settings.per_host_delay_seconds)
@@ -52,6 +60,14 @@ class HostGate:
     def _delay(self, url: str) -> float:
         """The polite gap before the next start: config floor, robots ceiling."""
         return max(self._base_delay(), self._delay_for(url))
+
+    def _window(self, host: str) -> float:
+        """The delay window the host's last start committed to.
+
+        Falls back to the config floor for a host that is tracked but has not
+        started anything yet (it has no robots-widened window to protect).
+        """
+        return self._applied_delays.get(host, self._base_delay())
 
     @contextlib.asynccontextmanager
     async def slot(
@@ -85,6 +101,10 @@ class HostGate:
                 async with semaphore:
                     async with start_lock:
                         delay = self._delay(url)
+                        # Remember the window this start commits to, so neither
+                        # `release` nor `evict_idle` can drop the host's state
+                        # before a robots-widened delay has elapsed.
+                        self._applied_delays[host] = delay
                         elapsed = time.monotonic() - self._last_started.get(host, 0.0)
                         if elapsed < delay:
                             await asyncio.sleep(delay - elapsed)
@@ -106,13 +126,12 @@ class HostGate:
             self._refcounts[host] = remaining
             return
         self._refcounts.pop(host, None)
-        if time.monotonic() - self._last_started.get(host, 0.0) < self._base_delay():
+        if time.monotonic() - self._last_started.get(host, 0.0) < self._window(host):
             return
         self._evict(host)
 
     def evict_idle(self) -> None:
         """Sweep per-host state whose refcount is zero and delay window passed."""
-        delay = self._base_delay()
         now = time.monotonic()
         # `|` on dict keys already materializes a new set, so mutating the
         # underlying dicts in `_evict` below cannot disturb this iteration.
@@ -122,16 +141,18 @@ class HostGate:
             | self._last_started.keys()
         )
         for host in hosts:
-            if (
-                self._refcounts.get(host, 0) == 0
-                and now - self._last_started.get(host, 0.0) >= delay
-            ):
+            if self._refcounts.get(host, 0) != 0:
+                continue
+            if now - self._last_started.get(host, 0.0) >= self._window(host):
                 self._evict(host)
 
     def _evict(self, host: str) -> None:
         self._semaphores.pop(host, None)
         self._start_locks.pop(host, None)
         self._last_started.pop(host, None)
+        # Dropped with `_last_started`: keeping a stale window for a host with
+        # no start timestamp would make the next `release` hold state forever.
+        self._applied_delays.pop(host, None)
 
     def tracked_hosts(self) -> set[str]:
         """Hosts with live per-host state (diagnostics + tests)."""

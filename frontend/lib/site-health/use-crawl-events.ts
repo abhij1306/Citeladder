@@ -36,7 +36,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 
 import { API_BASE_URL, getActiveWorkspaceId } from '@/lib/api/client';
-import { queryKeys } from '@/lib/api/query-keys';
+import { invalidateCrawlViews } from '@/lib/site-health/invalidate';
 
 /** Trailing-edge window for coalescing a burst of stream events. */
 export const INVALIDATE_DEBOUNCE_MS = 500;
@@ -71,17 +71,9 @@ export function useCrawlEvents(
     const invalidateNow = () => {
       invalidateTimer = null;
       // Move page rows through their lifecycle and refresh the crawl summary +
-      // dashboard scores. Invalidate ALL page/inventory/issue queries for this
-      // crawl (every filter/cursor combination), never just one client page.
-      queryClient.invalidateQueries({ queryKey: queryKeys.siteHealth.crawl(crawlId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.siteHealth.pages(crawlId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.siteHealth.inventory(crawlId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.siteHealth.issues(crawlId) });
-      if (projectId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.siteHealth.dashboard(projectId),
-        });
-      }
+      // dashboard scores. Shared with the screen's poll path so a stream frame
+      // and a poll tick refresh exactly the same set (`invalidateCrawlViews`).
+      invalidateCrawlViews(queryClient, crawlId, projectId);
     };
 
     /** Coalesce a burst of events into ONE trailing invalidation. */
@@ -146,9 +138,17 @@ export function useCrawlEvents(
       let closedCleanly = false;
       try {
         closedCleanly = await connect();
-      } catch {
+      } catch (error) {
         // Dropped / aborted / timed-out streams are non-fatal: polling in the
-        // screen continues to advance progress. Swallow silently.
+        // screen continues to advance progress, so the failure is swallowed
+        // and a reconnect is still scheduled below. It is logged at debug
+        // level (never surfaced) so a stream that is failing every attempt is
+        // attributable in the console instead of silently invisible.
+        console.debug('[site-health] crawl event stream failed', {
+          crawlId,
+          attempt,
+          error,
+        });
       }
       if (cancelled || controller.signal.aborted) return;
       const delay = closedCleanly
