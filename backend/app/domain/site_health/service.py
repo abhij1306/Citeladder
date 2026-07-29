@@ -24,8 +24,10 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import and_, func, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -680,44 +682,38 @@ async def get_inventory(
         "page_type": page_type or None,
     }
 
-    # A Starter recrawl reads its explicitly frozen earlier full inventories
-    # while new observations stream in. Sample crawls ignore inherited ids, so
-    # a Free/downgraded run cannot expose the earlier Starter catalog.
-    stmt = select(SiteUrl).where(
-        SiteUrl.project_id == project_id,
-        SiteUrl.id.in_(inventory_site_url_subquery(crawl)),
-    )
+    search: list[Any] = []
     if query:
         pattern = f"%{query.strip().lower()}%"
-        stmt = stmt.where(
+        search.append(
             or_(
                 func.lower(SiteUrl.normalized_url).like(pattern),
                 func.lower(SiteUrl.display_url).like(pattern),
             )
         )
 
+    # A status/page_type filter is applied in Python from the derived
+    # presentation status, so the SQL window is widened to keep pages full.
+    over_fetch = status is not None or page_type is not None
+    fetch_size = _scan_window(limit, over_fetch=over_fetch)
+
     monitored_ids = await _monitored_site_url_ids(session, project_id=project_id)
-    if monitored is True:
-        if not monitored_ids:
-            return {"items": [], "next_cursor": None}
-        stmt = stmt.where(SiteUrl.id.in_(list(monitored_ids)))
-    elif monitored is False and monitored_ids:
-        stmt = stmt.where(SiteUrl.id.notin_(list(monitored_ids)))
-
-    if cursor:
-        cur_url, cur_id = _decode_url_keyset(cursor, scope=scope, filters=filters)
-        stmt = stmt.where(
-            tuple_(SiteUrl.normalized_url, SiteUrl.id) > (cur_url, cur_id)
-        )
-
-    # Over-fetch so a status/page_type filter (applied in Python from the
-    # derived presentation status / latest analysis) can still return a full
-    # page.
-    fetch = limit + 1
-    fetch_size = fetch if (status is None and page_type is None) else fetch * 4
-    stmt = stmt.order_by(SiteUrl.normalized_url.asc(), SiteUrl.id.asc()).limit(
-        fetch_size
+    # A Starter recrawl reads its explicitly frozen earlier full inventories
+    # while new observations stream in. Sample crawls ignore inherited ids, so
+    # a Free/downgraded run cannot expose the earlier Starter catalog.
+    stmt = _site_url_page_stmt(
+        crawl,
+        monitored=monitored,
+        monitored_ids=monitored_ids,
+        cursor=cursor,
+        scope=scope,
+        filters=filters,
+        limit=limit,
+        over_fetch=over_fetch,
+        extra_where=search,
     )
+    if stmt is None:
+        return {"items": [], "next_cursor": None}
     rows = list((await session.scalars(stmt)).all())
 
     site_ids = [r.id for r in rows]
@@ -818,6 +814,67 @@ def _decode_url_keyset(
         raise InvalidCursorError(str(exc)) from exc
     except ValueError as exc:
         raise InvalidCursorError(str(exc)) from exc
+
+
+def _scan_window(limit: int, *, over_fetch: bool) -> int:
+    """Rows to scan for one page: the page itself, widened for sparse filters.
+
+    Shared so the SELECT's LIMIT and the callers' "did we scan a full window?"
+    cursor-advance check can never disagree — if they drift, a sparse filter
+    either stops paginating early or loops on the same window forever.
+    """
+    fetch = limit + 1
+    return fetch * 4 if over_fetch else fetch
+
+
+def _site_url_page_stmt(
+    crawl: SiteCrawl,
+    *,
+    monitored: bool | None,
+    monitored_ids: set[uuid.UUID] | frozenset[uuid.UUID],
+    cursor: str | None,
+    scope: str,
+    filters: dict,
+    limit: int,
+    over_fetch: bool,
+    extra_where: Sequence[Any] = (),
+):
+    """The shared ``(normalized_url, id)`` keyset page over a crawl's SiteUrls.
+
+    ``get_inventory`` and ``get_pages`` differ only in their row projection —
+    the scope subquery, monitored filter, cursor predicate, ordering and
+    over-fetch were an identical 37-line block in both (the audit's top
+    duplication finding). Returns ``None`` when the filters select nothing, so
+    callers short-circuit to an empty page.
+
+    ``over_fetch`` widens the fetch when a status/page_type filter is applied
+    in Python from the derived presentation status, so a filtered page can
+    still come back full. ``extra_where`` carries caller-specific predicates
+    (the inventory's substring search) so they are applied with the rest of
+    the filtering, before ordering and limiting.
+    """
+    stmt = select(SiteUrl).where(
+        SiteUrl.project_id == crawl.project_id,
+        SiteUrl.id.in_(inventory_site_url_subquery(crawl)),
+    )
+    for clause in extra_where:
+        stmt = stmt.where(clause)
+    if monitored is True:
+        if not monitored_ids:
+            return None
+        stmt = stmt.where(SiteUrl.id.in_(list(monitored_ids)))
+    elif monitored is False and monitored_ids:
+        stmt = stmt.where(SiteUrl.id.notin_(list(monitored_ids)))
+
+    if cursor:
+        cur_url, cur_id = _decode_url_keyset(cursor, scope=scope, filters=filters)
+        stmt = stmt.where(
+            tuple_(SiteUrl.normalized_url, SiteUrl.id) > (cur_url, cur_id)
+        )
+
+    return stmt.order_by(SiteUrl.normalized_url.asc(), SiteUrl.id.asc()).limit(
+        _scan_window(limit, over_fetch=over_fetch)
+    )
 
 
 def _decode_created_id_keyset(
@@ -933,32 +990,25 @@ async def get_pages(
         "page_type": page_type or None,
     }
 
+    over_fetch = status is not None or page_type is not None
+    fetch_size = _scan_window(limit, over_fetch=over_fetch)
+
     monitored_ids = await _monitored_site_url_ids(session, project_id=project_id)
     # Same durable Starter inventory scope as get_inventory. Analysis, tasks,
     # issues, and scores below remain current-crawl-only, so inherited rows
     # show as not selected rather than borrowing old evidence.
-    stmt = select(SiteUrl).where(
-        SiteUrl.project_id == project_id,
-        SiteUrl.id.in_(inventory_site_url_subquery(crawl)),
+    stmt = _site_url_page_stmt(
+        crawl,
+        monitored=monitored,
+        monitored_ids=monitored_ids,
+        cursor=cursor,
+        scope=scope,
+        filters=filters,
+        limit=limit,
+        over_fetch=over_fetch,
     )
-    if monitored is True:
-        if not monitored_ids:
-            return {"items": [], "next_cursor": None}
-        stmt = stmt.where(SiteUrl.id.in_(list(monitored_ids)))
-    elif monitored is False and monitored_ids:
-        stmt = stmt.where(SiteUrl.id.notin_(list(monitored_ids)))
-
-    if cursor:
-        cur_url, cur_id = _decode_url_keyset(cursor, scope=scope, filters=filters)
-        stmt = stmt.where(
-            tuple_(SiteUrl.normalized_url, SiteUrl.id) > (cur_url, cur_id)
-        )
-
-    fetch = limit + 1
-    fetch_size = fetch if (status is None and page_type is None) else fetch * 4
-    stmt = stmt.order_by(SiteUrl.normalized_url.asc(), SiteUrl.id.asc()).limit(
-        fetch_size
-    )
+    if stmt is None:
+        return {"items": [], "next_cursor": None}
     rows = list((await session.scalars(stmt)).all())
 
     site_ids = [r.id for r in rows]
