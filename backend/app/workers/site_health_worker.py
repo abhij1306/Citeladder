@@ -35,18 +35,13 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from urllib.parse import urljoin, urlsplit
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.analysis.site_health.finalize import (
-    evaluate_broken_internal_link,
-    evaluate_hreflang_conflict,
-    evaluate_sitemap_orphan,
-)
 from app.analysis.site_health.page_types import classify
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import RuleEvaluation, evaluate_all
@@ -76,21 +71,10 @@ from app.core.config.site_health import (
     AI_CRAWLER_BOTS,
     AI_CRAWLER_STANCE_ALLOW,
     AI_CRAWLER_STANCE_BLOCK,
-    ANALYSIS_STATUS_CANCELLED,
-    ANALYSIS_STATUS_COMPLETED,
-    ANALYSIS_STATUS_FAILED,
-    ANALYSIS_STATUS_PARTIALLY_COMPLETED,
-    ANALYSIS_STATUS_PENDING,
-    ANALYSIS_STATUS_RUNNING,
     ANALYZER_VERSION,
     APPLICABILITY_CRAWL_FINALIZE,
-    CRAWL_ACTIVE_STATUSES,
-    CRAWL_STATUS_COMPLETED,
-    CRAWL_STATUS_FAILED,
-    CRAWL_STATUS_PARTIALLY_COMPLETED,
     CRAWL_STATUS_RUNNING,
     DISCOVERY_STATUS_COMPLETED,
-    DISCOVERY_STATUS_FAILED,
     DISCOVERY_STATUS_RUNNING,
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
     ERROR_BOT_BLOCKED,
@@ -99,7 +83,6 @@ from app.core.config.site_health import (
     ERROR_ROBOTS_DENIED,
     ERROR_ROBOTS_UNAVAILABLE,
     EVENT_ANALYSIS_PROGRESS,
-    EVENT_CRAWL_COMPLETED,
     EVENT_DISCOVERY_PROGRESS,
     EXTRACTOR_VERSION,
     FETCH_ENGINE_CURL_CFFI,
@@ -113,7 +96,6 @@ from app.core.config.site_health import (
     FETCH_PURPOSE_ROBOTS,
     FETCH_PURPOSE_SITEMAP,
     HTML_CONTENT_TYPES,
-    LINK_KIND_ANCHOR,
     LLMS_TXT_PATH,
     OBSERVATION_SOURCE_LINK,
     OBSERVATION_SOURCE_ROOT,
@@ -133,10 +115,7 @@ from app.core.config.site_health import (
     site_health_settings,
 )
 from app.core.config.task_queue import (
-    TASK_STATUS_CANCELLED,
     TASK_STATUS_RUNNING,
-    TASK_STATUS_SUCCEEDED,
-    TASK_TERMINAL_STATUSES,
 )
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging
@@ -160,9 +139,7 @@ from app.domain.site_health.selection import (
     evaluate_task_guard,
     lease_is_owned,
 )
-from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.domain.site_health.state_events import (
-    apply_analysis_status,
     apply_crawl_status,
     apply_discovery_status,
     record_crawl_event,
@@ -182,6 +159,7 @@ from app.models.site_health import (
     WorkspaceSiteHealthEntitlement,
 )
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.site_health import CrawlLifecycle, HostGate, crawl_root_identity
 
 logger = logging.getLogger("app.workers.site_health_worker")
 
@@ -387,14 +365,6 @@ def _canonical_or_empty(url: str) -> str:
         return ""
 
 
-def _crawl_root_identity(crawl: SiteCrawl) -> tuple[str, str]:
-    """``(canonical, url_hash)`` of the crawl root, or ``("", "")``."""
-    try:
-        return canonical_identity(crawl.root_url)
-    except UrlPolicyError:
-        return "", ""
-
-
 class SiteHealthWorker:
     """Owns a claim/lease loop over ``SiteCrawlTask`` discover rows.
 
@@ -426,13 +396,12 @@ class SiteHealthWorker:
         # escalation (tests pass a fake session builder); None in production
         # so the fetcher uses its real impersonated-curl factory.
         self._curl_session_factory = curl_session_factory
-        self._host_semaphores: dict[str, asyncio.Semaphore] = {}
-        self._host_start_locks: dict[str, asyncio.Lock] = {}
-        self._host_last_started: dict[str, float] = {}
-        # Waiters + holders per host: the three maps above are only evicted
-        # once this drops to zero AND the polite start-delay window has
-        # elapsed, so cleanup can never race active crawling of the host.
-        self._host_refcounts: dict[str, int] = {}
+        # Per-host politeness (concurrency cap + start pacing + eviction). The
+        # robots-declared crawl-delay is injected as a lookup so the gate never
+        # fetches anything itself.
+        self._host_gate = HostGate(delay_for=self._robots_crawl_delay)
+        # Crawl terminalization (reconcile + finalize pass + snapshot).
+        self._lifecycle = CrawlLifecycle(self._session_factory)
         # v2 P2: per-authority robots cache — one (policy, raw body, status)
         # triple per authority (the raw body feeds the per-bot AI-crawler
         # stance in site setup) — plus a per-authority lock so concurrent
@@ -477,7 +446,7 @@ class SiteHealthWorker:
         for crawl_id in sweep.failed_parent_ids:
             await self._reconcile_crawl_status(crawl_id)
         await self._reconcile_stalled_crawls()
-        self._evict_idle_hosts()
+        self._host_gate.evict_idle()
         claim_limit = min(
             site_health_settings.worker_concurrency,
             site_health_settings.global_concurrency,
@@ -516,78 +485,22 @@ class SiteHealthWorker:
             host, _port = split_host_port(task.requested_url)
         except Exception:
             host = task.requested_url
-        self._host_refcounts[host] = self._host_refcounts.get(host, 0) + 1
-        semaphore = self._host_semaphores.setdefault(
+        async with self._host_gate.slot(
             host,
-            asyncio.Semaphore(site_health_settings.per_host_concurrency),
-        )
-        start_lock = self._host_start_locks.setdefault(host, asyncio.Lock())
-        heartbeat = asyncio.create_task(self._heartbeat_loop(task.id))
-        try:
-            async with semaphore:
-                async with start_lock:
-                    delay = max(0.0, site_health_settings.per_host_delay_seconds)
-                    # v2 P2: honor a robots-declared crawl-delay (clamped by
-                    # the config max inside RobotsPolicy) from the CACHE ONLY
-                    # — never fetch robots.txt here. The first request to an
-                    # authority goes with the default delay; once the fetch
-                    # path has cached the policy, later requests honor it.
-                    cached = self._robots_cache.get(_authority_key(task.requested_url))
-                    if cached is not None:
-                        delay = max(delay, cached[0].crawl_delay())
-                    elapsed = time.monotonic() - self._host_last_started.get(host, 0.0)
-                    if elapsed < delay:
-                        await asyncio.sleep(delay - elapsed)
-                    self._host_last_started[host] = time.monotonic()
-                heartbeat.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await heartbeat
-                await self._execute_task(task)
-        finally:
-            heartbeat.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await heartbeat
-            self._release_host_gate(host)
+            task.requested_url,
+            on_wait=lambda: self._leased(task.id),
+        ):
+            await self._execute_task(task)
 
-    def _release_host_gate(self, host: str) -> None:
-        """Drop one waiter/holder reference; evict idle per-host state at zero.
+    def _robots_crawl_delay(self, url: str) -> float:
+        """A robots-declared crawl-delay for ``url`` from the CACHE ONLY.
 
-        Eviction requires BOTH a zero refcount and the politeness window
-        having elapsed, so cleanup never races active crawling and a task
-        claimed inside the delay window still honors the delay. A host still
-        inside its window at refcount zero is swept by ``_evict_idle_hosts``
-        on a later ``run_once``.
+        Never fetches robots.txt: the first request to an authority goes with
+        the config default, and once the fetch path has cached the policy later
+        requests honor the (already config-clamped) declared delay.
         """
-        remaining = self._host_refcounts.get(host, 1) - 1
-        if remaining > 0:
-            self._host_refcounts[host] = remaining
-            return
-        self._host_refcounts.pop(host, None)
-        delay = max(0.0, site_health_settings.per_host_delay_seconds)
-        if time.monotonic() - self._host_last_started.get(host, 0.0) < delay:
-            return
-        self._evict_host(host)
-
-    def _evict_idle_hosts(self) -> None:
-        """Sweep per-host state whose refcount is zero and delay window passed."""
-        delay = max(0.0, site_health_settings.per_host_delay_seconds)
-        now = time.monotonic()
-        hosts = (
-            self._host_semaphores.keys()
-            | self._host_start_locks.keys()
-            | self._host_last_started.keys()
-        )
-        for host in list(hosts):
-            if (
-                self._host_refcounts.get(host, 0) == 0
-                and now - self._host_last_started.get(host, 0.0) >= delay
-            ):
-                self._evict_host(host)
-
-    def _evict_host(self, host: str) -> None:
-        self._host_semaphores.pop(host, None)
-        self._host_start_locks.pop(host, None)
-        self._host_last_started.pop(host, None)
+        cached = self._robots_cache.get(_authority_key(url))
+        return cached[0].crawl_delay() if cached is not None else 0.0
 
     async def run_until_idle(self, *, max_batches: int = 1000) -> int:
         """Drain the discover queue until a claim returns nothing (test mode)."""
@@ -2231,7 +2144,7 @@ class SiteHealthWorker:
         # The injection happens after the artifact flush, so the persisted
         # normalized_facts deliberately do NOT carry it (same as page_type).
         if crawl.site_facts:
-            _root_canonical, root_hash = _crawl_root_identity(crawl)
+            _root_canonical, root_hash = crawl_root_identity(crawl)
             if root_hash and root_hash == task.url_hash:
                 facts["site"] = crawl.site_facts
         evaluations: list[RuleEvaluation] = [
@@ -2617,543 +2530,16 @@ class SiteHealthWorker:
             )
         )
 
-    # --- shared reconcile --------------------------------------------------
+    # --- crawl terminalization (delegated) ---------------------------------
+    # The exactly-once lifecycle lives in ``CrawlLifecycle``; these thin
+    # forwarders keep the worker's own call sites (task finalize, sweeper
+    # reclaim, stalled backstop) reading as before.
 
     async def _reconcile_crawl_status(self, crawl_id: uuid.UUID) -> None:
-        """Reconcile the crawl's overall status from discovery AND analysis.
-
-        The single shared finalize for every task kind. It:
-          - terminalizes the DISCOVERY sub-state once discover tasks drain
-            (progressively, even while analyze/link_check work remains);
-          - drives the independent ANALYSIS lifecycle (pending -> running ->
-            completed/partially_completed/failed) from the analyze task
-            outcomes;
-          - terminalizes the OVERALL crawl ONLY when EVERY non-terminal task of
-            ALL kinds is drained, classifying completed / partially_completed /
-            failed and (on analysis terminalization) persisting the aggregate
-            ``SiteHealthSnapshot`` + a ``crawl.completed`` event.
-
-        Keeping the crawl row ``FOR UPDATE`` and terminalizing exactly once (a
-        completed crawl short-circuits) is what prevents a late analyze finalize
-        from calling ``apply_crawl_status`` out of a terminal state (which would
-        raise ``InvalidSiteCrawlTransition`` — all terminal states are empty
-        sets in the transition tables).
-        """
-        async with self._session_factory() as session:
-            crawl = await session.get(SiteCrawl, crawl_id, with_for_update=True)
-            if crawl is None or not crawl_is_active(crawl):
-                if crawl is not None:
-                    await session.rollback()
-                return
-
-            counts = await self._task_counts(session, crawl_id)
-            discover_remaining = counts["discover_non_terminal"]
-            analyze_remaining = counts["analyze_non_terminal"]
-            link_remaining = counts["link_non_terminal"]
-            analyze_total = counts["analyze_total"]
-            analyze_succeeded = counts["analyze_succeeded"]
-            analyze_cancelled = counts["analyze_cancelled"]
-            analyze_applicable = analyze_total - analyze_cancelled
-
-            # Discovery sub-state: terminalize progressively once discover
-            # tasks drain, independent of analyze/link_check work.
-            fully_failed = crawl.discovered_url_count == 0
-            discovery_partial = (
-                crawl.discovered_url_count > 0 and crawl.failed_url_count > 0
-            )
-            if discover_remaining == 0:
-                if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
-                    if fully_failed:
-                        apply_discovery_status(crawl, DISCOVERY_STATUS_FAILED)
-                    else:
-                        apply_discovery_status(crawl, DISCOVERY_STATUS_COMPLETED)
-                crawl.inventory_complete = not fully_failed
-
-            # Analysis lifecycle: move pending -> running once any analyze task
-            # exists (work has been admitted), so a later terminal transition
-            # is legal.
-            if analyze_total > 0 and crawl.analysis_status == ANALYSIS_STATUS_PENDING:
-                apply_analysis_status(crawl, ANALYSIS_STATUS_RUNNING)
-
-            all_drained = (
-                discover_remaining == 0
-                and analyze_remaining == 0
-                and link_remaining == 0
-            )
-            if not all_drained:
-                await session.commit()
-                return
-
-            # Every task of every kind is terminal: terminalize analysis + the
-            # overall crawl exactly once.
-            analysis_terminalized = False
-            if analyze_total == 0 and crawl.analysis_status == ANALYSIS_STATUS_PENDING:
-                # An empty analysis plan is a successful, terminal lifecycle,
-                # not a crawl left permanently "pending". Traverse the legal
-                # state machine and persist the corresponding empty snapshot.
-                apply_analysis_status(crawl, ANALYSIS_STATUS_RUNNING)
-            if crawl.analysis_status == ANALYSIS_STATUS_RUNNING:
-                if analyze_total > 0 and analyze_applicable == 0:
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_CANCELLED)
-                elif analyze_succeeded == analyze_applicable:
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_COMPLETED)
-                elif analyze_succeeded > 0:
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_PARTIALLY_COMPLETED)
-                else:
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_FAILED)
-                analysis_terminalized = True
-
-            if analysis_terminalized:
-                # v2 P2 (spec §5.3): the crawl_finalize-scoped rules run as a
-                # second evaluation pass here — after analysis terminalization
-                # (all link_check evidence is terminal) and BEFORE the snapshot
-                # so their issues land in the severity/category rollups.
-                await self._run_crawl_finalize_pass(session, crawl=crawl)
-                await self._persist_snapshot(session, crawl=crawl)
-
-            if crawl.status == CRAWL_STATUS_RUNNING:
-                crawl.completed_at = _utcnow()
-                if fully_failed:
-                    apply_crawl_status(crawl, CRAWL_STATUS_FAILED)
-                elif discovery_partial or (
-                    analyze_applicable > 0 and analyze_succeeded < analyze_applicable
-                ):
-                    apply_crawl_status(crawl, CRAWL_STATUS_PARTIALLY_COMPLETED)
-                else:
-                    apply_crawl_status(crawl, CRAWL_STATUS_COMPLETED)
-                record_crawl_event(
-                    session,
-                    crawl_id=crawl_id,
-                    event_type=EVENT_CRAWL_COMPLETED,
-                    message="crawl completed",
-                    payload={"status": crawl.status},
-                    count_disclosure=_count_disclosure(crawl),
-                )
-            await session.commit()
+        await self._lifecycle.reconcile(crawl_id)
 
     async def _reconcile_stalled_crawls(self) -> int:
-        """Force-reconcile active crawls that have no outstanding work left.
-
-        The backstop for the whole terminalization path. ``_reconcile_crawl_status``
-        is normally reached from a task's ``finally``, so ANY route that drains a
-        crawl's last non-terminal task without running a worker's finalize
-        (sweeper reclaim, an out-of-band status write, a process killed between
-        the queue ack and the finalize) strands the crawl in an active status
-        forever: no snapshot, no ``crawl.completed`` event, and clients polling
-        it indefinitely.
-
-        Rather than enumerate those routes, this asks the terminal question
-        directly — active crawl, zero non-terminal tasks, untouched for longer
-        than the stall threshold — and reconciles. Idempotent and safe to run
-        every loop: reconcile short-circuits on terminal crawls, and requiring
-        BOTH an empty queue and a quiet period keeps it clear of live crawls
-        that are merely between tasks.
-        """
-        threshold = site_health_settings.stalled_crawl_reconcile_seconds
-        if threshold <= 0:  # disabled
-            return 0
-        cutoff = _utcnow() - timedelta(seconds=threshold)
-        async with self._session_factory() as session:
-            outstanding = (
-                select(SiteCrawlTask.id)
-                .where(SiteCrawlTask.crawl_id == SiteCrawl.id)
-                .where(SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)))
-            )
-            stalled = list(
-                (
-                    await session.scalars(
-                        select(SiteCrawl.id)
-                        .where(SiteCrawl.status.in_(list(CRAWL_ACTIVE_STATUSES)))
-                        .where(SiteCrawl.updated_at < cutoff)
-                        .where(~outstanding.exists())
-                        .order_by(SiteCrawl.updated_at.asc())
-                        .limit(site_health_settings.stalled_crawl_reconcile_batch)
-                    )
-                ).all()
-            )
-        for crawl_id in stalled:
-            logger.warning(
-                "reconciling stalled crawl with no outstanding tasks",
-                extra={"crawl_id": str(crawl_id)},
-            )
-            await self._reconcile_crawl_status(crawl_id)
-        return len(stalled)
-
-    async def _task_counts(
-        self, session: AsyncSession, crawl_id: uuid.UUID
-    ) -> dict[str, int]:
-        """Aggregate per-kind terminal/non-terminal task counts for a crawl."""
-
-        async def _non_terminal(kind: str) -> int:
-            return int(
-                await session.scalar(
-                    select(func.count())
-                    .select_from(SiteCrawlTask)
-                    .where(SiteCrawlTask.crawl_id == crawl_id)
-                    .where(SiteCrawlTask.task_kind == kind)
-                    .where(SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)))
-                )
-                or 0
-            )
-
-        analyze_total = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteCrawlTask)
-                .where(SiteCrawlTask.crawl_id == crawl_id)
-                .where(SiteCrawlTask.task_kind == TASK_KIND_ANALYZE)
-            )
-            or 0
-        )
-        analyze_succeeded = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteCrawlTask)
-                .where(SiteCrawlTask.crawl_id == crawl_id)
-                .where(SiteCrawlTask.task_kind == TASK_KIND_ANALYZE)
-                .where(SiteCrawlTask.status == TASK_STATUS_SUCCEEDED)
-            )
-            or 0
-        )
-        analyze_cancelled = int(
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteCrawlTask)
-                .where(SiteCrawlTask.crawl_id == crawl_id)
-                .where(SiteCrawlTask.task_kind == TASK_KIND_ANALYZE)
-                .where(SiteCrawlTask.status == TASK_STATUS_CANCELLED)
-            )
-            or 0
-        )
-        return {
-            "discover_non_terminal": await _non_terminal(TASK_KIND_DISCOVER),
-            "analyze_non_terminal": await _non_terminal(TASK_KIND_ANALYZE),
-            "link_non_terminal": await _non_terminal(TASK_KIND_LINK_CHECK),
-            "analyze_total": analyze_total,
-            "analyze_succeeded": analyze_succeeded,
-            "analyze_cancelled": analyze_cancelled,
-        }
-
-    # --- v2 P2: crawl_finalize evaluation pass -----------------------------
-
-    async def _run_crawl_finalize_pass(
-        self, session: AsyncSession, *, crawl: SiteCrawl
-    ) -> None:
-        """Evaluate the crawl_finalize-scoped rules from cross-page evidence.
-
-        Runs under the crawl ``FOR UPDATE`` lock that already guarantees
-        exactly-once terminalization (spec §5.3). Writes NEW
-        ``SiteRuleEvaluation`` rows — one per (analysis, crawl_finalize rule),
-        ``ON CONFLICT DO NOTHING`` on the unique slot — plus one ``SiteIssue``
-        per fail. Never mutates existing rows (invariant 3); this writer is
-        the sole owner of crawl_finalize-scope rows (the analyze writer
-        filtered them out, so the unique slots are free). Anchors:
-
-          - ``technical.broken_internal_link`` / ``technical.hreflang_conflict``:
-            every latest-completed analysis in this crawl (their evidence is
-            per-page: link probes / hreflang alternates).
-          - ``technical.sitemap_orphan``: the crawl ROOT's latest completed
-            analysis only (a site-wide condition, like the site_root rules);
-            simply absent when the root has no completed analysis.
-
-        All URL normalization happens here via ``canonical_identity`` — the
-        pure evaluators in ``analysis/site_health/finalize.py`` only receive
-        pre-normalized, bounded inputs.
-        """
-        # Latest completed analysis per URL in this crawl (the same ranking
-        # rule the snapshot aggregator uses, minus its active-membership join:
-        # finalize evidence attaches to the URL's own latest analysis).
-        ranked = (
-            select(
-                SitePageAnalysis.id.label("id"),
-                SitePageAnalysis.site_url_id.label("site_url_id"),
-                SitePageAnalysis.artifact_id.label("artifact_id"),
-                func.row_number()
-                .over(
-                    partition_by=SitePageAnalysis.site_url_id,
-                    order_by=(
-                        SitePageAnalysis.created_at.desc(),
-                        SitePageAnalysis.id.desc(),
-                    ),
-                )
-                .label("latest_rank"),
-            )
-            .where(
-                SitePageAnalysis.crawl_id == crawl.id,
-                SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
-            )
-            .subquery()
-        )
-        rows = (
-            await session.execute(
-                select(ranked.c.id, ranked.c.site_url_id, ranked.c.artifact_id).where(
-                    ranked.c.latest_rank == 1
-                )
-            )
-        ).all()
-        if not rows:
-            return
-        analysis_ids = [row.id for row in rows]
-        artifact_by_analysis = {row.id: row.artifact_id for row in rows}
-        site_url_by_analysis = {row.id: row.site_url_id for row in rows}
-
-        evaluations: list[tuple[uuid.UUID, RuleEvaluation]] = []
-
-        # --- broken_internal_link: per analysis, from its link probes. -----
-        # Reachability rides the evidence_fingerprint prefix written by
-        # ``_write_link_reference`` ("reachable:" / "unreachable:"); ALL link
-        # kinds count as internal targets. ``policy_skipped:`` rows (a
-        # robots-denied target that was never probed) are excluded: no
-        # reachability was observed, so they are neither checked nor broken.
-        link_rows = (
-            await session.execute(
-                select(
-                    SiteLinkReference.source_analysis_id,
-                    SiteLinkReference.target_url,
-                    SiteLinkReference.evidence_fingerprint,
-                ).where(
-                    SiteLinkReference.source_analysis_id.in_(analysis_ids),
-                    SiteLinkReference.is_internal.is_(True),
-                )
-            )
-        ).all()
-        checked: dict[uuid.UUID, int] = {}
-        broken: dict[uuid.UUID, list[str]] = {}
-        for source_analysis_id, target_url, fingerprint in link_rows:
-            fp = str(fingerprint or "")
-            if fp.startswith("policy_skipped:"):
-                continue
-            checked[source_analysis_id] = checked.get(source_analysis_id, 0) + 1
-            if fp.startswith("unreachable:"):
-                bucket = broken.setdefault(source_analysis_id, [])
-                if target_url not in bucket:
-                    bucket.append(target_url)
-        for analysis_id in analysis_ids:
-            evaluations.append(
-                (
-                    analysis_id,
-                    evaluate_broken_internal_link(
-                        checked_count=checked.get(analysis_id, 0),
-                        broken_urls=broken.get(analysis_id, []),
-                    ),
-                )
-            )
-
-        # --- hreflang_conflict: per analysis, from artifact facts. ----------
-        artifacts = (
-            await session.execute(
-                select(
-                    SiteFetchArtifact.id,
-                    SiteFetchArtifact.final_url,
-                    SiteFetchArtifact.normalized_facts,
-                )
-                .where(SiteFetchArtifact.id.in_(artifact_by_analysis.values()))
-                .order_by(SiteFetchArtifact.id)
-            )
-        ).all()
-        analysis_by_artifact = {row.artifact_id: row.id for row in rows}
-        # canonical identity of each analyzed page's final URL -> alternates.
-        alternates_by_page: dict[str, list[dict]] = {}
-        canonical_by_artifact: dict[uuid.UUID, str] = {}
-        for artifact_id, final_url, facts in artifacts:
-            canonical = _canonical_or_empty(str(final_url or ""))
-            if not canonical:
-                continue
-            canonical_by_artifact[artifact_id] = canonical
-            alternates_by_page.setdefault(
-                canonical,
-                list((facts or {}).get("hreflang_alternates") or []),
-            )
-        for artifact_id, _final_url, facts in artifacts:
-            analysis_id = analysis_by_artifact[artifact_id]
-            alternates = list((facts or {}).get("hreflang_alternates") or [])
-            source_canonical = canonical_by_artifact.get(artifact_id)
-            if not alternates or not source_canonical:
-                evaluations.append(
-                    (
-                        analysis_id,
-                        evaluate_hreflang_conflict(
-                            alternate_count=0,
-                            checked_count=0,
-                            unchecked_count=0,
-                            missing_return_tags=[],
-                        ),
-                    )
-                )
-                continue
-            checked_count = 0
-            unchecked_count = 0
-            missing: list[str] = []
-            for alternate in alternates:
-                target_url = str(alternate.get("url") or "")
-                target_canonical = _canonical_or_empty(target_url)
-                if not target_canonical:
-                    unchecked_count += 1
-                    continue
-                # A self-referencing alternate is always fine.
-                if target_canonical == source_canonical:
-                    continue
-                target_alternates = alternates_by_page.get(target_canonical)
-                if target_alternates is None:
-                    # The target was not analyzed in this crawl: it cannot be
-                    # verified, so it neither passes nor fails (spec §5.3).
-                    unchecked_count += 1
-                    continue
-                checked_count += 1
-                return_tag_found = any(
-                    _canonical_or_empty(str(back.get("url") or "")) == source_canonical
-                    for back in target_alternates
-                )
-                if not return_tag_found and target_url not in missing:
-                    missing.append(target_url)
-            evaluations.append(
-                (
-                    analysis_id,
-                    evaluate_hreflang_conflict(
-                        alternate_count=len(alternates),
-                        checked_count=checked_count,
-                        unchecked_count=unchecked_count,
-                        missing_return_tags=missing,
-                    ),
-                )
-            )
-
-        # --- sitemap_orphan: crawl-wide, anchored on the root analysis. -----
-        root_canonical, root_hash = _crawl_root_identity(crawl)
-        if root_hash:
-            site_url_rows = (
-                await session.execute(
-                    select(SiteUrl.id, SiteUrl.url_hash).where(
-                        SiteUrl.id.in_(site_url_by_analysis.values())
-                    )
-                )
-            ).all()
-            # Built by index rather than dict(rows): a SQLAlchemy Row is not a
-            # 2-tuple to the type checker, so dict() infers dict[Never, Never].
-            hash_by_site_url: dict[uuid.UUID, str] = {
-                row[0]: row[1] for row in site_url_rows
-            }
-            root_analysis_id = next(
-                (
-                    row.id
-                    for row in rows
-                    if hash_by_site_url.get(row.site_url_id) == root_hash
-                ),
-                None,
-            )
-            if root_analysis_id is not None:
-                sitemap_rows = (
-                    await session.execute(
-                        select(
-                            SiteUrlObservation.site_url_id,
-                            SiteUrlObservation.observed_url,
-                        ).where(
-                            SiteUrlObservation.crawl_id == crawl.id,
-                            SiteUrlObservation.source_kind
-                            == OBSERVATION_SOURCE_SITEMAP,
-                        )
-                    )
-                ).all()
-                # Internal anchor targets observed anywhere in this crawl: a
-                # sitemap URL that no analyzed page links to is an orphan.
-                anchor_rows = (
-                    await session.execute(
-                        select(SiteLinkReference.target_url).where(
-                            SiteLinkReference.source_analysis_id.in_(analysis_ids),
-                            SiteLinkReference.is_internal.is_(True),
-                            SiteLinkReference.kind == LINK_KIND_ANCHOR,
-                        )
-                    )
-                ).all()
-                linked_targets: set[str] = set()
-                for (target_url,) in anchor_rows:
-                    target_canonical = _canonical_or_empty(str(target_url))
-                    if target_canonical:
-                        linked_targets.add(target_canonical)
-                orphans: list[str] = []
-                for _site_url_id, observed_url in sitemap_rows:
-                    observed = str(observed_url or "")
-                    observed_canonical = _canonical_or_empty(observed)
-                    if not observed_canonical:
-                        continue
-                    # The crawl root is definitionally reachable (it seeds the
-                    # crawl), never an orphan.
-                    if observed_canonical == root_canonical:
-                        continue
-                    if observed_canonical not in linked_targets:
-                        if observed not in orphans:
-                            orphans.append(observed)
-                evaluations.append(
-                    (
-                        root_analysis_id,
-                        evaluate_sitemap_orphan(
-                            sitemap_url_count=len(sitemap_rows),
-                            orphan_urls=orphans,
-                        ),
-                    )
-                )
-
-        # Persist: new rows only, conflict-safe on the unique
-        # (analysis_id, rule_id) slot; one issue per fail.
-        for analysis_id, ev in evaluations:
-            artifact_id = artifact_by_analysis[analysis_id]
-            inserted_id = await session.scalar(
-                pg_insert(SiteRuleEvaluation)
-                .values(
-                    workspace_id=crawl.workspace_id,
-                    analysis_id=analysis_id,
-                    source_artifact_id=artifact_id,
-                    rule_id=ev.rule_id,
-                    dimension=ev.dimension,
-                    category=ev.category,
-                    severity=ev.severity,
-                    weight=ev.weight,
-                    outcome=ev.outcome,
-                    evidence=ev.evidence,
-                    supporting_artifact_ids=[artifact_id],
-                    extractor_version=crawl.extractor_version or EXTRACTOR_VERSION,
-                    analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
-                    rule_version=ev.rule_version,
-                )
-                .on_conflict_do_nothing(index_elements=["analysis_id", "rule_id"])
-                .returning(SiteRuleEvaluation.id)
-            )
-            if inserted_id is None:
-                continue
-            if ev.outcome == RULE_OUTCOME_FAIL:
-                session.add(
-                    SiteIssue(
-                        workspace_id=crawl.workspace_id,
-                        project_id=crawl.project_id,
-                        crawl_id=crawl.id,
-                        site_url_id=site_url_by_analysis[analysis_id],
-                        analysis_id=analysis_id,
-                        evaluation_id=inserted_id,
-                        source_artifact_id=artifact_id,
-                        rule_id=ev.rule_id,
-                        dimension=ev.dimension,
-                        category=ev.category,
-                        severity=ev.severity,
-                        evidence=ev.evidence,
-                        remediation=ev.remediation,
-                        analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
-                        rule_version=ev.rule_version,
-                    )
-                )
-
-    async def _persist_snapshot(
-        self, session: AsyncSession, *, crawl: SiteCrawl
-    ) -> None:
-        """Compute + persist the crawl aggregate snapshot (unique per crawl).
-
-        Delegates to the canonical ``persist_crawl_snapshot`` domain helper so
-        the worker and ``service.cancel_crawl`` share ONE aggregation algorithm
-        (no duplicate scoring/rollup logic). ``persist_empty=True`` because a
-        clean terminalization (including an empty analysis plan) must always
-        write a canonical snapshot — an empty/null-score one when nothing was
-        aggregated — unlike a cancel, which leaves ``score_summary`` null.
-        """
-        await persist_crawl_snapshot(session, crawl=crawl, persist_empty=True)
+        return await self._lifecycle.reconcile_stalled()
 
 
 def main() -> None:  # pragma: no cover - process entrypoint

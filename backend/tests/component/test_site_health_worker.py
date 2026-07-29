@@ -2243,7 +2243,7 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
         worker = _worker(session_factory, {}, owner="snapshot-latest")
-        await worker._persist_snapshot(session, crawl=crawl)
+        await worker._lifecycle._persist_snapshot(session, crawl=crawl)
         latest_artifact_id = artifacts[1].id
         await session.commit()
 
