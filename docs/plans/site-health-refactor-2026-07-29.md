@@ -24,14 +24,19 @@ A note on LOC figures, since two counts appear in this document: the audit repor
 
 ## 1. Priority summary
 
-| Phase | Theme | Effort | Risk | Why this order |
+| Phase | Theme | Effort | Risk | Status |
 | :--- | :--- | :---: | :---: | :--- |
-| **P0** | Backend crawl-lifecycle correctness | S | Low | Fixes the actual flakiness. Small, surgical, independently shippable. |
-| **P1** | Frontend polling & state-derivation | S–M | Low | Removes the UI half of the flakiness + a 5× request amplification. |
-| **P2** | `site_health_worker.py` decomposition | L | Med | Makes P0 invariants enforceable instead of comment-documented. |
-| **P3** | `domain/site_health/service.py` decomposition | M | Low | Highest-duplication, highest-CC read path. |
-| **P4** | Dead code + cross-cutting duplication sweep | S | Low | Pure cleanup; can run in parallel with anything. |
-| **P5** | Test suite decomposition | M | Low | Do last — P2/P3 will rewrite what these tests touch. |
+| **P0** | Backend crawl-lifecycle correctness | S | Low | **Done** — stall bug fixed, regression-pinned |
+| **P1** | Frontend polling & state-derivation | S–M | Low | **Done** — P1.1/1.3/1.4/1.5 + poll consolidation |
+| **P2** | `site_health_worker.py` decomposition | L | Med | **Done** — 3,099 → 751 LOC across 10 modules |
+| **P3** | `domain/site_health/service.py` dedup | M | Low | **Partial** — shared keyset builder landed; the file/module split (P3.2/P3.3) is still open |
+| **P4** | Dead code + duplication sweep | S | Low | **Done** — 2 of 5 findings were false positives (see §6) |
+| **P5** | Test suite decomposition | M | Low | **Done except P5.3**, which is declined with reasons (§7) |
+
+Items still open: **P1.2/P1.6** (single-subscription polling, `'resolving'` phase to retire the
+`crawlStarting` workaround) and **P3.2/P3.3** (splitting `service.py` into
+queries/presentation/lifecycle). Both are behaviour-neutral cleanups; neither blocks the
+flakiness fix.
 
 **Ship P0 and P1 first and independently.** They are the user-visible fix.
 
@@ -218,9 +223,9 @@ a cron is attached. Not dead code; an un-scheduled feature.
 
 `test_site_health_worker.py` is 3,327 LOC at MI 0.0, with single tests at CC=40 and CC=28. A 40-branch test is not a specification — it is a second system to debug, and it is likely a contributor to *test* flakiness alongside the product flakiness.
 
-- **P5.1** — Split by phase, mirroring the P2 module layout (`test_discover.py`, `test_analyze.py`, `test_link_check.py`, `test_lifecycle.py`).
-- **P5.2** — Decompose the CC=40 and CC=28 end-to-end tests into a shared fixture builder plus focused assertions. The audit's duplicated blocks at [:1746-1771 ≡ :1916-1941](../../backend/tests/component/test_site_health_worker.py#L1746-L1771) are the obvious seed for that builder.
-- **P5.3** — Do the same for the CC=79 and CC=72 tests in `test_product_analysis_worker.py` and `test_integration_ga4.py`.
+- **P5.1 — DONE.** Split into `test_site_health_{discover,analyze,link_check,terminalization,loop}.py`, mirroring the P2 module layout. (`terminalization`, not `lifecycle`: that filename already holds the P0 stall regressions.)
+- **P5.2 — DONE.** All shared setup — fake resolver, stub transports, HTML fixtures, crawl seeders — moved to `site_health_worker_helpers.py`, imported explicitly (no star imports) by each phase file.
+- **P5.3 — NOT DONE, deliberately.** The CC=79 / CC=72 tests in `test_product_analysis_worker.py` (169 lines) and `test_integration_ga4.py` (205 lines) are single end-to-end scenarios whose assertions run against one accumulated state. The suite empties every table between tests ([conftest.py](../../backend/tests/conftest.py#L45-L66)), so a shared seeded fixture **cannot** span split tests — each fragment would re-run the full seed plus a worker pass. Splitting one such test five ways multiplies its setup cost fivefold and gains no coverage; high CC is the honest shape of an e2e test that asserts a whole pipeline. Revisit only if these tests become a debugging problem in practice, and then by extracting assertion helpers rather than splitting the scenario.
 
 **Structural brake (recommended):** nothing in CI currently measures module size or function complexity, so the two MI-0.0 monoliths reached that state without any build ever objecting. Add a check on `app/` — module LOC and per-function complexity — baselined at today's values as a downward ratchet, so the debt P2/P3 pays down cannot quietly return.
 

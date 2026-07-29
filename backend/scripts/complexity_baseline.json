@@ -1035,6 +1035,10 @@
     "loc": 16,
     "max_cc": 0
   },
+  "app/workers/site_health/helpers.py": {
+    "loc": 136,
+    "max_cc": 3
+  },
   "app/workers/site_health/host_gate.py": {
     "loc": 138,
     "max_cc": 6
@@ -1043,8 +1047,36 @@
     "loc": 671,
     "max_cc": 50
   },
-  "app/workers/site_health_worker.py": {
-    "loc": 2543,
+  "app/workers/site_health/outcomes.py": {
+    "loc": 77,
+    "max_cc": 0
+  },
+  "app/workers/site_health/phases/__init__.py": {
+    "loc": 22,
+    "max_cc": 0
+  },
+  "app/workers/site_health/phases/analyze.py": {
+    "loc": 610,
     "max_cc": 24
+  },
+  "app/workers/site_health/phases/discover.py": {
+    "loc": 828,
+    "max_cc": 19
+  },
+  "app/workers/site_health/phases/link_check.py": {
+    "loc": 306,
+    "max_cc": 12
+  },
+  "app/workers/site_health/phases/support.py": {
+    "loc": 136,
+    "max_cc": 1
+  },
+  "app/workers/site_health/urls.py": {
+    "loc": 34,
+    "max_cc": 9
+  },
+  "app/workers/site_health_worker.py": {
+    "loc": 751,
+    "max_cc": 16
   }
 }
