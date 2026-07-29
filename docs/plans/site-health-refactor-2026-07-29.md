@@ -18,7 +18,7 @@ Two audit findings were re-verified and **corrected**:
 | §4.B.5–7 — 5 config validators may be missing `@model_validator` decorators (Open Question 3) | **False positive.** All are correctly decorated (`site_health.py:1796,1815`, `analytics.py:335`, `suggestions.py:82,126`, `workspaces/schemas.py:41`). No work needed. |
 | §5.4 / Open Question 5 — duplicated `normalize_citation_url` | **Misnamed.** No such function exists. The real duplication is a byte-identical `normalize_domain` in `app/analysis/normalization.py:53` and `app/connectors/answer_engines/normalization.py:54`. Still worth consolidating. |
 
-Also note the monoliths have **grown since the audit ran**: `site_health_worker.py` is now 3,099 LOC (audit: 2,899) and `domain/site_health/service.py` is 2,005 LOC (audit: 1,632). The debt is actively accruing, which argues for putting a structural brake in place (§7).
+A note on LOC figures, since two counts appear in this document: the audit reports **radon SLOC** (blank lines excluded), while `wc -l` counts every line. For `site_health_worker.py` that is 2,899 vs 3,099 — the same file, and 3,099 − 200 blanks = 2,899 exactly. Where this plan quotes `wc -l` it says so. The two are not comparable and neither indicates growth.
 
 ---
 
@@ -222,7 +222,7 @@ a cron is attached. Not dead code; an un-scheduled feature.
 - **P5.2** — Decompose the CC=40 and CC=28 end-to-end tests into a shared fixture builder plus focused assertions. The audit's duplicated blocks at [:1746-1771 ≡ :1916-1941](../../backend/tests/component/test_site_health_worker.py#L1746-L1771) are the obvious seed for that builder.
 - **P5.3** — Do the same for the CC=79 and CC=72 tests in `test_product_analysis_worker.py` and `test_integration_ga4.py`.
 
-**Structural brake (recommended):** the two monoliths grew ~15% *during the audit window*. Add a CI check — Radon MI floor and a per-function CC ceiling on `app/` — starting at today's values as a ratchet, so this debt cannot silently re-accumulate while P2/P3 land.
+**Structural brake (recommended):** nothing in CI currently measures module size or function complexity, so the two MI-0.0 monoliths reached that state without any build ever objecting. Add a check on `app/` — module LOC and per-function complexity — baselined at today's values as a downward ratchet, so the debt P2/P3 pays down cannot quietly return.
 
 ---
 

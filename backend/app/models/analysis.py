@@ -43,7 +43,43 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class ResponseAnalysis(Base):
+class DerivedRowProvenanceMixin:
+    """The provenance columns every derived analysis row must carry.
+
+    Invariant 4: a derived row is invalid without a traceable source artifact
+    AND the analyzer version that produced it. This block was repeated
+    verbatim across ``ResponseAnalysis``, ``CompetitorMention`` and
+    ``Citation`` — stating it once means a new derived model cannot quietly
+    omit half of it.
+
+    ``artifact_id`` is nullable with ``SET NULL`` so pruning a raw artifact
+    keeps the derived row rather than cascading it away. The row's PARENT
+    (``task_id`` on the per-execution analysis, ``analysis_id`` on its child
+    rows) stays declared per-model — that is what actually differs.
+    """
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    audit_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
+        index=True,
+    )
+    artifact_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("raw_response_artifacts.id", ondelete=ON_DELETE_SET_NULL),
+        nullable=True,
+    )
+    analyzer_version: Mapped[str] = mapped_column(String(32))
+
+
+class ResponseAnalysis(DerivedRowProvenanceMixin, Base):
     """Deterministic per-execution analysis of one raw response (invariant 4).
 
     Computed from the immutable ``RawResponseArtifact`` (referenced by
@@ -63,32 +99,11 @@ class ResponseAnalysis(Base):
         UniqueConstraint("task_id", name="uq_response_analysis_task"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-        index=True,
-    )
-    audit_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
-        index=True,
-    )
     task_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("audit_tasks.id", ondelete="CASCADE"),
         index=True,
     )
-    # Provenance: the immutable raw artifact this analysis was computed from
-    # (invariant 4). SET NULL keeps the analysis if the artifact is ever pruned.
-    artifact_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("raw_response_artifacts.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    analyzer_version: Mapped[str] = mapped_column(String(32))
     scoring_rule_version: Mapped[str] = mapped_column(String(32))
 
     # Denormalized provenance triple + slot identity (invariant 10) for reports.
@@ -145,7 +160,7 @@ class ResponseAnalysis(Base):
     )
 
 
-class BrandMention(Base):
+class BrandMention(DerivedRowProvenanceMixin, Base):
     """One recorded brand mention in a response (invariant 4).
 
     Emitted when the deterministic scorer matches a brand alias in the answer
@@ -155,30 +170,11 @@ class BrandMention(Base):
 
     __tablename__ = "brand_mentions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-        index=True,
-    )
-    audit_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
-        index=True,
-    )
     analysis_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("response_analyses.id", ondelete="CASCADE"),
         index=True,
     )
-    artifact_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("raw_response_artifacts.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    analyzer_version: Mapped[str] = mapped_column(String(32))
     brand_name: Mapped[str] = mapped_column(String(255), default="")
     first_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -190,35 +186,16 @@ class BrandMention(Base):
     )
 
 
-class CompetitorMention(Base):
+class CompetitorMention(DerivedRowProvenanceMixin, Base):
     """One recorded competitor mention in a response (invariant 4)."""
 
     __tablename__ = "competitor_mentions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-        index=True,
-    )
-    audit_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
-        index=True,
-    )
     analysis_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("response_analyses.id", ondelete="CASCADE"),
         index=True,
     )
-    artifact_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("raw_response_artifacts.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    analyzer_version: Mapped[str] = mapped_column(String(32))
     competitor_name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
@@ -229,7 +206,7 @@ class CompetitorMention(Base):
     )
 
 
-class Citation(Base):
+class Citation(DerivedRowProvenanceMixin, Base):
     """One classified source citation from a response (invariant 4).
 
     Classification is deterministic (owned / unintended / competitor /
@@ -239,30 +216,11 @@ class Citation(Base):
 
     __tablename__ = "citations"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-        index=True,
-    )
-    audit_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
-        index=True,
-    )
     analysis_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("response_analyses.id", ondelete="CASCADE"),
         index=True,
     )
-    artifact_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("raw_response_artifacts.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    analyzer_version: Mapped[str] = mapped_column(String(32))
     ordinal: Mapped[int] = mapped_column(Integer, default=0)
     url: Mapped[str] = mapped_column(Text, default="")
     title: Mapped[str] = mapped_column(Text, default="")

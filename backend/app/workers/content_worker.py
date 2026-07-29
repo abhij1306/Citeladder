@@ -51,6 +51,7 @@ from app.domain.content.message_builder import build_messages
 from app.domain.content.website_context import WebsiteContext
 from app.models.content import ContentGeneration, ContentGenerationAttempt
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.drain import DrainableWorkerMixin
 
 logger = logging.getLogger("app.workers.content_worker")
 
@@ -78,7 +79,7 @@ class AttemptOutcome:
         return self.response is not None
 
 
-class ContentWorker:
+class ContentWorker(DrainableWorkerMixin):
     """Claim/lease loop for ``ContentGeneration`` rows.
 
     ``transport`` is the test seam: an ``httpx.MockTransport`` makes the real
@@ -106,16 +107,6 @@ class ContentWorker:
         for row in rows:
             await self._execute(row)
         return len(rows)
-
-    async def run_until_idle(self, *, max_batches: int = 1000) -> int:
-        """Drain the queue until a claim returns nothing (test/one-shot)."""
-        total = 0
-        for _ in range(max_batches):
-            ran = await self.run_once()
-            if ran == 0:
-                break
-            total += ran
-        return total
 
     async def run_forever(self) -> None:  # pragma: no cover - process loop
         logger.info("content worker started", extra={"owner": self.owner})

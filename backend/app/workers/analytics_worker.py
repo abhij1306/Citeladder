@@ -65,6 +65,7 @@ from app.domain.commerce.orders import run_order_retention_sweep
 from app.domain.traffic.service import refresh_traffic_snapshot
 from app.models.analytics import AnalyticsTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.drain import DrainableWorkerMixin
 
 logger = logging.getLogger("app.workers.analytics_worker")
 
@@ -99,7 +100,7 @@ EXECUTORS: dict[str, AnalyticsExecutor] = {
 }
 
 
-class AnalyticsWorker:
+class AnalyticsWorker(DrainableWorkerMixin):
     """Claim/lease loop for ``AnalyticsTask`` rows.
 
     ``executors`` is the test seam: a dispatch-table override so tests drive
@@ -128,16 +129,6 @@ class AnalyticsWorker:
         for row in rows:
             await self._execute(row)
         return len(rows)
-
-    async def run_until_idle(self, *, max_batches: int = 1000) -> int:
-        """Drain the queue until a claim returns nothing (test/one-shot)."""
-        total = 0
-        for _ in range(max_batches):
-            ran = await self.run_once()
-            if ran == 0:
-                break
-            total += ran
-        return total
 
     async def run_forever(self) -> None:  # pragma: no cover - process loop
         logger.info("analytics worker started", extra={"owner": self.owner})

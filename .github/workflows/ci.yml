@@ -45,6 +45,12 @@ jobs:
         run: uv sync --frozen --extra dev
       - name: Ruff
         run: uv run ruff check .
+      # Downward ratchet on module size / function complexity. The July 2026
+      # audit found two modules at MI 0.0; they got there because nothing in CI
+      # measured either. Fails only on REGRESSION against the checked-in
+      # baseline, so improving a number never breaks the build.
+      - name: Complexity ratchet
+        run: uv run python -m scripts.check_complexity
       - name: Pytest
         run: uv run pytest -q
 

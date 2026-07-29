@@ -159,6 +159,7 @@ from app.models.site_health import (
     WorkspaceSiteHealthEntitlement,
 )
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.drain import DrainableWorkerMixin
 from app.workers.site_health import CrawlLifecycle, HostGate, crawl_root_identity
 
 logger = logging.getLogger("app.workers.site_health_worker")
@@ -365,7 +366,7 @@ def _canonical_or_empty(url: str) -> str:
         return ""
 
 
-class SiteHealthWorker:
+class SiteHealthWorker(DrainableWorkerMixin):
     """Owns a claim/lease loop over ``SiteCrawlTask`` discover rows.
 
     Claims a bounded batch from PostgreSQL and executes it concurrently, each
@@ -501,16 +502,6 @@ class SiteHealthWorker:
         """
         cached = self._robots_cache.get(_authority_key(url))
         return cached[0].crawl_delay() if cached is not None else 0.0
-
-    async def run_until_idle(self, *, max_batches: int = 1000) -> int:
-        """Drain the discover queue until a claim returns nothing (test mode)."""
-        total = 0
-        for _ in range(max_batches):
-            ran = await self.run_once()
-            if ran == 0:
-                break
-            total += ran
-        return total
 
     async def run_forever(self) -> None:  # pragma: no cover - long-running loop
         logger.info("site health worker started", extra={"owner": self.owner})

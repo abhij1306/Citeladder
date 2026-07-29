@@ -90,6 +90,7 @@ from app.models.audit import (
 )
 from app.models.provider import ProviderConnection
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.drain import DrainableWorkerMixin
 
 logger = logging.getLogger("app.workers.audit_worker")
 
@@ -310,7 +311,7 @@ def _warn_if_provider_pacing_unbounded() -> None:
     )
 
 
-class AuditWorker:
+class AuditWorker(DrainableWorkerMixin):
     """Owns a claim/lease loop against ``PostgresTaskQueue``.
 
     A single worker claims up to ``worker_concurrency`` tasks per poll and runs
@@ -462,11 +463,12 @@ class AuditWorker:
         return completed
 
     async def run_until_idle(self, *, max_batches: int = 1000) -> int:
-        """Drain the queue until a claim returns nothing (test/one-shot mode).
+        """Drain via the PIPELINED pump, overriding the shared mixin loop.
 
-        ``max_batches`` is retained for callers that pass it; the pipelined pump
-        drains in one pass, so it now only bounds the degenerate case where new
-        work keeps arriving faster than the pool empties.
+        Same contract as ``DrainableWorkerMixin.run_until_idle`` (drain until a
+        pass does no work, bounded by ``max_batches``), but driven by
+        ``run_pipelined`` — this worker's pump drains in one pass rather than
+        one claim batch at a time.
         """
         total = 0
         for _ in range(max(1, max_batches)):

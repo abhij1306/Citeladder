@@ -105,6 +105,7 @@ from app.models.integrations import (
     IntegrationSyncRun,
 )
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.drain import DrainableWorkerMixin
 
 logger = logging.getLogger("app.workers.integration_worker")
 
@@ -270,7 +271,7 @@ def _provider_datasets(
     return [template for template in templates if template.dataset != omitted]
 
 
-class IntegrationWorker:
+class IntegrationWorker(DrainableWorkerMixin):
     """Claim/lease loop for ``IntegrationSyncRun`` rows.
 
     ``transport`` is the test seam: an ``httpx.MockTransport`` (or any
@@ -299,16 +300,6 @@ class IntegrationWorker:
         for row in rows:
             await self._execute(row)
         return len(rows)
-
-    async def run_until_idle(self, *, max_batches: int = 1000) -> int:
-        """Drain the queue until a claim returns nothing (test/one-shot)."""
-        total = 0
-        for _ in range(max_batches):
-            ran = await self.run_once()
-            if ran == 0:
-                break
-            total += ran
-        return total
 
     async def run_forever(self) -> None:  # pragma: no cover - process loop
         logger.info("integration worker started", extra={"owner": self.owner})

@@ -1,0 +1,1050 @@
+{
+  "app/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/analysis/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/analysis/csv_cells.py": {
+    "loc": 73,
+    "max_cc": 4
+  },
+  "app/analysis/exports.py": {
+    "loc": 338,
+    "max_cc": 9
+  },
+  "app/analysis/normalization.py": {
+    "loc": 95,
+    "max_cc": 7
+  },
+  "app/analysis/opportunities/__init__.py": {
+    "loc": 6,
+    "max_cc": 0
+  },
+  "app/analysis/opportunities/detectors.py": {
+    "loc": 316,
+    "max_cc": 14
+  },
+  "app/analysis/opportunities/exports.py": {
+    "loc": 68,
+    "max_cc": 3
+  },
+  "app/analysis/opportunities/scoring.py": {
+    "loc": 61,
+    "max_cc": 2
+  },
+  "app/analysis/product_scoring.py": {
+    "loc": 1033,
+    "max_cc": 34
+  },
+  "app/analysis/product_service.py": {
+    "loc": 554,
+    "max_cc": 24
+  },
+  "app/analysis/scoring.py": {
+    "loc": 689,
+    "max_cc": 18
+  },
+  "app/analysis/service.py": {
+    "loc": 374,
+    "max_cc": 17
+  },
+  "app/analysis/site_health/__init__.py": {
+    "loc": 17,
+    "max_cc": 0
+  },
+  "app/analysis/site_health/exports.py": {
+    "loc": 116,
+    "max_cc": 3
+  },
+  "app/analysis/site_health/finalize.py": {
+    "loc": 155,
+    "max_cc": 4
+  },
+  "app/analysis/site_health/page_types.py": {
+    "loc": 256,
+    "max_cc": 19
+  },
+  "app/analysis/site_health/parser.py": {
+    "loc": 843,
+    "max_cc": 28
+  },
+  "app/analysis/site_health/rules.py": {
+    "loc": 716,
+    "max_cc": 18
+  },
+  "app/analysis/site_health/scoring.py": {
+    "loc": 297,
+    "max_cc": 13
+  },
+  "app/analysis/site_health/structured_data.py": {
+    "loc": 274,
+    "max_cc": 9
+  },
+  "app/api/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/api/analytics.py": {
+    "loc": 168,
+    "max_cc": 3
+  },
+  "app/api/audits.py": {
+    "loc": 319,
+    "max_cc": 7
+  },
+  "app/api/auth.py": {
+    "loc": 168,
+    "max_cc": 3
+  },
+  "app/api/billing.py": {
+    "loc": 174,
+    "max_cc": 5
+  },
+  "app/api/brand_suggestions.py": {
+    "loc": 236,
+    "max_cc": 8
+  },
+  "app/api/commerce.py": {
+    "loc": 206,
+    "max_cc": 3
+  },
+  "app/api/content.py": {
+    "loc": 223,
+    "max_cc": 6
+  },
+  "app/api/deps.py": {
+    "loc": 167,
+    "max_cc": 5
+  },
+  "app/api/executions.py": {
+    "loc": 45,
+    "max_cc": 2
+  },
+  "app/api/integrations.py": {
+    "loc": 421,
+    "max_cc": 8
+  },
+  "app/api/oauth.py": {
+    "loc": 104,
+    "max_cc": 2
+  },
+  "app/api/opportunities.py": {
+    "loc": 273,
+    "max_cc": 4
+  },
+  "app/api/products.py": {
+    "loc": 457,
+    "max_cc": 5
+  },
+  "app/api/projects.py": {
+    "loc": 594,
+    "max_cc": 5
+  },
+  "app/api/prompts.py": {
+    "loc": 519,
+    "max_cc": 11
+  },
+  "app/api/provider_connections.py": {
+    "loc": 188,
+    "max_cc": 4
+  },
+  "app/api/request_bodies.py": {
+    "loc": 61,
+    "max_cc": 4
+  },
+  "app/api/site_health.py": {
+    "loc": 866,
+    "max_cc": 10
+  },
+  "app/api/traffic.py": {
+    "loc": 252,
+    "max_cc": 4
+  },
+  "app/api/usage_limits.py": {
+    "loc": 35,
+    "max_cc": 2
+  },
+  "app/api/workspaces.py": {
+    "loc": 79,
+    "max_cc": 2
+  },
+  "app/connectors/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/connectors/agent/__init__.py": {
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/connectors/agent/client.py": {
+    "loc": 132,
+    "max_cc": 8
+  },
+  "app/connectors/answer_engines/__init__.py": {
+    "loc": 38,
+    "max_cc": 0
+  },
+  "app/connectors/answer_engines/anthropic.py": {
+    "loc": 199,
+    "max_cc": 11
+  },
+  "app/connectors/answer_engines/anthropic_parser.py": {
+    "loc": 134,
+    "max_cc": 16
+  },
+  "app/connectors/answer_engines/contracts.py": {
+    "loc": 59,
+    "max_cc": 0
+  },
+  "app/connectors/answer_engines/errors.py": {
+    "loc": 121,
+    "max_cc": 7
+  },
+  "app/connectors/answer_engines/factory.py": {
+    "loc": 60,
+    "max_cc": 5
+  },
+  "app/connectors/answer_engines/gemini.py": {
+    "loc": 177,
+    "max_cc": 17
+  },
+  "app/connectors/answer_engines/gemini_parser.py": {
+    "loc": 237,
+    "max_cc": 20
+  },
+  "app/connectors/answer_engines/http_client.py": {
+    "loc": 84,
+    "max_cc": 4
+  },
+  "app/connectors/answer_engines/normalization.py": {
+    "loc": 61,
+    "max_cc": 5
+  },
+  "app/connectors/answer_engines/openai.py": {
+    "loc": 175,
+    "max_cc": 6
+  },
+  "app/connectors/answer_engines/openai_parser.py": {
+    "loc": 308,
+    "max_cc": 16
+  },
+  "app/connectors/billing/__init__.py": {
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/connectors/billing/base.py": {
+    "loc": 49,
+    "max_cc": 1
+  },
+  "app/connectors/billing/factory.py": {
+    "loc": 9,
+    "max_cc": 1
+  },
+  "app/connectors/billing/http_client.py": {
+    "loc": 37,
+    "max_cc": 3
+  },
+  "app/connectors/billing/razorpay.py": {
+    "loc": 186,
+    "max_cc": 10
+  },
+  "app/connectors/discovery_models/__init__.py": {
+    "loc": 5,
+    "max_cc": 0
+  },
+  "app/connectors/discovery_models/contracts.py": {
+    "loc": 46,
+    "max_cc": 1
+  },
+  "app/connectors/discovery_models/factory.py": {
+    "loc": 41,
+    "max_cc": 2
+  },
+  "app/connectors/discovery_models/mistral.py": {
+    "loc": 155,
+    "max_cc": 7
+  },
+  "app/connectors/integrations/__init__.py": {
+    "loc": 12,
+    "max_cc": 0
+  },
+  "app/connectors/integrations/_http.py": {
+    "loc": 173,
+    "max_cc": 4
+  },
+  "app/connectors/integrations/bing.py": {
+    "loc": 307,
+    "max_cc": 8
+  },
+  "app/connectors/integrations/ga4.py": {
+    "loc": 362,
+    "max_cc": 23
+  },
+  "app/connectors/integrations/gsc.py": {
+    "loc": 178,
+    "max_cc": 10
+  },
+  "app/connectors/integrations/oauth.py": {
+    "loc": 407,
+    "max_cc": 8
+  },
+  "app/connectors/integrations/shopify.py": {
+    "loc": 547,
+    "max_cc": 11
+  },
+  "app/connectors/web_evidence/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/connectors/web_evidence/contracts.py": {
+    "loc": 183,
+    "max_cc": 1
+  },
+  "app/connectors/web_evidence/favicon.py": {
+    "loc": 168,
+    "max_cc": 17
+  },
+  "app/connectors/web_evidence/fetcher.py": {
+    "loc": 1255,
+    "max_cc": 17
+  },
+  "app/connectors/web_evidence/resolver.py": {
+    "loc": 19,
+    "max_cc": 4
+  },
+  "app/connectors/web_evidence/robots.py": {
+    "loc": 108,
+    "max_cc": 6
+  },
+  "app/connectors/web_evidence/sitemaps.py": {
+    "loc": 172,
+    "max_cc": 12
+  },
+  "app/connectors/web_evidence/url_policy.py": {
+    "loc": 418,
+    "max_cc": 16
+  },
+  "app/core/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/core/config/__init__.py": {
+    "loc": 344,
+    "max_cc": 11
+  },
+  "app/core/config/abuse.py": {
+    "loc": 40,
+    "max_cc": 0
+  },
+  "app/core/config/agent.py": {
+    "loc": 74,
+    "max_cc": 1
+  },
+  "app/core/config/analysis.py": {
+    "loc": 71,
+    "max_cc": 0
+  },
+  "app/core/config/analytics.py": {
+    "loc": 375,
+    "max_cc": 3
+  },
+  "app/core/config/api.py": {
+    "loc": 5,
+    "max_cc": 0
+  },
+  "app/core/config/attribution.py": {
+    "loc": 174,
+    "max_cc": 0
+  },
+  "app/core/config/audits.py": {
+    "loc": 267,
+    "max_cc": 5
+  },
+  "app/core/config/billing.py": {
+    "loc": 272,
+    "max_cc": 10
+  },
+  "app/core/config/brand_logos.py": {
+    "loc": 36,
+    "max_cc": 0
+  },
+  "app/core/config/brand_profile.py": {
+    "loc": 53,
+    "max_cc": 0
+  },
+  "app/core/config/commerce.py": {
+    "loc": 353,
+    "max_cc": 0
+  },
+  "app/core/config/content.py": {
+    "loc": 180,
+    "max_cc": 5
+  },
+  "app/core/config/costs.py": {
+    "loc": 9,
+    "max_cc": 0
+  },
+  "app/core/config/http.py": {
+    "loc": 18,
+    "max_cc": 0
+  },
+  "app/core/config/integrations.py": {
+    "loc": 875,
+    "max_cc": 5
+  },
+  "app/core/config/oauth.py": {
+    "loc": 101,
+    "max_cc": 5
+  },
+  "app/core/config/opportunities.py": {
+    "loc": 301,
+    "max_cc": 2
+  },
+  "app/core/config/product_tour.py": {
+    "loc": 3,
+    "max_cc": 0
+  },
+  "app/core/config/products.py": {
+    "loc": 95,
+    "max_cc": 0
+  },
+  "app/core/config/projects.py": {
+    "loc": 62,
+    "max_cc": 0
+  },
+  "app/core/config/prompts.py": {
+    "loc": 141,
+    "max_cc": 0
+  },
+  "app/core/config/provider_catalog.py": {
+    "loc": 161,
+    "max_cc": 3
+  },
+  "app/core/config/site_health.py": {
+    "loc": 1924,
+    "max_cc": 12
+  },
+  "app/core/config/suggestions.py": {
+    "loc": 138,
+    "max_cc": 2
+  },
+  "app/core/config/task_queue.py": {
+    "loc": 115,
+    "max_cc": 1
+  },
+  "app/core/config/traffic.py": {
+    "loc": 128,
+    "max_cc": 0
+  },
+  "app/core/database.py": {
+    "loc": 71,
+    "max_cc": 4
+  },
+  "app/core/http_errors.py": {
+    "loc": 25,
+    "max_cc": 2
+  },
+  "app/core/http_security.py": {
+    "loc": 118,
+    "max_cc": 13
+  },
+  "app/core/security.py": {
+    "loc": 184,
+    "max_cc": 8
+  },
+  "app/core/telemetry.py": {
+    "loc": 137,
+    "max_cc": 6
+  },
+  "app/domain/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/domain/abuse/__init__.py": {
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/abuse/service.py": {
+    "loc": 170,
+    "max_cc": 7
+  },
+  "app/domain/analysis/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/domain/analysis/schemas.py": {
+    "loc": 302,
+    "max_cc": 0
+  },
+  "app/domain/analysis/service.py": {
+    "loc": 1258,
+    "max_cc": 15
+  },
+  "app/domain/analytics/__init__.py": {
+    "loc": 7,
+    "max_cc": 0
+  },
+  "app/domain/analytics/classification.py": {
+    "loc": 130,
+    "max_cc": 8
+  },
+  "app/domain/analytics/enqueue.py": {
+    "loc": 556,
+    "max_cc": 18
+  },
+  "app/domain/analytics/ingest.py": {
+    "loc": 298,
+    "max_cc": 8
+  },
+  "app/domain/analytics/sanitize.py": {
+    "loc": 162,
+    "max_cc": 9
+  },
+  "app/domain/analytics/schemas.py": {
+    "loc": 137,
+    "max_cc": 5
+  },
+  "app/domain/analytics/service.py": {
+    "loc": 405,
+    "max_cc": 15
+  },
+  "app/domain/analytics/snapshot.py": {
+    "loc": 812,
+    "max_cc": 38
+  },
+  "app/domain/analytics/tasks.py": {
+    "loc": 319,
+    "max_cc": 9
+  },
+  "app/domain/attribution/__init__.py": {
+    "loc": 9,
+    "max_cc": 0
+  },
+  "app/domain/attribution/link.py": {
+    "loc": 128,
+    "max_cc": 9
+  },
+  "app/domain/attribution/schemas.py": {
+    "loc": 231,
+    "max_cc": 0
+  },
+  "app/domain/attribution/service.py": {
+    "loc": 481,
+    "max_cc": 26
+  },
+  "app/domain/attribution/snapshot.py": {
+    "loc": 930,
+    "max_cc": 48
+  },
+  "app/domain/audits/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/domain/audits/cost_projection.py": {
+    "loc": 58,
+    "max_cc": 3
+  },
+  "app/domain/audits/planner.py": {
+    "loc": 597,
+    "max_cc": 23
+  },
+  "app/domain/audits/schemas.py": {
+    "loc": 119,
+    "max_cc": 0
+  },
+  "app/domain/audits/state_events.py": {
+    "loc": 60,
+    "max_cc": 4
+  },
+  "app/domain/auth/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/domain/auth/schemas.py": {
+    "loc": 67,
+    "max_cc": 0
+  },
+  "app/domain/auth/service.py": {
+    "loc": 93,
+    "max_cc": 8
+  },
+  "app/domain/billing/__init__.py": {
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/billing/bootstrap.py": {
+    "loc": 105,
+    "max_cc": 4
+  },
+  "app/domain/billing/schemas.py": {
+    "loc": 93,
+    "max_cc": 3
+  },
+  "app/domain/billing/service.py": {
+    "loc": 366,
+    "max_cc": 15
+  },
+  "app/domain/billing/webhooks.py": {
+    "loc": 150,
+    "max_cc": 18
+  },
+  "app/domain/commerce/__init__.py": {
+    "loc": 2,
+    "max_cc": 0
+  },
+  "app/domain/commerce/catalog.py": {
+    "loc": 229,
+    "max_cc": 8
+  },
+  "app/domain/commerce/derive.py": {
+    "loc": 158,
+    "max_cc": 17
+  },
+  "app/domain/commerce/feed.py": {
+    "loc": 120,
+    "max_cc": 8
+  },
+  "app/domain/commerce/orders.py": {
+    "loc": 299,
+    "max_cc": 20
+  },
+  "app/domain/commerce/sanitize.py": {
+    "loc": 270,
+    "max_cc": 12
+  },
+  "app/domain/commerce/schemas.py": {
+    "loc": 62,
+    "max_cc": 0
+  },
+  "app/domain/commerce/service.py": {
+    "loc": 243,
+    "max_cc": 26
+  },
+  "app/domain/content/__init__.py": {
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/content/message_builder.py": {
+    "loc": 82,
+    "max_cc": 6
+  },
+  "app/domain/content/schemas.py": {
+    "loc": 117,
+    "max_cc": 3
+  },
+  "app/domain/content/service.py": {
+    "loc": 431,
+    "max_cc": 9
+  },
+  "app/domain/content/website_context.py": {
+    "loc": 265,
+    "max_cc": 33
+  },
+  "app/domain/dashboard/__init__.py": {
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/dashboard/report.py": {
+    "loc": 94,
+    "max_cc": 7
+  },
+  "app/domain/dashboard/schemas.py": {
+    "loc": 55,
+    "max_cc": 0
+  },
+  "app/domain/dashboard/service.py": {
+    "loc": 285,
+    "max_cc": 51
+  },
+  "app/domain/entitlements/__init__.py": {
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/entitlements/service.py": {
+    "loc": 119,
+    "max_cc": 12
+  },
+  "app/domain/integrations/__init__.py": {
+    "loc": 9,
+    "max_cc": 0
+  },
+  "app/domain/integrations/derive.py": {
+    "loc": 237,
+    "max_cc": 13
+  },
+  "app/domain/integrations/mappings.py": {
+    "loc": 241,
+    "max_cc": 12
+  },
+  "app/domain/integrations/schemas.py": {
+    "loc": 123,
+    "max_cc": 0
+  },
+  "app/domain/integrations/service.py": {
+    "loc": 696,
+    "max_cc": 18
+  },
+  "app/domain/integrations/sync.py": {
+    "loc": 383,
+    "max_cc": 8
+  },
+  "app/domain/opportunities/__init__.py": {
+    "loc": 2,
+    "max_cc": 0
+  },
+  "app/domain/opportunities/schemas.py": {
+    "loc": 122,
+    "max_cc": 2
+  },
+  "app/domain/opportunities/service.py": {
+    "loc": 936,
+    "max_cc": 17
+  },
+  "app/domain/products/__init__.py": {
+    "loc": 3,
+    "max_cc": 0
+  },
+  "app/domain/products/completeness.py": {
+    "loc": 51,
+    "max_cc": 7
+  },
+  "app/domain/products/csv_import.py": {
+    "loc": 146,
+    "max_cc": 25
+  },
+  "app/domain/products/schemas.py": {
+    "loc": 358,
+    "max_cc": 4
+  },
+  "app/domain/products/service.py": {
+    "loc": 369,
+    "max_cc": 15
+  },
+  "app/domain/products/shim.py": {
+    "loc": 84,
+    "max_cc": 18
+  },
+  "app/domain/products/visibility.py": {
+    "loc": 815,
+    "max_cc": 25
+  },
+  "app/domain/projects/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/domain/projects/brand_profile.py": {
+    "loc": 128,
+    "max_cc": 8
+  },
+  "app/domain/projects/brand_profile_suggestions.py": {
+    "loc": 247,
+    "max_cc": 13
+  },
+  "app/domain/projects/knowledge_base.py": {
+    "loc": 56,
+    "max_cc": 10
+  },
+  "app/domain/projects/logos.py": {
+    "loc": 339,
+    "max_cc": 12
+  },
+  "app/domain/projects/normalization.py": {
+    "loc": 69,
+    "max_cc": 10
+  },
+  "app/domain/projects/schemas.py": {
+    "loc": 317,
+    "max_cc": 2
+  },
+  "app/domain/projects/service.py": {
+    "loc": 266,
+    "max_cc": 29
+  },
+  "app/domain/projects/shim.py": {
+    "loc": 60,
+    "max_cc": 17
+  },
+  "app/domain/projects/suggestions.py": {
+    "loc": 468,
+    "max_cc": 15
+  },
+  "app/domain/prompts/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/domain/prompts/csv_import.py": {
+    "loc": 105,
+    "max_cc": 27
+  },
+  "app/domain/prompts/generation.py": {
+    "loc": 734,
+    "max_cc": 17
+  },
+  "app/domain/prompts/locks.py": {
+    "loc": 76,
+    "max_cc": 2
+  },
+  "app/domain/prompts/mappers.py": {
+    "loc": 50,
+    "max_cc": 2
+  },
+  "app/domain/prompts/normalization.py": {
+    "loc": 37,
+    "max_cc": 1
+  },
+  "app/domain/prompts/schemas.py": {
+    "loc": 183,
+    "max_cc": 0
+  },
+  "app/domain/prompts/service.py": {
+    "loc": 407,
+    "max_cc": 10
+  },
+  "app/domain/prompts/topics.py": {
+    "loc": 155,
+    "max_cc": 4
+  },
+  "app/domain/providers/__init__.py": {
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/providers/schemas.py": {
+    "loc": 140,
+    "max_cc": 7
+  },
+  "app/domain/providers/service.py": {
+    "loc": 345,
+    "max_cc": 13
+  },
+  "app/domain/site_health/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/domain/site_health/api_schemas.py": {
+    "loc": 446,
+    "max_cc": 0
+  },
+  "app/domain/site_health/discovery.py": {
+    "loc": 532,
+    "max_cc": 19
+  },
+  "app/domain/site_health/entitlements.py": {
+    "loc": 227,
+    "max_cc": 7
+  },
+  "app/domain/site_health/inventory_scope.py": {
+    "loc": 62,
+    "max_cc": 8
+  },
+  "app/domain/site_health/normalization.py": {
+    "loc": 115,
+    "max_cc": 4
+  },
+  "app/domain/site_health/planner.py": {
+    "loc": 640,
+    "max_cc": 9
+  },
+  "app/domain/site_health/schemas.py": {
+    "loc": 75,
+    "max_cc": 1
+  },
+  "app/domain/site_health/selection.py": {
+    "loc": 1013,
+    "max_cc": 28
+  },
+  "app/domain/site_health/service.py": {
+    "loc": 2055,
+    "max_cc": 30
+  },
+  "app/domain/site_health/snapshot.py": {
+    "loc": 240,
+    "max_cc": 9
+  },
+  "app/domain/site_health/state_events.py": {
+    "loc": 211,
+    "max_cc": 5
+  },
+  "app/domain/traffic/__init__.py": {
+    "loc": 7,
+    "max_cc": 0
+  },
+  "app/domain/traffic/projection.py": {
+    "loc": 500,
+    "max_cc": 27
+  },
+  "app/domain/traffic/schemas.py": {
+    "loc": 105,
+    "max_cc": 0
+  },
+  "app/domain/traffic/service.py": {
+    "loc": 887,
+    "max_cc": 8
+  },
+  "app/domain/workspaces/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/domain/workspaces/schemas.py": {
+    "loc": 49,
+    "max_cc": 5
+  },
+  "app/domain/workspaces/service.py": {
+    "loc": 153,
+    "max_cc": 7
+  },
+  "app/main.py": {
+    "loc": 144,
+    "max_cc": 5
+  },
+  "app/models/__init__.py": {
+    "loc": 193,
+    "max_cc": 0
+  },
+  "app/models/abuse.py": {
+    "loc": 73,
+    "max_cc": 1
+  },
+  "app/models/analysis.py": {
+    "loc": 289,
+    "max_cc": 1
+  },
+  "app/models/analytics.py": {
+    "loc": 371,
+    "max_cc": 1
+  },
+  "app/models/attribution.py": {
+    "loc": 158,
+    "max_cc": 1
+  },
+  "app/models/audit.py": {
+    "loc": 542,
+    "max_cc": 1
+  },
+  "app/models/billing.py": {
+    "loc": 263,
+    "max_cc": 1
+  },
+  "app/models/brand.py": {
+    "loc": 333,
+    "max_cc": 0
+  },
+  "app/models/commerce.py": {
+    "loc": 212,
+    "max_cc": 1
+  },
+  "app/models/constants.py": {
+    "loc": 16,
+    "max_cc": 0
+  },
+  "app/models/content.py": {
+    "loc": 187,
+    "max_cc": 1
+  },
+  "app/models/integrations.py": {
+    "loc": 577,
+    "max_cc": 1
+  },
+  "app/models/opportunity.py": {
+    "loc": 211,
+    "max_cc": 1
+  },
+  "app/models/product.py": {
+    "loc": 473,
+    "max_cc": 0
+  },
+  "app/models/project.py": {
+    "loc": 136,
+    "max_cc": 0
+  },
+  "app/models/prompt.py": {
+    "loc": 190,
+    "max_cc": 1
+  },
+  "app/models/provider.py": {
+    "loc": 221,
+    "max_cc": 0
+  },
+  "app/models/site_health.py": {
+    "loc": 1110,
+    "max_cc": 1
+  },
+  "app/models/traffic.py": {
+    "loc": 232,
+    "max_cc": 1
+  },
+  "app/models/user.py": {
+    "loc": 38,
+    "max_cc": 0
+  },
+  "app/models/workspace.py": {
+    "loc": 87,
+    "max_cc": 0
+  },
+  "app/orchestration/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/orchestration/audit_state.py": {
+    "loc": 102,
+    "max_cc": 4
+  },
+  "app/orchestration/postgres_task_queue.py": {
+    "loc": 435,
+    "max_cc": 9
+  },
+  "app/orchestration/task_queue.py": {
+    "loc": 104,
+    "max_cc": 1
+  },
+  "app/schemas/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/workers/__init__.py": {
+    "loc": 0,
+    "max_cc": 0
+  },
+  "app/workers/analytics_worker.py": {
+    "loc": 268,
+    "max_cc": 8
+  },
+  "app/workers/audit_worker.py": {
+    "loc": 1161,
+    "max_cc": 17
+  },
+  "app/workers/content_worker.py": {
+    "loc": 383,
+    "max_cc": 23
+  },
+  "app/workers/drain.py": {
+    "loc": 38,
+    "max_cc": 3
+  },
+  "app/workers/integration_dispatcher.py": {
+    "loc": 321,
+    "max_cc": 18
+  },
+  "app/workers/integration_worker.py": {
+    "loc": 1191,
+    "max_cc": 14
+  },
+  "app/workers/site_health/__init__.py": {
+    "loc": 16,
+    "max_cc": 0
+  },
+  "app/workers/site_health/host_gate.py": {
+    "loc": 138,
+    "max_cc": 6
+  },
+  "app/workers/site_health/lifecycle.py": {
+    "loc": 671,
+    "max_cc": 50
+  },
+  "app/workers/site_health_worker.py": {
+    "loc": 2543,
+    "max_cc": 24
+  }
+}
