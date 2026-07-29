@@ -13,7 +13,7 @@ import uuid
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select, tuple_
+from sqlalchemy import and_, case, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health import TASK_KIND_ANALYZE, capability_profile
@@ -36,6 +36,7 @@ from app.domain.site_health.service.presentation import (
     _MAX_EVALUATIONS,
     _MAX_LINK_REFERENCES,
     _SEVERITY_RANK,
+    _UNRANKED_SEVERITY,
     _delivery_facts,
     _evaluation_row,
     _iso,
@@ -337,7 +338,10 @@ async def get_inventory(
             monitored=row.id in monitored_ids,
             latest_analyze_task=tasks.get(row.id),
         )
-        if status is not None and pres_status != status:
+        # The SAME predicate the pages endpoint uses, so a compound value like
+        # ``error_or_blocked`` filters identically on both surfaces (a plain
+        # ``!=`` here silently matched nothing for it).
+        if not _matches_page_status(pres_status, status):
             continue
         if not _page_type_matches(analysis, page_type):
             continue
@@ -747,16 +751,27 @@ async def get_page_detail(
         issues = [_issue_row(i, 1) for i in issue_rows.scalars().all()]
 
         # ALL persisted rule evaluations for this analysis, worst severity
-        # first (then rule_id) so the current/failing rules lead the list.
+        # first (then rule_id) so the current/failing rules lead the list. The
+        # ordering is in SQL as well as in Python below: with an unordered
+        # SELECT the _MAX_EVALUATIONS cap kept an arbitrary slice, so a capped
+        # analysis could drop its critical rows and then "sort" what remained.
         eval_rows = await session.execute(
             select(SiteRuleEvaluation)
             .where(SiteRuleEvaluation.analysis_id == analysis.id)
+            .order_by(
+                case(
+                    _SEVERITY_RANK,
+                    value=SiteRuleEvaluation.severity,
+                    else_=_UNRANKED_SEVERITY,
+                ),
+                SiteRuleEvaluation.rule_id.asc(),
+            )
             .limit(_MAX_EVALUATIONS)
         )
         evaluations = sorted(
             (_evaluation_row(e) for e in eval_rows.scalars().all()),
             key=lambda r: (
-                _SEVERITY_RANK.get(r["severity"], 99),
+                _SEVERITY_RANK.get(r["severity"], _UNRANKED_SEVERITY),
                 r["rule_id"],
             ),
         )

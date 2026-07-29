@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from app.connectors.web_evidence.contracts import FetchResult
 from app.connectors.web_evidence.fetcher import is_bot_block_result
 from app.connectors.web_evidence.robots import RobotsPolicy
-from app.connectors.web_evidence.url_policy import UrlPolicyError
 from app.core.config.site_health import (
     APPLICABILITY_CRAWL_FINALIZE,
     ERROR_HTTP_4XX,
@@ -129,8 +128,13 @@ def _canonical_or_empty(url: str) -> str:
     The finalize pass canonicalizes persisted URLs (link targets, hreflang
     alternates, sitemap observations) that may no longer parse — an
     unnormalizable URL simply contributes nothing.
+
+    Catches ``ValueError`` (the ``UrlPolicyError`` base) rather than the policy
+    error alone: a malformed persisted URL can fail inside ``urlsplit`` itself
+    (an unclosed IPv6 bracket, a junk port) before the policy checks run, and a
+    finalize pass must never die on one bad stored row.
     """
     try:
         return canonical_identity(url)[0]
-    except UrlPolicyError:
+    except ValueError:
         return ""

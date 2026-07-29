@@ -34,6 +34,7 @@ from app.core.config.task_queue import (
 )
 from app.domain.site_health.entitlements import set_entitlement
 from app.domain.site_health.normalization import canonical_identity
+from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,
@@ -258,7 +259,6 @@ async def test_partial_analysis_failure_partially_completes(
     from app.core.config.site_health import (
         ANALYSIS_STATUS_PARTIALLY_COMPLETED,
     )
-    from app.models.site_health import SiteHealthSnapshot
 
     async with session_factory() as session:
         seed = await seed_site_crawl(
@@ -607,8 +607,6 @@ async def test_persist_crawl_snapshot_returns_false_and_writes_nothing_when_empt
     analyses and the default ``persist_empty=False`` it writes NEITHER the
     snapshot NOR the ``score_summary`` projection and returns ``False``.
     """
-    from app.domain.site_health.snapshot import persist_crawl_snapshot
-
     seed, _site_url_id, _task_id = await _seed_analyze_ready(session_factory)
 
     async with session_factory() as session:
@@ -644,8 +642,6 @@ async def test_persist_crawl_snapshot_persist_empty_writes_null_score_snapshot(
     the helper writes the explicit zeroed/null-score snapshot + projection and
     returns ``True``.
     """
-    from app.domain.site_health.snapshot import persist_crawl_snapshot
-
     seed, _site_url_id, _task_id = await _seed_analyze_ready(session_factory)
 
     async with session_factory() as session:
@@ -689,7 +685,6 @@ async def test_persist_crawl_snapshot_returns_true_when_active_rows_present(
         FETCH_PURPOSE_ANALYZE,
         PAGE_ANALYSIS_STATUS_COMPLETED,
     )
-    from app.domain.site_health.snapshot import persist_crawl_snapshot
 
     seed, site_url_id, first_task_id = await _seed_analyze_ready(session_factory)
 
@@ -769,7 +764,6 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
     from app.core.config.site_health import (
         FETCH_PURPOSE_ANALYZE,
         PAGE_ANALYSIS_STATUS_COMPLETED,
-        RULE_OUTCOME_FAIL,
     )
 
     seed, site_url_id, first_task_id = await _seed_analyze_ready(session_factory)
@@ -866,8 +860,9 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
 
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
-        worker = _worker(session_factory, {}, owner="snapshot-latest")
-        await worker._lifecycle._persist_snapshot(session, crawl=crawl)
+        # The same call the worker's terminalization makes (its
+        # ``_persist_snapshot`` is a thin ``persist_empty=True`` delegation).
+        await persist_crawl_snapshot(session, crawl=crawl, persist_empty=True)
         latest_artifact_id = artifacts[1].id
         await session.commit()
 

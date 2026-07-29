@@ -23,9 +23,7 @@ async def test_delay_callback_receives_the_full_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """``delay_for`` is a URL lookup — robots policy is scheme+host scoped."""
-    monkeypatch.setattr(
-        site_health_settings, "per_host_delay_seconds", 0.0, raising=False
-    )
+    monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 0.0)
     seen: list[str] = []
 
     def _delay_for(url: str) -> float:
@@ -44,9 +42,7 @@ async def test_release_keeps_state_for_a_robots_widened_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A crawl-delay far above the floor must survive its last holder leaving."""
-    monkeypatch.setattr(
-        site_health_settings, "per_host_delay_seconds", 0.0, raising=False
-    )
+    monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 0.0)
     gate = HostGate(delay_for=lambda _url: 30.0)
 
     async with gate.slot("example.com", "https://example.com/"):
@@ -64,9 +60,7 @@ async def test_idle_host_is_evicted_once_its_window_elapses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With the window passed and no holders, the per-host maps are swept."""
-    monkeypatch.setattr(
-        site_health_settings, "per_host_delay_seconds", 0.0, raising=False
-    )
+    monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 0.0)
     gate = HostGate(delay_for=lambda _url: 0.0)
 
     async with gate.slot("example.com", "https://example.com/"):
@@ -80,10 +74,8 @@ async def test_successive_starts_are_spaced_by_the_delay(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Two starts against one host are paced, not fired together."""
-    monkeypatch.setattr(
-        site_health_settings, "per_host_delay_seconds", 0.0, raising=False
-    )
-    monkeypatch.setattr(site_health_settings, "per_host_concurrency", 2, raising=False)
+    monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 0.0)
+    monkeypatch.setattr(site_health_settings, "per_host_concurrency", 2)
     gate = HostGate(delay_for=lambda _url: 0.1)
     starts: list[float] = []
 

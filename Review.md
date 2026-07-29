@@ -231,7 +231,7 @@ Accepting custom headers (such as `Idempotency-Key`) or query parameters without
   ```
 
 #### 🚨 Recurring Anti-Pattern: Swallowing Corrupted Import Data with `errors="replace"`
-Using `bytes.decode("utf-8", errors="replace")` on uploaded CSV files silently converts malformed characters into replacement characters (``), corrupting SKUs and names. Fail fast with an HTTP 422 error on decoding issues instead.
+Using `bytes.decode("utf-8", errors="replace")` on uploaded CSV files silently converts malformed characters into the Unicode replacement character (U+FFFD), corrupting SKUs and names. Fail fast with an HTTP 422 error on decoding issues instead.
 
 ---
 

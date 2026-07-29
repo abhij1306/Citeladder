@@ -274,9 +274,7 @@ async def test_leased_heartbeats_across_the_whole_body(
     monkeypatch.setattr(worker._queue, "heartbeat", _record)
     # The loop takes the configured interval down to a 50ms floor, so this
     # exercises real beats without spending real seconds of wall clock.
-    monkeypatch.setattr(
-        site_health_settings, "heartbeat_interval_seconds", 0.1, raising=False
-    )
+    monkeypatch.setattr(site_health_settings, "heartbeat_interval_seconds", 0.1)
 
     async with worker._leased(task_id):
         # Stand in for the fetch + the persist that follows it.

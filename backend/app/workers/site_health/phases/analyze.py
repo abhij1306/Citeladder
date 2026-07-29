@@ -455,6 +455,14 @@ class AnalyzePhaseMixin(PhaseSupport):
         site_url_id = await self._resolve_analysis_site_url_id(
             session, crawl=crawl, task=task
         )
+        # Evaluation-time enrichment goes onto a SHALLOW COPY, never the facts
+        # dict the caller handed ``_write_artifact``: that dict IS the artifact's
+        # ``normalized_facts``, and the persisted evidence must carry only what
+        # the extractor produced (the injected keys below are provenance of this
+        # analysis, not of the fetch). Copying makes that independent of insert
+        # ordering / JSON-mutation tracking rather than relying on the flush
+        # having already serialized the pre-injection value.
+        eval_facts = dict(facts)
         # v2 P1: classify the page type and inject it into the facts dict
         # BEFORE rule evaluation, so page_type applicability tokens, per-type
         # thin-content minimums, and weight overrides resolve against it
@@ -464,20 +472,20 @@ class AnalyzePhaseMixin(PhaseSupport):
         assessment = classify(
             str((facts.get("delivery") or {}).get("final_url") or ""), facts
         )
-        facts["page_type"] = assessment.page_type
-        facts["page_type_evidence"] = assessment.to_evidence()
+        eval_facts["page_type"] = assessment.page_type
+        eval_facts["page_type_evidence"] = assessment.to_evidence()
         # v2 P2 (spec §5.3): inside the crawl ROOT's own analysis only, inject
         # the crawl's site_facts so site_root-scoped rules (AI-crawler access,
         # llms.txt) evaluate exactly once per crawl, anchored on this analysis.
-        # The injection happens after the artifact flush, so the persisted
-        # normalized_facts deliberately do NOT carry it (same as page_type).
+        # Injected into the copy only, so the persisted normalized_facts
+        # deliberately do NOT carry it (same as page_type).
         if crawl.site_facts:
             _root_canonical, root_hash = crawl_root_identity(crawl)
             if root_hash and root_hash == task.url_hash:
-                facts["site"] = crawl.site_facts
+                eval_facts["site"] = crawl.site_facts
         evaluations: list[RuleEvaluation] = [
             ev
-            for ev in evaluate_all(facts)
+            for ev in evaluate_all(eval_facts)
             # The analyze writer NEVER persists crawl_finalize-scoped
             # evaluations (no placeholder not_applicable rows): the unique
             # (analysis_id, rule_id) slot stays free for the finalize pass,
@@ -524,8 +532,8 @@ class AnalyzePhaseMixin(PhaseSupport):
             scoring_version=crawl.scoring_version or SCORING_VERSION,
             page_type=assessment.page_type,
             classifier_version=assessment.classifier_version,
-            # Persist the bounded classifier evidence with the row (the facts-
-            # dict copy above never survives the artifact flush, by design).
+            # Persist the bounded classifier evidence with the row (the
+            # evaluation-time copy above is never persisted, by design).
             page_type_evidence=assessment.to_evidence(),
             source_artifact_ids=[artifact_id],
             finalized_at=_utcnow(),
@@ -595,16 +603,13 @@ class AnalyzePhaseMixin(PhaseSupport):
         resolved = await self._resolve_site_url_id(
             session, crawl=crawl, url=task.requested_url, depth=task.depth
         )
-        if resolved is not None:
-            return resolved
-        # Last resort: create/lookup by hash directly (depth 0).
-        fallback = await self._resolve_site_url_id(
-            session, crawl=crawl, url=task.requested_url, depth=0
-        )
-        if fallback is None:
+        if resolved is None:
             # Only reachable when the URL cannot be canonicalized at all —
-            # admission already canonicalized it, so treat as a hard bug.
+            # admission already canonicalized it, so treat as a hard bug. A
+            # retry at depth 0 used to sit here, but ``_resolve_site_url_id``
+            # returns None only for an uncanonicalizable URL: depth never
+            # affects that, so the retry could not have changed the outcome.
             raise RuntimeError(
                 f"could not resolve SiteUrl identity for {task.requested_url!r}"
             )
-        return fallback
+        return resolved

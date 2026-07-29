@@ -86,7 +86,15 @@ def measure(path: Path) -> tuple[int, dict[str, int]]:
             if isinstance(child, ast.ClassDef):
                 walk(child, f"{prefix}{child.name}.")
             elif isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
-                functions[f"{prefix}{child.name}"] = cyclomatic_complexity(child)
+                name = f"{prefix}{child.name}"
+                # A qualified name can repeat (a `@overload` pair, a redefinition
+                # under `if TYPE_CHECKING`, two same-named methods in sibling
+                # scopes that flatten to one key). Keep the WORST score: last-one-
+                # wins would let a trivial redefinition buy the real function an
+                # unbounded budget.
+                functions[name] = max(
+                    cyclomatic_complexity(child), functions.get(name, 0)
+                )
                 # Nested defs are folded into their parent's score above; they
                 # are not reported separately.
             else:
@@ -116,8 +124,21 @@ def collect() -> dict[str, dict]:
     return out
 
 
-def _compare_functions(rel: str, now: dict, was: dict, failures: list[str]) -> None:
-    """Check each function against its own recorded budget."""
+def _compare_functions(
+    rel: str,
+    now: dict,
+    was: dict,
+    failures: list[str],
+    improvements: list[str],
+) -> None:
+    """Check each function against its own recorded budget.
+
+    Reports improvements per FUNCTION, not just per module: a module whose LOC
+    and max CC are unchanged can still have simplified a mid-sized function,
+    and an unreported improvement leaves a stale budget behind — headroom the
+    next change silently inherits, which is exactly what per-function budgets
+    exist to prevent.
+    """
     budgets = was.get("functions")
     if budgets is None:
         # A pre-per-function baseline: all we recorded was the module max, so
@@ -139,6 +160,8 @@ def _compare_functions(rel: str, now: dict, was: dict, failures: list[str]) -> N
                 )
         elif cc > budget:
             failures.append(f"{rel}: {name} complexity {budget} -> {cc}")
+        elif cc < budget:
+            improvements.append(f"{rel}: {name} CC {budget}->{cc}")
 
 
 def _compare(
@@ -163,7 +186,7 @@ def _compare(
             f"{rel}: {was['loc']} -> {now['loc']} LOC "
             f"(+{now['loc'] - was['loc']}); split it or justify a new baseline"
         )
-    _compare_functions(rel, now, was, failures)
+    _compare_functions(rel, now, was, failures, improvements)
     if now["loc"] < was["loc"] or now["max_cc"] < was["max_cc"]:
         improvements.append(
             f"{rel}: LOC {was['loc']}->{now['loc']}, "
@@ -198,7 +221,7 @@ def main() -> int:
         _compare(rel, now, baseline.get(rel), failures, improvements)
 
     if improvements:
-        print(f"{len(improvements)} module(s) improved — tighten the baseline:")
+        print(f"{len(improvements)} improvement(s) — tighten the baseline:")
         for line in improvements[:20]:
             print(f"  + {line}")
         print("  run: python -m scripts.check_complexity --update")

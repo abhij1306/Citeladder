@@ -19,7 +19,6 @@ from app.core.config.site_health import (
     AI_CRAWLER_BOTS,
     ANALYSIS_STATUS_COMPLETED,
     CAPABILITY_FREE,
-    CAPABILITY_STARTER,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
     CRAWL_STATUS_RUNNING,
@@ -86,32 +85,8 @@ async def test_starter_discover_admits_children_and_completes(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     root = "https://example.com/"
-    async with session_factory() as session:
-        seed = await seed_site_crawl(session, task_count=0, root_url=root)
-        await set_entitlement(session, seed.workspace_id, CAPABILITY_STARTER)
-        await session.commit()
-        await _configure_crawl(
-            session,
-            crawl_id=seed.crawl_id,
-            sample_mode=False,
-            count_disclosure=True,
-        )
-        # Seed the single root discover task (as the planner would).
-        _canonical, root_hash = canonical_identity(root)
-        session.add(
-            SiteCrawlTask(
-                crawl_id=seed.crawl_id,
-                workspace_id=seed.workspace_id,
-                task_kind=TASK_KIND_DISCOVER,
-                requested_url=root,
-                url_hash=root_hash,
-                generation=0,
-                idempotency_key=f"{seed.crawl_id}:{TASK_KIND_DISCOVER}:root:0",
-                status=TASK_STATUS_QUEUED,
-                randomized_position=0,
-            )
-        )
-        await session.commit()
+    # A Starter crawl with the single root discover task the planner queues.
+    seed = await _seed_root_discover(session_factory, root=root)
 
     pages = {
         "/": _html(
@@ -256,31 +231,7 @@ async def test_inventory_rows_present_before_crawl_terminalizes(
     discovery/crawl reach a terminal state.
     """
     root = "https://example.com/"
-    async with session_factory() as session:
-        seed = await seed_site_crawl(session, task_count=0, root_url=root)
-        await set_entitlement(session, seed.workspace_id, CAPABILITY_STARTER)
-        await session.commit()
-        await _configure_crawl(
-            session,
-            crawl_id=seed.crawl_id,
-            sample_mode=False,
-            count_disclosure=True,
-        )
-        _canonical, root_hash = canonical_identity(root)
-        session.add(
-            SiteCrawlTask(
-                crawl_id=seed.crawl_id,
-                workspace_id=seed.workspace_id,
-                task_kind=TASK_KIND_DISCOVER,
-                requested_url=root,
-                url_hash=root_hash,
-                generation=0,
-                idempotency_key=f"{seed.crawl_id}:{TASK_KIND_DISCOVER}:root:0",
-                status=TASK_STATUS_QUEUED,
-                randomized_position=0,
-            )
-        )
-        await session.commit()
+    seed = await _seed_root_discover(session_factory, root=root)
 
     pages = {
         "/": _html(["https://example.com/a", "https://example.com/b"]),

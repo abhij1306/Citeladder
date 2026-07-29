@@ -50,6 +50,9 @@ _SEVERITY_RANK: dict[str, int] = {
     SEVERITY_LOW: 3,
     SEVERITY_INFO: 4,
 }
+# Rank of a severity token the catalog no longer defines: sorts after every
+# known severity (never silently ahead of a critical row).
+_UNRANKED_SEVERITY = 99
 _SEVERITY_ORDER = (
     SEVERITY_CRITICAL,
     SEVERITY_HIGH,
@@ -183,6 +186,9 @@ def presentation_status_for(
     Rules (plan §Projection):
       - a completed analysis -> its persisted status (``completed`` /
         ``partially_completed``);
+      - no analysis + a cancelled latest analyze task -> ``cancelled`` (with
+        its error code): a run the user stopped, or one the live
+        membership/entitlement guard denied, is not an error;
       - no analysis + the latest analyze task ended under a policy denial code
         (robots/SSRF) -> ``blocked`` (with the error code);
       - no analysis + any other terminal-unsuccessful analyze task -> ``error``;

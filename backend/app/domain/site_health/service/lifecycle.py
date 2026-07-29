@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health import (
@@ -41,6 +41,7 @@ from app.domain.site_health.service.presentation import (
 )
 from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.domain.site_health.state_events import (
+    InvalidSiteCrawlTransition,
     apply_analysis_status,
     apply_crawl_status,
     apply_discovery_status,
@@ -85,14 +86,17 @@ async def cancel_crawl(
 
     apply_crawl_status(crawl, CRAWL_STATUS_CANCELLED)
     # Discovery / analysis sub-states are cancelled only from a non-terminal
-    # state (the guarded machine keeps a completed sub-state as-is).
+    # state (the guarded machine keeps a completed sub-state as-is). ONLY the
+    # state machine's rejection is ignored: a bare ``except Exception`` here
+    # also swallowed session and programming errors, hiding real bugs behind a
+    # silently-uncancelled sub-state.
     try:
         apply_discovery_status(crawl, DISCOVERY_STATUS_CANCELLED)
-    except Exception:
+    except InvalidSiteCrawlTransition:
         pass
     try:
         apply_analysis_status(crawl, ANALYSIS_STATUS_CANCELLED)
-    except Exception:
+    except InvalidSiteCrawlTransition:
         pass
     crawl.completed_at = func.now()
 
@@ -215,23 +219,43 @@ async def load_events(
     crawl_id: uuid.UUID,
     after: uuid.UUID | None = None,
 ) -> list[SiteCrawlEvent]:
-    """Ordered crawl events (``created_at`` ASC), optionally after an id."""
+    """Ordered crawl events (``created_at``, then ``id``), optionally after an id.
+
+    ``after`` is a resume anchor (the SSE loop's last delivered event, or a
+    client ``Last-Event-ID``): the boundary is applied in SQL as a keyset over
+    the SAME ``(created_at, id)`` ordering, so a long-lived stream never loads
+    the crawl's whole history on every poll just to drop its head. An anchor
+    that is not an event of THIS crawl (stale, or from another crawl) yields no
+    events — replaying the full history to a resuming client would duplicate
+    everything it already rendered.
+    """
     stmt = (
         select(SiteCrawlEvent)
         .where(SiteCrawlEvent.crawl_id == crawl_id)
         .order_by(SiteCrawlEvent.created_at.asc(), SiteCrawlEvent.id.asc())
     )
-    events = list((await session.scalars(stmt)).all())
-    if after is None:
-        return events
-    seen = False
-    tail: list[SiteCrawlEvent] = []
-    for event in events:
-        if seen:
-            tail.append(event)
-        elif event.id == after:
-            seen = True
-    return tail if seen else events
+    if after is not None:
+        anchor = (
+            await session.execute(
+                select(SiteCrawlEvent.created_at, SiteCrawlEvent.id).where(
+                    SiteCrawlEvent.id == after,
+                    SiteCrawlEvent.crawl_id == crawl_id,
+                )
+            )
+        ).first()
+        if anchor is None:
+            return []
+        anchor_created_at, anchor_id = anchor
+        stmt = stmt.where(
+            or_(
+                SiteCrawlEvent.created_at > anchor_created_at,
+                and_(
+                    SiteCrawlEvent.created_at == anchor_created_at,
+                    SiteCrawlEvent.id > anchor_id,
+                ),
+            )
+        )
+    return list((await session.scalars(stmt)).all())
 
 
 async def load_crawl_for_stream(

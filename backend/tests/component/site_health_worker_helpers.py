@@ -174,40 +174,6 @@ def _worker(
     )
 
 
-async def _seed_root_only(
-    session_factory: async_sessionmaker[AsyncSession],
-    *,
-    root: str = "https://example.com/",
-):
-    """Seed a Starter crawl with a single root discover task, return the seed."""
-    async with session_factory() as session:
-        seed = await seed_site_crawl(session, task_count=0, root_url=root)
-        await set_entitlement(session, seed.workspace_id, CAPABILITY_STARTER)
-        await session.commit()
-        await _configure_crawl(
-            session,
-            crawl_id=seed.crawl_id,
-            sample_mode=False,
-            count_disclosure=True,
-        )
-        _canonical, root_hash = canonical_identity(root)
-        session.add(
-            SiteCrawlTask(
-                crawl_id=seed.crawl_id,
-                workspace_id=seed.workspace_id,
-                task_kind=TASK_KIND_DISCOVER,
-                requested_url=root,
-                url_hash=root_hash,
-                generation=0,
-                idempotency_key=f"{seed.crawl_id}:{TASK_KIND_DISCOVER}:root:0",
-                status=TASK_STATUS_QUEUED,
-                randomized_position=0,
-            )
-        )
-        await session.commit()
-    return seed
-
-
 def _rich_html() -> bytes:
     """A page that passes most rules (in-band title + meta description,
     canonical, single h1, og, JSON-LD WebPage + Organization, author + date
@@ -434,3 +400,17 @@ async def _seed_root_discover(
         )
         await session.commit()
         return seed
+
+
+async def _seed_root_only(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    root: str = "https://example.com/",
+):
+    """A Starter root-discover seed with a default root (terminalization tests).
+
+    The same setup as :func:`_seed_root_discover`, whose ``root`` is explicit
+    because the discover tests each pin their own; these callers only care that
+    ONE root discover task exists.
+    """
+    return await _seed_root_discover(session_factory, root=root)

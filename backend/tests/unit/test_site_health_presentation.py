@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import cast
 
+from app.core.config.site_health import SITE_HEALTH_RULES_BY_ID
 from app.domain.site_health.service.presentation import (
     _delivery_facts,
     _evaluation_row,
@@ -226,12 +227,13 @@ def test_delivery_facts_distinguishes_unknown_from_zero() -> None:
 
 def test_evaluation_row_titles_from_the_CURRENT_catalog() -> None:
     evaluation_id = uuid.uuid4()
+    rule_id = "technical.title_present"
     row = _evaluation_row(
         cast(
             SiteRuleEvaluation,
             SimpleNamespace(
                 id=evaluation_id,
-                rule_id="technical.title_present",
+                rule_id=rule_id,
                 dimension="technical",
                 category="metadata",
                 severity="high",
@@ -247,8 +249,11 @@ def test_evaluation_row_titles_from_the_CURRENT_catalog() -> None:
 
     assert row["id"] == evaluation_id
     # The persisted row carries no title: it is read from the live catalog so a
-    # relabelled rule reads correctly on old evidence.
-    assert row["title"] == "Missing page title"
+    # relabelled rule reads correctly on old evidence. Asserted against the
+    # catalog entry itself — this test is about the LOOKUP, so relabelling a
+    # rule must not have to touch it (the exact copy is pinned by the literal
+    # in ``test_issue_row_carries_the_affected_count_passed_by_the_caller``).
+    assert row["title"] == SITE_HEALTH_RULES_BY_ID[rule_id].display_label
     assert row["evidence"] == {}  # null evidence projects as an empty object
     assert row["created_at"] == _NOW.isoformat()
 

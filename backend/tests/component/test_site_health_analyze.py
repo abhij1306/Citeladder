@@ -25,6 +25,7 @@ from app.core.config.site_health import (
     CRAWL_STATUS_PARTIALLY_COMPLETED,
     CRAWL_STATUS_RUNNING,
     ERROR_ROBOTS_DENIED,
+    PAGE_ANALYSIS_STATUS_COMPLETED,
     PAGE_TYPE_PROFILES,
     RULE_CATALOG_VERSION,
     RULE_OUTCOME_FAIL,
@@ -324,17 +325,6 @@ async def test_reclaimed_analyze_acknowledges_already_persisted_analysis(
 async def test_analyze_task_persists_analysis_evaluations_issues_scores(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    from app.core.config.site_health import (
-        ANALYSIS_STATUS_COMPLETED,
-        CRAWL_STATUS_COMPLETED,
-        PAGE_ANALYSIS_STATUS_COMPLETED,
-    )
-    from app.models.site_health import (
-        SiteHealthSnapshot,
-        SitePageAnalysis,
-        SiteRuleEvaluation,
-    )
-
     seed, site_url_id, _task_id = await _seed_analyze_ready(session_factory)
     # /other is served too so the rich page's internal link checks out
     # reachable (otherwise the finalize pass's broken_internal_link rule
@@ -646,10 +636,6 @@ async def test_rerun_from_completed_crawl_worker_analyzes_only_reran_url(
     the worker must analyze ONLY the reran URL and must never re-crawl the site
     (no discover fetch of the root).
     """
-    from app.core.config.site_health import (
-        CRAWL_STATUS_COMPLETED,
-        TASK_KIND_ANALYZE,
-    )
     from app.domain.site_health.selection import rerun_page
 
     source_url = "https://example.com/rich"
