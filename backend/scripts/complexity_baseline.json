@@ -2352,17 +2352,17 @@
     "functions": {
       "_active_free_sample_count": 2,
       "_add_free_sample": 1,
-      "_enqueue_task": 1,
+      "_enqueue_task": 2,
       "_safe_parser_encoding": 4,
       "_task_idempotency_key": 1,
       "_upsert_site_url": 4,
       "_utcnow": 1,
-      "admit_candidates": 19,
+      "admit_candidates": 21,
       "build_frontier_candidates": 2,
       "extract_discovery_links": 16
     },
-    "loc": 561,
-    "max_cc": 19
+    "loc": 605,
+    "max_cc": 21
   },
   "app/domain/site_health/entitlements.py": {
     "functions": {
@@ -2419,7 +2419,7 @@
     "functions": {
       "FrontierCandidate.order_key": 1
     },
-    "loc": 75,
+    "loc": 94,
     "max_cc": 1
   },
   "app/domain/site_health/selection.py": {
@@ -3113,7 +3113,7 @@
       "SiteHealthWorker._finalize_queue_row": 3,
       "SiteHealthWorker._heartbeat_loop": 4,
       "SiteHealthWorker._leased": 2,
-      "SiteHealthWorker._lock_owned_running_task": 4,
+      "SiteHealthWorker._lock_owned_running_task": 6,
       "SiteHealthWorker._new_fetcher": 1,
       "SiteHealthWorker._reconcile_crawl_status": 1,
       "SiteHealthWorker._reconcile_stalled_crawls": 1,
@@ -3127,7 +3127,7 @@
       "SiteHealthWorker.run_once": 6,
       "main": 1
     },
-    "loc": 743,
+    "loc": 773,
     "max_cc": 16
   }
 }
