@@ -93,8 +93,18 @@ export function useCrawlEvents(
       if (sawData) scheduleInvalidate();
     };
 
+    // Frames delivered by the connection currently being read. A clean close is
+    // only treated as "the server's duration cap" — the case that deserves a
+    // prompt reconnect with the backoff reset — when the connection actually
+    // did something. Otherwise an immediately-closing stream (terminal crawl
+    // already flushed, a proxy that will not hold streams open, an empty body)
+    // is indistinguishable from the 300s cap and reconnects forever at
+    // RECONNECT_BASE_MS with no backoff.
+    let framesThisConnection = 0;
+
     /** One connection. Resolves true when the server closed it cleanly. */
     const connect = async (): Promise<boolean> => {
+      framesThisConnection = 0;
       const headers: Record<string, string> = { Accept: 'text/event-stream' };
       const workspaceId = getActiveWorkspaceId();
       if (workspaceId) headers['X-Workspace-Id'] = workspaceId;
@@ -124,6 +134,7 @@ export function useCrawlEvents(
         let sep = buffer.indexOf('\n\n');
         while (sep !== -1) {
           readFrame(buffer.slice(0, sep));
+          framesThisConnection += 1;
           buffer = buffer.slice(sep + 2);
           sep = buffer.indexOf('\n\n');
         }
@@ -151,10 +162,14 @@ export function useCrawlEvents(
         });
       }
       if (cancelled || controller.signal.aborted) return;
-      const delay = closedCleanly
+      // Only a clean close that DELIVERED something is the server's duration
+      // cap; a clean-but-empty close gets the same backoff as a failure, or an
+      // instantly-closing stream becomes a permanent 1 req/s loop.
+      const hitDurationCap = closedCleanly && framesThisConnection > 0;
+      const delay = hitDurationCap
         ? RECONNECT_BASE_MS
         : Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_MAX_MS);
-      reconnectTimer = setTimeout(() => void run(closedCleanly ? 0 : attempt + 1), delay);
+      reconnectTimer = setTimeout(() => void run(hitDurationCap ? 0 : attempt + 1), delay);
     };
 
     void run();

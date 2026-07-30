@@ -30,6 +30,10 @@ function wrapper(client: QueryClient) {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // Unstub here rather than at the end of each test body: a failed assertion
+  // returns early and would otherwise leave `fetch` stubbed for every test
+  // that follows.
+  vi.unstubAllGlobals();
   setActiveWorkspaceId(null);
 });
 
@@ -85,13 +89,21 @@ describe('useCrawlEvents', () => {
     const client = new QueryClient();
     const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
 
-    renderHook(() => useCrawlEvents(CRAWL, PROJECT, true), { wrapper: wrapper(client) });
+    const { unmount } = renderHook(() => useCrawlEvents(CRAWL, PROJECT, true), {
+      wrapper: wrapper(client),
+    });
 
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: queryKeys.siteHealth.pages(CRAWL) }),
       ),
     );
+    // Tear the hook down BEFORE counting. This test runs on real timers, and
+    // the stream closes cleanly after the 40 frames, so a still-mounted hook
+    // schedules a reconnect ~1s later; if the assertions took longer than that
+    // the second connection's frames added another invalidation round and the
+    // count was no longer 1.
+    unmount();
     // 40 events, 5 query keys: un-debounced that is 200 invalidate calls.
     const pagesCalls = invalidateSpy.mock.calls.filter(
       ([arg]) =>
@@ -99,7 +111,6 @@ describe('useCrawlEvents', () => {
         JSON.stringify(queryKeys.siteHealth.pages(CRAWL)),
     );
     expect(pagesCalls.length).toBe(1);
-    vi.unstubAllGlobals();
   });
 
   it('reconnects after a clean close, resuming from the last event id', async () => {
@@ -123,6 +134,36 @@ describe('useCrawlEvents', () => {
     expect(retryInit.headers['Last-Event-ID']).toBe('evt-7');
 
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('backs off when a clean close delivered nothing', async () => {
+    // A stream that ends immediately (terminal crawl already flushed, a proxy
+    // that will not hold streams open, an empty body) closes *cleanly*, so
+    // resetting the backoff on clean closure alone turned this into a
+    // permanent 1 req/s reconnect loop for as long as the crawl was active.
+    vi.useFakeTimers();
+    const fetchMock = vi.fn().mockResolvedValue(makeStreamResponse([]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new QueryClient();
+    const { unmount } = renderHook(() => useCrawlEvents(CRAWL, PROJECT, true), {
+      wrapper: wrapper(client),
+    });
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    // First retry is still one base interval away.
+    await vi.advanceTimersByTimeAsync(RECONNECT_BASE_MS + 50);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    // The second wait is DOUBLE the base — one more base interval is not
+    // enough. Without backoff this would already be the third connection.
+    await vi.advanceTimersByTimeAsync(RECONNECT_BASE_MS);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(RECONNECT_BASE_MS + 50);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+
+    unmount();
     vi.useRealTimers();
   });
 
