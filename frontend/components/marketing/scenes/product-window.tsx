@@ -188,48 +188,37 @@ export function ProductWindow() {
   return (
     <div
       ref={containerRef}
-      className="bg-mkt-surface border-mkt-line-soft shadow-card mx-auto max-w-5xl rounded-xl border p-3 sm:p-5"
+      className="bg-mkt-surface border-mkt-line-soft shadow-card mx-auto max-w-5xl rounded-xl border p-3 sm:p-4"
     >
-      {/* Top Header Bar */}
-      <div className="border-mkt-line-soft mb-3.5 flex flex-wrap items-center justify-between gap-2 border-b pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1.5 pr-2">
-            <span className="size-2.5 rounded-full bg-rose-400/80" />
-            <span className="size-2.5 rounded-full bg-amber-400/80" />
-            <span className="size-2.5 rounded-full bg-emerald-400/80" />
-          </div>
-          <Meta as="p" className="text-mkt-meta text-mkt-ink flex items-center gap-2 font-semibold">
-            <span className="bg-mkt-proof size-2 animate-pulse rounded-full" />
-            Acme Corp / AI Visibility Workspace
-          </Meta>
-        </div>
-        <div className="flex items-center gap-2">
-          <Meta className="text-mkt-meta border-mkt-line bg-mkt-paper-raised text-mkt-ink-muted rounded-md border px-2 py-0.5 font-mono">
-            Apr 01 — Jun 30
-          </Meta>
-          <ExampleDataNote />
-        </div>
-      </div>
-
       {/* Storytelling Tour Stepper */}
-      <div className="bg-mkt-paper-raised border-mkt-line-soft mb-4 rounded-lg border p-2.5">
-        <TourStepper
-          steps={STORY_STEPS}
-          activeStep={activeStep}
-          isPlaying={isPlaying}
-          onSelectStep={selectStep}
-          onTogglePlay={togglePlay}
-          compact
-        />
+      <div className="bg-mkt-paper-raised border-mkt-line-soft mb-3.5 rounded-lg border p-2.5 sm:p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <TourStepper
+            steps={STORY_STEPS}
+            activeStep={activeStep}
+            isPlaying={isPlaying}
+            onSelectStep={selectStep}
+            onTogglePlay={togglePlay}
+            compact
+          />
+          <div className="hidden sm:block">
+            <ExampleDataNote />
+          </div>
+        </div>
 
-        <div className="text-mkt-meta bg-mkt-proof-soft/40 border-mkt-proof-line/30 mt-2 rounded-md border px-2.5 py-1.5">
-          <span className="text-mkt-proof mb-0.5 block font-mono font-bold uppercase">
-            {currentStep.shiftTitle}
-          </span>
-          <span className="text-mkt-ink block leading-tight font-medium">
-            <strong className="text-mkt-proof">Searchify Solution:</strong>{' '}
-            {currentStep.productSolution}
-          </span>
+        <div className="border-mkt-line-soft/60 text-mkt-meta mt-2.5 flex items-center justify-between border-t pt-2">
+          <div className="flex items-center gap-2 truncate">
+            <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+            <span className="text-mkt-proof font-mono font-semibold uppercase">
+              {currentStep.label.split('.')[1]?.trim()}:
+            </span>
+            <span className="text-mkt-ink-muted truncate font-medium">
+              {currentStep.productSolution} — every score opens to the answer behind it.
+            </span>
+          </div>
+          <div className="ml-2 shrink-0 sm:hidden">
+            <ExampleDataNote />
+          </div>
         </div>
       </div>
 

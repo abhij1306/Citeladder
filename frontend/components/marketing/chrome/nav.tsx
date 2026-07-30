@@ -96,6 +96,7 @@ export function MarketingNav() {
   });
 
   const isAuthenticated = me.isSuccess;
+  const surfaceVisible = scrolled || mobileOpen;
   const dashboardHref =
     (projects && projects.length > 0) || hasStoredActiveProject() ? '/projects' : '/onboarding';
 
@@ -189,11 +190,13 @@ export function MarketingNav() {
 
   return (
     <div
+      data-marketing-nav
       data-scrolled={scrolled ? 'true' : undefined}
       className={cn(
-        'fixed inset-x-0 top-0 z-50 border-b transition-colors duration-300',
-        'bg-mkt-paper-raised',
-        scrolled ? 'border-mkt-line-soft' : 'border-transparent',
+        'fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color] duration-300',
+        surfaceVisible
+          ? 'border-mkt-line-soft bg-mkt-surface'
+          : 'border-transparent bg-transparent',
       )}
     >
       <nav
@@ -245,7 +248,10 @@ export function MarketingNav() {
             >
               <Link
                 href={href}
-                className={cn(NAV_LINK, 'pr-1.5')}
+                className={NAV_LINK}
+                aria-haspopup="true"
+                aria-expanded={openDrop === key}
+                aria-controls={openDrop === key ? `desktop-nav-panel-${key}` : undefined}
                 onFocus={(event) => {
                   const parent = event.currentTarget.parentElement;
                   if (!parent) return;
@@ -256,40 +262,6 @@ export function MarketingNav() {
               >
                 {label}
               </Link>
-              <button
-                type="button"
-                className="text-mkt-ink-soft hover:text-mkt-ink relative z-1 grid size-7 place-items-center rounded-sm"
-                aria-label={`Open ${label} menu`}
-                aria-expanded={openDrop === key}
-                aria-haspopup="true"
-                aria-controls={openDrop === key ? `desktop-nav-panel-${key}` : undefined}
-                onClick={(event) => {
-                  const parent = event.currentTarget.parentElement;
-                  if (!parent) return;
-                  if (openDrop === key) {
-                    closeDrop();
-                    return;
-                  }
-                  openDesktopDrop(key);
-                  anchorPanel(parent, key);
-                }}
-                onFocus={(event) => {
-                  const parent = event.currentTarget.parentElement;
-                  if (!parent) return;
-                  openDesktopDrop(key);
-                  anchorPanel(parent, key);
-                  moveLens(parent);
-                }}
-              >
-                {' '}
-                <ChevronDown
-                  aria-hidden
-                  className={cn(
-                    'size-3 transition-transform duration-300',
-                    openDrop === key && 'rotate-180',
-                  )}
-                />
-              </button>
             </div>
           ))}
 

@@ -64,15 +64,12 @@ describe('MarketingNav', () => {
       const directLink = screen.getByRole('link', {
         name: new RegExp(`^${drop.label}$`, 'i'),
       });
-      const trigger = document.querySelector<HTMLElement>(
-        `nav button[aria-label="Open ${drop.label} menu"]`,
-      );
       expect(directLink).toHaveAttribute('href', drop.href);
-      expect(trigger).not.toBeNull();
-      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+      expect(directLink).toHaveAttribute('aria-expanded', 'false');
+      expect(document.querySelector(`nav button[aria-label="Open ${drop.label} menu"]`)).toBeNull();
 
       await user.hover(directLink);
-      await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'true'));
+      await waitFor(() => expect(directLink).toHaveAttribute('aria-expanded', 'true'));
 
       const panel = screen.getByRole('menu');
       expect(panel).toHaveAttribute('id', `desktop-nav-panel-${drop.key}`);
@@ -80,9 +77,25 @@ describe('MarketingNav', () => {
       expect(within(panel).getAllByRole('menuitem')).toHaveLength(expected);
 
       await user.keyboard('{Escape}');
-      await waitFor(() => expect(trigger).toHaveAttribute('aria-expanded', 'false'));
+      await waitFor(() => expect(directLink).toHaveAttribute('aria-expanded', 'false'));
       await user.unhover(directLink);
     }
+  });
+
+  it('keeps the navigation surface transparent until the page scrolls', async () => {
+    stubAnonymous();
+    renderWithProviders(<MarketingNav />);
+
+    const chrome = document.querySelector<HTMLElement>('[data-marketing-nav]');
+    expect(chrome).toHaveClass('bg-transparent', 'border-transparent');
+
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 24 });
+    window.dispatchEvent(new Event('scroll'));
+
+    await waitFor(() => expect(chrome).toHaveAttribute('data-scrolled', 'true'));
+    expect(chrome).toHaveClass('bg-mkt-surface', 'border-mkt-line-soft');
+
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
   });
 
   it('exposes every dropdown as a mobile accordion with truthful aria-expanded', async () => {

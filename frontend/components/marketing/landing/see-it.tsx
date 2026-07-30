@@ -6,7 +6,7 @@ import { DEMO_HREF } from '@/lib/marketing-content/nav';
 import { ButtonLink } from '../primitives/button';
 import { Reveal } from '../primitives/reveal';
 import { ProductWindow } from '../scenes/product-window';
-import { Section, SectionHeader } from '../primitives/section';
+import { Section } from '../primitives/section';
 
 /**
  * The scroll-driving beat: the product itself.
@@ -22,12 +22,15 @@ export function SeeIt() {
   const { seeIt } = LANDING_CONTENT;
   return (
     <Section id="see-it" tone="field" rhythm="loose" aria-labelledby="see-it-title">
-      <SectionHeader
-        kicker={seeIt.kicker}
-        title={seeIt.title}
-        intro={seeIt.intro}
-        headingId="see-it-title"
-      />
+      <Reveal className="mx-auto mb-8 max-w-3xl text-center md:mb-10">
+        <p className="text-mkt-meta text-mkt-proof font-mono uppercase">{seeIt.kicker}</p>
+        {/* No weight or tracking class here: the `text-mkt-d2` rung owns both,
+            and check-frontend-architecture fails the build if markup overrides
+            them (the whole reason heading weight stays uniform site-wide). */}
+        <h2 id="see-it-title" className="font-mkt-display text-mkt-d2 text-mkt-ink mt-2">
+          {seeIt.title}
+        </h2>
+      </Reveal>
       <Reveal>
         <ProductWindow />
       </Reveal>

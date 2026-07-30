@@ -6,23 +6,30 @@
 
 [Architecture](docs/architecture.md) · [Backend](docs/backend-architecture.md) · [Frontend](docs/frontend-architecture.md) · [Site Health](docs/site-health.md) · [Development](docs/DEVELOPMENT.md)
 
+<p align="center">
+  Searchify is an open-source AI visibility and site intelligence platform for measuring brand presence across answer engines, inspecting the evidence behind every result, and improving on-page AEO readiness.
+</p>
+
+<p align="center">
+  <a href="https://github.com/abhij1306/Searchify/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/abhij1306/Searchify?style=flat-square"></a>
+  <a href="https://github.com/abhij1306/Searchify/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/abhij1306/Searchify?style=flat-square"></a>
+  <a href="https://github.com/abhij1306/Searchify/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/abhij1306/Searchify?style=flat-square"></a>
+  <img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white&style=flat-square">
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white&style=flat-square">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-15%2B-4169E1?logo=postgresql&logoColor=white&style=flat-square">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white&style=flat-square">
+</p>
+
+<p align="center">
+  <code>AEO</code> · <code>GEO</code> · <code>AI Visibility</code> · <code>Brand Monitoring</code> · <code>Site Health</code> · <code>Technical SEO</code> · <code>Open Source</code>
+</p>
+
 </div>
-
-Searchify is an open-source AI visibility and site intelligence platform for measuring brand presence across answer engines, inspecting the evidence behind every result, and improving on-page AEO readiness.
-
-<a href="https://github.com/abhij1306/Searchify/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/abhij1306/Searchify?style=flat-square"></a>
-<a href="https://github.com/abhij1306/Searchify/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/abhij1306/Searchify?style=flat-square"></a>
-<a href="https://github.com/abhij1306/Searchify/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/abhij1306/Searchify?style=flat-square"></a>
-<img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white&style=flat-square">
-<img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white&style=flat-square">
-<img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-15%2B-4169E1?logo=postgresql&logoColor=white&style=flat-square">
-<img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white&style=flat-square">
-
-<code>AEO</code> · <code>GEO</code> · <code>AI Visibility</code> · <code>Brand Monitoring</code> · <code>Site Health</code> · <code>Technical SEO</code> · <code>Open Source</code>
 
 ---
 
-## What Searchify does
+<a id="what-searchify-does"></a>
+## 🔗 What Searchify does
 
 Searchify connects two workflows that are usually fragmented across separate tools:
 
@@ -31,9 +38,11 @@ Searchify connects two workflows that are usually fragmented across separate too
 
 Every report is built from persisted, versioned evidence. Searchify does not silently re-run providers, re-fetch pages, or invent missing metrics while rendering a dashboard.
 
-## Product highlights
+<a id="product-highlights"></a>
+## 🔗 Product highlights
 
-### Visibility Intelligence
+<a id="visibility-intelligence"></a>
+### 🔗 Visibility Intelligence
 
 - **Multi-engine audits** across ChatGPT/OpenAI, Claude/Anthropic, and Gemini/Google.
 - **Bring your own keys** with encrypted provider credentials and explicit transport routes.
@@ -43,7 +52,8 @@ Every report is built from persisted, versioned evidence. Searchify does not sil
 - **Evidence-first exploration** from a headline metric down to the exact persisted execution and source.
 - **Deterministic headline scoring** with analyzer and scoring-rule versions attached to every projection.
 
-### Site Health & AEO Auditing
+<a id="site-health--aeo-auditing"></a>
+### 🔗 Site Health & AEO Auditing
 
 - **Progressive URL discovery** through an in-house HTTP crawler with SSRF and resource-bound protections.
 - **Free sample and Starter monitoring modes** with privacy-aware count disclosure and quota-controlled URL selection.
@@ -53,7 +63,8 @@ Every report is built from persisted, versioned evidence. Searchify does not sil
 - **Per-URL diagnostics** including delivery facts, normalized page facts, evidence, links, and issue history.
 - **Authenticated CSV and Markdown exports** scoped to the active workspace.
 
-### Built for trustworthy operations
+<a id="built-for-trustworthy-operations"></a>
+### 🔗 Built for trustworthy operations
 
 - Strict workspace isolation with UUID identifiers throughout.
 - Immutable artifacts and provenance-carrying analyses.
@@ -66,7 +77,8 @@ Every report is built from persisted, versioned evidence. Searchify does not sil
 
 ---
 
-## Table of contents
+<a id="table-of-contents"></a>
+## 🔗 Table of contents
 
 - [What Searchify does](#what-searchify-does)
 - [Product highlights](#product-highlights)
@@ -87,27 +99,31 @@ Every report is built from persisted, versioned evidence. Searchify does not sil
 
 ---
 
-## Architecture
+<a id="architecture"></a>
+## 🔗 Architecture
 
-```text
-Browser ── /api/* ──> Next.js same-origin proxy ──> FastAPI ──> PostgreSQL
-                                                        │             │
-                                                        │             ├─ durable tasks
-                                                        │             ├─ evidence
-                                                        │             └─ metrics
-                                                        │
-                                                        ├─ Audit worker ──> AI providers (BYOK)
-                                                        ├─ Site Health worker ──> public website pages
-                                                        └─ Content worker ──> content provider (env key)
-```
+Searchify is engineered as a modular monolith with strict security boundaries, immutable evidence persistence, and durable background worker orchestration.
 
-- **Same-origin proxying.** The browser calls relative `/api/*` routes. Next.js forwards them to the server-only `BACKEND_ORIGIN`, keeping backend topology out of the client bundle.
-- **Deterministic, versioned analysis.** Headline visibility metrics and Site Health scores come from explicit rules over persisted evidence. Metrics that are not supported remain nullable and render as `—`.
-- **PostgreSQL-backed orchestration.** Workers claim tasks with `FOR UPDATE SKIP LOCKED`, maintain leases and heartbeats, retry safely, and reconcile terminal state without a Redis dependency.
-- **Immutable evidence and provenance.** Provider responses and crawl artifacts are written once. Derived analyses reference their sources and formula versions; dashboard reads are projections, not hidden recomputation.
-- **Security boundaries by default.** Workspaces are resolved server-side, provider secrets are encrypted at rest, crawler requests are SSRF-bounded, and raw fetched HTML is never retained by Site Health.
+### System Components
 
-## Tech stack
+- **Frontend Application Shell (`Next.js 16 / TypeScript`)**: Delivers a responsive dashboard UI and manages authentication via HttpOnly JWT cookies. Handles same-origin proxying (`/api/*` → backend) to keep backend infrastructure and credentials isolated from browser bundles.
+- **Backend Service Core (`FastAPI / Python 3.12`)**: Exposes workspace-scoped REST endpoints, enforces domain invariants, handles Fernet-encrypted BYOK credentials, and orchestrates task state machines.
+- **Database & Queue Engine (`PostgreSQL 15+`)**: Single source of truth for workspace data, immutable evidence artifacts, derived metrics, and task queue rows (`FOR UPDATE SKIP LOCKED`).
+- **Background Worker Fleet**:
+  - **Audit Worker**: Claims queued audit tasks, executes BYOK provider requests (OpenAI, Anthropic, Google), and records raw response artifacts.
+  - **Site Health Worker**: Executes progressive HTTP crawling with SSRF protection, evaluates AEO & Technical SEO rules, and computes issue diagnostics.
+  - **Content Worker**: Handles asynchronous AI content generation requests using environment keys.
+
+### Core Architectural Pillars
+
+- **Same-Origin API Proxying**: The browser calls relative `/api/*` routes. Next.js forwards them to the server-only `BACKEND_ORIGIN`, preventing CORS issues and keeping backend topology hidden.
+- **Deterministic, Versioned Analysis**: Headline metrics and Site Health scores derive from explicit rules over raw persisted evidence. Unsupported metrics remain explicitly nullable (`—`).
+- **PostgreSQL-Backed Task Queueing**: Workers claim tasks with row-level locking (`FOR UPDATE SKIP LOCKED`), maintain lease heartbeats, retry safely, and reconcile terminal states without a Redis dependency.
+- **Immutable Evidence & Provenance**: Raw LLM payloads and crawl snapshots are written once. Derived analyses reference exact source artifact IDs and rule versions for 100% auditability.
+- **Strict Workspace Isolation**: All domain queries and persistence models enforce workspace UUID scoping server-side for complete multi-tenant isolation.
+
+<a id="tech-stack"></a>
+## 🔗 Tech stack
 
 | Layer     | Technology |
 |-----------|------------|
@@ -116,7 +132,8 @@ Browser ── /api/* ──> Next.js same-origin proxy ──> FastAPI ──> 
 | Database  | PostgreSQL |
 | Tooling   | `uv` (backend deps), `pnpm` (frontend), Docker Compose, Ruff, pytest / pytest-asyncio, Vitest + Testing Library + MSW, Playwright |
 
-## Repository layout
+<a id="repository-layout"></a>
+## 🔗 Repository layout
 
 ```
 Searchify/
@@ -149,14 +166,16 @@ Searchify/
     └── plans/                # Approved implementation plan
 ```
 
-## Prerequisites
+<a id="prerequisites"></a>
+## 🔗 Prerequisites
 
 - **Docker + Docker Compose** (for the quick start), or for bare-metal dev:
 - **Python 3.12** and [`uv`](https://docs.astral.sh/uv/)
 - **Node.js 22+** and **pnpm 11+**
 - **PostgreSQL 15+** (only if running the backend outside Docker)
 
-## Quick start (Docker Compose)
+<a id="quick-start-docker-compose"></a>
+## 🔗 Quick start (Docker Compose)
 
 > **Important:** this machine (and CI-like shells) may export `POSTGRES_*` and
 > `DATABASE_URL` into every shell, which Compose resolves *before* `.env`. Use the
@@ -186,7 +205,8 @@ Open <http://localhost:3000>, register a user (a workspace is created automatica
 create a project. Connect a BYOK provider to run Visibility audits, or open Site Health to
 discover and analyze the project website.
 
-## Local development (without Docker)
+<a id="local-development-without-docker"></a>
+## 🔗 Local development (without Docker)
 
 ```bash
 # Backend
@@ -206,7 +226,8 @@ pnpm install
 pnpm dev
 ```
 
-## Configuration
+<a id="configuration"></a>
+## 🔗 Configuration
 
 Backend settings are read from the environment (see `infra/docker/.env.example`):
 
@@ -226,7 +247,8 @@ Backend settings are read from the environment (see `infra/docker/.env.example`)
 Frontend: `BACKEND_ORIGIN` (server-only) is the backend the Next.js `rewrites()` proxy
 forwards `/api/*` to. Never expose it to the browser.
 
-## Database migrations
+<a id="database-migrations"></a>
+## 🔗 Database migrations
 
 Migrations live in `migrations/` and are applied with Alembic:
 
@@ -246,7 +268,8 @@ uv run alembic check                 # assert no ORM-vs-migration drift
 > verified with a fresh disposable database (`alembic upgrade head` and
 > `alembic check`).
 
-## Testing
+<a id="testing"></a>
+## 🔗 Testing
 
 ```bash
 # Backend (from backend/) — needs only a running local Postgres; server creds
@@ -265,7 +288,8 @@ pnpm exec tsc --noEmit # type check
 pnpm test:e2e         # Playwright (requires a browser + running stack)
 ```
 
-## Key concepts
+<a id="key-concepts"></a>
+## 🔗 Key concepts
 
 - **Unified contract.** All ids are string UUIDs, workspace-scoped (no `user_id` scoping, no
   integer PKs). API prefix is `/api/v1`.
@@ -285,7 +309,8 @@ pnpm test:e2e         # Playwright (requires a browser + running stack)
   lets the user pick a monitored URL set (quota-limited) that is analyzed and dashboarded.
   See [`docs/site-health.md`](docs/site-health.md).
 
-## Documentation map
+<a id="documentation-map"></a>
+## 🔗 Documentation map
 
 | Doc | What it covers |
 |-----|----------------|
@@ -300,7 +325,8 @@ pnpm test:e2e         # Playwright (requires a browser + running stack)
 | [`docs/plans/`](docs/plans/) | Historical implementation plans and task graphs |
 | [`docs/roadmap/`](docs/roadmap/) | Shipped design records and specifications for future product surfaces |
 
-## Known gotchas
+<a id="known-gotchas"></a>
+## 🔗 Known gotchas
 
 Two environment-specific gotchas will bite you if you don't know them (full runbooks in
 [`docs/invariants.md`](docs/invariants.md) §11–12 and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)):
@@ -315,11 +341,14 @@ Two environment-specific gotchas will bite you if you don't know them (full runb
    `/api/*`, proxied same-origin via Next.js `rewrites()`. **Always test this in a real
    browser, not curl.**
 
-## Contributing
+<a id="contributing"></a>
+## 🔗 Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the branch/commit conventions, the review
 checklist, and how the 12 invariants gate a change.
 
-## License
+<a id="license"></a>
+## 🔗 License
 
 Released under the [MIT License](LICENSE).
+

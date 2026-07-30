@@ -265,8 +265,8 @@ token.
 | `--text-xl` | 24px / 28px | 500 | `font.heading.large` | onboarding / empty-page titles |
 | `--text-2xl` | 29px / 32px | 500 | `font.heading.xlarge` | rare, hero numerals |
 | `--text-hero` | 35px / 40px | 500 | `font.heading.xxlarge` | app display ceiling — name kept, was 48px |
-| `--text-display-1` | clamp, 35 → 64px / 1.04 | 500 | above the ADS ceiling | marketing hero (aliased as `--text-mkt-d1`) |
-| `--text-display-2` | clamp, 29 → 48px / 1.08 | 500 | above the ADS ceiling | marketing section head (aliased as `--text-mkt-d2`) |
+| `--text-display-1` | clamp, 31 → 60px / 1.04 | 500 | above the ADS ceiling | marketing hero (aliased as `--text-mkt-d1`) |
+| `--text-display-2` | clamp, 25 → 44px / 1.08 | 500 | above the ADS ceiling | marketing section head (aliased as `--text-mkt-d2`) |
 
 - The eyebrow recipe is ADS `font.heading.xxsmall` — 12/16 @600, **no uppercase, no
   tracking** — composed at the call site as `text-xs font-semibold` (`eyebrowClasses`); there
@@ -653,7 +653,7 @@ cards could carry three different heading sizes.
 neighbour). Both keep the same 7.5rem numbered rail, which is the whole point — `EngineBand`
 used to hand-roll its heading block and sat half a step off the rail above it.
 
-**Display ladder.** `d1`/`d2` resolve to **35 → 64px** and **29 → 48px** fluid
+**Display ladder.** `d1`/`d2` resolve to **31 → 60px** and **25 → 44px** fluid
 (`--text-display-1`/`-2`, line-heights 1.04/1.08, weight 500 baked). The earlier scale capped
 at 72px and floored at **44px**, which wrapped an 18ch headline into four or five stubby
 lines on a phone — so headlines read as oversized and cramped at once.

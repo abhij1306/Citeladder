@@ -69,6 +69,11 @@ export const NAV_DROPS: readonly NavDrop[] = [
           },
           { title: 'Founders', desc: 'See if engines recommend you', href: '/solutions#founders' },
           {
+            title: 'Ecommerce',
+            desc: 'Product share of voice and price accuracy',
+            href: '/solutions#commerce',
+          },
+          {
             title: 'PR & comms',
             desc: 'See what engines say after a launch',
             href: '/solutions#pr',

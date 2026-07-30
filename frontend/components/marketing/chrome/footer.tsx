@@ -40,6 +40,7 @@ const FOOTER_COLUMNS: readonly FooterColumn[] = [
       { label: 'Agencies', href: '/solutions#agencies' },
       { label: 'In-house teams', href: '/solutions#in-house' },
       { label: 'Founders', href: '/solutions#founders' },
+      { label: 'Ecommerce', href: '/solutions#commerce' },
       { label: 'PR & comms', href: '/solutions#pr' },
     ],
   },

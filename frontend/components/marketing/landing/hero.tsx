@@ -6,8 +6,9 @@ import { DEMO_HREF } from '@/lib/marketing-content/nav';
 import { ButtonLink } from '../primitives/button';
 import { Eyebrow } from '../primitives/label';
 import { Container } from '../primitives/section';
-import { TrustStrip } from '../primitives/trust-strip';
 import { HeroEntrance } from './hero-entrance';
+import { HeroAtmosphere } from './hero-atmosphere';
+import { RotatingEngineLogos } from './rotating-engine-logos';
 
 /**
  * The hook — a centred opener standing on the atmospheric field.
@@ -28,8 +29,9 @@ import { HeroEntrance } from './hero-entrance';
 export function Hero() {
   const { hook } = LANDING_CONTENT;
   return (
-    <header className="mkt-field-hero mkt-grid-field relative overflow-hidden">
-      <Container className="relative z-1 py-20 md:py-28">
+    <header className="mkt-field-hero mkt-grid-field -mt-mkt-nav pt-mkt-nav relative overflow-hidden">
+      <HeroAtmosphere />
+      <Container className="relative z-1 pt-12 pb-16 md:pt-16 md:pb-20">
         <HeroEntrance className="mx-auto max-w-4xl text-center">
           <div className="flex justify-center">
             <Eyebrow>{hook.eyebrow}</Eyebrow>
@@ -47,7 +49,7 @@ export function Hero() {
               {hook.secondaryCta}
             </ButtonLink>
           </div>
-          <TrustStrip className="mt-8 justify-center" />
+          <RotatingEngineLogos className="mt-8 md:mt-10" />
         </HeroEntrance>
       </Container>
     </header>

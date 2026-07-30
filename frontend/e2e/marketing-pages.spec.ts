@@ -55,7 +55,9 @@ test.describe('marketing routes', () => {
 
   test('shared navigation and footer work from a subpage', async ({ page }) => {
     await page.goto('/pricing');
-    const resources = page.getByRole('button', { name: 'Resources' });
+    const resources = page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .getByRole('link', { name: 'Resources', exact: true });
     await resources.hover();
     await expect(page.locator('#desktop-nav-panel-resources')).toBeVisible();
     await expect(page.locator('#desktop-nav-panel-resources').getByRole('menuitem')).toHaveCount(3);
@@ -102,11 +104,17 @@ test.describe('marketing routes', () => {
       await expect(page.locator('body')).not.toHaveText(
         /self-host|self host|open source|Docker Compose|scheduled audits|TODO\(user\)|searchify\.example/i,
       );
-      // Perplexity / Grok / Copilot are detected AI-referral sources, never
-      // audited engines — they may be named only in the one FAQ answer that
-      // explains the referral classification.
+      // Perplexity / Grok / Copilot are not audited engines today. They may be
+      // named in exactly two places: the FAQ answer that explains referral
+      // classification, and the hero's provider board, which carries the
+      // planned BYOK line-up. Anywhere else is an unaudited-engine claim, so
+      // the board is lifted out and the rest of the page still has to be clean.
       if (path !== '/faq') {
-        await expect(page.locator('body')).not.toHaveText(/Perplexity|Grok|Copilot/i);
+        const bodyText = await page.evaluate(() => {
+          document.querySelector('[data-engine-roster]')?.remove();
+          return document.body.innerText;
+        });
+        expect(bodyText).not.toMatch(/Perplexity|Grok|Copilot/i);
       }
     }
   });

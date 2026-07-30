@@ -38,7 +38,7 @@ export const LANDING_CONTENT = {
     /* The accent clause carries the signature slate→sage sweep, so the hero
        headline turns over to colour on its closing line. */
     titleAccent: 'They ask AI instead.',
-    body: 'ChatGPT, Gemini and Claude are telling your market what to buy — and buyers act on the answer. Searchify shows you what those answers say about your brand, and proves every claim back to the answer it came from.',
+    body: 'AI engines shape what your market buys. Searchify shows what they say about your brand — and links every claim to the answer behind it.',
     primaryCta: 'See it on your category',
     secondaryCta: 'How it works',
   },
@@ -68,8 +68,6 @@ export const LANDING_CONTENT = {
   seeIt: {
     kicker: 'The solution',
     title: 'How teams turn AI search conversations into strategy.',
-    intro:
-      'When buyer preferences shifted from search results to AI answers, traditional SEO stopped working. Searchify gives your team the exact workspace to observe, trace, and optimize your brand’s presence — where every score opens to the answer behind it.',
     cta: 'Run this on your market',
     questions: [
       {

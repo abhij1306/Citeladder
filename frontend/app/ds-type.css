@@ -61,10 +61,10 @@
   /* Fluid display steps — above the ADS ceiling, consumed by marketing as
      --text-mkt-d1/-d2. Unitless line-heights so the ratio holds across the
      clamp. */
-  --text-display-1: clamp(2.1875rem, 4.6vw, 4rem); /* 35 → 64px */
+  --text-display-1: clamp(1.9375rem, 4.3vw, 3.75rem); /* 31 → 60px */
   --text-display-1--line-height: 1.04;
   --text-display-1--font-weight: 500;
-  --text-display-2: clamp(1.8125rem, 3.4vw, 3rem); /* 29 → 48px */
+  --text-display-2: clamp(1.5625rem, 3.1vw, 2.75rem); /* 25 → 44px */
   --text-display-2--line-height: 1.08;
   --text-display-2--font-weight: 500;
 

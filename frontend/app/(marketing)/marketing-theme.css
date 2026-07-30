@@ -48,10 +48,10 @@
      Every step carries its own weight, so marketing markup never writes a
      `font-medium`/`font-semibold` class next to a type token — the rung is
      the whole decision. This is what keeps heading weight uniform. */
-  --text-mkt-d1: var(--text-display-1); /* 35 → 64px fluid */
+  --text-mkt-d1: var(--text-display-1); /* 31 → 60px fluid */
   --text-mkt-d1--line-height: var(--text-display-1--line-height);
   --text-mkt-d1--font-weight: var(--text-display-1--font-weight);
-  --text-mkt-d2: var(--text-display-2); /* 29 → 48px fluid */
+  --text-mkt-d2: var(--text-display-2); /* 25 → 44px fluid */
   --text-mkt-d2--line-height: var(--text-display-2--line-height);
   --text-mkt-d2--font-weight: var(--text-display-2--font-weight);
   --text-mkt-d3: var(--text-2xl); /* 29px — ADS font.heading.xlarge */
@@ -167,6 +167,9 @@
   --color-mkt-engine-openai: #1f2421;
   --color-mkt-engine-claude: #d97757;
   --color-mkt-engine-gemini: #4285f4;
+  --color-mkt-engine-grok: #0a0a0a;
+  --color-mkt-engine-copilot: #5059c9;
+  --color-mkt-engine-perplexity: #1fb8cd;
 
   /* ─── Shape ───────────────────────────────────────────────────────────
      Marketing shares the ADS radius scale; only the two guard-mandated
