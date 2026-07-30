@@ -1011,6 +1011,10 @@
       "SecureFetcher._trace": 1,
       "SecureFetcher.aclose": 1,
       "SecureFetcher.fetch": 3,
+      "_DeflateDecoder.__init__": 1,
+      "_DeflateDecoder.decompress": 4,
+      "_DeflateDecoder.eof": 1,
+      "_DeflateDecoder.flush": 1,
       "_charset": 3,
       "_content_type": 1,
       "_content_type_gate_applies": 2,
@@ -1018,7 +1022,7 @@
       "is_bot_block_result": 3,
       "redact_headers": 4
     },
-    "loc": 686,
+    "loc": 753,
     "max_cc": 18
   },
   "app/connectors/web_evidence/resolver.py": {
@@ -1278,7 +1282,7 @@
       "default_site_health_capability": 1,
       "normalize_capability": 3
     },
-    "loc": 1885,
+    "loc": 1893,
     "max_cc": 12
   },
   "app/core/config/suggestions.py": {
@@ -2353,12 +2357,12 @@
       "_task_idempotency_key": 1,
       "_upsert_site_url": 4,
       "_utcnow": 1,
-      "admit_candidates": 18,
+      "admit_candidates": 19,
       "build_frontier_candidates": 2,
       "extract_discovery_links": 16
     },
-    "loc": 547,
-    "max_cc": 18
+    "loc": 561,
+    "max_cc": 19
   },
   "app/domain/site_health/entitlements.py": {
     "functions": {
@@ -2500,11 +2504,11 @@
       "_page_type_matches": 3,
       "_score_summary": 12,
       "_single_h1_variant": 4,
-      "display_label_for": 5,
+      "display_label_for": 6,
       "presentation_status_for": 12,
       "project_crawl": 12
     },
-    "loc": 412,
+    "loc": 421,
     "max_cc": 24
   },
   "app/domain/site_health/service/queries.py": {
@@ -3041,10 +3045,10 @@
       "AnalyzePhaseMixin._persisted_analysis_artifact_id": 2,
       "AnalyzePhaseMixin._resolve_analysis_site_url_id": 3,
       "AnalyzePhaseMixin._run_analyze": 9,
-      "AnalyzePhaseMixin._write_page_analysis": 24
+      "AnalyzePhaseMixin._write_page_analysis": 25
     },
-    "loc": 620,
-    "max_cc": 24
+    "loc": 627,
+    "max_cc": 25
   },
   "app/workers/site_health/phases/discover.py": {
     "functions": {
@@ -3053,15 +3057,17 @@
       "DiscoverPhaseMixin._ensure_robots_policy": 11,
       "DiscoverPhaseMixin._fetch_discover": 11,
       "DiscoverPhaseMixin._fetch_well_known": 3,
+      "DiscoverPhaseMixin._forget_robots": 3,
       "DiscoverPhaseMixin._ingest_sitemaps": 19,
       "DiscoverPhaseMixin._persist_discover": 12,
       "DiscoverPhaseMixin._persisted_discover_artifact_id": 2,
+      "DiscoverPhaseMixin._prune_robots_cache": 7,
       "DiscoverPhaseMixin._run_discover": 9,
       "DiscoverPhaseMixin._site_setup": 18,
       "DiscoverPhaseMixin._sitemap_candidates": 3,
       "DiscoverPhaseMixin._write_sitemap_observations": 3
     },
-    "loc": 817,
+    "loc": 864,
     "max_cc": 19
   },
   "app/workers/site_health/phases/link_check.py": {
