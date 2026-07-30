@@ -89,13 +89,24 @@ describe('MarketingNav', () => {
     const chrome = document.querySelector<HTMLElement>('[data-marketing-nav]');
     expect(chrome).toHaveClass('bg-transparent', 'border-transparent');
 
-    Object.defineProperty(window, 'scrollY', { configurable: true, value: 24 });
-    window.dispatchEvent(new Event('scroll'));
+    // `scrollY` is an accessor on the jsdom window, and overriding it with a
+    // data property leaks into every later test in the file unless the
+    // original descriptor goes back — hence the capture/restore pair.
+    const scrollYDescriptor = Object.getOwnPropertyDescriptor(window, 'scrollY');
+    try {
+      Object.defineProperty(window, 'scrollY', { configurable: true, value: 24 });
+      window.dispatchEvent(new Event('scroll'));
 
-    await waitFor(() => expect(chrome).toHaveAttribute('data-scrolled', 'true'));
-    expect(chrome).toHaveClass('bg-mkt-surface', 'border-mkt-line-soft');
-
-    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0 });
+      await waitFor(() => expect(chrome).toHaveAttribute('data-scrolled', 'true'));
+      expect(chrome).toHaveClass('bg-mkt-surface', 'border-mkt-line-soft');
+    } finally {
+      if (scrollYDescriptor) {
+        Object.defineProperty(window, 'scrollY', scrollYDescriptor);
+      } else {
+        Reflect.deleteProperty(window, 'scrollY');
+      }
+      window.dispatchEvent(new Event('scroll'));
+    }
   });
 
   it('exposes every dropdown as a mobile accordion with truthful aria-expanded', async () => {

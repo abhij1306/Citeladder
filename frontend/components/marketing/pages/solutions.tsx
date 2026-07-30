@@ -20,10 +20,10 @@ import { Reveal } from '../primitives/reveal';
 import { SolutionEvidencePanel } from '../scenes/evidence-panel';
 
 /**
- * `/solutions` — four audience segments, each alternating copy and an
- * evidence panel. The section ids (`agencies`, `in-house`, `founders`, `pr`)
- * are the targets of the nav's Solutions dropdown and the footer, so they are
- * part of the route's contract.
+ * `/solutions` — five audience segments, each alternating copy and an
+ * evidence panel. The section ids (`agencies`, `in-house`, `founders`,
+ * `commerce`, `pr`) are the targets of the nav's Solutions dropdown and the
+ * footer, so they are part of the route's contract.
  */
 const SEGMENT_ICONS = {
   agencies: Briefcase,
@@ -75,7 +75,7 @@ export function SolutionSegments() {
           <Reveal
             className={cn(
               'grid items-center gap-10 lg:grid-cols-2 lg:gap-16',
-              // Alternating sides stop four consecutive segments from reading
+              // Alternating sides stop five consecutive segments from reading
               // as one long list.
               index % 2 === 1 && '[&>*:first-child]:lg:order-2',
             )}
@@ -140,7 +140,7 @@ export function SolutionsCta() {
           Bring your team the version of the truth it reports in.
         </h2>
         <p className="text-mkt-lead text-mkt-ink-soft mx-auto max-w-[52ch]">
-          One observation field, four ways of reading it. We will walk through the one that matches
+          One observation field, five ways of reading it. We will walk through the one that matches
           how you are measured.
         </p>
         <div className="mt-9 flex flex-col items-center justify-center gap-2.5 sm:flex-row">

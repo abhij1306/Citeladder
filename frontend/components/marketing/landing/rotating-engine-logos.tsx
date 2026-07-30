@@ -79,7 +79,12 @@ export function RotatingEngineLogos({ className }: Readonly<{ className?: string
       data-engine-roster
       className={cn('mkt-logo-board', className)}
       role="img"
-      aria-label="Searchify monitors ChatGPT, Gemini, Claude, Grok, Copilot and Perplexity"
+      // Names the providers without asserting what is done with them. The
+      // visual board is six marks and nothing more, so an accessible name of
+      // "Searchify monitors …" handed screen-reader users a coverage claim
+      // sighted users never see — and one the audited roster (OpenAI, Gemini,
+      // Claude) does not currently back.
+      aria-label="AI engines: ChatGPT, Gemini, Claude, Grok, Copilot and Perplexity"
     >
       <ul aria-hidden className="mx-auto grid max-w-lg grid-cols-3 gap-2.5 sm:gap-4">
         {LOGO_PAIRS.map(({ primary, alternate }, index) => (

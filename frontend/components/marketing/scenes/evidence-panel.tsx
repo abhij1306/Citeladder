@@ -219,7 +219,11 @@ export function SolutionEvidencePanel({ scene }: Readonly<{ scene: SolutionScene
         <ExampleDataNote />
       </div>
       <Panel className="p-5">
-        <div>{body}</div>
+        {/* Every figure below is fabricated. `ExampleDataNote` above stays
+            readable — it is the honesty mark — but the rows themselves are
+            hidden, so a screen reader is not read a table of invented metrics
+            as if it were page content. */}
+        <div aria-hidden>{body}</div>
       </Panel>
     </WallpaperPanel>
   );
