@@ -43,8 +43,10 @@ Goals:
   (GPTBot / ClaudeBot / PerplexityBot / Google-Extended), `llms.txt`, per-type schema
   validity, content extractability, citability, sitemap/canonical/hreflang/broken-link
   hygiene.
-- **G4.** Fetch escalation — httpx → curl_cffi impersonated retry on bot-block
-  signatures — plus an opt-in headless render tier (design only in this spec).
+- **G4.** ~~Fetch escalation — httpx → curl_cffi impersonated retry on bot-block
+  signatures — plus an opt-in headless render tier.~~ **Dropped** (§4): the crawler
+  makes one plain, honestly-identified HTTP request; a bot block is reported as the
+  finding it is.
 - **G5.** Invariants intact: determinism (9), config-owned everything (1), provenance
   on every derived row (4), Free non-disclosure, no raw-HTML storage.
 
@@ -102,62 +104,46 @@ What to take from this:
 - **Our standing differentiator is determinism**: versioned rules, reproducible
   scores, full provenance. v2 keeps it — every new check below is deterministic.
 
-## 4. Scrapling evaluation & recommendation
+## 4. Fetch-engine evaluation — settled: plain HTTP only
 
-[Scrapling](https://github.com/D4Vinci/Scrapling) is a BSD-licensed Python scraping
-library: a progressive fetcher stack (`Fetcher`/`AsyncFetcher` → `StealthyFetcher` →
-`DynamicFetcher`/`PlayWrightFetcher`), "adaptive elements" (element fingerprints that
-survive DOM redesigns), and a `Spider` crawl framework
-([deepwiki](https://deepwiki.com/D4Vinci/Scrapling)). Layer by layer:
+This section previously evaluated [Scrapling](https://github.com/D4Vinci/Scrapling),
+adopting `curl_cffi` for TLS/JA3 impersonation and Patchright (an undetected
+Playwright fork) for an opt-in headless render tier. **Both were implemented and
+then removed.** The evaluation is retained here only as the record of a decision
+that was reversed.
 
-| Scrapling layer | What it gives | Fit for Searchify |
-|---|---|---|
-| `Fetcher` / `AsyncFetcher` | curl_cffi TLS/JA3 impersonation, HTTP/3, no JS rendering | **Engine is valuable; the wrapper is not** |
-| `StealthyFetcher` | Camoufox-based anti-bot browser (Turnstile-class challenges) | Render-tier candidate; loses to Patchright (below) |
-| `DynamicFetcher` / `PlayWrightFetcher` | Full Playwright automation | Heavier than the render tier needs |
-| Adaptive elements | Relocates selectors after site redesigns | **Irrelevant** — we audit pages per fetch; we do not track selectors across redesigns |
-| `Spider` framework | Concurrent multi-session crawling, pause/resume, proxy rotation | **Conflicts** — the Postgres SKIP LOCKED queue + entitlement + SSRF architecture already owns this |
-| Parser | lxml | No gain — `parser.py` already parses lxml directly |
+**Settled decision: the crawler makes one plain, honestly-identified HTTP request
+per target — no impersonation, no headless browser.**
 
-The valuable layer is the engine under `Fetcher`:
-[curl_cffi](https://github.com/lexiforest/curl_cffi) (MIT) impersonates browser
-TLS/JA3/HTTP2 fingerprints, is HTTP-only (no JS), and per its docs performs on par
-with aiohttp/pycurl. Caveats:
+Rationale:
 
-- It does **not** pass JS-execution challenges (Cloudflare Turnstile-class) — that is
-  what the opt-in render tier (§5.4) is for.
-- It has a disclosed redirect-based SSRF advisory
-  ([GHSA-qw2m-4pqf-rmpp](https://github.com/advisories/GHSA-qw2m-4pqf-rmpp), fixed in
-  `0.15.0`). **Pin `curl-cffi>=0.15.0`** — CrawlerAI's `>=0.14.0,<1` admits the
-  vulnerable range and v2 must not copy that pin. Independently, `SecureFetcher`
-  already follows redirects manually and re-validates **every hop** through
-  `resolve_target`; any adoption must keep hop validation outside the library and
-  never let curl_cffi follow redirects itself.
+- **A block is the finding, not an obstacle.** A site that refuses a well-behaved
+  crawler identifying itself as `SearchifySiteHealthBot/1.0` is, by that fact, not
+  AEO-ready — the AI crawlers we audit for (GPTBot / ClaudeBot / PerplexityBot) are
+  equally well-identified and get the same treatment. Reporting `bot_blocked` is
+  more useful to the customer than a score obtained by disguise.
+- **Impersonation contradicts the product.** Sending a Chrome TLS fingerprint while
+  claiming to be our crawler means shipping something that lies about who it is;
+  that is not a posture we want in a tool whose value is honest measurement.
+- **It bought a large amount of complexity.** Rung 2 was ~430 LOC of live-cap write
+  callbacks, `CurlOpt.RESOLVE` IP pinning, and error-code translation, all of it
+  re-deriving safety properties rung 1 already had — plus a dependency carrying a
+  redirect-SSRF advisory ([GHSA-qw2m-4pqf-rmpp](https://github.com/advisories/GHSA-qw2m-4pqf-rmpp))
+  that had to be pinned around.
 
-**Recommendations:**
-
-1. **Adopt curl_cffi directly, not via Scrapling's Fetcher.** Scrapling's value
-   layers do not fit (adaptive elements n/a, `Spider` conflicts, parser redundant),
-   and its `Fetcher` wraps curl_cffi behind its own session/response model that would
-   have to be re-plumbed to preserve per-hop SSRF revalidation, IP pinning, byte caps,
-   and header redaction. Taking curl_cffi alone is one thin dependency behind our
-   existing fetch contract. This matches the in-house precedent: CrawlerAI depends on
-   `curl-cffi` directly (`CrawlerAI/backend/pyproject.toml`).
-2. **Render-tier tech: Patchright** ([patchright-python](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright-python),
-   an undetected Playwright fork) — already battle-tested in the user's own stack
-   (CrawlerAI `app/acquisition/`: browser pool, block detection, `patchright` +
-   `curl-cffi` dependencies). Scrapling's `StealthyFetcher`/Camoufox is viable but
-   introduces a second, Firefox-fork browser stack with no in-house operational
-   history.
+Consequences, applied: no `curl-cffi` dependency; no `fetch_mode` vocabulary (the
+crawl configuration no longer carries one, and `POST /site-crawls` no longer accepts
+it); no `fetch_engine` / `rung_number` provenance columns; no `TASK_KIND_RENDER`
+tier. Bot blocks are classified from challenge-platform **body markers** only —
+status codes alone would relabel every members-only `401` as bot protection.
 
 ## 5. Proposed architecture
 
 ```mermaid
 flowchart LR
-    Task["analyze task"] --> Fetch["SecureFetcher rung 1 (httpx)"]
-    Fetch -->|"403 / TLS-block signature"| Imp["rung 2: curl_cffi impersonated retry"]
+    Task["analyze task"] --> Fetch["SecureFetcher (httpx, one plain request)"]
+    Fetch -->|"challenge marker"| Blocked["terminal bot_blocked (presents as blocked)"]
     Fetch --> Facts["extract_page_facts (lxml, pure)"]
-    Imp --> Facts
     Facts --> Classify["classify page_type (deterministic)"]
     Classify --> Rules["evaluate_all (profile-applicable rules)"]
     Rules --> Score["score_analysis (per-type weights)"]
@@ -355,70 +341,44 @@ counterpart pages' facts). The design:
   `crawl_finalize` evaluations — their absence fabricates nothing, same as any
   missing row today.
 
-### 5.4 Fetch layer v2
+### 5.4 Fetch layer — one plain HTTP request
 
-Modelled on CrawlerAI's proven acquisition pattern (`CrawlerAI/backend/app/acquisition/`:
-`policy.py` `AcquisitionPolicy`, `planner.py`/`executor.py`, and `VALID_FETCH_MODES` in
-`app/core/config/runtime_settings.py`) — but far smaller: no proxies, no
-`host_protection_memory` domain memory, no platform policies. v2 escalation is
-stateless per task.
+The escalation ladder and render tier this section originally specified were built
+and then removed; see §4 for the decision and its rationale. What stands:
 
-- **Fetch-mode vocabulary (config-owned, frozen into `SiteCrawl.configuration`):**
-  `auto | http_only | browser_only | http_then_browser` (mirrors CrawlerAI's
-  `VALID_FETCH_MODES`). In v2: `http_only` = rung 1 only; `auto` = rung 1 +
-  impersonated retry (the default); `browser_only` / `http_then_browser` are reserved
-  and activate with the render tier (P4).
-- **Escalation inside `SecureFetcher`:** rung 1 is today's httpx path. On a bot-block
-  signature — config-owned table of statuses (`401/403/503`) + response markers
-  (e.g. Cloudflare challenge markers) and TLS-layer blocks — rung 2 retries once with
-  a curl_cffi `AsyncSession` using a config-owned impersonate target
-  (`SITE_HEALTH_CURL_IMPERSONATE_TARGET`, e.g. `chrome131`). Escalation happens inside
-  the single fetch call; it consumes no extra queue attempt and changes no queue
-  semantics.
-- **Preserved on rung 2 (non-negotiable):** manual redirects with per-hop
-  `resolve_target` revalidation (GHSA-qw2m-4pqf-rmpp), pinned-IP dial, wire/decoded
-  byte caps, `PERSISTED_RESPONSE_HEADERS` redaction, per-host politeness (already
-  wired: per-host semaphore + fixed delay), no env proxy trust. Robots compliance is
-  **added, not preserved** — there is no robots fetch today (§2); P2 adds it on rung
-  1 and rung 2 honors the identical per-host policy.
-- **Presentation semantics (deliberate change):** today a terminal 4xx presents as
-  `error` and `blocked` is reserved for `POLICY_BLOCKING_ERROR_CODES`
-  (robots/SSRF). In v2 a signature-detected bot block (both rungs exhausted) joins
-  that config set, so the URL presents as `blocked` with its error code rather than
-  a generic `error`.
-- **Pinned-IP dial is an open implementation risk — P3 starts with a validation
-  spike.** The httpx rung pins the validated IP at the transport while preserving
-  Host + TLS SNI; curl_cffi needs the `CURLOPT_RESOLVE`-equivalent to do the same.
-  The spike must prove that mechanism (dial the validated IP, keep original
-  Host/SNI, no re-resolution) before any rung-2 code lands. If curl_cffi cannot pin,
-  the documented fallback is re-resolve-and-compare immediately before the request
-  (resolve the host again and require the result to match the already-validated IP
-  set, closing the DNS-rebinding window to the dial itself) — "pinned-IP dial" stays
-  non-negotiable in principle; only the mechanism is spike-dependent.
-- **Provenance:** `fetch_engine` (`httpx` | `curl_cffi` | `browser`) recorded on
-  `SiteFetchAttempt` and `SiteFetchArtifact` (§5.5).
-- **Opt-in headless render tier (design only — P4):** new `TASK_KIND_RENDER` task
-  kind; per-URL opt-in on monitored URLs; entitlement-gated (`render_enabled` on the
-  capability profile — Free: off) and rate-limited (own concurrency cap + per-crawl
-  render budget, both config-owned); Patchright pool per §4. Rendered HTML goes
-  through the **same** `extract_page_facts` → rules → scoring path, so determinism
-  and Free non-disclosure are preserved; the render persists as a **new** immutable
-  artifact generation (invariant 3), never overwriting the HTTP artifact, and the
-  analysis row references exactly the artifact it was computed from (invariant 4).
+- **One request per target.** `SecureFetcher.fetch()` issues a single `httpx`
+  request identifying as `SearchifySiteHealthBot/1.0`, with manual redirects
+  revalidated per hop through `resolve_target` (SSRF/scope/DNS), pinned-IP dial
+  preserving Host + TLS SNI, wire/decoded byte caps, `PERSISTED_RESPONSE_HEADERS`
+  redaction, per-host politeness (semaphore + fixed delay), no env proxy trust, and
+  robots compliance (added in P2).
+- **No fetch-mode vocabulary.** The crawl configuration carries no `fetch_mode` and
+  `POST /site-crawls` does not accept one — there is exactly one behavior, so a mode
+  selector would be a knob with a single position.
+- **Bot blocks are classified from body markers only.** A challenge-platform marker
+  (`BOT_BLOCK_BODY_MARKERS`) within the first `BOT_BLOCK_MARKER_SCAN_BYTES` of the
+  decoded body is terminal `ERROR_BOT_BLOCKED`. Status codes are deliberately not a
+  signal: `401/403/503` were a cheap trigger for a *retry*, and only a second blocked
+  response proved a block — with no retry, a status-only rule would relabel every
+  members-only `401` as bot protection. Bare statuses keep `http_4xx`/`http_5xx`.
+- **Presentation semantics (kept):** `ERROR_BOT_BLOCKED` is in
+  `POLICY_BLOCKING_ERROR_CODES`, so a blocked page presents as `blocked` with its
+  error code rather than a generic `error`.
+- **Provenance:** one `SiteFetchAttempt` row per real network call, keyed
+  `(task_id, attempt_number, request_ordinal)`. There are no `fetch_engine` /
+  `rung_number` columns — with a single engine they carried no information.
 
 ```mermaid
 flowchart TD
-    Req["analyze task"] --> A["rung 1: httpx request"]
-    A -->|"2xx / terminal non-block"| Done["artifact (fetch_engine=httpx)"]
-    A -->|"bot-block signature (config table)"| B["rung 2: curl_cffi impersonated retry"]
-    B -->|"same per-hop SSRF revalidation + caps"| Done2["artifact (fetch_engine=curl_cffi)"]
-    B -->|"still blocked"| Err["terminal error row (http_4xx; bot-block presents as blocked)"]
+    Req["analyze task"] --> A["httpx request (crawler UA, full SSRF posture)"]
+    A -->|"2xx"| Done["artifact + analysis"]
+    A -->|"challenge marker in body"| Blk["terminal bot_blocked -> presents as blocked"]
+    A -->|"bare 4xx / 5xx"| Err["terminal error row (http_4xx / http_5xx)"]
 ```
 
-**Guardrail amendment (explicit, ships with P4):** the `docs/site-health.md`
-guardrail "no headless browser" becomes "**HTTP-first; browser render is opt-in per
-crawl**". `technical-audit.md` §2 already anticipated an opt-in render fallback; this
-is a deliberate invariant-doc change and must be called out in the P4 PR description.
+**Guardrail (unchanged):** `docs/site-health.md`'s "no headless browser" stands as
+written. The opt-in render fallback `technical-audit.md` §2 anticipated is **not**
+being pursued.
 
 ### 5.5 Data model & provenance
 
@@ -427,8 +387,9 @@ revision files**, no backfill; old rows keep their old versions.
 
 - `SitePageAnalysis`: + `page_type` (`String(24)`, default `"other"`),
   + `classifier_version` (`String(32)`).
-- `SiteFetchAttempt` / `SiteFetchArtifact`: + `fetch_engine` (`String(16)`, default
-  `"httpx"`).
+- `SiteFetchAttempt` / `SiteFetchArtifact`: ~~+ `fetch_engine` (`String(16)`, default
+  `"httpx"`)~~ — **dropped** with the escalation ladder (§4); with a single engine the
+  column carried no information.
 - `SiteCrawl`: + `site_facts` (JSONB, nullable) — AI-crawler robots stance and
   `llms.txt` result, written once by the per-host robots + `llms.txt` fetch built in
   P2 (§5.3 — no such runtime fetch exists today).
@@ -473,11 +434,12 @@ allocated so **each version is bumped by exactly one phase** (no double-bump):
 |---|---|---|---|
 | **P1 — classification + profiles** | `page_types.py`, config tables (`PAGE_TYPES`, pattern/equivalence tables, `PAGE_TYPE_PROFILES` applicability + thin-content minimums + weight overrides), `facts["page_type"]` injection, model columns, DTO badges/filters. The per-type **expected-schema map is NOT here** — it ships with its consuming rules in P2, so no dormant config lands | — | New `CLASSIFIER_VERSION = "sh-classifier-1"`; `ANALYZER_VERSION` → `sh-analyzer-2`; `SCORING_VERSION` → `sh-scoring-2`. `RULE_CATALOG_VERSION` stays `sh-rules-1` (no rule-set change); `EXTRACTOR_VERSION` stays (the worker injects `page_type`; the extractor is unchanged) |
 | **P2 — expanded rules + site/fetch foundations** | Build the per-host robots fetch + policy caching and the `llms.txt` fetch in crawl setup (none exist at runtime today, §2) + sitemap ingestion; `site_facts` on the crawl; `facts["site"]` injection; the per-type expected-schema map; all new per-page rules (citability, extractability, hygiene, metadata bands, the two schema-property rules); the `crawl_finalize` pass in `_reconcile_crawl_status` | P1 (type-scoped rules + profiles) | `RULE_CATALOG_VERSION` → `sh-rules-2`; `EXTRACTOR_VERSION` → `sh-extractor-2` (new fact fields incl. `hreflang_alternates`). `ANALYZER_VERSION` stays `sh-analyzer-2` (bumped once, in P1) |
-| **P3 — curl_cffi escalation** | **Starts with the pinned-IP validation spike** (§5.4); then rung 2 in `SecureFetcher`, fetch-mode vocabulary, `fetch_engine` provenance, bot-block → `blocked` presentation | — (independent of P1/P2) | None (additive `fetch_engine` columns; extraction/rule/scoring logic unchanged) |
-| **P4 — opt-in render tier** | `TASK_KIND_RENDER`, Patchright pool, entitlement/config gates, guardrail-doc amendment | P3 (fetch-mode vocabulary), design validation | None (rendered pages go through the same extractor/rules/scoring) |
+| **P3 — ~~curl_cffi escalation~~ bot-block classification** | **Escalation dropped** (§4). What shipped and stands: bot-block → `blocked` presentation, classified from challenge body markers. The impersonation rung, fetch-mode vocabulary, and `fetch_engine` provenance were built and then removed | — (independent of P1/P2) | None (extraction/rule/scoring logic unchanged) |
+| **~~P4 — opt-in render tier~~** | **Dropped** (§4) — no `TASK_KIND_RENDER`, no Patchright pool, no guardrail amendment | — | — |
 
-P1 delivers the core complaint (page-type-aware analysis). P4 is last because it is
-the heavyweight piece and carries the invariant-doc amendment.
+P1 delivers the core complaint (page-type-aware analysis). P3's escalation scope and
+P4 in full were dropped: the crawler makes one plain, honestly-identified HTTP
+request, and a bot block is reported as the finding it is.
 
 ## 7. Future development notes
 
@@ -500,7 +462,7 @@ Explicitly **not** this spec:
 |---|---|
 | Invariant 1 (config-only) | Pattern tables, thresholds, weights, fetch modes, impersonate target, render budgets all live in `app/core/config/site_health.py` |
 | Invariant 3 (immutable artifacts) | Render/impersonated retries produce new artifact generations; nothing is overwritten |
-| Invariant 4 (provenance) | `page_type` + `classifier_version` + bumped extractor/analyzer/rule/scoring versions on every derived row; `fetch_engine` on every attempt/artifact |
+| Invariant 4 (provenance) | `page_type` + `classifier_version` + bumped extractor/analyzer/rule/scoring versions on every derived row |
 | Invariant 5 (workspace auth) | DTO/filter additions stay behind `require_active_workspace`; foreign ids remain indistinguishable 404s |
 | Invariant 7 (projections) | Dashboard per-type breakdown and badges read persisted rows only; the service layer never re-fetches or re-scores |
 | Invariant 9 (determinism) | Classifier and all new rules are pure/deterministic; no LLM anywhere in v2 detection; rendered pages go through the same parser + rules + scoring |

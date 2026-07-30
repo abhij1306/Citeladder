@@ -309,6 +309,31 @@ async def _load_visibility_evidence(
     return evidence, metric_snapshot
 
 
+async def _latest_snapshot(
+    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> OpportunitySnapshot | None:
+    """The project's most recent snapshot, or ``None`` if never computed.
+
+    Shared by ``get_summary`` and by ``recompute``'s no-evidence path, where
+    returning the PREVIOUS snapshot is what keeps a recompute from destroying
+    the live set. ``_resolve_source`` only accepts a TERMINAL crawl and a
+    dashboard-ready audit, so "no source resolved" is the normal state while a
+    crawl is still running — and superseding on it emptied the Opportunities
+    screen mid-crawl. Absent evidence is not evidence of absence: zero hits
+    WITH a source still supersedes (a genuinely clean project), zero SOURCES
+    changes nothing.
+    """
+    return await session.scalar(
+        select(OpportunitySnapshot)
+        .where(
+            OpportunitySnapshot.workspace_id == workspace_id,
+            OpportunitySnapshot.project_id == project_id,
+        )
+        .order_by(OpportunitySnapshot.created_at.desc(), OpportunitySnapshot.id.desc())
+        .limit(1)
+    )
+
+
 async def _load_site_evidence(
     session: AsyncSession, *, workspace_id: uuid.UUID, crawl: SiteCrawl
 ) -> SiteEvidence:
@@ -370,9 +395,11 @@ async def recompute(
 ) -> dict:
     """Recompute the project's opportunities and return the new snapshot.
 
-    A missing audit/crawl source is NOT an error — that family simply yields
-    zero hits (an empty snapshot is a valid, explicit "nothing to act on"
-    result). Concurrent recomputes on the same project serialize on the
+    A missing audit/crawl source is NOT an error. If a prior snapshot exists,
+    it is returned unchanged (no lock, no new snapshot row) so an in-flight
+    crawl/audit never empties the live set mid-run; only when nothing has
+    ever been computed does this write an explicit empty snapshot. When a
+    source IS resolved, recomputes on the same project serialize on the
     shared advisory lock; the second one recomputes on the latest state.
     """
     await _require_project(session, workspace_id=workspace_id, project_id=project_id)
@@ -420,6 +447,16 @@ async def recompute(
             session, workspace_id=workspace_id, crawl=crawl
         )
         hits.extend(detect_site_issue_opportunities(site))
+
+    if audit is None and crawl is None:
+        unchanged = await _latest_snapshot(
+            session, workspace_id=workspace_id, project_id=project_id
+        )
+        if unchanged is not None:
+            return _project_snapshot(unchanged)
+        # Never computed and nothing to compute from: fall through and write
+        # the explicit empty snapshot, so the screen can tell "no evidence yet"
+        # from "not computed yet". There is no live set to protect here.
 
     # Score + apply the write-time floor; dedupe on the live-target identity
     # (first hit wins — detector output is already deterministically ordered).
@@ -773,14 +810,8 @@ async def get_summary(
 ) -> dict:
     """Latest snapshot projection; ``computed=false`` when never recomputed."""
     await _require_project(session, workspace_id=workspace_id, project_id=project_id)
-    snapshot = await session.scalar(
-        select(OpportunitySnapshot)
-        .where(
-            OpportunitySnapshot.workspace_id == workspace_id,
-            OpportunitySnapshot.project_id == project_id,
-        )
-        .order_by(OpportunitySnapshot.created_at.desc(), OpportunitySnapshot.id.desc())
-        .limit(1)
+    snapshot = await _latest_snapshot(
+        session, workspace_id=workspace_id, project_id=project_id
     )
     if snapshot is None:
         return {

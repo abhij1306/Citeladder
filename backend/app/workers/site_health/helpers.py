@@ -1,10 +1,10 @@
 """Pure helpers shared by the worker loop and every phase mixin.
 
-Module-level and side-effect free: HTTP-status classification, fetch-engine
-labelling, robots denial tokens, URL canonicalization that tolerates junk, and
-the Free-tier count-disclosure rule. They live outside ``site_health_worker``
-because the phase modules use them and the worker imports the phases — the
-other direction would be a cycle.
+Module-level and side-effect free: HTTP-status classification, robots denial
+tokens, URL canonicalization that tolerates junk, and the Free-tier
+count-disclosure rule. They live outside ``site_health_worker`` because the
+phase modules use them and the worker imports the phases — the other direction
+would be a cycle.
 """
 
 from __future__ import annotations
@@ -20,8 +20,6 @@ from app.core.config.site_health import (
     ERROR_HTTP_5XX,
     ERROR_ROBOTS_DENIED,
     ERROR_ROBOTS_UNAVAILABLE,
-    FETCH_ENGINE_CURL_CFFI,
-    FETCH_ENGINE_HTTPX,
     SITE_HEALTH_RULES_BY_ID,
 )
 from app.domain.site_health.normalization import canonical_identity
@@ -46,39 +44,15 @@ def _classify_http_error(status: int) -> tuple[str, bool] | None:
     return None
 
 
-def _fetch_engine_for_rung(rung_number: int | None) -> str:
-    """Map a trace rung number to its config ``FETCH_ENGINE_*`` token (T8)."""
-    if rung_number == 2:
-        return FETCH_ENGINE_CURL_CFFI
-    return FETCH_ENGINE_HTTPX
+def _is_bot_block(result: FetchResult) -> bool:
+    """Whether this fetch came back as a bot-protection challenge (T8).
 
-
-def _result_fetch_engine(result: FetchResult) -> str:
-    """The engine that PRODUCED ``result``: its last trace entry's rung.
-
-    The trace contract guarantees the entry describing a returned result is
-    always last (an escalation continues the ordinal sequence), so the last
-    entry's rung is the winning call's engine. A trace-less result (built
-    directly by a test/caller) defaults to rung 1's engine.
+    Thin pass-through to the fetcher's marker-based signature so the phases
+    depend on one predicate. A match is terminal: the crawler makes a plain,
+    honestly-identified request, so a site that answers with a challenge is
+    reported as ``blocked`` rather than retried.
     """
-    if result.attempts:
-        return _fetch_engine_for_rung(result.attempts[-1].rung_number)
-    return FETCH_ENGINE_HTTPX
-
-
-def _is_exhausted_bot_block(result: FetchResult) -> bool:
-    """True ONLY when BOTH fetch-ladder rungs returned signature blocks (T8).
-
-    Rung 2 fires exclusively on a rung-1 bot-block signature, so a trace
-    containing a rung-2 entry proves rung 1 was signature-blocked; the
-    returned result (which is then rung 2's terminal response) matching the
-    signature proves rung 2 was too. Anything else — a plain returned 403 on
-    rung 1 with no escalation, or an escalated rung-2 200 — is NOT an
-    exhausted bot block and keeps its normal classification.
-    """
-    return any(entry.rung_number == 2 for entry in result.attempts) and (
-        is_bot_block_result(result)
-    )
+    return is_bot_block_result(result)
 
 
 def _count_disclosure(crawl: SiteCrawl) -> bool:

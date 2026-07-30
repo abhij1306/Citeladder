@@ -8,7 +8,6 @@ dependencies = [
   "argon2-cffi>=25.1.0,<26",
   "asyncpg>=0.30.0,<1",
   "cryptography>=48.0.1,<50",
-  "curl-cffi>=0.15.0,<1",
   "defusedxml>=0.7.1,<1",
   "email-validator>=2.3.0,<3",
   "fastapi>=0.116.0,<1",

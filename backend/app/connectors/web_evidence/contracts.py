@@ -56,10 +56,6 @@ class FetchRequest:
     # Content types this request accepts; empty means the fetcher's default
     # allowlist for the purpose.
     allowed_content_types: frozenset[str] = frozenset()
-    # Whether the rung-2 impersonated curl_cffi escalation may fire when a
-    # bot-block signature trips (the crawl's frozen ``auto`` fetch mode).
-    # False = the frozen ``http_only`` mode: rung 1 only, no impersonation.
-    allow_escalation: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,25 +71,20 @@ class RedirectHop:
 class FetchCallTrace:
     """One REAL network call made while serving a single ``SecureFetcher.fetch``.
 
-    The per-network-call trace (T7): rung 1 (httpx) and the optional rung-2
-    curl_cffi escalation each make one network call per redirect hop, and
-    EVERY such call appends exactly one entry — including blocked, failed,
-    and cap-aborted calls — so a persistence layer (T8) can write one
-    ``SiteFetchAttempt`` row per actual HTTP attempt (its documented
-    append-only contract, invariant 3) without the losing rung's calls
-    vanishing.
+    The per-network-call trace (T7): the fetch makes one network call per
+    redirect hop, and EVERY such call appends exactly one entry — including
+    blocked, failed, and cap-aborted calls — so a persistence layer (T8) can
+    write one ``SiteFetchAttempt`` row per actual HTTP attempt (its documented
+    append-only contract, invariant 3) without any call vanishing.
 
     Order/uniqueness key: ``(task_id, attempt_number, request_ordinal)``.
     ``attempt_number`` stays the QUEUE-attempt number owned by the worker;
     ``request_ordinal`` is the deterministic per-call ordinal assigned here,
-    0-based across the whole ``fetch()`` call (escalation continues the
-    sequence, it does not restart it). When the fetch returns a result, the
-    entry describing that result is always the LAST one.
+    0-based across the whole ``fetch()`` call. When the fetch returns a
+    result, the entry describing that result is always the LAST one.
     """
 
     request_ordinal: int
-    # 1 = httpx rung, 2 = curl_cffi escalation rung.
-    rung_number: int
     url: str
     method: str
     # None when the call failed before any response was received.

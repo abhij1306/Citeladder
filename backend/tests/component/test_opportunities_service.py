@@ -13,10 +13,10 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.audits import AUDIT_STATUS_COMPLETED
+from app.core.config.audits import AUDIT_STATUS_COMPLETED, AUDIT_STATUS_RUNNING
 from app.core.config.opportunities import (
     ANALYZER_VERSION,
     CODE_OPPORTUNITY_SUPERSEDED,
@@ -24,6 +24,7 @@ from app.core.config.opportunities import (
     OPPORTUNITY_RULES_BY_ID,
     RULE_VERSION,
 )
+from app.core.config.site_health import CRAWL_STATUS_RUNNING
 from app.domain.opportunities import service
 from app.domain.opportunities.service import (
     InvalidCursorError,
@@ -35,6 +36,7 @@ from app.models.analysis import Citation, MetricSnapshot
 from app.models.audit import Audit
 from app.models.opportunity import OpportunitySnapshot
 from app.models.project import Project
+from app.models.site_health import SiteCrawl, SiteIssue
 from app.models.workspace import Workspace
 from tests.component.opportunity_helpers import (
     SCORE_BRAND_ABSENT,
@@ -184,6 +186,93 @@ async def test_recompute_without_sources_yields_empty_snapshot(
         )
         is not None
     )
+
+
+async def test_recompute_without_sources_preserves_an_existing_live_set(
+    db_session: AsyncSession,
+) -> None:
+    """No resolvable source must not destroy findings we already hold.
+
+    ``_resolve_source`` only accepts a TERMINAL crawl and a dashboard-ready
+    audit, so "no source" is the ordinary state while a crawl is RUNNING —
+    and superseding on it emptied the Opportunities screen mid-crawl, which is
+    exactly how a project with real findings showed zero results.
+    """
+    scn = await _seed_scenario(db_session)
+    first = await service.recompute(
+        db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
+    )
+    assert first["total_count"] == 4
+    before = {row.id for row in await _live_rows(db_session, scn)}
+    assert len(before) == 4
+
+    # Take both sources out of scope the way a fresh run does: the crawl goes
+    # back to running, the audit stops being dashboard-ready.
+    crawl = await db_session.get(SiteCrawl, scn.crawl_id)
+    assert crawl is not None
+    crawl.status = CRAWL_STATUS_RUNNING
+    crawl.completed_at = None
+    audit = await db_session.get(Audit, scn.audit_id)
+    assert audit is not None
+    audit.status = AUDIT_STATUS_RUNNING
+    await db_session.commit()
+
+    again = await service.recompute(
+        db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
+    )
+
+    # The live set is untouched, and the reported snapshot is the last real
+    # one — not a fabricated empty result.
+    after = {row.id for row in await _live_rows(db_session, scn)}
+    assert after == before
+    assert again["run_id"] == first["run_id"]
+    assert again["total_count"] == 4
+    assert again["site_crawl_id"] == scn.crawl_id
+    # No new snapshot row either: nothing was computed.
+    assert (
+        await db_session.scalar(
+            select(func.count())
+            .select_from(OpportunitySnapshot)
+            .where(OpportunitySnapshot.project_id == scn.project_id)
+        )
+        == 1
+    )
+
+
+async def test_recompute_with_a_source_but_no_hits_still_supersedes(
+    db_session: AsyncSession,
+) -> None:
+    """Zero hits WITH a source is a real result (a clean project) and applies.
+
+    The guard above keys on absent SOURCES, never on an empty hit list — a
+    project whose issues were genuinely fixed must still see its opportunities
+    close.
+    """
+    scn = await _seed_scenario(db_session)
+    await service.recompute(
+        db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
+    )
+    assert len(await _live_rows(db_session, scn)) == 4
+
+    # Drop the evidence the detectors fire on, keeping the sources resolvable.
+    await db_session.execute(
+        delete(SiteIssue).where(SiteIssue.crawl_id == scn.crawl_id)
+    )
+    await db_session.execute(
+        delete(Citation).where(Citation.analysis_id.in_([scn.analysis0_id]))
+    )
+    await db_session.commit()
+
+    result = await service.recompute(
+        db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
+    )
+    assert result["site_crawl_id"] == scn.crawl_id
+    site_rows = [
+        row
+        for row in await _live_rows(db_session, scn)
+        if row.opportunity_type == "site"
+    ]
+    assert site_rows == []
 
 
 async def test_audit_without_metric_snapshot_is_not_dashboard_ready(

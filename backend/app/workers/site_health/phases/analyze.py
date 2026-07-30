@@ -31,8 +31,6 @@ from app.core.config.site_health import (
     ERROR_BOT_BLOCKED,
     EVENT_ANALYSIS_PROGRESS,
     EXTRACTOR_VERSION,
-    FETCH_MODE_AUTO,
-    FETCH_MODE_HTTP_ONLY,
     FETCH_PURPOSE_ANALYZE,
     HTML_CONTENT_TYPES,
     PAGE_ANALYSIS_STATUS_COMPLETED,
@@ -58,8 +56,8 @@ from app.models.site_health import (
 from app.workers.site_health.helpers import (
     _classify_http_error,
     _count_disclosure,
+    _is_bot_block,
     _is_crawl_finalize_rule,
-    _is_exhausted_bot_block,
     _robots_denial_error,
     _utcnow,
 )
@@ -109,15 +107,12 @@ class AnalyzePhaseMixin(PhaseSupport):
             requested_url = task.requested_url
             config = dict(crawl.configuration or {})
             root_registrable_domain = config.get("root_registrable_domain") or ""
-            # The crawl's frozen fetch-ladder mode (v2 P3), as in discover.
-            fetch_mode = config.get("fetch_mode") or FETCH_MODE_AUTO
 
         # One heartbeat across fetch + persist (see ``_leased``).
         async with self._leased(task_id):
             outcome = await self._fetch_analyze(
                 requested_url=requested_url,
                 root_registrable_domain=root_registrable_domain,
-                fetch_mode=fetch_mode,
             )
             await self._persist_analyze(
                 task_id=task_id,
@@ -216,8 +211,22 @@ class AnalyzePhaseMixin(PhaseSupport):
                 .with_for_update()
             )
         ).scalar_one_or_none()
-        crawl = await session.get(SiteCrawl, crawl_id, with_for_update=True)
-        task = await session.get(SiteCrawlTask, task_id, with_for_update=True)
+        # ``populate_existing`` is load-bearing, not defensive. Both rows are
+        # already in this session's identity map from the unlocked hint reads
+        # above, and a plain ``get(..., with_for_update=True)`` re-SELECTs under
+        # the lock but does NOT overwrite attributes that are already loaded —
+        # so the caller would go on to read (and increment) the value from
+        # BEFORE the lock was taken. That is a textbook lost update:
+        # ``crawl.analyzed_url_count += 1`` under concurrent analyze tasks
+        # silently dropped increments (observed: a crawl with 7 completed
+        # analyses whose counter read 5, which the dashboard then reported as
+        # 2 phantom "queued" pages).
+        crawl = await session.get(
+            SiteCrawl, crawl_id, with_for_update=True, populate_existing=True
+        )
+        task = await session.get(
+            SiteCrawlTask, task_id, with_for_update=True, populate_existing=True
+        )
         decision = evaluate_task_guard(
             crawl=crawl,
             task=task,
@@ -237,7 +246,6 @@ class AnalyzePhaseMixin(PhaseSupport):
         *,
         requested_url: str,
         root_registrable_domain: str,
-        fetch_mode: str = FETCH_MODE_AUTO,
     ) -> _AnalyzeOutcome:
         """Fetch + parse one monitored URL into a bounded ``_AnalyzeOutcome``.
 
@@ -249,10 +257,8 @@ class AnalyzePhaseMixin(PhaseSupport):
         a denied URL short-circuits to ``ERROR_ROBOTS_DENIED`` (non-retryable;
         presentation maps it to ``blocked`` via POLICY_BLOCKING_ERROR_CODES).
 
-        v2 P3: ``fetch_mode`` is the crawl's frozen fetch-ladder mode
-        (``http_only`` disables the impersonated rung-2 escalation); when BOTH
-        rungs returned signature-detected bot blocks the outcome classifies as
-        terminal ``ERROR_BOT_BLOCKED`` (presentation: ``blocked``).
+        A response carrying a challenge-platform marker classifies as terminal
+        ``ERROR_BOT_BLOCKED`` (presentation: ``blocked``).
         """
         authority = _authority_key(requested_url)
         if authority:
@@ -268,7 +274,6 @@ class AnalyzePhaseMixin(PhaseSupport):
             url=requested_url,
             purpose=FETCH_PURPOSE_ANALYZE,
             allowed_content_types=HTML_CONTENT_TYPES,
-            allow_escalation=fetch_mode != FETCH_MODE_HTTP_ONLY,
         )
         started = time.monotonic()
         try:
@@ -291,9 +296,9 @@ class AnalyzePhaseMixin(PhaseSupport):
             )
 
         status = result.status_code
-        # v2 P3: both rungs signature-blocked -> terminal ERROR_BOT_BLOCKED
-        # (see ``_fetch_discover``); checked before status classification.
-        if _is_exhausted_bot_block(result):
+        # A challenge marker -> terminal ERROR_BOT_BLOCKED (see
+        # ``_fetch_discover``); checked before status classification.
+        if _is_bot_block(result):
             return _AnalyzeOutcome(
                 result=result,
                 error_code=ERROR_BOT_BLOCKED,

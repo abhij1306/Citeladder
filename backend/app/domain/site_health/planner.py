@@ -39,14 +39,12 @@ from app.connectors.web_evidence.url_policy import (
     split_host_port,
 )
 from app.core.config.site_health import (
-    ACTIVE_FETCH_MODES,
     ANALYZER_VERSION,
     CODE_CRAWL_ALREADY_ACTIVE,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_DRAFT,
     CRAWL_STATUS_QUEUED,
     CRAWL_STATUS_VALIDATING,
-    DEFAULT_FETCH_MODE,
     DISCOVERY_MODE_SAMPLE,
     DISCOVERY_STATUS_COMPLETED,
     DISCOVERY_STATUS_RUNNING,
@@ -217,24 +215,6 @@ async def _upsert_profile(
     return profile
 
 
-def _validate_fetch_mode(fetch_mode: str | None) -> str:
-    """Resolve + validate the requested fetch-ladder mode (v2 P3, spec §5.4).
-
-    ``None`` resolves to the config default (``auto``). Any mode outside the
-    config-owned ACTIVE set — including the P4-reserved ``browser_only`` /
-    ``http_then_browser`` — is REJECTED with a validation error, never
-    silently accepted-and-inert.
-    """
-    mode = (fetch_mode or "").strip() or DEFAULT_FETCH_MODE
-    if mode not in ACTIVE_FETCH_MODES:
-        raise CrawlPlanError(
-            f"fetch_mode '{mode}' is not active in v2 "
-            "(active: auto, http_only; browser modes are reserved for P4)",
-            code="invalid_fetch_mode",
-        )
-    return mode
-
-
 def _is_sample_mode(profile) -> bool:
     """Single source of truth for whether a capability crawls in sample mode.
 
@@ -255,14 +235,12 @@ def _frozen_configuration(
     include_globs: list[str],
     exclude_globs: list[str],
     entitlement,
-    fetch_mode: str = DEFAULT_FETCH_MODE,
 ) -> dict:
     """Freeze the operational settings + entitlement snapshot (invariant 9).
 
     Everything the worker needs to run this crawl deterministically regardless
     of a later live env change: the narrowing scope, the frozen capability
-    limits, the crawler bounds, the fetch-ladder mode (v2 P3), and the
-    rule/scoring versions.
+    limits, the crawler bounds, and the rule/scoring versions.
     """
     s = site_health_settings
     profile = capability_profile(capability)
@@ -277,9 +255,6 @@ def _frozen_configuration(
         "root_registrable_domain": root_registrable_domain,
         "include_globs": include_globs,
         "exclude_globs": exclude_globs,
-        # The crawl's fetch ladder (config FETCH_MODE_* token): ``auto`` /
-        # ``http_only`` in v2; the P4 browser modes are rejected at creation.
-        "fetch_mode": fetch_mode,
         "max_frontier_urls": s.max_frontier_urls,
         "max_crawl_depth": s.max_crawl_depth,
         "admission_batch_size": s.admission_batch_size,
@@ -306,7 +281,6 @@ async def create_crawl(
     include_globs: list[str] | None = None,
     exclude_globs: list[str] | None = None,
     random_seed: str | None = None,
-    fetch_mode: str | None = None,
 ) -> SiteCrawl:
     """Create + queue a Site Health crawl (freeze scope, seed the root task).
 
@@ -346,9 +320,6 @@ async def create_crawl(
 
     includes = _normalize_globs(include_globs, label="include")
     excludes = _normalize_globs(exclude_globs, label="exclude")
-    # v2 P3: validate the requested fetch ladder BEFORE any mutation; the
-    # P4-reserved browser modes are rejected here, not silently inert.
-    resolved_fetch_mode = _validate_fetch_mode(fetch_mode)
 
     # Resolve (seed if missing) the entitlement BEFORE mutating the profile.
     # ``replace_monitored_set()`` locks entitlement before profile, so this
@@ -386,7 +357,6 @@ async def create_crawl(
         include_globs=includes,
         exclude_globs=excludes,
         entitlement=entitlement,
-        fetch_mode=resolved_fetch_mode,
     )
 
     # Keep a Starter project's earlier discovered inventory visible while a

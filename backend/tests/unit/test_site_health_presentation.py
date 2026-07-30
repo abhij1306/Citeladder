@@ -27,6 +27,7 @@ from app.domain.site_health.service.presentation import (
     _matches_page_status,
     _page_facts,
     _page_type_matches,
+    display_label_for,
     project_crawl,
 )
 from app.models.site_health import (
@@ -258,6 +259,36 @@ def test_evaluation_row_titles_from_the_CURRENT_catalog() -> None:
     assert row["created_at"] == _NOW.isoformat()
 
 
+def test_single_h1_title_names_which_side_of_the_rule_fired() -> None:
+    """``h1_count != 1`` covers opposite failures; the row must say which.
+
+    A shared title had to read "Multiple or missing H1", which tells a reader
+    neither what happened nor what to do about it.
+    """
+    assert display_label_for("technical.single_h1", {"h1_count": 0}) == (
+        "Missing H1 heading"
+    )
+    assert display_label_for("technical.single_h1", {"h1_count": 3}) == (
+        "More than one H1 heading"
+    )
+    # No evidence (grouped rows span both directions) keeps the neutral title.
+    neutral = SITE_HEALTH_RULES_BY_ID["technical.single_h1"].display_label
+    assert display_label_for("technical.single_h1") == neutral
+    assert display_label_for("technical.single_h1", {}) == neutral
+    # The PASSING count has no failure to name. Evaluations are projected for
+    # every outcome, so without this the healthy one-H1 row read "More than
+    # one H1 heading".
+    assert display_label_for("technical.single_h1", {"h1_count": 1}) == neutral
+
+
+def test_display_label_ignores_evidence_for_rules_without_variants() -> None:
+    rule_id = "technical.title_present"
+    assert display_label_for(rule_id, {"h1_count": 0}) == (
+        SITE_HEALTH_RULES_BY_ID[rule_id].display_label
+    )
+    assert display_label_for("nope.not_a_rule", {"h1_count": 0}) == "nope.not_a_rule"
+
+
 def test_link_reference_row_projects_nulls_as_empty_strings() -> None:
     row = _link_reference_row(
         cast(
@@ -292,6 +323,7 @@ def test_issue_row_carries_the_affected_count_passed_by_the_caller() -> None:
                 category="structured_data",
                 severity="medium",
                 remediation=None,
+                evidence=None,
                 analyzer_version="a1",
                 rule_version="r1",
                 created_at=_NOW,

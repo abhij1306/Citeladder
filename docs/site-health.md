@@ -90,55 +90,39 @@ All status/vocabulary constants are owned by
 
 ---
 
-## Fetch ladder, fetch modes & fetch-engine provenance
+## Fetching & bot-block classification
 
-Page evidence is fetched through a two-rung **ladder** inside one
-`SecureFetcher.fetch()` call (no extra queue attempt, no queue-semantics
-change):
+Page evidence is fetched with **one plain HTTP request** per target through
+`SecureFetcher.fetch()` — `httpx`, identifying honestly as the crawler UA
+(`SearchifySiteHealthBot/1.0`), with the full SSRF posture: manual redirects
+revalidated per hop, pinned-IP dial, wire + decoded byte caps, response headers
+redacted to the config allowlist, per-host politeness, robots compliance.
 
-1. **Rung 1 — `httpx`**, identifying as the crawler UA
-   (`SearchifySiteHealthBot/1.0`), with the full SSRF posture: manual redirects
-   revalidated per hop, pinned-IP dial, wire + decoded byte caps, response
-   headers redacted to the config allowlist, per-host politeness, robots
-   compliance.
-2. **Rung 2 — impersonated `curl_cffi`**, fired **only** when rung 1 ends on a
-   config-owned bot-block signature (a status in `BOT_BLOCK_STATUSES` — 401/403/
-   503 — a challenge body marker from `BOT_BLOCK_BODY_MARKERS`, or a TLS-layer
-   block per `BOT_BLOCK_TLS_ERROR_MARKERS`). The same request is retried **once**
-   with a Chrome-impersonating session (UA + TLS fingerprint; the settled D2
-   decision — `SITE_HEALTH_CURL_UA_MODE` / `SITE_HEALTH_CURL_IMPERSONATE_TARGET`).
-   Every rung-1 safety property is preserved (manual per-hop redirect
-   revalidation, pinned-IP dial, live wire+decoded caps, header redaction,
-   politeness, robots). A blocked rung-2 response is **not** retried further.
+There is deliberately **no impersonation rung and no headless-browser rung**. A
+site that refuses a well-behaved, clearly-identified crawler is telling us it is
+not AEO-ready, and that answer is the finding we report — not something to work
+around. Evading bot protection would also mean shipping a crawler that lies
+about who it is.
 
-The ladder is governed per crawl by the config-owned **fetch-mode** vocabulary,
-frozen into `SiteCrawl.configuration.fetch_mode` at creation (invariant 9) and
-settable as `fetch_mode` on `POST /site-crawls`:
+Every real network call (every redirect hop) appends one immutable entry to the
+fetcher's per-call trace, and the worker persists **one `SiteFetchAttempt` row
+per network call** — a failed or blocked call never vanishes. `attempt_number`
+stays the queue-attempt number; `request_ordinal` is the deterministic per-call
+ordinal (order/uniqueness key `(task_id, attempt_number, request_ordinal)`).
+**Only the successful terminal call links the artifact** (a blocked call is an
+attempt only, never an artifact generation; the unique one-artifact-per-task
+constraint stands).
 
-| Mode | Behavior in v2 |
-|---|---|
-| `auto` (default) | Rung 1, escalating to rung 2 on a bot-block signature. |
-| `http_only` | Rung 1 only; the impersonated escalation never fires. |
-| `browser_only` | **Reserved for P4** — rejected at creation (`422` `invalid_fetch_mode`). |
-| `http_then_browser` | **Reserved for P4** — rejected at creation (`422` `invalid_fetch_mode`). |
-
-Every real network call (either rung, every redirect hop) appends one immutable
-entry to the fetcher's per-call trace, and the worker persists **one
-`SiteFetchAttempt` row per network call** — a blocked losing rung never
-vanishes. `attempt_number` stays the queue-attempt number; `request_ordinal` is
-the deterministic per-call ordinal (order/uniqueness key
-`(task_id, attempt_number, request_ordinal)`); `rung_number` records the ladder
-rung (1 = httpx, 2 = curl_cffi). The **engine that produced the call** is
-recorded as `fetch_engine` (`httpx` | `curl_cffi`; `browser` reserved for P4)
-on every attempt row and on the `SiteFetchArtifact` — and **only the successful
-terminal call links the artifact** (a blocked rung is an attempt only, never an
-artifact generation; the unique one-artifact-per-task constraint stands).
-
-When **both** rungs return signature-detected blocks, the task fails terminally
-with `ERROR_BOT_BLOCKED` (`bot_blocked`) — distinct from the generic `http_4xx`
-so an exhausted bot block presents the page as **`blocked`** (via
-`POLICY_BLOCKING_ERROR_CODES`) instead of `error`. The terminal curl response is
+When a response carries a challenge-platform marker from
+`BOT_BLOCK_BODY_MARKERS` (Cloudflare `cf-chl`, DataDome, PerimeterX, …), the
+task fails terminally with `ERROR_BOT_BLOCKED` (`bot_blocked`) — distinct from
+the generic `http_4xx` so a blocked page presents as **`blocked`** (via
+`POLICY_BLOCKING_ERROR_CODES`) instead of `error`. The blocked response is
 retained in the per-call trace only and never becomes an analyzable artifact.
+
+Status codes alone are **not** a bot-block signal: a bare `401`/`403`/`503`
+keeps its ordinary `http_4xx`/`http_5xx` classification, so a members-only page
+or a transient outage is never mislabelled as bot protection.
 
 ---
 
@@ -154,7 +138,7 @@ typed `400`, never a `500`.
 | Method & path | Purpose |
 |---|---|
 | `GET /entitlements` | Workspace Site Health entitlement (seeds fail-closed Free on first use). |
-| `POST /site-crawls` | Create + queue a crawl for a project. New project creation also makes this best-effort queue attempt automatically; a crawl failure never rolls back the project. `seed` must be an integer string; optional `fetch_mode` selects the fetch ladder (`auto` default / `http_only`; the P4-reserved browser modes are `422` `invalid_fetch_mode`). `201`; a second active crawl for the project is `409` (`crawl_already_active`); an unusable root is `422` (`invalid_root`); unknown project is `404`. |
+| `POST /site-crawls` | Create + queue a crawl for a project. New project creation also makes this best-effort queue attempt automatically; a crawl failure never rolls back the project. `seed` must be an integer string. `201`; a second active crawl for the project is `409` (`crawl_already_active`); an unusable root is `422` (`invalid_root`); unknown project is `404`. |
 | `GET /site-crawls?project_id=&limit=&cursor=` | List crawls (created-at keyset). |
 | `GET /site-crawls/{crawl_id}` | Crawl summary/projection (redacted for Free). |
 | `POST /site-crawls/{crawl_id}/cancel` | Cancel a crawl → `cancelled`. |

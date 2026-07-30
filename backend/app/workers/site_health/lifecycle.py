@@ -65,9 +65,11 @@ from app.core.config.site_health import (
 )
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
+    TASK_STATUS_FAILED,
     TASK_STATUS_SUCCEEDED,
     TASK_TERMINAL_STATUSES,
 )
+from app.domain.opportunities.service import recompute as recompute_opportunities
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.selection import crawl_is_active
 from app.domain.site_health.snapshot import persist_crawl_snapshot
@@ -158,7 +160,12 @@ class CrawlLifecycle:
         from calling ``apply_crawl_status`` out of a terminal state (which would
         raise ``InvalidSiteCrawlTransition`` — all terminal states are empty
         sets in the transition tables).
+
+        On the call that actually drives the crawl terminal, the project's
+        Opportunities are recomputed from the fresh evidence — see
+        ``_recompute_opportunities``.
         """
+        terminalized_for: tuple[uuid.UUID, uuid.UUID] | None = None
         async with self._session_factory() as session:
             crawl = await session.get(SiteCrawl, crawl_id, with_for_update=True)
             if crawl is None or not crawl_is_active(crawl):
@@ -174,13 +181,44 @@ class CrawlLifecycle:
             analyze_succeeded = counts["analyze_succeeded"]
             analyze_cancelled = counts["analyze_cancelled"]
             analyze_applicable = analyze_total - analyze_cancelled
+            discover_failed = counts["discover_failed"]
+
+            # ``failed_url_count`` is DERIVED here, not accumulated by the
+            # phases. It used to be a ``+= 1`` in the discover phase only, so a
+            # terminally failed ANALYZE (robots-denied, retries exhausted) never
+            # reached it: a crawl with 3 blocked pages reported 0 failed, and
+            # the dashboard's "Queued = selected - completed - failed - running"
+            # billed all 3 as still pending, forever. Recomputing from the task
+            # table under the crawl's FOR UPDATE lock is both complete (every
+            # kind, every route into a terminal status, including a sweeper
+            # reclaim that never runs a phase finalize) and idempotent, so it
+            # also self-heals a counter that has already drifted.
+            crawl.failed_url_count = discover_failed + counts["analyze_failed"]
+            # Same treatment for the analyzed counter: the analyze phase still
+            # increments it live so the progress EVENT carries a fresh number,
+            # but the succeeded-task count is the authority and repairs any
+            # increment lost to a concurrent writer.
+            crawl.analyzed_url_count = analyze_succeeded
+            # ...and for admitted URLs, whose authority is the crawl's own
+            # observation rows (unique per ``(crawl_id, site_url_id)``), so a
+            # URL re-observed across discovery batches is counted once.
+            crawl.admitted_url_count = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(SiteUrlObservation)
+                    .where(SiteUrlObservation.crawl_id == crawl_id)
+                )
+                or 0
+            )
 
             # Discovery sub-state: terminalize progressively once discover
             # tasks drain, independent of analyze/link_check work.
             fully_failed = crawl.discovered_url_count == 0
-            discovery_partial = (
-                crawl.discovered_url_count > 0 and crawl.failed_url_count > 0
-            )
+            # Scoped to DISCOVER failures on purpose: this decides whether
+            # *discovery* was partial. Reading the combined counter would flip
+            # it on any analyze failure, which is a different condition (and is
+            # already handled by the analyze clause in the classification).
+            discovery_partial = crawl.discovered_url_count > 0 and discover_failed > 0
             if discover_remaining == 0:
                 if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
                     if fully_failed:
@@ -235,6 +273,13 @@ class CrawlLifecycle:
                 crawl.completed_at = _utcnow()
                 if fully_failed:
                     apply_crawl_status(crawl, CRAWL_STATUS_FAILED)
+                    # A failed crawl with a blank ``error_message`` renders as a
+                    # bare "This crawl failed" with nothing actionable. The
+                    # reason is already on the task that failed — carry it up.
+                    if not crawl.error_message:
+                        crawl.error_message = await self._failure_reason(
+                            session, crawl_id
+                        )
                 elif discovery_partial or (
                     analyze_applicable > 0 and analyze_succeeded < analyze_applicable
                 ):
@@ -249,7 +294,45 @@ class CrawlLifecycle:
                     payload={"status": crawl.status},
                     count_disclosure=_count_disclosure(crawl),
                 )
+                terminalized_for = (crawl.workspace_id, crawl.project_id)
             await session.commit()
+
+        # AFTER the commit, deliberately: the crawl's terminal state and its
+        # snapshot are already durable, so a recompute failure can never leave
+        # the crawl un-terminalized.
+        if terminalized_for is not None:
+            workspace_id, project_id = terminalized_for
+            await self._recompute_opportunities(
+                workspace_id=workspace_id, project_id=project_id
+            )
+
+    async def _recompute_opportunities(
+        self, *, workspace_id: uuid.UUID, project_id: uuid.UUID
+    ) -> None:
+        """Refresh the project's Opportunities from the just-finished crawl.
+
+        Nothing used to trigger this: ``recompute`` ran only when a user pressed
+        "Refresh recommendations", so the catalog kept showing findings derived
+        from a PREVIOUS crawl while the dashboard showed the new one — two
+        screens disagreeing about the same site with no way to tell which was
+        current.
+
+        Best-effort by construction. It runs in its own session after the
+        terminalization commit, and any failure is logged and swallowed: stale
+        opportunities are a far better outcome than a crawl that cannot finish
+        because scoring hit a snag, and the user's manual refresh (and the next
+        crawl) both retry it anyway.
+        """
+        try:
+            async with self._session_factory() as session:
+                await recompute_opportunities(
+                    session, workspace_id=workspace_id, project_id=project_id
+                )
+        except Exception:
+            logger.exception(
+                "opportunities recompute after crawl terminalization failed",
+                extra={"project_id": str(project_id)},
+            )
 
     async def reconcile_stalled(self) -> int:
         """Force-reconcile active crawls that have no outstanding work left.
@@ -299,6 +382,33 @@ class CrawlLifecycle:
             await self.reconcile(crawl_id)
         return len(stalled)
 
+    async def _failure_reason(self, session: AsyncSession, crawl_id: uuid.UUID) -> str:
+        """Human-facing reason a crawl failed, from its last failed task.
+
+        A crawl only reaches ``failed`` because its discovery produced nothing,
+        which in practice means the root task failed for one classified reason
+        (rate limited, robots-denied, DNS, SSRF policy). Surfacing that code +
+        detail is the difference between "This crawl failed" and "the site
+        rate-limited us — try again shortly".
+        """
+        row = (
+            await session.execute(
+                select(SiteCrawlTask.error_code, SiteCrawlTask.error_detail)
+                .where(
+                    SiteCrawlTask.crawl_id == crawl_id,
+                    SiteCrawlTask.status == TASK_STATUS_FAILED,
+                    SiteCrawlTask.error_code != "",
+                )
+                .order_by(SiteCrawlTask.completed_at.desc().nullslast())
+                .limit(1)
+            )
+        ).first()
+        if row is None:
+            return ""
+        error_code, error_detail = row
+        detail = str(error_detail or "").strip()
+        return f"{error_code}: {detail}" if detail else str(error_code)
+
     async def _task_counts(
         self, session: AsyncSession, crawl_id: uuid.UUID
     ) -> dict[str, int]:
@@ -324,6 +434,9 @@ class CrawlLifecycle:
                     func.count()
                     .filter(SiteCrawlTask.status == TASK_STATUS_CANCELLED)
                     .label("cancelled"),
+                    func.count()
+                    .filter(SiteCrawlTask.status == TASK_STATUS_FAILED)
+                    .label("failed"),
                 )
                 .where(SiteCrawlTask.crawl_id == crawl_id)
                 .group_by(SiteCrawlTask.task_kind)
@@ -343,6 +456,8 @@ class CrawlLifecycle:
             "analyze_total": count(TASK_KIND_ANALYZE, "total"),
             "analyze_succeeded": count(TASK_KIND_ANALYZE, "succeeded"),
             "analyze_cancelled": count(TASK_KIND_ANALYZE, "cancelled"),
+            "analyze_failed": count(TASK_KIND_ANALYZE, "failed"),
+            "discover_failed": count(TASK_KIND_DISCOVER, "failed"),
         }
 
     # --- v2 P2: crawl_finalize evaluation pass -----------------------------
@@ -651,6 +766,15 @@ class CrawlLifecycle:
                         rule_version=ev.rule_version,
                     )
                 )
+
+        # The issues above are ``session.add``-ed, and ``SessionLocal`` is
+        # ``autoflush=False`` — so without this flush the snapshot's own SELECT
+        # (next statement in the caller) cannot see them, and every
+        # crawl_finalize issue silently missed the severity/category rollups
+        # even though this pass deliberately runs BEFORE the snapshot to be
+        # counted. Observed as a snapshot ``issue_count`` short by exactly the
+        # crawl's broken_internal_link findings.
+        await session.flush()
 
     async def _persist_snapshot(
         self, session: AsyncSession, *, crawl: SiteCrawl

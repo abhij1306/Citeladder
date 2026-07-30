@@ -30,6 +30,7 @@ from app.core.config.site_health import (
     AI_CRAWLER_STANCE_BLOCK,
     ANSWER_FIRST_MIN_WORDS,
     APPLICABILITY_CRAWL_FINALIZE,
+    APPLICABILITY_OBSERVED_CONTENT,
     APPLICABILITY_SITE_ROOT,
     EXPAND_GATED_MAX_RATIO,
     META_DESCRIPTION_LENGTH_BAND,
@@ -558,22 +559,34 @@ def _check_question_headings(facts: dict) -> tuple[str, dict]:
     }
 
 
-def _check_server_rendered_content(facts: dict) -> tuple[str, dict]:
+def _server_render_signals(facts: dict) -> tuple[bool, dict]:
+    """``(is_js_shell, evidence)`` for the server-rendered-content signal.
+
+    Shared by ``_check_server_rendered_content`` (which reports it) and
+    ``_applicability`` (which uses it to skip the rules that read content this
+    page never delivered). One definition so the HIGH finding and the
+    not-applicable rules can never disagree about whether a page is a shell.
+    """
     body = facts.get("body") or {}
     word_count = int(body.get("word_count", 0) or 0)
     text_chars = len(str(body.get("text") or ""))
     inline_script_chars = int(facts.get("inline_script_chars", 0) or 0)
-    # A page fails only when it is BOTH text-thin AND script-dominated: the
-    # signature of a JS shell whose content never made it into the HTML.
+    # A page is a shell only when it is BOTH text-thin AND script-dominated:
+    # the signature of a JS shell whose content never made it into the HTML.
     is_shell = (
         word_count < SERVER_RENDERED_MIN_WORDS and inline_script_chars > text_chars
     )
-    return _pass_fail(not is_shell), {
+    return is_shell, {
         "word_count": word_count,
         "minimum_words": SERVER_RENDERED_MIN_WORDS,
         "body_text_chars": text_chars,
         "inline_script_chars": inline_script_chars,
     }
+
+
+def _check_server_rendered_content(facts: dict) -> tuple[str, dict]:
+    is_shell, evidence = _server_render_signals(facts)
+    return _pass_fail(not is_shell), evidence
 
 
 def _check_no_expand_gating(facts: dict) -> tuple[str, dict]:
@@ -622,34 +635,55 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
 }
 
 
-def _is_applicable(rule: SiteHealthRule, facts: dict) -> bool:
+def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
+    """``(applicable, skip_reason)`` for one rule against ``facts``.
+
+    The reason is carried into the NOT_APPLICABLE evidence so a skipped rule
+    can explain itself. A bare ``not_applicable`` is indistinguishable from a
+    pass in the UI, which matters most for the shell case: the user needs to
+    read "we could not see this page's content", not silence.
+    """
     key = (rule.applicability_key or "always").strip().lower()
     if key == "always":
-        return True
+        return True, ""
     if key == "has_html":
-        return bool(facts.get("has_html"))
+        return bool(facts.get("has_html")), "no_html"
+    if key == APPLICABILITY_OBSERVED_CONTENT:
+        # Content-reading rules need content we actually RECEIVED. On a
+        # client-rendered shell the body is empty, so asserting "missing H1",
+        # "thin content" or "no outbound citations" would be reporting the
+        # absence of something we never had a chance to see — six derived
+        # findings, each scoring against the page, for one real problem.
+        # ``aeo.server_rendered_content`` is the rule that owns that problem
+        # and it stays applicable (it is ``has_html``), so the shell is still
+        # reported once, at HIGH, with its remediation.
+        if not facts.get("has_html"):
+            return False, "no_html"
+        is_shell, _evidence = _server_render_signals(facts)
+        return not is_shell, "content_not_server_rendered"
     if key.startswith(PAGE_TYPE_APPLICABILITY_PREFIX):
         # page_type:<type> tokens resolve against facts["page_type"]: the
         # token must name exactly the page's (known) type. An absent/unknown
         # page type — or a token naming any other type — is inapplicable
         # (fail-closed).
         profile = _profile_for(facts)
-        return (
+        applies = (
             profile is not None
             and key == f"{PAGE_TYPE_APPLICABILITY_PREFIX}{profile.page_type}"
         )
+        return applies, "other_page_type"
     if key == APPLICABILITY_SITE_ROOT:
         # Site-level rules apply only inside the crawl root's own analysis,
         # where the worker injected facts["site"] from the crawl's
         # site_facts (spec §5.3 — exactly once per crawl).
-        return facts.get("site") is not None
+        return facts.get("site") is not None, "not_site_root"
     if key == APPLICABILITY_CRAWL_FINALIZE:
         # Never applicable in the per-page pass: the finalize-writer owns
         # these rows (single-writer per rule scope) and the analyze writer
         # filters them out before persisting.
-        return False
+        return False, "crawl_finalize_scope"
     # Unknown applicability key: treat as inapplicable (fail-closed).
-    return False
+    return False, "unknown_applicability"
 
 
 def _weight_for(rule: SiteHealthRule, facts: dict) -> float:
@@ -682,10 +716,11 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
         weight=_weight_for(rule, facts),
         remediation=rule.remediation,
     )
-    if not _is_applicable(rule, facts):
+    applicable, skip_reason = _applicability(rule, facts)
+    if not applicable:
         return RuleEvaluation(
             outcome=RULE_OUTCOME_NOT_APPLICABLE,
-            evidence={"reason": "not_applicable"},
+            evidence={"reason": skip_reason or "not_applicable"},
             **base,
         )
     check = _CHECKS.get(rule.rule_id)

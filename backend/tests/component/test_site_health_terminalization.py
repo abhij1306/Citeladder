@@ -46,6 +46,7 @@ from app.models.site_health import (
     SiteRuleEvaluation,
     SiteUrl,
 )
+from app.workers.site_health.helpers import _is_crawl_finalize_rule
 from tests.component.site_health_helpers import seed_site_crawl
 from tests.component.site_health_worker_helpers import (
     _analyses_by_page_url,
@@ -857,6 +858,10 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
                     severity="high",
                 )
             )
+        # This block stands in for the finalize-pass writer, so it flushes the
+        # way that writer does: the snapshot aggregates issues with a SELECT,
+        # and sessions here (like production's) do not autoflush.
+        await session.flush()
 
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
@@ -974,4 +979,13 @@ async def test_finalize_pass_broken_link_and_hreflang_conflict_end_to_end(
             )
         ).scalar_one()
         assert snapshot.analyzed_url_count == 2
+        # The crawl_finalize pass runs BEFORE the snapshot precisely so its
+        # issues land in the rollup. It writes them with ``session.add`` and
+        # production sessions do not autoflush, so without an explicit flush
+        # the snapshot's SELECT could not see them and this count came back
+        # short by exactly the finalize findings.
         assert snapshot.issue_count == len(issues)
+        assert "technical.broken_internal_link" in issues
+        assert sum(1 for rule_id in issues if _is_crawl_finalize_rule(rule_id)) > 0, (
+            "the finalize issues must be part of what issue_count counted"
+        )

@@ -171,7 +171,6 @@ async def create_crawl_endpoint(
             include_globs=payload.include_globs,
             exclude_globs=payload.exclude_globs,
             random_seed=payload.seed,
-            fetch_mode=payload.fetch_mode,
         )
     except CrawlAlreadyActiveError as exc:
         raise HTTPException(

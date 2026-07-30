@@ -235,23 +235,25 @@ async def load_events(
         .order_by(SiteCrawlEvent.created_at.asc(), SiteCrawlEvent.id.asc())
     )
     if after is not None:
-        anchor = (
-            await session.execute(
-                select(SiteCrawlEvent.created_at, SiteCrawlEvent.id).where(
-                    SiteCrawlEvent.id == after,
-                    SiteCrawlEvent.crawl_id == crawl_id,
-                )
+        # The anchor's timestamp as a scalar subquery rather than a second
+        # round trip. A stale/foreign anchor yields NULL, and both keyset
+        # comparisons against NULL are NULL — so the page comes back empty on
+        # its own, which is exactly the "do not replay the whole history to a
+        # resuming client" rule the separate lookup used to enforce.
+        anchor_created_at = (
+            select(SiteCrawlEvent.created_at)
+            .where(
+                SiteCrawlEvent.id == after,
+                SiteCrawlEvent.crawl_id == crawl_id,
             )
-        ).first()
-        if anchor is None:
-            return []
-        anchor_created_at, anchor_id = anchor
+            .scalar_subquery()
+        )
         stmt = stmt.where(
             or_(
                 SiteCrawlEvent.created_at > anchor_created_at,
                 and_(
                     SiteCrawlEvent.created_at == anchor_created_at,
-                    SiteCrawlEvent.id > anchor_id,
+                    SiteCrawlEvent.id > after,
                 ),
             )
         )

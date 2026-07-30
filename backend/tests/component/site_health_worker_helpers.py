@@ -70,32 +70,6 @@ class _ByteStream(httpx.AsyncByteStream):
         return None
 
 
-class _StubCurlSession:
-    """Offline stand-in for the fetcher's rung-2 curl session (T7).
-
-    Replays one scripted status so worker tests that return a bot-block
-    signature status (401/403/503) never touch the real network when the
-    curl_cffi escalation rung fires. ``body`` is the scripted decoded payload
-    (default a tiny stub) so a winning rung 2 can serve real HTML.
-    """
-
-    def __init__(self, status: int, *, body: bytes = b"stub") -> None:
-        self._status = status
-        self._body = body
-
-    async def __aenter__(self) -> _StubCurlSession:
-        return self
-
-    async def __aexit__(self, *exc) -> None:
-        return None
-
-    async def request(self, method, url, **kwargs):
-        callback = kwargs.get("content_callback")
-        if callback is not None:
-            callback(self._body)
-        return httpx.Response(self._status, headers={"content-type": "text/html"})
-
-
 def _site_transport(
     pages: dict[str, bytes | tuple[bytes, dict[str, str]]],
     *,

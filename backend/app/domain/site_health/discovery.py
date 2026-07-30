@@ -216,8 +216,12 @@ async def _upsert_site_url(
 
     Uses ``INSERT ... ON CONFLICT (project_id, url_hash) DO NOTHING`` so two
     workers admitting the same URL never create duplicate identities; on
-    conflict we read the existing row's id. ``created`` distinguishes a NEW
-    identity (counts toward admitted/allowance) from a re-observation.
+    conflict we read the existing row's id.
+
+    ``created`` reports whether a NEW project-level identity was inserted. It
+    deliberately does NOT drive admission or the sample allowance: those are
+    per-CRAWL, and every URL of a recrawled site already has an identity, so
+    gating on it counted nothing on any run after the first.
     """
     now = _utcnow()
     try:
@@ -480,14 +484,20 @@ async def admit_candidates(
         ):
             break
 
-        site_url_id, created = await _upsert_site_url(
+        site_url_id, _created = await _upsert_site_url(
             session, crawl=crawl, candidate=candidate
         )
         if site_url_id is None:
             continue
         site_url_ids[candidate.url_hash] = str(site_url_id)
-        if created:
-            admitted += 1
+        # Admission is per CRAWL, not per project identity. Counting only
+        # newly-created ``SiteUrl`` rows meant a recrawl of an already-known
+        # site admitted "0" — every URL already had an identity from the first
+        # run — so the strip's "URLs found" sat at 0 for the entire discovery
+        # of every crawl after the first. The two branches below already run
+        # for every resolved candidate for exactly this reason; the counter now
+        # agrees with them.
+        admitted += 1
 
         # Per-crawl admission must not be limited to newly-created child
         # identities: a complete recrawl re-observes URLs that already have a
@@ -523,6 +533,11 @@ async def admit_candidates(
                 parent_site_url_id=None,
             )
 
+    # Live delta so the frontier ceiling above and the progress event advance
+    # within a task. ``CrawlLifecycle.reconcile`` then re-derives this counter
+    # from the crawl's ``SiteUrlObservation`` rows, which is the exact,
+    # deduplicated "URLs this crawl admitted" and repairs any drift from a URL
+    # re-observed across batches.
     crawl.admitted_url_count += admitted
     sample_capped = bool(crawl.sample_mode and remaining is not None and remaining <= 0)
     return AdmissionResult(

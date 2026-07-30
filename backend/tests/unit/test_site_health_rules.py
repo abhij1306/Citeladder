@@ -263,6 +263,66 @@ def test_has_html_rules_not_applicable_without_html():
     assert evals["technical.title_present"].outcome == RULE_OUTCOME_FAIL
 
 
+def _js_shell_facts():
+    """A client-rendered shell: real markup, empty body, script-dominated.
+
+    Modelled on the page that exposed this — 4,874 bytes of bootstrap with a
+    title and meta description but zero body text and zero headings.
+    """
+    return _html_facts(
+        headings={"h1_count": 0, "counts": {"h1": 0, "h2": 0}},
+        body={"word_count": 0, "text": ""},
+        inline_script_chars=1269,
+        question_heading_ratio=0.0,
+        outbound_domains=[],
+        author="",
+        dates={},
+        first_answer_text="",
+    )
+
+
+def test_js_shell_reports_one_finding_not_a_cascade():
+    """Content rules are N/A on a shell; the shell rule itself still fails.
+
+    The crawler is HTTP-only, so a client-rendered page arrives with an empty
+    body. Every content-reading rule used to "fail" on content that was never
+    delivered — one page produced missing-H1 + thin-content + no-question-
+    headings + no-citations + no-author + no-date as six separate findings,
+    each scoring against it, for a single real problem.
+    """
+    evals = {e.rule_id: e for e in evaluate_all(_js_shell_facts())}
+
+    # The one true finding, still reported at its catalog severity.
+    assert evals["aeo.server_rendered_content"].outcome == RULE_OUTCOME_FAIL
+
+    # Its derivatives are skipped, and say why.
+    for rule_id in (
+        "technical.single_h1",
+        "technical.thin_content",
+        "aeo.question_headings",
+        "aeo.outbound_citations",
+        "aeo.author_present",
+        "aeo.date_present",
+    ):
+        assert evals[rule_id].outcome == RULE_OUTCOME_NOT_APPLICABLE, rule_id
+        assert evals[rule_id].evidence["reason"] == "content_not_server_rendered"
+
+    # Rules about the SERVED MARKUP are unaffected: what a non-rendering
+    # crawler receives is exactly what this product is about, so a shell that
+    # ships no JSON-LD is still a genuine structured-data finding.
+    assert evals["aeo.structured_data_present"].outcome != RULE_OUTCOME_NOT_APPLICABLE
+    assert evals["technical.title_present"].outcome == RULE_OUTCOME_PASS
+    assert evals["technical.https"].outcome == RULE_OUTCOME_PASS
+
+
+def test_content_rules_still_apply_to_a_server_rendered_page():
+    """The gate must not swallow real findings on a normally-rendered page."""
+    facts = _html_facts(headings={"h1_count": 0, "counts": {"h1": 0, "h2": 3}})
+    ev = _outcome(facts, "technical.single_h1")
+    assert ev.outcome == RULE_OUTCOME_FAIL
+    assert ev.evidence["h1_count"] == 0
+
+
 def test_check_raising_yields_error_outcome():
     # A rule whose facts are shaped so its check raises must yield ERROR, never
     # propagate. Feed a facts dict where headings is not a dict for single_h1.
@@ -342,8 +402,12 @@ def test_page_type_token_not_applicable_on_other_type():
 
 def test_page_type_token_not_applicable_without_page_type_fact():
     # No facts["page_type"] (e.g. pre-classification) -> fail-closed.
+    # ``_html_facts()`` DEFAULTS page_type to "homepage", so the key has to be
+    # removed — otherwise this only re-tested the mismatched-type case above.
     rule = _page_type_rule("technical.title_present", "article")
-    ev = evaluate_rule(rule, _html_facts())
+    facts = _html_facts()
+    del facts["page_type"]
+    ev = evaluate_rule(rule, facts)
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
 
 

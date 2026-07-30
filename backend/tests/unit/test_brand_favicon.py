@@ -101,7 +101,6 @@ async def test_fetch_brand_logo_prefers_declared_valid_raster() -> None:
     assert logo.content_type == "image/png"
     assert logo.image_data == PNG
     assert [call.url for call in fetcher.calls] == [page_url, icon_url]
-    assert all(call.allow_escalation is False for call in fetcher.calls)
 
 
 async def test_fetch_brand_logo_rejects_spoofed_image_and_uses_fallback() -> None:

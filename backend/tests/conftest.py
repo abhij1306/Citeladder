@@ -206,9 +206,21 @@ async def session_factory(
     queue tests exercise ``SELECT ... FOR UPDATE SKIP LOCKED`` from concurrent
     sessions: they need genuinely separate connections, which a rollback-based
     fixture could not give them.
+
+    The keyword arguments MUST mirror ``app.core.database.SessionLocal``.
+    ``autoflush`` was the one that did not: production disables it, the fixture
+    inherited SQLAlchemy's ``True``, and so every component test ran with
+    different write-visibility semantics than the code it was testing. Under
+    that gap a ``session.add`` followed by a SELECT read back the pending row
+    in tests and silently did not in production — which let the crawl-finalize
+    issues ship missing from every snapshot rollup while the test asserting
+    ``snapshot.issue_count == len(issues)`` passed.
     """
     factory = async_sessionmaker(
-        _schema_engine, expire_on_commit=False, class_=AsyncSession
+        _schema_engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+        autoflush=False,
     )
     try:
         yield factory

@@ -377,6 +377,21 @@ CATEGORY_CITABILITY: Final = "citability"
 # evaluation rows (single-writer per rule scope).
 APPLICABILITY_SITE_ROOT: Final = "site_root"
 APPLICABILITY_CRAWL_FINALIZE: Final = "crawl_finalize"
+# ``observed_content``: like ``has_html``, but ALSO requires that the server
+# actually delivered the page's content. The crawler is HTTP-only, so a
+# client-rendered shell arrives as markup with an empty body — and every rule
+# that reads body text, headings or in-content links then "fails" on content
+# that was never observed. One JS-shell page was reporting missing H1, thin
+# content, no question headings, no outbound citations, no author and no date
+# as six independent findings, each taking its own bite out of the score, when
+# the single true finding is the one ``aeo.server_rendered_content`` already
+# reports at HIGH.
+#
+# Rules about the SERVED MARKUP (title/meta/canonical/OG/JSON-LD presence,
+# transport headers) deliberately keep ``has_html``: their subject is exactly
+# what a non-rendering crawler receives, which is the product's whole thesis.
+# Only rules whose subject is CONTENT WE COULD NOT SEE move here.
+APPLICABILITY_OBSERVED_CONTENT: Final = "observed_content"
 
 # =========================================================================
 # Site setup fetch targets + AI-crawler stance (v2 P2 — spec §5.3)
@@ -403,40 +418,29 @@ AI_CRAWLER_STANCE_ALLOW: Final = "allow"
 AI_CRAWLER_STANCE_BLOCK: Final = "block"
 
 # =========================================================================
-# Fetch escalation rung 2 (v2 P3 — spec §5.4): curl_cffi impersonated retry
+# Bot-block signatures (spec §5.4)
 # =========================================================================
-# Rung 2 retries a bot-blocked fetch ONCE, inside the same ``fetch()`` call,
-# with curl_cffi (no extra queue attempt, no queue-semantics change). Every
-# knob lives here (invariant 1).
+# The crawler makes a plain, honestly-identified HTTP request and nothing more.
+# When a site blocks it we CLASSIFY that (``ERROR_BOT_BLOCKED``) and report it;
+# we never impersonate a browser to get around it. A site that refuses a
+# well-behaved crawler is not AEO-ready, and that is the finding.
 #
-# Full Chrome impersonation is a settled user decision (D2, #3072): the UA
-# AND the TLS fingerprint present as Chrome so WAF/bot layers that reject a
-# non-browser ClientHello answer the real page. This is a deliberate evasion
-# trade-off — rung 2 no longer identifies as our crawler UA, so it fires ONLY
-# after a config-owned bot-block signature trips on rung 1, never by default.
-# Revert without touching fetcher code: set SITE_HEALTH_CURL_UA_MODE to
-# CURL_UA_MODE_SITE_BOT (rung 2 then sends the crawler's own UA through plain
-# curl_cffi, no impersonation).
-SITE_HEALTH_CURL_IMPERSONATE_TARGET: Final = "chrome131"
-CURL_UA_MODE_IMPERSONATE: Final = "impersonate"
-CURL_UA_MODE_SITE_BOT: Final = "site_bot"
-SITE_HEALTH_CURL_UA_MODE: Final = CURL_UA_MODE_IMPERSONATE
-# Bot-block signatures that trigger the rung-1 -> rung-2 escalation:
-# - a terminal status in this table (WAF reject/challenge statuses)...
-BOT_BLOCK_STATUSES: Final[frozenset[int]] = frozenset({401, 403, 503})
-# - ...or a challenge/block body marker within the first
-#   BOT_BLOCK_MARKER_SCAN_BYTES of the DECODED body (catches interstitial
-#   challenge pages served on other statuses). Markers are matched
-#   case-folded and are deliberately distinctive challenge-platform strings —
-#   never generic words like "captcha" that ordinary pages legitimately
-#   contain, so a normal page cannot false-trigger an impersonated refetch.
+# A block is signalled by a challenge/block body marker within the first
+# BOT_BLOCK_MARKER_SCAN_BYTES of the DECODED body. Markers are matched
+# case-folded and are deliberately distinctive challenge-platform strings —
+# never generic words like "captcha" that ordinary pages legitimately contain,
+# so a normal page cannot be misreported as blocked.
+#
+# Status codes are deliberately NOT a signal: 401/403/503 used to be the cheap
+# trigger for an impersonated retry, and only a second blocked response proved
+# a block. With no retry, a status-only rule would relabel every members-only
+# 401 as bot protection, so those keep their http_4xx/http_5xx classification.
 BOT_BLOCK_BODY_MARKERS: Final[tuple[str, ...]] = (
     "cf-chl",
     "challenge-platform",
     # Distinctive Cloudflare interstitial title, verbatim including the
     # ellipsis — the bare phrase "just a moment" is ordinary English and would
-    # false-trigger an impersonated refetch on a healthy page whose copy
-    # contains it.
+    # misreport a healthy page whose copy contains it as blocked.
     "just a moment...",
     # NOTE: "attention required" was removed — it is plain English, not a
     # distinctive challenge-platform string, so it could false-positive a
@@ -448,62 +452,6 @@ BOT_BLOCK_BODY_MARKERS: Final[tuple[str, ...]] = (
     "distil_r",
 )
 BOT_BLOCK_MARKER_SCAN_BYTES: Final = 8192
-# - ...or a TLS-layer block: rung 1's SEND-PHASE transport failure whose
-#   underlying exception text matches one of these, case-folded (a WAF
-#   resetting the handshake on a non-browser ClientHello). Never applied to
-#   URL-policy rejections (those stay ``ssrf_blocked``) or to timeouts.
-BOT_BLOCK_TLS_ERROR_MARKERS: Final[tuple[str, ...]] = (
-    "ssl",
-    "tls",
-    "handshake",
-    "connection reset",
-    "eof",
-)
-
-# =========================================================================
-# Fetch engine provenance tokens (v2 P3 — spec §5.5)
-# =========================================================================
-# The transport that produced a ``SiteFetchAttempt`` row / ``SiteFetchArtifact``
-# (the artifact's ``fetch_engine`` column default references ``FETCH_ENGINE_HTTPX``
-# — never hardcode these strings in model or service code, invariant 1).
-# ``browser`` is RESERVED for the P4 headless-browser rung: nothing emits it
-# in v2.
-FETCH_ENGINE_HTTPX: Final = "httpx"
-FETCH_ENGINE_CURL_CFFI: Final = "curl_cffi"
-FETCH_ENGINE_BROWSER: Final = "browser"
-FETCH_ENGINES: Final[frozenset[str]] = frozenset(
-    {FETCH_ENGINE_HTTPX, FETCH_ENGINE_CURL_CFFI, FETCH_ENGINE_BROWSER}
-)
-
-# =========================================================================
-# Fetch-mode vocabulary (v2 P3 — spec §5.4): the crawl's fetch ladder
-# =========================================================================
-# Frozen into ``SiteCrawl.configuration`` at creation (invariant 9) so a live
-# config change never alters an in-flight crawl's ladder.
-#   auto               — rung 1 (httpx), escalating to rung 2 (impersonated
-#                        curl_cffi) on a bot-block signature (the default).
-#   http_only          — rung 1 only; the impersonated escalation never fires.
-#   browser_only / http_then_browser — RESERVED for the P4 headless-browser
-#                        rung. They are part of the vocabulary but NOT active
-#                        in v2: crawl creation REJECTS them with a validation
-#                        error (never silently accepted-and-inert).
-FETCH_MODE_AUTO: Final = "auto"
-FETCH_MODE_HTTP_ONLY: Final = "http_only"
-FETCH_MODE_BROWSER_ONLY: Final = "browser_only"
-FETCH_MODE_HTTP_THEN_BROWSER: Final = "http_then_browser"
-FETCH_MODES: Final[frozenset[str]] = frozenset(
-    {
-        FETCH_MODE_AUTO,
-        FETCH_MODE_HTTP_ONLY,
-        FETCH_MODE_BROWSER_ONLY,
-        FETCH_MODE_HTTP_THEN_BROWSER,
-    }
-)
-# v2 activates exactly these two; anything outside this set is rejected.
-ACTIVE_FETCH_MODES: Final[frozenset[str]] = frozenset(
-    {FETCH_MODE_AUTO, FETCH_MODE_HTTP_ONLY}
-)
-DEFAULT_FETCH_MODE: Final = FETCH_MODE_AUTO
 
 # =========================================================================
 # Safe per-task error tokens (never persist raw bodies/sensitive headers)
@@ -523,12 +471,11 @@ ERROR_HTTP_4XX: Final = "http_4xx"
 ERROR_HTTP_5XX: Final = "http_5xx"
 ERROR_CONNECTION_FAILED: Final = "connection_failed"
 ERROR_MALFORMED_RESPONSE: Final = "malformed_response"
-# v2 P3: BOTH fetch-ladder rungs returned signature-detected bot blocks (rung
-# 1 tripped a BOT_BLOCK_* signature AND the impersonated rung-2 response
-# matched one too). Distinct from the generic ``http_4xx`` so an exhausted
-# bot block presents as ``blocked`` — a plain returned 403 must NOT classify
-# here (it stays ``http_4xx``). The terminal rung-2 response is retained in
-# the per-call trace only; it never becomes an analyzable artifact.
+# The fetch returned a signature-detected bot block (a BOT_BLOCK_* status or
+# body marker). Distinct from the generic ``http_4xx`` so a blocked page
+# presents as ``blocked`` — a plain returned 403 with no challenge signature
+# stays ``http_4xx``. The blocked response is retained in the per-call trace
+# only; it never becomes an analyzable artifact.
 ERROR_BOT_BLOCKED: Final = "bot_blocked"
 SITE_FETCH_ERROR_TOKENS: Final[frozenset[str]] = frozenset(
     {
@@ -1010,6 +957,7 @@ class SiteHealthRule:
         "description",
         "remediation",
         "display_label",
+        "display_label_variants",
     )
 
     def __init__(
@@ -1025,6 +973,7 @@ class SiteHealthRule:
         description: str,
         remediation: str,
         display_label: str = "",
+        display_label_variants: dict[str, str] | None = None,
     ) -> None:
         self.rule_id = rule_id
         self.rule_version = rule_version
@@ -1039,6 +988,14 @@ class SiteHealthRule:
         # issue/evaluation rows never store this; the API reads it live so a
         # relabel takes effect immediately. Empty falls back to ``rule_id``.
         self.display_label = display_label or rule_id
+        # Optional per-outcome titles for a rule whose ONE condition covers
+        # opposite failures. ``technical.single_h1`` fails on ``h1_count != 1``,
+        # so its single title had to read "Multiple or missing H1" — which tells
+        # a reader neither which one happened nor what to do. Keyed by a token
+        # the projection derives from the persisted evidence; an unmatched token
+        # falls back to ``display_label``, so a rule without variants (all but
+        # one today) is unaffected.
+        self.display_label_variants = dict(display_label_variants or {})
 
 
 # The rule catalog (sh-rules-2 — v2 P2, spec §5.3). Defined here so the
@@ -1119,10 +1076,14 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_LOW,
         weight=1.0,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description="Page has exactly one <h1> heading.",
         remediation="Use a single <h1> that describes the page's primary topic.",
-        display_label="Multiple or missing H1",
+        display_label="Missing or duplicate H1",
+        display_label_variants={
+            "none": "Missing H1 heading",
+            "multiple": "More than one H1 heading",
+        },
     ),
     SiteHealthRule(
         rule_id="aeo.structured_data_present",
@@ -1156,7 +1117,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
         weight=2.0,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description=(
             "Word count is below the per-page-type minimum (PAGE_TYPE_PROFILES)."
         ),
@@ -1347,7 +1308,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_STRUCTURED_DATA,
         severity=SEVERITY_MEDIUM,
         weight=1.5,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description=(
             "Structured-data names match the visible <title>/h1 content "
             "(bounded cross-check)."
@@ -1365,7 +1326,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_MEDIUM,
         weight=1.5,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description="Page exposes an author byline (schema, meta, or article:author).",
         remediation="Add an author byline (JSON-LD author or meta name=author).",
         display_label="Missing author byline",
@@ -1377,7 +1338,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_MEDIUM,
         weight=1.5,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description="Page exposes a published or modified date.",
         remediation=(
             "Add machine-readable dates (JSON-LD datePublished/dateModified, "
@@ -1392,7 +1353,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_LOW,
         weight=1.0,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description="Page links out to at least one non-social external domain.",
         remediation="Cite authoritative external sources relevant to the content.",
         display_label="No outbound citations",
@@ -1419,7 +1380,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
         weight=2.0,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description=(
             "The first block under the first heading is a substantive "
             "answer/definitional paragraph."
@@ -1434,7 +1395,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_LOW,
         weight=1.0,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description="Page uses question-form h2/h3 headings.",
         remediation="Phrase section headings as the questions users ask.",
         display_label="No question-form headings",
@@ -1463,7 +1424,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
         weight=1.0,
-        applicability_key="has_html",
+        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description=(
             "Most body text is not hidden behind click-to-expand elements "
             "(collapsed details / aria-expanded=false)."

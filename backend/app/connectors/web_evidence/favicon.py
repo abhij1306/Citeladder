@@ -127,7 +127,6 @@ async def fetch_brand_logo(
                 timeout_seconds=BRAND_LOGO_REQUEST_TIMEOUT_SECONDS,
                 max_redirects=BRAND_LOGO_MAX_REDIRECTS,
                 allowed_content_types=HTML_CONTENT_TYPES,
-                allow_escalation=False,
             ),
             root_registrable_domain=root_domain,
             enforce_scope=True,
@@ -149,7 +148,6 @@ async def fetch_brand_logo(
                     timeout_seconds=BRAND_LOGO_REQUEST_TIMEOUT_SECONDS,
                     max_redirects=BRAND_LOGO_MAX_REDIRECTS,
                     allowed_content_types=BRAND_LOGO_IMAGE_CONTENT_TYPES,
-                    allow_escalation=False,
                 ),
                 enforce_scope=False,
             )

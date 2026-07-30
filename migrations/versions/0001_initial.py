@@ -2844,7 +2844,6 @@ def upgrade() -> None:
         sa.Column("crawl_id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("fetch_purpose", sa.String(length=16), nullable=False),
-        sa.Column("fetch_engine", sa.String(length=16), nullable=False),
         sa.Column("requested_url", sa.String(length=2048), nullable=False),
         sa.Column("final_url", sa.String(length=2048), nullable=False),
         sa.Column(
@@ -3096,8 +3095,6 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("attempt_number", sa.Integer(), nullable=False),
         sa.Column("request_ordinal", sa.Integer(), nullable=False),
-        sa.Column("rung_number", sa.Integer(), nullable=True),
-        sa.Column("fetch_engine", sa.String(length=16), nullable=False),
         sa.Column("method", sa.String(length=8), nullable=False),
         sa.Column("target_host", sa.String(length=255), nullable=False),
         sa.Column("outcome", sa.String(length=16), nullable=False),

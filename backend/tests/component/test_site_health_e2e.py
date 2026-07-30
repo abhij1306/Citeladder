@@ -26,8 +26,6 @@ migrated live server, per the handoff).
 
 from __future__ import annotations
 
-import uuid
-
 import httpx
 import pytest
 from sqlalchemy import select
@@ -229,73 +227,6 @@ async def test_create_and_cancel_crawl_lifecycle(
         headers={"X-Workspace-Id": str(other_id)},
     )
     assert foreign.status_code == 404
-
-
-async def test_create_crawl_fetch_mode_validation_and_freeze(
-    client: httpx.AsyncClient,
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """v2 P3 (T8): the fetch-ladder mode is validated + frozen at creation.
-
-    The P4-reserved browser modes (``browser_only`` / ``http_then_browser``)
-    and unknown modes are REJECTED with a coded 422 (a validation error, never
-    silently accepted-and-inert); the active modes are accepted and frozen
-    into ``SiteCrawl.configuration`` (explicit ``http_only``, and ``auto`` by
-    default when the field is omitted).
-    """
-    await _register(client, "fetchmode@example.com")
-    async with session_factory() as session:
-        scn = await _seed_scenario(session, email="fetchmode@example.com")
-        project = await session.get(Project, scn.project_id)
-        assert project is not None
-        project.website_url = "https://example.com/"
-        await session.commit()
-    headers = {"X-Workspace-Id": str(scn.workspace_id)}
-
-    # Reserved-for-P4 and unknown modes are all rejected with the same coded
-    # 422 — one validation behavior.
-    for mode in ("browser_only", "http_then_browser", "lynx"):
-        rejected = await client.post(
-            "/api/v1/site-crawls",
-            headers=headers,
-            json={"project_id": str(scn.project_id), "fetch_mode": mode},
-        )
-        assert rejected.status_code == 422, mode
-        assert rejected.json()["detail"]["code"] == "invalid_fetch_mode"
-
-    # An active mode is accepted and frozen into the crawl configuration.
-    created = await client.post(
-        "/api/v1/site-crawls",
-        headers=headers,
-        json={"project_id": str(scn.project_id), "fetch_mode": "http_only"},
-    )
-    assert created.status_code == 201
-    async with session_factory() as session:
-        crawl = await session.scalar(
-            select(SiteCrawl).where(SiteCrawl.id == uuid.UUID(created.json()["id"]))
-        )
-        assert crawl is not None
-        assert (crawl.configuration or {}).get("fetch_mode") == "http_only"
-
-    # Omitting the field freezes the default ``auto`` ladder.
-    cancelled = await client.post(
-        f"/api/v1/site-crawls/{created.json()['id']}/cancel", headers=headers
-    )
-    assert cancelled.status_code == 200
-    created_default = await client.post(
-        "/api/v1/site-crawls",
-        headers=headers,
-        json={"project_id": str(scn.project_id)},
-    )
-    assert created_default.status_code == 201
-    async with session_factory() as session:
-        crawl = await session.scalar(
-            select(SiteCrawl).where(
-                SiteCrawl.id == uuid.UUID(created_default.json()["id"])
-            )
-        )
-        assert crawl is not None
-        assert (crawl.configuration or {}).get("fetch_mode") == "auto"
 
 
 async def test_stale_monitored_selection_conflict_409(

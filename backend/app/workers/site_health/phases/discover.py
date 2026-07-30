@@ -34,8 +34,6 @@ from app.core.config.site_health import (
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
     ERROR_BOT_BLOCKED,
     EVENT_DISCOVERY_PROGRESS,
-    FETCH_MODE_AUTO,
-    FETCH_MODE_HTTP_ONLY,
     FETCH_PURPOSE_DISCOVER,
     FETCH_PURPOSE_LLMS,
     FETCH_PURPOSE_ROBOTS,
@@ -71,7 +69,7 @@ from app.models.site_health import (
 from app.workers.site_health.helpers import (
     _classify_http_error,
     _count_disclosure,
-    _is_exhausted_bot_block,
+    _is_bot_block,
     _robots_denial_error,
     _serialize_redirect_chain,
 )
@@ -118,9 +116,6 @@ class DiscoverPhaseMixin(PhaseSupport):
             root_registrable_domain = config.get("root_registrable_domain") or ""
             include_globs = config.get("include_globs")
             exclude_globs = config.get("exclude_globs")
-            # The crawl's frozen fetch-ladder mode (v2 P3); absent on crawls
-            # created before the freeze — default to the escalation ladder.
-            fetch_mode = config.get("fetch_mode") or FETCH_MODE_AUTO
 
         if kind != TASK_KIND_DISCOVER:
             # Routing is done in ``_execute_task``; a mis-routed kind here is a
@@ -139,7 +134,6 @@ class DiscoverPhaseMixin(PhaseSupport):
                 exclude_globs=exclude_globs,
                 depth=depth,
                 sample_mode=sample_mode,
-                fetch_mode=fetch_mode,
             )
             await self._persist_discover(
                 task_id=task_id,
@@ -158,7 +152,6 @@ class DiscoverPhaseMixin(PhaseSupport):
         exclude_globs: list[str] | None,
         depth: int,
         sample_mode: bool,
-        fetch_mode: str = FETCH_MODE_AUTO,
     ) -> _DiscoverOutcome:
         """Fetch + parse one target into a bounded ``_DiscoverOutcome``.
 
@@ -174,11 +167,9 @@ class DiscoverPhaseMixin(PhaseSupport):
         sitemap ingestion — whose bounded results ride the outcome into
         ``_persist_discover``.
 
-        v2 P3: ``fetch_mode`` is the crawl's frozen fetch-ladder mode —
-        ``http_only`` disables the impersonated rung-2 escalation. When BOTH
-        rungs returned signature-detected bot blocks the outcome classifies
-        as ``ERROR_BOT_BLOCKED`` (terminal; presentation maps it to
-        ``blocked``), never the generic ``ERROR_HTTP_4XX``.
+        A response carrying a challenge-platform marker classifies as
+        ``ERROR_BOT_BLOCKED`` (terminal; presentation maps it to ``blocked``),
+        never the generic ``ERROR_HTTP_4XX``.
         """
         authority = _authority_key(requested_url)
         policy: RobotsPolicy | None = None
@@ -227,7 +218,6 @@ class DiscoverPhaseMixin(PhaseSupport):
             url=requested_url,
             purpose=FETCH_PURPOSE_DISCOVER,
             allowed_content_types=HTML_CONTENT_TYPES,
-            allow_escalation=fetch_mode != FETCH_MODE_HTTP_ONLY,
         )
         started = time.monotonic()
         try:
@@ -255,12 +245,11 @@ class DiscoverPhaseMixin(PhaseSupport):
             )
 
         status = result.status_code
-        # v2 P3: an escalated fetch whose rung-2 response is ITSELF a
-        # signature-detected block means both rungs were bot-blocked —
-        # terminal ``ERROR_BOT_BLOCKED`` (presentation: ``blocked``), not the
-        # generic 4xx token. Checked BEFORE status classification because a
-        # challenge interstitial can even ride a 200.
-        if _is_exhausted_bot_block(result):
+        # A challenge-platform marker in the body is a terminal
+        # ``ERROR_BOT_BLOCKED`` (presentation: ``blocked``), not the generic
+        # 4xx token. Checked BEFORE status classification because a challenge
+        # interstitial can even ride a 200.
+        if _is_bot_block(result):
             return _DiscoverOutcome(
                 result=result,
                 error_code=ERROR_BOT_BLOCKED,
@@ -607,7 +596,6 @@ class DiscoverPhaseMixin(PhaseSupport):
         succeeded / retried / failed OUTSIDE that transaction.
         """
         should_retry = False
-        should_fail = False
         retry_attempt = 0
         succeeded_artifact_id: uuid.UUID | None = None
         async with self._session_factory() as session:
@@ -691,16 +679,17 @@ class DiscoverPhaseMixin(PhaseSupport):
                     count_disclosure=_count_disclosure(crawl),
                 )
             else:
-                # Failure path: append the attempt, bump the failed counter, and
-                # decide retry vs. terminal fail from the retry budget.
+                # Failure path: append the attempt and decide retry vs. terminal
+                # fail from the retry budget. ``crawl.failed_url_count`` is NOT
+                # bumped here — ``CrawlLifecycle.reconcile`` derives it from the
+                # task table (every kind, every route to terminal), which is the
+                # only place that can count an analyze failure or a sweeper
+                # reclaim too.
                 exhausted = task.attempt_count + 1 >= task.max_attempts
                 should_retry = outcome.retryable and not exhausted
-                should_fail = not should_retry
                 # Attempt number this failure represents (1-based), used to
                 # grow the backoff deterministically across retries.
                 retry_attempt = task.attempt_count + 1
-                if should_fail:
-                    crawl.failed_url_count += 1
 
             self._write_attempt(
                 session,

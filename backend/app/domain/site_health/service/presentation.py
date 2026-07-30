@@ -10,6 +10,7 @@ of only reachable through a component test with a database.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 
 from app.core.config.site_health import (
@@ -66,10 +67,49 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def display_label_for(rule_id: str) -> str:
-    """Current human-facing catalog title for a rule id (unknown -> rule_id)."""
+# Rules whose single condition covers OPPOSITE failures need the persisted
+# evidence to say which one happened. Each entry maps a rule to the function
+# that picks its ``display_label_variants`` key; the copy itself stays in the
+# catalog (invariant 1) — only the choice lives here, because only the
+# projection has the evidence in hand.
+def _single_h1_variant(evidence: dict) -> str:
+    """``technical.single_h1`` fails on ``h1_count != 1`` — say which way.
+
+    Returns ``""`` for the PASSING count. Evaluations are projected for every
+    outcome, not just failures, so a selector that split the world into
+    "none"/"multiple" labelled a healthy one-H1 page "More than one H1
+    heading". No variant means the neutral catalog title stands.
+    """
+    count = int(evidence.get("h1_count", 0) or 0)
+    if count == 0:
+        return "none"
+    if count > 1:
+        return "multiple"
+    return ""
+
+
+_LABEL_VARIANT_KEY: dict[str, Callable[[dict], str]] = {
+    "technical.single_h1": _single_h1_variant,
+}
+
+
+def display_label_for(rule_id: str, evidence: dict | None = None) -> str:
+    """Current human-facing catalog title for a rule id (unknown -> rule_id).
+
+    With ``evidence``, a rule that declares ``display_label_variants`` resolves
+    to the variant its evidence selects, so a row reads "Missing H1 heading"
+    rather than the both-cases-at-once "Missing or duplicate H1". Without
+    evidence (or with an unmatched variant) the plain catalog title stands.
+    """
     rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
-    return rule.display_label if rule is not None else rule_id
+    if rule is None:
+        return rule_id
+    selector = _LABEL_VARIANT_KEY.get(rule_id)
+    if evidence and selector is not None:
+        variant = rule.display_label_variants.get(selector(evidence))
+        if variant:
+            return variant
+    return rule.display_label
 
 
 # =========================================================================
@@ -326,7 +366,7 @@ def _evaluation_row(evaluation: SiteRuleEvaluation) -> dict:
     return {
         "id": evaluation.id,
         "rule_id": evaluation.rule_id,
-        "title": display_label_for(evaluation.rule_id),
+        "title": display_label_for(evaluation.rule_id, evaluation.evidence),
         "dimension": evaluation.dimension,
         "category": evaluation.category,
         "severity": evaluation.severity,
@@ -360,7 +400,10 @@ def _issue_row(issue: SiteIssue, affected_count: int) -> dict:
         "dimension": issue.dimension,
         "category": issue.category,
         "severity": issue.severity,
-        "title": display_label_for(issue.rule_id),
+        # Sole caller is the per-URL page detail (``affected_count`` is always
+        # 1), so this row describes ONE occurrence and can name which side of
+        # a two-sided rule fired.
+        "title": display_label_for(issue.rule_id, issue.evidence),
         "remediation": issue.remediation or "",
         "affected_url_count": affected_count,
         "analyzer_version": issue.analyzer_version,

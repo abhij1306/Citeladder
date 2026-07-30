@@ -636,7 +636,10 @@ async def get_issue_history(
             "dimension": i.dimension,
             "category": i.category,
             "severity": i.severity,
-            "title": display_label_for(i.rule_id),
+            # Per-URL history rows are ONE occurrence each, so the variant
+            # title applies (grouped/catalog rows above stay neutral — a group
+            # can span both directions of the same rule).
+            "title": display_label_for(i.rule_id, i.evidence),
             "remediation": i.remediation or "",
             "analyzer_version": i.analyzer_version,
             "rule_version": i.rule_version,

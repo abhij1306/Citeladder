@@ -48,10 +48,6 @@ class CreateCrawlRequest(_Model):
     include_globs: list[str] | None = None
     exclude_globs: list[str] | None = None
     seed: str | None = None
-    # Optional fetch-ladder mode (config FETCH_MODE_* token; default ``auto``).
-    # The planner validates it — the P4-reserved browser modes are rejected
-    # with a coded 422, so there is exactly one validation behavior.
-    fetch_mode: str | None = None
 
 
 class ReplaceMonitoredRequest(_Model):

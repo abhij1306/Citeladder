@@ -92,8 +92,6 @@ from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.drain import DrainableWorkerMixin
 from app.workers.site_health import CrawlLifecycle, HostGate
 from app.workers.site_health.helpers import (
-    _fetch_engine_for_rung,
-    _result_fetch_engine,
     _serialize_redirect_chain,
     _utcnow,
 )
@@ -140,7 +138,6 @@ class SiteHealthWorker(
         owner: str | None = None,
         resolver: DnsResolver | None = None,
         transport=None,
-        curl_session_factory=None,
     ) -> None:
         self._session_factory = session_factory or SessionLocal
         self._queue: PostgresTaskQueue[SiteCrawlTask] = PostgresTaskQueue(
@@ -151,10 +148,6 @@ class SiteHealthWorker(
         # An injected httpx transport (tests pass ``httpx.MockTransport``);
         # None in production so the fetcher pins the validated connection IP.
         self._transport = transport
-        # An injected curl session factory for the fetcher's rung-2
-        # escalation (tests pass a fake session builder); None in production
-        # so the fetcher uses its real impersonated-curl factory.
-        self._curl_session_factory = curl_session_factory
         # Per-host politeness (concurrency cap + start pacing + eviction). The
         # robots-declared crawl-delay is injected as a lookup so the gate never
         # fetches anything itself.
@@ -176,14 +169,12 @@ class SiteHealthWorker(
     def _new_fetcher(self) -> SecureFetcher:
         """Build a fetcher with the worker's injected transport seams.
 
-        The resolver, httpx transport (rung 1), and curl session factory
-        (rung 2 escalation) are all injected together so offline tests never
-        touch the network on EITHER rung.
+        The resolver and httpx transport are injected together so offline
+        tests never touch the network.
         """
         return SecureFetcher(
             resolver=self._resolver,
             transport=self._transport,
-            curl_session_factory=self._curl_session_factory,
         )
 
     async def run_once(self) -> int:
@@ -429,9 +420,6 @@ class SiteHealthWorker(
         Reused by both discover and analyze; ``fetch_purpose`` records why the
         fetch happened and ``normalized_facts`` carries the bounded parsed page
         facts for an analyze artifact (there is NO raw body column anywhere).
-        ``fetch_engine`` records the engine that produced the winning call
-        (the result's last trace entry), so the artifact's provenance matches
-        the per-call attempt rows (invariant 4).
         """
         content_hash = hashlib.sha256(result.body or b"").hexdigest()
         artifact = SiteFetchArtifact(
@@ -439,7 +427,6 @@ class SiteHealthWorker(
             crawl_id=crawl.id,
             workspace_id=crawl.workspace_id,
             fetch_purpose=fetch_purpose,
-            fetch_engine=_result_fetch_engine(result),
             requested_url=result.requested_url,
             final_url=result.final_url,
             redirect_chain=_serialize_redirect_chain(result),
@@ -580,22 +567,21 @@ class SiteHealthWorker(
         """Append ONE attempt row per REAL network call (invariant 3, T8).
 
         The fetcher's per-call trace (``outcome.attempts``) drives the rows:
-        every redirect hop and every ladder rung gets its own row sharing the
-        QUEUE-attempt number (``attempt_number``) and distinguished by the
-        deterministic per-call ``request_ordinal`` — order/uniqueness key
+        every redirect hop gets its own row sharing the QUEUE-attempt number
+        (``attempt_number``) and distinguished by the deterministic per-call
+        ``request_ordinal`` — order/uniqueness key
         ``(task_id, attempt_number, request_ordinal)``. Each row records the
-        engine that made the call (``fetch_engine`` from the entry's rung),
-        the per-call host/status/latency/byte counts, and a per-call outcome:
+        per-call host/status/latency/byte counts, and a per-call outcome:
         ``error`` when the call itself failed (transport error token), when it
         received an HTTP error status, or when it is the terminal call of an
         unsuccessful fetch; otherwise ``success``. ONLY the successful
-        terminal call links the artifact — a blocked rung is an attempt only,
+        terminal call links the artifact — a blocked call is an attempt only,
         never an artifact generation.
 
         When the trace is empty (no network call happened — a robots/policy
         short-circuit — or a trace-less result built by a caller), the
         historical single diagnostic row for the queue attempt is kept, with
-        ``request_ordinal=0`` and ``rung_number=NULL``.
+        ``request_ordinal=0``.
 
         Shared by discover and analyze; ``succeeded`` is decided by the caller
         (a discover success has a parsed ``output``, an analyze success has
@@ -615,7 +601,6 @@ class SiteHealthWorker(
                     workspace_id=crawl.workspace_id,
                     attempt_number=attempt_number,
                     request_ordinal=0,
-                    rung_number=None,
                     method="GET",
                     target_host=host[:255],
                     outcome=_OUTCOME_SUCCESS if succeeded else _OUTCOME_ERROR,
@@ -668,8 +653,6 @@ class SiteHealthWorker(
                     workspace_id=crawl.workspace_id,
                     attempt_number=attempt_number,
                     request_ordinal=entry.request_ordinal,
-                    rung_number=entry.rung_number,
-                    fetch_engine=_fetch_engine_for_rung(entry.rung_number),
                     method=(entry.method or "GET")[:8],
                     target_host=host[:255],
                     outcome=row_outcome,
