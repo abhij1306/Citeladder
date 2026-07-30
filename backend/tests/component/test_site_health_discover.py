@@ -138,9 +138,15 @@ async def test_starter_discover_admits_children_and_completes(
             .scalars()
             .all()
         )
-        assert "https://example.com/" in urls
-        assert "https://example.com/a" in urls
-        assert "https://example.com/b" in urls
+        # Set subset, not `in` on each: these are EXACT normalized-URL matches.
+        # `assert "https://example.com/" in urls` reads as a substring test to a
+        # scanner (py/incomplete-url-substring-sanitization) even though `urls`
+        # is a list, so spell the exact-membership intent out.
+        assert {
+            "https://example.com/",
+            "https://example.com/a",
+            "https://example.com/b",
+        } <= set(urls)
         assert not any(urlsplit(u).hostname == "external.org" for u in urls)
 
         # Host populated on the identity rows (not blank).
