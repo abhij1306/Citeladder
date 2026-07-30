@@ -471,11 +471,13 @@ ERROR_HTTP_4XX: Final = "http_4xx"
 ERROR_HTTP_5XX: Final = "http_5xx"
 ERROR_CONNECTION_FAILED: Final = "connection_failed"
 ERROR_MALFORMED_RESPONSE: Final = "malformed_response"
-# The fetch returned a signature-detected bot block (a BOT_BLOCK_* status or
-# body marker). Distinct from the generic ``http_4xx`` so a blocked page
-# presents as ``blocked`` — a plain returned 403 with no challenge signature
-# stays ``http_4xx``. The blocked response is retained in the per-call trace
-# only; it never becomes an analyzable artifact.
+# The fetch came back carrying a challenge-platform marker from
+# ``BOT_BLOCK_BODY_MARKERS`` — the body is the ONLY signal (status codes are
+# deliberately not one; see that table). Distinct from the generic ``http_4xx``
+# so a blocked page presents as ``blocked``, while a plain 401/403/503 with no
+# challenge marker keeps its ``http_4xx``/``http_5xx`` classification. The
+# blocked response is retained in the per-call trace only; it never becomes an
+# analyzable artifact.
 ERROR_BOT_BLOCKED: Final = "bot_blocked"
 SITE_FETCH_ERROR_TOKENS: Final[frozenset[str]] = frozenset(
     {
@@ -1718,6 +1720,12 @@ class SiteHealthSettings(BaseSettings):
     # How long a cached per-authority robots policy stays fresh before the
     # worker re-fetches it (RFC 9309 caching guidance is ~24h).
     robots_cache_ttl_seconds: float = 86_400.0
+    # Hard ceiling on cached authorities. The cache is NOT bounded by the
+    # crawl's own domain: link checks resolve robots for arbitrary EXTERNAL
+    # link targets, so a long-lived worker would otherwise retain one policy +
+    # one lock per host it ever probed. Expired entries are dropped first;
+    # beyond the cap, the oldest go. 0 disables the cap.
+    robots_cache_max_authorities: int = 2048
 
     # --- Parser bounds (bounded, deterministic extraction) ---
     max_links_per_page: int = 2000

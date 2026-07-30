@@ -518,8 +518,15 @@ class AnalyzePhaseMixin(PhaseSupport):
             )
         )
         if observation is not None and observation.status_code is None:
-            observation.status_code = facts.get("status_code")
-            observation.final_url = str(facts.get("final_url") or "")[:2048]
+            # ``status_code``/``final_url`` are nested under ``delivery`` by the
+            # parser (only ``content_type``/``title`` are top level). Reading
+            # them off the root left every observation with a NULL status and a
+            # blank final URL — and because the guard above keys on
+            # ``status_code is None``, the block re-ran forever without ever
+            # filling it. Same accessor the rule-eval path already uses.
+            delivery = facts.get("delivery") or {}
+            observation.status_code = delivery.get("status_code")
+            observation.final_url = str(delivery.get("final_url") or "")[:2048]
             observation.content_type = str(facts.get("content_type") or "")[:128]
             observation.title = str(facts.get("title") or "")[:1024]
             observation.source_artifact_id = artifact_id

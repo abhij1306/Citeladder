@@ -460,11 +460,11 @@ Explicitly **not** this spec:
 
 | Rule | How v2 keeps it |
 |---|---|
-| Invariant 1 (config-only) | Pattern tables, thresholds, weights, fetch modes, impersonate target, render budgets all live in `app/core/config/site_health.py` |
-| Invariant 3 (immutable artifacts) | Render/impersonated retries produce new artifact generations; nothing is overwritten |
+| Invariant 1 (config-only) | Pattern tables, thresholds, weights, and the bot-block markers all live in `app/core/config/site_health.py` (no fetch modes / impersonate target / render budgets — those concepts are gone, §4) |
+| Invariant 3 (immutable artifacts) | One artifact per fetch task; nothing is overwritten. With no retry rung there is no second generation to reconcile |
 | Invariant 4 (provenance) | `page_type` + `classifier_version` + bumped extractor/analyzer/rule/scoring versions on every derived row |
 | Invariant 5 (workspace auth) | DTO/filter additions stay behind `require_active_workspace`; foreign ids remain indistinguishable 404s |
 | Invariant 7 (projections) | Dashboard per-type breakdown and badges read persisted rows only; the service layer never re-fetches or re-scores |
-| Invariant 9 (determinism) | Classifier and all new rules are pure/deterministic; no LLM anywhere in v2 detection; rendered pages go through the same parser + rules + scoring |
+| Invariant 9 (determinism) | Classifier and all new rules are pure/deterministic; no LLM anywhere in v2 detection |
 | Free non-disclosure | `page_type` and site-level rules leak no discovered/frontier totals; redaction layers unchanged |
-| No raw-HTML storage | Rendered bodies are parsed in-process like today's HTTP bodies; only redacted metadata persists |
+| No raw-HTML storage | HTTP bodies are parsed in-process; only redacted metadata persists |

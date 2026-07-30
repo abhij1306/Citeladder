@@ -155,8 +155,8 @@ class FetchError(Exception):
         self.retry_after_seconds = retry_after_seconds
         self.retryable = retryable
         # The same per-network-call trace ``FetchResult`` carries, so a
-        # failed fetch (both rungs blocked, transport failure, cap abort)
-        # does not lose the record of the calls it made (T7).
+        # failed fetch (transport failure, cap abort) does not lose the
+        # record of the calls it made (T7).
         self.attempts = attempts
 
 

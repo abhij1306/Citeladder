@@ -106,7 +106,16 @@ def display_label_for(rule_id: str, evidence: dict | None = None) -> str:
         return rule_id
     selector = _LABEL_VARIANT_KEY.get(rule_id)
     if evidence and selector is not None:
-        variant = rule.display_label_variants.get(selector(evidence))
+        try:
+            key = selector(evidence)
+        except (ValueError, TypeError):
+            # Malformed persisted evidence (a non-numeric ``h1_count`` from an
+            # older writer or a hand-edited row) must not decide a LABEL and
+            # must never fail the request: the selectors coerce evidence, and
+            # `int("abc")` raised straight out of a page-detail projection as a
+            # 500. An unreadable variant key is simply no variant.
+            key = ""
+        variant = rule.display_label_variants.get(key)
         if variant:
             return variant
     return rule.display_label

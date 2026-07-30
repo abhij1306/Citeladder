@@ -157,6 +157,62 @@ def _charset(headers: httpx.Headers) -> str:
     return ""
 
 
+class _DeflateDecoder:
+    """``deflate`` decoder that tolerates the raw, headerless variant.
+
+    ``Content-Encoding: deflate`` is specified as zlib-WRAPPED, but a good
+    number of servers send bare DEFLATE with no zlib header. A default
+    ``decompressobj()`` raises ``zlib.error`` on such a stream's first chunk,
+    which ``_read_body`` turns into ``malformed_response`` — a healthy page
+    lost to a server quirk rather than a real problem.
+
+    So: try zlib-wrapped, and if the header is rejected before ANY output has
+    been produced, retry the bytes seen so far raw (``-MAX_WBITS``) once and
+    continue with that decompressor. Scoped to the header decision — once a
+    format is settled, a mid-body ``zlib.error`` propagates and still fails the
+    fetch, so genuinely corrupt bodies are not smuggled through.
+
+    Exposes the ``decompress``/``flush``/``eof`` surface ``_read_body`` uses, so
+    the swap stays invisible to the truncation check (a stale reference to the
+    discarded object would have reported every raw stream as truncated).
+    """
+
+    __slots__ = ("_obj", "_pending", "_settled")
+
+    def __init__(self) -> None:
+        self._obj = zlib.decompressobj()
+        # Bytes fed so far, kept only until the format is settled so the raw
+        # retry can replay them; dropped immediately after (never a full body).
+        self._pending = b""
+        self._settled = False
+
+    def decompress(self, chunk: bytes) -> bytes:
+        if self._settled:
+            return self._obj.decompress(chunk)
+        self._pending += chunk
+        try:
+            out = self._obj.decompress(chunk)
+        except zlib.error:
+            # zlib header rejected: replay everything as raw deflate.
+            self._obj = zlib.decompressobj(-zlib.MAX_WBITS)
+            out = self._obj.decompress(self._pending)
+            self._settled = True
+            self._pending = b""
+            return out
+        # A zlib header is 2 bytes, so that is when the verdict is final.
+        if len(self._pending) >= 2:
+            self._settled = True
+            self._pending = b""
+        return out
+
+    def flush(self) -> bytes:
+        return self._obj.flush()
+
+    @property
+    def eof(self) -> bool:
+        return self._obj.eof
+
+
 def _incremental_decoder(content_encoding: str):
     """Return ``(decode_chunk, decompressor)`` for the wire encoding.
 
@@ -170,15 +226,16 @@ def _incremental_decoder(content_encoding: str):
     Supports gzip and deflate (the encodings a compression bomb would use);
     ``identity``/unknown pass bytes through unchanged. brotli is not a
     dependency, so a ``br`` body is treated as opaque wire bytes (the wire cap
-    still bounds it).
+    still bounds it). ``deflate`` also accepts the raw headerless variant many
+    servers send — see ``_DeflateDecoder``.
     """
     enc = str(content_encoding or "").strip().lower()
     if enc == "gzip":
         obj = zlib.decompressobj(16 + zlib.MAX_WBITS)
         return (lambda chunk: obj.decompress(chunk)), obj
     if enc == "deflate":
-        obj = zlib.decompressobj()
-        return (lambda chunk: obj.decompress(chunk)), obj
+        deflate = _DeflateDecoder()
+        return deflate.decompress, deflate
     return (lambda chunk: chunk), None
 
 
@@ -396,14 +453,24 @@ class SecureFetcher:
                     retryable=True,
                 ) from exc
             except httpx.HTTPError as exc:
-                # Network-level failure: classify as SSRF-adjacent connection
-                # error but keep the message safe.
+                # Send-phase transport failure (DNS blip, refused connection,
+                # reset handshake): ``connection_failed``, the same token
+                # ``_read_body`` uses for the identical failure mid-body.
+                #
+                # This used to be ``ssrf_blocked`` — not because it was one, but
+                # because the deleted TLS-block escalation hook matched on that
+                # token to trigger an impersonated retry. With the retry gone the
+                # label is actively wrong: ``ssrf_blocked`` is in
+                # ``POLICY_BLOCKING_ERROR_CODES``, so a transient connection
+                # error presented the page as ``blocked`` (a policy denial) when
+                # it is an ``error``. SSRF_BLOCKED now means only what it says —
+                # a real policy denial, raised from ``_resolve``.
                 self._trace(
                     attempts,
                     url=target.url,
                     method=request.method,
                     status_code=None,
-                    error_code=ERROR_SSRF_BLOCKED,
+                    error_code=ERROR_CONNECTION_FAILED,
                     wire_bytes=None,
                     decoded_bytes=None,
                     ttfb_ms=None,
@@ -411,7 +478,7 @@ class SecureFetcher:
                 )
                 raise FetchError(
                     f"connection error: {type(exc).__name__}",
-                    error_code=ERROR_SSRF_BLOCKED,
+                    error_code=ERROR_CONNECTION_FAILED,
                     retryable=True,
                 ) from exc
 

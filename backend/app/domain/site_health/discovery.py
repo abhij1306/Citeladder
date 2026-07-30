@@ -447,6 +447,20 @@ async def admit_candidates(
     """
     # Deterministic order (invariant 9).
     ordered = sorted(candidates, key=lambda c: c.order_key)
+    # ...then collapse repeats of the same identity WITHIN this batch, keeping
+    # the first (lowest order_key) so the choice stays deterministic. A page
+    # that links to itself, or a root re-appended alongside its own extracted
+    # links, otherwise consumed TWO admission slots for one identity: the
+    # counter and the frontier ceiling counted two while the conflict-safe
+    # inserts produced a single observation row and a single task.
+    #
+    # This is only intra-batch dedup. Counting a re-observation across CRAWLS
+    # is deliberate (see the counter comment below) — a recrawl of a known site
+    # must still show progress — so that behavior is untouched.
+    by_hash: dict[str, FrontierCandidate] = {}
+    for candidate in ordered:
+        by_hash.setdefault(candidate.url_hash, candidate)
+    ordered = list(by_hash.values())
     admitted = 0
     settings = site_health_settings
 

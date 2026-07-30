@@ -11,6 +11,7 @@ the decoded-byte (gzip compression bomb) cap.
 from __future__ import annotations
 
 import gzip
+import zlib
 
 import httpx
 import pytest
@@ -284,6 +285,88 @@ async def test_fetch_redirect_to_private_ip_blocked():
                 enforce_scope=True,
             )
     assert exc.value.error_code == "ssrf_blocked"
+
+
+# --- transport failure ----------------------------------------------------
+
+
+async def test_fetch_send_transport_failure_is_connection_failed():
+    """A send-phase transport error is ``connection_failed``, NOT ``ssrf_blocked``.
+
+    ``ssrf_blocked`` is in ``POLICY_BLOCKING_ERROR_CODES``, so labelling a
+    refused connection with it made a transient network error present the page
+    as ``blocked`` (a policy denial) instead of ``error``. Only real policy
+    denials — raised from ``_resolve`` — may use that token.
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    resolver = _FakeResolver({})
+    async with _fetcher(handler, resolver) as fetcher:
+        with pytest.raises(FetchError) as exc:
+            await fetcher.fetch(
+                FetchRequest(url="https://example.com/", purpose="discover")
+            )
+    assert exc.value.error_code == "connection_failed"
+    assert exc.value.retryable is True
+    # The failed call is still traced (one entry, carrying the same token).
+    assert [e.error_code for e in exc.value.attempts] == ["connection_failed"]
+
+
+# --- deflate variants -----------------------------------------------------
+
+
+@pytest.mark.parametrize("raw", [False, True])
+async def test_fetch_decodes_zlib_wrapped_and_raw_deflate(raw: bool):
+    """``Content-Encoding: deflate`` decodes whether or not it is zlib-wrapped.
+
+    The spec says zlib-wrapped, but plenty of servers send bare DEFLATE. That
+    used to raise ``zlib.error`` on the first chunk and surface as
+    ``malformed_response``, losing a perfectly healthy page.
+    """
+    html = b"<html><body>hello deflate</body></html>"
+    if raw:
+        obj = zlib.compressobj(wbits=-zlib.MAX_WBITS)
+        payload = obj.compress(html) + obj.flush()
+    else:
+        payload = zlib.compress(html)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _html_response(body=payload, content_encoding="deflate")
+
+    resolver = _FakeResolver({})
+    async with _fetcher(handler, resolver) as fetcher:
+        result = await fetcher.fetch(
+            FetchRequest(
+                url="https://example.com/",
+                purpose="discover",
+                allowed_content_types=frozenset({"text/html"}),
+            )
+        )
+    assert result.body == html
+    assert result.decoded_bytes == len(html)
+
+
+async def test_fetch_corrupt_deflate_still_fails():
+    """The raw fallback is scoped to the header — corrupt bodies still fail."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _html_response(
+            body=b"\x00\x01not-deflate-at-all\xff\xfe", content_encoding="deflate"
+        )
+
+    resolver = _FakeResolver({})
+    async with _fetcher(handler, resolver) as fetcher:
+        with pytest.raises(FetchError) as exc:
+            await fetcher.fetch(
+                FetchRequest(
+                    url="https://example.com/",
+                    purpose="discover",
+                    allowed_content_types=frozenset({"text/html"}),
+                )
+            )
+    assert exc.value.error_code == "malformed_response"
 
 
 # --- timeout --------------------------------------------------------------

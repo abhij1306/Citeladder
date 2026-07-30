@@ -330,9 +330,10 @@ class DiscoverPhaseMixin(PhaseSupport):
         stance in site setup), and the HTTP status. The fetch goes through
         the SSRF-safe fetcher with a tight decoded-byte cap; a per-authority
         lock dedupes concurrent first fetches. Entries expire after
-        ``robots_cache_ttl_seconds``; the cache maps are bounded by distinct
-        authorities per worker process (a crawl is scoped to one registrable
-        domain).
+        ``robots_cache_ttl_seconds`` and are then EVICTED, with a hard
+        ``robots_cache_max_authorities`` ceiling on top (see
+        ``_prune_robots_cache``) — the maps are not naturally bounded, because
+        link checks resolve robots for arbitrary external link targets.
         """
         cached = self._cached_robots_entry(authority)
         if cached is not None:
@@ -373,7 +374,45 @@ class DiscoverPhaseMixin(PhaseSupport):
             entry = (policy, body_text, status)
             self._robots_cache[authority] = entry
             self._robots_cache_ts[authority] = time.monotonic()
+            self._prune_robots_cache()
             return entry
+
+    def _forget_robots(self, authority: str) -> None:
+        """Drop one authority from all three robots maps.
+
+        The lock is only released when it is NOT held: an in-flight fetch is
+        still awaiting it, and replacing it mid-flight would let a second
+        fetch for the same authority run concurrently.
+        """
+        self._robots_cache.pop(authority, None)
+        self._robots_cache_ts.pop(authority, None)
+        lock = self._robots_locks.get(authority)
+        if lock is not None and not lock.locked():
+            self._robots_locks.pop(authority, None)
+
+    def _prune_robots_cache(self) -> None:
+        """Evict TTL-expired authorities, then enforce the size ceiling.
+
+        Expiry alone was only ever *checked* (``_cached_robots_entry`` returned
+        None for a stale entry) and never removed, so all three maps grew for
+        the life of the process — and link checks feed them arbitrary external
+        hosts, so "one registrable domain per crawl" never bounded them.
+        """
+        now = time.monotonic()
+        ttl = site_health_settings.robots_cache_ttl_seconds
+        for authority in [
+            a for a, ts in self._robots_cache_ts.items() if now - ts >= ttl
+        ]:
+            self._forget_robots(authority)
+
+        cap = site_health_settings.robots_cache_max_authorities
+        if cap <= 0 or len(self._robots_cache_ts) <= cap:
+            return
+        # Oldest first — the freshly written entry is the newest, so a prune
+        # triggered by its own insert never evicts it.
+        oldest = sorted(self._robots_cache_ts.items(), key=lambda kv: kv[1])
+        for authority, _ts in oldest[: len(self._robots_cache_ts) - cap]:
+            self._forget_robots(authority)
 
     async def _fetch_well_known(
         self, url: str, *, purpose: str, max_bytes: int
@@ -381,8 +420,15 @@ class DiscoverPhaseMixin(PhaseSupport):
         """One bounded well-known-file fetch (robots/llms); None on failure.
 
         4xx/5xx responses are RETURNED (the caller reads the status) while
-        transport/policy failures collapse to ``None`` — a missing or
-        unfetchable well-known file is never a crawl error.
+        ANY failure collapses to ``None`` — a missing or unfetchable well-known
+        file is never a crawl error.
+
+        The broad guard lives here rather than at each call site: it only ever
+        caught ``FetchError``, so the robots caller wrapped it in its own
+        ``except Exception`` while the llms.txt probe had no guard at all — an
+        unexpected error there (a malformed authority reaching ``urlsplit``,
+        say) aborted the whole depth-0 discover, losing site setup AND the root
+        fetch. One boundary that actually keeps the docstring's promise.
         """
         request = FetchRequest(
             url=url,
@@ -393,7 +439,8 @@ class DiscoverPhaseMixin(PhaseSupport):
         try:
             async with self._new_fetcher() as fetcher:
                 return await fetcher.fetch(request, enforce_scope=False)
-        except FetchError:
+        except Exception:
+            # Not BaseException: cancellation must still propagate.
             return None
 
     async def _site_setup(
