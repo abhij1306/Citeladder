@@ -42,6 +42,7 @@ from app.connectors.web_evidence.url_policy import (
     split_host_port,
 )
 from app.core.config.site_health import (
+    CRAWL_ACTIVE_STATUSES,
     DISCOVERY_STATUS_RUNNING,
     OBSERVATION_SOURCE_LINK,
     SELECTION_SOURCE_FREE_SAMPLE,
@@ -292,7 +293,32 @@ async def _enqueue_task(
     The unique ``(crawl_id, task_kind, url_hash, generation)`` slot plus the
     unique ``idempotency_key`` mean a re-admitted URL never double-enqueues in
     the same generation; the insert is ``ON CONFLICT DO NOTHING``.
+
+    Serialized against terminalization by taking ``FOR NO KEY UPDATE`` on the
+    crawl row FIRST. ``CrawlLifecycle.reconcile`` holds the same row ``FOR
+    UPDATE`` while it counts non-terminal tasks and decides to terminalize, but
+    it could only ever count what was COMMITTED when its query ran: an enqueue
+    that committed after that count and before reconcile's commit produced a
+    live task on an already-terminal crawl — its result discarded, its crawl
+    unable to advance. The two lock modes conflict, so one waits for the other:
+    reconcile either sees the new task, or this call sees the terminal status
+    and declines. Concurrent enqueues do NOT block each other (``FOR NO KEY
+    UPDATE`` is self-compatible), so the fast path is unaffected.
+
+    Returns ``None`` when the crawl is no longer active — an enqueue onto a
+    terminal crawl is dropped rather than stranded.
     """
+    still_active = await session.scalar(
+        select(SiteCrawl.id)
+        .where(
+            SiteCrawl.id == crawl.id,
+            SiteCrawl.status.in_(list(CRAWL_ACTIVE_STATUSES)),
+        )
+        .with_for_update(key_share=True)
+    )
+    if still_active is None:
+        return None
+
     stmt = (
         pg_insert(SiteCrawlTask)
         .values(
@@ -335,7 +361,7 @@ async def _add_free_sample(
     url_hash_value: str,
     depth: int,
     source_kind: str = OBSERVATION_SOURCE_LINK,
-) -> bool:
+) -> tuple[bool, bool]:
     """Add/reactivate a system-managed sample monitored row + auto-enqueue.
 
     Conflict-safe on ``(project_id, site_url_id)`` so re-admission never
@@ -356,12 +382,17 @@ async def _add_free_sample(
     The analyze task is what deep-analyzes the Free sample automatically,
     subject to the locked workspace allowance.
 
-    Returns ``True`` only when this call newly activated the membership
-    (inserted a brand-new row or reactivated an inactive one) — i.e. exactly
-    when the caller should decrement the remaining workspace-wide sample
-    allowance. Returns ``False`` when the membership was already active
-    (re-observing an existing, already-counted sample must not consume a
-    second unit of the allowance).
+    Returns ``(newly_activated, newly_observed)`` — two independent facts:
+
+    - ``newly_activated``: this call inserted a brand-new membership row or
+      reactivated an inactive one, i.e. exactly when the caller should decrement
+      the remaining workspace-wide sample allowance. ``False`` when the
+      membership was already active (re-observing an already-counted sample
+      must not consume a second unit of the allowance).
+    - ``newly_observed``: the per-CRAWL ``SiteUrlObservation`` was created by
+      this call, which is the crawl's unique-admission signal (the number
+      ``reconcile`` re-derives). A URL reached twice within one crawl activates
+      at most once but is observed once — the two are not interchangeable.
     """
     now = _utcnow()
     activated_id = await session.scalar(
@@ -396,7 +427,7 @@ async def _add_free_sample(
     # Conflict-safe on the unique ``(crawl_id, site_url_id)`` pair; the richer
     # discover-path observation (status/title/artifact) wins if it ran first,
     # and this sparse admission row is enriched later by the analyze result.
-    await session.execute(
+    observation_id = await session.scalar(
         pg_insert(SiteUrlObservation)
         .values(
             workspace_id=crawl.workspace_id,
@@ -409,6 +440,7 @@ async def _add_free_sample(
             final_url=url,
         )
         .on_conflict_do_nothing(index_elements=["crawl_id", "site_url_id"])
+        .returning(SiteUrlObservation.id)
     )
     await _enqueue_task(
         session,
@@ -420,7 +452,7 @@ async def _add_free_sample(
         depth=depth,
         priority=1,
     )
-    return newly_activated
+    return newly_activated, observation_id is not None
 
 
 async def admit_candidates(
@@ -462,6 +494,7 @@ async def admit_candidates(
         by_hash.setdefault(candidate.url_hash, candidate)
     ordered = list(by_hash.values())
     admitted = 0
+    observed = 0
     settings = site_health_settings
 
     remaining: int | None = None
@@ -485,12 +518,13 @@ async def admit_candidates(
         if candidate.depth > settings.max_crawl_depth:
             continue
         if crawl.sample_mode and remaining is not None and remaining <= 0:
-            result = AdmissionResult(
+            crawl.admitted_url_count += admitted
+            return AdmissionResult(
                 admitted=admitted,
                 sample_capped=True,
                 site_url_ids=site_url_ids,
+                observed=observed,
             )
-            return result
         # Starter frontier ceiling.
         if (
             not crawl.sample_mode
@@ -504,14 +538,8 @@ async def admit_candidates(
         if site_url_id is None:
             continue
         site_url_ids[candidate.url_hash] = str(site_url_id)
-        # Admission is per CRAWL, not per project identity. Counting only
-        # newly-created ``SiteUrl`` rows meant a recrawl of an already-known
-        # site admitted "0" — every URL already had an identity from the first
-        # run — so the strip's "URLs found" sat at 0 for the entire discovery
-        # of every crawl after the first. The two branches below already run
-        # for every resolved candidate for exactly this reason; the counter now
-        # agrees with them.
-        admitted += 1
+        # Every resolved identity is an OBSERVATION (progress/telemetry).
+        observed += 1
 
         # Per-crawl admission must not be limited to newly-created child
         # identities: a complete recrawl re-observes URLs that already have a
@@ -522,8 +550,13 @@ async def admit_candidates(
         # for every candidate whose identity resolved, not just new ones; the
         # task/membership inserts are themselves conflict-safe so a
         # re-observation of an already-scheduled URL is a safe no-op.
+        #
+        # ``admitted`` counts only the FIRST time this crawl claims an identity
+        # — a new per-crawl observation (sample) or a new queue slot (Starter).
+        # Uniqueness is per CRAWL, so a recrawl still counts every URL; the old
+        # per-PROJECT-identity counting is what reported zero on a recrawl.
         if crawl.sample_mode:
-            newly_activated = await _add_free_sample(
+            newly_activated, newly_observed = await _add_free_sample(
                 session,
                 crawl=crawl,
                 site_url_id=site_url_id,
@@ -534,8 +567,10 @@ async def admit_candidates(
             )
             if newly_activated and remaining is not None:
                 remaining -= 1
+            if newly_observed:
+                admitted += 1
         elif enqueue_children:
-            await _enqueue_task(
+            task_id = await _enqueue_task(
                 session,
                 crawl=crawl,
                 site_url_id=site_url_id,
@@ -546,16 +581,25 @@ async def admit_candidates(
                 randomized_position=position,
                 parent_site_url_id=None,
             )
+            if task_id is not None:
+                admitted += 1
+        else:
+            # No queue slot is claimed on this path (the caller writes the
+            # observations itself), so the resolved identity IS the admission.
+            admitted += 1
 
     # Live delta so the frontier ceiling above and the progress event advance
     # within a task. ``CrawlLifecycle.reconcile`` then re-derives this counter
-    # from the crawl's ``SiteUrlObservation`` rows, which is the exact,
-    # deduplicated "URLs this crawl admitted" and repairs any drift from a URL
-    # re-observed across batches.
+    # from the crawl's ``SiteUrlObservation`` rows — the exact, deduplicated
+    # "URLs this crawl admitted". Feeding it the UNIQUE count (not every
+    # observation) is what keeps the live value and the re-derived one in
+    # agreement, so the ceiling stops the crawl at the real frontier size
+    # instead of counting a twice-seen URL twice.
     crawl.admitted_url_count += admitted
     sample_capped = bool(crawl.sample_mode and remaining is not None and remaining <= 0)
     return AdmissionResult(
         admitted=admitted,
         sample_capped=sample_capped,
         site_url_ids=site_url_ids,
+        observed=observed,
     )

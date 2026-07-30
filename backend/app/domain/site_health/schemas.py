@@ -63,13 +63,32 @@ class DiscoveryOutput:
 class AdmissionResult:
     """The outcome of a batched frontier admission attempt.
 
-    ``admitted`` is the count of NEW ``SiteUrl`` identities created this batch;
-    ``sample_capped`` is True when a Free crawl hit its workspace-wide allowance
-    and admission stopped. ``site_url_ids`` maps ``url_hash -> SiteUrl.id`` for
-    the URLs admitted (or already present) so the caller can write observations
-    and enqueue child tasks.
+    TWO metrics, deliberately not collapsed into one — they answer different
+    questions and one number cannot serve both:
+
+    - ``admitted``: per-crawl identities this batch admitted for the FIRST time
+      (a new queue slot, or a new ``SiteUrlObservation`` for a sample crawl).
+      This is the frontier-ceiling and ``admitted_url_count`` metric, because
+      it is what ``CrawlLifecycle.reconcile`` independently re-derives from the
+      crawl's observation rows. Uniqueness is per CRAWL, not per project
+      identity, so a recrawl of an already-known site still counts every URL.
+    - ``observed``: every candidate whose identity resolved, including
+      re-observations. This is the progress/telemetry number — a URL reached
+      twice (a sitemap entry that is also linked from a page) is two
+      observations of one admission.
+
+    Counting re-observations toward the CEILING is what made a Starter crawl
+    exhaust its frontier early and skip genuine URLs, while counting only new
+    ``SiteUrl`` rows made a recrawl report zero progress. Splitting the two
+    fixes the first without reintroducing the second.
+
+    ``sample_capped`` is True when a Free crawl hit its workspace-wide
+    allowance and admission stopped. ``site_url_ids`` maps
+    ``url_hash -> SiteUrl.id`` for the URLs admitted (or already present) so
+    the caller can write observations and enqueue child tasks.
     """
 
     admitted: int
     sample_capped: bool
     site_url_ids: dict[str, str] = field(default_factory=dict)
+    observed: int = 0

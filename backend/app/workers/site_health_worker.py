@@ -383,7 +383,7 @@ class SiteHealthWorker(
         task_id: uuid.UUID,
         crawl_id: uuid.UUID,
     ) -> tuple[SiteCrawlTask, SiteCrawl] | None:
-        """Lock the task FOR UPDATE and verify we still own it before writing.
+        """Lock the crawl + task FOR UPDATE and verify we still own it.
 
         Guards invariant 3/acceptance-criterion 7 (single writer, no artifact
         for a cancelled/lost-lease task). Between the fetch finishing and this
@@ -391,17 +391,47 @@ class SiteHealthWorker(
         crawl could have been cancelled. Returns ``(task, crawl)`` only when the
         task is still leased to THIS worker, still ``running``, and the crawl is
         still active; otherwise ``None`` and the fetch result is discarded.
+
+        CANONICAL LOCK HIERARCHY — every Site Health write path takes these in
+        exactly this order, and none may invert a pair:
+
+            workspace entitlement -> monitored membership -> crawl -> task
+
+        This path needs only the last two. It used to take task THEN crawl,
+        which is the inverse of ``_lock_guarded_analyze_task`` (and of
+        ``replace_monitored_set``, which serializes on the entitlement first):
+        a concurrent analyze holding the crawl and waiting on the task, against
+        a discover/link-check holding the task and waiting on the crawl, is a
+        textbook ABBA deadlock that Postgres resolves by killing one of them.
+
+        The unlocked hint read keeps the common "lease already lost" case from
+        taking any lock at all; ownership is re-checked under the lock, because
+        the hint is not authoritative. ``populate_existing`` is required for the
+        same reason it is in the analyze path: a plain locked ``get()`` will not
+        overwrite attributes already loaded into the identity map, so a caller
+        would read pre-lock values and lose concurrent updates.
         """
-        task = await session.get(SiteCrawlTask, task_id, with_for_update=True)
+        # Cheap unlocked pre-check — bail before touching any lock.
+        task_hint = await session.get(SiteCrawlTask, task_id)
+        if not lease_is_owned(task_hint, owner=self.owner):
+            return None
+        if task_hint.status != TASK_STATUS_RUNNING:
+            return None
+        # Crawl BEFORE task. A concurrent cancellation/terminalization must not
+        # be able to commit between the active check and the evidence commit
+        # (invariant 3: a cancelled task writes NOTHING).
+        crawl = await session.get(
+            SiteCrawl, crawl_id, with_for_update=True, populate_existing=True
+        )
+        if not crawl_is_active(crawl):
+            return None
+        task = await session.get(
+            SiteCrawlTask, task_id, with_for_update=True, populate_existing=True
+        )
+        # Re-verify under the lock: the hint above was read without one.
         if not lease_is_owned(task, owner=self.owner):
             return None
         if task.status != TASK_STATUS_RUNNING:
-            return None
-        # Lock the crawl row too: a concurrent cancellation/terminalization must
-        # not be able to commit between this active check and the evidence
-        # commit (invariant 3: a cancelled task writes NOTHING).
-        crawl = await session.get(SiteCrawl, crawl_id, with_for_update=True)
-        if not crawl_is_active(crawl):
             return None
         return task, crawl
 
