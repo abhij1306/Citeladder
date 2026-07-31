@@ -38,15 +38,13 @@ export default function LoginPage() {
 
   return (
     <div className="relative">
-      <div className="shadow-card relative rounded-2xl border border-slate-200 bg-white p-8 sm:p-10">
+      <div className="shadow-card border-mkt-line-soft relative rounded-2xl border bg-white p-8 sm:p-10">
         <div className="mb-8 space-y-2 text-center sm:text-left">
-          <div className="mb-2 inline-flex size-10 items-center justify-center rounded-xl border border-indigo-100 bg-indigo-50 text-indigo-600">
+          <div className="border-mkt-proof-line/30 bg-mkt-wash text-mkt-proof mb-2 inline-flex size-10 items-center justify-center rounded-xl border">
             <Lock className="size-5" />
           </div>
-          <h1 className="font-mkt-display text-2xl font-bold text-slate-900 sm:text-3xl">
-            Sign in
-          </h1>
-          <p className="text-sm text-slate-500">Pick up where your brand left off.</p>
+          <h1 className="font-mkt-display text-mkt-ink text-2xl font-bold sm:text-3xl">Sign in</h1>
+          <p className="text-mkt-ink-muted text-sm">Pick up where your brand left off.</p>
         </div>
 
         {mutation.isError ? (
@@ -65,9 +63,9 @@ export default function LoginPage() {
                   type="email"
                   autoComplete="email"
                   placeholder="you@company.com"
-                  className="border-slate-200 bg-slate-50/80 pl-10 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-indigo-500/20"
+                  className="border-mkt-line-soft bg-mkt-paper-raised/80 text-mkt-ink placeholder:text-mkt-ink-muted focus:border-mkt-proof focus:ring-mkt-proof/20 pl-10 focus:bg-white"
                 />
-                <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+                <Mail className="text-mkt-ink-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
               </div>
             )}
           </MktField>
@@ -81,13 +79,13 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="••••••••"
-                  className="border-slate-200 bg-slate-50/80 pr-10 pl-10 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-indigo-500/20"
+                  className="border-mkt-line-soft bg-mkt-paper-raised/80 text-mkt-ink placeholder:text-mkt-ink-muted focus:border-mkt-proof focus:ring-mkt-proof/20 pr-10 pl-10 focus:bg-white"
                 />
-                <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
+                <Lock className="text-mkt-ink-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-slate-600"
+                  className="text-mkt-ink-muted hover:text-mkt-ink-soft absolute top-1/2 right-3 -translate-y-1/2 p-1 transition-colors"
                   aria-label={showPassword ? 'Hide value' : 'Show value'}
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -102,11 +100,11 @@ export default function LoginPage() {
         </form>
 
         {/* Footer link - No separating line */}
-        <p className="mt-8 text-center text-sm font-medium text-slate-600">
+        <p className="text-mkt-ink-soft mt-8 text-center text-sm font-medium">
           Don&apos;t have an account?{' '}
           <Link
             href="/register"
-            className="font-semibold text-indigo-600 transition-colors hover:text-indigo-700"
+            className="text-mkt-proof hover:text-mkt-proof-hover font-semibold transition-colors"
           >
             Create one
           </Link>

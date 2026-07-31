@@ -218,20 +218,20 @@ export function OnboardingScreen() {
     // h-full step) keeps short steps floating on the ambient background with
     // centered tight cards instead of a tall white slab; the review step fills
     // the stage with a two-column grid instead of one long scroll.
-    <div className="relative flex min-h-dvh flex-col bg-slate-50 text-slate-900 antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="bg-background text-foreground selection:bg-accent relative flex min-h-dvh flex-col antialiased selection:text-white">
       {/* Background ambient lighting */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-40 -left-40 size-[500px] rounded-full bg-indigo-200/40 blur-[120px]" />
-        <div className="absolute -right-40 -bottom-40 size-[500px] rounded-full bg-sky-200/40 blur-[120px]" />
+        <div className="bg-accent-subtle/40 absolute -top-40 -left-40 size-[500px] rounded-full blur-[120px]" />
+        <div className="bg-accent-subtle/40 absolute -right-40 -bottom-40 size-[500px] rounded-full blur-[120px]" />
       </div>
 
       {/* Opaque surface, no blur: the elevation guard (design.md §4a) keeps
           gradients and blur to display art, never a control container. */}
-      <header className="border-b border-slate-200/80 bg-white py-3">
+      <header className="border-border-subtle/80 border-b bg-white py-3">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 sm:gap-6 sm:px-6 lg:px-8">
           <span className="flex shrink-0 items-center gap-2">
             <LogoMark size={24} />
-            <span className="font-mkt-display text-base font-bold text-slate-900">Searchify</span>
+            <span className="font-mkt-display text-foreground text-base font-bold">Searchify</span>
           </span>
 
           {/* Compact inline stepper — replaces the old dedicated stepper card. */}
@@ -244,7 +244,7 @@ export function OnboardingScreen() {
                     <span
                       className={cn(
                         'mx-2 h-px w-4 transition-colors sm:w-8',
-                        index <= step ? 'bg-indigo-300' : 'bg-slate-200',
+                        index <= step ? 'bg-accent-border' : 'bg-well',
                       )}
                       aria-hidden
                     />
@@ -257,10 +257,10 @@ export function OnboardingScreen() {
                       className={cn(
                         'text-2xs flex size-5 items-center justify-center rounded-full font-bold transition-colors',
                         state === 'current'
-                          ? 'bg-indigo-600 text-white'
+                          ? 'bg-accent text-white'
                           : state === 'done'
-                            ? 'bg-emerald-500 text-white'
-                            : 'border border-slate-200 bg-white text-slate-400',
+                            ? 'bg-success text-white'
+                            : 'border-border-subtle text-muted border bg-white',
                       )}
                     >
                       {state === 'done' ? (
@@ -273,10 +273,10 @@ export function OnboardingScreen() {
                       className={cn(
                         'text-2xs hidden font-bold uppercase sm:inline',
                         state === 'current'
-                          ? 'text-indigo-600'
+                          ? 'text-accent-text'
                           : state === 'done'
-                            ? 'text-emerald-600'
-                            : 'text-slate-400',
+                            ? 'text-success-text'
+                            : 'text-muted',
                       )}
                     >
                       {label}
@@ -287,7 +287,7 @@ export function OnboardingScreen() {
             })}
           </ol>
 
-          <span className="text-3xs ml-auto shrink-0 rounded-full border border-slate-200/60 bg-slate-100 px-2 py-1 font-semibold text-slate-500 sm:ml-0">
+          <span className="text-3xs border-border-subtle/60 bg-well text-muted ml-auto shrink-0 rounded-full border px-2 py-1 font-semibold sm:ml-0">
             Step {step + 1} of {STEPS.length}
           </span>
         </div>
@@ -312,14 +312,14 @@ export function OnboardingScreen() {
             <form
               noValidate
               onSubmit={submitBrand}
-              className="shadow-card rounded-2xl border border-slate-200 bg-white p-6 sm:p-8"
+              className="shadow-card border-border-subtle rounded-2xl border bg-white p-6 sm:p-8"
             >
               <div className="grid gap-6">
                 <div className="grid gap-1.5">
-                  <h1 className="font-mkt-display text-2xl font-bold text-slate-900 sm:text-3xl">
+                  <h1 className="font-mkt-display text-foreground text-2xl font-bold sm:text-3xl">
                     {isAdditional ? 'Add a project' : 'What brand are we tracking?'}
                   </h1>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-muted text-sm">
                     We&apos;ll discover your domains, competitors and starting prompts from this.
                   </p>
                 </div>
@@ -337,7 +337,7 @@ export function OnboardingScreen() {
                           {...props}
                           {...form.register('brand_name')}
                           placeholder="Acme"
-                          className="border-slate-200 bg-slate-50/80 text-slate-900 placeholder:text-slate-400 focus:bg-white"
+                          className="border-border-subtle bg-background/80 text-foreground placeholder:text-muted focus:bg-white"
                         />
                       )}
                     </Field>
@@ -353,7 +353,7 @@ export function OnboardingScreen() {
                           {...props}
                           {...form.register('website_url')}
                           placeholder="acme.com"
-                          className="border-slate-200 bg-slate-50/80 text-slate-900 placeholder:text-slate-400 focus:bg-white"
+                          className="border-border-subtle bg-background/80 text-foreground placeholder:text-muted focus:bg-white"
                         />
                       )}
                     </Field>
@@ -362,8 +362,8 @@ export function OnboardingScreen() {
                   {/* Context column: the readonly summary tile fills what was
                       dead air next to the two inputs; the subtle slate keeps it
                       clearly non-interactive while balancing the height. */}
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-5 py-5">
-                    <p className="text-2xs font-bold text-slate-500 uppercase">
+                  <div className="border-border-subtle bg-background/80 rounded-xl border px-5 py-5">
+                    <p className="text-2xs text-muted font-bold uppercase">
                       Here&apos;s what we&apos;ll set up
                     </p>
                     <ul className="mt-3 grid gap-2">
@@ -372,9 +372,9 @@ export function OnboardingScreen() {
                         'Identify the competitors AI engines compare you to',
                         'Generate starting buyer prompts to track',
                       ].map((item) => (
-                        <li key={item} className="flex items-start gap-2 text-sm text-slate-600">
+                        <li key={item} className="text-secondary flex items-start gap-2 text-sm">
                           <Check
-                            className="mt-0.5 size-4 shrink-0 text-indigo-500"
+                            className="text-accent-text mt-0.5 size-4 shrink-0"
                             strokeWidth={2.5}
                             aria-hidden
                           />
@@ -441,12 +441,12 @@ export function OnboardingScreen() {
           ) : null}
 
           {step === 1 ? (
-            <div className="shadow-card grid gap-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+            <div className="shadow-card border-border-subtle grid gap-5 rounded-2xl border bg-white p-6 sm:p-8">
               <div className="grid gap-1.5">
-                <h1 className="font-mkt-display text-2xl font-bold text-slate-900 sm:text-3xl">
+                <h1 className="font-mkt-display text-foreground text-2xl font-bold sm:text-3xl">
                   Finding what to track
                 </h1>
-                <p className="text-sm text-slate-500">
+                <p className="text-muted text-sm">
                   Three searches run in parallel for {brand?.brand_name || 'your brand'}.
                 </p>
               </div>
@@ -476,12 +476,12 @@ export function OnboardingScreen() {
           ) : null}
 
           {step === 2 ? (
-            <div className="shadow-card flex h-full flex-col gap-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8">
+            <div className="shadow-card border-border-subtle flex h-full flex-col gap-6 rounded-2xl border bg-white p-6 sm:p-8">
               <div className="grid gap-1.5">
-                <h1 className="font-mkt-display text-2xl font-bold text-slate-900 sm:text-3xl">
+                <h1 className="font-mkt-display text-foreground text-2xl font-bold sm:text-3xl">
                   Does this look right?
                 </h1>
-                <p className="text-sm text-slate-500">
+                <p className="text-muted text-sm">
                   Deselect anything you don&apos;t want — you can change all of it after setup.
                 </p>
               </div>
@@ -531,15 +531,15 @@ export function OnboardingScreen() {
           ) : null}
 
           {step === 3 ? (
-            <div className="shadow-card grid justify-items-center gap-6 rounded-2xl border border-slate-200 bg-white p-8 text-center sm:p-10">
+            <div className="shadow-card border-border-subtle grid justify-items-center gap-6 rounded-2xl border bg-white p-8 text-center sm:p-10">
               <div className="grid justify-items-center gap-2">
-                <div className="mb-2 inline-flex size-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                <div className="bg-success-bg text-success-text mb-2 inline-flex size-12 items-center justify-center rounded-2xl">
                   <Check className="size-6" strokeWidth={2.5} aria-hidden />
                 </div>
-                <h1 className="font-mkt-display text-2xl font-bold text-slate-900 sm:text-3xl">
+                <h1 className="font-mkt-display text-foreground text-2xl font-bold sm:text-3xl">
                   Your workspace is ready
                 </h1>
-                <p className="text-sm leading-relaxed text-slate-500">
+                <p className="text-muted text-sm leading-relaxed">
                   {createdProjectName ?? 'Your project'} is set up. We&apos;ve queued a free Site
                   Health crawl in the background; its status and results will appear on your
                   dashboard.

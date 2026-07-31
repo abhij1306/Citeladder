@@ -194,9 +194,7 @@ describe('IntegrationSettings — grant cards', () => {
     expect(within(googleCard).getByText('Google Analytics 4')).toBeInTheDocument();
     // The selected property comes from the connection's active MAPPING, which
     // is a second fetch — hence findBy rather than getBy.
-    expect(
-      await within(googleCard).findByText('sc-domain:example.com'),
-    ).toBeInTheDocument();
+    expect(await within(googleCard).findByText('sc-domain:example.com')).toBeInTheDocument();
     expect(within(googleCard).getByText('properties/123456789')).toBeInTheDocument();
     // Granted-scope chips (short scope names).
     expect(within(googleCard).getByText('webmasters.readonly')).toBeInTheDocument();

@@ -63,10 +63,10 @@ function BlogCta({
           Walk through your own category — your prompts, your competitors, and the raw answers
           behind every score.
         </p>
-        <div className="mt-9 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
             {DEMO_CTA}
-            <ArrowRight className="size-3.5" aria-hidden />
+            <ArrowRight aria-hidden />
           </ButtonLink>
           <ButtonLink href={secondary.href} intent="secondary" className="w-full sm:w-auto">
             {secondary.label}
@@ -126,7 +126,7 @@ export function BlogIndex() {
                 {rest.map((post) => (
                   <StaggerItem
                     key={post.slug}
-                    className="rounded-mkt-lg bg-mkt-surface shadow-card h-full p-7"
+                    className="rounded-mkt-lg bg-mkt-surface shadow-card h-full p-8"
                   >
                     <TagRow tags={post.tags} />
                     <p
@@ -147,7 +147,7 @@ export function BlogIndex() {
       ) : (
         <Section tone="surface" rhythm="tight" aria-label="No posts yet">
           <Reveal className="border-mkt-line rounded-mkt-lg bg-mkt-paper mx-auto max-w-2xl border border-dashed p-12 text-center">
-            <span className="border-mkt-line bg-mkt-surface text-mkt-ink-soft mx-auto grid size-11 place-items-center rounded-full border">
+            <span className="border-mkt-line bg-mkt-surface text-mkt-ink-soft mx-auto grid size-12 place-items-center rounded-full border">
               <PenLine aria-hidden strokeWidth={1.8} className="size-5" />
             </span>
             <h2 className="font-mkt-display text-mkt-d4 text-mkt-ink mt-6">
@@ -156,10 +156,10 @@ export function BlogIndex() {
             <p className="text-mkt-body text-mkt-ink-soft mx-auto mt-3 max-w-[80ch]">
               {BLOG_EMPTY_STATE.body}
             </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <ButtonLink href={DEMO_HREF}>
                 {DEMO_CTA}
-                <ArrowRight className="size-3.5" aria-hidden />
+                <ArrowRight aria-hidden />
               </ButtonLink>
               <ButtonLink href="/faq" intent="secondary">
                 Read the FAQ
@@ -241,7 +241,7 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
               href="/blog"
               className="text-mkt-sm text-mkt-ink-muted hover:text-mkt-ink mb-8 inline-flex items-center gap-2 font-semibold transition-colors"
             >
-              <ArrowLeft className="size-3.5" aria-hidden />
+              <ArrowLeft aria-hidden />
               All notes
             </Link>
             <div>
@@ -254,10 +254,10 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
             {(post.author ?? post.date ?? post.readTime) && (
               <div className="border-mkt-line-soft mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-6">
                 {post.author && (
-                  <span className="text-mkt-sm text-mkt-ink flex items-center gap-2.5 font-semibold">
+                  <span className="text-mkt-sm text-mkt-ink flex items-center gap-3 font-semibold">
                     <span
                       aria-hidden
-                      className="bg-mkt-ink text-mkt-surface text-mkt-sm grid size-7 place-items-center rounded-full"
+                      className="bg-mkt-ink text-mkt-surface text-mkt-sm grid size-8 place-items-center rounded-full"
                     >
                       {authorInitial(post.author)}
                     </span>

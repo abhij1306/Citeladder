@@ -19,8 +19,8 @@ export function EngineChip({
   return (
     <span
       className={cn(
-        'border-mkt-line bg-mkt-surface text-mkt-sm rounded-mkt-sm inline-flex items-center gap-2.5',
-        'border px-3 py-2.5 font-semibold',
+        'border-mkt-line bg-mkt-surface text-mkt-sm rounded-mkt-sm inline-flex items-center gap-3',
+        'border px-3 py-3 font-semibold',
         className,
       )}
     >
@@ -32,7 +32,7 @@ export function EngineChip({
           tile,
         )}
       >
-        <EngineLogo engine={engine} className="size-3.5" />
+        <EngineLogo engine={engine} className="size-3" />
       </span>
       {label}
     </span>

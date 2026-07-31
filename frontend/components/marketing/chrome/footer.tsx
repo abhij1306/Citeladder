@@ -98,7 +98,7 @@ function SocialButton({ social }: Readonly<{ social: SocialLink }>) {
       target={external ? '_blank' : undefined}
       rel={external ? 'noreferrer' : undefined}
       aria-label={social.label}
-      className="border-mkt-line bg-mkt-surface text-mkt-ink-soft hover:border-mkt-proof hover:text-mkt-proof grid size-9 place-items-center rounded-md border transition-colors duration-200"
+      className="border-mkt-line bg-mkt-surface text-mkt-ink-soft hover:border-mkt-proof hover:text-mkt-proof grid size-10 place-items-center rounded-md border transition-colors duration-200"
     >
       <Icon aria-hidden className="size-4" />
     </a>
@@ -141,7 +141,7 @@ export function MarketingFooter() {
               <p className="f-col-label text-mkt-ink text-mkt-meta mb-3 font-mono font-semibold uppercase">
                 {column.label}
               </p>
-              <div className="grid justify-items-start gap-2.5">
+              <div className="grid justify-items-start gap-3">
                 {column.links.map((link) => (
                   <FooterColumnLink key={link.label} link={link} />
                 ))}

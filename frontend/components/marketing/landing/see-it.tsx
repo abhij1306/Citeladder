@@ -37,7 +37,7 @@ export function SeeIt() {
       <div className="mt-10 flex justify-center">
         <ButtonLink href={DEMO_HREF} intent="proof" className="w-full sm:w-auto">
           {seeIt.cta}
-          <ArrowRight className="size-4" aria-hidden />
+          <ArrowRight aria-hidden />
         </ButtonLink>
       </div>
     </Section>

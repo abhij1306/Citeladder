@@ -170,7 +170,10 @@ async def test_logo_is_served_without_the_active_workspace_header(
     ).json()
     project_id = uuid.UUID(project["id"])
     brand = await db_session.scalar(select(Brand).where(Brand.project_id == project_id))
-    assert brand is not None
+    competitor = await db_session.scalar(
+        select(Competitor).where(Competitor.project_id == project_id)
+    )
+    assert brand is not None and competitor is not None
     png = b"\x89PNG\r\n\x1a\nsecond"
     asset = BrandLogoAsset(
         domain="acme.com",
@@ -184,12 +187,23 @@ async def test_logo_is_served_without_the_active_workspace_header(
     db_session.add(asset)
     await db_session.flush()
     brand.logo_asset_id = asset.id
+    competitor.logo_asset_id = asset.id
     await db_session.commit()
 
     # No X-Workspace-Id — exactly what the <img> request looks like.
     served = await client.get(f"/api/v1/projects/{project['id']}/logo")
     assert served.status_code == 200
     assert served.content == png
+
+    # The competitor route resolves the workspace independently of the brand
+    # route, so it regresses on its own — a <img> for a competitor logo sends
+    # no header either.
+    competitor_id = project["competitors"][0]["id"]
+    competitor_served = await client.get(
+        f"/api/v1/projects/{project['id']}/competitors/{competitor_id}/logo"
+    )
+    assert competitor_served.status_code == 200
+    assert competitor_served.content == png
 
 
 @pytest.mark.asyncio

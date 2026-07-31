@@ -44,12 +44,17 @@ export function Hero() {
             </em>
           </h1>
           <p className="text-mkt-lead text-mkt-ink-soft mx-auto mt-6 max-w-[80ch]">{hook.body}</p>
-          <div className="mt-9 flex flex-col justify-center gap-2.5 sm:flex-row sm:items-center">
-            <ButtonLink href={DEMO_HREF} intent="primary" className="w-full sm:w-auto">
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row sm:items-center">
+            <ButtonLink href={DEMO_HREF} intent="glass" size="lg" className="w-full sm:w-auto">
               {hook.primaryCta}
-              <ArrowRight className="size-4" aria-hidden />
+              <ArrowRight aria-hidden />
             </ButtonLink>
-            <ButtonLink href="#how-it-works" intent="secondary" className="w-full sm:w-auto">
+            <ButtonLink
+              href="#how-it-works"
+              intent="secondary"
+              size="lg"
+              className="w-full px-8 sm:w-auto"
+            >
               {hook.secondaryCta}
             </ButtonLink>
           </div>

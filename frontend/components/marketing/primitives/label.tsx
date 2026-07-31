@@ -39,7 +39,7 @@ export function Eyebrow({
   return (
     <span
       className={cn(
-        'text-mkt-meta text-mkt-ink-soft inline-flex items-center gap-2.5 font-semibold',
+        'text-mkt-meta text-mkt-ink-soft inline-flex items-center gap-3 font-semibold',
         className,
       )}
     >

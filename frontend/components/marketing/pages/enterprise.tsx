@@ -105,10 +105,10 @@ export function EnterpriseHero() {
       accent="enterprise-grade evidence."
       lead="Platform security teams can verify: deterministic scoring over immutable, provenance-carrying evidence — deployed and operated in our cloud, with the evidence trail your review process needs."
     >
-      <div className="mt-9 flex flex-col justify-center gap-2.5 sm:flex-row">
+      <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
         <ButtonLink href={DEMO_HREF}>
           Book a demo
-          <ArrowRight className="size-3.5" aria-hidden />
+          <ArrowRight aria-hidden />
         </ButtonLink>
         <ButtonLink href="/pricing" intent="secondary">
           Compare plans
@@ -150,7 +150,7 @@ export function EnterpriseOps() {
                 {highlights.map((item) => (
                   <li
                     key={item}
-                    className="text-mkt-sm text-mkt-ink flex items-center gap-2.5 font-medium"
+                    className="text-mkt-sm text-mkt-ink flex items-center gap-3 font-medium"
                   >
                     <Check
                       aria-hidden
@@ -226,7 +226,7 @@ export function EnterpriseLimits() {
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h4 className="font-mkt-display text-mkt-d4 text-mkt-ink">{item.title}</h4>
-                <span className="border-mkt-proof-line bg-mkt-wash text-mkt-proof text-mkt-meta rounded-sm border px-2.5 py-1 font-mono uppercase">
+                <span className="border-mkt-proof-line bg-mkt-wash text-mkt-proof text-mkt-meta rounded-sm border px-3 py-1 font-mono uppercase">
                   {item.badge}
                 </span>
               </div>
@@ -250,7 +250,7 @@ export function EnterpriseLimits() {
         </div>
         <ButtonLink href={DEMO_HREF} className="shrink-0">
           Request custom quote
-          <ArrowRight className="size-3.5" aria-hidden />
+          <ArrowRight aria-hidden />
         </ButtonLink>
       </div>
     </Section>
@@ -268,10 +268,10 @@ export function EnterpriseContactCta() {
           Tell us your volumes, constraints and review process — we’ll shape an enterprise plan
           around them, starting with a walkthrough of your own category.
         </p>
-        <div className="mt-9 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
             Book a demo
-            <ArrowRight className="size-3.5" aria-hidden />
+            <ArrowRight aria-hidden />
           </ButtonLink>
           <ButtonLink href="/faq" intent="secondary" className="w-full sm:w-auto">
             Read the FAQ

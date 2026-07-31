@@ -60,8 +60,8 @@ export function AuthBrandPanel() {
     <div className="relative col-span-5 flex min-h-full flex-col justify-between px-12 py-12 max-[900px]:hidden xl:px-16">
       {/* Subtle light ambient glow */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -top-24 -left-24 size-96 rounded-full bg-indigo-200/40 blur-[100px]" />
-        <div className="absolute top-1/2 -right-24 size-80 rounded-full bg-sky-200/40 blur-[90px]" />
+        <div className="bg-mkt-proof-soft/40 absolute -top-24 -left-24 size-96 rounded-full blur-[100px]" />
+        <div className="bg-mkt-sky/40 absolute top-1/2 -right-24 size-80 rounded-full blur-[90px]" />
       </div>
 
       <div className="flex flex-col gap-10">
@@ -71,19 +71,19 @@ export function AuthBrandPanel() {
 
         {/* Feature showcase */}
         <div className="my-auto max-w-lg space-y-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+          <div className="border-mkt-proof-line/50 bg-mkt-wash text-mkt-proof-hover inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
             <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-indigo-400 opacity-75 motion-reduce:animate-none"></span>
-              <span className="relative inline-flex size-2 rounded-full bg-indigo-600"></span>
+              <span className="bg-mkt-proof-line absolute inline-flex size-full animate-ping rounded-full opacity-75 motion-reduce:animate-none"></span>
+              <span className="bg-mkt-proof relative inline-flex size-2 rounded-full"></span>
             </span>
             Enterprise AI Search Intelligence
           </div>
 
           <div className="space-y-3">
-            <h2 className="font-mkt-display text-3xl leading-tight font-bold text-slate-900 sm:text-4xl">
+            <h2 className="font-mkt-display text-mkt-ink text-3xl leading-tight font-bold sm:text-4xl">
               See how AI models talk about your brand.
             </h2>
-            <p className="text-base leading-relaxed text-slate-600">
+            <p className="text-mkt-ink-soft text-base leading-relaxed">
               Continuous, automated audits across ChatGPT, Gemini, and Claude with the real prompts
               your buyers ask.
             </p>
@@ -94,17 +94,17 @@ export function AuthBrandPanel() {
             {PROOF_POINTS.map((proof) => (
               <div
                 key={proof.lead}
-                className="group shadow-card flex items-start gap-4 rounded-xl border border-slate-200 bg-white p-4 transition-colors duration-200 hover:border-indigo-300"
+                className="group shadow-card border-mkt-line-soft hover:border-mkt-proof-line flex items-start gap-4 rounded-xl border bg-white p-4 transition-colors duration-200"
               >
                 <div
                   aria-hidden
-                  className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-indigo-100 bg-indigo-50 text-indigo-600 transition-transform duration-200 group-hover:scale-105"
+                  className="border-mkt-proof-line/30 bg-mkt-wash text-mkt-proof flex size-10 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200 group-hover:scale-105"
                 >
                   <proof.icon className="size-5" strokeWidth={1.75} />
                 </div>
                 <div className="space-y-0.5">
-                  <p className="text-sm font-semibold text-slate-900">{proof.lead}</p>
-                  <p className="text-xs text-slate-500">{proof.description}</p>
+                  <p className="text-mkt-ink text-sm font-semibold">{proof.lead}</p>
+                  <p className="text-mkt-ink-muted text-xs">{proof.description}</p>
                 </div>
               </div>
             ))}
@@ -113,12 +113,12 @@ export function AuthBrandPanel() {
       </div>
 
       {/* Footer info & active engine status */}
-      <div className="flex items-center justify-between pt-6 text-xs text-slate-500">
-        <Meta as="p" className="text-slate-500">
+      <div className="text-mkt-ink-muted flex items-center justify-between pt-6 text-xs">
+        <Meta as="p" className="text-mkt-ink-muted">
           © {new Date().getFullYear()} CUBE27
         </Meta>
-        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
-          <span className="size-1.5 animate-pulse rounded-full bg-emerald-500 motion-reduce:animate-none" />
+        <div className="border-mkt-line-soft text-mkt-ink-soft flex items-center gap-2 rounded-full border bg-white px-3 py-1">
+          <span className="bg-mkt-evidence size-1.5 animate-pulse rounded-full motion-reduce:animate-none" />
           <span>ChatGPT • Gemini • Claude Active</span>
         </div>
       </div>

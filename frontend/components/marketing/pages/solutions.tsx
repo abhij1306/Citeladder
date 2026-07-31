@@ -42,14 +42,14 @@ export function SolutionsHero() {
       accent={SOLUTIONS_HERO.accent}
       lead={SOLUTIONS_HERO.lead}
     >
-      <nav aria-label="Solutions by team" className="mt-8 flex flex-wrap justify-center gap-2.5">
+      <nav aria-label="Solutions by team" className="mt-8 flex flex-wrap justify-center gap-3">
         {SOLUTION_SEGMENTS.map(({ id, label }) => {
           const Icon = SEGMENT_ICONS[id as keyof typeof SEGMENT_ICONS];
           return (
             <a
               key={id}
               href={`#${id}`}
-              className="border-mkt-line bg-mkt-surface text-mkt-ink hover:border-mkt-line-strong rounded-mkt-sm text-mkt-sm inline-flex items-center gap-2.5 border px-3.5 py-2.5 font-semibold transition-colors duration-200"
+              className="border-mkt-line bg-mkt-surface text-mkt-ink hover:border-mkt-line-strong rounded-mkt-sm text-mkt-sm inline-flex items-center gap-3 border px-4 py-3 font-semibold transition-colors duration-200"
             >
               <Icon aria-hidden strokeWidth={1.8} className="text-mkt-ink-soft size-4" />
               {label}
@@ -89,7 +89,7 @@ export function SolutionSegments() {
               <Meta as="p" className="mt-8 mb-3">
                 The pain
               </Meta>
-              <ul className="grid gap-2.5">
+              <ul className="grid gap-3">
                 {segment.pains.map((pain) => (
                   <li key={pain} className="text-mkt-sm text-mkt-ink-soft flex gap-3">
                     <span aria-hidden className="text-mkt-line-strong">
@@ -103,13 +103,13 @@ export function SolutionSegments() {
               <Meta as="p" className="mt-8 mb-3">
                 How Searchify maps
               </Meta>
-              <ul className="grid gap-2.5">
+              <ul className="grid gap-3">
                 {segment.mappings.map((mapping) => (
                   <li key={mapping} className="text-mkt-sm text-mkt-ink-soft flex gap-3">
                     <Check
                       aria-hidden
                       strokeWidth={2.5}
-                      className="text-mkt-evidence-text mt-0.5 size-3.5 shrink-0"
+                      className="text-mkt-evidence-text mt-0.5 size-4 shrink-0"
                     />
                     {mapping}
                   </li>
@@ -119,7 +119,7 @@ export function SolutionSegments() {
               <div className="mt-8">
                 <TextLink href={DEMO_HREF}>
                   {segment.cta}
-                  <ArrowRight className="size-3.5" aria-hidden />
+                  <ArrowRight aria-hidden />
                 </TextLink>
               </div>
             </div>
@@ -143,10 +143,10 @@ export function SolutionsCta() {
           One observation field, five ways of reading it. We will walk through the one that matches
           how you are measured.
         </p>
-        <div className="mt-9 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
             {DEMO_CTA}
-            <ArrowRight className="size-3.5" aria-hidden />
+            <ArrowRight aria-hidden />
           </ButtonLink>
           <ButtonLink href="/pricing" intent="secondary" className="w-full sm:w-auto">
             See pricing

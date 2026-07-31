@@ -86,7 +86,7 @@ export function FaqGroups() {
         </div>
       </nav>
 
-      <div className="grid gap-14">
+      <div className="grid gap-12">
         {FAQ_GROUPS.map((group) => (
           <section key={group.heading} id={groupAnchor(group)} aria-label={group.heading}>
             <div className="border-mkt-line-soft mb-2 flex items-baseline justify-between gap-4 border-b pb-4">

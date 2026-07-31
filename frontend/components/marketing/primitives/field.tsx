@@ -72,7 +72,7 @@ export function MktInput({ className, ...props }: ComponentPropsWithoutRef<'inpu
       {...props}
       className={cn(
         'border-mkt-line bg-mkt-paper-raised text-mkt-ink placeholder:text-mkt-ink-muted rounded-mkt-sm',
-        'focus:border-mkt-proof focus:ring-mkt-proof-soft text-mkt-body min-h-12 w-full border px-3.5',
+        'focus:border-mkt-proof focus:ring-mkt-proof-soft text-mkt-body min-h-12 w-full border px-4',
         'transition-[border-color,box-shadow,background-color] duration-200 outline-none',
         'focus:bg-mkt-surface aria-invalid:border-mkt-signal focus:ring-2',
         className,
@@ -87,7 +87,7 @@ export function MktAlert({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <div
       role="alert"
-      className="border-mkt-signal-line bg-mkt-signal-soft text-mkt-signal-text rounded-mkt-sm text-mkt-sm flex gap-3 border p-3.5"
+      className="border-mkt-signal-line bg-mkt-signal-soft text-mkt-signal-text rounded-mkt-sm text-mkt-sm flex gap-3 border p-4"
     >
       <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div className="min-w-0">{children}</div>

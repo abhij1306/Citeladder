@@ -335,11 +335,11 @@ function UnifiedPerformanceCard({
   };
 
   return (
-    <Card className="overflow-hidden shadow-card">
+    <Card className="shadow-card overflow-hidden">
       {/* Header Metric Tabs */}
       <div
         data-testid="traffic-stats"
-        className="grid grid-cols-2 border-b border-border sm:grid-cols-3 xl:grid-cols-6"
+        className="border-border grid grid-cols-2 border-b sm:grid-cols-3 xl:grid-cols-6"
       >
         {stats.map((stat, index) => {
           const isChartable = (['clicks', 'impressions', 'ctr', 'position'] as string[]).includes(
@@ -363,9 +363,7 @@ function UnifiedPerformanceCard({
             : (STAT_ACCENT_CLASSES[stat.key] ?? 'border-t-2 border-t-accent');
 
           const activeBg =
-            isChartable && isChecked
-              ? METRIC_CONFIGS[key].bgActive
-              : 'hover:bg-background-alt/40';
+            isChartable && isChecked ? METRIC_CONFIGS[key].bgActive : 'hover:bg-background-alt/40';
 
           return (
             <div
@@ -382,7 +380,7 @@ function UnifiedPerformanceCard({
                 }
               }}
               className={cn(
-                'grid cursor-pointer select-none gap-1 p-4 border-border transition-all',
+                'border-border grid cursor-pointer gap-1 p-4 transition-all select-none',
                 accentBorder,
                 activeBg,
                 index < 4 ? 'max-xl:border-b' : '',
@@ -397,11 +395,11 @@ function UnifiedPerformanceCard({
                     <span className={eyebrowClasses}>{stat.label}</span>
                     <span
                       className={cn(
-                        'inline-flex size-4 items-center justify-center rounded border text-3xs font-bold transition-colors',
+                        'text-3xs inline-flex size-4 items-center justify-center rounded border font-bold transition-colors',
                         // Token classes, not an inline hex: the swatch has to
                         // follow the theme like every other mark.
                         isChecked
-                          ? cn('border-transparent text-inverse', METRIC_CONFIGS[key].bgSolid)
+                          ? cn('text-inverse border-transparent', METRIC_CONFIGS[key].bgSolid)
                           : 'border-border text-transparent',
                       )}
                     >

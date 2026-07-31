@@ -37,12 +37,10 @@ function SectionHead({
 }: Readonly<{ label: string; count: string; muted?: boolean }>) {
   return (
     <div className="flex items-baseline gap-2">
-      <p
-        className={cn('text-2xs font-bold uppercase', muted ? 'text-slate-500' : 'text-slate-700')}
-      >
+      <p className={cn('text-2xs font-bold uppercase', muted ? 'text-muted' : 'text-secondary')}>
         {label}
       </p>
-      <span className="text-3xs inline-flex translate-y-[-0.5px] items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 font-semibold text-slate-500">
+      <span className="text-3xs border-border-subtle text-muted inline-flex translate-y-[-0.5px] items-center rounded-full border bg-white px-2 py-0.5 font-semibold">
         {count}
       </span>
     </div>
@@ -62,8 +60,8 @@ function Chip({
       className={cn(
         'inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200',
         selected
-          ? 'border-indigo-200 bg-indigo-50/80 text-indigo-700 hover:bg-indigo-100/80'
-          : 'border-slate-200 bg-white text-slate-400 hover:bg-slate-50 hover:text-slate-700',
+          ? 'border-accent-border/60 bg-accent-soft/80 text-accent-hover hover:bg-accent-subtle/80'
+          : 'border-border-subtle text-muted hover:bg-background hover:text-secondary bg-white',
       )}
     >
       <span className="truncate">{label}</span>
@@ -102,17 +100,17 @@ export function ReviewStep({
           identity lists, so splitting them into their own cards was pure air.
           Each column carries its own header so the badge never orphans from its
           list when the columns stack on narrow screens. */}
-      <section className="overflow-hidden rounded-xl border border-slate-200">
+      <section className="border-border-subtle overflow-hidden rounded-xl border">
         <div className="grid bg-white md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <div className="min-w-0 px-4 pt-3 pb-4">
-            <div className="-mx-2 w-fit rounded-md bg-slate-50 px-2 py-1.5">
+            <div className="bg-background -mx-2 w-fit rounded-md px-2 py-1.5">
               <SectionHead
                 label="Your domains"
                 count={`${domains.filter((d) => d.selected).length} selected`}
               />
             </div>
             {domains.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500 italic">
+              <p className="text-muted mt-3 text-sm italic">
                 None found — you can add these later.
               </p>
             ) : (
@@ -129,15 +127,15 @@ export function ReviewStep({
             )}
           </div>
 
-          <div className="min-w-0 border-t border-slate-200 px-4 pt-3 pb-4 md:border-t-0 md:border-l">
-            <div className="-mx-2 w-fit rounded-md bg-slate-50 px-2 py-1.5">
+          <div className="border-border-subtle min-w-0 border-t px-4 pt-3 pb-4 md:border-t-0 md:border-l">
+            <div className="bg-background -mx-2 w-fit rounded-md px-2 py-1.5">
               <SectionHead
                 label="Competitors"
                 count={`${competitors.filter((c) => c.selected).length} selected`}
               />
             </div>
             {competitors.length === 0 && (
-              <p className="mt-3 text-sm text-slate-500 italic">
+              <p className="text-muted mt-3 text-sm italic">
                 None found — add any you want to track.
               </p>
             )}
@@ -149,7 +147,7 @@ export function ReviewStep({
                     onChange={(event) => onRenameCompetitor(index, event.target.value)}
                     aria-label={`Competitor ${index + 1} name`}
                     className={cn(
-                      'h-8 border-slate-200 bg-slate-50/80 text-sm text-slate-900 focus:bg-white',
+                      'border-border-subtle bg-background/80 text-foreground h-8 text-sm focus:bg-white',
                       !competitor.selected && 'line-through opacity-50',
                     )}
                   />
@@ -166,8 +164,8 @@ export function ReviewStep({
                     className={cn(
                       'size-8 shrink-0',
                       competitor.selected
-                        ? 'text-slate-400 hover:text-slate-700'
-                        : 'bg-indigo-50 text-indigo-600 hover:text-indigo-700',
+                        ? 'text-muted hover:text-secondary'
+                        : 'bg-accent-soft text-accent-text hover:text-accent-hover',
                     )}
                   >
                     <X className={cn('size-4', !competitor.selected && 'opacity-40')} aria-hidden />
@@ -179,7 +177,7 @@ export function ReviewStep({
               variant="ghost"
               size="sm"
               onClick={onAddCompetitor}
-              className="mt-2 px-2 text-indigo-600 hover:bg-indigo-50"
+              className="text-accent-text hover:bg-accent-soft mt-2 px-2"
             >
               <Plus className="size-4" aria-hidden />
               Add competitor
@@ -194,7 +192,7 @@ export function ReviewStep({
           <SectionHead label="Starting prompts" count={`${selectedPrompts} selected`} />
         </div>
         {prompts.length === 0 ? (
-          <p className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-sm text-slate-500 italic">
+          <p className="border-border-subtle text-muted rounded-xl border bg-white px-4 py-4 text-sm italic">
             None found — you can write your own after setup.
           </p>
         ) : (
@@ -205,8 +203,8 @@ export function ReviewStep({
                   className={cn(
                     'flex h-full cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 transition-colors duration-200',
                     prompt.selected
-                      ? 'border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50/70'
-                      : 'border-slate-200 bg-white hover:bg-slate-50',
+                      ? 'border-accent-border/60 bg-accent-soft/40 hover:bg-accent-soft/70'
+                      : 'border-border-subtle hover:bg-background bg-white',
                   )}
                 >
                   <input
@@ -214,21 +212,19 @@ export function ReviewStep({
                     checked={prompt.selected}
                     onChange={() => onTogglePrompt(index)}
                     aria-label={prompt.text}
-                    className="mt-0.5 size-4 shrink-0 cursor-pointer rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500/20"
+                    className="border-border text-accent-text focus:ring-accent/20 mt-0.5 size-4 shrink-0 cursor-pointer rounded-md"
                   />
                   <span className="min-w-0 flex-1 space-y-1">
                     <span
                       className={cn(
                         'block text-sm leading-snug transition-colors',
-                        prompt.selected
-                          ? 'font-medium text-slate-800'
-                          : 'text-slate-400 line-through',
+                        prompt.selected ? 'text-foreground font-medium' : 'text-muted line-through',
                       )}
                     >
                       {prompt.text}
                     </span>
                     {prompt.theme ? (
-                      <span className="text-3xs inline-block rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-500">
+                      <span className="text-3xs bg-well text-muted inline-block rounded-full px-2 py-0.5 font-medium">
                         {prompt.theme}
                       </span>
                     ) : null}

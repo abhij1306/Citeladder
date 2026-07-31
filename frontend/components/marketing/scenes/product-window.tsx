@@ -186,12 +186,9 @@ export function ProductWindow() {
   const currentStep = STORY_STEPS[activeStep];
 
   return (
-    <div
-      ref={containerRef}
-      className="bg-mkt-surface border-mkt-line-soft shadow-card mx-auto max-w-5xl rounded-xl border p-3 sm:p-4"
-    >
+    <div ref={containerRef} className="mkt-snapshot mx-auto max-w-5xl p-3 sm:p-4">
       {/* Storytelling Tour Stepper */}
-      <div className="bg-mkt-paper-raised border-mkt-line-soft mb-3.5 rounded-lg border p-2.5 sm:p-3">
+      <div className="bg-mkt-paper-raised border-mkt-line-soft mb-4 rounded-lg border p-3 sm:p-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <TourStepper
             steps={STORY_STEPS}
@@ -206,9 +203,9 @@ export function ProductWindow() {
           </div>
         </div>
 
-        <div className="border-mkt-line-soft/60 text-mkt-meta mt-2.5 flex items-center justify-between border-t pt-2">
+        <div className="border-mkt-line-soft/60 text-mkt-meta mt-3 flex items-center justify-between border-t pt-2">
           <div className="flex items-center gap-2 truncate">
-            <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+            <span className="bg-mkt-evidence size-1.5 shrink-0 animate-pulse rounded-full" />
             <span className="text-mkt-proof font-mono font-semibold uppercase">
               {currentStep.label.split('.')[1]?.trim()}:
             </span>
@@ -225,7 +222,7 @@ export function ProductWindow() {
       {/* Compact Product Layout Canvas */}
       <div
         aria-hidden
-        className="border-mkt-line-soft bg-mkt-paper-raised grid min-h-[280px] items-stretch gap-0 overflow-hidden rounded-lg border lg:grid-cols-[12rem_minmax(0,1fr)]"
+        className="mkt-snapshot-canvas bg-mkt-paper-raised grid min-h-[280px] items-stretch gap-0 overflow-hidden lg:grid-cols-[12rem_minmax(0,1fr)]"
       >
         {/* Streamlined Authentic Sidebar */}
         <aside className="bg-mkt-surface border-mkt-line-soft hidden flex-col justify-between border-r p-3 lg:flex">
@@ -251,7 +248,7 @@ export function ProductWindow() {
                       {isActive && (
                         <span className="bg-mkt-proof absolute top-1 bottom-1 left-0 w-0.5 rounded-r-xs" />
                       )}
-                      <Icon className="size-3.5 shrink-0" />
+                      <Icon className="size-4 shrink-0" />
                       <span className="truncate">{item.label}</span>
                     </div>
                   );
@@ -271,7 +268,7 @@ export function ProductWindow() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
                 transition={{ duration: 0.25, ease: EASE_OUT }}
-                className="space-y-3.5"
+                className="space-y-4"
               >
                 <div className="flex items-center justify-between">
                   <p className="font-mkt-display text-mkt-sm text-mkt-ink font-semibold">
@@ -292,7 +289,7 @@ export function ProductWindow() {
                   {METRICS.map((metric, index) => (
                     <div
                       key={metric.label}
-                      className={`p-2.5 sm:p-3 ${
+                      className={`p-3 sm:p-3 ${
                         index < METRICS.length - 1 ? 'border-mkt-line-soft border-r' : ''
                       }`}
                     >
@@ -427,7 +424,7 @@ export function ProductWindow() {
                   </span>
                 </div>
 
-                <div className="bg-mkt-paper-raised border-mkt-line-soft space-y-2.5 rounded-md border p-3">
+                <div className="bg-mkt-paper-raised border-mkt-line-soft space-y-3 rounded-md border p-3">
                   <div>
                     <div className="text-mkt-meta mb-1 flex justify-between font-semibold">
                       <span className="text-mkt-ink">Acme Corp (Your Brand)</span>
@@ -468,7 +465,7 @@ export function ProductWindow() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
                 transition={{ duration: 0.25, ease: EASE_OUT }}
-                className="space-y-2.5"
+                className="space-y-3"
               >
                 <div className="flex items-center justify-between">
                   <p className="font-mkt-display text-mkt-sm text-mkt-ink font-semibold">
@@ -479,7 +476,7 @@ export function ProductWindow() {
                   </span>
                 </div>
 
-                <div className="bg-mkt-paper-raised border-mkt-line-soft flex items-center justify-between rounded-md border p-2.5">
+                <div className="bg-mkt-paper-raised border-mkt-line-soft flex items-center justify-between rounded-md border p-3">
                   <div className="flex items-center gap-2">
                     <span className="bg-mkt-amber-soft text-mkt-amber-text border-mkt-amber-line/50 rounded-md border p-1">
                       <Zap className="size-3" />
@@ -498,7 +495,7 @@ export function ProductWindow() {
                   </span>
                 </div>
 
-                <div className="bg-mkt-paper-raised border-mkt-line-soft flex items-center justify-between rounded-md border p-2.5">
+                <div className="bg-mkt-paper-raised border-mkt-line-soft flex items-center justify-between rounded-md border p-3">
                   <div className="flex items-center gap-2">
                     <span className="bg-mkt-proof-soft text-mkt-proof border-mkt-proof-line/50 rounded-md border p-1">
                       <Bot className="size-3" />

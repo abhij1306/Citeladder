@@ -222,9 +222,7 @@ export function MetricPanel({
             ))}
             {/* A lone reading has no line to draw, so mark it or the panel
                 would read as empty. */}
-            {lone ? (
-              <circle cx={lone.x} cy={lone.y} r={3} className={series.fillClass} />
-            ) : null}
+            {lone ? <circle cx={lone.x} cy={lone.y} r={3} className={series.fillClass} /> : null}
           </g>
 
           {hover ? (
@@ -289,13 +287,11 @@ export function MetricPanel({
         {hover ? (
           <div
             role="status"
-            className="border-border-subtle bg-elevated text-foreground pointer-events-none absolute top-0 rounded-md border px-2 py-1 text-2xs shadow-card"
+            className="border-border-subtle bg-elevated text-foreground text-2xs shadow-card pointer-events-none absolute top-0 rounded-md border px-2 py-1"
             style={{ left: `${(hover.x / plotWidth) * 100}%` }}
           >
             <span className="text-muted">{hover.label}</span>{' '}
-            <span className="font-mono font-semibold tabular-nums">
-              {formatValue(hover.value)}
-            </span>
+            <span className="font-mono font-semibold tabular-nums">{formatValue(hover.value)}</span>
           </div>
         ) : null}
       </div>

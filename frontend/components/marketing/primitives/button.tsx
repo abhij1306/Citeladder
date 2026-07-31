@@ -4,42 +4,73 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * The one button on the Proof surface. Four intents, two sizes — the deck's
- * `.btn-primary / -secondary / -blue / -night` collapsed onto tokens.
+ * The one button on the Proof surface. Every button is a ROUNDED PILL, and
+ * the surface has exactly ONE action colour.
  *
- * Every button is a ROUNDED PILL in the slate accent family — the surface has
- * exactly one action colour, and it is the brand's own slate, not the app's
- * blue and never ink-black. `proof` blue is a STATE (a cited answer), so it is
- * no longer a button intent; the old blue CTA collapsed onto `primary`.
+ * That colour is now BLUE, in two intensities: `glass` is the lit pill for the
+ * one headline action on a page, `primary` is the flat form of the same blue
+ * for every other action. It used to be slate, which was coherent while slate
+ * was the only accent — but a blue hero CTA above a slate nav button is the
+ * page disagreeing with itself about what an action looks like, and that is
+ * the single most visible inconsistency on the surface.
+ *
+ * The division of labour after the change: BLUE = action, SLATE = brand ink,
+ * data marks and the headline sweep, GREEN/RED/AMBER = state. Reverting is one
+ * token swap back to `--color-mkt-accent` in the four intents below.
  *
  * Fine pointers get a responsive 2px hover lift; every pointer gets a short
  * press settle so the control stays physically connected to the interaction.
  */
 const INTENT = {
-  /** Default page action — the slate accent pill. */
-  primary: 'bg-mkt-accent text-mkt-surface hover:bg-mkt-accent-hover',
-  /** Companion action — quiet slate on the soft accent tint, hairline ring. */
+  /** Default page action — the flat blue pill. */
+  primary: 'bg-mkt-proof text-mkt-surface hover:bg-mkt-proof-hover',
+  /** Companion action — quiet blue on the soft blue tint, hairline ring. */
   secondary:
-    'bg-mkt-accent-soft text-mkt-accent ring-mkt-accent-line/60 ring-1 ring-inset hover:bg-mkt-surface',
+    'bg-mkt-proof-soft text-mkt-proof-hover ring-mkt-proof-line/60 ring-1 ring-inset hover:bg-mkt-surface',
   /** Retained alias so `intent="proof"` call sites keep the one action colour. */
-  proof: 'bg-mkt-accent text-mkt-surface hover:bg-mkt-accent-hover',
+  proof: 'bg-mkt-proof text-mkt-surface hover:bg-mkt-proof-hover',
   /** For use ON the wallpaper, where a white button would disappear. */
-  scene: 'bg-mkt-accent text-mkt-surface hover:bg-mkt-accent-hover',
+  scene: 'bg-mkt-proof text-mkt-surface hover:bg-mkt-proof-hover',
+  /**
+   * The hero/CTA-beat headline action — the lit blue pill (`.mkt-cta-glass`,
+   * marketing-theme.css). Reserved for the ONE action that opens a page or
+   * closes it; a second glass button in the same viewport spends the emphasis
+   * it exists to buy, which is why this is a named intent and not a size.
+   */
+  glass: 'mkt-cta-glass',
 } as const;
 
-// Both sizes carry the same 14px label — they differ in height and padding,
-// not in type size. Shrinking the text too would drop it below the ramp.
-// Rounded-full is the shape decision: the surface's actions are pills.
+/**
+ * The control-height ladder for the whole surface: 40 / 48 / 56, one even
+ * 8px step apart. All three sizes carry the same 14px label — they differ in
+ * height and padding, not in type size. Shrinking the text too would drop it
+ * below the ramp. Rounded-full is the shape decision: actions here are pills.
+ *
+ * `lg` exists for the glass CTA: a lit pill needs room around the label for
+ * the highlight and the arrow disc to read as separate parts rather than a
+ * crowded stripe.
+ *
+ * 56px is off the ADS *spacing* ladder (48/64 are the neighbours) — but a
+ * control height is chrome, not spacing, the same documented exception the
+ * 72px nav bar takes. What matters is that all three live HERE, so no page
+ * can invent a fourth button height.
+ */
 const SIZE = {
+  lg: 'min-h-14 rounded-full pr-3 pl-8 text-mkt-sm',
   md: 'min-h-12 rounded-full px-6 text-mkt-sm',
-  sm: 'min-h-9 rounded-full px-4 text-mkt-sm',
+  sm: 'min-h-10 rounded-full px-4 text-mkt-sm',
 } as const;
 
+// The button owns its icon size. Call sites pass `<ArrowRight />` with no
+// className — before this, the same arrow in the same component shipped at
+// two different sizes depending on the page, because every call site made the
+// decision independently. One rung, decided here.
 const BASE =
-  'inline-flex items-center justify-center gap-2.5 border border-transparent font-bold ' +
+  'inline-flex items-center justify-center gap-3 border border-transparent font-bold ' +
   '[transition:transform_140ms_var(--ease-mkt-out),background-color_200ms_var(--ease-mkt-out),border-color_200ms_var(--ease-mkt-out)] ' +
   'active:[transform:translateY(0)_scale(0.98)] disabled:pointer-events-none disabled:opacity-40 ' +
   '[@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:hover:-translate-y-0.5 ' +
+  '[&_svg]:size-4 [&_svg]:shrink-0 ' +
   '[&_svg]:transition-transform [&_svg]:duration-[140ms] [&_svg]:ease-mkt-out ' +
   '[@media(hover:hover)_and_(pointer:fine)_and_(prefers-reduced-motion:no-preference)]:hover:[&_svg]:translate-x-0.5';
 

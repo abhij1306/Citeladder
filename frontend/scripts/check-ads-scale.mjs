@@ -25,12 +25,11 @@
  * new `tracking-*`, arbitrary type or off-ladder spacing class fails
  * immediately.
  *
- * Marketing note: rules 2 and 4 scan the app side only. The marketing
- * surface runs its own `--text-mkt-*` ladder whose retirement is the
- * marketing sweep's job; both rules tighten to the marketing paths when
- * that lands. "Marketing" here means every marketing-owned tree —
- * `components/marketing/`, `app/(marketing)/` and `lib/marketing-content/`.
- * Rule 1 (tracking) already covers all three — zero exceptions.
+ * Marketing note: the marketing sweep HAS landed, so all four rules now scan
+ * every tree — `components/marketing/`, `app/(marketing)/` and
+ * `lib/marketing-content/` included. The sweep removed 70 off-ladder spacing
+ * sites (25 of them a single `gap-2.5`) and collapsed eight ad-hoc icon sizes
+ * onto three rungs. The only carve-out is `CONTROL_HEIGHT_OWNER` below.
  *
  * Run: node scripts/check-ads-scale.mjs
  */
@@ -44,8 +43,15 @@ const SEARCH_ROOTS = ['app', 'components', 'lib'];
    now hard gates; a new violation fails the build, it does not re-open a
    ratchet. */
 const TRACKING_CEILING = 0;
-const ARBITRARY_TYPE_CEILING = 0; // app side only; marketing joins when its sweep lands.
-const OFF_LADDER_CEILING = 0; // app side only; the auth sweep consumed the last 4 sites.
+const ARBITRARY_TYPE_CEILING = 0;
+const OFF_LADDER_CEILING = 0;
+
+/**
+ * The one file allowed off the spacing ladder, and only because what it holds
+ * is not spacing: the marketing control-height ladder (40/48/56px). See the
+ * skip below and the docblock on `SIZE` in the file itself.
+ */
+const CONTROL_HEIGHT_OWNER = 'components/marketing/primitives/button.tsx';
 
 const TRACKING_PATTERN = /\btracking-(?:tight|normal|wide|wider|\[)/g;
 const ARBITRARY_TEXT_PATTERN = /\btext-\[(?!length:)/g;
@@ -91,10 +97,6 @@ for (const root of SEARCH_ROOTS) {
 
   for (const absolute of walk(rootPath)) {
     const file = relative(ROOT, absolute).replaceAll('\\', '/');
-    const isMarketing =
-      file.startsWith('components/marketing/') ||
-      file.startsWith('app/(marketing)/') ||
-      file.startsWith('lib/marketing-content/');
     const lines = readFileSync(absolute, 'utf8').split(/\r?\n/);
 
     trackingSites.push(...sites(file, lines, TRACKING_PATTERN));
@@ -105,7 +107,13 @@ for (const root of SEARCH_ROOTS) {
         );
       }
     }
-    if (isMarketing) continue; // rules 2 + 4 are app-side for now (see header)
+    // Rules 2 and 4 now cover marketing too — the marketing sweep landed, so
+    // both ladders are shared by both surfaces. The one carve-out is the
+    // marketing control-height ladder (40/48/56, primitives/button.tsx): a
+    // control height is chrome, not spacing, the same exception the 72px nav
+    // bar already takes. It is a single centrally-owned file, which is the
+    // whole point — a fourth button height cannot be invented on a page.
+    if (file === CONTROL_HEIGHT_OWNER) continue;
 
     arbitraryTypeSites.push(...sites(file, lines, ARBITRARY_TEXT_PATTERN));
     arbitraryTypeSites.push(...sites(file, lines, ARBITRARY_LEADING_PATTERN));

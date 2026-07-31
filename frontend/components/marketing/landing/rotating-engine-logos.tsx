@@ -40,7 +40,7 @@ const EXTENDED_LOGOS: Record<
 
 function ProviderLogo({ logo }: Readonly<{ logo: OfficialEngineKey | ExtendedLogoKey }>) {
   if (logo === 'openai' || logo === 'gemini' || logo === 'claude') {
-    return <EngineLogo engine={logo} className="size-7 shrink-0" />;
+    return <EngineLogo engine={logo} className="size-8 shrink-0" />;
   }
 
   if (logo === 'grok') {
@@ -60,7 +60,7 @@ function ProviderLogo({ logo }: Readonly<{ logo: OfficialEngineKey | ExtendedLog
 
   const definition = EXTENDED_LOGOS[logo];
   return (
-    <svg aria-hidden viewBox={definition.viewBox} className="size-7 shrink-0 fill-current">
+    <svg aria-hidden viewBox={definition.viewBox} className="size-8 shrink-0 fill-current">
       <path d={definition.path} />
     </svg>
   );
@@ -86,19 +86,19 @@ export function RotatingEngineLogos({ className }: Readonly<{ className?: string
       // Claude) does not currently back.
       aria-label="AI engines: ChatGPT, Gemini, Claude, Grok, Copilot and Perplexity"
     >
-      <ul aria-hidden className="mx-auto grid max-w-lg grid-cols-3 gap-2.5 sm:gap-4">
+      <ul aria-hidden className="mx-auto grid max-w-lg grid-cols-3 gap-3 sm:gap-4">
         {LOGO_PAIRS.map(({ primary, alternate }, index) => (
           <li
             key={primary.key}
             data-logo-slot={index + 1}
-            className="mkt-logo-slot relative h-14 overflow-hidden rounded-lg"
+            className="mkt-logo-slot relative h-12 overflow-hidden rounded-lg"
           >
             {[primary, alternate].map((face, faceIndex) => (
               <span
                 key={face.key}
                 data-logo-face={faceIndex === 0 ? 'primary' : 'alternate'}
                 className={cn(
-                  'mkt-logo-face absolute inset-0 flex items-center justify-center gap-2.5 px-3 font-medium',
+                  'mkt-logo-face absolute inset-0 flex items-center justify-center gap-3 px-3 font-medium',
                   face.color,
                 )}
               >

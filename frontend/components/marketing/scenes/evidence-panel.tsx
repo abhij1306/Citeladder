@@ -28,7 +28,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Client report — share of answers',
     body: (
       <>
-        <div className="grid gap-3.5">
+        <div className="grid gap-4">
           {[
             { name: 'Acme Corp (Client)', share: 68, mentions: '84 mentions', own: true },
             { name: 'Vortex AI (Rival)', share: 42, mentions: '52 mentions', own: false },
@@ -51,12 +51,12 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
         </div>
         <div className="border-mkt-line-soft mt-5 flex flex-wrap items-center justify-between gap-2 border-t pt-4">
           <div className="flex flex-wrap gap-2">
-            <span className="border-mkt-line bg-mkt-paper-raised text-mkt-ink-soft text-mkt-sm inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 font-medium">
-              <Download aria-hidden strokeWidth={2} className="size-3.5" />
+            <span className="border-mkt-line bg-mkt-paper-raised text-mkt-ink-soft text-mkt-sm inline-flex items-center gap-1.5 rounded-sm border px-3 py-1 font-medium">
+              <Download aria-hidden strokeWidth={2} className="size-4" />
               Mentions (CSV)
             </span>
-            <span className="border-mkt-line bg-mkt-paper-raised text-mkt-ink-soft text-mkt-sm inline-flex items-center gap-1.5 rounded-sm border px-2.5 py-1 font-medium">
-              <FileSpreadsheet aria-hidden strokeWidth={2} className="size-3.5" />
+            <span className="border-mkt-line bg-mkt-paper-raised text-mkt-ink-soft text-mkt-sm inline-flex items-center gap-1.5 rounded-sm border px-3 py-1 font-medium">
+              <FileSpreadsheet aria-hidden strokeWidth={2} className="size-4" />
               Evidence (Markdown)
             </span>
           </div>
@@ -69,7 +69,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Site health — technical & AEO',
     body: (
       <>
-        <div className="grid gap-3.5">
+        <div className="grid gap-4">
           {[
             { name: 'Technical Health', value: 88, status: 'Optimal' },
             { name: 'AEO Readiness', value: 74, status: 'Good' },
@@ -101,7 +101,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Sample crawl — seeded and capped',
     body: (
       <>
-        <div className="grid gap-2.5">
+        <div className="grid gap-3">
           {[
             { label: 'Pages Sampled', val: '25 / 25 Seeded URLs' },
             { label: 'Prompts Tested', val: '50 Target Queries' },
@@ -117,7 +117,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
             </div>
           ))}
         </div>
-        <div className="border-mkt-line-soft mt-4 flex flex-wrap gap-2 border-t pt-3.5">
+        <div className="border-mkt-line-soft mt-4 flex flex-wrap gap-2 border-t pt-4">
           <Badge tone="proof">Raw Run Persisted</Badge>
           <Badge tone="neutral">Zero Lock-In</Badge>
         </div>
@@ -136,7 +136,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
             </span>
             <Badge tone="good">100% Price Match</Badge>
           </div>
-          <div className="border-mkt-line-soft text-mkt-sm mt-2.5 grid grid-cols-2 gap-2 border-t pt-2.5">
+          <div className="border-mkt-line-soft text-mkt-sm mt-3 grid grid-cols-2 gap-2 border-t pt-3">
             <div>
               <span className="text-mkt-meta text-mkt-ink-muted block">Quoted Price</span>
               <span className="text-mkt-ink font-mono font-semibold">$299.00</span>
@@ -147,11 +147,11 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
             </div>
           </div>
         </div>
-        <div className="text-mkt-sm text-mkt-ink-soft mt-3.5 flex items-center justify-between">
+        <div className="text-mkt-sm text-mkt-ink-soft mt-4 flex items-center justify-between">
           <span>Competitor Co-Placement:</span>
           <span className="text-mkt-ink font-medium">Sony WH-1000XM5</span>
         </div>
-        <div className="border-mkt-line-soft mt-4 flex flex-wrap gap-2 border-t pt-3.5">
+        <div className="border-mkt-line-soft mt-4 flex flex-wrap gap-2 border-t pt-4">
           <Badge tone="proof">Shopify Catalog Synced</Badge>
           <Badge tone="good">64% SKU Share of Voice</Badge>
         </div>
@@ -162,7 +162,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Citation ownership — per prompt',
     body: (
       <>
-        <div className="rounded-mkt-sm bg-mkt-surface-sunk border-mkt-line-soft text-mkt-sm text-mkt-ink mb-3.5 border p-2.5 font-medium">
+        <div className="rounded-mkt-sm bg-mkt-surface-sunk border-mkt-line-soft text-mkt-sm text-mkt-ink mb-4 border p-3 font-medium">
           &quot;What are the top enterprise AI search platforms?&quot;
         </div>
         <div className="grid gap-3">
@@ -199,7 +199,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
             </div>
           ))}
         </div>
-        <div className="border-mkt-line-soft mt-4 flex flex-wrap gap-2 border-t pt-3.5">
+        <div className="border-mkt-line-soft mt-4 flex flex-wrap gap-2 border-t pt-4">
           <Badge tone="proof">Query Fanout Tracked</Badge>
           <Badge tone="neutral">Coverage Report Ready</Badge>
         </div>

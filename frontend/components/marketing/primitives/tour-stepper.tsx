@@ -47,7 +47,7 @@ export function TourStepper({
               onClick={() => onSelectStep(idx)}
               className={cn(
                 'text-mkt-meta flex items-center gap-2 rounded-lg px-3 py-2 text-left font-semibold transition-colors',
-                compact && 'gap-1.5 rounded-md px-2.5 py-1.5',
+                compact && 'gap-1.5 rounded-md px-3 py-1.5',
                 isActive
                   ? 'bg-mkt-accent text-white'
                   : 'bg-mkt-surface text-mkt-ink-soft hover:text-mkt-ink',
@@ -57,7 +57,7 @@ export function TourStepper({
                 aria-hidden
                 className={cn(
                   'size-4 shrink-0',
-                  compact && 'size-3.5',
+                  compact && 'size-3',
                   isActive ? 'text-white' : 'text-mkt-proof',
                 )}
               />

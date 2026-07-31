@@ -15,7 +15,7 @@ const CLAIMS = [
 
 export function TrustStrip({ className }: Readonly<{ className?: string }>) {
   return (
-    <ul className={cn('flex flex-wrap items-center gap-x-6 gap-y-2.5', className)}>
+    <ul className={cn('flex flex-wrap items-center gap-x-6 gap-y-3', className)}>
       {CLAIMS.map(({ Icon, label }) => (
         <li key={label} className="text-mkt-sm text-mkt-ink-muted flex items-center gap-2">
           <Icon aria-hidden strokeWidth={2} className="text-mkt-ink-soft size-4 shrink-0" />

@@ -42,7 +42,7 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
               href="/compare"
               className="text-mkt-sm text-mkt-ink-muted hover:text-mkt-ink mb-8 inline-flex items-center gap-2 font-semibold transition-colors"
             >
-              <ArrowLeft className="size-3.5" aria-hidden />
+              <ArrowLeft aria-hidden />
               All comparisons
             </Link>
             <div>
@@ -56,7 +56,7 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
               from our docs and source code; the {competitor.name} column stays marked until we
               verify each row.
             </p>
-            <div className="mt-8 flex flex-wrap gap-2.5">
+            <div className="mt-8 flex flex-wrap gap-3">
               {competitor.tagline && <Badge>{competitor.tagline}</Badge>}
               {competitor.lastReviewed ? (
                 <Badge>Last reviewed · {competitor.lastReviewed}</Badge>
@@ -150,10 +150,10 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
             Walk through your category with us — your prompts, your competitors, the raw answers
             behind every score.
           </p>
-          <div className="mt-9 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
               {DEMO_CTA}
-              <ArrowRight className="size-3.5" aria-hidden />
+              <ArrowRight aria-hidden />
             </ButtonLink>
             <ButtonLink href="/faq" intent="secondary" className="w-full sm:w-auto">
               Read the FAQ

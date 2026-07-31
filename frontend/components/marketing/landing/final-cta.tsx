@@ -21,10 +21,10 @@ export function FinalCta() {
         <Eyebrow>{cta.kicker}</Eyebrow>
         <h2 className="font-mkt-display text-mkt-d1 text-mkt-ink mt-6 max-w-[32ch]">{cta.title}</h2>
         <p className="text-mkt-lead text-mkt-ink-soft mt-6 max-w-[80ch]">{cta.body}</p>
-        <div className="mt-9 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
           <ButtonLink href={DEMO_HREF} intent="primary" className="w-full sm:w-auto">
             {cta.primaryCta}
-            <ArrowRight className="size-4" aria-hidden />
+            <ArrowRight aria-hidden />
           </ButtonLink>
           <ButtonLink href="/pricing" intent="secondary" className="w-full sm:w-auto">
             {cta.secondaryCta}

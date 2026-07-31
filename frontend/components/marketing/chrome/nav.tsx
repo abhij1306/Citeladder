@@ -36,7 +36,7 @@ function hasStoredActiveProject(): boolean {
 
 const NAV_LINK =
   'text-mkt-sm text-mkt-ink-soft hover:text-mkt-ink relative z-1 inline-flex items-center gap-1.5 ' +
-  'rounded-sm px-3.5 py-2.5 font-semibold transition-colors duration-200';
+  'rounded-sm px-4 py-3 font-semibold transition-colors duration-200';
 
 /**
  * Panel geometry per menu. A drop with a labelled group renders two columns —
@@ -312,7 +312,7 @@ export function MarketingNav() {
                         key={group.label}
                         className="border-mkt-line-soft bg-mkt-paper-raised border-t p-2 sm:border-t-0 sm:border-l"
                       >
-                        <p className="text-mkt-meta text-mkt-ink-muted px-2.5 pt-2 pb-2 uppercase">
+                        <p className="text-mkt-meta text-mkt-ink-muted px-3 pt-2 pb-2 uppercase">
                           {group.label}
                         </p>
                         {group.items.map((item) => (
@@ -353,7 +353,7 @@ export function MarketingNav() {
           )}
           <button
             type="button"
-            className="border-mkt-line text-mkt-ink grid size-9 place-items-center rounded-sm border lg:hidden"
+            className="border-mkt-line text-mkt-ink grid size-10 place-items-center rounded-sm border lg:hidden"
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
             aria-controls="mobile-menu"
@@ -378,7 +378,7 @@ export function MarketingNav() {
               <div className="flex items-center">
                 <Link
                   href={href}
-                  className="text-mkt-body text-mkt-ink flex-1 py-3.5 font-semibold"
+                  className="text-mkt-body text-mkt-ink flex-1 py-4 font-semibold"
                   onClick={() => setMobileOpen(false)}
                 >
                   {label}

@@ -62,10 +62,10 @@ export function DiscoveryProgress({
             className={cn(
               'relative overflow-hidden rounded-xl border p-4 transition-colors duration-300',
               done
-                ? 'border-emerald-200 bg-emerald-50/30'
+                ? 'border-success-border/60 bg-success-bg/30'
                 : failed
-                  ? 'border-red-200 bg-red-50/30'
-                  : 'border-indigo-100 bg-white',
+                  ? 'border-danger-border/60 bg-danger-bg/30'
+                  : 'border-accent-border/40 bg-white',
             )}
           >
             <div className="flex items-center gap-4">
@@ -73,10 +73,10 @@ export function DiscoveryProgress({
                 className={cn(
                   'flex size-10 shrink-0 items-center justify-center rounded-lg border transition-colors duration-300',
                   done
-                    ? 'border-emerald-200 bg-emerald-100/80 text-emerald-600'
+                    ? 'border-success-border/60 bg-success-bg/80 text-success-text'
                     : failed
-                      ? 'border-red-200 bg-red-100/80 text-red-600'
-                      : 'border-indigo-200/80 bg-indigo-50 text-indigo-600',
+                      ? 'border-danger-border/60 bg-danger-bg/80 text-danger-text'
+                      : 'border-accent-border/80 bg-accent-soft text-accent-text',
                 )}
               >
                 <row.icon className="size-5" strokeWidth={1.75} aria-hidden />
@@ -84,9 +84,9 @@ export function DiscoveryProgress({
 
               <div className="min-w-0 flex-1 space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-900">{row.label}</span>
+                  <span className="text-foreground text-sm font-semibold">{row.label}</span>
                   {searching && (
-                    <span className="text-3xs inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600">
+                    <span className="text-3xs bg-accent-soft text-accent-text inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium">
                       <Sparkles
                         className="size-3 animate-spin motion-reduce:animate-none"
                         aria-hidden
@@ -95,7 +95,7 @@ export function DiscoveryProgress({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500">{row.subLabel}</p>
+                <p className="text-muted text-xs">{row.subLabel}</p>
               </div>
 
               <div className="flex shrink-0 items-center gap-3">
@@ -103,10 +103,10 @@ export function DiscoveryProgress({
                   className={cn(
                     'text-xs font-medium',
                     failed
-                      ? 'text-red-600'
+                      ? 'text-danger-text'
                       : done
-                        ? 'font-semibold text-emerald-700'
-                        : 'text-indigo-600',
+                        ? 'text-success-text font-semibold'
+                        : 'text-accent-text',
                   )}
                   role="status"
                 >
@@ -114,15 +114,15 @@ export function DiscoveryProgress({
                 </span>
 
                 {failed ? (
-                  <div className="flex size-6 items-center justify-center rounded-full bg-red-100 text-red-600">
+                  <div className="bg-danger-bg text-danger-text flex size-6 items-center justify-center rounded-full">
                     <AlertTriangle className="size-4" aria-hidden />
                   </div>
                 ) : done ? (
-                  <div className="flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+                  <div className="bg-success flex size-6 items-center justify-center rounded-full text-white">
                     <Check className="size-4" strokeWidth={2.5} aria-hidden />
                   </div>
                 ) : (
-                  <div className="flex size-6 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+                  <div className="bg-accent-soft text-accent-text flex size-6 items-center justify-center rounded-full">
                     <Loader2
                       className="size-4 animate-spin motion-reduce:animate-none"
                       aria-hidden

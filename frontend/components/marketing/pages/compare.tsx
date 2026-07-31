@@ -50,7 +50,7 @@ export function CompareIndex() {
                   <span className="flex items-center gap-3">
                     <span
                       aria-hidden
-                      className="border-mkt-line bg-mkt-surface text-mkt-ink font-mkt-display text-mkt-body grid size-9 place-items-center rounded-sm border font-bold"
+                      className="border-mkt-line bg-mkt-surface text-mkt-ink font-mkt-display text-mkt-body grid size-10 place-items-center rounded-sm border font-bold"
                     >
                       {competitor.name.charAt(0)}
                     </span>
@@ -65,7 +65,7 @@ export function CompareIndex() {
                   )}
                   <span className="text-mkt-sm text-mkt-proof mt-auto flex items-center gap-2 pt-6 font-semibold">
                     Searchify vs {competitor.name}
-                    <ArrowRight className="size-3.5" aria-hidden />
+                    <ArrowRight aria-hidden />
                   </span>
                 </Link>
               </StaggerItem>
@@ -88,13 +88,13 @@ export function CompareIndex() {
               with every projection, so every claim on these pages can be traced back to persisted
               evidence.
             </p>
-            <ul className="mt-6 grid gap-2.5">
+            <ul className="mt-6 grid gap-3">
               {FAIRNESS_POINTS.map((point) => (
                 <li key={point} className="text-mkt-sm text-mkt-ink-soft flex gap-3">
                   <Check
                     aria-hidden
                     strokeWidth={2.5}
-                    className="text-mkt-evidence-text mt-0.5 size-3.5 shrink-0"
+                    className="text-mkt-evidence-text mt-0.5 size-4 shrink-0"
                   />
                   {point}
                 </li>
@@ -130,10 +130,10 @@ export function CompareIndex() {
             Run the same prompts across ChatGPT, Gemini and Claude — and read the raw responses
             yourself.
           </p>
-          <div className="mt-9 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
               {DEMO_CTA}
-              <ArrowRight className="size-3.5" aria-hidden />
+              <ArrowRight aria-hidden />
             </ButtonLink>
             <ButtonLink href="/faq" intent="secondary" className="w-full sm:w-auto">
               Read the FAQ

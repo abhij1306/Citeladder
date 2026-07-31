@@ -76,9 +76,7 @@ function mapping(propertyRef: string, status = 'active') {
 
 /** The active mapping — not account_ref — is what marks a property chosen. */
 function mockMappings(rows: unknown[] = []) {
-  mswServer.use(
-    http.get(`/api/v1/integrations/${CONN}/mappings`, () => HttpResponse.json(rows)),
-  );
+  mswServer.use(http.get(`/api/v1/integrations/${CONN}/mappings`, () => HttpResponse.json(rows)));
 }
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
@@ -212,9 +210,7 @@ describe('PropertyPicker', () => {
       <PropertyPicker connection={connection({ account_ref: 'sc-domain:example.com' })} />,
     );
 
-    expect(
-      await screen.findByText('No Search Console property selected'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('No Search Console property selected')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Select' })).toBeInTheDocument();
   });
 });

@@ -14,11 +14,11 @@
    After the ADS fold-in, only four genuinely brand-differentiating buckets
    remain here (owner decision 3185):
 
-     B1  Warm paper/ink neutrals — the paper carries the warmth; the ink,
-         border and state-hue VALUES are verbatim ADS so marketing and app
-         share one character. Everything resolves from literal hex or
-         theme-independent type rungs, never from `--ds-*`/semantic names
-         that flip under `html[data-theme='dark']` — Proof is LIGHT-ONLY.
+     B1  A WHITE paper and a cool blue-grey ink/hairline ladder. The canvas
+         carries no colour — the sky field does — so panels stay crisp rather
+         than sitting on a tinted sheet. Literal hex or theme-independent type
+         rungs only, never `--ds-*` names that flip under
+         `html[data-theme='dark']` — Proof is LIGHT-ONLY.
      B2  The three vendor engine colours (real brand marks, verbatim).
      B3  Type: the two fluid display steps above the ADS 35px ceiling ride
          the shared `--text-display-1/-2` rungs; every other step aliases
@@ -94,43 +94,38 @@
   --text-mkt-figure--font-weight: 500;
 
   /* ─── Colour ──────────────────────────────────────────────────────────
-     Paper carries the brand; ink, hairlines and the state hues are verbatim
-     values held as literal hex so the light-only surface never flips with
-     the app's dark theme. Warmed toward a cream-paper / warm-charcoal-ink
-     character (the Tavily-informed Proof v2 direction): marketing no longer
-     mirrors the app's cool ADS navy — it is its own warmer identity. Ratios
-     in the comments are against --mkt-paper; the Proof contract test now
-     reads the LIVE token values (no frozen brand hex) and only gates
-     legibility, so retuning a colour never means editing a test.
-     Every `-text` variant is the AA-safe form of its hue — except proof:
-     #0C66E4 clears 4.5:1 on paper as both mark and text, so blue ships ONE
-     token and a hover step instead of the mark/text split. */
-  --color-mkt-paper: #faf8f0; /* page canvas — warm cream, the brand warmth */
-  --color-mkt-paper-raised: #fdfbf5; /* inset fields, table headers */
-  --color-mkt-surface: #ffffff; /* panels */
-  --color-mkt-surface-sunk: #efece3; /* sunken band, bar tracks — warm tint of paper */
-  --color-mkt-wash: #eaf1fa; /* cool proof-blue band — data surfaces only (pricing/enterprise), never a landing beat */
-  --color-mkt-ink: #2b2926; /* ~13:1 — warm charcoal, primary ink */
-  --color-mkt-ink-soft: #57534e; /* ~7.2:1 — body copy */
-  --color-mkt-ink-muted: #6b6560; /* ~5.4:1 — meta, captions */
-  --color-mkt-line-soft: #29252012; /* ~7% — structural hairlines, overlay edges */
-  --color-mkt-line: #29252026; /* ~15% — outline chips + form fields only */
-  --color-mkt-line-strong: #8a817a; /* warm border-bold */
+     Literal hex, so the light-only surface never flips with the app's dark
+     theme. Ratios below are against --mkt-paper; the Proof gate reads LIVE
+     token values, so retuning a colour never means editing a test. Every
+     `-text` variant is the AA-safe form of its hue — except proof, which
+     clears 4.5:1 as both mark and text and so ships one token.
+     `wash` is the tightest pair in the system (proof-on-wash = 4.57:1) and is
+     deliberately NOT retinted — darkening it drops proof text below AA. */
+  --color-mkt-paper: #ffffff; /* page canvas — WHITE; colour comes from the sky field, not the fill */
+  --color-mkt-paper-raised: #f6f9fd; /* inset fields, table headers — coolest step off white */
+  --color-mkt-surface: #ffffff; /* panels — same white as paper; `shadow-card` separates them */
+  --color-mkt-surface-sunk: #eef3fa; /* sunken band, bar tracks — pale sky tint of paper */
+  --color-mkt-wash: #eaf1fa; /* the deeper proof-blue band — data surfaces (pricing/enterprise) */
+  --color-mkt-ink: #16202e; /* ~16:1 — cool charcoal, primary ink */
+  --color-mkt-ink-soft: #4a5568; /* ~7.7:1 — body copy */
+  --color-mkt-ink-muted: #5c6879; /* ~5.6:1 — meta, captions */
+  --color-mkt-line-soft: #0f172a12; /* ~7% — structural hairlines, overlay edges */
+  --color-mkt-line: #0f172a26; /* ~15% — outline chips + form fields only */
+  --color-mkt-line-strong: #94a3b8; /* cool border-bold */
 
-  /* ─── Accent ── the ONE action colour, and the one accent band fill.
-     Every button on the surface is a pill in this family. Before it existed
-     the page ran an ink-black primary next to an ADS-blue "proof" button and
-     a cool blue band between two warm ones, so a single scroll disagreed
-     three times about what an action looks like. Slate is the brand's own
-     keyword anchor (below), so the CTA now belongs to the identity instead of
-     borrowing the app's blue — and `proof` blue goes back to meaning only
-     what it says: a CITED state. Colour is never decoration again. */
-  --color-mkt-accent: #27455c; /* 9.38:1 on paper — fill; white label 9.95:1 */
+  /* ─── Accent ── the brand slate: headline sweep anchor, data marks, and the
+     one accent band fill. It is NOT the action colour any more — buttons all
+     run the blue below, in one flat and one lit form (primitives/button.tsx).
+     Slate stays the identity; blue is what you click. Colour is never
+     decoration: every hue on this surface is either action, ink or state. */
+  --color-mkt-accent: #27455c; /* ~9.9:1 on white — fill and keyword anchor */
   --color-mkt-accent-hover: #1c3345; /* the deeper hover/press step */
   --color-mkt-accent-soft: #e7edf1; /* the accent BAND fill and quiet buttons */
   --color-mkt-accent-line: #7d9cb0; /* 1px ring / hairline on the soft fill */
 
-  --color-mkt-proof: #0c66e4; /* 4.76:1 — mark AND text; the CITED state */
+  /* Blue: the ACTION colour (every button) AND the cited state — one hue for
+     both, deliberately: click and citation are the same promise here. */
+  --color-mkt-proof: #0c66e4; /* 5.20:1 on white — mark AND text */
   --color-mkt-proof-hover: #0055cc; /* 6.05:1 — hover/active step */
   --color-mkt-proof-soft: #cce0ff; /* ADS blue-subtler */
   --color-mkt-proof-line: #579dff; /* ADS blue-subtle */
@@ -151,16 +146,15 @@
   /* Display art only: the wallpaper field behind product scenes. */
   --color-mkt-sky: #cbdaf1;
 
-  /* ─── Signature keyword gradient ──────────────────────────────────────
-     The one place a HEADLINE carries colour: the accent word runs a
-     slate→sage sweep. The slate anchor IS `--color-mkt-accent`, aliased
-     rather than restated — the headline accent and the button fill being the
-     same colour is what ties a page head to its CTA. The sage tail is a real
-     letterform, not a fill, so it is held to the WCAG large-text floor (3:1)
-     — deeper than Tavily's own #81b09a, which measures 2.29:1 here and would
-     leave the last word of the line soft. */
-  --color-mkt-keyword-from: var(--color-mkt-accent); /* slate — ~9:1 on paper */
-  --color-mkt-keyword-to: #62957c; /* sage — light tail, ~3.2:1 on paper */
+  /* ─── Signature keyword gradient ── the one place a HEADLINE carries
+     colour: a slate→blue sweep, brand anchor into action colour. Real
+     letterforms, so both stops clear the WCAG large-text floor (3:1). */
+  --color-mkt-keyword-from: var(--color-mkt-accent); /* slate — ~10:1 on paper */
+  /* The tail was a sage green, tuned when the canvas was warm cream. Against a
+     blue sky field it read as the one off-key note on the first screen — a
+     third hue in a two-hue system. Blue keeps the sweep inside the slate→
+     action family and still clears the 3:1 large-text floor (4.19:1). */
+  --color-mkt-keyword-to: #2f7fd4;
 
   /* Provider identity — the one place colour is allowed to mean "brand"
      rather than "state". Marks and 20px tiles only; never text on paper. */
@@ -218,6 +212,14 @@ html:has(.mkt-root) body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+
+  /* Marketing re-points the card rung; it does not add one. §4a's model is
+     intact (cards rest on `shadow-card`, lift to `shadow-card-hover`) — only
+     the VALUE changes, and only inside `.mkt-root`. The app's rung is a 1px
+     contact shadow tuned for dense UI on a grey canvas; on a white marketing
+     page at card scale it is invisible, which is why these cards read flat. */
+  --shadow-card-value: 0 0 0 1px #0f172a0d, 0 1px 2px #0f172a0d, 0 8px 20px -8px #0f172a1f;
+  --shadow-card-hover-value: 0 0 0 1px #0f172a14, 0 2px 4px #0f172a0f, 0 16px 32px -12px #0f172a2e;
 }
 
 .mkt-root ::selection {
@@ -253,35 +255,31 @@ html:has(.mkt-root) body {
 }
 
 /* ─── Atmosphere ──────────────────────────────────────────────────────────
-   The surface used to be flat cream edge to edge: every band was one of four
-   near-identical warm neutrals, so a full page of scrolling never changed
-   colour and the design read as unfinished rather than restrained. These
-   fields are the fix. They are ATMOSPHERE — soft, wide, behind content — not
-   state colour, so they never collide with the rule that a hue on a chip or a
-   figure means something (cited / verified / missing / review).
+   Soft, wide light behind content — never state colour, so it cannot collide
+   with the rule that a hue on a chip means something.
 
-   Each is a layered radial wash on the warm paper base. Radials rather than a
-   linear gradient because a linear ramp reads as a "section with a gradient"
-   while overlapping radials read as light in a room — the thing that makes
-   the reference sites feel alive. */
+   ONE HUE FAMILY. These fields used to layer sky + mint + coral over cream:
+   three casts averaging out to a grey-beige haze, which is exactly why the
+   surface read as dull rather than calm. One blue family over WHITE reads as
+   daylight, and leaves white genuinely white wherever it isn't lit. Radials,
+   not a linear ramp: overlapping radials read as light in a room. */
 .mkt-field {
   position: relative;
   background-color: var(--color-mkt-paper);
   background-image:
-    radial-gradient(80rem 45rem at 12% -10%, #cfe0f5cc 0%, transparent 60%),
-    radial-gradient(60rem 40rem at 88% 8%, #d8ecdfb3 0%, transparent 62%),
-    radial-gradient(52rem 34rem at 62% 96%, #f6dfd0a6 0%, transparent 64%);
+    radial-gradient(80rem 45rem at 12% -10%, #d3e4fadd 0%, transparent 62%),
+    radial-gradient(62rem 40rem at 90% 4%, #e2eefcc4 0%, transparent 64%);
 }
 
-/* The hero field: same idea, tuned taller and warmer, with a soft horizon so
-   the band resolves into the paper below instead of stopping on a hard edge. */
+/* The hero field: taller and a step stronger, with a soft horizon so the band
+   resolves into the paper below instead of stopping on a hard edge. */
 .mkt-field-hero {
   position: relative;
   background-color: var(--color-mkt-paper);
   background-image:
-    radial-gradient(70rem 50rem at 78% 18%, #cfe1f7e6 0%, transparent 58%),
-    radial-gradient(58rem 42rem at 8% 6%, #dcecdfcc 0%, transparent 60%),
-    radial-gradient(64rem 40rem at 50% 108%, #f7e2d2b3 0%, transparent 62%);
+    radial-gradient(74rem 52rem at 76% 14%, #cfe1f9f2 0%, transparent 60%),
+    radial-gradient(62rem 44rem at 6% 2%, #dceafbdd 0%, transparent 62%),
+    radial-gradient(80rem 30rem at 50% 100%, #eaf2fdcc 0%, transparent 70%);
 }
 
 /* The horizon: a paper-coloured fade at the bottom of a field, so atmosphere
@@ -306,8 +304,8 @@ html:has(.mkt-root) body {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(to right, #27455c14 1px, transparent 1px),
-    linear-gradient(to bottom, #27455c14 1px, transparent 1px);
+    linear-gradient(to right, #1e40af17 1px, transparent 1px),
+    linear-gradient(to bottom, #1e40af17 1px, transparent 1px);
   background-size: 4.5rem 4.5rem;
   -webkit-mask-image: radial-gradient(70% 60% at 50% 40%, black 0%, transparent 100%);
   mask-image: radial-gradient(70% 60% at 50% 40%, black 0%, transparent 100%);
@@ -320,4 +318,82 @@ html:has(.mkt-root) body {
   background-image: url('/brand/wallpaper.svg');
   background-position: center;
   background-size: 100% 100%;
+}
+
+/* ─── The glass CTA ───────────────────────────────────────────────────────
+   TWO capsules, not one. The outer capsule is the GLASS — translucent,
+   blurred, catching a blue bloom from the pill it holds. The blue pill sits
+   INSIDE it with a gutter all round, so the glass reads as a case the button
+   rests in rather than a glow behind it.
+
+   Both live on one element via the padding-box / border-box trick: a thick
+   TRANSPARENT border is painted by the border-box layer (the glass gutter),
+   the padding-box layer paints the pill. No pseudo-element, so nothing breaks
+   when the hover transform creates a stacking context — a `::before` at
+   `z-index:-1` would vanish the moment the button lifts. Gradients and blur
+   are barred from `.tsx` (docs/design.md §4a), so they live here. */
+.mkt-cta-glass {
+  border: 5px solid transparent;
+  background:
+    linear-gradient(180deg, #3f8ff2 0%, #1a68d8 52%, #0b4fb4 100%) padding-box,
+    /* the glass: white at the top edge, fading into the pill's own blue so the
+       colour looks like it is bleeding out through the case */
+    linear-gradient(180deg, #ffffff8c 0%, #dbeafe66 45%, #93c5fd57 100%) border-box;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  /* The two inset rungs are what merge the pill INTO the glass: a hairline
+     white rim on the pill's edge, then a wide soft white feather bleeding
+     inward from it. Without the feather the pill reads as a hard disc
+     dropped into a ring; with it, the edge dissolves and the two capsules
+     look like one object. */
+  box-shadow:
+    inset 0 0 0 1px #ffffff54,
+    inset 0 0 9px 1px #ffffff45,
+    inset 0 2px 3px -1px #ffffff96,
+    0 1px 2px #1d4ed82e,
+    0 12px 28px -10px #1d6fe075;
+  color: #fff;
+}
+
+/* The arrow rides in a translucent disc, the way it does on the reference —
+   it reads as a control ON the button rather than a glyph next to the label. */
+.mkt-cta-glass svg {
+  box-sizing: content-box;
+  border-radius: 9999px;
+  background: #ffffff2e;
+  padding: 0.3125rem;
+}
+
+/* Hover brightens the pill and widens the bloom; the glass stays put, which
+   is what keeps the two capsules reading as separate objects. */
+.mkt-cta-glass:hover {
+  background:
+    linear-gradient(180deg, #57a0f7 0%, #2a76e2 52%, #135ac6 100%) padding-box,
+    linear-gradient(180deg, #ffffffc4 0%, #dbeafeab 45%, #93c5fd94 100%) border-box;
+  box-shadow:
+    inset 0 0 0 1px #ffffff70,
+    inset 0 0 11px 2px #ffffff59,
+    inset 0 2px 3px -1px #ffffffab,
+    0 1px 2px #1d4ed838,
+    0 18px 38px -12px #1d6fe08f;
+}
+
+/* ─── The product snapshot bezel ──────────────────────────────────────────
+   Not a bordered card: a white BEZEL with generous padding holding a recessed
+   canvas, on a wide soft shadow. That is what makes a screenshot read as a
+   device sitting in the page rather than an image pasted onto it. */
+.mkt-snapshot {
+  border-radius: 1.5rem;
+  background: var(--color-mkt-surface);
+  box-shadow:
+    0 0 0 1px #0f172a0f,
+    0 2px 4px #0f172a0a,
+    0 24px 48px -12px #0f172a24,
+    0 48px 96px -32px #1e40af2e;
+}
+
+/* The recessed inner canvas the bezel holds. */
+.mkt-snapshot-canvas {
+  border-radius: 1rem;
+  box-shadow: inset 0 0 0 1px #0f172a12;
 }

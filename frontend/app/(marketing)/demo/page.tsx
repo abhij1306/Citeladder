@@ -59,7 +59,7 @@ export default function DemoPage() {
         accent={DEMO_HERO.accent}
         lead={DEMO_HERO.lead}
       >
-        <div className="mt-9 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           {actionHref ? (
             <ButtonLink
               href={actionHref}
@@ -72,12 +72,12 @@ export default function DemoPage() {
                 <Mail className="size-4" aria-hidden />
               )}
               {bookingUrl ? 'Schedule demo' : 'Email sales'}
-              <ArrowRight className="size-3.5" aria-hidden />
+              <ArrowRight aria-hidden />
             </ButtonLink>
           ) : (
             <ButtonLink href="/register">
               Start free
-              <ArrowRight className="size-3.5" aria-hidden />
+              <ArrowRight aria-hidden />
             </ButtonLink>
           )}
           <ButtonLink href={actionHref ? '/register' : '/pricing'} intent="secondary">

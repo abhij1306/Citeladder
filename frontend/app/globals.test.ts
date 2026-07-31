@@ -382,9 +382,13 @@ describe('globals.css token set matches docs/design.md', () => {
    2. Atlassian palette — ported VERBATIM into ds-tokens.css
 ═══════════════════════════════════════════════════════════════════════ */
 describe('Atlassian-based palette', () => {
-  it('anchors the accent on brand slate blue #27455c', () => {
+  // The accent is the ADS blue in BOTH themes — the same hue the marketing
+  // surface acts in, so a primary button means one thing across the product.
+  // It was the brand slate (#27455C) until the blue pass; light takes
+  // blue-bolder, dark takes blue-subtle, which is the ADS pairing.
+  it('anchors the accent on the ADS brand blue', () => {
     expect(lightTokens.get('--accent')).toBe('var(--ds-background-brand-bold)');
-    expect(dsLight.get('--ds-background-brand-bold')).toBe('#27455c');
+    expect(dsLight.get('--ds-background-brand-bold')).toBe('#0c66e4');
     expect(dsDark.get('--ds-background-brand-bold')).toBe('#579dff');
   });
 
@@ -439,8 +443,8 @@ describe('Atlassian-based palette', () => {
     expect(opaqueColor('text-secondary', lightTokens)).toMatchObject(hexToRgb('#44546F'));
     expect(opaqueColor('text-muted', lightTokens)).toMatchObject(hexToRgb('#626F86'));
     expect(opaqueColor('text-inverse', lightTokens)).toMatchObject(hexToRgb('#FFFFFF'));
-    expect(opaqueColor('accent', lightTokens)).toMatchObject(hexToRgb('#27455c'));
-    expect(opaqueColor('accent-text', lightTokens)).toMatchObject(hexToRgb('#27455c'));
+    expect(opaqueColor('accent', lightTokens)).toMatchObject(hexToRgb('#0C66E4'));
+    expect(opaqueColor('accent-text', lightTokens)).toMatchObject(hexToRgb('#0C66E4'));
     expect(opaqueColor('accent-fg', lightTokens)).toMatchObject(hexToRgb('#FFFFFF'));
   });
 

@@ -97,14 +97,19 @@
   --ds-border-warning: #e56910;
   --ds-border-success: #22a06b;
 
-  /* ─── Brand ─────────────────────────────────────────────────────────── */
-  --ds-background-brand-bold: #27455c;
-  --ds-background-brand-bold-hovered: #1c3345;
-  --ds-background-brand-bold-pressed: #152738;
-  --ds-background-brand-subtlest: #e7edf1;
-  --ds-background-brand-subtler: #c3d2dc;
-  --ds-link: #27455c;
-  --ds-link-pressed: #152738;
+  /* ─── Brand ─────────────────────────────────────────────────────────────
+     The app's brand rung is the SAME blue the marketing surface acts in
+     (--color-mkt-proof). It used to be the brand slate, which read as a dull
+     desaturated navy across every primary button, link and selected state —
+     the app's half of the "nothing here has any colour" problem. These are
+     the verbatim ADS blue rungs, so the accent ramp below already matches. */
+  --ds-background-brand-bold: #0c66e4;
+  --ds-background-brand-bold-hovered: #0055cc;
+  --ds-background-brand-bold-pressed: #09326c;
+  --ds-background-brand-subtlest: #e9f2ff;
+  --ds-background-brand-subtler: #cce0ff;
+  --ds-link: #0c66e4;
+  --ds-link-pressed: #0055cc;
 
   /* ─── Status fills ──────────────────────────────────────────────────── */
   --ds-background-danger: #ffedeb;

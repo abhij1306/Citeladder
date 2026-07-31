@@ -46,7 +46,7 @@ function TierCard({ tier }: Readonly<{ tier: PricingTier }>) {
       data-tier={tier.key}
       data-highlighted={tier.highlighted ? 'true' : undefined}
       className={cn(
-        'rounded-mkt-lg shadow-card flex h-full flex-col p-7',
+        'rounded-mkt-lg shadow-card flex h-full flex-col p-8',
         tier.highlighted ? 'bg-mkt-wash ring-mkt-proof-line ring-1' : 'bg-mkt-surface',
       )}
     >
@@ -66,7 +66,7 @@ function TierCard({ tier }: Readonly<{ tier: PricingTier }>) {
         )}
       </p>
       {isCustom && (
-        <Meta as="p" className="mt-2.5">
+        <Meta as="p" className="mt-3">
           {tier.cadence}
         </Meta>
       )}
@@ -78,11 +78,11 @@ function TierCard({ tier }: Readonly<{ tier: PricingTier }>) {
               {feature}
             </li>
           ) : (
-            <li key={feature} className="text-mkt-sm text-mkt-ink-soft flex gap-2.5">
+            <li key={feature} className="text-mkt-sm text-mkt-ink-soft flex gap-3">
               <Check
                 aria-hidden
                 strokeWidth={2.5}
-                className="text-mkt-evidence-text mt-0.5 size-3.5 shrink-0"
+                className="text-mkt-evidence-text mt-0.5 size-4 shrink-0"
               />
               {feature}
             </li>
@@ -97,7 +97,7 @@ function TierCard({ tier }: Readonly<{ tier: PricingTier }>) {
           className="w-full"
         >
           {tier.cta.label}
-          {tier.primaryCta && <ArrowRight className="size-3.5" aria-hidden />}
+          {tier.primaryCta && <ArrowRight aria-hidden />}
         </ButtonLink>
       </div>
     </div>
@@ -201,10 +201,10 @@ export function PricingCta() {
           Walk through your own category with us, then pick the plan that matches the volume you
           actually need.
         </p>
-        <div className="mt-9 flex flex-col items-center justify-center gap-2.5 sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
             {DEMO_CTA}
-            <ArrowRight className="size-3.5" aria-hidden />
+            <ArrowRight aria-hidden />
           </ButtonLink>
           <ButtonLink href="/faq" intent="secondary" className="w-full sm:w-auto">
             Read the FAQ

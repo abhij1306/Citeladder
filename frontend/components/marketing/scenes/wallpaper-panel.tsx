@@ -59,7 +59,7 @@ export function ExampleDataNote({ className }: Readonly<{ className?: string }>)
     <span
       className={cn(
         'text-mkt-meta text-mkt-ink-muted border-mkt-line bg-mkt-surface rounded-full',
-        'inline-flex items-center border px-2.5 py-1 whitespace-nowrap uppercase',
+        'inline-flex items-center border px-3 py-1 whitespace-nowrap uppercase',
         className,
       )}
     >
