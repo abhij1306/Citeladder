@@ -156,12 +156,50 @@ describe('SessionGuard', () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'));
   });
 
+  it('drops a 401 already queued when the guard unmounts mid-notify', async () => {
+    // Isolates the `disposed` latch from `unsubscribe()`. The guard subscribed
+    // on mount, so its listener runs BEFORE the one below and has already
+    // queued its microtask by the time this one unmounts — synchronously,
+    // inside the same notify. Unsubscribing cannot help there; only the latch
+    // can. Deterministic because React Query notifies subscribers in
+    // subscription order, synchronously.
+    mswServer.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ user: sessionUser })));
+
+    const { queryClient, unmount } = renderWithProviders(
+      <SessionGuard fallback={<div>loading</div>}>
+        <Protected />
+      </SessionGuard>,
+    );
+    await screen.findByText(/signed in as guarded@example.com/i);
+
+    let unmountedMidNotify = false;
+    const stop = queryClient.getQueryCache().subscribe((event) => {
+      if (unmountedMidNotify || event.type !== 'updated' || !event.query.state.error) return;
+      unmountedMidNotify = true;
+      unmount();
+    });
+
+    await expect(reject401(queryClient, 'mid-notify')).rejects.toThrow();
+    stop();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+
+    expect(unmountedMidNotify).toBe(true);
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it('stops acting on cache 401s once unmounted', async () => {
-    // Teardown: `unsubscribe()` plus the `disposed` latch covering callbacks
-    // already queued on the microtask when the guard went away. Nothing is
+    // The plain case: a 401 arriving entirely after teardown. Nothing is
     // triggered before unmounting on purpose — `clearSession`'s own
     // `redirectingRef` latch would otherwise swallow the second redirect and
-    // the test would pass with the teardown deleted.
+    // this would pass with the teardown deleted.
+    //
+    // Scope, so the next reader does not assume more than it proves: with the
+    // `disposed` latch in place, deleting `unsubscribe()` alone changes nothing
+    // observable here (the latch stops the callback either way) — that line is
+    // leak prevention, and the redirect behaviour is pinned by the latch and by
+    // the mid-notify test above.
     mswServer.use(http.get('/api/v1/auth/me', () => HttpResponse.json({ user: sessionUser })));
 
     const { queryClient, unmount } = renderWithProviders(
