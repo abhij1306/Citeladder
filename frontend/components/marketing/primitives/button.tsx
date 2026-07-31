@@ -138,6 +138,9 @@ export function TextLink({
   const cls = cn(
     'text-mkt-ink border-mkt-line-strong hover:border-mkt-ink inline-flex items-center gap-2',
     'border-b pb-0.5 text-mkt-sm font-bold transition-colors duration-200',
+    // Owns its icon size for the same reason the pill does — a call site that
+    // forgets falls back to lucide's 24px default next to 14px text.
+    '[&_svg]:size-4 [&_svg]:shrink-0',
     className,
   );
   return href.startsWith('/') ? (

@@ -65,7 +65,7 @@ export function CompareIndex() {
                   )}
                   <span className="text-mkt-sm text-mkt-proof mt-auto flex items-center gap-2 pt-6 font-semibold">
                     Searchify vs {competitor.name}
-                    <ArrowRight aria-hidden />
+                    <ArrowRight className="size-4" aria-hidden />
                   </span>
                 </Link>
               </StaggerItem>

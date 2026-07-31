@@ -42,7 +42,7 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
               href="/compare"
               className="text-mkt-sm text-mkt-ink-muted hover:text-mkt-ink mb-8 inline-flex items-center gap-2 font-semibold transition-colors"
             >
-              <ArrowLeft aria-hidden />
+              <ArrowLeft className="size-4" aria-hidden />
               All comparisons
             </Link>
             <div>

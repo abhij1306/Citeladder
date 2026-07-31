@@ -108,15 +108,17 @@ for (const root of SEARCH_ROOTS) {
       }
     }
     // Rules 2 and 4 now cover marketing too — the marketing sweep landed, so
-    // both ladders are shared by both surfaces. The one carve-out is the
-    // marketing control-height ladder (40/48/56, primitives/button.tsx): a
-    // control height is chrome, not spacing, the same exception the 72px nav
-    // bar already takes. It is a single centrally-owned file, which is the
-    // whole point — a fourth button height cannot be invented on a page.
-    if (file === CONTROL_HEIGHT_OWNER) continue;
-
+    // both ladders are shared by both surfaces.
     arbitraryTypeSites.push(...sites(file, lines, ARBITRARY_TEXT_PATTERN));
     arbitraryTypeSites.push(...sites(file, lines, ARBITRARY_LEADING_PATTERN));
+
+    // The one carve-out, and it is rule 4 ONLY: the marketing control-height
+    // ladder (40/48/56, primitives/button.tsx). A control height is chrome,
+    // not spacing — the same exception the 72px nav bar already takes — and
+    // all three live in one file, so a page cannot invent a fourth. Rule 2
+    // still applies here: an arbitrary TYPE value in this file is a mistake
+    // like anywhere else, and exempting the whole file would hide it.
+    if (file === CONTROL_HEIGHT_OWNER) continue;
     offLadderCount += countMatches(lines, OFF_LADDER_PATTERN);
   }
 }
