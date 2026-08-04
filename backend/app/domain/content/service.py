@@ -305,9 +305,7 @@ async def enqueue_generation(
     return row, True
 
 
-async def _opportunity_evidence(
-    session, *, workspace_id, project_id, opportunity_id
-):
+async def _opportunity_evidence(session, *, workspace_id, project_id, opportunity_id):
     if opportunity_id is None:
         return None
     opportunity = await session.scalar(

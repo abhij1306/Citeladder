@@ -14,11 +14,7 @@ export function Reveal({
   from = 'up',
 }: MotionChildren & { from?: Direction }) {
   return (
-    <div
-      data-citeladder-reveal=""
-      data-citeladder-reveal-from={from}
-      className={className}
-    >
+    <div data-citeladder-reveal="" data-citeladder-reveal-from={from} className={className}>
       {children}
     </div>
   );

@@ -162,9 +162,7 @@ class BrandKnowledgeArtifact(Base):
 
     __tablename__ = "brand_knowledge_artifacts"
     __table_args__ = (
-        UniqueConstraint(
-            "content_generation_id", name="uq_brand_knowledge_generation"
-        ),
+        UniqueConstraint("content_generation_id", name="uq_brand_knowledge_generation"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
