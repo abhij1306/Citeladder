@@ -23,11 +23,7 @@ import {
 } from '@/lib/billing/pending-pricing-intent';
 import { PRICING_RESUME_QUERY_PARAM, PRICING_RETURN_PATH } from '@/lib/config/billing';
 import { hardNavigate } from '@/lib/navigation/hard-navigate';
-import {
-  BYOK_DISCLOSURE,
-  BYOK_SWITCH_LABEL,
-  FUNDED_UNAVAILABLE_NOTE,
-} from '@/lib/marketing-content/pricing';
+import { BYOK_DISCLOSURE, BYOK_SWITCH_LABEL } from '@/lib/marketing-content/pricing';
 
 import { Section, SectionHeader } from '../primitives/section';
 import { CatalogPurchases } from './catalog-purchases';
@@ -124,7 +120,7 @@ export function PricingCatalog() {
       return billingApi.createSubscription(
         {
           catalog_key: intent.catalog_key,
-          credential_mode: 'byok',
+          credential_mode: intent.byok ? 'byok' : 'funded',
           country_code: intent.country_code ?? '',
         },
         intent.idempotency_key,
@@ -209,7 +205,6 @@ export function PricingCatalog() {
           <p id="byok-disclosure" className="text-muted max-w-[70ch] basis-full text-sm">
             {BYOK_DISCLOSURE}
           </p>
-          {!byok && <p className="text-muted basis-full text-sm">{FUNDED_UNAVAILABLE_NOTE}</p>}
         </div>
 
         {notice && (
@@ -293,8 +288,8 @@ function isStillValid(
   if (intent.kind === 'checkout') {
     const plan = catalog.plans.find((entry) => entry.key === intent.catalog_key);
     if (!plan) return false;
-    // Funded remains unpurchasable, so a funded intent never resumes.
-    return checkoutSelection(plan, 'byok').ok && intent.quantity === 1;
+    const mode = intent.byok ? 'byok' : 'funded';
+    return checkoutSelection(plan, mode).ok && intent.quantity === 1;
   }
   const pool = intent.kind === 'addon' ? catalog.addons : catalog.topups;
   const entry = pool.find((candidate) => candidate.key === intent.catalog_key);

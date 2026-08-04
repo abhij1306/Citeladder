@@ -1,5 +1,6 @@
 import Image from 'next/image';
 
+import { ENGINE_ROTOR_STAGGER_MS } from '@/lib/config/marketing';
 import { cn } from '@/lib/utils';
 
 import { EngineLogo, type OfficialEngineKey } from '../primitives/engine-logo';
@@ -38,7 +39,17 @@ const EXTENDED_LOGOS: Record<
 
 function ProviderLogo({ logo }: Readonly<{ logo: LogoKey }>) {
   if (logo === 'openai' || logo === 'gemini' || logo === 'claude') {
-    return <EngineLogo engine={logo} className="size-7 shrink-0" />;
+    return (
+      <EngineLogo
+        engine={logo}
+        className={cn(
+          'size-7 shrink-0',
+          logo === 'openai' && 'text-brand-openai',
+          logo === 'gemini' && 'text-brand-gemini',
+          logo === 'claude' && 'text-brand-claude',
+        )}
+      />
+    );
   }
   if (logo === 'grok') {
     return (
@@ -52,9 +63,32 @@ function ProviderLogo({ logo }: Readonly<{ logo: LogoKey }>) {
     );
   }
   const definition = EXTENDED_LOGOS[logo];
+  if (logo === 'copilot') {
+    return <CopilotLogo definition={definition} />;
+  }
   return (
-    <svg aria-hidden viewBox={definition.viewBox} className="size-7 shrink-0 fill-current">
+    <svg
+      aria-hidden
+      viewBox={definition.viewBox}
+      className="text-brand-perplexity size-7 shrink-0 fill-current"
+    >
       <path d={definition.path} />
+    </svg>
+  );
+}
+
+function CopilotLogo({ definition }: Readonly<{ definition: (typeof EXTENDED_LOGOS)['copilot'] }>) {
+  return (
+    <svg aria-hidden viewBox={definition.viewBox} className="size-7 shrink-0">
+      <defs>
+        <linearGradient id="copilot-brand-gradient" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="var(--color-brand-copilot-violet)" />
+          <stop offset="0.36" stopColor="var(--color-brand-copilot-blue)" />
+          <stop offset="0.68" stopColor="var(--color-brand-copilot-cyan)" />
+          <stop offset="1" stopColor="var(--color-brand-copilot-green)" />
+        </linearGradient>
+      </defs>
+      <path d={definition.path} fill="url(#copilot-brand-gradient)" />
     </svg>
   );
 }
@@ -69,7 +103,7 @@ function LogoFace({
   return (
     <span className={cn('engine-rotor-face', alternate && 'engine-rotor-face-alternate')}>
       <ProviderLogo logo={logo.key} />
-      <span className="text-foreground text-sm font-semibold">{logo.label}</span>
+      <span className="text-foreground text-base font-semibold">{logo.label}</span>
     </span>
   );
 }
@@ -84,7 +118,10 @@ export function RotatingEngineLogos({ className }: Readonly<{ className?: string
       <ul aria-hidden className="engine-roster-motion mx-auto grid max-w-2xl grid-cols-3 gap-3">
         {LOGO_PAIRS.map(([primary, alternate], index) => (
           <li key={primary.key} className="engine-rotor-slot">
-            <span className="engine-rotor-inner" style={{ animationDelay: `${index * -1.8}s` }}>
+            <span
+              className="engine-rotor-inner"
+              style={{ animationDelay: `${index * ENGINE_ROTOR_STAGGER_MS}ms` }}
+            >
               <LogoFace logo={primary} />
               <LogoFace logo={alternate} alternate />
             </span>
@@ -95,7 +132,7 @@ export function RotatingEngineLogos({ className }: Readonly<{ className?: string
         {LOGO_PAIRS.flat().map((logo) => (
           <li key={logo.key} className="engine-roster-static-item">
             <ProviderLogo logo={logo.key} />
-            <span className="text-sm font-semibold">{logo.label}</span>
+            <span className="text-base font-semibold">{logo.label}</span>
           </li>
         ))}
       </ul>

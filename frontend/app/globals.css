@@ -51,6 +51,15 @@
   --color-accent-border: #a8dadc;
   --color-accent-text: #005a63;
 
+  --color-brand-openai: #10a37f;
+  --color-brand-gemini: #4285f4;
+  --color-brand-claude: #d97757;
+  --color-brand-perplexity: #20808d;
+  --color-brand-copilot-violet: #7f52ff;
+  --color-brand-copilot-blue: #1a73e8;
+  --color-brand-copilot-cyan: #00a4ef;
+  --color-brand-copilot-green: #35c759;
+
   --color-success: #19724b;
   --color-success-bg: #e9f6ee;
   --color-success-border: #9fd2b4;
@@ -352,20 +361,6 @@ samp {
   pointer-events: none;
 }
 
-.brand-atmosphere-panel {
-  opacity: 0.48;
-}
-
-.brand-atmosphere-panel .brand-atmosphere-image {
-  inset: -30%;
-  animation-duration: 26s;
-}
-
-.brand-atmosphere-panel .brand-atmosphere-signal {
-  inset: auto auto 8% 12%;
-  width: min(48%, 12rem);
-}
-
 .brand-atmosphere-image {
   position: absolute;
   inset: -12%;
@@ -387,27 +382,14 @@ samp {
   animation: citeladder-signal-pulse 9s ease-in-out infinite alternate;
 }
 
-.brand-atmosphere-hero {
-  opacity: 0.82;
-}
-
-.brand-atmosphere-page {
-  opacity: 0.68;
-}
-
-.brand-atmosphere-page .brand-atmosphere-image {
-  inset: -28% -12%;
-  animation-duration: 28s;
-}
-
 .brand-atmosphere-site {
   position: fixed;
-  opacity: 0.22;
+  opacity: 0.48;
 }
 
 .brand-atmosphere-site .brand-atmosphere-image {
-  inset: -20%;
-  animation-duration: 36s;
+  inset: -14%;
+  animation-duration: 22s;
 }
 
 .brand-atmosphere-app {
@@ -442,9 +424,6 @@ samp {
 }
 
 /* Six-engine rotating wordmarks: no cards or implied availability states. */
-.engine-roster {
-  color: var(--color-accent-text);
-}
 
 .engine-rotor-slot {
   height: 4rem;

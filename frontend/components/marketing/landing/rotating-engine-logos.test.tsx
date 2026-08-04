@@ -14,4 +14,14 @@ describe('RotatingEngineLogos', () => {
     expect(container.querySelectorAll('.engine-rotor-face')).toHaveLength(6);
     expect(container.querySelectorAll('a, button')).toHaveLength(0);
   });
+
+  it('uses brand colors and a tightly sequenced three-slot flip', () => {
+    const { container } = render(<RotatingEngineLogos />);
+    const rotors = [...container.querySelectorAll<HTMLElement>('.engine-rotor-inner')];
+
+    expect(rotors.map((rotor) => rotor.style.animationDelay)).toEqual(['0ms', '120ms', '240ms']);
+    expect(container.querySelector('[data-engine-logo="claude"]')).toHaveClass('text-brand-claude');
+    expect(container.querySelector('#copilot-brand-gradient')).toBeInTheDocument();
+    expect(container.querySelectorAll('.engine-rotor-face .text-base')).toHaveLength(6);
+  });
 });

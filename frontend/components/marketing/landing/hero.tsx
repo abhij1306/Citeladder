@@ -8,7 +8,6 @@ import { Eyebrow } from '../primitives/label';
 import { Container } from '../primitives/section';
 import { HeroEntrance } from './hero-entrance';
 import { RotatingEngineLogos } from './rotating-engine-logos';
-import { BrandAtmosphere } from '@/components/ui/brand-atmosphere';
 
 /**
  * The hook — a centred opener standing on the atmospheric field.
@@ -21,7 +20,6 @@ export function Hero() {
   const { hook } = LANDING_CONTENT;
   return (
     <header className="citeladder-field-hero citeladder-grid-field relative -mt-16 overflow-hidden pt-16">
-      <BrandAtmosphere variant="hero" />
       <Container className="relative z-1 pt-20 pb-16 md:pt-28 md:pb-20">
         <HeroEntrance className="mx-auto max-w-5xl text-center">
           <div className="flex justify-center">

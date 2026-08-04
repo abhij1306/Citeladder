@@ -4,7 +4,7 @@ import type { SolutionScene } from '@/lib/marketing-content/solutions';
 
 import { Badge } from '@/components/ui/badge';
 import { Meta } from '../primitives/label';
-import { ExampleDataNote, Panel, WallpaperPanel } from './wallpaper-panel';
+import { Panel, WallpaperPanel } from './wallpaper-panel';
 
 /**
  * Product snapshot panels, one per audience segment.
@@ -228,17 +228,12 @@ export function SolutionEvidencePanel({ scene }: Readonly<{ scene: SolutionScene
   const { label, body } = PANELS[scene];
   return (
     <WallpaperPanel className="p-5 sm:p-8">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <Meta as="p" className="text-muted font-medium">
-          {label}
-        </Meta>
-        <ExampleDataNote />
-      </div>
+      <Meta as="p" className="text-muted mb-4 font-medium">
+        {label}
+      </Meta>
       <Panel className="p-5">
-        {/* Every figure below is fabricated. `ExampleDataNote` above stays
-            readable — it is the honesty mark — but the rows themselves are
-            hidden, so a screen reader is not read a table of invented metrics
-            as if it were page content. */}
+        {/* The illustrative rows stay hidden from assistive technology so they
+            are never announced as persisted customer evidence. */}
         <div aria-hidden>{body}</div>
       </Panel>
     </WallpaperPanel>

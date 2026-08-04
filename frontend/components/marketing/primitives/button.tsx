@@ -22,7 +22,11 @@ export function ButtonLink({
     'href' | 'className' | 'children'
   >) {
   return (
-    <SharedButton asChild variant={sharedVariant(variant)} className={className}>
+    <SharedButton
+      asChild
+      variant={sharedVariant(variant)}
+      className={cn('[&_svg]:size-4 [&_svg]:shrink-0', className)}
+    >
       <Link href={href} {...rest}>
         {children}
       </Link>
@@ -42,7 +46,11 @@ export function TextLink({
   return (
     <Link
       href={href}
-      className={cn('text-accent-text hover:text-accent-hover font-semibold', className)}
+      className={cn(
+        'text-accent-text hover:text-accent-hover inline-flex items-center gap-2 font-semibold',
+        '[&_svg]:size-4 [&_svg]:shrink-0',
+        className,
+      )}
       {...rest}
     >
       {children}

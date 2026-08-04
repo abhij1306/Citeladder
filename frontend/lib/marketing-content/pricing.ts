@@ -1,15 +1,11 @@
 /**
  * Pricing PRESENTATION metadata.
  *
- * This module deliberately holds no price, no quota, and no capability value.
- * Everything enforceable — names, amounts, limits, comparison values, add-on
- * and top-up labels, availability — comes from `GET /billing/catalog` and is
- * read through the selectors in `lib/billing/catalog.ts`. What lives here is
- * only the copy the backend has no opinion about: a blurb per tier and which
- * card is visually emphasised.
+ * Plan limits, availability, add-ons, and enforceable checkout values come
+ * from `GET /billing/catalog`. This module owns only the copy the backend has
+ * no opinion about: a blurb per tier and which card is visually emphasised.
  *
  * A component that cannot reach the catalog renders a loading or error shell.
- * It never falls back to a number from this file, because there isn't one.
  */
 
 /** Where the contact-only tier sends people when the catalog gives no URL. */
@@ -53,11 +49,8 @@ export const BYOK_DISCLOSURE =
   'rates — CiteLadder never marks it up. Report-ready latency is not guaranteed in this ' +
   'mode, because your key’s rate limits apply.';
 
-/** Shown when funded mode is selected while its inputs are unpriced. */
+/** Fallback for a malformed or stale catalog response without a plan price. */
 export const FUNDED_UNAVAILABLE_LABEL = 'Not yet priced';
-export const FUNDED_UNAVAILABLE_NOTE =
-  'Managed credits are not yet priced, so this mode cannot be purchased. Switch on your own ' +
-  'API keys to see available pricing.';
 
 /** Shown for a contact-only tier. */
 export const CONTACT_LABEL = 'Contact us';

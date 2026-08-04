@@ -331,7 +331,7 @@ export function MarketingNav() {
 
         <div className="ml-auto flex shrink-0 items-center gap-3 lg:ml-0">
           {isAuthenticated ? (
-            <ButtonLink href={dashboardHref} variant="nav">
+            <ButtonLink href={dashboardHref} variant="primary">
               Dashboard
             </ButtonLink>
           ) : (
@@ -342,7 +342,7 @@ export function MarketingNav() {
               >
                 Log in
               </Link>
-              <ButtonLink href={DEMO_HREF} variant="nav">
+              <ButtonLink href={DEMO_HREF} variant="primary">
                 {DEMO_CTA}
               </ButtonLink>
             </>

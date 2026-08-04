@@ -165,7 +165,7 @@ afterEach(() => {
 afterAll(() => mswServer.close());
 
 describe('PricingCatalog', () => {
-  it('renders four tiers from the catalog with no Free/$49-in-code language', async () => {
+  it('renders four tiers from the catalog without a free plan', async () => {
     mswServer.use(catalogHandler(), anonymous());
     renderWithProviders(<PricingCatalog />);
 
@@ -177,7 +177,7 @@ describe('PricingCatalog', () => {
     expect(document.body.textContent).not.toMatch(/\bFree\b/);
   });
 
-  it('defaults to BYOK and shows base_price on every self-serve tier', async () => {
+  it('defaults to BYOK and shows the approved public tier prices', async () => {
     mswServer.use(catalogHandler(), anonymous());
     renderWithProviders(<PricingCatalog />);
 
@@ -189,10 +189,10 @@ describe('PricingCatalog', () => {
     const prices = [...document.querySelectorAll('[data-price]')].map((n) => n.textContent);
     expect(prices).toContain('$49');
     expect(prices).toContain('$99');
-    expect(prices).toContain('$199');
+    expect(prices).toContain('$149');
   });
 
-  it('renders funded as not-yet-priced and disables its checkout — never $0', async () => {
+  it('shows the approved managed prices without an unavailable warning', async () => {
     mswServer.use(catalogHandler(), anonymous());
     renderWithProviders(<PricingCatalog />);
 
@@ -201,10 +201,12 @@ describe('PricingCatalog', () => {
 
     await waitFor(() => {
       const prices = [...document.querySelectorAll('[data-price]')].map((n) => n.textContent);
-      expect(prices.filter((p) => p === 'Not yet priced').length).toBe(3);
+      expect(prices).toContain('$99');
+      expect(prices).toContain('$149');
+      expect(prices).toContain('$299');
     });
-    // No fabricated funded total, and no purchasable funded CTA.
-    expect(document.body.textContent).not.toMatch(/\$0\b/);
+    expect(screen.queryByText(/managed credits are not yet priced/i)).not.toBeInTheDocument();
+    // Presentation prices do not override the deployed catalog's checkout gate.
     expect(screen.getByRole('button', { name: /Choose Starter/ })).toBeDisabled();
   });
 
@@ -221,7 +223,7 @@ describe('PricingCatalog', () => {
     expect(window.location.hash).toBe('#plans');
   });
 
-  it('tweens only between real numbers, never to a semantic state', async () => {
+  it('tweens between the two approved numeric price sets', async () => {
     const spy = vi.spyOn(gsap, 'to');
     mswServer.use(catalogHandler(), anonymous());
     renderWithProviders(<PricingCatalog />);
@@ -229,17 +231,13 @@ describe('PricingCatalog', () => {
     await screen.findByRole('heading', { name: 'Starter' });
     spy.mockClear();
 
-    // number → "Not yet priced" must not interpolate: a tween here would put
-    // prices on screen that the catalog never sent.
     await userEvent.click(screen.getByRole('switch', { name: /use your own api keys/i }));
     await waitFor(() =>
       expect(
-        [...document.querySelectorAll('[data-price]')].some(
-          (n) => n.textContent === 'Not yet priced',
-        ),
+        [...document.querySelectorAll('[data-price]')].some((n) => n.textContent === '$299'),
       ).toBe(true),
     );
-    expect(spy).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
   });
 
   it('captures an anonymous click as an intent and issues no billing POST', async () => {

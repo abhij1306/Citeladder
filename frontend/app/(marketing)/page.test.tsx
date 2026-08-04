@@ -107,10 +107,9 @@ describe('Landing page (public marketing `/`)', () => {
     stubAnonymous();
     const { container } = renderWithProviders(<Page />);
 
-    // Every scene number is example data, so it must sit inside an
-    // aria-hidden subtree carrying a visible "Example data" mark. A figure
-    // leaking into real copy would read as a customer result.
-    expect(screen.getAllByText(/example data/i).length).toBeGreaterThan(0);
+    // Illustrative figures stay outside the accessible page copy even though
+    // the old visible "Example data" header pills are gone.
+    expect(screen.queryByText(/example data/i)).toBeNull();
     for (const node of Array.from(container.querySelectorAll('*'))) {
       if (node.children.length > 0 || !/\b(72\.4|1,248|3,091)\b/.test(node.textContent ?? '')) {
         continue;
@@ -145,7 +144,7 @@ describe('Landing page (public marketing `/`)', () => {
     const product = container.querySelector('#see-it');
     expect(product).not.toBeNull();
     expect(product).toHaveTextContent(/every score opens to the answer behind it/i);
-    expect(product).toHaveTextContent(/example data/i);
+    expect(product).not.toHaveTextContent(/example data/i);
   });
 
   it('uses white panel cards for the shift facts and product demo', () => {

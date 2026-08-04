@@ -4,6 +4,7 @@ import { Check } from 'lucide-react';
 
 import type { BillingCatalog, CatalogPlan, CredentialMode } from '@/lib/api/billing';
 import { formatMoney, headlinePrice, majorUnits } from '@/lib/billing/catalog';
+import { planMonthlyPriceUsdMinor } from '@/lib/config/billing';
 import {
   CONTACT_LABEL,
   FUNDED_UNAVAILABLE_LABEL,
@@ -40,7 +41,15 @@ export function PricingTierCard({
   pending: boolean;
 }>) {
   const presentation = PLAN_PRESENTATION[plan.key as PlanKey];
-  const price = headlinePrice(plan, mode);
+  const catalogPrice = headlinePrice(plan, mode);
+  const marketingAmount = planMonthlyPriceUsdMinor(plan.key, mode);
+  const price =
+    marketingAmount === null
+      ? catalogPrice
+      : {
+          kind: 'price' as const,
+          money: { currency: 'USD' as const, amount_minor: marketingAmount },
+        };
   const highlighted = presentation?.highlighted ?? false;
 
   const numeric =
@@ -134,7 +143,12 @@ export function PricingTierCard({
       </ul>
 
       <div className="mt-5">
-        <PlanCta plan={plan} priceKind={price.kind} onCheckout={onCheckout} pending={pending} />
+        <PlanCta
+          plan={plan}
+          priceKind={catalogPrice.kind}
+          onCheckout={onCheckout}
+          pending={pending}
+        />
       </div>
     </div>
   );

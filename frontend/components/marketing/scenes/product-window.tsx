@@ -21,7 +21,6 @@ import { ICONS } from '@/lib/icons';
 import { useTourAutoplay } from '@/lib/hooks/use-tour-autoplay';
 import { Meta } from '../primitives/label';
 import { TourStepper } from '../primitives/tour-stepper';
-import { ExampleDataNote } from './wallpaper-panel';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -277,9 +276,6 @@ export function ProductWindow() {
             onTogglePlay={togglePlay}
             compact
           />
-          <div className="hidden sm:block">
-            <ExampleDataNote />
-          </div>
         </div>
 
         <div className="border-border-subtle mt-4 flex items-center justify-between border-t pt-3 text-xs">
@@ -291,9 +287,6 @@ export function ProductWindow() {
             <span className="text-muted truncate font-medium">
               {currentStep.productSolution} — every score opens to the answer behind it.
             </span>
-          </div>
-          <div className="ml-3 shrink-0 sm:hidden">
-            <ExampleDataNote />
           </div>
         </div>
       </div>

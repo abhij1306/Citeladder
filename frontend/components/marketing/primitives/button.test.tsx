@@ -1,7 +1,9 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { IconButtonLink } from './button';
+import { ArrowRight } from 'lucide-react';
+
+import { ButtonLink, IconButtonLink } from './button';
 
 describe('IconButtonLink', () => {
   it('uses the shared button primitive with its icon and new-tab behavior', () => {
@@ -21,5 +23,19 @@ describe('IconButtonLink', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     expect(screen.getAllByTestId('custom-arrow')).toHaveLength(1);
+  });
+
+  it('sizes and aligns link-button icons consistently', () => {
+    render(
+      <ButtonLink href="/demo">
+        Book a demo
+        <ArrowRight aria-hidden />
+      </ButtonLink>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Book a demo' })).toHaveClass(
+      '[&_svg]:size-4',
+      '[&_svg]:shrink-0',
+    );
   });
 });

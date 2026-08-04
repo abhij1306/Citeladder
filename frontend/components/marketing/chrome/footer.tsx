@@ -114,7 +114,7 @@ export function MarketingFooter() {
   const name = legalDisplayName();
 
   return (
-    <footer className="border-border-subtle bg-background-alt relative border-t">
+    <footer className="border-border-subtle bg-panel relative border-t">
       <Container className="py-12 sm:py-16">
         <nav
           aria-label="Footer"

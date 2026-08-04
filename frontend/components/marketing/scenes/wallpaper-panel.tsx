@@ -1,13 +1,11 @@
 import type { ReactNode } from 'react';
 
-import { BrandAtmosphere } from '@/components/ui/brand-atmosphere';
 import { cn } from '@/lib/utils';
 
 /**
- * The recurring product surface: one wallpaper field with white interface
- * windows floating on it. Every product moment on the marketing and auth
- * surfaces uses this frame, which is what makes scenes on different pages
- * read as the same product rather than as separate illustrations.
+ * The recurring product surface. The marketing shell owns the single animated
+ * atmosphere; scene cards stay opaque so the wallpaper never repeats inside
+ * them.
  */
 export function WallpaperPanel({
   children,
@@ -30,8 +28,7 @@ export function WallpaperPanel({
       )}
       {...rest}
     >
-      <BrandAtmosphere variant="panel" />
-      <div className="relative z-1">{children}</div>
+      {children}
     </div>
   );
 }
@@ -46,24 +43,4 @@ export function Panel({
   className,
 }: Readonly<{ children: ReactNode; className?: string }>) {
   return <div className={cn('bg-panel shadow-card rounded-md', className)}>{children}</div>;
-}
-
-/**
- * Honesty mark for illustrative scenes. Every figure inside a scene is
- * example data, and the deck's second principle ("we never invent a metric to
- * make a screen persuasive") only holds if that is stated where a visitor can
- * actually read it — so this is NOT aria-hidden even when its scene is.
- */
-export function ExampleDataNote({ className }: Readonly<{ className?: string }>) {
-  return (
-    <span
-      className={cn(
-        'text-muted border-border-subtle bg-panel rounded-full text-xs',
-        'inline-flex items-center border px-4 py-2 whitespace-nowrap uppercase',
-        className,
-      )}
-    >
-      Example data
-    </span>
-  );
 }

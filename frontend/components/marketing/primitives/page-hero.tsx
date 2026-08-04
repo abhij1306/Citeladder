@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
-import { BrandAtmosphere } from '@/components/ui/brand-atmosphere';
 
 import { Eyebrow } from './label';
 import { Container } from './section';
@@ -30,7 +29,6 @@ export function PageHero({
 }>) {
   return (
     <header className="citeladder-field-hero citeladder-grid-field relative overflow-hidden pt-16 pb-16 md:pt-30 md:pb-20">
-      <BrandAtmosphere variant="page" />
       <Container className="relative z-1">
         <Reveal className={cn('max-w-5xl', centered && 'mx-auto text-center')}>
           <Eyebrow>{eyebrow}</Eyebrow>
