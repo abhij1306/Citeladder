@@ -773,7 +773,7 @@ async def test_status_events_are_append_only_and_project_order_is_versioned(
     ]
 
 
-def test_stable_order_key_is_collision_safe() -> None:
+async def test_stable_order_key_is_collision_safe() -> None:
     left = Opportunity(rule_id="rule:target", target_key="key")
     right = Opportunity(rule_id="rule", target_key="target:key")
 

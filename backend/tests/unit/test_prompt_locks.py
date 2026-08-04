@@ -27,7 +27,7 @@ def test_advisory_lock_key_is_namespaced_and_stable() -> None:
 
     prompt_set_key = _advisory_lock_key(_PROMPT_SET_NAMESPACE, entity_id)
 
-    assert prompt_set_key == 4629946208451514738
+    assert prompt_set_key == 7820990034924580555
     assert prompt_set_key != _advisory_lock_key(_PROJECT_NAMESPACE, entity_id)
     assert -(2**63) <= prompt_set_key < 2**63
 
@@ -48,4 +48,4 @@ async def test_advisory_lock_executes_single_bigint_with_derived_key() -> None:
 
     assert len(executed) == 1
     assert str(executed[0]) == "SELECT pg_advisory_xact_lock(:key)"
-    assert executed[0].compile().params == {"key": -8705120500123570735}
+    assert executed[0].compile().params == {"key": 3091393009374138112}

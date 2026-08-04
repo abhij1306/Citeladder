@@ -9,8 +9,11 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import cast
 
+from app.core.config.opportunities import FORMULA_VERSION
 from app.domain.opportunities.service import _humanize_theme, _project_item
+from app.models.opportunity import Opportunity
 
 
 def _row(
@@ -19,23 +22,31 @@ def _row(
     target_theme: str | None = None,
     target_prompt_id: uuid.UUID | None = None,
     evidence: dict | None = None,
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=uuid.uuid4(),
-        project_id=uuid.uuid4(),
-        rule_id="brand_absent_high_value_prompt",
-        opportunity_type="visibility",
-        severity="high",
-        priority_score=120.0,
-        title="Brand absent on high-value prompt",
-        target_key="prompt:xyz",
-        target_prompt_id=target_prompt_id,
-        target_url=target_url,
-        target_theme=target_theme,
-        evidence=evidence,
-        status="open",
-        created_at=datetime.now(UTC),
-        updated_at=datetime.now(UTC),
+) -> Opportunity:
+    return cast(
+        Opportunity,
+        SimpleNamespace(
+            id=uuid.uuid4(),
+            project_id=uuid.uuid4(),
+            rule_id="brand_absent_high_value_prompt",
+            opportunity_type="visibility",
+            severity="high",
+            priority_score=120.0,
+            title="Brand absent on high-value prompt",
+            target_key="prompt:xyz",
+            target_prompt_id=target_prompt_id,
+            target_url=target_url,
+            target_theme=target_theme,
+            evidence=evidence,
+            status="open",
+            formula_version=FORMULA_VERSION,
+            source_analysis_ids=[],
+            source_issue_ids=[],
+            source_metric_ids=[],
+            source_traffic_ids=[],
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        ),
     )
 
 
