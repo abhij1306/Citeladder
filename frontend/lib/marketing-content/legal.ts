@@ -64,6 +64,18 @@ export type LegalDocument = {
   sections: readonly LegalSection[];
 };
 
+function paragraphSection(
+  id: string,
+  title: string,
+  ...paragraphs: readonly string[]
+): LegalSection {
+  return { id, title, paragraphs };
+}
+
+function bulletSection(id: string, title: string, ...bullets: readonly string[]): LegalSection {
+  return { id, title, bullets };
+}
+
 const entity = () => legalDisplayName();
 const contact = () => {
   const email = legalContactEmail();
@@ -227,81 +239,63 @@ export const TERMS_OF_SERVICE: LegalDocument = {
         'We may suspend access for security incidents, non-payment, or material breach.',
       ],
     },
-    {
-      id: 'customer-data',
-      title: 'Customer data and BYOK',
-      paragraphs: [
-        'You retain ownership of prompts, brand configuration, catalog data, and other content you submit (“Customer Data”). You grant us a limited licence to host, process, and display Customer Data solely to provide the Services.',
-        'If you supply provider API keys (BYOK), you authorise us to use those keys only to execute the audits and calls you initiate. Keys are encrypted at rest and must not be shared outside your organisation. You are responsible for provider usage charges billed by those providers.',
-        'You represent that you have the rights and consents needed to submit Customer Data and to run queries that may return third-party content.',
-      ],
-    },
-    {
-      id: 'acceptable-use',
-      title: 'Acceptable use',
-      bullets: [
-        'Do not misuse the Services, attempt unauthorised access, or interfere with platform integrity.',
-        'Do not use the Services to violate law, infringe others’ rights, or probe third-party systems beyond what the product is designed to do.',
-        'Do not reverse engineer the Services except where mandatory law allows.',
-        'Do not resell or white-label the Services without a written agreement.',
-      ],
-    },
-    {
-      id: 'fees',
-      title: 'Fees and taxes',
-      paragraphs: [
-        'Self-serve plans are billed as shown at checkout or in the billing catalog. Enterprise fees follow the order form. Fees are non-refundable except where required by law or expressly stated.',
-        'You are responsible for applicable taxes. Provider model usage under BYOK is billed by the provider to you and is not marked up by CiteLadder.',
-      ],
-    },
-    {
-      id: 'ip',
-      title: 'Intellectual property',
-      paragraphs: [
-        'CiteLadder and its licensors own the Services, software, documentation, and branding. These Terms do not transfer ownership of our IP to you.',
-        'Feedback you provide may be used to improve the Services without obligation to you.',
-      ],
-    },
-    {
-      id: 'disclaimer',
-      title: 'Disclaimers',
-      paragraphs: [
-        'THE SERVICES ARE PROVIDED “AS IS” AND “AS AVAILABLE”. TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.',
-        'Answer-engine outputs change over time. Scores and evidence reflect measurements under the conditions recorded with each run; they are not guarantees of future visibility, ranking, or commercial outcomes.',
-      ],
-    },
-    {
-      id: 'liability',
-      title: 'Limitation of liability',
-      paragraphs: [
-        'TO THE MAXIMUM EXTENT PERMITTED BY LAW, CITELADDER WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR LOST PROFITS, REVENUE, OR DATA, EVEN IF ADVISED OF THE POSSIBILITY.',
-        'OUR AGGREGATE LIABILITY UNDER THESE TERMS WILL NOT EXCEED THE AMOUNTS YOU PAID TO US FOR THE SERVICES IN THE TWELVE (12) MONTHS BEFORE THE CLAIM. SOME JURISDICTIONS DO NOT ALLOW CERTAIN LIMITATIONS; IN THOSE CASES OUR LIABILITY IS LIMITED TO THE MAXIMUM PERMITTED BY LAW.',
-      ],
-    },
-    {
-      id: 'termination',
-      title: 'Term and termination',
-      paragraphs: [
-        'These Terms continue while you use the Services. You may stop using the Services and close your account as supported in-product. We may terminate or suspend for material breach, unlawful use, or non-payment.',
-        'On termination, your right to access the Services ends. Provisions that by nature should survive (including IP, disclaimers, limitations, and governing law) will survive.',
-      ],
-    },
-    {
-      id: 'law',
-      title: 'Governing law',
-      paragraphs: [
-        LEGAL_ENTITY.governingLaw.trim()
-          ? `These Terms are governed by the laws of ${LEGAL_ENTITY.governingLaw}, without regard to conflict-of-law rules. Courts in that jurisdiction will have exclusive venue, except where mandatory consumer or local law provides otherwise.`
-          : 'Governing law and venue will be stated here once completed by the owner. Until then, disputes will be resolved under applicable law in a competent court of the place where CiteLadder is established.',
-      ],
-    },
-    {
-      id: 'contact',
-      title: 'Contact',
-      paragraphs: [
-        `Questions about these Terms: ${LEGAL_ENTITY.supportEmail.trim() || contact()}.`,
-      ],
-    },
+    paragraphSection(
+      'customer-data',
+      'Customer data and BYOK',
+      'You retain ownership of prompts, brand configuration, catalog data, and other content you submit (“Customer Data”). You grant us a limited licence to host, process, and display Customer Data solely to provide the Services.',
+      'If you supply provider API keys (BYOK), you authorise us to use those keys only to execute the audits and calls you initiate. Keys are encrypted at rest and must not be shared outside your organisation. You are responsible for provider usage charges billed by those providers.',
+      'You represent that you have the rights and consents needed to submit Customer Data and to run queries that may return third-party content.',
+    ),
+    bulletSection(
+      'acceptable-use',
+      'Acceptable use',
+      'Do not misuse the Services, attempt unauthorised access, or interfere with platform integrity.',
+      'Do not use the Services to violate law, infringe others’ rights, or probe third-party systems beyond what the product is designed to do.',
+      'Do not reverse engineer the Services except where mandatory law allows.',
+      'Do not resell or white-label the Services without a written agreement.',
+    ),
+    paragraphSection(
+      'fees',
+      'Fees and taxes',
+      'Self-serve plans are billed as shown at checkout or in the billing catalog. Enterprise fees follow the order form. Fees are non-refundable except where required by law or expressly stated.',
+      'You are responsible for applicable taxes. Provider model usage under BYOK is billed by the provider to you and is not marked up by CiteLadder.',
+    ),
+    paragraphSection(
+      'ip',
+      'Intellectual property',
+      'CiteLadder and its licensors own the Services, software, documentation, and branding. These Terms do not transfer ownership of our IP to you.',
+      'Feedback you provide may be used to improve the Services without obligation to you.',
+    ),
+    paragraphSection(
+      'disclaimer',
+      'Disclaimers',
+      'THE SERVICES ARE PROVIDED “AS IS” AND “AS AVAILABLE”. TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.',
+      'Answer-engine outputs change over time. Scores and evidence reflect measurements under the conditions recorded with each run; they are not guarantees of future visibility, ranking, or commercial outcomes.',
+    ),
+    paragraphSection(
+      'liability',
+      'Limitation of liability',
+      'TO THE MAXIMUM EXTENT PERMITTED BY LAW, CITELADDER WILL NOT BE LIABLE FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR LOST PROFITS, REVENUE, OR DATA, EVEN IF ADVISED OF THE POSSIBILITY.',
+      'OUR AGGREGATE LIABILITY UNDER THESE TERMS WILL NOT EXCEED THE AMOUNTS YOU PAID TO US FOR THE SERVICES IN THE TWELVE (12) MONTHS BEFORE THE CLAIM. SOME JURISDICTIONS DO NOT ALLOW CERTAIN LIMITATIONS; IN THOSE CASES OUR LIABILITY IS LIMITED TO THE MAXIMUM PERMITTED BY LAW.',
+    ),
+    paragraphSection(
+      'termination',
+      'Term and termination',
+      'These Terms continue while you use the Services. You may stop using the Services and close your account as supported in-product. We may terminate or suspend for material breach, unlawful use, or non-payment.',
+      'On termination, your right to access the Services ends. Provisions that by nature should survive (including IP, disclaimers, limitations, and governing law) will survive.',
+    ),
+    paragraphSection(
+      'law',
+      'Governing law',
+      LEGAL_ENTITY.governingLaw.trim()
+        ? `These Terms are governed by the laws of ${LEGAL_ENTITY.governingLaw}, without regard to conflict-of-law rules. Courts in that jurisdiction will have exclusive venue, except where mandatory consumer or local law provides otherwise.`
+        : 'Governing law and venue will be stated here once completed by the owner. Until then, disputes will be resolved under applicable law in a competent court of the place where CiteLadder is established.',
+    ),
+    paragraphSection(
+      'contact',
+      'Contact',
+      `Questions about these Terms: ${LEGAL_ENTITY.supportEmail.trim() || contact()}.`,
+    ),
   ],
 };
 

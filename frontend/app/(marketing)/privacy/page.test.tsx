@@ -1,11 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import {
-  AI_POLICY,
-  PRIVACY_POLICY,
-  TERMS_OF_SERVICE,
-} from '@/lib/marketing-content/legal';
+import { AI_POLICY, PRIVACY_POLICY, TERMS_OF_SERVICE } from '@/lib/marketing-content/legal';
 
 import PrivacyPage from './page';
 
@@ -13,12 +9,14 @@ describe('Privacy page', () => {
   it('renders the policy title and section headings', () => {
     render(<PrivacyPage />);
 
-    expect(screen.getByRole('heading', { level: 1, name: PRIVACY_POLICY.title })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: PRIVACY_POLICY.title }),
+    ).toBeInTheDocument();
     for (const section of PRIVACY_POLICY.sections) {
       expect(screen.getByRole('heading', { level: 2, name: section.title })).toBeInTheDocument();
     }
     const toc = screen.getByRole('navigation', { name: 'On this page' });
-    expect(within(toc).getAllByRole('link').length).toBe(PRIVACY_POLICY.sections.length);
+    expect(within(toc).getAllByRole('link')).toHaveLength(PRIVACY_POLICY.sections.length);
   });
 
   it('links to the sibling legal documents', () => {
