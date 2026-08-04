@@ -23,6 +23,8 @@ const listItem = {
   project_id: UUID2,
   status: 'queued' as const,
   output_type: 'website_page' as const,
+  skill_id: 'article' as const,
+  opportunity_id: null,
   website_context_status: 'included' as const,
   requested_model: 'mistral-small-latest',
   returned_model: null,
@@ -36,6 +38,9 @@ const listItem = {
 
 const detail = {
   ...listItem,
+  evidence_context: null,
+  feedback: null,
+  feedback_at: null,
   prompt: 'Write a landing page for Acme.',
   website_context_enabled: true,
   website_context_summary: {
