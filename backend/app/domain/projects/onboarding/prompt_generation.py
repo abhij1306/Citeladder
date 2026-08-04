@@ -111,7 +111,9 @@ def _fallback_context(industry, industry_context, products_services, target_audi
             industry.casefold() if industry != "General" else "products and services"
         ]
     audiences = list(industry_context.get("customer_types") or [])
-    uses = list(industry_context.get("use_cases") or ["their needs"])
+    uses = list(industry_context.get("use_cases") or [])
+    if not uses:
+        uses = ["their needs"]
     audience = target_audience.strip() or (audiences[0] if audiences else "buyers")
     return categories, audience, uses
 

@@ -35,7 +35,8 @@ ENV PATH="/app/backend/.venv/bin:${PATH}" \
 WORKDIR /app/backend
 
 RUN groupadd --gid 10001 appuser \
-    && useradd --no-create-home --uid 10001 --gid 10001 --shell /usr/sbin/nologin appuser
+    && useradd --no-create-home --uid 10001 --gid 10001 --shell /usr/sbin/nologin appuser \
+    && install -d -o 10001 -g 10001 /app/runtime
 
 # Dependencies and source remain root-owned/read-only to the runtime identity.
 COPY --from=dependencies --chown=0:0 /app/backend/.venv ./.venv

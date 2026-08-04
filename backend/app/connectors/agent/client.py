@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
 from collections.abc import Mapping
 from typing import Any
@@ -207,5 +206,10 @@ def _strip_json_fence(content: str) -> str:
     stripped = content.strip()
     if not stripped.startswith("```"):
         return stripped
-    stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.IGNORECASE)
-    return re.sub(r"\s*```$", "", stripped).strip()
+    opening, separator, remainder = stripped.partition("\n")
+    if not separator or opening.casefold() not in {"```", "```json"}:
+        return stripped
+    body = remainder.rstrip()
+    if body.endswith("```"):
+        body = body[:-3]
+    return body.strip()

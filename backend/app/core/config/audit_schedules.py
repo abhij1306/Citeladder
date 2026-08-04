@@ -39,7 +39,7 @@ class AuditScheduleSettings(BaseSettings):
     failure_retry_seconds: int = Field(default=300, gt=0)
     max_consecutive_failures: int = Field(default=5, gt=0)
     health_stale_seconds: int = Field(default=180, gt=0)
-    heartbeat_path: str = Field(default="/tmp/citeladder-audit-scheduler-heartbeat")
+    heartbeat_path: str = Field(default="/app/runtime/audit-scheduler-heartbeat")
 
 
 audit_schedule_settings = AuditScheduleSettings()

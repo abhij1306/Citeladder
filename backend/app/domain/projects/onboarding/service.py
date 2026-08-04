@@ -136,7 +136,7 @@ async def create_discovery(
     try:
         primary_market = normalize_primary_market(payload.primary_market)
         normalized_url, _ = normalize_website_url(payload.website_url)
-    except (InvalidWebsiteUrl, ValueError) as exc:
+    except ValueError as exc:
         raise BrandDiscoveryError(str(exc)) from exc
     requested_industry = payload.industry.strip()
     if requested_industry and requested_industry not in industry_names():

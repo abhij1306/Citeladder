@@ -5,7 +5,6 @@ from __future__ import annotations
 from urllib.parse import urlsplit
 
 from app.connectors.web_evidence.url_policy import (
-    UrlPolicyError,
     canonicalize,
     registrable_domain,
 )
@@ -24,7 +23,7 @@ def normalize_website_url(value: str) -> tuple[str, str]:
         candidate = f"https://{candidate}"
     try:
         canonical = canonicalize(candidate)
-    except (UrlPolicyError, ValueError) as exc:
+    except ValueError as exc:
         raise InvalidWebsiteUrl(
             "website_url must be a valid public HTTP(S) URL"
         ) from exc
