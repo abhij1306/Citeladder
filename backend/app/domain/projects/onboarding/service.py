@@ -454,12 +454,12 @@ async def complete_discovery(
             raise BrandDiscoveryError(
                 "Discovery was completed with another Idempotency-Key"
             )
-        crawl = (
+        existing_crawl = (
             await session.get(SiteCrawl, row.initial_crawl_id)
             if row.initial_crawl_id is not None
             else None
         )
-        return row, crawl
+        return row, existing_crawl
     if row.status != DISCOVERY_STATUS_READY:
         raise BrandDiscoveryError("Discovery is not ready for completion")
     domains = _confirmed_domains(payload.domains)

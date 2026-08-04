@@ -90,7 +90,9 @@ class DefaultAgentSettings(BaseSettings):
         if self.api_key.strip():
             return self.api_key.strip()
         host = (urlsplit(self.base_url).hostname or "").casefold()
-        if host.endswith("nvidia.com") and self.nvidia_api_key.strip():
+        if (
+            host == "nvidia.com" or host.endswith(".nvidia.com")
+        ) and self.nvidia_api_key.strip():
             return self.nvidia_api_key.strip()
         return self.mistral_api_key.strip()
 

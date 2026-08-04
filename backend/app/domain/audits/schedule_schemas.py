@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, get_args
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -31,7 +31,7 @@ assert {
     BENCHMARK_MODE_CONSUMER_LIKE,
     BENCHMARK_MODE_CONTROLLED_LOCALIZED,
     BENCHMARK_MODE_FORCED_GROUNDED,
-} == set(BenchmarkMode.__args__)
+} == set(get_args(BenchmarkMode))
 
 
 class AuditScheduleCreate(BaseModel):

@@ -139,3 +139,16 @@ def test_application_key_precedes_provider_key(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("NVIDIA_API_KEY", "provider-key")
     settings = DefaultAgentSettings(_env_file=None)
     assert settings.resolved_api_key == "application-key"
+
+
+def test_nvidia_key_requires_an_exact_or_subdomain_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEFAULT_AGENT_API_KEY", raising=False)
+    monkeypatch.setenv("DEFAULT_AGENT_BASE_URL", "https://evilnvidia.com/v1")
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvidia-key")
+    monkeypatch.setenv("MISTRALAI_API_KEY", "fallback-key")
+
+    settings = DefaultAgentSettings(_env_file=None)
+
+    assert settings.resolved_api_key == "fallback-key"
