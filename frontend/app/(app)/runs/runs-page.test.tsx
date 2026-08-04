@@ -18,7 +18,7 @@ const pushMock = vi.fn();
 
 // Route the F5 project context to a fixed active project, and stub the router.
 vi.mock('@/lib/project/project-context', () => ({
-  useActiveProject: () => ({ id: PROJECT_ID, workspace_id: WORKSPACE_ID }),
+  useActiveProject: () => ({ id: PROJECT_ID, workspace_id: WORKSPACE_ID, prompt_sets: [] }),
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
@@ -81,7 +81,10 @@ function connection(routes: string[]) {
 }
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
-beforeEach(() => pushMock.mockReset());
+beforeEach(() => {
+  pushMock.mockReset();
+  mswServer.use(http.get('/api/v1/projects/:id/audit-schedules', () => HttpResponse.json([])));
+});
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
