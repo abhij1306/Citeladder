@@ -320,6 +320,9 @@ function CommandCenterContent({
       orderVersion.current = data.action_order_version;
       setActions(data.actions);
       setReorderError(true);
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.commandCenter(activeProject.id),
+      });
     },
   });
 
