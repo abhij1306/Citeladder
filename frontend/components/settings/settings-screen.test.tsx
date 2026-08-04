@@ -140,7 +140,7 @@ describe('SettingsScreen', () => {
     await ue.click(screen.getByRole('tab', { name: 'Providers' }));
     expect(screen.getByTestId('provider-settings-panel')).toBeVisible();
     // Account content is hidden while another tab is active.
-    expect(screen.getByRole('heading', { name: 'Account' })).not.toBeVisible();
+    expect(document.getElementById('settings-panel-account')).toHaveAttribute('hidden');
   });
 
   it('opens the Provider Settings tab from a ?tab=providers deep link', () => {

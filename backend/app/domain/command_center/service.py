@@ -133,26 +133,12 @@ async def get_command_center(
         project_id=project.id,
         audit_id=audit_id,
     )
-    current = await get_visibility(
+    current, previous = await _load_visibility_pair(
         session,
         workspace_id=workspace_id,
         project_id=project.id,
-        audit_id=audits.selected.id,
-        cohort="core",
+        audits=audits,
     )
-    previous = (
-        await get_visibility(
-            session,
-            workspace_id=workspace_id,
-            project_id=project.id,
-            audit_id=audits.previous.id,
-            cohort="core",
-        )
-        if audits.previous is not None
-        else None
-    )
-    current_rank, current_brand = _brand_row(current)
-    previous_rank, previous_brand = _brand_row(previous) if previous else (None, None)
     opportunities = await list_opportunities(
         session,
         workspace_id=workspace_id,
@@ -165,12 +151,71 @@ async def get_command_center(
             OpportunityOrder.project_id == project.id,
         )
     )
+    resolved_actions = await _resolved_action_summary(
+        session,
+        workspace_id=workspace_id,
+        project_id=project.id,
+        audits=audits,
+    )
+    return CommandCenterResponse(
+        project=CommandCenterProject(
+            id=project.id,
+            name=project.name,
+            brand_name=project.brand_name,
+            website_url=project.website_url,
+        ),
+        measurement=_measurement(audits),
+        state=_state(current, previous),
+        movements=_movements(current, previous),
+        actions=[
+            OpportunityItem.model_validate(item) for item in opportunities["items"]
+        ],
+        action_order_version=int(order_version or 0),
+        resolved_actions=resolved_actions,
+    )
+
+
+async def _load_visibility_pair(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    audits: ComparableAudits,
+) -> tuple[VisibilityResponse, VisibilityResponse | None]:
+    current = await get_visibility(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        audit_id=audits.selected.id,
+        cohort="core",
+    )
+    previous = (
+        await get_visibility(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            audit_id=audits.previous.id,
+            cohort="core",
+        )
+        if audits.previous is not None
+        else None
+    )
+    return current, previous
+
+
+async def _resolved_action_summary(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    audits: ComparableAudits,
+) -> ResolvedActionSummary:
     resolved_query = (
         select(OpportunityStatusEvent, Opportunity.title)
         .join(Opportunity, Opportunity.id == OpportunityStatusEvent.opportunity_id)
         .where(
             OpportunityStatusEvent.workspace_id == workspace_id,
-            OpportunityStatusEvent.project_id == project.id,
+            OpportunityStatusEvent.project_id == project_id,
             OpportunityStatusEvent.next_status == "resolved",
         )
         .order_by(OpportunityStatusEvent.created_at.desc())
@@ -184,60 +229,55 @@ async def get_command_center(
         <= (audits.selected.completed_at or audits.selected.created_at)
     )
     resolved_rows = list((await session.execute(resolved_query)).all())
+    return ResolvedActionSummary(
+        since_audit_id=audits.previous.id if audits.previous else None,
+        count=len(resolved_rows),
+        titles=[title for _event, title in resolved_rows[:5]],
+    )
+
+
+def _measurement(audits: ComparableAudits) -> CommandCenterMeasurement:
+    return CommandCenterMeasurement(
+        audit_id=audits.selected.id,
+        completed_at=audits.selected.completed_at or audits.selected.created_at,
+        measurement_mode=audits.selected.measurement_mode,
+        benchmark_mode=audits.selected.benchmark_mode,
+        logical_engines=sorted(
+            row.logical_engine for row in audits.selected.engine_snapshots
+        ),
+        comparable_audit_id=audits.previous.id if audits.previous else None,
+    )
+
+
+def _share_of_voice_percent(row: RankingRow | None) -> float | None:
     # Visibility rankings persist share-of-voice as a 0..1 ratio. The command
     # center and executive report present it as a human-readable percentage.
-    current_sov = (
-        round(current_brand.share_of_voice * 100, 2)
-        if current_brand and current_brand.share_of_voice is not None
-        else None
-    )
-    previous_sov = (
-        round(previous_brand.share_of_voice * 100, 2)
-        if previous_brand and previous_brand.share_of_voice is not None
-        else None
-    )
-    return CommandCenterResponse(
-        project=CommandCenterProject(
-            id=project.id,
-            name=project.name,
-            brand_name=project.brand_name,
-            website_url=project.website_url,
-        ),
-        measurement=CommandCenterMeasurement(
-            audit_id=audits.selected.id,
-            completed_at=audits.selected.completed_at or audits.selected.created_at,
-            measurement_mode=audits.selected.measurement_mode,
-            benchmark_mode=audits.selected.benchmark_mode,
-            logical_engines=sorted(
-                row.logical_engine for row in audits.selected.engine_snapshots
-            ),
-            comparable_audit_id=audits.previous.id if audits.previous else None,
-        ),
-        state=CommandCenterState(
-            visibility=CommandCenterMetric(
-                value=current.visibility_score,
-                delta=_delta(
-                    current.visibility_score,
-                    previous.visibility_score if previous else None,
-                ),
-            ),
-            share_of_voice=CommandCenterMetric(
-                value=current_sov,
-                delta=_delta(current_sov, previous_sov),
-            ),
-            brand_rank=CommandCenterMetric(
-                value=current_rank,
-                delta=_delta(current_rank, previous_rank),
+    if row is None or row.share_of_voice is None:
+        return None
+    return round(row.share_of_voice * 100, 2)
+
+
+def _state(
+    current: VisibilityResponse, previous: VisibilityResponse | None
+) -> CommandCenterState:
+    current_rank, current_brand = _brand_row(current)
+    previous_rank, previous_brand = _brand_row(previous) if previous else (None, None)
+    current_sov = _share_of_voice_percent(current_brand)
+    previous_sov = _share_of_voice_percent(previous_brand)
+    return CommandCenterState(
+        visibility=CommandCenterMetric(
+            value=current.visibility_score,
+            delta=_delta(
+                current.visibility_score,
+                previous.visibility_score if previous else None,
             ),
         ),
-        movements=_movements(current, previous),
-        actions=[
-            OpportunityItem.model_validate(item) for item in opportunities["items"]
-        ],
-        action_order_version=int(order_version or 0),
-        resolved_actions=ResolvedActionSummary(
-            since_audit_id=audits.previous.id if audits.previous else None,
-            count=len(resolved_rows),
-            titles=[title for _event, title in resolved_rows[:5]],
+        share_of_voice=CommandCenterMetric(
+            value=current_sov,
+            delta=_delta(current_sov, previous_sov),
+        ),
+        brand_rank=CommandCenterMetric(
+            value=current_rank,
+            delta=_delta(current_rank, previous_rank),
         ),
     )

@@ -1008,8 +1008,7 @@ async def update_status(
     changed_by_user_id: uuid.UUID,
 ) -> dict:
     """Mutate the human workflow status (the ONLY mutable field)."""
-    if status not in OPPORTUNITY_STATUSES:
-        raise OpportunityValidationError(f"unknown opportunity status: {status!r}")
+    _validate_status(status)
     row = await session.scalar(
         select(Opportunity).where(
             Opportunity.id == opportunity_id,
@@ -1038,6 +1037,11 @@ async def update_status(
         )
     await session.commit()
     return _project_item(row)
+
+
+def _validate_status(status: str) -> None:
+    if status not in OPPORTUNITY_STATUSES:
+        raise OpportunityValidationError(f"unknown opportunity status: {status!r}")
 
 
 async def _load_order(
