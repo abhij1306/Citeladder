@@ -25,7 +25,13 @@ from app.analysis.normalization import (
     normalize_alias,
     normalize_domain,
 )
-from app.core.config.analysis import AMBIGUOUS_ALIASES, FANOUT_FEATURE_RULES
+from app.core.config.analysis import (
+    AMBIGUOUS_ALIASES,
+    FANOUT_FEATURE_RULES,
+    PROMPT_SCORE_COMPETITIVE_WEIGHT,
+    PROMPT_SCORE_OWNED_CITATION_WEIGHT,
+    PROMPT_SCORE_VISIBILITY_WEIGHT,
+)
 from app.core.config.costs import (
     APPROVED_ROUTE_IDENTITIES,
     MICRO_USD_PER_USD,
@@ -73,24 +79,30 @@ class ScoringConfig:
     benchmark_mode: str = ""
     provider: str = ""
     model: str = ""
+    products_services: tuple[str, ...] = field(default_factory=tuple)
     competitors: tuple[CompetitorConfig, ...] = field(default_factory=tuple)
 
     @classmethod
     def from_project(cls, config: dict[str, Any]) -> ScoringConfig:
-        brand_name = str(config.get("brand_name") or "")
+        brand_name = _config_text(config, "brand_name")
         aliases = [brand_name, *(config.get("brand_aliases") or [])]
         return cls(
             brand_name=brand_name,
             brand_aliases=tuple(alias for alias in aliases if alias),
             owned_domains=tuple(config.get("owned_domains") or []),
             unintended_domains=tuple(config.get("unintended_domains") or []),
-            country_code=str(config.get("country_code") or ""),
-            language_code=str(config.get("language_code") or ""),
-            benchmark_mode=str(config.get("benchmark_mode") or ""),
-            provider=str(config.get("provider") or ""),
-            model=str(config.get("model") or ""),
+            country_code=_config_text(config, "country_code"),
+            language_code=_config_text(config, "language_code"),
+            benchmark_mode=_config_text(config, "benchmark_mode"),
+            provider=_config_text(config, "provider"),
+            model=_config_text(config, "model"),
+            products_services=tuple(config.get("products_services") or []),
             competitors=_competitor_configs(config),
         )
+
+
+def _config_text(config: dict[str, Any], key: str) -> str:
+    return str(config.get(key) or "")
 
 
 def classify_fanout(query: str) -> list[str]:
@@ -244,7 +256,10 @@ def score_execution(
         prompt["prompt_competitors"],
         query_text_available,
     )
-    citation = _citation_signals(citations, config)
+    citation = _citation_signals(
+        citations,
+        config,
+    )
     return {
         "search_used": bool(search_used),
         "search_query_count": len(search_events),
@@ -323,22 +338,43 @@ def _competitor_signals(
 def _citation_signals(citations, config):
     classified = [classify_citation(citation, config) for citation in citations]
     owned_count = sum(1 for citation in classified if citation["is_owned"])
-    competitor_domains = sorted(
-        {
-            citation["matched_competitor"]
-            for citation in classified
-            if citation["matched_competitor"]
-        }
+    qualified_owned_count = sum(
+        _qualified_owned_citation(citation, config) for citation in classified
     )
+    competitor_domains = _competitor_citation_domains(classified)
     return {
         "owned_domain_cited": owned_count > 0,
         "owned_citation_count": owned_count,
+        "qualified_owned_citation_count": qualified_owned_count,
+        "qualified_owned_cited": qualified_owned_count > 0,
         "unintended_domain_cited": any(
             citation["is_unintended"] for citation in classified
         ),
         "citation_count": len(classified),
         "competitor_domains_cited": competitor_domains,
     }
+
+
+def _qualified_owned_citation(citation, config):
+    if not citation["is_owned"]:
+        return False
+    text = " ".join(str(citation.get(key) or "") for key in ("title", "cited_text"))
+    normalized = normalize_alias(text)
+    return _entity_alias_present(config.brand_aliases, text, normalized) or any(
+        alias_present(normalize_alias(term), normalized)
+        for term in config.products_services
+        if normalize_alias(term)
+    )
+
+
+def _competitor_citation_domains(classified):
+    return sorted(
+        {
+            citation["matched_competitor"]
+            for citation in classified
+            if citation["matched_competitor"]
+        }
+    )
 
 
 def _fanout_features(search_events):
@@ -379,7 +415,7 @@ def aggregate_run(
         "prompt_class_counts": dict(
             Counter(score.get("prompt_class", "unknown") for score in scores)
         ),
-        "per_prompt": _per_prompt_stability(completed),
+        "per_prompt": _per_prompt_metrics(completed, config),
         "token_usage": token_usage,
         "cost": _aggregate_cost(completed, token_usage, config),
         # Roadmap metrics (decision B-2): not computed yet (no LLM for
@@ -722,30 +758,103 @@ def _aggregate_token_usage(completed: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
-def _per_prompt_stability(completed: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _per_prompt_metrics(
+    completed: list[dict[str, Any]], config: ScoringConfig
+) -> list[dict[str, Any]]:
     grouped: dict[int, list[dict[str, Any]]] = {}
     for e in completed:
         grouped.setdefault(int(e.get("prompt_index", 0)), []).append(e)
 
     rows: list[dict[str, Any]] = []
     for prompt_index in sorted(grouped):
-        group = grouped[prompt_index]
-        reps = len(group)
-        mention_true = sum(1 for e in group if e["score"].get("brand_mentioned"))
-        owned_true = sum(1 for e in group if e["score"].get("owned_domain_cited"))
-        rows.append(
-            {
-                "prompt_index": prompt_index,
-                "prompt_text": group[0].get("prompt_text_snapshot", ""),
-                "theme": group[0].get("prompt_theme_snapshot", ""),
-                "repetitions": reps,
-                "brand_mentioned_count": mention_true,
-                "owned_cited_count": owned_true,
-                "mention_stability": _stability(mention_true, reps),
-                "owned_stability": _stability(owned_true, reps),
-            }
-        )
-    return rows
+        rows.append(_prompt_metric_row(prompt_index, grouped[prompt_index], config))
+    return sorted(rows, key=lambda row: (-row["composite_score"], row["prompt_index"]))
+
+
+def _prompt_metric_row(prompt_index, group, config):
+    repetitions = len(group)
+    score = _prompt_composite(group, config)
+    engine_scores = _prompt_engine_scores(group, config)
+    return {
+        "prompt_index": prompt_index,
+        "prompt_text": group[0].get("prompt_text_snapshot", ""),
+        "theme": group[0].get("prompt_theme_snapshot", ""),
+        "repetitions": repetitions,
+        "brand_mentioned_count": score["mentioned"],
+        "owned_cited_count": score["owned_raw"],
+        "mention_stability": _stability(score["mentioned"], repetitions),
+        "owned_stability": _stability(score["owned_raw"], repetitions),
+        "visibility_rate": score["visibility"],
+        "competitive_share": score["competitive"] if config.competitors else None,
+        "qualified_owned_citation_rate": score["owned_rate"],
+        "composite_score": score["composite"],
+        "score_components": score["components"],
+        "score_weights": score["weights"],
+        "per_engine_scores": engine_scores,
+        "cross_engine_consistency": _cross_engine_consistency(engine_scores),
+    }
+
+
+def _prompt_composite(group, config):
+    repetitions = len(group)
+    mentioned = sum(bool(item["score"].get("brand_mentioned")) for item in group)
+    owned = sum(bool(item["score"].get("qualified_owned_cited")) for item in group)
+    owned_raw = sum(bool(item["score"].get("owned_domain_cited")) for item in group)
+    competitor_mentions = sum(
+        len(item["score"].get("competitors_mentioned") or []) for item in group
+    )
+    visibility = _rate(mentioned, repetitions)
+    owned_rate = _rate(owned, repetitions)
+    competitive = _rate(mentioned, mentioned + competitor_mentions)
+    components, weights = _prompt_score_parts(
+        visibility, owned_rate, competitive, bool(config.competitors)
+    )
+    total = sum(weights.values())
+    return {
+        "mentioned": mentioned,
+        "owned": owned,
+        "owned_raw": owned_raw,
+        "visibility": visibility,
+        "owned_rate": owned_rate,
+        "competitive": competitive,
+        "components": components,
+        "weights": {name: round(weight / total, 4) for name, weight in weights.items()},
+        "composite": round(
+            sum(components[name] * weight for name, weight in weights.items())
+            / total
+            * 100,
+            2,
+        ),
+    }
+
+
+def _prompt_score_parts(visibility, owned, competitive, include_competitors):
+    components = {"visibility": visibility, "owned_citations": owned}
+    weights = {
+        "visibility": PROMPT_SCORE_VISIBILITY_WEIGHT,
+        "owned_citations": PROMPT_SCORE_OWNED_CITATION_WEIGHT,
+    }
+    if include_competitors:
+        components["competitive_position"] = competitive
+        weights["competitive_position"] = PROMPT_SCORE_COMPETITIVE_WEIGHT
+    return components, weights
+
+
+def _prompt_engine_scores(group, config):
+    engines = sorted({str(item.get("logical_engine") or "") for item in group} - {""})
+    return {
+        engine: _prompt_composite(
+            [item for item in group if item.get("logical_engine") == engine], config
+        )["composite"]
+        for engine in engines
+    }
+
+
+def _cross_engine_consistency(engine_rates):
+    if not engine_rates:
+        return 0.0
+    spread = max(engine_rates.values()) - min(engine_rates.values())
+    return round(1.0 - spread / 100, 4)
 
 
 def _stability(true_count: int, reps: int) -> float:

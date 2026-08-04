@@ -23,7 +23,7 @@ full-product surface is marked below.
 | Analysis + metrics + dashboard projection | `analysis` | **MVP — coded** |
 | Run/Executions evidence + CSV/MD export | `api/audits` + `analysis/exports` | **MVP — coded** |
 | AI-suggested prompt generation (`/generate`) | `domain/prompts` + `connectors/agent` | **Coded** — `prompt-gen-v3` validates every result for tracked-name exclusion/relevance/intent/deduplication/diversity; core and named-comparison prompts are separate cohorts |
-| Persisted brand discovery | `domain/projects` + `connectors/web_evidence` + `workers/brand_discovery_worker.py` | **Coded** — the user-supplied official website is the required identity anchor; SSRF-safe crawl + Firecrawl rendering collect first-party evidence, Firecrawl search verifies competitor domains, and one grounded synthesis produces profile/topics/prompts before editable confirmation and atomic idempotent creation |
+| Persisted brand discovery | `domain/projects/onboarding` + `connectors/web_evidence` + `workers/brand_discovery_worker.py` | **Coded** — the official website and required primary market anchor one SSRF-safe homepage request; structured application-model research degrades to a versioned industry library; review always receives five neutral market prompts plus five branded diagnostics, zero-to-five verified competitor suggestions, warnings, and atomic idempotent project creation |
 | Discovery/analysis model (`DiscoveryModelConfig`) | `domain/providers` | Plumbing-only (stored, not invoked) |
 | Cross-run Visibility trend history | `analysis` | **Coded** — `GET /projects/{id}/visibility/trends` (Trends tab) |
 | Persisted execution evidence (mentions/citations + query fanout) | `analysis` | **Coded** — `GET /projects/{id}/visibility/evidence` |

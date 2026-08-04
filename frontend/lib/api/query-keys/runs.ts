@@ -7,6 +7,7 @@ export const runKeys = {
   detail: (auditId: string) => ['runs', 'detail', auditId] as const,
   executions: (auditId: string) => ['runs', 'executions', auditId] as const,
   execution: (executionId: string) => ['runs', 'execution', executionId] as const,
+  schedules: (projectId: string) => ['runs', 'schedules', projectId] as const,
 };
 
 export const visibilityKeys = {
@@ -23,4 +24,8 @@ export const visibilityKeys = {
   // (audit_id, prompt_id, engine, from, to, limit, cohort) participates in the key.
   evidence: (projectId: string, filters: ListFilters = {}) =>
     ['visibility', 'evidence', projectId, filters] as const,
+  prompts: (projectId: string, auditId?: string) =>
+    ['visibility', 'prompts', projectId, auditId ?? 'latest'] as const,
+  competitorSuggestions: (projectId: string) =>
+    ['visibility', 'competitor-suggestions', projectId] as const,
 };

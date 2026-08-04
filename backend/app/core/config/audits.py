@@ -103,12 +103,14 @@ AUDIT_TRIGGER_MANUAL: Final = "manual"
 AUDIT_TRIGGER_TRIAL: Final = "trial"
 AUDIT_TRIGGER_SCHEDULED: Final = "scheduled"
 AUDIT_TRIGGER_SYSTEM: Final = "system"
+AUDIT_TRIGGER_REPAIR: Final = "repair"
 AUDIT_TRIGGERS: Final[frozenset[str]] = frozenset(
     {
         AUDIT_TRIGGER_MANUAL,
         AUDIT_TRIGGER_TRIAL,
         AUDIT_TRIGGER_SCHEDULED,
         AUDIT_TRIGGER_SYSTEM,
+        AUDIT_TRIGGER_REPAIR,
     }
 )
 

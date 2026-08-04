@@ -68,6 +68,7 @@ def test_v2_enabled_rule_set() -> None:
         "product_not_mentioned",
         "competitor_product_dominates",
         "price_mention_mismatch",
+        "confirmed_prompt_decline",
     }
 
 

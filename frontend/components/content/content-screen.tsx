@@ -58,6 +58,9 @@ const STATUS_BADGE: Record<ContentGenerationStatus, RunStatusValue> = {
   cancelled: 'cancelled',
 };
 
+const CONTENT_SKILLS = ['article', 'blog', 'youtube', 'reddit'] as const;
+type ContentSkill = (typeof CONTENT_SKILLS)[number];
+
 function historyLabel(item: ContentGenerationListItem): string {
   return item.prompt_preview || 'Untitled generation';
 }
@@ -69,7 +72,7 @@ function historyLabel(item: ContentGenerationListItem): string {
  * Markdown + provenance + truncation warning + Copy/Regenerate), error
  * (editable prompt + Try again + Dismiss preserving prompt + toggle).
  */
-export function ContentScreen() {
+export function ContentScreen({ opportunityId }: Readonly<{ opportunityId?: string | null }>) {
   const activeProject = useActiveProject();
   const projectId = activeProject?.id ?? null;
 
@@ -98,6 +101,7 @@ export function ContentScreen() {
       key={projectId}
       projectId={projectId}
       projectName={activeProject?.name ?? 'project'}
+      opportunityId={opportunityId}
     />
   );
 }
@@ -105,9 +109,11 @@ export function ContentScreen() {
 function ProjectContentScreen({
   projectId,
   projectName,
-}: Readonly<{ projectId: string; projectName: string }>) {
+  opportunityId,
+}: Readonly<{ projectId: string; projectName: string; opportunityId?: string | null }>) {
   const [prompt, setPrompt] = useState('');
   const [websiteContextEnabled, setWebsiteContextEnabled] = useState(true);
+  const [skillId, setSkillId] = useState<ContentSkill>('article');
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
@@ -121,7 +127,8 @@ function ProjectContentScreen({
     regenerateMutation,
     tryAgainMutation,
     cancelMutation,
-  } = useContentGenerations(projectId);
+    feedbackMutation,
+  } = useContentGenerations(projectId, undefined, opportunityId);
 
   const detail: ContentGenerationDetail | null = detailQuery.data ?? null;
   const generating = Boolean(
@@ -131,7 +138,11 @@ function ProjectContentScreen({
   const succeeded = detail?.status === 'succeeded';
 
   const mutationError =
-    enqueueMutation.error ?? regenerateMutation.error ?? tryAgainMutation.error ?? null;
+    enqueueMutation.error ??
+    regenerateMutation.error ??
+    tryAgainMutation.error ??
+    feedbackMutation.error ??
+    null;
   const showErrorPanel = !generating && (Boolean(mutationError) || failed);
 
   useEffect(() => {
@@ -144,7 +155,8 @@ function ProjectContentScreen({
   const handleGenerate = () => {
     if (!canGenerate) return;
     cancelMutation.reset();
-    enqueueMutation.mutate({ prompt: trimmed, websiteContextEnabled });
+    feedbackMutation.reset();
+    enqueueMutation.mutate({ prompt: trimmed, websiteContextEnabled, skillId });
   };
 
   const handleDismiss = () => {
@@ -153,6 +165,7 @@ function ProjectContentScreen({
     regenerateMutation.reset();
     tryAgainMutation.reset();
     cancelMutation.reset();
+    feedbackMutation.reset();
     setSelectedId(null);
   };
 
@@ -194,6 +207,9 @@ function ProjectContentScreen({
             <span className={eyebrowClasses}>New generation</span>
             <h2 className={displayHeadingLgClasses}>What can I help you create?</h2>
           </div>
+          {opportunityId ? (
+            <Alert tone="info">This draft will keep a link to the selected opportunity.</Alert>
+          ) : null}
           <Textarea
             ref={promptRef}
             value={prompt}
@@ -208,6 +224,25 @@ function ProjectContentScreen({
             <Badge data-component-id="content-output-type" aria-label="Output type: Website page">
               Website page
             </Badge>
+            <div className="flex flex-wrap gap-1" aria-label="Content format">
+              {CONTENT_SKILLS.map((skill) => (
+                <button
+                  key={skill}
+                  type="button"
+                  aria-pressed={skillId === skill}
+                  disabled={generating}
+                  onClick={() => setSkillId(skill)}
+                  className={cn(
+                    'focus-ring rounded-full border px-3 py-1 text-xs capitalize transition-colors',
+                    skillId === skill
+                      ? 'border-accent-border bg-accent-subtle text-accent-text'
+                      : 'border-border bg-background text-secondary hover:text-primary',
+                  )}
+                >
+                  {skill}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               data-component-id="content-website-context-toggle"
@@ -313,7 +348,8 @@ function ProjectContentScreen({
               <ContentMarkdown markdown={detail.output_text} />
             </div>
             <p data-component-id="content-ai-disclaimer" className="text-secondary text-xs">
-              AI-generated content — review before publishing.
+              AI-generated {detail.skill_id} — review before publishing or saving to Brand
+              Knowledge.
             </p>
             <div
               data-component-id="content-result-provenance"
@@ -350,6 +386,31 @@ function ProjectContentScreen({
                 <RefreshCw className="mr-1.5 size-4" aria-hidden />
                 Regenerate
               </Button>
+              {detail.feedback === null ? (
+                <>
+                  <Button
+                    disabled={feedbackMutation.isPending}
+                    onClick={() =>
+                      feedbackMutation.mutate({ generationId: detail.id, feedback: 'accepted' })
+                    }
+                  >
+                    Accept & save
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={feedbackMutation.isPending}
+                    onClick={() =>
+                      feedbackMutation.mutate({ generationId: detail.id, feedback: 'rejected' })
+                    }
+                  >
+                    Reject
+                  </Button>
+                </>
+              ) : (
+                <span className="text-secondary self-center text-sm">
+                  {detail.feedback === 'accepted' ? 'Saved to Brand Knowledge' : 'Rejected'}
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>

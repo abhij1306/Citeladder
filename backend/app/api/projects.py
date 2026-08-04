@@ -37,6 +37,7 @@ from app.core.config.brand_logos import BRAND_LOGO_CACHE_MAX_AGE_SECONDS
 from app.core.errors import ApiException
 from app.core.http_errors import raise_not_found
 from app.domain.analysis.schemas import (
+    PromptMetricItem,
     VisibilityEvidenceResponse,
     VisibilityResponse,
     VisibilityTrendPoint,
@@ -44,6 +45,7 @@ from app.domain.analysis.schemas import (
 from app.domain.analysis.service import (
     AnalysisNotFoundError,
     TrendQueryError,
+    get_prompt_metrics,
     get_visibility,
     get_visibility_evidence,
     get_visibility_trends,
@@ -74,6 +76,11 @@ from app.domain.projects.logos import (
     get_project_logo_asset,
     refresh_project_logos,
 )
+from app.domain.projects.observed_competitors import (
+    ObservedCandidateNotFoundError,
+    accept_observed_candidate,
+    list_observed_candidates,
+)
 from app.domain.projects.schemas import (
     BrandProfileAcceptRequest,
     BrandProfileAcceptResponse,
@@ -81,6 +88,8 @@ from app.domain.projects.schemas import (
     BrandProfileSuggestionResponse,
     BrandProfileSuggestRequest,
     BrandProfileUpsert,
+    CompetitorResponse,
+    ObservedCompetitorResponse,
     ProjectCreate,
     ProjectResponse,
     ProjectUpdate,
@@ -137,7 +146,7 @@ def _resolve_default_agent() -> DefaultAgentClient:
                 "code": "agent_not_configured",
                 "message": (
                     "No default agent is configured. Set DEFAULT_AGENT_API_KEY "
-                    "(or MISTRALAI_API_KEY) in the backend environment."
+                    "(or NVIDIA_API_KEY) in the backend environment."
                 ),
             },
         ) from exc
@@ -350,6 +359,29 @@ async def accept_brand_profile_suggestion_endpoint(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"code": "brand_profile_acceptance_invalid", "message": str(exc)},
         ) from exc
+
+
+@router.get(
+    "/{project_id}/visibility/prompts",
+    response_model=list[PromptMetricItem],
+)
+async def get_prompt_metrics_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    audit_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> list[PromptMetricItem]:
+    """Prompt scores and comparable-run movements from persisted evidence."""
+    await _get_project_or_404(session, ctx.workspace_id, project_id)
+    try:
+        return await get_prompt_metrics(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            audit_id=audit_id,
+        )
+    except AnalysisNotFoundError as exc:
+        raise_not_found("Audit", cause=exc)
 
 
 @router.get(
@@ -652,6 +684,42 @@ async def get_visibility_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No visibility metrics available for project",
         ) from exc
+
+
+@router.get(
+    "/{project_id}/competitor-suggestions",
+    response_model=list[ObservedCompetitorResponse],
+)
+async def list_observed_competitors_endpoint(
+    project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
+) -> list[ObservedCompetitorResponse]:
+    await _get_project_or_404(session, ctx.workspace_id, project_id)
+    rows = await list_observed_candidates(
+        session, workspace_id=ctx.workspace_id, project_id=project_id
+    )
+    return [ObservedCompetitorResponse.model_validate(row) for row in rows]
+
+
+@router.post(
+    "/{project_id}/competitor-suggestions/{candidate_id}/accept",
+    response_model=CompetitorResponse,
+)
+async def accept_observed_competitor_endpoint(
+    project_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> CompetitorResponse:
+    try:
+        competitor = await accept_observed_candidate(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            candidate_id=candidate_id,
+        )
+    except ObservedCandidateNotFoundError as exc:
+        raise_not_found("Competitor suggestion", cause=exc)
+    return CompetitorResponse.model_validate(competitor)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

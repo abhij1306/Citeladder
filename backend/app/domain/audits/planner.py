@@ -1268,6 +1268,8 @@ async def create_audit(
     benchmark_mode: str | None = None,
     measurement_mode: str | None = None,
     random_seed: str | None = None,
+    schedule_id: uuid.UUID | None = None,
+    scheduled_for: datetime | None = None,
 ) -> Audit:
     """Create + enqueue an audit (freeze snapshots, deterministic slot shuffle).
 
@@ -1392,6 +1394,8 @@ async def create_audit(
     audit = Audit(
         workspace_id=workspace_id,
         project_id=project.id,
+        schedule_id=schedule_id,
+        scheduled_for=scheduled_for,
         status=AUDIT_STATUS_DRAFT,
         trigger=plan.trigger,
         benchmark_mode=plan.benchmark_mode,

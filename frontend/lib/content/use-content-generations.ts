@@ -48,6 +48,7 @@ function newIdempotencyKey(): string {
 export function useContentGenerations(
   projectId: string | null,
   limit: number = CONTENT_LIST_DEFAULT_LIMIT,
+  opportunityId?: string | null,
 ) {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -87,12 +88,18 @@ export function useContentGenerations(
   };
 
   const enqueueMutation = useMutation({
-    mutationFn: (input: { prompt: string; websiteContextEnabled: boolean }) =>
+    mutationFn: (input: {
+      prompt: string;
+      websiteContextEnabled: boolean;
+      skillId: 'youtube' | 'reddit' | 'blog' | 'article';
+    }) =>
       contentApi.enqueueGeneration(
         {
           project_id: projectId ?? '',
           prompt: input.prompt,
           website_context_enabled: input.websiteContextEnabled,
+          skill_id: input.skillId,
+          opportunity_id: opportunityId ?? undefined,
         },
         newIdempotencyKey(),
       ),
@@ -117,6 +124,15 @@ export function useContentGenerations(
     },
   });
 
+  const feedbackMutation = useMutation({
+    mutationFn: (input: { generationId: string; feedback: 'accepted' | 'rejected' }) =>
+      contentApi.recordFeedback(input.generationId, input.feedback),
+    onSuccess: (record) => {
+      queryClient.setQueryData(queryKeys.content.detail(record.id), record);
+      invalidateList();
+    },
+  });
+
   return {
     listQuery,
     detailQuery,
@@ -126,5 +142,6 @@ export function useContentGenerations(
     regenerateMutation,
     tryAgainMutation,
     cancelMutation,
+    feedbackMutation,
   };
 }

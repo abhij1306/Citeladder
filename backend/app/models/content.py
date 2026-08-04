@@ -73,9 +73,17 @@ class ContentGeneration(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         index=True,
     )
+    opportunity_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("opportunities.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # --- Frozen inputs (written at enqueue, never mutated) ----------------
     prompt: Mapped[str] = mapped_column(Text)
+    skill_id: Mapped[str] = mapped_column(String(16), default="article")
+    evidence_context: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     output_type: Mapped[str] = mapped_column(String(32))
     website_context_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # included | unavailable | disabled (config CONTEXT_STATUS_*).
@@ -128,6 +136,10 @@ class ContentGeneration(Base):
     # What determined the provider request. NEVER the key (invariant 6).
     request_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     generator_version: Mapped[str] = mapped_column(String(32), default="")
+    feedback: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    feedback_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
@@ -142,6 +154,43 @@ class ContentGeneration(Base):
         cascade=CASCADE_ALL_DELETE_ORPHAN,
         passive_deletes=True,
         order_by="ContentGenerationAttempt.attempt_number",
+    )
+
+
+class BrandKnowledgeArtifact(Base):
+    """User-accepted generated content; never written by generation alone."""
+
+    __tablename__ = "brand_knowledge_artifacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "content_generation_id", name="uq_brand_knowledge_generation"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    content_generation_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_generations.id", ondelete="CASCADE"),
+        index=True,
+    )
+    skill_id: Mapped[str] = mapped_column(String(16))
+    title: Mapped[str] = mapped_column(String(255))
+    content: Mapped[str] = mapped_column(Text)
+    source_opportunity_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("opportunities.id", ondelete="SET NULL")
+    )
+    accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
     )
 
 

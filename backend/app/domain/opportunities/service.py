@@ -61,6 +61,8 @@ from app.core.config.audits import (
 from app.core.config.opportunities import (
     ANALYZER_VERSION,
     CODE_OPPORTUNITY_SUPERSEDED,
+    CONFIRMED_DECLINE_GAP_NORMALIZER,
+    CONFIRMED_DECLINE_MIN_FACTOR,
     FORMULA_VERSION,
     GUIDANCE_ENABLED_ENVIRONMENTS,
     GUIDANCE_GENERATOR_VERSION,
@@ -112,6 +114,7 @@ from app.models.analysis import (
     Citation,
     CompetitorMention,
     MetricSnapshot,
+    PromptMetricSnapshot,
     ResponseAnalysis,
 )
 from app.models.analytics import AnalyticsTask
@@ -581,6 +584,62 @@ async def _load_commerce_evidence(
     return CommerceEvidence(audit_id=audit.id, entries=tuple(entries))
 
 
+async def _confirmed_decline_hits(
+    session: AsyncSession, *, workspace_id: uuid.UUID, audit: Audit
+) -> list[DetectorHit]:
+    """Project confirmed prompt movements into the shared opportunity model."""
+    rows = list(
+        (
+            await session.scalars(
+                select(PromptMetricSnapshot)
+                .where(
+                    PromptMetricSnapshot.workspace_id == workspace_id,
+                    PromptMetricSnapshot.audit_id == audit.id,
+                    PromptMetricSnapshot.decline_confirmed.is_(True),
+                )
+                .order_by(PromptMetricSnapshot.prompt_index.asc())
+            )
+        ).all()
+    )
+    return [
+        DetectorHit(
+            rule_id="confirmed_prompt_decline",
+            target_key=(
+                f"prompt:{row.prompt_id}"
+                if row.prompt_id is not None
+                else f"prompt-index:{audit.id}:{row.prompt_index}"
+            ),
+            target_prompt_id=row.prompt_id,
+            target_url=None,
+            target_theme=None,
+            evidence={
+                "prompt": row.prompt_text,
+                "rolling_four": row.rolling_four,
+                "immediate_delta": row.immediate_delta,
+                "engines": sorted(row.per_engine_scores),
+                "engine_agreement": row.engine_agreement,
+                "repetition_agreement": row.repetition_agreement,
+                "trend_confidence": row.trend_confidence,
+                "components": row.components,
+                "content_goal": "Improve the owned answer for this prompt.",
+            },
+            source_analysis_ids=tuple(row.source_analysis_ids or []),
+            source_issue_ids=(),
+            source_metric_ids=(str(row.id),),
+            value_factor=max(CONFIRMED_DECLINE_MIN_FACTOR, row.trend_confidence),
+            gap_factor=max(
+                CONFIRMED_DECLINE_MIN_FACTOR,
+                min(
+                    1.0,
+                    abs(float(row.immediate_delta or 0.0))
+                    / CONFIRMED_DECLINE_GAP_NORMALIZER,
+                ),
+            ),
+        )
+        for row in rows
+    ]
+
+
 # =========================================================================
 # Recompute (supersede-not-mutate write path, one transaction)
 # =========================================================================
@@ -649,6 +708,11 @@ async def recompute(
             hits.extend(detect_product_not_mentioned(commerce))
             hits.extend(detect_competitor_product_dominates(commerce))
             hits.extend(detect_price_mention_mismatch(commerce))
+            hits.extend(
+                await _confirmed_decline_hits(
+                    session, workspace_id=workspace_id, audit=audit
+                )
+            )
     if crawl is not None:
         site = await _load_site_evidence(
             session, workspace_id=workspace_id, crawl=crawl

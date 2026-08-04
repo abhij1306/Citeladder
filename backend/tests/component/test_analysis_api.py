@@ -273,7 +273,8 @@ async def test_metrics_and_visibility_are_projections(
             session, workspace_id=seed.workspace_id, audit_id=audit.id
         )
         assert metrics.total_completed == 4
-        assert metrics.visibility_score == 100.0  # brand mentioned every time
+        # Composite: mentions 60 + qualified owned citations 15 + position 12.5.
+        assert metrics.visibility_score == 87.5
         assert metrics.analyzer_version
         assert "share_of_voice" in metrics.metrics
         assert metrics.metrics["sentiment"] is None
@@ -285,7 +286,7 @@ async def test_metrics_and_visibility_are_projections(
             project_id=seed.project_id,
         )
         assert vis.audit_id == audit.id
-        assert vis.visibility_score == 100.0
+        assert vis.visibility_score == 87.5
         # Brand-vs-competitor rankings populated; brand row present.
         brand_rows = [r for r in vis.rankings if r.is_brand]
         assert len(brand_rows) == 1

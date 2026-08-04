@@ -160,7 +160,7 @@ class Prompt(Base):
     # Empty string means "unspecified"; otherwise one of PROMPT_INTENTS.
     intent: Mapped[str] = mapped_column(String(32), default="")
     cohort: Mapped[str] = mapped_column(
-        String(16), default="core", server_default="core", index=True
+        String(32), default="core", server_default="core", index=True
     )
     branded: Mapped[bool] = mapped_column(Boolean, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

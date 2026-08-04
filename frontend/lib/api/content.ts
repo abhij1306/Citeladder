@@ -38,6 +38,8 @@ export type EnqueueGenerationInput = {
   project_id: string;
   prompt: string;
   output_type?: string;
+  skill_id?: 'youtube' | 'reddit' | 'blog' | 'article';
+  opportunity_id?: string;
   website_context_enabled?: boolean;
 };
 
@@ -104,5 +106,17 @@ export const contentApi = {
       options,
     );
     return strictValidate(contentGenerationDetailSchema, res, 'content.cancelGeneration');
+  },
+  recordFeedback: async (
+    generationId: string,
+    feedback: 'accepted' | 'rejected',
+    options?: ApiRequestOptions,
+  ): Promise<ContentGenerationDetail> => {
+    const res = await apiClient.post<ContentGenerationDetail>(
+      `/content/generations/${generationId}/feedback`,
+      { feedback },
+      options,
+    );
+    return strictValidate(contentGenerationDetailSchema, res, 'content.recordFeedback');
   },
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import { ContentScreen } from '@/components/content/content-screen';
+import { useSearchParams } from 'next/navigation';
 
 /**
  * Content screen (sidebar "Content", Actions group).
@@ -12,9 +13,11 @@ import { ContentScreen } from '@/components/content/content-screen';
  * (F5), so there is no in-page header.
  */
 export default function ContentPage() {
+  const searchParams = useSearchParams();
+  const opportunityId = searchParams.get('opportunity_id');
   return (
     <div className="grid gap-6">
-      <ContentScreen />
+      <ContentScreen opportunityId={opportunityId} />
     </div>
   );
 }

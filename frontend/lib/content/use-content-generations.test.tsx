@@ -18,6 +18,11 @@ const listItem = {
   project_id: PROJECT,
   status: 'queued',
   output_type: 'website_page',
+  skill_id: 'article',
+  opportunity_id: null,
+  evidence_context: null,
+  feedback: null,
+  feedback_at: null,
   website_context_status: 'included',
   requested_model: 'mistral-small-latest',
   returned_model: null,
@@ -95,6 +100,7 @@ describe('useContentGenerations', () => {
       result.current.enqueueMutation.mutate({
         prompt: 'Write a landing page for Acme.',
         websiteContextEnabled: true,
+        skillId: 'article',
       });
     });
     await waitFor(() => expect(result.current.enqueueMutation.isSuccess).toBe(true));
@@ -144,7 +150,11 @@ describe('useContentGenerations', () => {
     );
     const { result } = setup();
     act(() => {
-      result.current.enqueueMutation.mutate({ prompt: 'p', websiteContextEnabled: true });
+      result.current.enqueueMutation.mutate({
+        prompt: 'p',
+        websiteContextEnabled: true,
+        skillId: 'article',
+      });
     });
     await waitFor(() => expect(result.current.enqueueMutation.isError).toBe(true));
   });

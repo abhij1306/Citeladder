@@ -9,10 +9,13 @@ import type { z } from 'zod';
 
 import type {
   auditEventSchema,
+  auditScheduleCadenceSchema,
+  auditScheduleSchema,
   auditSchema,
   auditStatusSchema,
   authResponseSchema,
   connectionTestResultSchema,
+  competitorSchema,
   measurementModeSchema,
   modelProvenanceSchema,
   providerConnectionStateEntrySchema,
@@ -47,6 +50,8 @@ import type {
   visibilityEvidenceResponseSchema,
   visibilityExecutionEvidenceSchema,
   visibilitySchema,
+  promptMetricItemSchema,
+  observedCompetitorSchema,
   visibilityTrendPointSchema,
   visibilityTrendRankingRowSchema,
   workspaceSchema,
@@ -180,6 +185,7 @@ export type Topic = z.infer<typeof topicSchema>;
 export type PromptGenerateResponse = z.infer<typeof promptGenerateResponseSchema>;
 export type BenchmarkMode = z.infer<typeof benchmarkModeSchema>;
 export type Project = z.infer<typeof projectSchema>;
+export type Competitor = z.infer<typeof competitorSchema>;
 export type TransportProvider = z.infer<typeof transportProviderSchema>;
 export type LogicalEngine = z.infer<typeof logicalEngineSchema>;
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
@@ -195,9 +201,13 @@ export type ModelProvenance = z.infer<typeof modelProvenanceSchema>;
 export type AuditEvent = z.infer<typeof auditEventSchema>;
 export type AuditStatus = z.infer<typeof auditStatusSchema>;
 export type Audit = z.infer<typeof auditSchema>;
+export type AuditScheduleCadence = z.infer<typeof auditScheduleCadenceSchema>;
+export type AuditSchedule = z.infer<typeof auditScheduleSchema>;
 export type ExecutionStatus = z.infer<typeof executionStatusSchema>;
 export type CitationClassification = z.infer<typeof citationClassificationSchema>;
 export type Execution = z.infer<typeof executionSchema>;
+export type PromptMetricItem = z.infer<typeof promptMetricItemSchema>;
+export type ObservedCompetitor = z.infer<typeof observedCompetitorSchema>;
 export type ExecutionEvidence = z.infer<typeof executionEvidenceSchema>;
 export type VisibilityEngine = z.infer<typeof visibilityEngineSchema>;
 export type RankingRow = z.infer<typeof rankingRowSchema>;

@@ -124,7 +124,12 @@ export const promptIntentSchema = z.enum([
 // Review lifecycle for a prompt: AI suggestions land `proposed`; only human
 // acceptance makes them `active` (audit-eligible); `archived` keeps history.
 export const promptStatusSchema = z.enum(['proposed', 'active', 'archived']);
-export const promptCohortSchema = z.enum(['core', 'comparison']);
+export const promptCohortSchema = z.enum([
+  'market_visibility',
+  'brand_diagnostic',
+  'core',
+  'comparison',
+]);
 
 // Backend `PromptResponse.theme` is a non-null string (empty when unset), so
 // the wire value is always a string — never null.
@@ -253,6 +258,9 @@ export const projectSchema = responseObject({
   name: z.string(),
   brand_name: z.string(),
   website_url: z.string(),
+  industry: z.string(),
+  subindustry: z.string(),
+  primary_market: z.string(),
   country_code: z.string(),
   language_code: z.string(),
   benchmark_mode: benchmarkModeSchema,
@@ -421,6 +429,36 @@ export const auditSchema = responseObject({
   updated_at: z.string(),
   started_at: z.string().nullable(),
   completed_at: z.string().nullable(),
+});
+
+export const auditScheduleCadenceSchema = z.enum([
+  'one_time',
+  'every_n_minutes',
+  'hourly',
+  'daily',
+  'weekly',
+]);
+
+export const auditScheduleSchema = responseObject({
+  id: uuid(),
+  workspace_id: uuid(),
+  project_id: uuid(),
+  prompt_set_id: uuid(),
+  cadence: auditScheduleCadenceSchema,
+  interval_minutes: z.number().int().nullable(),
+  timezone: z.string(),
+  engines: z.array(logicalEngineSchema),
+  repetitions: z.number().int().nullable(),
+  benchmark_mode: benchmarkModeSchema.nullable(),
+  measurement_mode: z.enum(['pulse', 'benchmark']),
+  enabled: z.boolean(),
+  next_run_at: z.string().nullable(),
+  last_run_at: z.string().nullable(),
+  failure_count: z.number().int(),
+  last_error: z.string(),
+  last_failure_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 
 export const auditEngineEstimateSchema = responseObject({
@@ -614,6 +652,45 @@ export const visibilitySchema = responseObject({
   created_at: z.string(),
 });
 
+export const promptMetricItemSchema = responseObject({
+  id: uuid(),
+  audit_id: uuid(),
+  prompt_id: uuid().nullable(),
+  prompt_index: z.number().int(),
+  prompt_text: z.string(),
+  cohort: z.string(),
+  composite_score: z.number(),
+  previous_score: z.number().nullable(),
+  immediate_delta: z.number().nullable(),
+  rolling_four: z.array(z.number()),
+  per_engine_scores: z.record(z.string(), z.number()),
+  components: z.record(z.string(), z.number().nullable()),
+  engine_agreement: z.number(),
+  repetition_agreement: z.number(),
+  evidence_coverage: z.number(),
+  trend_confidence: z.number(),
+  decline_confirmed: z.boolean(),
+  analyzer_version: z.string(),
+  scoring_rule_version: z.string(),
+  created_at: z.string(),
+});
+
+export const observedCompetitorSchema = responseObject({
+  id: uuid(),
+  audit_id: uuid(),
+  name: z.string(),
+  domain: z.string(),
+  qualification_reason: z.string(),
+  prompt_count: z.number().int(),
+  engine_count: z.number().int(),
+  market_relevant: z.boolean(),
+  analyzer_version: z.string(),
+  source_analysis_ids: z.array(z.string()),
+  source_artifact_ids: z.array(z.string()),
+  status: z.string(),
+  created_at: z.string(),
+});
+
 const discoveryProfileSchema = responseObject({
   description: z.string(),
   positioning: z.string(),
@@ -622,13 +699,14 @@ const discoveryProfileSchema = responseObject({
   industry: z.string(),
   business_type: z.enum(['b2b', 'b2c', 'both']),
   price_tier: z.string(),
+  field_confidence: z.record(z.string(), z.number()),
 });
 
 const discoveryPromptSuggestionSchema = responseObject({
   text: z.string(),
   theme: z.string().default(''),
   intent: z.enum(['discovery', 'comparison', 'purchase', 'service', 'local']),
-  cohort: promptCohortSchema,
+  cohort: z.enum(['market_visibility', 'brand_diagnostic']),
 });
 
 const discoveryEvidenceSchema = responseObject({
@@ -637,13 +715,16 @@ const discoveryEvidenceSchema = responseObject({
   confidence: z.number(),
   captured_at: z.string(),
   supports: z.array(z.string()),
+  provider: z.string(),
+  model: z.string(),
+  method: z.string(),
 });
 
 export const brandDiscoverySchema = responseObject({
   id: uuid(),
   workspace_id: uuid(),
   project_id: uuid().nullable(),
-  status: z.enum(['queued', 'running', 'needs_input', 'ready', 'confirmed', 'project_created']),
+  status: z.enum(['queued', 'running', 'failed', 'ready', 'project_created']),
   progress: responseObject({
     phase: z.enum([
       'opening_website',
@@ -667,11 +748,23 @@ export const brandDiscoverySchema = responseObject({
       name: z.string(),
       aliases: z.array(z.string()),
       domains: z.array(z.string()),
+      qualification: responseObject({
+        product_substitutability: z.number(),
+        customer_use_case_overlap: z.number(),
+        geographic_relevance: z.number(),
+        question_visibility: z.number(),
+      }).nullable(),
+      reasoning: z.string(),
+      evidence_urls: z.array(z.string()),
+      confidence: z.number(),
     }),
   ),
   topics: z.array(z.string()),
   prompt_suggestions: z.array(discoveryPromptSuggestionSchema),
   evidence: z.array(discoveryEvidenceSchema),
+  warnings: z.array(z.string()),
+  gaps: z.array(z.string()),
+  error_code: z.string(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -683,13 +776,17 @@ export const brandDiscoveryCatalogSchema = responseObject({
   optional_fields: z.array(z.string()),
   capture_methods: z.array(z.string()),
   maximum_competitors: z.number().int().positive(),
+  industries: z.array(z.string()),
+  subindustries: z.record(z.string(), z.array(z.string())),
+  prompt_cohorts: z.array(z.string()),
 });
 
 export const brandDiscoveryCompleteSchema = responseObject({
   project_id: uuid(),
-  crawl_id: uuid(),
-  activation_state: z.enum(['queued', 'reviewing_site', 'preparing_recommendations', 'ready']),
-  page_limit: z.number().int().positive(),
+  crawl_id: uuid().nullable(),
+  activation_state: z.enum(['queued']),
+  page_limit: z.number().int().positive().nullable(),
+  warnings: z.array(z.string()),
 });
 
 // ---------------------------------------------------------------------------
@@ -1393,6 +1490,7 @@ export const contentGenerationStatusSchema = z.enum([
 export const websiteContextStatusSchema = z.enum(['included', 'unavailable', 'disabled']);
 
 export const contentOutputTypeSchema = z.enum(['website_page']);
+export const contentSkillSchema = z.enum(['youtube', 'reddit', 'blog', 'article']);
 
 // Provenance for the frozen Website-context snapshot (backend
 // `WebsiteContextSummary`) — which crawl, how fresh, which sources. Never
@@ -1417,6 +1515,8 @@ export const contentGenerationListItemSchema = responseObject({
   project_id: uuid(),
   status: contentGenerationStatusSchema,
   output_type: contentOutputTypeSchema,
+  skill_id: contentSkillSchema,
+  opportunity_id: uuid().nullable(),
   website_context_status: websiteContextStatusSchema,
   requested_model: z.string(),
   returned_model: z.string().nullable(),
@@ -1435,6 +1535,11 @@ export const contentGenerationDetailSchema = responseObject({
   project_id: uuid(),
   status: contentGenerationStatusSchema,
   output_type: contentOutputTypeSchema,
+  skill_id: contentSkillSchema,
+  opportunity_id: uuid().nullable(),
+  evidence_context: z.record(z.string(), z.unknown()).nullable(),
+  feedback: z.enum(['accepted', 'rejected']).nullable(),
+  feedback_at: z.string().nullable(),
   website_context_status: websiteContextStatusSchema,
   requested_model: z.string(),
   returned_model: z.string().nullable(),

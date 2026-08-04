@@ -170,11 +170,11 @@ function Get-SecretEntriesForService {
       $allowed.Add($property.Name) | Out-Null
     }
   }
-  elseif ($ServiceName -eq "brand-discovery-worker") {
-    $allowed.Add("BRAND_DISCOVERY_FIRECRAWL_API_KEY") | Out-Null
-  }
   elseif ($ServiceName -eq "content-worker") {
     $allowed.Add("MISTRAL_API_KEY") | Out-Null
+  }
+  elseif ($ServiceName -eq "brand-discovery-worker") {
+    $allowed.Add("DEFAULT_AGENT_API_KEY") | Out-Null
   }
   elseif ($ServiceName -in @("integration-worker", "integration-dispatcher")) {
     $allowed.Add("INTEGRATION_GOOGLE_CLIENT_SECRET") | Out-Null
@@ -224,7 +224,8 @@ function New-BackendTaskDefinition {
     [string]$LogGroup,
     [string]$Region,
     [int]$ContainerPort = 0,
-    [string]$PortName = ""
+    [string]$PortName = "",
+    [string]$WorkerHealthCommand = "exit 0"
   )
 
   $healthCommand = 'python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(''http://127.0.0.1:8000/health'').status==200 else 1)"'
@@ -241,7 +242,7 @@ function New-BackendTaskDefinition {
     }
     logConfiguration = New-LogConfiguration -GroupName $LogGroup -Region $Region
     healthCheck = [ordered]@{
-      command = @("CMD-SHELL", "exit 0")
+      command = @("CMD-SHELL", $WorkerHealthCommand)
       interval = 30
       timeout = 5
       retries = 3
@@ -623,6 +624,13 @@ $workerSpecs = @(
     FallbackMemory = 2048
   },
   [ordered]@{
+    Name = "audit-scheduler"
+    Command = @("python", "-m", "app.workers.audit_scheduler")
+    FallbackCpu = 256
+    FallbackMemory = 512
+    HealthCommand = "python -m app.workers.audit_scheduler --healthcheck"
+  },
+  [ordered]@{
     Name = "site-health-worker"
     Command = @("python", "-m", "app.workers.site_health_worker")
     FallbackCpu = 1024
@@ -712,6 +720,7 @@ $backendTaskSpecs = @(
     Memory = Get-TaskSize -Config $config -Name "migrate" -Property "memory" -Fallback 512
     Port = 0
     PortName = ""
+    HealthCommand = if ($spec.PSObject.Properties.Name -contains "HealthCommand") { $spec.HealthCommand } else { "exit 0" }
   }
 )
 
@@ -731,7 +740,7 @@ foreach ($spec in $workerSpecs) {
 foreach ($spec in $backendTaskSpecs) {
   $family = "$servicePrefix-$($spec.Name)"
   $logGroup = "/ecs/$servicePrefix/$($spec.Name)"
-  $definition = New-BackendTaskDefinition -Family $family -ContainerName $spec.ContainerName -Image $spec.Image -Command $spec.Command -Cpu $spec.Cpu -Memory $spec.Memory -Environment $backendEnvironment -Secrets (Get-SecretEntriesForService -SecretMap $secretMap -ServiceName $spec.Name) -ExecutionRoleArn $config.executionRoleArn -LogGroup $logGroup -Region $region -ContainerPort $spec.Port -PortName $spec.PortName
+  $definition = New-BackendTaskDefinition -Family $family -ContainerName $spec.ContainerName -Image $spec.Image -Command $spec.Command -Cpu $spec.Cpu -Memory $spec.Memory -Environment $backendEnvironment -Secrets (Get-SecretEntriesForService -SecretMap $secretMap -ServiceName $spec.Name) -ExecutionRoleArn $config.executionRoleArn -LogGroup $logGroup -Region $region -ContainerPort $spec.Port -PortName $spec.PortName -WorkerHealthCommand $spec.HealthCommand
   $taskDefinitions[$spec.Name] = $definition
 }
 

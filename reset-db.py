@@ -85,7 +85,7 @@ def run_migrations(database_url: str) -> None:
     migration_timeout = float(timeout_value) if timeout_value else None
     try:
         result = subprocess.run(
-            ["uv", "run", "alembic", "upgrade", "head"],
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
             cwd=BACKEND_DIR,
             capture_output=True,
             text=True,

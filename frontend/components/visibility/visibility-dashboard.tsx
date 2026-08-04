@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
 import { ProjectsStatCard } from '@/components/projects/projects-stat-card';
@@ -14,6 +15,8 @@ import { VisibilityTabs } from '@/components/visibility/visibility-tabs';
 import { VisibilityToolbar } from '@/components/visibility/visibility-toolbar';
 import { VisibilityTrends } from '@/components/visibility/visibility-trends';
 import { useProjectContext } from '@/lib/project/project-context';
+import { queryKeys } from '@/lib/api/query-keys';
+import { visibilityApi } from '@/lib/api/visibility';
 import {
   EVIDENCE_LIMIT,
   useVisibilityFilters,
@@ -49,6 +52,18 @@ export function VisibilityDashboard() {
     evidenceQuery,
     promptOptions,
   } = useVisibilityQueries(projectId, filters);
+
+  const promptQuery = useQuery({
+    queryKey: queryKeys.visibility.prompts(projectId ?? '', activeRunId ?? undefined),
+    queryFn: ({ signal }) =>
+      visibilityApi.getPromptMetrics(projectId ?? '', activeRunId ?? undefined, { signal }),
+    enabled: filters.activeTab === 'overview' && Boolean(projectId) && Boolean(activeRunId),
+  });
+  const suggestionsQuery = useQuery({
+    queryKey: queryKeys.visibility.competitorSuggestions(projectId ?? ''),
+    queryFn: ({ signal }) => visibilityApi.listCompetitorSuggestions(projectId ?? '', { signal }),
+    enabled: filters.activeTab === 'overview' && Boolean(projectId),
+  });
 
   const isBootstrapping = isProjectLoading || (Boolean(projectId) && auditsQuery.isLoading);
 
@@ -110,6 +125,9 @@ export function VisibilityDashboard() {
         engineFilter={filters.engine}
         brandName={activeProject?.brand_name || activeProject?.name || 'Your brand'}
         brandHistory={brandHistory}
+        projectId={projectId}
+        promptQuery={promptQuery}
+        suggestionsQuery={suggestionsQuery}
       />
     );
   }

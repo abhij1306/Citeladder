@@ -309,6 +309,93 @@ def test_aggregate_run_rates_and_stability() -> None:
     assert prompt1["mention_stability"] == pytest.approx(round(2 / 3, 4))
 
 
+def test_prompt_composite_uses_versioned_weights_and_sorts_strongest_first() -> None:
+    config = _config()
+    executions = [
+        {
+            "status": "completed",
+            "prompt_index": 0,
+            "logical_engine": "chatgpt",
+            "score": {
+                "brand_mentioned": True,
+                "qualified_owned_cited": True,
+                "competitors_mentioned": ["Kmart"],
+            },
+            "citations": [],
+        },
+        {
+            "status": "completed",
+            "prompt_index": 0,
+            "logical_engine": "gemini",
+            "score": {
+                "brand_mentioned": True,
+                "qualified_owned_cited": False,
+                "competitors_mentioned": [],
+            },
+            "citations": [],
+        },
+        {
+            "status": "completed",
+            "prompt_index": 1,
+            "logical_engine": "chatgpt",
+            "score": {
+                "brand_mentioned": False,
+                "qualified_owned_cited": False,
+                "competitors_mentioned": ["Kmart"],
+            },
+            "citations": [],
+        },
+    ]
+
+    rows = aggregate_run(executions, config)["per_prompt"]
+
+    assert [row["prompt_index"] for row in rows] == [0, 1]
+    assert rows[0]["composite_score"] == pytest.approx(84.17)
+    assert rows[0]["score_weights"] == {
+        "visibility": 0.6,
+        "owned_citations": 0.15,
+        "competitive_position": 0.25,
+    }
+    assert rows[0]["per_engine_scores"] == {"chatgpt": 87.5, "gemini": 85.0}
+    assert rows[0]["cross_engine_consistency"] == 0.975
+
+
+def test_prompt_composite_normalizes_missing_competitive_component() -> None:
+    project = {**BEST_AND_LESS_PROJECT, "competitors": []}
+    config = ScoringConfig.from_project(project)
+    executions = [
+        {
+            "status": "completed",
+            "prompt_index": 0,
+            "score": {
+                "brand_mentioned": True,
+                "qualified_owned_cited": True,
+                "competitors_mentioned": [],
+            },
+            "citations": [],
+        },
+        {
+            "status": "completed",
+            "prompt_index": 0,
+            "score": {
+                "brand_mentioned": True,
+                "qualified_owned_cited": False,
+                "competitors_mentioned": [],
+            },
+            "citations": [],
+        },
+    ]
+
+    prompt = aggregate_run(executions, config)["per_prompt"][0]
+
+    assert prompt["competitive_share"] is None
+    assert prompt["score_weights"] == {
+        "visibility": 0.8,
+        "owned_citations": 0.2,
+    }
+    assert prompt["composite_score"] == 90.0
+
+
 def test_conversion_requires_mention_and_citation_in_same_execution() -> None:
     config = _config()
     executions = [

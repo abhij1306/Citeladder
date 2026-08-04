@@ -170,6 +170,8 @@ class ContentWorker(DrainableWorkerMixin):
             prompt=claimed.prompt,
             output_type=claimed.output_type,
             website_context=website_context,
+            skill_id=claimed.skill_id,
+            evidence_context=claimed.evidence_context,
         )
         request = DiscoveryRequest(
             messages=tuple(messages),

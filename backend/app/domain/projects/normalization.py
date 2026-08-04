@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.config.brand_discovery import MARKET_CONTEXT_TERMS
 from app.core.config.projects import (
     BENCHMARK_MODES,
     DEFAULT_BENCHMARK_MODE,
@@ -35,6 +36,16 @@ def normalize_benchmark_mode(value: Any) -> str:
     if mode not in BENCHMARK_MODES:
         raise ValueError(f"Unsupported benchmark_mode: {mode}")
     return mode
+
+
+def normalize_primary_market(value: Any) -> str:
+    """Canonicalize GLOBAL or an ISO 3166-1 alpha-2 market code."""
+    market = str(value or "").strip().upper()
+    if market == "GLOBAL":
+        return market
+    if market in MARKET_CONTEXT_TERMS and market != "GLOBAL":
+        return market
+    raise ValueError("primary_market must be GLOBAL or an ISO 3166-1 alpha-2 code")
 
 
 def normalize_prompt_rows(

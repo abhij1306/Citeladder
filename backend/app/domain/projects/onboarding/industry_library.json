@@ -1,0 +1,115 @@
+{
+  "version": "industry-library-v1",
+  "brand_diagnostic_archetypes": [
+    "What products or services does {brand} offer for {use_case} in {market}?",
+    "Who is {brand} best suited for when buyers need {category} in {market}?",
+    "How does {brand} address {use_case} for {audience}?",
+    "What should buyers know about {brand} before choosing a {category} provider in {market}?",
+    "Where is {brand} available, and what makes it relevant for {category} buyers in {market}?"
+  ],
+  "industries": {
+    "General": {
+      "customer_types": ["consumers", "businesses"],
+      "use_cases": ["discovering options", "comparing alternatives", "choosing a provider"],
+      "topics": ["solutions", "alternatives", "features", "pricing", "local availability"],
+      "archetypes": [
+        "What are the best {category} options for {audience} in {market}?",
+        "Which {category} providers are most suitable for {use_case} in {market}?",
+        "How should {audience} compare {category} options for {use_case}?",
+        "What features matter most when choosing {category} in {market}?",
+        "Where can {audience} find reliable {category} for {use_case} in {market}?"
+      ]
+    },
+    "Ecommerce": {
+      "subindustries": ["Marketplaces", "Fashion Retail", "Beauty Retail", "Consumer Electronics", "Home and General Merchandise"],
+      "customer_types": ["online shoppers", "value-conscious shoppers", "families"],
+      "use_cases": ["buying products online", "comparing price and delivery", "finding trusted retailers"],
+      "topics": ["product selection", "price and value", "delivery", "returns", "local availability"],
+      "archetypes": [
+        "What are the best online stores for {category} in {market}?",
+        "Which retailers offer good value for {category} in {market}?",
+        "Where can shoppers buy {category} with reliable delivery in {market}?",
+        "How do shoppers compare online retailers for {use_case} in {market}?",
+        "Which stores are trusted for {category} and easy returns in {market}?"
+      ]
+    },
+    "Software": {
+      "subindustries": ["Analytics", "Data Management", "Marketing Technology", "Commerce Technology", "Collaboration", "Developer Tools"],
+      "customer_types": ["small businesses", "mid-market teams", "enterprise teams"],
+      "use_cases": ["automating workflows", "integrating business data", "improving team performance"],
+      "topics": ["capabilities", "integrations", "implementation", "pricing", "alternatives"],
+      "archetypes": [
+        "What are the best {category} platforms for {use_case} in {market}?",
+        "Which {category} tools work well for {audience} in {market}?",
+        "How should teams compare {category} software for {use_case}?",
+        "Which {category} platforms have strong integrations and support in {market}?",
+        "What should buyers evaluate before choosing {category} software?"
+      ]
+    },
+    "Professional Services": {
+      "subindustries": ["Consulting", "Legal", "Accounting", "Marketing Services", "IT Services"],
+      "customer_types": ["individuals", "small businesses", "enterprise teams"],
+      "use_cases": ["solving a specialist problem", "outsourcing expertise", "finding local support"],
+      "topics": ["expertise", "service quality", "pricing", "local coverage", "alternatives"],
+      "archetypes": [
+        "Which {category} providers are best for {use_case} in {market}?",
+        "How should buyers compare {category} services in {market}?",
+        "What expertise should a {category} provider have for {use_case}?",
+        "Where can {audience} find trusted {category} support in {market}?",
+        "What does a good {category} service cost in {market}?"
+      ]
+    },
+    "Financial Services": {
+      "subindustries": ["Banking", "Payments", "Insurance", "Investing", "Lending"],
+      "customer_types": ["consumers", "small businesses", "finance teams"],
+      "use_cases": ["managing money", "making payments", "reducing financial risk"],
+      "topics": ["fees", "trust", "features", "eligibility", "local availability"],
+      "archetypes": [
+        "What are the best {category} options for {audience} in {market}?",
+        "Which {category} providers combine low fees and strong support in {market}?",
+        "How should customers compare {category} products for {use_case}?",
+        "What should buyers check before choosing a {category} provider?",
+        "Which trusted {category} services are available in {market}?"
+      ]
+    },
+    "Healthcare": {
+      "subindustries": ["Clinics", "Telehealth", "Health Technology", "Wellness", "Pharmacy"],
+      "customer_types": ["patients", "families", "healthcare organizations"],
+      "use_cases": ["accessing care", "managing health", "improving care delivery"],
+      "topics": ["services", "quality", "access", "pricing", "local availability"],
+      "archetypes": [
+        "Which {category} services are available for {use_case} in {market}?",
+        "How should people compare {category} providers in {market}?",
+        "What quality and access factors matter when choosing {category}?",
+        "Where can {audience} find trusted {category} support in {market}?",
+        "What are the leading {category} options for {use_case}?"
+      ]
+    },
+    "Travel and Hospitality": {
+      "subindustries": ["Hotels", "Travel Booking", "Tours and Activities", "Business Travel", "Vacation Rentals"],
+      "customer_types": ["leisure travelers", "families", "business travelers"],
+      "use_cases": ["planning a trip", "booking accommodation", "finding local experiences"],
+      "topics": ["selection", "price", "booking experience", "trust", "local availability"],
+      "archetypes": [
+        "What are the best {category} options for {use_case} in {market}?",
+        "Which {category} providers offer good value in {market}?",
+        "How should travelers compare {category} services?",
+        "Where can travelers book trusted {category} in {market}?",
+        "Which {category} services are best for {audience}?"
+      ]
+    },
+    "Education": {
+      "subindustries": ["Online Learning", "Higher Education", "Professional Training", "Tutoring", "Education Technology"],
+      "customer_types": ["students", "parents", "working professionals", "education teams"],
+      "use_cases": ["learning a skill", "choosing a course", "improving learning outcomes"],
+      "topics": ["course quality", "outcomes", "pricing", "format", "alternatives"],
+      "archetypes": [
+        "What are the best {category} options for {use_case} in {market}?",
+        "Which {category} providers are suitable for {audience}?",
+        "How should learners compare {category} programs?",
+        "Which {category} options offer strong outcomes and value in {market}?",
+        "What should students evaluate before choosing {category}?"
+      ]
+    }
+  }
+}

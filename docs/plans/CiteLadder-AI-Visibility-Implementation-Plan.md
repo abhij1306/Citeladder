@@ -2,7 +2,8 @@
 
 **Repository:** `abhij1306/Citeladder`  
 **Scope:** URL onboarding through project creation, AI Visibility measurement, trend detection, reruns, opportunities, scheduling, and the Phase 2 content handoff  
-**Priority:** Correctness and reliability before pricing integration or further UI work
+**Status:** Implemented on `feature/ai-visibility-reliability` (August 2026)
+**Priority:** Correctness, simplicity, and user experience before pricing integration
 
 ## 1. Objective
 
@@ -11,7 +12,7 @@ For every valid, existing website, onboarding must create a complete and trustwo
 - A correctly normalized brand identity.
 - Industry selection, defaulting to `General`.
 - An optional subindustry when the user selects a non-General industry.
-- Ten editable, brand-neutral, high-value prompts.
+- Ten editable high-value prompts: five neutral market-visibility questions and five brand-strategy diagnostics.
 - Zero to five evidence-backed competitor suggestions.
 - A project capable of immediately running an AI Visibility audit.
 - Explicit evidence, provenance, and confidence when information is uncertain.
@@ -20,12 +21,11 @@ The system must never fabricate brand visibility, competitors, citations, rankin
 
 ### Blocking failures
 
-Only the following conditions should block onboarding:
+Only an invalid URL or a website that cannot be resolved should block
+onboarding. Missing, invalid, slow, or malformed application-model responses
+degrade to the deterministic market-aware portfolio and remain editable.
 
-1. The URL is invalid or the website does not exist.
-2. Required API credentials are invalid or unavailable.
-
-Website bot protection, Firecrawl failure, malformed LLM output, incomplete research, and lack of discoverable competitors must be handled internally or represented as non-blocking degraded confidence.
+Website bot protection, malformed LLM output, incomplete research, and lack of discoverable competitors must be handled internally or represented as non-blocking degraded confidence. Firecrawl and ScraperAPI are not dependencies.
 
 ## 2. Product Decisions Incorporated
 
@@ -33,15 +33,15 @@ Website bot protection, Firecrawl failure, malformed LLM output, incomplete rese
 - Industry defaults to `General`.
 - Subindustry is optional and appears only for a non-General industry.
 - Onboarding generates ten prompts once; users manage the portfolio afterward.
-- Prompts are brand-neutral market questions based on the industry and the brand's actual products, services, customers, and use cases.
+- The portfolio is split 50/50 between brand-neutral market questions and brand-naming strategy diagnostics based on actual products, services, customers, use cases, and the required primary market.
 - Prompt generation uses a repository industry library plus LLM personalization. Pure static JSON generation is not sufficient.
-- Firecrawl is optional rather than a universal dependency.
+- Onboarding makes one SSRF-safe homepage request and uses the default application model plus deterministic fallbacks; crawl vendors are removed.
 - Competitors must satisfy product substitutability, customer/use-case overlap, geographic relevance, and visibility for the same market questions.
 - Up to five competitors may be selected; zero competitors is valid.
 - Default audit repetitions remain one and are adjustable.
 - Successful responses are retained when another prompt or provider fails.
-- Users can rerun only failed prompts, engines, or providers.
-- Prompts are reordered strongest-to-weakest after each run.
+- Users can create an immutable repair audit containing only failed prompts, engines, providers, or task ids.
+- Prompt results are projected strongest-to-weakest after each run; stored prompt order is never mutated.
 - Prompt performance combines brand visibility, competitive position, and owned citations, led by brand visibility.
 - A decline requires cross-engine and repeated evidence and must occur in three of the last four comparable runs.
 - Confirmed declines create content-improvement opportunities.
@@ -67,7 +67,9 @@ The system must not insert a startup's name into market prompts merely to produc
 
 - `market_visibility`: neutral prompts used for headline scoring.
 - `brand_diagnostic`: branded questions used to test entity understanding; excluded from organic scoring.
-- `comparison_diagnostic`: named comparisons used for diagnosis; excluded from organic scoring.
+
+Existing non-onboarding prompt cohorts remain readable for compatibility, but
+new onboarding portfolios contain only the two cohorts above.
 
 ## 4. Implementation Workstreams
 
@@ -77,10 +79,11 @@ Create stable backend status and error codes:
 
 - `invalid_url`
 - `site_not_found`
-- `api_key_invalid`
 - `research_degraded`
 - `competitors_not_found`
-- `project_ready`
+
+Lifecycle states are `queued | running | failed | ready | project_created`;
+warnings are separate from blocking failure state.
 
 `research_degraded` and `competitors_not_found` are informational and cannot block project creation.
 
@@ -134,16 +137,19 @@ Brand identity should persist:
 
 Low confidence must produce an editable review state, not onboarding failure.
 
-### 4.4 Research cascade without mandatory Firecrawl
+### 4.4 Research cascade without crawl vendors
 
 Use the following order:
 
-1. Fast direct fetch of the homepage and common descriptive pages.
-2. One structured LLM call with native web search for brand, product, market, and entity research.
-3. Firecrawl only when rendered extraction or deeper crawling is necessary.
-4. Industry-library fallback when external research remains incomplete.
+1. One fast, SSRF-safe direct fetch of the homepage.
+2. One structured application-model call grounded by the direct homepage evidence
+   and versioned industry library for brand, product, market, and entity research.
+3. Industry-library fallback when external research remains incomplete.
 
-Every model response must use a strict schema, validation, bounded internal retries, and versioned provenance.
+Every model response must pass the caller-owned schema, bounded internal retries,
+and versioned provenance. Native JSON Schema mode is configuration-controlled;
+OpenAI-compatible hosts without it use JSON mode plus prompt-carried schema and
+the same Pydantic validation gate.
 
 Persist a `BrandResearchSnapshot` containing:
 
@@ -220,7 +226,7 @@ After review, create the following in one transaction:
 - Brand aliases and owned domains.
 - Confirmed competitors and their aliases/domains.
 - Prompt portfolio version 1.
-- Ten selected prompts.
+- Exactly five `market_visibility` and five `brand_diagnostic` prompts.
 - Research and calibration provenance.
 
 Use an idempotency key so repeated completion requests return the same project.
@@ -296,12 +302,10 @@ Allow filtering by provider, engine, prompt, or individual failed task.
 Rerun invariants:
 
 - Never rerun or overwrite successful slots.
-- Append a provider attempt to the failed slot.
-- Preserve earlier failure evidence and all successful raw artifacts.
-- Re-analyse only newly successful slots.
-- Produce a new immutable metric-snapshot generation.
-- Mark an otherwise usable run `completed_with_failures` while failed slots remain.
-- Prevent duplicate counting through stable slot identity and idempotency.
+- Create a child audit that clones only the selected failed slots.
+- Preserve the parent audit, earlier failure evidence, and all successful raw artifacts.
+- Analyze the child independently and persist new immutable metric snapshots.
+- Prevent duplicate children through a deterministic repair key and stable slot identity.
 
 ### 4.12 Untracked competitor suggestions
 
@@ -406,7 +410,7 @@ Each pull request must leave the application runnable and independently testable
 - Established brands, small startups, local businesses, service companies, ecommerce, and B2B sites.
 - Static, JavaScript-rendered, bot-protected, redirecting, and sparse sites.
 - LLM malformed output and timeout injection.
-- Firecrawl disabled or unavailable.
+- Crawl vendors absent.
 - One provider failing while others succeed.
 - Failed prompt/provider rerun followed by metric recomputation.
 - Zero competitors and later competitor addition.
@@ -427,7 +431,7 @@ Use this corpus to prevent prompt-generation and discovery regressions.
 ## 8. Technical Debt to Remove
 
 - The 1,400+ line onboarding discovery service.
-- Firecrawl as the mandatory discovery path.
+- Crawl-vendor coupling in onboarding.
 - Conflicting `needs_input` and automatic-retry states.
 - Prompt-quality validation based mainly on identity checks or ratios.
 - Site Health work inside the project-creation transaction.
@@ -442,7 +446,7 @@ Use this corpus to prevent prompt-generation and discovery regressions.
 The implementation is complete when:
 
 - A representative corpus of valid sites always reaches onboarding review.
-- Firecrawl can be disabled without breaking onboarding.
+- No crawl-vendor credential or service is required for onboarding.
 - Ten prompts are created and pass deterministic quality validation.
 - Zero competitors can be confirmed without blocking completion.
 - Competitor suggestions include evidence for the four qualification dimensions.

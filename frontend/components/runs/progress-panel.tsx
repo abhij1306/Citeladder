@@ -33,6 +33,10 @@ export function ProgressPanel({
   cancelPending,
   cancelNotice,
   onCancelRetry,
+  onRerunFailures,
+  rerunPending = false,
+  rerunNotice,
+  onRerunRetry,
 }: Readonly<{
   audit: Audit;
   onCancel: () => void;
@@ -41,6 +45,10 @@ export function ProgressPanel({
   cancelNotice?: MutationNoticeData | null;
   /** Retry affordance for a transient cancel failure. */
   onCancelRetry?: () => void;
+  onRerunFailures?: () => void;
+  rerunPending?: boolean;
+  rerunNotice?: MutationNoticeData | null;
+  onRerunRetry?: () => void;
 }>) {
   // "Updating…" tracks whether the parent is still polling (not yet terminal);
   // the Cancel button is enabled only while the backend will accept a cancel.
@@ -90,6 +98,16 @@ export function ProgressPanel({
             >
               {cancelPending ? 'Cancelling…' : 'Cancel run'}
             </Button>
+            {audit.failed_count > 0 && onRerunFailures ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={onRerunFailures}
+                disabled={rerunPending}
+              >
+                {rerunPending ? 'Creating repair…' : 'Rerun failed'}
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -116,6 +134,7 @@ export function ProgressPanel({
           <p className="text-danger-text text-sm">{audit.error_message}</p>
         ) : null}
         {cancelNotice ? <MutationNotice notice={cancelNotice} onRetry={onCancelRetry} /> : null}
+        {rerunNotice ? <MutationNotice notice={rerunNotice} onRetry={onRerunRetry} /> : null}
       </CardContent>
     </Card>
   );

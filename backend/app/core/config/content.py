@@ -34,6 +34,18 @@ CONTENT_OUTPUT_TYPES: Final[frozenset[str]] = frozenset(
     {CONTENT_OUTPUT_TYPE_WEBSITE_PAGE}
 )
 CONTENT_DEFAULT_OUTPUT_TYPE: Final = CONTENT_OUTPUT_TYPE_WEBSITE_PAGE
+CONTENT_SKILLS: Final[frozenset[str]] = frozenset(
+    {"youtube", "reddit", "blog", "article"}
+)
+CONTENT_DEFAULT_SKILL: Final = "article"
+CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {
+    "youtube": "Write a YouTube video script with a strong hook and clear sections.",
+    "reddit": "Write a useful, conversational Reddit post without promotional hype.",
+    "blog": "Write an answer-first blog post with practical examples.",
+    "article": "Write an authoritative, evidence-led article.",
+}
+FEEDBACK_ACCEPTED: Final = "accepted"
+FEEDBACK_REJECTED: Final = "rejected"
 
 # --- Website-context statuses (frozen on the generation row) --------------
 CONTEXT_STATUS_INCLUDED: Final = "included"

@@ -38,6 +38,9 @@ class Project(Base):
     name: Mapped[str] = mapped_column(String(255))
     brand_name: Mapped[str] = mapped_column(String(255), default="")
     website_url: Mapped[str] = mapped_column(String(1024), default="")
+    industry: Mapped[str] = mapped_column(String(255), default="General")
+    subindustry: Mapped[str] = mapped_column(String(255), default="")
+    primary_market: Mapped[str] = mapped_column(String(8), default="GLOBAL")
     country_code: Mapped[str] = mapped_column(String(8), default="")
     language_code: Mapped[str] = mapped_column(String(16), default="")
     benchmark_mode: Mapped[str] = mapped_column(

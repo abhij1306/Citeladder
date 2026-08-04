@@ -12,9 +12,10 @@ import {
 const brand: BrandStepValues = {
   brand_name: '  Acme  ',
   website_url: 'acme.com',
-  country_code: 'us',
+  primary_market: 'US',
   language_code: 'en',
   industry: 'Analytics',
+  subindustry: '',
 };
 
 describe('normalizeWebsiteUrl', () => {

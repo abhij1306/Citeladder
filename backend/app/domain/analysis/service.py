@@ -37,6 +37,7 @@ from app.domain.analysis.schemas import (
     EngineComparisonRow,
     ExecutionEvidenceResponse,
     MetricsResponse,
+    PromptMetricItem,
     RankingRow,
     VisibilityEvidenceResponse,
     VisibilityEvidenceSearchEvent,
@@ -62,6 +63,7 @@ from app.models.analysis import (
     Citation,
     CompetitorMention,
     MetricSnapshot,
+    PromptMetricSnapshot,
     ResponseAnalysis,
 )
 from app.models.audit import (
@@ -103,6 +105,49 @@ async def get_metrics(
         session, workspace_id=workspace_id, audit_id=audit_id
     )
     return MetricsResponse.model_validate(snapshot)
+
+
+async def get_prompt_metrics(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    audit_id: uuid.UUID | None = None,
+) -> list[PromptMetricItem]:
+    """Return one persisted prompt projection, strongest-to-weakest."""
+    if audit_id is None:
+        audit_id = await _latest_dashboard_audit_id(
+            session, workspace_id=workspace_id, project_id=project_id
+        )
+        if audit_id is None:
+            return []
+    else:
+        audit = await session.scalar(
+            select(Audit.id).where(
+                Audit.id == audit_id,
+                Audit.workspace_id == workspace_id,
+                Audit.project_id == project_id,
+            )
+        )
+        if audit is None:
+            raise AnalysisNotFoundError(_AUDIT_NOT_FOUND)
+    rows = list(
+        (
+            await session.scalars(
+                select(PromptMetricSnapshot)
+                .where(
+                    PromptMetricSnapshot.workspace_id == workspace_id,
+                    PromptMetricSnapshot.project_id == project_id,
+                    PromptMetricSnapshot.audit_id == audit_id,
+                )
+                .order_by(
+                    PromptMetricSnapshot.composite_score.desc(),
+                    PromptMetricSnapshot.prompt_index.asc(),
+                )
+            )
+        ).all()
+    )
+    return [PromptMetricItem.model_validate(row) for row in rows]
 
 
 async def get_visibility(
@@ -166,9 +211,7 @@ async def get_visibility(
             int((metrics.get("coverage") or {}).get("requested") or 0)
             - int(metrics.get("total_completed") or 0),
         ),
-        visibility_score=round(
-            float(metrics.get("brand_mention_rate") or 0.0) * 100, 2
-        ),
+        visibility_score=_selected_visibility_score(snapshot, metrics, cohort),
         measurement_mode=provenance_mode,
         model_provenance=model_provenance,
         rankings=_rankings(
@@ -189,6 +232,14 @@ class TrendQueryError(ValueError):
 
     The API layer maps this to HTTP 422; it is never a not-found condition.
     """
+
+
+def _selected_visibility_score(
+    snapshot: MetricSnapshot, metrics: dict, cohort: str
+) -> float:
+    if cohort == "core":
+        return snapshot.visibility_score
+    return round(float(metrics.get("brand_mention_rate") or 0.0) * 100, 2)
 
 
 def validate_shopping_surface(surface: str) -> str:

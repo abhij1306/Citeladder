@@ -15,10 +15,24 @@ from typing import Final
 # derived row can always be traced to the exact rules that produced it. Stamped
 # onto ``ResponseAnalysis`` / ``BrandMention`` / ``CompetitorMention`` /
 # ``Citation`` / ``MetricSnapshot`` and the parent ``Audit`` at finalize.
-ANALYZER_VERSION: Final = "grounded-analysis-v2"
+ANALYZER_VERSION: Final = "grounded-analysis-v3"
 # The per-execution/aggregate formula version (separate from the analyzer so a
 # formula-only change can be tracked independently of an extraction change).
-SCORING_RULE_VERSION: Final = "cohort-scoring-v2"
+SCORING_RULE_VERSION: Final = "prompt-composite-v1"
+
+# Prompt composite: organic visibility leads, competitive position adds the
+# measurement-universe context, and qualified owned citations reward evidence.
+PROMPT_SCORE_VISIBILITY_WEIGHT: Final = 0.60
+PROMPT_SCORE_COMPETITIVE_WEIGHT: Final = 0.25
+PROMPT_SCORE_OWNED_CITATION_WEIGHT: Final = 0.15
+
+# Comparable prompt-run decline confirmation. Scores use the 0-100 scale.
+PROMPT_DECLINE_MATERIALITY_POINTS: Final = 5.0
+PROMPT_DECLINE_REQUIRED_MOVEMENTS: Final = 3
+PROMPT_DECLINE_WINDOW_MOVEMENTS: Final = 4
+PROMPT_DECLINE_MIN_ENGINES: Final = 2
+PROMPT_DECLINE_REPETITION_AGREEMENT: Final = 0.67
+PROMPT_DECLINE_HISTORY_CANDIDATE_LIMIT: Final = 20
 
 # --- Cross-run Visibility trend projection (roadmap: visibility-trends) ----
 # The trends endpoint is a pure PROJECTION over the already-persisted per-run

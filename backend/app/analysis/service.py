@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.scoring import (
@@ -28,7 +29,16 @@ from app.analysis.scoring import (
     classify_citation,
     score_execution,
 )
-from app.core.config.analysis import ANALYZER_VERSION, SCORING_RULE_VERSION
+from app.core.config.analysis import (
+    ANALYZER_VERSION,
+    PROMPT_DECLINE_HISTORY_CANDIDATE_LIMIT,
+    PROMPT_DECLINE_MATERIALITY_POINTS,
+    PROMPT_DECLINE_MIN_ENGINES,
+    PROMPT_DECLINE_REPETITION_AGREEMENT,
+    PROMPT_DECLINE_REQUIRED_MOVEMENTS,
+    PROMPT_DECLINE_WINDOW_MOVEMENTS,
+    SCORING_RULE_VERSION,
+)
 from app.core.config.audits import (
     AUDIT_STATUS_ANALYZING,
     AUDIT_STATUS_COMPLETED,
@@ -38,15 +48,27 @@ from app.core.config.audits import (
     TASK_STATUS_SUCCEEDED,
 )
 from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
+from app.core.config.observed_competitors import (
+    ANALYZER_VERSION as OBSERVED_COMPETITOR_ANALYZER_VERSION,
+)
+from app.core.config.observed_competitors import (
+    EXCLUDED_RESEARCH_DOMAINS,
+    MAX_CANDIDATES_PER_AUDIT,
+    MIN_DISTINCT_ENGINES,
+    MIN_DISTINCT_PROMPTS,
+)
 from app.domain.audits.state_events import apply_transition, record_event
+from app.domain.prompts.normalization import prompt_text_hash
 from app.models.analysis import (
     BrandMention,
     Citation,
     CompetitorMention,
     MetricSnapshot,
+    PromptMetricSnapshot,
     ResponseAnalysis,
 )
 from app.models.audit import Audit, AuditPromptSnapshot, AuditTask, RawResponseArtifact
+from app.models.brand import ObservedEntityCandidate
 
 # Deterministic classification labels for a source citation (invariant 4).
 CITATION_OWNED = "owned"
@@ -269,6 +291,7 @@ async def _execution_dicts(
             "prompt_text_snapshot": text,
             "prompt_theme_snapshot": theme,
             "cohort": cohort,
+            "logical_engine": analysis.logical_engine,
             "citations": citations_by_analysis.get(analysis.id, []),
             "score": analysis.score or {},
             "provider_metadata": provider_metadata_by_task.get(analysis.task_id, {}),
@@ -277,6 +300,345 @@ async def _execution_dicts(
         all_dicts.append(execution)
         per_engine.setdefault(analysis.logical_engine, []).append(execution)
     return all_dicts, per_engine, analyses
+
+
+def _prompt_metric_rows(metrics: dict) -> list[dict]:
+    rows = list(metrics.get("per_prompt") or [])
+    rows.extend((metrics.get("brand_diagnostic") or {}).get("per_prompt") or [])
+    rows.extend((metrics.get("comparison") or {}).get("per_prompt") or [])
+    return rows
+
+
+async def _previous_prompt_metrics(
+    session: AsyncSession,
+    *,
+    audit: Audit,
+    identities: dict[tuple[str, str], set[str]],
+) -> dict[tuple[str, str], list[PromptMetricSnapshot]]:
+    if not identities:
+        return {}
+    candidates = list(
+        (
+            await session.scalars(
+                select(PromptMetricSnapshot)
+                .join(Audit, Audit.id == PromptMetricSnapshot.audit_id)
+                .where(
+                    PromptMetricSnapshot.project_id == audit.project_id,
+                    PromptMetricSnapshot.audit_id != audit.id,
+                    PromptMetricSnapshot.analyzer_version == ANALYZER_VERSION,
+                    PromptMetricSnapshot.scoring_rule_version == SCORING_RULE_VERSION,
+                    Audit.measurement_mode == audit.measurement_mode,
+                    Audit.benchmark_mode == audit.benchmark_mode,
+                    Audit.completed_at.is_not(None),
+                    or_(
+                        *(
+                            and_(
+                                PromptMetricSnapshot.prompt_identity == identity,
+                                PromptMetricSnapshot.cohort == cohort,
+                            )
+                            for identity, cohort in identities
+                        )
+                    ),
+                )
+                .order_by(
+                    Audit.completed_at.desc(),
+                    Audit.id.desc(),
+                )
+                .limit(PROMPT_DECLINE_HISTORY_CANDIDATE_LIMIT * len(identities))
+            )
+        ).all()
+    )
+    grouped: dict[tuple[str, str], list[PromptMetricSnapshot]] = {
+        key: [] for key in identities
+    }
+    for item in candidates:
+        key = (item.prompt_identity, item.cohort)
+        current_engines = identities.get(key, set())
+        if (
+            key in grouped
+            and len(current_engines.intersection(item.per_engine_scores))
+            >= PROMPT_DECLINE_MIN_ENGINES
+            and len(grouped[key]) < PROMPT_DECLINE_WINDOW_MOVEMENTS
+        ):
+            grouped[key].append(item)
+    return grouped
+
+
+def _engine_decline_agreement(
+    current: dict[str, float], previous: dict[str, float]
+) -> tuple[int, float]:
+    overlapping = sorted(set(current).intersection(previous))
+    if not overlapping:
+        return 0, 0.0
+    declining = sum(
+        current[engine] - previous[engine] <= -PROMPT_DECLINE_MATERIALITY_POINTS
+        for engine in overlapping
+    )
+    return declining, round(declining / len(overlapping), 4)
+
+
+def _decline_is_confirmed(
+    *,
+    immediate_delta: float | None,
+    recent_deltas: list[float],
+    declining_engines: int,
+    repetitions_confirm: bool,
+) -> bool:
+    return (
+        immediate_delta is not None
+        and immediate_delta <= -PROMPT_DECLINE_MATERIALITY_POINTS
+        and len(recent_deltas) >= PROMPT_DECLINE_WINDOW_MOVEMENTS
+        and sum(delta <= -PROMPT_DECLINE_MATERIALITY_POINTS for delta in recent_deltas)
+        >= PROMPT_DECLINE_REQUIRED_MOVEMENTS
+        and declining_engines >= PROMPT_DECLINE_MIN_ENGINES
+        and repetitions_confirm
+    )
+
+
+async def _persist_prompt_metric_snapshots(
+    session: AsyncSession,
+    *,
+    audit: Audit,
+    metrics: dict,
+    analyses: list[ResponseAnalysis],
+    prompt_snapshots: list[AuditPromptSnapshot],
+    engine_count: int,
+) -> None:
+    snapshots_by_index = {row.prompt_index: row for row in prompt_snapshots}
+    analyses_by_index: dict[int, list[ResponseAnalysis]] = {}
+    for analysis in analyses:
+        analyses_by_index.setdefault(analysis.prompt_index, []).append(analysis)
+    prepared: list[tuple[dict, AuditPromptSnapshot, str, set[str]]] = []
+    for row in _prompt_metric_rows(metrics):
+        prompt_index = int(row.get("prompt_index") or 0)
+        prompt = snapshots_by_index.get(prompt_index)
+        if prompt is None:
+            continue
+        identity = prompt_text_hash(prompt.text)
+        engines = set((row.get("per_engine_scores") or {}).keys())
+        prepared.append((row, prompt, identity, engines))
+    histories = await _previous_prompt_metrics(
+        session,
+        audit=audit,
+        identities={
+            (identity, prompt.cohort): engines
+            for _, prompt, identity, engines in prepared
+        },
+    )
+    for row, prompt, identity, _engines in prepared:
+        session.add(
+            _build_prompt_metric_snapshot(
+                audit=audit,
+                row=row,
+                prompt=prompt,
+                identity=identity,
+                previous=histories.get((identity, prompt.cohort), []),
+                prompt_analyses=analyses_by_index.get(prompt.prompt_index, []),
+                engine_count=engine_count,
+            )
+        )
+
+
+def _build_prompt_metric_snapshot(
+    *,
+    audit,
+    row,
+    prompt,
+    identity,
+    previous,
+    prompt_analyses,
+    engine_count,
+):
+    trend = _prompt_trend_values(
+        previous=previous,
+        row=row,
+        repetitions=audit.repetitions,
+        engine_count=engine_count,
+    )
+    return PromptMetricSnapshot(
+        workspace_id=audit.workspace_id,
+        project_id=audit.project_id,
+        audit_id=audit.id,
+        prompt_id=prompt.prompt_id,
+        prompt_identity=identity,
+        prompt_index=prompt.prompt_index,
+        prompt_text=prompt.text,
+        cohort=prompt.cohort,
+        analyzer_version=ANALYZER_VERSION,
+        scoring_rule_version=SCORING_RULE_VERSION,
+        components=dict(row.get("score_components") or {}),
+        source_analysis_ids=[str(item.id) for item in prompt_analyses],
+        source_artifact_ids=[
+            str(item.artifact_id)
+            for item in prompt_analyses
+            if item.artifact_id is not None
+        ],
+        **trend,
+    )
+
+
+def _prompt_trend_values(
+    *,
+    previous,
+    row,
+    repetitions,
+    engine_count,
+):
+    current_score = float(row.get("composite_score") or 0.0)
+    current_engines = {
+        str(engine): round(float(score), 2)
+        for engine, score in (row.get("per_engine_scores") or {}).items()
+    }
+    previous_score = previous[0].composite_score if previous else None
+    immediate_delta = (
+        round(current_score - previous_score, 2) if previous_score is not None else None
+    )
+    previous_engines = previous[0].per_engine_scores if previous else {}
+    declining_engines, engine_agreement = _engine_decline_agreement(
+        current_engines, previous_engines
+    )
+    recent_deltas = [
+        value
+        for value in [immediate_delta, *(item.immediate_delta for item in previous[:3])]
+        if value is not None
+    ]
+    repetition_agreement = float(row.get("mention_stability") or 0.0)
+    evidence_coverage = _prompt_evidence_coverage(
+        int(row.get("repetitions") or 0), engine_count, repetitions
+    )
+    return {
+        "composite_score": current_score,
+        "previous_score": previous_score,
+        "immediate_delta": immediate_delta,
+        "rolling_four": [
+            current_score,
+            *(item.composite_score for item in previous[:3]),
+        ],
+        "per_engine_scores": current_engines,
+        "engine_agreement": engine_agreement,
+        "repetition_agreement": repetition_agreement,
+        "evidence_coverage": evidence_coverage,
+        "trend_confidence": round(
+            (engine_agreement + repetition_agreement + evidence_coverage) / 3, 4
+        ),
+        "decline_confirmed": _decline_is_confirmed(
+            immediate_delta=immediate_delta,
+            recent_deltas=recent_deltas,
+            declining_engines=declining_engines,
+            repetitions_confirm=(
+                repetitions <= 1
+                or repetition_agreement >= PROMPT_DECLINE_REPETITION_AGREEMENT
+            ),
+        ),
+    }
+
+
+def _prompt_evidence_coverage(observed, engine_count, repetitions):
+    expected = engine_count * repetitions
+    return round(observed / expected, 4) if expected else 0.0
+
+
+def _domain_matches_any(domain: str, excluded: set[str]) -> bool:
+    return any(domain == item or domain.endswith(f".{item}") for item in excluded)
+
+
+async def _persist_observed_competitors(
+    session: AsyncSession,
+    *,
+    audit: Audit,
+    analyses: list[ResponseAnalysis],
+    config: ScoringConfig,
+) -> None:
+    """Suggest repeated cross-engine third-party domains for human review."""
+    analysis_by_id = {item.id: item for item in analyses}
+    tracked_domains = {
+        domain.lower().removeprefix("www.")
+        for competitor in config.competitors
+        for domain in competitor.domains
+    }
+    excluded = {
+        *EXCLUDED_RESEARCH_DOMAINS,
+        *(domain.lower().removeprefix("www.") for domain in config.owned_domains),
+        *(domain.lower().removeprefix("www.") for domain in config.unintended_domains),
+        *tracked_domains,
+    }
+    citations = list(
+        (
+            await session.scalars(
+                select(Citation)
+                .where(
+                    Citation.audit_id == audit.id,
+                    Citation.classification == CITATION_THIRD_PARTY,
+                )
+                .order_by(Citation.domain.asc(), Citation.ordinal.asc())
+            )
+        ).all()
+    )
+    grouped = _group_observed_citations(citations, analysis_by_id, excluded)
+    qualified = _qualified_observed_domains(grouped)
+    for domain, evidence in qualified[:MAX_CANDIDATES_PER_AUDIT]:
+        session.add(_observed_candidate(audit, domain, evidence))
+
+
+def _group_observed_citations(citations, analysis_by_id, excluded):
+    grouped: dict[str, dict[str, set | list]] = {}
+    for citation in citations:
+        domain = citation.domain.lower().removeprefix("www.")
+        analysis = analysis_by_id.get(citation.analysis_id)
+        if (
+            not domain
+            or _domain_matches_any(domain, excluded)
+            or analysis is None
+            or analysis.cohort not in {"core", "market_visibility"}
+        ):
+            continue
+        bucket = grouped.setdefault(
+            domain,
+            {"prompts": set(), "engines": set(), "analyses": [], "artifacts": []},
+        )
+        bucket["prompts"].add(analysis.prompt_index)
+        bucket["engines"].add(analysis.logical_engine)
+        bucket["analyses"].append(str(analysis.id))
+        if analysis.artifact_id is not None:
+            bucket["artifacts"].append(str(analysis.artifact_id))
+    return grouped
+
+
+def _qualified_observed_domains(grouped):
+    qualified = [
+        (domain, evidence)
+        for domain, evidence in grouped.items()
+        if len(evidence["prompts"]) >= MIN_DISTINCT_PROMPTS
+        and len(evidence["engines"]) >= MIN_DISTINCT_ENGINES
+    ]
+    qualified.sort(
+        key=lambda item: (
+            -len(item[1]["prompts"]),
+            -len(item[1]["engines"]),
+            item[0],
+        )
+    )
+    return qualified
+
+
+def _observed_candidate(audit, domain, evidence):
+    return ObservedEntityCandidate(
+        workspace_id=audit.workspace_id,
+        project_id=audit.project_id,
+        audit_id=audit.id,
+        name=domain.split(".")[0].replace("-", " ").title(),
+        domain=domain,
+        qualification_reason=(
+            "Repeatedly cited across market-specific prompts and answer engines. "
+            "Product overlap and geographic relevance require human verification."
+        ),
+        prompt_count=len(evidence["prompts"]),
+        engine_count=len(evidence["engines"]),
+        market_relevant=False,
+        analyzer_version=OBSERVED_COMPETITOR_ANALYZER_VERSION,
+        source_analysis_ids=sorted(set(evidence["analyses"])),
+        source_artifact_ids=sorted(set(evidence["artifacts"])),
+    )
 
 
 async def _artifact_usage_by_task(
@@ -301,6 +663,126 @@ def _unique_artifact_usage(
             raise RuntimeError(f"multiple raw artifacts found for task {task_id}")
         usage_by_task[task_id] = usage or {}
     return usage_by_task
+
+
+def _cohort_metrics(rows, config, cohort, requested):
+    metrics = aggregate_run(rows, config)
+    metrics["cohort"] = cohort
+    metrics["coverage"] = {
+        "completed": len(rows),
+        "requested": requested,
+        "rate": round(len(rows) / requested, 4) if requested else 0.0,
+    }
+    return metrics
+
+
+def _finalized_metrics(
+    all_rows, per_engine, prompt_cohorts, engine_count, repetitions, config
+):
+    organic_cohorts = {"core", "market_visibility"}
+    organic = [row for row in all_rows if row.get("cohort") in organic_cohorts]
+    diagnostic = [row for row in all_rows if row.get("cohort") == "brand_diagnostic"]
+    comparison = [row for row in all_rows if row.get("cohort") == "comparison"]
+    slot_count = engine_count * repetitions
+    metrics = _cohort_metrics(
+        organic,
+        config,
+        "market_visibility",
+        sum(cohort in organic_cohorts for cohort in prompt_cohorts) * slot_count,
+    )
+    metrics["comparison"] = _cohort_metrics(
+        comparison,
+        config,
+        "comparison",
+        prompt_cohorts.count("comparison") * slot_count,
+    )
+    metrics["brand_diagnostic"] = _cohort_metrics(
+        diagnostic,
+        config,
+        "brand_diagnostic",
+        prompt_cohorts.count("brand_diagnostic") * slot_count,
+    )
+    metrics["per_engine"] = {
+        engine: aggregate_run(
+            [row for row in rows if row.get("cohort") in organic_cohorts], config
+        )
+        for engine, rows in sorted(per_engine.items())
+    }
+    metrics["comparison"]["per_engine"] = {
+        engine: aggregate_run(
+            [row for row in rows if row.get("cohort") == "comparison"], config
+        )
+        for engine, rows in sorted(per_engine.items())
+    }
+    return metrics
+
+
+def _composite_visibility_score(metrics):
+    scores = [
+        float(row.get("composite_score") or 0.0)
+        for row in metrics.get("per_prompt", [])
+    ]
+    return round(sum(scores) / len(scores), 2) if scores else 0.0
+
+
+async def _metric_snapshot(session, audit, analyses, metrics, completed, failed):
+    snapshot = await session.scalar(
+        select(MetricSnapshot).where(MetricSnapshot.audit_id == audit.id)
+    )
+    if snapshot is None:
+        snapshot = MetricSnapshot(
+            workspace_id=audit.workspace_id,
+            audit_id=audit.id,
+            project_id=audit.project_id,
+        )
+        session.add(snapshot)
+    snapshot.analyzer_version = ANALYZER_VERSION
+    snapshot.scoring_rule_version = SCORING_RULE_VERSION
+    snapshot.total_completed = completed
+    snapshot.total_failed = failed
+    snapshot.visibility_score = _composite_visibility_score(metrics)
+    snapshot.metrics = metrics
+    snapshot.source_analysis_ids = [str(item.id) for item in analyses]
+    snapshot.source_artifact_ids = [
+        str(item.artifact_id) for item in analyses if item.artifact_id is not None
+    ]
+    return snapshot
+
+
+def _finish_audit(session, audit, metrics, completed, failed, visibility_score):
+    audit.summary = metrics
+    audit.analyzer_version = ANALYZER_VERSION
+    audit.completed_count = completed
+    audit.failed_count = failed
+    apply_transition(
+        session,
+        audit=audit,
+        target=AUDIT_STATUS_REPORTING,
+        message="aggregating metrics",
+    )
+    terminal = (
+        AUDIT_STATUS_PARTIALLY_COMPLETED if failed > 0 else AUDIT_STATUS_COMPLETED
+    )
+    apply_transition(
+        session,
+        audit=audit,
+        target=terminal,
+        message=f"audit {terminal}",
+        payload={"completed": completed, "failed": failed},
+    )
+    audit.completed_at = audit.completed_at or datetime.now(UTC)
+    record_event(
+        session,
+        audit_id=audit.id,
+        event_type=EVENT_AUDIT_COMPLETED,
+        message=f"audit {terminal}",
+        payload={
+            "status": terminal,
+            "completed": completed,
+            "failed": failed,
+            "visibility_score": visibility_score,
+        },
+    )
 
 
 async def finalize_audit_analysis(
@@ -336,17 +818,16 @@ async def finalize_audit_analysis(
     await session.flush()
 
     all_dicts, per_engine, analyses = await _execution_dicts(session, audit_id=audit.id)
-    core_dicts = [row for row in all_dicts if row.get("cohort") == "core"]
-    comparison_dicts = [row for row in all_dicts if row.get("cohort") == "comparison"]
-    prompt_cohorts = list(
+    prompt_snapshots = list(
         (
             await session.scalars(
-                select(AuditPromptSnapshot.cohort).where(
+                select(AuditPromptSnapshot).where(
                     AuditPromptSnapshot.audit_id == audit.id
                 )
             )
         ).all()
     )
+    prompt_cohorts = [row.cohort for row in prompt_snapshots]
     engine_count = len(
         (
             await session.scalars(
@@ -356,106 +837,37 @@ async def finalize_audit_analysis(
             )
         ).all()
     )
-    metrics = aggregate_run(core_dicts, config)
-    metrics["cohort"] = "core"
-    metrics["coverage"] = {
-        "completed": len(core_dicts),
-        "requested": prompt_cohorts.count("core") * engine_count * audit.repetitions,
-    }
-    requested_core = metrics["coverage"]["requested"]
-    metrics["coverage"]["rate"] = (
-        round(len(core_dicts) / requested_core, 4) if requested_core else 0.0
+    metrics = _finalized_metrics(
+        all_dicts,
+        per_engine,
+        prompt_cohorts,
+        engine_count,
+        audit.repetitions,
+        config,
     )
-    metrics["comparison"] = aggregate_run(comparison_dicts, config)
-    metrics["comparison"]["cohort"] = "comparison"
-    requested_comparison = (
-        prompt_cohorts.count("comparison") * engine_count * audit.repetitions
-    )
-    metrics["comparison"]["coverage"] = {
-        "completed": len(comparison_dicts),
-        "requested": requested_comparison,
-        "rate": (
-            round(len(comparison_dicts) / requested_comparison, 4)
-            if requested_comparison
-            else 0.0
-        ),
-    }
-    metrics["comparison"]["per_engine"] = {
-        engine: aggregate_run(
-            [row for row in rows if row.get("cohort") == "comparison"], config
-        )
-        for engine, rows in sorted(per_engine.items())
-    }
-    metrics["per_engine"] = {
-        engine: aggregate_run(
-            [row for row in rows if row.get("cohort") == "core"], config
-        )
-        for engine, rows in sorted(per_engine.items())
-    }
 
     completed = len(all_dicts)
     total = int(audit.requested_count or len(all_dicts))
     failed = max(0, total - completed)
-    visibility_score = round(float(metrics.get("brand_mention_rate") or 0.0) * 100, 2)
-
-    snapshot = await session.scalar(
-        select(MetricSnapshot).where(MetricSnapshot.audit_id == audit.id)
+    snapshot = await _metric_snapshot(
+        session, audit, analyses, metrics, completed, failed
     )
-    if snapshot is None:
-        snapshot = MetricSnapshot(
-            workspace_id=audit.workspace_id,
-            audit_id=audit.id,
-            project_id=audit.project_id,
-        )
-        session.add(snapshot)
-    snapshot.analyzer_version = ANALYZER_VERSION
-    snapshot.scoring_rule_version = SCORING_RULE_VERSION
-    snapshot.total_completed = completed
-    snapshot.total_failed = failed
-    snapshot.visibility_score = visibility_score
-    snapshot.metrics = metrics
-    # Invariant 4: trace the snapshot back to the exact evidence set it
-    # aggregated — the ResponseAnalysis rows and their raw response artifacts.
-    snapshot.source_analysis_ids = [str(a.id) for a in analyses]
-    snapshot.source_artifact_ids = [
-        str(a.artifact_id) for a in analyses if a.artifact_id is not None
-    ]
-
-    audit.summary = metrics
-    audit.analyzer_version = ANALYZER_VERSION
-    audit.completed_count = completed
-    audit.failed_count = failed
-
-    # ANALYZING -> REPORTING -> terminal.
-    apply_transition(
+    # Stable audit chronology must exist before prompt-history rows are queried.
+    audit.completed_at = audit.completed_at or datetime.now(UTC)
+    await _persist_prompt_metric_snapshots(
         session,
         audit=audit,
-        target=AUDIT_STATUS_REPORTING,
-        message="aggregating metrics",
+        metrics=metrics,
+        analyses=analyses,
+        prompt_snapshots=prompt_snapshots,
+        engine_count=engine_count,
     )
-    terminal = (
-        AUDIT_STATUS_PARTIALLY_COMPLETED if failed > 0 else AUDIT_STATUS_COMPLETED
-    )
-    apply_transition(
+    await _persist_observed_competitors(
         session,
         audit=audit,
-        target=terminal,
-        message=f"audit {terminal}",
-        payload={"completed": completed, "failed": failed},
+        analyses=analyses,
+        config=config,
     )
-    from datetime import UTC, datetime
 
-    audit.completed_at = datetime.now(UTC)
-    record_event(
-        session,
-        audit_id=audit.id,
-        event_type=EVENT_AUDIT_COMPLETED,
-        message=f"audit {terminal}",
-        payload={
-            "status": terminal,
-            "completed": completed,
-            "failed": failed,
-            "visibility_score": visibility_score,
-        },
-    )
+    _finish_audit(session, audit, metrics, completed, failed, snapshot.visibility_score)
     return snapshot

@@ -1,27 +1,25 @@
-"""Atomic onboarding completion and activation contract."""
+"""Atomic project creation and durable onboarding queue contracts."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 import httpx
 import pytest
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.brand_discovery import BRAND_DISCOVERY_QUEUE_SPEC
+from app.core.config.brand_discovery import ERROR_BRAND_DISCOVERY
 from app.core.config.entitlements import KEY_PROJECT_SLOTS, KEY_PROMPT_SLOTS
-from app.core.config.task_queue import TASK_STATUS_RETRY_WAIT
 from app.domain.entitlements.types import GrantSpec
-from app.domain.projects import discovery as discovery_domain
-from app.domain.site_health.planner import CrawlPlanError
+from app.domain.projects.onboarding import service as onboarding_service
+from app.domain.projects.onboarding.site_resolution import SiteNotFoundError
 from app.models.discovery import BrandDiscovery, BrandDiscoveryTask
 from app.models.project import Project
-from app.models.prompt import Prompt, Topic
-from app.models.site_health import SiteCrawl
+from app.models.prompt import Prompt
 from app.models.workspace import Workspace
-from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers import brand_discovery_worker
 from tests.component.occupancy_helpers import seed_occupancy_grants
 
 
@@ -33,36 +31,51 @@ async def _register(client: httpx.AsyncClient, email: str) -> None:
     assert response.status_code == 201, response.text
 
 
-def _completion_payload(*, invalid_core: bool = False) -> dict:
-    core = [
-        {
-            "text": (
-                "Why choose Acme for analytics?"
-                if invalid_core and index == 0
-                else f"Which analytics platform supports business need {index}?"
-            ),
-            "intent": "discovery",
-            "cohort": "core",
-        }
-        for index in range(4)
+def _completion_payload() -> dict:
+    intents = ["discovery", "service", "comparison", "purchase", "local"]
+    market = [
+        "Which analytics platforms are best for automating workflows in US?",
+        "What analytics software supports integrating business data in US?",
+        "How should US teams compare analytics tools for improving team performance?",
+        "Which analytics platform offers strong integrations for US businesses?",
+        "Where can US companies find analytics software with good support?",
+    ]
+    diagnostic = [
+        "What analytics products does Acme provide to marketing teams in US?",
+        "Who is Acme best suited for among analytics buyers in US?",
+        "How does Acme support marketing attribution use cases in US?",
+        "What should buyers know before choosing Acme for analytics in US?",
+        "Where is Acme available for analytics customers across US?",
     ]
     return {
         "name": "Acme Visibility",
-        "profile": {"industry": "Analytics", "business_type": "b2b"},
+        "profile": {
+            "industry": "Software",
+            "business_type": "b2b",
+            "products_services": ["analytics software"],
+        },
         "domains": ["acme.com"],
-        "competitors": [{"name": "Globex", "aliases": [], "domains": ["globex.com"]}],
+        "competitors": [{"name": "Globex", "domains": ["globex.com"]}],
         "prompt_groups": [
-            {"topic": "Analytics", "prompts": core},
             {
-                "topic": "Comparisons",
+                "topic": "Analytics",
                 "prompts": [
                     {
-                        "text": "How does Acme compare with Globex for analytics?",
-                        "intent": "comparison",
-                        "cohort": "comparison",
+                        "text": text,
+                        "intent": intents[index],
+                        "cohort": "market_visibility",
                     }
+                    for index, text in enumerate(market)
+                ]
+                + [
+                    {
+                        "text": text,
+                        "intent": intents[index],
+                        "cohort": "brand_diagnostic",
+                    }
+                    for index, text in enumerate(diagnostic)
                 ],
-            },
+            }
         ],
     }
 
@@ -78,16 +91,20 @@ async def _seed_ready_discovery(
             "phase": "preparing_review",
             "completed_steps": 4,
             "total_steps": 5,
-            "pages_read": 3,
+            "pages_read": 1,
             "competitors_found": 1,
-            "prompts_prepared": 5,
+            "prompts_prepared": 10,
             "updated_at": "2026-08-04T00:00:00+00:00",
         },
         input_data={
             "brand_name": "Acme",
-            "website_url": "https://acme.com",
+            "website_url": "https://acme.com/",
+            "industry": "Software",
+            "subindustry": "Analytics",
+            "primary_market": "US",
             "language_code": "en",
         },
+        domains=["acme.com"],
         idempotency_key=f"discover-{uuid.uuid4()}",
     )
     session.add(row)
@@ -96,12 +113,12 @@ async def _seed_ready_discovery(
 
 
 @pytest.mark.asyncio
-async def test_discovery_failure_persists_safe_state_and_reaches_queue_retry(
+async def test_missing_site_persists_stable_blocking_error(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    await _register(client, "discovery-retry@example.com")
+    await _register(client, "discovery-missing@example.com")
     async with session_factory() as session:
         workspace_id = await session.scalar(select(Workspace.id).limit(1))
         assert workspace_id is not None
@@ -109,26 +126,63 @@ async def test_discovery_failure_persists_safe_state_and_reaches_queue_retry(
         await session.commit()
         discovery_id = discovery.id
 
-    async def _fail_acquisition(*args, **kwargs):
-        raise RuntimeError("transport unavailable")
+    async def missing(*_args, **_kwargs):
+        raise SiteNotFoundError("dns_resolution_failed")
 
-    monkeypatch.setattr(discovery_domain, "_collect_owned_site", _fail_acquisition)
+    monkeypatch.setattr(onboarding_service, "resolve_site", missing)
     async with session_factory() as session:
         discovery = await session.get(BrandDiscovery, discovery_id)
         assert discovery is not None
-        with pytest.raises(RuntimeError, match="transport unavailable"):
-            await discovery_domain.process_discovery(session, discovery)
+        await onboarding_service.process_discovery(session, discovery)
 
     async with session_factory() as session:
         persisted = await session.get(BrandDiscovery, discovery_id)
         assert persisted is not None
-        assert persisted.status == "needs_input"
-        assert "discovery_unavailable" in persisted.gaps
-        assert persisted.error_detail == "RuntimeError"
+        assert persisted.status == "failed"
+        assert persisted.error_code == "site_not_found"
+        assert persisted.warnings == []
 
 
 @pytest.mark.asyncio
-async def test_complete_is_atomic_idempotent_and_workspace_scoped(
+async def test_reaper_persists_blocking_code_and_deduplicated_warning(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _register(client, "discovery-reaper@example.com")
+    async with session_factory() as session:
+        workspace_id = await session.scalar(select(Workspace.id).limit(1))
+        assert workspace_id is not None
+        discovery = await _seed_ready_discovery(session, workspace_id)
+        discovery.warnings = ["research_degraded"]
+        await session.commit()
+        discovery_id = discovery.id
+
+    async def release_expired_detailed(*_args, **_kwargs):
+        return SimpleNamespace(failed_parent_ids=(discovery_id,))
+
+    async def claim(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr(
+        brand_discovery_worker._queue,
+        "release_expired_detailed",
+        release_expired_detailed,
+    )
+    monkeypatch.setattr(brand_discovery_worker._queue, "claim", claim)
+    monkeypatch.setattr(brand_discovery_worker, "SessionLocal", session_factory)
+    assert await brand_discovery_worker.run_once("reaper-test", reap=True) is False
+
+    async with session_factory() as session:
+        persisted = await session.get(BrandDiscovery, discovery_id)
+        assert persisted is not None
+        assert persisted.status == "failed"
+        assert persisted.error_code == ERROR_BRAND_DISCOVERY
+        assert persisted.warnings == ["research_degraded"]
+
+
+@pytest.mark.asyncio
+async def test_completion_is_atomic_idempotent_scoped_and_site_health_tolerant(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
@@ -146,11 +200,13 @@ async def test_complete_is_atomic_idempotent_and_workspace_scoped(
             ),
         )
         discovery = await _seed_ready_discovery(session, workspace_id)
-        invalid = await _seed_ready_discovery(session, workspace_id)
         await session.commit()
         discovery_id = discovery.id
-        invalid_id = invalid.id
 
+    async def deferred(*_args, **_kwargs):
+        raise RuntimeError("site health unavailable")
+
+    monkeypatch.setattr(onboarding_service, "start_initial_site_review", deferred)
     response = await client.post(
         f"/api/v1/brand-discoveries/{discovery_id}/complete",
         headers={"Idempotency-Key": "complete-1"},
@@ -158,8 +214,8 @@ async def test_complete_is_atomic_idempotent_and_workspace_scoped(
     )
     assert response.status_code == 201, response.text
     completed = response.json()
-    assert completed["activation_state"] == "queued"
-    assert completed["page_limit"] == 10
+    assert completed["crawl_id"] is None
+    assert completed["warnings"] == ["site_health_deferred"]
 
     replay = await client.post(
         f"/api/v1/brand-discoveries/{discovery_id}/complete",
@@ -171,59 +227,18 @@ async def test_complete_is_atomic_idempotent_and_workspace_scoped(
 
     conflict = await client.post(
         f"/api/v1/brand-discoveries/{discovery_id}/complete",
-        headers={"Idempotency-Key": "complete-2"},
+        headers={"Idempotency-Key": "different-key"},
         json=_completion_payload(),
     )
     assert conflict.status_code == 409
 
     async with session_factory() as session:
-        assert await session.scalar(select(func.count()).select_from(Project)) == 1
-        assert await session.scalar(select(func.count()).select_from(SiteCrawl)) == 1
-        assert await session.scalar(select(func.count()).select_from(Prompt)) == 5
-        topics = list((await session.scalars(select(Topic))).all())
-        assert {topic.name for topic in topics} == {"Analytics", "Comparisons"}
-        prompt_counts = [
-            await session.scalar(
-                select(func.count())
-                .select_from(Prompt)
-                .where(Prompt.topic_id == topic.id)
-            )
-            for topic in topics
-        ]
-        assert all(count > 0 for count in prompt_counts)
-
-    rejected = await client.post(
-        f"/api/v1/brand-discoveries/{invalid_id}/complete",
-        headers={"Idempotency-Key": "complete-invalid"},
-        json=_completion_payload(invalid_core=True),
-    )
-    assert rejected.status_code == 409
-    async with session_factory() as session:
-        invalid_row = await session.get(BrandDiscovery, invalid_id)
-        assert invalid_row is not None
-        assert invalid_row.project_id is None
-        assert await session.scalar(select(func.count()).select_from(Project)) == 1
-
-        crawl_failure = await _seed_ready_discovery(session, workspace_id)
-        await session.commit()
-        crawl_failure_id = crawl_failure.id
-
-    async def fail_crawl_plan(*_args, **_kwargs):
-        raise CrawlPlanError("Could not prepare the initial website review")
-
-    monkeypatch.setattr(discovery_domain, "start_initial_site_review", fail_crawl_plan)
-    failed_activation = await client.post(
-        f"/api/v1/brand-discoveries/{crawl_failure_id}/complete",
-        headers={"Idempotency-Key": "complete-crawl-failure"},
-        json=_completion_payload(),
-    )
-    assert failed_activation.status_code == 422
-    async with session_factory() as session:
-        failed_row = await session.get(BrandDiscovery, crawl_failure_id)
-        assert failed_row is not None
-        assert failed_row.project_id is None
-        assert await session.scalar(select(func.count()).select_from(Project)) == 1
-        assert await session.scalar(select(func.count()).select_from(SiteCrawl)) == 1
+        project = await session.scalar(select(Project))
+        assert project is not None
+        assert project.industry == "Software"
+        assert project.subindustry == "Analytics"
+        assert project.primary_market == "US"
+        assert await session.scalar(select(func.count()).select_from(Prompt)) == 10
 
     await _register(client, "complete-foreign@example.com")
     foreign = await client.get(f"/api/v1/brand-discoveries/{discovery_id}")
@@ -231,17 +246,36 @@ async def test_complete_is_atomic_idempotent_and_workspace_scoped(
 
 
 @pytest.mark.asyncio
-async def test_discovery_task_uses_generic_claim_heartbeat_and_retry(
+async def test_discovery_create_queues_once_and_requires_market(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     await _register(client, "discovery-queue@example.com")
+    missing_market = await client.post(
+        "/api/v1/brand-discoveries",
+        headers={"Idempotency-Key": "missing-market"},
+        json={"brand_name": "Acme", "website_url": "https://acme.com"},
+    )
+    assert missing_market.status_code == 422
+
+    payload = {
+        "brand_name": "Acme",
+        "website_url": "acme.com",
+        "primary_market": "US",
+    }
     created = await client.post(
         "/api/v1/brand-discoveries",
         headers={"Idempotency-Key": "queue-discovery-1"},
-        json={"brand_name": "Acme", "website_url": "https://acme.com"},
+        json=payload,
     )
-    assert created.status_code == 202
+    assert created.status_code == 202, created.text
+    replay = await client.post(
+        "/api/v1/brand-discoveries",
+        headers={"Idempotency-Key": "queue-discovery-1"},
+        json=payload,
+    )
+    assert replay.status_code == created.status_code
+    assert replay.json()["id"] == created.json()["id"]
     discovery_id = uuid.UUID(created.json()["id"])
     async with session_factory() as session:
         tasks = list(
@@ -254,24 +288,3 @@ async def test_discovery_task_uses_generic_claim_heartbeat_and_retry(
             ).all()
         )
     assert len(tasks) == 1
-
-    queue = PostgresTaskQueue(session_factory, BRAND_DISCOVERY_QUEUE_SPEC)
-    claimed = await queue.claim(owner="discovery-test", limit=1)
-    assert [task.discovery_id for task in claimed] == [discovery_id]
-    assert await queue.heartbeat(task_id=claimed[0].id, owner="discovery-test")
-    async with session_factory() as session:
-        await session.execute(
-            update(BrandDiscoveryTask)
-            .where(BrandDiscoveryTask.id == claimed[0].id)
-            .values(
-                attempt_count=1,
-                lease_expires_at=datetime.now(UTC) - timedelta(seconds=1),
-            )
-        )
-        await session.commit()
-    sweep = await queue.release_expired_detailed()
-    assert sweep.reclaimed == 1
-    async with session_factory() as session:
-        retried = await session.get(BrandDiscoveryTask, claimed[0].id)
-        assert retried is not None
-        assert retried.status == TASK_STATUS_RETRY_WAIT

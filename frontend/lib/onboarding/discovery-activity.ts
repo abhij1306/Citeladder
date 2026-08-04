@@ -12,11 +12,7 @@ const PHASE_INDEX: Record<DiscoveryPhase, number> = {
   complete: 5,
 };
 
-const COMPLETE_STATUSES = new Set<BrandDiscovery['status']>([
-  'ready',
-  'confirmed',
-  'project_created',
-]);
+const COMPLETE_STATUSES = new Set<BrandDiscovery['status']>(['ready', 'project_created']);
 
 function currentStep(discovery: BrandDiscovery | undefined): number {
   if (!discovery) return 0;
@@ -36,10 +32,10 @@ function countDetail(
   return `${count} ${adjective} ${noun} ${action}`;
 }
 
-function stepState(index: number, current: number, needsInput: boolean): ActivityStep['state'] {
+function stepState(index: number, current: number): ActivityStep['state'] {
   if (index < current) return 'complete';
   if (index > current) return 'pending';
-  return needsInput ? 'attention' : 'active';
+  return 'active';
 }
 
 /**
@@ -63,12 +59,10 @@ export function discoveryActivity(discovery: BrandDiscovery | undefined): Activi
     countDetail(progress?.prompts_prepared, 'balanced', 'question', 'questions', 'prepared'),
     undefined,
   ] as const;
-  const needsInput = discovery?.status === 'needs_input';
-
   return labels.map((label, index) => ({
     id: label,
     label,
     detail: details[index],
-    state: stepState(index, current, needsInput),
+    state: stepState(index, current),
   }));
 }

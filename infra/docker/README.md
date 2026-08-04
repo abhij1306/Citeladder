@@ -18,9 +18,9 @@ command `python -m app.workers.content_worker`, sharing the same env
 (including `MISTRAL_API_KEY`) as the web + audit-worker services.
 
 Run brand discovery as a separate service with start command
-`python -m app.workers.brand_discovery_worker`. Its optional rendered/search
-fallback reads the application-funded `BRAND_DISCOVERY_FIRECRAWL_API_KEY`;
-without it, evidence gaps become editable `needs_input` rather than failures.
+`python -m app.workers.brand_discovery_worker`. It performs one SSRF-safe
+homepage request and uses the application model with a deterministic industry
+fallback. Research gaps are warnings and always remain editable at review.
 
 
 ## Bring the stack up (gotcha 1 workaround — use verbatim)

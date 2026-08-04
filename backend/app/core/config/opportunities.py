@@ -31,6 +31,8 @@ from app.core.config.projects import (
 ANALYZER_VERSION: Final = "opp-analyzer-1"
 RULE_VERSION: Final = "opp-rules-3"
 FORMULA_VERSION: Final = "opp-formula-1"
+CONFIRMED_DECLINE_MIN_FACTOR: Final = 0.1
+CONFIRMED_DECLINE_GAP_NORMALIZER: Final = 10.0
 
 
 # =========================================================================
@@ -170,6 +172,17 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
             "Strengthen the owned page that should win this prompt: align its"
             " title, headings, and opening answer with the prompt intent so"
             " answer engines have a citable owned source."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="confirmed_prompt_decline",
+        opportunity_type=OPPORTUNITY_TYPE_VISIBILITY,
+        severity=SEVERITY_HIGH,
+        title="Prompt visibility has a confirmed decline",
+        remediation=(
+            "Refresh the owned page that best answers this prompt. Lead with a "
+            "direct answer, close the measured visibility or citation gap, and "
+            "use this opportunity as evidence context for Content generation."
         ),
     ),
     OpportunityRule(

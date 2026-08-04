@@ -91,6 +91,9 @@ def project_to_response(project: Project) -> ProjectResponse:
             ),
         ),
         website_url=project.website_url,
+        industry=project.industry,
+        subindustry=project.subindustry,
+        primary_market=project.primary_market,
         owned_domains=[d.domain for d in project.owned_domains],
         unintended_domains=[d.domain for d in project.unintended_domains],
         competitors=[
@@ -214,6 +217,9 @@ async def create_project(
         workspace_id=workspace_id,
         name=payload.name,
         website_url=payload.website_url,
+        industry=payload.industry,
+        subindustry=payload.subindustry,
+        primary_market=payload.primary_market,
         country_code=payload.country_code,
         language_code=payload.language_code,
         benchmark_mode=normalize_benchmark_mode(payload.benchmark_mode),
@@ -273,15 +279,7 @@ async def update_project(
         session, workspace_id=workspace_id, project_id=project_id
     )
     data = payload.model_dump(exclude_unset=True)
-
-    if "name" in data and data["name"] is not None:
-        project.name = data["name"]
-    if "website_url" in data and data["website_url"] is not None:
-        project.website_url = data["website_url"]
-    if "country_code" in data and data["country_code"] is not None:
-        project.country_code = data["country_code"]
-    if "language_code" in data and data["language_code"] is not None:
-        project.language_code = data["language_code"]
+    _apply_scalar_project_updates(project, data)
     if "benchmark_mode" in data and data["benchmark_mode"] is not None:
         project.benchmark_mode = normalize_benchmark_mode(data["benchmark_mode"])
     if "default_repetitions" in data and data["default_repetitions"] is not None:
@@ -318,6 +316,21 @@ async def update_project(
 
     await session.commit()
     return await get_project(session, workspace_id=workspace_id, project_id=project_id)
+
+
+def _apply_scalar_project_updates(project: Project, data: dict) -> None:
+    for field in (
+        "name",
+        "website_url",
+        "country_code",
+        "industry",
+        "subindustry",
+        "primary_market",
+        "language_code",
+    ):
+        value = data.get(field)
+        if value is not None:
+            setattr(project, field, value)
 
 
 async def delete_project(

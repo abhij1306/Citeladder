@@ -21,10 +21,12 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -114,7 +116,7 @@ class ResponseAnalysis(DerivedRowProvenanceMixin, Base):
     repetition: Mapped[int] = mapped_column(Integer, default=0)
     prompt_class: Mapped[str] = mapped_column(String(32), default="")
     cohort: Mapped[str] = mapped_column(
-        String(16), default="core", server_default="core", index=True
+        String(32), default="core", server_default="core", index=True
     )
     # Shopping-surface slot identity (§7.1): brand metric denominators filter
     # on this column (defense-in-depth beside the AuditTask filter) so
@@ -289,4 +291,68 @@ class MetricSnapshot(Base):
     source_artifact_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
+    )
+
+
+class PromptMetricSnapshot(Base):
+    """Immutable prompt-level score and comparable-run movement projection."""
+
+    __tablename__ = "prompt_metric_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "audit_id", "prompt_identity", name="uq_prompt_metric_audit_identity"
+        ),
+        Index(
+            "ix_prompt_metric_history",
+            "project_id",
+            "prompt_identity",
+            text("created_at DESC"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        index=True,
+    )
+    audit_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
+        index=True,
+    )
+    prompt_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("prompts.id", ondelete=ON_DELETE_SET_NULL),
+        nullable=True,
+        index=True,
+    )
+    prompt_identity: Mapped[str] = mapped_column(String(64))
+    prompt_index: Mapped[int] = mapped_column(Integer)
+    prompt_text: Mapped[str] = mapped_column(Text)
+    cohort: Mapped[str] = mapped_column(String(32), index=True)
+    analyzer_version: Mapped[str] = mapped_column(String(32))
+    scoring_rule_version: Mapped[str] = mapped_column(String(32))
+    composite_score: Mapped[float] = mapped_column(default=0.0)
+    previous_score: Mapped[float | None] = mapped_column(nullable=True)
+    immediate_delta: Mapped[float | None] = mapped_column(nullable=True)
+    rolling_four: Mapped[list] = mapped_column(JSONB, default=list)
+    per_engine_scores: Mapped[dict] = mapped_column(JSONB, default=dict)
+    components: Mapped[dict] = mapped_column(JSONB, default=dict)
+    engine_agreement: Mapped[float] = mapped_column(default=0.0)
+    repetition_agreement: Mapped[float] = mapped_column(default=0.0)
+    evidence_coverage: Mapped[float] = mapped_column(default=0.0)
+    trend_confidence: Mapped[float] = mapped_column(default=0.0)
+    decline_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    source_analysis_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    source_artifact_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True
     )

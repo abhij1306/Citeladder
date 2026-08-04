@@ -9,16 +9,25 @@ import { z } from 'zod';
 import { API_BASE_URL, apiClient, type ApiRequestOptions } from './client';
 import {
   auditEstimateSchema,
+  auditScheduleSchema,
   auditSchema,
   executionEvidenceSchema,
   executionSchema,
   strictValidate,
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
-import type { Audit, Execution, ExecutionEvidence, LogicalEngine } from './types';
+import type {
+  Audit,
+  AuditSchedule,
+  AuditScheduleCadence,
+  Execution,
+  ExecutionEvidence,
+  LogicalEngine,
+} from './types';
 
 const auditListSchema = z.array(auditSchema);
 const executionListSchema = z.array(executionSchema);
+const auditScheduleListSchema = z.array(auditScheduleSchema);
 
 /**
  * `POST /audits` body (B5 `AuditCreate`). The workspace is resolved from the
@@ -36,6 +45,26 @@ export type LaunchAuditInput = {
   measurement_mode: 'pulse' | 'benchmark';
   /** Optional 64-bit seed as a decimal string; generated + stored when omitted. */
   random_seed?: string;
+};
+
+export type AuditRepairInput = {
+  provider?: string;
+  engine?: string;
+  prompt_id?: string;
+  task_ids?: string[];
+};
+
+export type CreateAuditScheduleInput = {
+  prompt_set_id: string;
+  cadence: AuditScheduleCadence;
+  interval_minutes?: number;
+  timezone?: string;
+  engines: LogicalEngine[];
+  repetitions?: number;
+  benchmark_mode?: string;
+  measurement_mode?: 'pulse' | 'benchmark';
+  enabled?: boolean;
+  next_run_at?: string;
 };
 
 export const runsApi = {
@@ -59,6 +88,33 @@ export const runsApi = {
   cancelAudit: async (auditId: string, options?: ApiRequestOptions) => {
     const res = await apiClient.post<Audit>(`/audits/${auditId}/cancel`, undefined, options);
     return strictValidate(auditSchema, res, 'runs.cancelAudit');
+  },
+  rerunFailures: async (
+    auditId: string,
+    input: AuditRepairInput = {},
+    options?: ApiRequestOptions,
+  ) => {
+    const res = await apiClient.post<Audit>(`/audits/${auditId}/rerun-failures`, input, options);
+    return strictValidate(auditSchema, res, 'runs.rerunFailures');
+  },
+  listSchedules: async (projectId: string, options?: ApiRequestOptions) => {
+    const res = await apiClient.get<AuditSchedule[]>(
+      `/projects/${projectId}/audit-schedules`,
+      options,
+    );
+    return strictValidate(auditScheduleListSchema, res, 'runs.listSchedules');
+  },
+  createSchedule: async (
+    projectId: string,
+    input: CreateAuditScheduleInput,
+    options?: ApiRequestOptions,
+  ) => {
+    const res = await apiClient.post<AuditSchedule>(
+      `/projects/${projectId}/audit-schedules`,
+      input,
+      options,
+    );
+    return strictValidate(auditScheduleSchema, res, 'runs.createSchedule');
   },
   listExecutions: async (auditId: string, options?: ApiRequestOptions) => {
     const res = await apiClient.get<Execution[]>(`/audits/${auditId}/executions`, options);

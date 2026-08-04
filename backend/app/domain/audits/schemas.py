@@ -200,6 +200,13 @@ class AuditCreate(BaseModel):
     random_seed: str | None = None
 
 
+class AuditRepairRequest(BaseModel):
+    provider: str | None = None
+    engine: str | None = None
+    prompt_id: uuid.UUID | None = None
+    task_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
 class AuditEstimateRequest(BaseModel):
     project_id: uuid.UUID
     prompt_set_id: uuid.UUID | None = None
@@ -364,6 +371,7 @@ class AuditResponse(BaseModel):
     id: uuid.UUID
     workspace_id: uuid.UUID
     project_id: uuid.UUID
+    parent_audit_id: uuid.UUID | None = None
     status: str
     benchmark_mode: str = ""
     measurement_mode: str = ""

@@ -89,11 +89,33 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    # Audit worker is a SEPARATE process (Postgres task queue, B5). Placeholder
-    # until B5 lands app/workers/audit_worker.py; keeps the service wired now.
+    # Audit worker is a separate Postgres-queue process.
     command: ["python", "-m", "app.workers.audit_worker"]
     # The Dockerfile HEALTHCHECK probes the web /health endpoint, which worker
     # containers don't serve — disable it so they don't report unhealthy.
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.workers.audit_scheduler", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # Claims due recurring schedules and delegates every slot to the same audit
+  # planner used by manual runs. The unique schedule slot prevents duplicates.
+  audit-scheduler:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment: *backend_env
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ["python", "-m", "app.workers.audit_scheduler"]
     healthcheck:
       disable: true
 
@@ -116,8 +138,8 @@ services:
     healthcheck:
       disable: true
 
-  # Persisted onboarding discovery: secure crawler first, then the optional
-  # application-funded Firecrawl rendered/search fallback.
+  # Persisted onboarding discovery: one secure homepage request, structured
+  # application-model research, then deterministic industry-library fallback.
   brand-discovery-worker:
     build:
       context: ../..
@@ -136,7 +158,7 @@ services:
       disable: true
 
   # Content-generation worker: claims content_generations queue rows and calls
-  # the env-configured provider (MISTRAL_API_KEY empty = provider disabled).
+  # the separately configured content provider.
   content-worker:
     build:
       context: ../..

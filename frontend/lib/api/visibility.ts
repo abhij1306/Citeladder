@@ -10,15 +10,30 @@
  * `VisibilityTrendPoint`s over persisted `MetricSnapshot` rows, filtered by
  * engine/date and bucketed by run/week/month. Same-origin `/api/v1` only.
  */
+import { z } from 'zod';
+
 import { apiClient, type ApiRequestOptions } from './client';
 import {
+  competitorSchema,
+  observedCompetitorSchema,
+  promptMetricItemSchema,
   strictValidate,
   visibilityEvidenceResponseSchema,
   visibilitySchema,
   visibilityTrendListSchema,
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
-import type { Visibility, VisibilityEvidenceResponse, VisibilityTrendPoint } from './types';
+import type {
+  ObservedCompetitor,
+  Competitor,
+  PromptMetricItem,
+  Visibility,
+  VisibilityEvidenceResponse,
+  VisibilityTrendPoint,
+} from './types';
+
+const promptMetricListSchema = z.array(promptMetricItemSchema);
+const observedCompetitorListSchema = z.array(observedCompetitorSchema);
 
 /** Filters for the cross-run trend request (all optional; same-origin only). */
 type VisibilityTrendParams = {
@@ -102,5 +117,43 @@ export const visibilityApi = {
       res,
       'visibility.getVisibilityEvidence',
     );
+  },
+  getPromptMetrics: async (
+    projectId: string,
+    auditId?: string,
+    options?: ApiRequestOptions,
+  ): Promise<PromptMetricItem[]> => {
+    const path = withQuery(
+      `/projects/${projectId}/visibility/prompts`,
+      definedQuery({ audit_id: auditId }),
+    );
+    const res = await apiClient.get<PromptMetricItem[]>(path, options);
+    return strictValidate(promptMetricListSchema, res, 'visibility.getPromptMetrics');
+  },
+  listCompetitorSuggestions: async (
+    projectId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ObservedCompetitor[]> => {
+    const res = await apiClient.get<ObservedCompetitor[]>(
+      `/projects/${projectId}/competitor-suggestions`,
+      options,
+    );
+    return strictValidate(
+      observedCompetitorListSchema,
+      res,
+      'visibility.listCompetitorSuggestions',
+    );
+  },
+  acceptCompetitorSuggestion: async (
+    projectId: string,
+    candidateId: string,
+    options?: ApiRequestOptions,
+  ): Promise<Competitor> => {
+    const res = await apiClient.post<Competitor>(
+      `/projects/${projectId}/competitor-suggestions/${candidateId}/accept`,
+      undefined,
+      options,
+    );
+    return strictValidate(competitorSchema, res, 'visibility.acceptCompetitorSuggestion');
   },
 };

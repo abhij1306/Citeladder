@@ -32,6 +32,7 @@ from app.core.config.content import (
 )
 from app.domain.abuse.service import UsageLimitExceededError
 from app.domain.content.schemas import (
+    ContentFeedbackRequest,
     ContentGenerationCreate,
     ContentGenerationDetail,
     ContentGenerationListItem,
@@ -45,6 +46,7 @@ from app.domain.content.service import (
     enqueue_generation,
     get_generation,
     list_generations,
+    record_feedback,
     regenerate,
     to_detail,
     to_list_item,
@@ -115,6 +117,8 @@ async def enqueue_generation_endpoint(
             output_type=payload.output_type,
             website_context_enabled=payload.website_context_enabled,
             idempotency_key=(idempotency_key or "").strip(),
+            skill_id=payload.skill_id,
+            opportunity_id=payload.opportunity_id,
         )
     except ContentGenerationNotFoundError as exc:
         raise _not_found(exc) from exc
@@ -130,6 +134,32 @@ async def enqueue_generation_endpoint(
         ) from exc
     except UsageLimitExceededError as exc:
         raise _usage_limited(exc) from exc
+    return to_detail(row)
+
+
+@router.post(
+    "/generations/{generation_id}/feedback",
+    response_model=ContentGenerationDetail,
+)
+async def content_feedback_endpoint(
+    generation_id: uuid.UUID,
+    payload: ContentFeedbackRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> ContentGenerationDetail:
+    try:
+        row, _artifact = await record_feedback(
+            session,
+            workspace_id=ctx.workspace_id,
+            generation_id=generation_id,
+            feedback=payload.feedback,
+        )
+    except ContentGenerationNotFoundError as exc:
+        raise _not_found(exc) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
     return to_detail(row)
 
 

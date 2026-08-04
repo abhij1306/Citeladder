@@ -19,6 +19,9 @@ export type ReviewCompetitor = {
   name: string;
   aliases: string[];
   domains: string[];
+  reasoning?: string;
+  evidence_urls?: string[];
+  confidence?: number;
   /** False when the user has deselected it; kept in the list so it can return. */
   selected: boolean;
 };
@@ -34,7 +37,7 @@ export type ReviewPrompt = {
    */
   theme: string;
   intent: 'discovery' | 'comparison' | 'purchase' | 'service' | 'local';
-  cohort: 'core' | 'comparison';
+  cohort: 'market_visibility' | 'brand_diagnostic';
   selected: boolean;
 };
 
@@ -65,9 +68,13 @@ export const brandStepSchema = z.object({
         return false;
       }
     }, 'Enter a valid website'),
-  country_code: z.string().trim().length(2, 'Pick a country'),
+  primary_market: z
+    .string()
+    .trim()
+    .refine((value) => value === 'GLOBAL' || value.length === 2, 'Pick a primary market'),
   language_code: z.string().trim().min(2, 'Pick a language'),
-  industry: z.string().trim().max(255, 'Industry is too long'),
+  industry: z.string().trim().min(1, 'Pick an industry').max(255, 'Industry is too long'),
+  subindustry: z.string().trim().max(255, 'Subindustry is too long'),
 });
 
 export type BrandStepValues = z.infer<typeof brandStepSchema>;
@@ -75,9 +82,10 @@ export type BrandStepValues = z.infer<typeof brandStepSchema>;
 export const emptyBrandStep: BrandStepValues = {
   brand_name: '',
   website_url: '',
-  country_code: 'US',
+  primary_market: 'US',
   language_code: 'en',
-  industry: '',
+  industry: 'General',
+  subindustry: '',
 };
 
 export function normalizeWebsiteUrl(value: string): string {

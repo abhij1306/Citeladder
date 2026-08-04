@@ -2,8 +2,9 @@
 
 The app-level general model that powers assisted features (prompt generation
 now; content generation later). Configured entirely from env
-(``config/agent.py``) — Mistral by default, but any OpenAI-compatible endpoint
-works. This is NOT a measurement engine and NOT a BYOK connection:
+(``config/agent.py``) — NVIDIA by default, but any OpenAI-compatible endpoint
+works. This is the application-model boundary for non-measurement AI calls; it
+is NOT a measurement engine and NOT a BYOK connection:
 measurement engines are only ever measured (roadmap non-goal), and BYOK keys
 belong to ``ProviderConnection``.
 
@@ -14,8 +15,11 @@ snapshot, or error message.
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 import time
+from collections.abc import Mapping
 from typing import Any
 
 import httpx
@@ -25,7 +29,11 @@ from app.connectors.answer_engines.errors import (
     classify_provider_status,
     parse_retry_after,
 )
-from app.core.config.agent import DefaultAgentSettings, default_agent_settings
+from app.core.config.agent import (
+    STRUCTURED_OUTPUT_JSON_SCHEMA,
+    DefaultAgentSettings,
+    default_agent_settings,
+)
 from app.core.config.provider_catalog import (
     ERROR_CONNECTION,
     ERROR_PARSE,
@@ -42,12 +50,18 @@ class AgentNotConfiguredError(RuntimeError):
 class DefaultAgentClient:
     """Thin JSON-mode chat client over an OpenAI-compatible endpoint."""
 
-    def __init__(self, settings: DefaultAgentSettings | None = None) -> None:
+    def __init__(
+        self,
+        settings: DefaultAgentSettings | None = None,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
         self._settings = settings or default_agent_settings
+        self._transport = transport
         if not self._settings.configured:
             raise AgentNotConfiguredError(
                 "No default agent API key configured "
-                "(set DEFAULT_AGENT_API_KEY or MISTRALAI_API_KEY)"
+                "(set DEFAULT_AGENT_API_KEY, NVIDIA_API_KEY, or MISTRALAI_API_KEY)"
             )
 
     @property
@@ -61,6 +75,59 @@ class DefaultAgentClient:
 
     async def complete_json(self, *, system: str, user: str) -> str:
         """Run one JSON-mode completion and return the raw content string."""
+        return await self._complete(
+            system=system,
+            user=user,
+            response_format={"type": "json_object"},
+        )
+
+    async def complete_structured_json(
+        self,
+        *,
+        system: str,
+        user: str,
+        schema_name: str,
+        schema: Mapping[str, Any],
+    ) -> str:
+        """Return JSON constrained to a caller-owned JSON Schema.
+
+        The schema stays at the feature boundary; this shared transport never
+        embeds feature-specific shapes. It is also included in the prompt
+        because some OpenAI-compatible hosts accept but do not enforce the
+        standard ``json_schema`` response format.
+        """
+        schema_payload = dict(schema)
+        response_format: Mapping[str, Any]
+        if self._settings.structured_output_mode == STRUCTURED_OUTPUT_JSON_SCHEMA:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema_name,
+                    "strict": True,
+                    "schema": schema_payload,
+                },
+            }
+        else:
+            response_format = {"type": "json_object"}
+        raw = await self._complete(
+            system=system,
+            user=(
+                f"{user}\n\nReturn JSON that matches the {schema_name} schema "
+                "exactly:\n"
+                + json.dumps(schema_payload, ensure_ascii=False, separators=(",", ":"))
+            ),
+            response_format=response_format,
+        )
+        return _strip_json_fence(raw)
+
+    async def _complete(
+        self,
+        *,
+        system: str,
+        user: str,
+        response_format: Mapping[str, Any],
+    ) -> str:
+        """Run one OpenAI-compatible completion without logging prompt data."""
         settings = self._settings
         payload: dict[str, Any] = {
             "model": settings.model,
@@ -68,17 +135,20 @@ class DefaultAgentClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            "response_format": {"type": "json_object"},
+            "response_format": dict(response_format),
             "max_tokens": settings.max_output_tokens,
         }
         headers = {
-            "Authorization": f"Bearer {settings.api_key}",
+            "Authorization": f"Bearer {settings.resolved_api_key}",
             "Content-Type": "application/json",
         }
         url = settings.base_url.rstrip("/") + "/chat/completions"
         started = time.monotonic()
         try:
-            async with httpx.AsyncClient(timeout=settings.timeout_seconds) as client:
+            async with httpx.AsyncClient(
+                timeout=settings.timeout_seconds,
+                transport=self._transport,
+            ) as client:
                 response = await client.post(url, json=payload, headers=headers)
         except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.PoolTimeout) as exc:
             raise ProviderError(
@@ -130,3 +200,12 @@ class DefaultAgentClient:
             extra={"latency_ms": latency_ms, "model": settings.model},
         )
         return content
+
+
+def _strip_json_fence(content: str) -> str:
+    """Normalize the harmless JSON fences emitted by some compatible hosts."""
+    stripped = content.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.IGNORECASE)
+    return re.sub(r"\s*```$", "", stripped).strip()

@@ -51,9 +51,16 @@ function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['prog
       total_steps: 5,
       pages_read: 3,
       competitors_found: 1,
-      prompts_prepared: 5,
+      prompts_prepared: 10,
     },
-    input_data: { brand_name: 'Acme', website_url: 'https://acme.example' },
+    input_data: {
+      brand_name: 'Acme',
+      website_url: 'https://acme.example',
+      industry: 'Software',
+      subindustry: 'Analytics',
+      primary_market: 'US',
+      language_code: 'en',
+    },
     profile: {
       description: 'A commerce platform',
       positioning: 'Reliable product data',
@@ -62,25 +69,39 @@ function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['prog
       industry: 'Commerce software',
       business_type: 'b2b',
       price_tier: 'premium',
+      field_confidence: {},
     },
     domains: ['acme.example'],
-    competitors: [{ name: 'Globex', aliases: [], domains: ['globex.example'] }],
-    topics: ['Product feeds', 'Comparisons'],
-    prompt_suggestions: [
-      ...Array.from({ length: 4 }, (_, index) => ({
-        text: `Which product feed platform supports retail need ${index}?`,
-        theme: 'Product feeds',
-        intent: 'discovery' as const,
-        cohort: 'core' as const,
-      })),
+    competitors: [
       {
-        text: 'How does Acme compare with Globex for product feeds?',
-        theme: 'Comparisons',
-        intent: 'comparison' as const,
-        cohort: 'comparison' as const,
+        name: 'Globex',
+        aliases: [],
+        domains: ['globex.example'],
+        qualification: null,
+        reasoning: 'Serves the same analytics buyers in US.',
+        evidence_urls: ['https://globex.example/'],
+        confidence: 0.8,
       },
     ],
+    topics: ['Product feeds', 'Comparisons'],
+    prompt_suggestions: [
+      ...Array.from({ length: 5 }, (_, index) => ({
+        text: `Which analytics platform supports retail need ${index} in US?`,
+        theme: 'Product feeds',
+        intent: 'discovery' as const,
+        cohort: 'market_visibility' as const,
+      })),
+      ...Array.from({ length: 5 }, (_, index) => ({
+        text: `How does Acme support analytics buyer need ${index} in US?`,
+        theme: 'Comparisons',
+        intent: 'service' as const,
+        cohort: 'brand_diagnostic' as const,
+      })),
+    ],
     evidence: [],
+    warnings: [],
+    gaps: [],
+    error_code: '',
     created_at: '2026-08-04T00:00:00Z',
     updated_at: '2026-08-04T00:00:00Z',
   } satisfies BrandDiscovery;
@@ -95,6 +116,9 @@ function catalogHandler() {
       optional_fields: [],
       capture_methods: [],
       maximum_competitors: 5,
+      industries: ['General', 'Software'],
+      subindustries: { General: [], Software: ['Analytics'] },
+      prompt_cohorts: ['market_visibility', 'brand_diagnostic'],
     }),
   );
 }
@@ -143,6 +167,7 @@ describe('OnboardingScreen', () => {
             crawl_id: CRAWL_ID,
             activation_state: 'queued',
             page_limit: 10,
+            warnings: [],
           },
           { status: 201 },
         );
@@ -162,15 +187,22 @@ describe('OnboardingScreen', () => {
       prompt_groups: [
         {
           topic: 'Product feeds',
-          prompts: expect.arrayContaining([expect.objectContaining({ cohort: 'core' })]),
+          prompts: expect.arrayContaining([
+            expect.objectContaining({ cohort: 'market_visibility' }),
+          ]),
         },
-        { topic: 'Comparisons', prompts: [expect.objectContaining({ cohort: 'comparison' })] },
+        {
+          topic: 'Comparisons',
+          prompts: expect.arrayContaining([
+            expect.objectContaining({ cohort: 'brand_diagnostic' }),
+          ]),
+        },
       ],
     });
     expect(JSON.stringify(completionBody)).not.toContain('"theme"');
     expect(setActiveProjectId).toHaveBeenCalledWith(PROJECT_ID);
     expect(replace).toHaveBeenCalledWith(
-      `/projects?activation=1&project=${PROJECT_ID}&crawl=${CRAWL_ID}&limit=10`,
+      `/projects?project=${PROJECT_ID}&activation=1&crawl=${CRAWL_ID}&limit=10`,
     );
   });
 
@@ -181,6 +213,10 @@ describe('OnboardingScreen', () => {
         name: `Peer ${index + 1}`,
         aliases: [],
         domains: [`peer-${index + 1}.example`],
+        qualification: null,
+        reasoning: '',
+        evidence_urls: [],
+        confidence: 0,
       })),
     };
     mswServer.use(catalogHandler());

@@ -107,7 +107,10 @@ The sidebar renders only live items (no disabled/"soon" placeholders); Traffic a
     `POST /billing/webhooks/razorpay` (server-only). Legacy routes
     (`/billing/me|profile|checkout|manage|cancel`, `/workspaces/{id}/entitlements`)
     are deleted and return 404.
-  - Onboarding → `/brand-discovery-catalog`, `/brand-discoveries` create/read/confirm/create-project; profile gaps remain editable `needs_input`.
+  - Onboarding → `GET /brand-discovery-catalog`, `POST /brand-discoveries`,
+    `GET /brand-discoveries/{id}`, and `POST /brand-discoveries/{id}/complete`;
+    research makes one SSRF-safe homepage request and degrades through the
+    versioned industry library. Warnings remain editable review context.
   - Projects → `/projects` (+ `/projects/{id}`), `GET/PUT /projects/{id}/brand-profile`,
     `POST /projects/{id}/brand-profile/suggest`, and explicit suggestion acceptance
   - Prompts → `/prompt-sets`, `/prompts/{id}`, `/prompt-sets/{id}/import` (CSV),

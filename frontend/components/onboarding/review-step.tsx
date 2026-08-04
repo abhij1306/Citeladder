@@ -129,6 +129,7 @@ export function ReviewStep({
   onToggleDomain,
   onToggleCompetitor,
   onTogglePrompt,
+  onEditPrompt,
   onRenameCompetitor,
   onAddCompetitor,
   maximumCompetitors,
@@ -139,6 +140,7 @@ export function ReviewStep({
   onToggleDomain: (index: number) => void;
   onToggleCompetitor: (index: number) => void;
   onTogglePrompt: (index: number) => void;
+  onEditPrompt: (index: number, text: string) => void;
   onRenameCompetitor: (index: number, name: string) => void;
   onAddCompetitor: () => void;
   maximumCompetitors: number | undefined;
@@ -260,39 +262,47 @@ export function ReviewStep({
               ) : (
                 <ul className="grid list-none content-start gap-2">
                   {competitors.map((competitor, index) => (
-                    <li key={competitor.id} className="flex items-center gap-2">
-                      <Input
-                        value={competitor.name}
-                        onChange={(event) => onRenameCompetitor(index, event.target.value)}
-                        aria-label={`Competitor ${index + 1} name`}
-                        placeholder="Competitor name"
-                        className={cn(
-                          'border-border-subtle bg-background/60 text-foreground focus:border-accent focus:ring-accent/20 focus:bg-panel text-sm transition-all focus:ring-1',
-                          !competitor.selected && 'bg-well/40 line-through opacity-50',
-                        )}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={
-                          competitor.selected
-                            ? `Exclude ${competitor.name || 'competitor'}`
-                            : `Include ${competitor.name || 'competitor'}`
-                        }
-                        aria-pressed={competitor.selected}
-                        onClick={() => onToggleCompetitor(index)}
-                        className={cn(
-                          'shrink-0 transition-colors',
-                          competitor.selected
-                            ? 'text-muted hover:text-secondary'
-                            : 'bg-accent-soft text-accent-text hover:bg-accent-subtle',
-                        )}
-                      >
-                        <X
-                          className={cn('size-4', !competitor.selected && 'opacity-40')}
-                          aria-hidden
+                    <li key={competitor.id} className="grid gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={competitor.name}
+                          onChange={(event) => onRenameCompetitor(index, event.target.value)}
+                          aria-label={`Competitor ${index + 1} name`}
+                          placeholder="Competitor name"
+                          className={cn(
+                            'border-border-subtle bg-background/60 text-foreground focus:border-accent focus:ring-accent/20 focus:bg-panel text-sm transition-all focus:ring-1',
+                            !competitor.selected && 'bg-well/40 line-through opacity-50',
+                          )}
                         />
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={
+                            competitor.selected
+                              ? `Exclude ${competitor.name || 'competitor'}`
+                              : `Include ${competitor.name || 'competitor'}`
+                          }
+                          aria-pressed={competitor.selected}
+                          onClick={() => onToggleCompetitor(index)}
+                          className={cn(
+                            'shrink-0 transition-colors',
+                            competitor.selected
+                              ? 'text-muted hover:text-secondary'
+                              : 'bg-accent-soft text-accent-text hover:bg-accent-subtle',
+                          )}
+                        >
+                          <X
+                            className={cn('size-4', !competitor.selected && 'opacity-40')}
+                            aria-hidden
+                          />
+                        </Button>
+                      </div>
+                      {competitor.reasoning ? (
+                        <p className="text-2xs text-muted px-1 leading-relaxed">
+                          {competitor.reasoning}
+                          {competitor.evidence_urls?.length ? ' · Supporting links available' : ''}
+                        </p>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -312,7 +322,7 @@ export function ReviewStep({
       >
         <div className="mb-3 flex items-center justify-between px-1">
           <SectionHead label="Starting prompts" count={`${selectedPrompts} selected`} />
-          <span className="text-2xs text-muted font-medium">Click to select or deselect</span>
+          <span className="text-2xs text-muted font-medium">Use the checkbox to select</span>
         </div>
 
         <div className="max-h-90 overflow-y-auto pr-1 sm:max-h-100">
@@ -324,9 +334,9 @@ export function ReviewStep({
             <ul className="flex list-none flex-col gap-2">
               {prompts.map((prompt, index) => (
                 <li key={prompt.id}>
-                  <label
+                  <div
                     className={cn(
-                      'flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-200 select-none',
+                      'flex items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-200',
                       prompt.selected
                         ? 'border-accent-border/60 bg-accent-soft/30 hover:bg-accent-soft/50'
                         : 'border-border-subtle bg-panel hover:bg-background/80 hover:border-border-bold/20',
@@ -340,23 +350,23 @@ export function ReviewStep({
                         aria-label={prompt.text}
                         className="border-border text-accent-text focus:ring-accent/20 accent-accent mt-0.5 size-4 shrink-0 cursor-pointer rounded-md"
                       />
-                      <span
+                      <Input
+                        value={prompt.text}
+                        onChange={(event) => onEditPrompt(index, event.target.value)}
+                        aria-label={`Prompt ${index + 1}`}
                         className={cn(
-                          'block min-w-0 flex-1 text-sm leading-relaxed transition-colors',
-                          prompt.selected
-                            ? 'text-foreground font-medium'
-                            : 'text-muted line-through',
+                          'min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus:ring-0',
+                          !prompt.selected && 'text-muted line-through',
                         )}
-                      >
-                        {prompt.text}
-                      </span>
+                      />
                     </div>
-                    {prompt.theme ? (
-                      <span className="text-3xs bg-well/80 border-border-subtle/50 text-secondary shrink-0 rounded-full border px-2 py-0.5 font-medium">
-                        {prompt.theme}
-                      </span>
-                    ) : null}
-                  </label>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Badge variant="neutral">
+                        {prompt.cohort === 'market_visibility' ? 'Market' : 'Brand diagnostic'}
+                      </Badge>
+                      {prompt.theme ? <Badge variant="neutral">{prompt.theme}</Badge> : null}
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>

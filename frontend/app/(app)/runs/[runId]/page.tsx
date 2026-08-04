@@ -79,6 +79,13 @@ export default function RunDetailPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.visibility.all });
     },
   });
+  const rerunFailuresMutation = useMutation({
+    mutationFn: () => runsApi.rerunFailures(runId),
+    onSuccess: (repairAudit) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
+      router.push(`/runs/${repairAudit.id}`);
+    },
+  });
 
   const executions = executionsQuery.data ?? [];
   // The ?execution= URL param takes priority only while it matches a real
@@ -117,6 +124,16 @@ export default function RunDetailPage() {
               : null
           }
           onCancelRetry={() => cancelMutation.mutate()}
+          onRerunFailures={() => rerunFailuresMutation.mutate()}
+          rerunPending={rerunFailuresMutation.isPending}
+          rerunNotice={
+            rerunFailuresMutation.isError
+              ? mutationNoticeForError(rerunFailuresMutation.error, {
+                  action: 'rerun failed executions',
+                })
+              : null
+          }
+          onRerunRetry={() => rerunFailuresMutation.mutate()}
         />
       )}
 

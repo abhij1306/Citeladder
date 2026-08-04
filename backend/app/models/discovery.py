@@ -63,6 +63,8 @@ class BrandDiscovery(Base):
     prompt_suggestions: Mapped[list] = mapped_column(JSONB, default=list)
     evidence: Mapped[list] = mapped_column(JSONB, default=list)
     gaps: Mapped[list] = mapped_column(JSONB, default=list)
+    warnings: Mapped[list] = mapped_column(JSONB, default=list)
+    error_code: Mapped[str] = mapped_column(String(32), default="")
     error_detail: Mapped[str] = mapped_column(Text, default="")
     initial_crawl_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -130,4 +132,40 @@ class BrandDiscoveryTask(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+
+class BrandResearchSnapshot(Base):
+    """Immutable provenance for the research result shown at onboarding review."""
+
+    __tablename__ = "brand_research_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "discovery_id", "research_version", name="uq_brand_research_version"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    discovery_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("brand_discoveries.id", ondelete="CASCADE"),
+        index=True,
+    )
+    research_version: Mapped[str] = mapped_column(String(32))
+    provider: Mapped[str] = mapped_column(String(255), default="")
+    model: Mapped[str] = mapped_column(String(255), default="")
+    method: Mapped[str] = mapped_column(String(64))
+    extracted_fields: Mapped[dict] = mapped_column(JSONB, default=dict)
+    field_confidence: Mapped[dict] = mapped_column(JSONB, default=dict)
+    evidence: Mapped[list] = mapped_column(JSONB, default=list)
+    warnings: Mapped[list] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
     )

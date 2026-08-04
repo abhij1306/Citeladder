@@ -14,7 +14,7 @@ import hashlib
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,11 +24,14 @@ from app.core.config.content import (
     CONTENT_KNOWN_PROVIDERS,
     CONTENT_LIST_MAX_LIMIT,
     CONTEXT_STATUS_DISABLED,
+    FEEDBACK_ACCEPTED,
+    FEEDBACK_REJECTED,
     content_settings,
 )
 from app.core.config.task_queue import (
     TASK_ACTIVE_STATUSES,
     TASK_STATUS_CANCELLED,
+    TASK_STATUS_SUCCEEDED,
     TASK_TERMINAL_STATUSES,
 )
 from app.domain.abuse.service import reserve_workspace_capacity
@@ -43,7 +46,8 @@ from app.domain.content.website_context import (
     WebsiteContext,
     build_website_context,
 )
-from app.models.content import ContentGeneration
+from app.models.content import BrandKnowledgeArtifact, ContentGeneration
+from app.models.opportunity import Opportunity
 from app.models.project import Project
 
 
@@ -86,6 +90,8 @@ def request_fingerprint(
     prompt: str,
     output_type: str,
     website_context_enabled: bool,
+    skill_id: str = "article",
+    opportunity_id: uuid.UUID | None = None,
 ) -> str:
     """Stable comparator for idempotency replay-vs-conflict decisions."""
     canonical = "\x1f".join(
@@ -93,10 +99,16 @@ def request_fingerprint(
             str(project_id),
             prompt.strip(),
             output_type,
+            skill_id,
+            _optional_uuid(opportunity_id),
             "1" if website_context_enabled else "0",
         ]
     )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _optional_uuid(value: uuid.UUID | None) -> str:
+    return "" if value is None else str(value)
 
 
 async def _project_in_workspace(
@@ -155,11 +167,16 @@ async def _insert_generation(
     website_context: WebsiteContext,
     idempotency_key: str,
     fingerprint: str,
+    skill_id: str = "article",
+    opportunity_id: uuid.UUID | None = None,
+    evidence_context: dict | None = None,
 ) -> ContentGeneration:
     messages, digest, message_snapshot = build_messages(
         prompt=prompt,
         output_type=output_type,
         website_context=website_context,
+        skill_id=skill_id,
+        evidence_context=evidence_context,
     )
     # ``messages`` itself is never persisted — the worker rebuilds it from the
     # frozen prompt + snapshot; only the digest + safe snapshot are stored.
@@ -167,7 +184,10 @@ async def _insert_generation(
     row = ContentGeneration(
         workspace_id=workspace_id,
         project_id=project_id,
+        opportunity_id=opportunity_id,
         prompt=prompt,
+        skill_id=skill_id,
+        evidence_context=evidence_context,
         output_type=output_type,
         website_context_enabled=website_context_enabled,
         website_context_status=website_context.status,
@@ -207,6 +227,8 @@ async def enqueue_generation(
     output_type: str,
     website_context_enabled: bool,
     idempotency_key: str = "",
+    skill_id: str = "article",
+    opportunity_id: uuid.UUID | None = None,
 ) -> tuple[ContentGeneration, bool]:
     """Enqueue one generation. Returns ``(row, created)``.
 
@@ -219,11 +241,19 @@ async def enqueue_generation(
         session, workspace_id=workspace_id, project_id=project_id
     )
 
+    evidence_context = await _opportunity_evidence(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        opportunity_id=opportunity_id,
+    )
     fingerprint = request_fingerprint(
         project_id=project_id,
         prompt=prompt,
         output_type=output_type,
         website_context_enabled=website_context_enabled,
+        skill_id=skill_id,
+        opportunity_id=opportunity_id,
     )
     # A server-side key when the client sent none: the composite constraint is
     # always satisfied and keyless requests never collide with each other.
@@ -232,29 +262,25 @@ async def enqueue_generation(
     # Replay before the provider-config check: a retry of an already-accepted
     # request must stay retrievable even if the provider was unconfigured (or
     # broken) in between.
-    if idempotency_key:
-        existing = await session.scalar(
-            select(ContentGeneration).where(
-                ContentGeneration.workspace_id == workspace_id,
-                ContentGeneration.idempotency_key == key,
-            )
-        )
-        if existing is not None:
-            if existing.request_fingerprint == fingerprint:
-                return existing, False
-            raise IdempotencyConflictError(
-                "idempotency key was already used with a different request"
-            )
+    existing = await _idempotent_replay(
+        session,
+        workspace_id=workspace_id,
+        idempotency_key=idempotency_key,
+        key=key,
+        fingerprint=fingerprint,
+    )
+    if existing is not None:
+        return existing, False
 
     _require_provider_configured()
     await _reserve_content_capacity(session, workspace_id=workspace_id)
 
-    if website_context_enabled:
-        website_context = await build_website_context(
-            session, workspace_id=workspace_id, project_id=project_id
-        )
-    else:
-        website_context = WebsiteContext(status=CONTEXT_STATUS_DISABLED)
+    website_context = await _generation_website_context(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        enabled=website_context_enabled,
+    )
 
     row = await _insert_generation(
         session,
@@ -266,11 +292,76 @@ async def enqueue_generation(
         website_context=website_context,
         idempotency_key=key,
         fingerprint=fingerprint,
+        skill_id=skill_id,
+        opportunity_id=opportunity_id,
+        evidence_context=evidence_context,
     )
+    winner = await _commit_generation(
+        session, workspace_id=workspace_id, key=key, fingerprint=fingerprint
+    )
+    if winner is not None:
+        return winner, False
+    await session.refresh(row)
+    return row, True
+
+
+async def _opportunity_evidence(
+    session, *, workspace_id, project_id, opportunity_id
+):
+    if opportunity_id is None:
+        return None
+    opportunity = await session.scalar(
+        select(Opportunity).where(
+            Opportunity.id == opportunity_id,
+            Opportunity.workspace_id == workspace_id,
+            Opportunity.project_id == project_id,
+        )
+    )
+    if opportunity is None:
+        raise ContentGenerationNotFoundError("Opportunity not found")
+    return {
+        "opportunity_id": str(opportunity.id),
+        "rule_id": opportunity.rule_id,
+        "title": opportunity.title,
+        "evidence": opportunity.evidence or {},
+        "source_analysis_ids": opportunity.source_analysis_ids or [],
+        "source_metric_ids": opportunity.source_metric_ids or [],
+    }
+
+
+async def _idempotent_replay(
+    session, *, workspace_id, idempotency_key, key, fingerprint
+):
+    if not idempotency_key:
+        return None
+    existing = await session.scalar(
+        select(ContentGeneration).where(
+            ContentGeneration.workspace_id == workspace_id,
+            ContentGeneration.idempotency_key == key,
+        )
+    )
+    if existing is None:
+        return None
+    if existing.request_fingerprint == fingerprint:
+        return existing
+    raise IdempotencyConflictError(
+        "idempotency key was already used with a different request"
+    )
+
+
+async def _generation_website_context(session, *, workspace_id, project_id, enabled):
+    if not enabled:
+        return WebsiteContext(status=CONTEXT_STATUS_DISABLED)
+    return await build_website_context(
+        session, workspace_id=workspace_id, project_id=project_id
+    )
+
+
+async def _commit_generation(session, *, workspace_id, key, fingerprint):
     try:
         await session.commit()
-    except IntegrityError:
-        # Concurrent same-key insert: converge on the committed winner.
+        return None
+    except IntegrityError as exc:
         await session.rollback()
         winner = await session.scalar(
             select(ContentGeneration).where(
@@ -279,14 +370,12 @@ async def enqueue_generation(
             )
         )
         if winner is None:
-            raise
+            raise exc
         if winner.request_fingerprint == fingerprint:
-            return winner, False
+            return winner
         raise IdempotencyConflictError(
             "idempotency key was already used with a different request"
         ) from None
-    await session.refresh(row)
-    return row, True
 
 
 async def list_generations(
@@ -386,6 +475,8 @@ async def regenerate(
         prompt=source.prompt,
         output_type=source.output_type,
         website_context_enabled=source.website_context_enabled,
+        skill_id=source.skill_id,
+        opportunity_id=source.opportunity_id,
     )
     return row
 
@@ -414,6 +505,8 @@ async def try_again(
         prompt=source.prompt,
         output_type=source.output_type,
         website_context_enabled=source.website_context_enabled,
+        skill_id=source.skill_id,
+        opportunity_id=source.opportunity_id,
     )
     row = await _insert_generation(
         session,
@@ -425,7 +518,75 @@ async def try_again(
         website_context=frozen,
         idempotency_key=str(uuid.uuid4()),
         fingerprint=fingerprint,
+        skill_id=source.skill_id,
+        opportunity_id=source.opportunity_id,
+        evidence_context=source.evidence_context,
     )
     await session.commit()
     await session.refresh(row)
     return row
+
+
+async def record_feedback(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    generation_id: uuid.UUID,
+    feedback: str,
+) -> tuple[ContentGeneration, BrandKnowledgeArtifact | None]:
+    """Record human feedback and save accepted output to Brand Knowledge."""
+    row = await session.scalar(
+        select(ContentGeneration)
+        .where(
+            ContentGeneration.id == generation_id,
+            ContentGeneration.workspace_id == workspace_id,
+        )
+        .with_for_update()
+    )
+    if row is None:
+        raise ContentGenerationNotFoundError("Content generation not found")
+    if feedback not in {FEEDBACK_ACCEPTED, FEEDBACK_REJECTED}:
+        raise ValueError("unknown content feedback")
+    if row.status != TASK_STATUS_SUCCEEDED or not row.output_text:
+        raise ValueError("only completed content can be reviewed")
+    if row.feedback is not None and row.feedback != feedback:
+        raise ValueError("content feedback cannot be changed once recorded")
+    if row.feedback == feedback:
+        artifact = await session.scalar(
+            select(BrandKnowledgeArtifact).where(
+                BrandKnowledgeArtifact.content_generation_id == row.id
+            )
+        )
+        await session.commit()
+        return row, artifact
+    row.feedback = feedback
+    row.feedback_at = datetime.now(UTC)
+    artifact = None
+    if feedback == FEEDBACK_ACCEPTED:
+        artifact = await session.scalar(
+            select(BrandKnowledgeArtifact).where(
+                BrandKnowledgeArtifact.content_generation_id == row.id
+            )
+        )
+        if artifact is None:
+            artifact = BrandKnowledgeArtifact(
+                workspace_id=row.workspace_id,
+                project_id=row.project_id,
+                content_generation_id=row.id,
+                skill_id=row.skill_id,
+                title=prompt_preview(row.prompt),
+                content=row.output_text,
+                source_opportunity_id=row.opportunity_id,
+            )
+            session.add(artifact)
+    else:
+        await session.execute(
+            delete(BrandKnowledgeArtifact).where(
+                BrandKnowledgeArtifact.content_generation_id == row.id
+            )
+        )
+    await session.commit()
+    await session.refresh(row)
+    if artifact is not None:
+        await session.refresh(artifact)
+    return row, artifact

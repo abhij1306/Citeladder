@@ -75,12 +75,14 @@ from app.domain.audits.planner import (
     list_audits,
     list_tasks,
 )
+from app.domain.audits.repair import AuditRepairError, create_repair_audit
 from app.domain.audits.schemas import (
     AuditCreate,
     AuditEstimateRequest,
     AuditEstimateResponse,
     AuditEventResponse,
     AuditPerformanceResponse,
+    AuditRepairRequest,
     AuditResponse,
     AuditTaskResponse,
     audit_event_response,
@@ -237,6 +239,44 @@ async def cancel_audit_endpoint(
             status_code=status.HTTP_409_CONFLICT, detail=str(exc)
         ) from exc
     return AuditResponse.model_validate(audit)
+
+
+@router.post(
+    "/{audit_id}/rerun-failures",
+    response_model=AuditResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={status.HTTP_200_OK: {"model": AuditResponse}},
+)
+async def rerun_failures_endpoint(
+    audit_id: uuid.UUID,
+    payload: AuditRepairRequest,
+    response: Response,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> AuditResponse:
+    """Create an immutable child audit for selected failed execution slots."""
+    try:
+        child, created = await create_repair_audit(
+            session,
+            workspace_id=ctx.workspace_id,
+            audit_id=audit_id,
+            provider=payload.provider,
+            engine=payload.engine,
+            prompt_id=payload.prompt_id,
+            task_ids=payload.task_ids,
+        )
+        child = await get_audit(
+            session, workspace_id=ctx.workspace_id, audit_id=child.id
+        )
+        if not created:
+            response.status_code = status.HTTP_200_OK
+    except LookupError as exc:
+        raise_not_found("Audit", cause=exc)
+    except AuditRepairError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    return AuditResponse.model_validate(child)
 
 
 @router.get("/{audit_id}/executions", response_model=list[AuditTaskResponse])

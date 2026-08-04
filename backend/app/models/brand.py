@@ -14,6 +14,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
@@ -326,6 +327,43 @@ class UnintendedDomain(Base):
 
     project: Mapped[Project] = relationship(
         "Project", back_populates="unintended_domains"
+    )
+
+
+class ObservedEntityCandidate(Base):
+    """Immutable audit evidence for a user-confirmed competitor suggestion."""
+
+    __tablename__ = "observed_entity_candidates"
+    __table_args__ = (
+        UniqueConstraint("audit_id", "domain", name="uq_observed_candidate_domain"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    audit_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("audits.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(255))
+    domain: Mapped[str] = mapped_column(String(255))
+    qualification_reason: Mapped[str] = mapped_column(Text)
+    prompt_count: Mapped[int] = mapped_column(Integer)
+    engine_count: Mapped[int] = mapped_column(Integer)
+    market_relevant: Mapped[bool] = mapped_column(Boolean, default=False)
+    analyzer_version: Mapped[str] = mapped_column(String(32))
+    source_analysis_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    source_artifact_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
 

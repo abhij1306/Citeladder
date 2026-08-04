@@ -32,7 +32,11 @@ from app.core.config.task_queue import (
     TASK_STATUS_RETRY_WAIT,
     TASK_STATUS_SUCCEEDED,
 )
-from app.models.content import ContentGeneration, ContentGenerationAttempt
+from app.models.content import (
+    BrandKnowledgeArtifact,
+    ContentGeneration,
+    ContentGenerationAttempt,
+)
 from app.workers.content_worker import ContentWorker
 
 _API_KEY = "test-mistral-key-abc123"
@@ -687,6 +691,55 @@ async def test_regenerate_creates_new_record(
     original = (await client.get(f"/api/v1/content/generations/{created['id']}")).json()
     assert original["status"] == TASK_STATUS_SUCCEEDED
     assert original["output_text"] is not None
+
+
+async def test_feedback_acceptance_is_immutable_and_saves_brand_knowledge(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "feedback@example.com")
+    project_id = await _create_project(client)
+    created = (await _enqueue(client, project_id, skill_id="blog")).json()
+    await _worker(session_factory, _mock_transport()).run_until_idle()
+
+    accepted = await client.post(
+        f"/api/v1/content/generations/{created['id']}/feedback",
+        json={"feedback": "accepted"},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["feedback"] == "accepted"
+    async with session_factory() as session:
+        artifact = await session.scalar(
+            select(BrandKnowledgeArtifact).where(
+                BrandKnowledgeArtifact.content_generation_id == uuid.UUID(created["id"])
+            )
+        )
+    assert artifact is not None
+    assert artifact.skill_id == "blog"
+
+    repeated = await client.post(
+        f"/api/v1/content/generations/{created['id']}/feedback",
+        json={"feedback": "accepted"},
+    )
+    assert repeated.status_code == 200
+    async with session_factory() as session:
+        artifacts = list(
+            (
+                await session.scalars(
+                    select(BrandKnowledgeArtifact).where(
+                        BrandKnowledgeArtifact.content_generation_id
+                        == uuid.UUID(created["id"])
+                    )
+                )
+            ).all()
+        )
+    assert len(artifacts) == 1
+
+    conflicting = await client.post(
+        f"/api/v1/content/generations/{created['id']}/feedback",
+        json={"feedback": "rejected"},
+    )
+    assert conflicting.status_code == 409
 
 
 async def test_try_again_reuses_frozen_snapshot(

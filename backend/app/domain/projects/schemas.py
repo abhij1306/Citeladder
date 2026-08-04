@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.brand_profile import (
     BRAND_PROFILE_FIELDS,
@@ -31,6 +31,7 @@ from app.core.config.suggestions import (
     brand_suggestion_settings,
     prompt_suggestion_settings,
 )
+from app.domain.projects.normalization import normalize_primary_market
 from app.domain.prompts.schemas import PromptSetResponse
 
 BenchmarkMode = Literal["consumer_like", "controlled_localized", "forced_grounded"]
@@ -78,6 +79,24 @@ class CompetitorResponse(BaseModel):
     aliases: list[str] = Field(default_factory=list)
     domains: list[str] = Field(default_factory=list)
     logo_url: str | None = None
+
+
+class ObservedCompetitorResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    audit_id: uuid.UUID
+    name: str
+    domain: str
+    qualification_reason: str
+    prompt_count: int
+    engine_count: int
+    market_relevant: bool
+    analyzer_version: str
+    source_analysis_ids: list[str] = Field(default_factory=list)
+    source_artifact_ids: list[str] = Field(default_factory=list)
+    status: str
+    created_at: datetime
 
 
 class BrandProfileSources(BaseModel):
@@ -199,6 +218,9 @@ class ProjectCreate(BrandKnowledgeFields):
     brand_name: str = Field(default="", max_length=255)
     brand: BrandInput = Field(default_factory=BrandInput)
     website_url: str = Field(default="", max_length=1024)
+    industry: str = Field(default="General", max_length=255)
+    subindustry: str = Field(default="", max_length=255)
+    primary_market: str = Field(default="GLOBAL", max_length=8)
     owned_domains: list[str] = Field(default_factory=list)
     unintended_domains: list[str] = Field(default_factory=list)
     competitors: list[CompetitorInput] = Field(
@@ -211,6 +233,10 @@ class ProjectCreate(BrandKnowledgeFields):
         default=DEFAULT_REPETITIONS, ge=MIN_REPETITIONS, le=MAX_REPETITIONS
     )
 
+    _normalize_primary_market = field_validator("primary_market", mode="before")(
+        normalize_primary_market
+    )
+
     @property
     def brand_aliases(self) -> list[str]:
         return self.brand.aliases
@@ -221,6 +247,9 @@ class ProjectUpdate(BaseModel):
     brand_name: str | None = Field(default=None, max_length=255)
     brand: BrandInput | None = None
     website_url: str | None = Field(default=None, max_length=1024)
+    industry: str | None = Field(default=None, max_length=255)
+    subindustry: str | None = Field(default=None, max_length=255)
+    primary_market: str | None = Field(default=None, max_length=8)
     owned_domains: list[str] | None = None
     unintended_domains: list[str] | None = None
     competitors: list[CompetitorInput] | None = Field(
@@ -231,6 +260,10 @@ class ProjectUpdate(BaseModel):
     benchmark_mode: BenchmarkMode | None = None
     default_repetitions: int | None = Field(
         default=None, ge=MIN_REPETITIONS, le=MAX_REPETITIONS
+    )
+
+    _normalize_primary_market = field_validator("primary_market", mode="before")(
+        lambda value: None if value is None else normalize_primary_market(value)
     )
 
 
@@ -334,6 +367,9 @@ class ProjectResponse(BaseModel):
     brand_name: str
     brand: BrandResponse
     website_url: str
+    industry: str
+    subindustry: str
+    primary_market: str
     owned_domains: list[str] = Field(default_factory=list)
     unintended_domains: list[str] = Field(default_factory=list)
     competitors: list[CompetitorResponse] = Field(default_factory=list)

@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Check } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
@@ -78,6 +78,19 @@ function manualCompetitorId(): string {
   );
 }
 
+function warningMessage(code: string): string {
+  if (code === 'research_degraded') {
+    return 'Some research was unavailable. We prepared a market-aware fallback for you to edit.';
+  }
+  if (code === 'competitors_not_found') {
+    return 'No competitors were confirmed. You can continue with none or add them yourself.';
+  }
+  if (code === 'site_health_deferred') {
+    return 'The project is ready; its Site Health review will need to be started later.';
+  }
+  return 'Some research could not be confirmed. Review the suggestions before continuing.';
+}
+
 // react-doctor-disable-next-line react-doctor/no-giant-component -- this is the wizard transaction owner; discovery, review, and field controls are already extracted components.
 export function OnboardingScreen() {
   const router = useRouter();
@@ -99,22 +112,17 @@ export function OnboardingScreen() {
   const hasSelectedDomain = domains.some((item) => item.selected);
   const hasSelectedPrompt = prompts.some((item) => item.selected);
   const selectedPromptCount = prompts.filter((item) => item.selected).length;
-  const selectedComparisonCount = prompts.filter(
-    (item) => item.selected && item.cohort === 'comparison',
+  const selectedMarketCount = prompts.filter(
+    (item) => item.selected && item.cohort === 'market_visibility',
   ).length;
-  const hasBalancedPromptPortfolio =
-    selectedComparisonCount <= Math.floor(selectedPromptCount * 0.2);
-  const selectedCompetitorNames = competitors
-    .filter((item) => item.selected && item.name.trim())
-    .flatMap((item) => [item.name, ...item.aliases])
-    .map((name) => name.trim().toLocaleLowerCase())
-    .filter(Boolean);
-  const comparisonsMatchSelectedCompetitors = prompts
-    .filter((item) => item.selected && item.cohort === 'comparison')
-    .every((prompt) => {
-      const text = prompt.text.toLocaleLowerCase();
-      return selectedCompetitorNames.some((name) => text.includes(name));
-    });
+  const selectedDiagnosticCount = prompts.filter(
+    (item) => item.selected && item.cohort === 'brand_diagnostic',
+  ).length;
+  const hasCompletePromptPortfolio =
+    selectedPromptCount === 10 &&
+    selectedMarketCount === 5 &&
+    selectedDiagnosticCount === 5 &&
+    prompts.filter((item) => item.selected).every((item) => item.text.trim().length > 0);
   const form = useForm<BrandStepValues>({
     resolver: zodResolver(brandStepSchema),
     defaultValues: emptyBrandStep,
@@ -126,7 +134,8 @@ export function OnboardingScreen() {
           brand_name: brand.brand_name.trim(),
           website_url: normalizeWebsiteUrl(brand.website_url),
           industry: brand.industry,
-          country_code: brand.country_code,
+          subindustry: brand.subindustry,
+          primary_market: brand.primary_market,
           language_code: brand.language_code,
         }
       : null,
@@ -138,6 +147,15 @@ export function OnboardingScreen() {
     staleTime: Number.POSITIVE_INFINITY,
   });
   const maximumCompetitors = discoveryCatalog.data?.maximum_competitors;
+  const selectedIndustry = useWatch({ control: form.control, name: 'industry' });
+  const industryOptions = (discoveryCatalog.data?.industries ?? ['General']).map((value) => ({
+    value,
+    label: value,
+  }));
+  const subindustryOptions = (discoveryCatalog.data?.subindustries[selectedIndustry] ?? []).map(
+    (value) => ({ value, label: value }),
+  );
+  const marketOptions = [{ value: 'GLOBAL', label: 'Global' }, ...COUNTRY_OPTIONS];
   // Seed the editable review lists once each section lands. Guarded on length
   // so re-renders never clobber the user's selections mid-review.
   const discoveryState = discovery.discovery;
@@ -146,12 +164,13 @@ export function OnboardingScreen() {
     const value = discoveryState.input_data;
     const text = (key: string, fallback = '') =>
       typeof value[key] === 'string' ? (value[key] as string) : fallback;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore the persisted discovery after reload/back navigation.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate the persisted draft once.
     setBrand({
       brand_name: text('brand_name'),
       website_url: text('website_url'),
       industry: text('industry'),
-      country_code: text('country_code', 'US'),
+      subindustry: text('subindustry'),
+      primary_market: text('primary_market', 'US'),
       language_code: text('language_code', 'en'),
     });
   }, [brand, discoveryState]);
@@ -160,7 +179,7 @@ export function OnboardingScreen() {
     const discoveryId = discoveryState?.id ?? resumeDiscoveryId;
     if (!discoveryId) return;
     if (resumeDiscoveryId !== discoveryId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- retain the server identity so later navigation never creates a duplicate discovery.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mirror the persisted discovery id.
       setResumeDiscoveryId(discoveryId);
     }
     const params = new URLSearchParams(searchParams?.toString() ?? '');
@@ -170,8 +189,8 @@ export function OnboardingScreen() {
     if (next !== searchParams?.toString()) router.replace(`/onboarding?${next}`, { scroll: false });
   }, [discoveryState?.id, resumeDiscoveryId, router, searchParams, step]);
   useEffect(() => {
-    if (discoveryState && ['ready', 'needs_input'].includes(discoveryState.status)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- seed editable state from a completed discovery result.
+    if (discoveryState?.status === 'ready') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seed an editable persisted draft.
       setDomains((prev) =>
         prev.length > 0
           ? prev
@@ -194,12 +213,8 @@ export function OnboardingScreen() {
   }, [discoveryState]);
 
   useEffect(() => {
-    if (
-      maximumCompetitors !== undefined &&
-      discoveryState &&
-      ['ready', 'needs_input'].includes(discoveryState.status)
-    ) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- seed editable state from a completed discovery result.
+    if (maximumCompetitors !== undefined && discoveryState && discoveryState.status === 'ready') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- seed an editable persisted draft.
       setCompetitors((prev) =>
         prev.length > 0
           ? prev
@@ -255,9 +270,13 @@ export function OnboardingScreen() {
         .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() }))
         .catch(() => undefined);
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() });
-      router.replace(
-        `/projects?activation=1&project=${encodeURIComponent(result.project_id)}&crawl=${encodeURIComponent(result.crawl_id)}&limit=${result.page_limit}`,
-      );
+      const params = new URLSearchParams({ project: result.project_id });
+      if (result.crawl_id) {
+        params.set('activation', '1');
+        params.set('crawl', result.crawl_id);
+        if (result.page_limit !== null) params.set('limit', String(result.page_limit));
+      }
+      router.replace(`/projects?${params.toString()}`);
     },
   });
 
@@ -293,12 +312,6 @@ export function OnboardingScreen() {
     // centered tight cards instead of a tall white slab; the review step fills
     // the stage with a two-column grid instead of one long scroll.
     <div className="bg-background text-foreground selection:bg-accent selection:text-accent-fg relative flex min-h-dvh flex-col antialiased">
-      {/* Background ambient lighting */}
-      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="bg-accent-subtle/40 absolute -top-40 -left-40 size-125 rounded-full blur-[120px]" />
-        <div className="bg-accent-subtle/40 absolute -right-40 -bottom-40 size-125 rounded-full blur-[120px]" />
-      </div>
-
       {/* Opaque surface, no blur: the elevation guard (design.md §4a) keeps
           gradients and blur to display art, never a control container. */}
       <header className="border-border-subtle/80 bg-panel border-b py-3">
@@ -425,30 +438,71 @@ export function OnboardingScreen() {
                   </Field>
                   <Field
                     label="Industry"
-                    hint="Optional — helps disambiguate similar names"
+                    hint="Choose General when no category fits"
                     error={form.formState.errors.industry?.message}
                   >
                     {(props) => (
-                      <Input
-                        {...props}
-                        {...form.register('industry')}
-                        placeholder="Marketing analytics"
-                      />
-                    )}
-                  </Field>
-                  <Field label="Country" error={form.formState.errors.country_code?.message}>
-                    {(props) => (
                       <Controller
                         control={form.control}
-                        name="country_code"
+                        name="industry"
                         render={({ field }) => (
                           <MarketSelect
                             {...props}
-                            ariaLabel="Country"
+                            ariaLabel="Industry"
+                            value={field.value}
+                            onChange={(value) => {
+                              field.onChange(value);
+                              form.setValue('subindustry', '');
+                            }}
+                            onBlur={field.onBlur}
+                            options={industryOptions}
+                          />
+                        )}
+                      />
+                    )}
+                  </Field>
+                  {selectedIndustry !== 'General' && subindustryOptions.length > 0 ? (
+                    <Field
+                      label="Subindustry"
+                      hint="Optional"
+                      error={form.formState.errors.subindustry?.message}
+                    >
+                      {(props) => (
+                        <Controller
+                          control={form.control}
+                          name="subindustry"
+                          render={({ field }) => (
+                            <MarketSelect
+                              {...props}
+                              ariaLabel="Subindustry"
+                              value={field.value}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              options={subindustryOptions}
+                              placeholder="Choose a subindustry"
+                            />
+                          )}
+                        />
+                      )}
+                    </Field>
+                  ) : null}
+                  <Field
+                    label="Primary market"
+                    hint="Competitors and prompts are localized to this market"
+                    error={form.formState.errors.primary_market?.message}
+                  >
+                    {(props) => (
+                      <Controller
+                        control={form.control}
+                        name="primary_market"
+                        render={({ field }) => (
+                          <MarketSelect
+                            {...props}
+                            ariaLabel="Primary market"
                             value={field.value}
                             onChange={field.onChange}
                             onBlur={field.onBlur}
-                            options={COUNTRY_OPTIONS}
+                            options={marketOptions}
                           />
                         )}
                       />
@@ -507,20 +561,21 @@ export function OnboardingScreen() {
                 />
               </div>
 
-              {discovery.discovery?.status === 'needs_input' ? (
-                <Alert tone="warning">
+              {(discovery.discovery?.warnings ?? []).map((warning) => (
+                <Alert key={warning} tone="warning">
+                  {warningMessage(warning)}
+                </Alert>
+              ))}
+              {discovery.discovery?.status === 'failed' ? (
+                <Alert tone="danger">
                   <div className="flex items-center justify-between gap-3">
                     <span>
-                      Some details could not be confirmed. Retry, or review the useful results we
-                      found and fill in anything that is missing.
+                      {discovery.discovery.error_code === 'invalid_url'
+                        ? 'The website address is invalid. Go back and correct it.'
+                        : 'We could not confirm that this website exists. Check the address and try again.'}
                     </span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={discovery.retry}
-                      disabled={discovery.isRunning}
-                    >
-                      Retry
+                    <Button size="sm" variant="ghost" onClick={() => setStep(0)}>
+                      Edit website
                     </Button>
                   </div>
                 </Alert>
@@ -592,6 +647,13 @@ export function OnboardingScreen() {
                   })
                 }
                 onTogglePrompt={toggle(setPrompts)}
+                onEditPrompt={(index, text) =>
+                  setPrompts((previous) =>
+                    previous.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, text } : item,
+                    ),
+                  )
+                }
                 onRenameCompetitor={(index, name) =>
                   setCompetitors((prev) =>
                     prev.map((item, i) => (i === index ? { ...item, name } : item)),
@@ -646,14 +708,10 @@ export function OnboardingScreen() {
                   Keep at least one website address and one starting question selected.
                 </Alert>
               ) : null}
-              {hasSelectedPrompt && !hasBalancedPromptPortfolio ? (
+              {hasSelectedPrompt && !hasCompletePromptPortfolio ? (
                 <Alert tone="warning">
-                  Keep at least four general questions selected for each named comparison.
-                </Alert>
-              ) : null}
-              {hasSelectedPrompt && !comparisonsMatchSelectedCompetitors ? (
-                <Alert tone="warning">
-                  Deselect named comparisons for competitors you are not tracking.
+                  Keep all ten questions selected with non-empty text: five neutral market questions
+                  and five brand diagnostics.
                 </Alert>
               ) : null}
 
@@ -664,8 +722,7 @@ export function OnboardingScreen() {
                     complete.isPending ||
                     !hasSelectedDomain ||
                     !hasSelectedPrompt ||
-                    !hasBalancedPromptPortfolio ||
-                    !comparisonsMatchSelectedCompetitors
+                    !hasCompletePromptPortfolio
                   }
                   className="font-semibold"
                 >

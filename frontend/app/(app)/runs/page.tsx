@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { LaunchDialog } from '@/components/runs/launch-dialog';
 import { FilterChip } from '@/components/runs/filter-chip';
 import { RunsTable } from '@/components/runs/runs-table';
+import { AuditSchedules } from '@/components/runs/audit-schedules';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { displayHeadingXlClasses } from '@/components/ui/typography';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -149,6 +150,10 @@ export default function RunsPage() {
           </CardContent>
         </Card>
       )}
+
+      {projectId && project ? (
+        <AuditSchedules projectId={projectId} promptSets={project.prompt_sets} />
+      ) : null}
 
       {projectId ? (
         <LaunchDialog

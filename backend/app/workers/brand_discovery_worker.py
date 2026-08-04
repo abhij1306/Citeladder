@@ -14,7 +14,9 @@ from sqlalchemy import select
 
 from app.core.config.brand_discovery import (
     BRAND_DISCOVERY_QUEUE_SPEC,
-    DISCOVERY_STATUS_NEEDS_INPUT,
+    DISCOVERY_STATUS_FAILED,
+    DISCOVERY_STATUS_PROJECT_CREATED,
+    DISCOVERY_STATUS_READY,
     DISCOVERY_STATUS_RUNNING,
     ERROR_BRAND_DISCOVERY,
     brand_discovery_settings,
@@ -83,32 +85,43 @@ async def _finalize(task_id, *, worker_id: str, error: Exception | None) -> None
 
 async def run_once(worker_id: str, *, reap: bool = False) -> bool:
     if reap:
-        sweep = await _queue.release_expired_detailed(
-            batch_size=brand_discovery_settings.reaper_batch_size
-        )
-        if sweep.failed_parent_ids:
-            async with SessionLocal() as session:
-                rows = list(
-                    (
-                        await session.scalars(
-                            select(BrandDiscovery).where(
-                                BrandDiscovery.id.in_(sweep.failed_parent_ids)
-                            )
-                        )
-                    ).all()
-                )
-                for row in rows:
-                    row.status = DISCOVERY_STATUS_NEEDS_INPUT
-                    row.stage = "review"
-                    row.gaps = list(dict.fromkeys([*row.gaps, "discovery_unavailable"]))
-                    row.error_detail = BRAND_DISCOVERY_QUEUE_SPEC.max_attempts_error
-                await session.commit()
+        await _reap_expired()
     tasks = await _queue.claim(owner=worker_id, limit=1)
     if not tasks:
         return False
     task = tasks[0]
     if not await _queue.mark_running(task_id=task.id, owner=worker_id):
         return True
+    await _process_claimed_task(task, worker_id)
+    return True
+
+
+async def _reap_expired() -> None:
+    sweep = await _queue.release_expired_detailed(
+        batch_size=brand_discovery_settings.reaper_batch_size
+    )
+    if not sweep.failed_parent_ids:
+        return
+    async with SessionLocal() as session:
+        rows = list(
+            (
+                await session.scalars(
+                    select(BrandDiscovery).where(
+                        BrandDiscovery.id.in_(sweep.failed_parent_ids)
+                    )
+                )
+            ).all()
+        )
+        for row in rows:
+            row.status = DISCOVERY_STATUS_FAILED
+            row.stage = "failed"
+            row.error_code = ERROR_BRAND_DISCOVERY
+            row.warnings = list(dict.fromkeys([*row.warnings, "research_degraded"]))
+            row.error_detail = BRAND_DISCOVERY_QUEUE_SPEC.max_attempts_error
+        await session.commit()
+
+
+async def _process_claimed_task(task, worker_id: str) -> None:
     heartbeat = asyncio.create_task(_heartbeat(task.id, worker_id))
     error: Exception | None = None
     try:
@@ -116,9 +129,21 @@ async def run_once(worker_id: str, *, reap: bool = False) -> bool:
             discovery = await session.get(BrandDiscovery, task.discovery_id)
             if discovery is None:
                 raise RuntimeError("Brand discovery task has no discovery")
-            discovery.status = DISCOVERY_STATUS_RUNNING
-            await session.commit()
-            await process_discovery(session, discovery)
+            if discovery.status not in {
+                DISCOVERY_STATUS_READY,
+                DISCOVERY_STATUS_PROJECT_CREATED,
+            }:
+                discovery.status = DISCOVERY_STATUS_RUNNING
+                await session.commit()
+                await process_discovery(session, discovery)
+            else:
+                logger.info(
+                    "brand discovery task skipped because processing is complete",
+                    extra={
+                        "discovery_id": str(discovery.id),
+                        "task_id": str(task.id),
+                    },
+                )
     except Exception as exc:
         error = exc
     finally:
@@ -126,7 +151,6 @@ async def run_once(worker_id: str, *, reap: bool = False) -> bool:
             await _stop_heartbeat(heartbeat)
         finally:
             await _finalize(task.id, worker_id=worker_id, error=error)
-    return True
 
 
 def _set_fallback_signal(

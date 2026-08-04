@@ -27,7 +27,12 @@ PromptStatus = Literal["proposed", "active", "archived"]
 # and ``PROMPT_ORIGIN_GENERATED`` in ``config/projects.py``. ``imported`` is not
 # offered here — CSV import sets its own origin server-side.
 PromptOrigin = Literal["manual", "generated"]
-PromptCohort = Literal["core", "comparison"]
+PromptCohort = Literal[
+    "market_visibility",
+    "brand_diagnostic",
+    "core",
+    "comparison",
+]
 assert set(get_args(PromptStatus)) == PROMPT_STATUSES
 
 

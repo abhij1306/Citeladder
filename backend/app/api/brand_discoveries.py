@@ -25,7 +25,6 @@ from app.domain.projects.discovery_schemas import (
     BrandDiscoveryCreate,
     BrandDiscoveryResponse,
 )
-from app.domain.site_health.planner import CrawlPlanError
 
 router = APIRouter(tags=["brand-discoveries"])
 _WorkspaceDep = Annotated[WorkspaceContext, Depends(require_active_workspace)]
@@ -109,15 +108,17 @@ async def complete_brand_discovery(
         raise ApiException.coded(
             status.HTTP_403_FORBIDDEN, exc.code, str(exc), details=exc.details
         ) from exc
-    except CrawlPlanError as exc:
-        await session.rollback()
-        raise ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, exc.code, str(exc)
-        ) from exc
+    return _completion_response(row, crawl)
+
+
+def _completion_response(row, crawl) -> BrandDiscoveryCompleteResponse:
     if row.project_id is None:
         raise RuntimeError("Discovery completion is missing its project identity")
     return BrandDiscoveryCompleteResponse(
         project_id=row.project_id,
-        crawl_id=crawl.id,
-        page_limit=_page_limit(crawl.configuration or {}),
+        crawl_id=crawl.id if crawl is not None else None,
+        page_limit=(
+            _page_limit(crawl.configuration or {}) if crawl is not None else None
+        ),
+        warnings=list(row.warnings),
     )

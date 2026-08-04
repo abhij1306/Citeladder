@@ -80,6 +80,24 @@ class Audit(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         index=True,
     )
+    parent_audit_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("audits.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    repair_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Recurring-run provenance.  A scheduled slot is immutable: the scheduler
+    # can safely retry after a process crash because this pair is unique.
+    schedule_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("audit_schedules.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    scheduled_for: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(
         String(32), default=AUDIT_STATUS_DRAFT, index=True
     )
@@ -181,6 +199,13 @@ class Audit(Base):
         order_by="AuditEvent.created_at",
     )
 
+    __table_args__ = (
+        UniqueConstraint("schedule_id", "scheduled_for", name="uq_audit_schedule_slot"),
+        UniqueConstraint(
+            "parent_audit_id", "repair_key", name="uq_audit_parent_repair_key"
+        ),
+    )
+
 
 class AuditPromptSnapshot(Base):
     """Immutable frozen copy of one prompt at audit creation (invariant 3).
@@ -216,7 +241,7 @@ class AuditPromptSnapshot(Base):
     theme: Mapped[str] = mapped_column(String(255), default="")
     intent: Mapped[str] = mapped_column(String(32), default="")
     cohort: Mapped[str] = mapped_column(
-        String(16), default="core", server_default="core", index=True
+        String(32), default="core", server_default="core", index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
@@ -347,6 +372,12 @@ class AuditTask(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    source_task_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("audit_tasks.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     prompt_snapshot_id: Mapped[uuid.UUID] = mapped_column(

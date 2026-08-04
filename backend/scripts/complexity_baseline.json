@@ -150,18 +150,21 @@
   },
   "app/analysis/scoring.py": {
     "functions": {
-      "ScoringConfig.from_project": 12,
+      "ScoringConfig.from_project": 7,
       "_aggregate_cost": 6,
       "_aggregate_token_usage": 3,
       "_brand_injected": 3,
       "_citation_aggregates": 6,
       "_citation_domain_counts": 6,
-      "_citation_signals": 7,
+      "_citation_signals": 6,
       "_citation_url": 4,
       "_competitor_aggregates": 8,
+      "_competitor_citation_domains": 3,
       "_competitor_configs": 10,
       "_competitor_signals": 6,
+      "_config_text": 2,
       "_cost_estimate_status": 3,
+      "_cross_engine_consistency": 2,
       "_domain_in": 2,
       "_entity_alias_present": 6,
       "_fanout_features": 4,
@@ -170,10 +173,15 @@
       "_is_google_redirect": 8,
       "_optional_rate": 2,
       "_paid_list_cost_estimate": 7,
-      "_per_prompt_stability": 7,
+      "_per_prompt_metrics": 3,
       "_prompt_class": 5,
+      "_prompt_composite": 8,
+      "_prompt_engine_scores": 6,
+      "_prompt_metric_row": 2,
+      "_prompt_score_parts": 2,
       "_prompt_signals": 3,
       "_provider_reported_cost": 5,
+      "_qualified_owned_citation": 7,
       "_rate": 2,
       "_reported_cost_usd": 3,
       "_search_cost_estimate": 3,
@@ -190,21 +198,39 @@
       "classify_fanout": 7,
       "score_execution": 3
     },
-    "loc": 755,
+    "loc": 864,
     "max_cc": 18
   },
   "app/analysis/service.py": {
     "functions": {
       "_artifact_usage_by_task": 2,
+      "_build_prompt_metric_snapshot": 5,
       "_classification": 4,
+      "_cohort_metrics": 2,
+      "_composite_visibility_score": 4,
+      "_decline_is_confirmed": 7,
+      "_domain_matches_any": 3,
+      "_engine_decline_agreement": 3,
       "_execution_dicts": 7,
+      "_finalized_metrics": 14,
+      "_finish_audit": 3,
+      "_group_observed_citations": 7,
+      "_metric_snapshot": 5,
+      "_observed_candidate": 1,
+      "_persist_observed_competitors": 7,
+      "_persist_prompt_metric_snapshots": 9,
+      "_previous_prompt_metrics": 8,
+      "_prompt_evidence_coverage": 2,
+      "_prompt_metric_rows": 6,
+      "_prompt_trend_values": 14,
+      "_qualified_observed_domains": 4,
       "_unique_artifact_usage": 4,
       "analyze_task": 18,
       "build_scoring_config": 2,
-      "finalize_audit_analysis": 22
+      "finalize_audit_analysis": 6
     },
-    "loc": 461,
-    "max_cc": 22
+    "loc": 873,
+    "max_cc": 18
   },
   "app/analysis/site_health/__init__.py": {
     "functions": {},
@@ -389,6 +415,17 @@
     "loc": 168,
     "max_cc": 3
   },
+  "app/api/audit_schedules.py": {
+    "functions": {
+      "create_audit_schedule_endpoint": 2,
+      "delete_audit_schedule_endpoint": 2,
+      "get_audit_schedule_endpoint": 2,
+      "list_audit_schedules_endpoint": 2,
+      "update_audit_schedule_endpoint": 3
+    },
+    "loc": 134,
+    "max_cc": 3
+  },
   "app/api/audits.py": {
     "functions": {
       "_authorize_resume_cursor": 3,
@@ -408,9 +445,10 @@
       "get_metrics_endpoint": 2,
       "list_audits_endpoint": 2,
       "list_events_endpoint": 3,
-      "list_executions_endpoint": 4
+      "list_executions_endpoint": 4,
+      "rerun_failures_endpoint": 4
     },
-    "loc": 458,
+    "loc": 498,
     "max_cc": 7
   },
   "app/api/auth.py": {
@@ -460,14 +498,15 @@
   },
   "app/api/brand_discoveries.py": {
     "functions": {
+      "_completion_response": 5,
       "_page_limit": 2,
-      "complete_brand_discovery": 7,
+      "complete_brand_discovery": 4,
       "create_brand_discovery": 2,
       "get_brand_discovery": 2,
       "get_brand_discovery_catalog": 1
     },
-    "loc": 123,
-    "max_cc": 7
+    "loc": 124,
+    "max_cc": 5
   },
   "app/api/commerce.py": {
     "functions": {
@@ -493,13 +532,14 @@
       "_not_found": 1,
       "_usage_limited": 1,
       "cancel_generation_endpoint": 3,
+      "content_feedback_endpoint": 3,
       "enqueue_generation_endpoint": 6,
       "get_generation_endpoint": 2,
       "list_generations_endpoint": 3,
       "regenerate_endpoint": 4,
       "try_again_endpoint": 4
     },
-    "loc": 223,
+    "loc": 253,
     "max_cc": 6
   },
   "app/api/deps.py": {
@@ -574,9 +614,10 @@
       "get_summary_endpoint": 2,
       "list_opportunities_endpoint": 4,
       "recompute_endpoint": 4,
+      "update_order_endpoint": 4,
       "update_status_endpoint": 4
     },
-    "loc": 405,
+    "loc": 442,
     "max_cc": 6
   },
   "app/api/products.py": {
@@ -612,24 +653,27 @@
       "_map_occupancy": 2,
       "_resolve_default_agent": 2,
       "accept_brand_profile_suggestion_endpoint": 4,
+      "accept_observed_competitor_endpoint": 2,
       "create_project_endpoint": 4,
       "delete_project_endpoint": 2,
       "get_brand_logo_endpoint": 3,
       "get_brand_profile_endpoint": 2,
+      "get_command_center_endpoint": 2,
       "get_competitor_logo_endpoint": 3,
-      "get_dashboard_endpoint": 1,
-      "get_dashboard_report_endpoint": 2,
+      "get_executive_report_endpoint": 3,
       "get_project_endpoint": 1,
+      "get_prompt_metrics_endpoint": 2,
       "get_visibility_endpoint": 2,
       "get_visibility_evidence_endpoint": 3,
       "get_visibility_trends_endpoint": 2,
+      "list_observed_competitors_endpoint": 2,
       "list_projects_endpoint": 2,
       "put_brand_profile_endpoint": 2,
       "refresh_project_logos_endpoint": 2,
       "suggest_brand_profile_endpoint": 3,
       "update_project_endpoint": 2
     },
-    "loc": 659,
+    "loc": 753,
     "max_cc": 5
   },
   "app/api/prompts.py": {
@@ -756,11 +800,14 @@
   "app/connectors/agent/client.py": {
     "functions": {
       "DefaultAgentClient.__init__": 3,
+      "DefaultAgentClient._complete": 8,
       "DefaultAgentClient.base_url_host": 2,
-      "DefaultAgentClient.complete_json": 8,
-      "DefaultAgentClient.model": 1
+      "DefaultAgentClient.complete_json": 1,
+      "DefaultAgentClient.complete_structured_json": 2,
+      "DefaultAgentClient.model": 1,
+      "_strip_json_fence": 2
     },
-    "loc": 132,
+    "loc": 211,
     "max_cc": 8
   },
   "app/connectors/answer_engines/__init__.py": {
@@ -1189,22 +1236,6 @@
     "loc": 1336,
     "max_cc": 18
   },
-  "app/connectors/web_evidence/firecrawl.py": {
-    "functions": {
-      "_backoff": 1,
-      "_bounded_backoff": 1,
-      "_headers": 3,
-      "_post": 7,
-      "_request_attempt": 3,
-      "_response_payload": 3,
-      "_retry_response": 6,
-      "_search": 10,
-      "competitor_search": 1,
-      "rendered_scrape": 6
-    },
-    "loc": 170,
-    "max_cc": 10
-  },
   "app/connectors/web_evidence/resolver.py": {
     "functions": {
       "SystemDnsResolver.resolve": 4
@@ -1295,14 +1326,15 @@
   },
   "app/core/config/agent.py": {
     "functions": {
-      "DefaultAgentSettings.configured": 1
+      "DefaultAgentSettings.configured": 1,
+      "DefaultAgentSettings.resolved_api_key": 5
     },
-    "loc": 74,
-    "max_cc": 1
+    "loc": 98,
+    "max_cc": 5
   },
   "app/core/config/analysis.py": {
     "functions": {},
-    "loc": 85,
+    "loc": 99,
     "max_cc": 0
   },
   "app/core/config/analytics.py": {
@@ -1325,6 +1357,11 @@
     "loc": 174,
     "max_cc": 0
   },
+  "app/core/config/audit_schedules.py": {
+    "functions": {},
+    "loc": 45,
+    "max_cc": 0
+  },
   "app/core/config/audits.py": {
     "functions": {
       "AuditSettings.retry_delay": 2,
@@ -1340,7 +1377,7 @@
       "measurement_policy_from_configuration": 2,
       "system_instruction_for_mode": 5
     },
-    "loc": 634,
+    "loc": 636,
     "max_cc": 11
   },
   "app/core/config/billing.py": {
@@ -1391,7 +1428,7 @@
       "_discovery_claim_order": 1,
       "_discovery_task_model": 1
     },
-    "loc": 154,
+    "loc": 140,
     "max_cc": 1
   },
   "app/core/config/brand_evidence.py": {
@@ -1426,7 +1463,7 @@
       "_content_claim_order": 1,
       "_content_model": 1
     },
-    "loc": 180,
+    "loc": 192,
     "max_cc": 5
   },
   "app/core/config/costs.py": {
@@ -1441,11 +1478,6 @@
     },
     "loc": 295,
     "max_cc": 7
-  },
-  "app/core/config/dashboard.py": {
-    "functions": {},
-    "loc": 50,
-    "max_cc": 0
   },
   "app/core/config/entitlements.py": {
     "functions": {
@@ -1516,12 +1548,17 @@
     "loc": 101,
     "max_cc": 5
   },
+  "app/core/config/observed_competitors.py": {
+    "functions": {},
+    "loc": 23,
+    "max_cc": 0
+  },
   "app/core/config/opportunities.py": {
     "functions": {
       "OpportunityRule.__init__": 1,
       "validate_rule_id": 2
     },
-    "loc": 465,
+    "loc": 479,
     "max_cc": 2
   },
   "app/core/config/product_tour.py": {
@@ -1716,7 +1753,7 @@
   },
   "app/domain/analysis/schemas.py": {
     "functions": {},
-    "loc": 330,
+    "loc": 357,
     "max_cc": 0
   },
   "app/domain/analysis/service.py": {
@@ -1757,6 +1794,7 @@
       "_require_aware": 3,
       "_response_sov": 6,
       "_select_events": 4,
+      "_selected_visibility_score": 3,
       "_slice_sources": 3,
       "_source_identity": 2,
       "_source_transport_model": 6,
@@ -1769,13 +1807,14 @@
       "_website_url_for_name": 2,
       "get_execution_evidence": 5,
       "get_metrics": 1,
-      "get_visibility": 14,
+      "get_prompt_metrics": 5,
+      "get_visibility": 13,
       "get_visibility_evidence": 14,
       "get_visibility_trends": 11,
       "load_export_bundle": 2,
       "validate_shopping_surface": 3
     },
-    "loc": 1563,
+    "loc": 1614,
     "max_cc": 15
   },
   "app/domain/analytics/__init__.py": {
@@ -2048,8 +2087,50 @@
       "list_audits": 2,
       "list_tasks": 1
     },
-    "loc": 1686,
+    "loc": 1690,
     "max_cc": 16
+  },
+  "app/domain/audits/repair.py": {
+    "functions": {
+      "_clone_engine_snapshots": 4,
+      "_clone_prompt_snapshots": 3,
+      "_clone_surface_snapshots": 3,
+      "_clone_tasks": 2,
+      "_new_repair_audit": 3,
+      "_queue_repair": 2,
+      "_selected_failed_tasks": 11,
+      "_task_matches": 8,
+      "create_repair_audit": 10
+    },
+    "loc": 334,
+    "max_cc": 11
+  },
+  "app/domain/audits/schedule_schemas.py": {
+    "functions": {
+      "AuditScheduleCreate.normalize_next_run_at": 3,
+      "AuditScheduleCreate.validate_engines": 4,
+      "AuditScheduleCreate.validate_interval": 5,
+      "AuditScheduleCreate.validate_timezone": 2,
+      "AuditScheduleUpdate.normalize_next_run_at": 3,
+      "AuditScheduleUpdate.validate_engines": 5,
+      "AuditScheduleUpdate.validate_timezone": 3
+    },
+    "loc": 157,
+    "max_cc": 5
+  },
+  "app/domain/audits/schedule_service.py": {
+    "functions": {
+      "_utcnow": 1,
+      "_validate_cadence": 5,
+      "_validate_prompt_set": 3,
+      "create_schedule": 2,
+      "delete_schedule": 1,
+      "get_schedule": 2,
+      "list_schedules": 1,
+      "update_schedule": 6
+    },
+    "loc": 180,
+    "max_cc": 6
   },
   "app/domain/audits/schemas.py": {
     "functions": {
@@ -2064,7 +2145,7 @@
       "frozen_retrieval_enabled": 4,
       "model_provenance_for": 2
     },
-    "loc": 617,
+    "loc": 625,
     "max_cc": 5
   },
   "app/domain/audits/state_events.py": {
@@ -2242,6 +2323,42 @@
     "loc": 373,
     "max_cc": 10
   },
+  "app/domain/command_center/__init__.py": {
+    "functions": {},
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/command_center/report.py": {
+    "functions": {
+      "_metric": 2,
+      "_paragraph_text": 1,
+      "render_executive_pdf": 8
+    },
+    "loc": 214,
+    "max_cc": 8
+  },
+  "app/domain/command_center/schemas.py": {
+    "functions": {},
+    "loc": 61,
+    "max_cc": 0
+  },
+  "app/domain/command_center/service.py": {
+    "functions": {
+      "_audit_identity": 5,
+      "_brand_row": 3,
+      "_delta": 3,
+      "_load_visibility_pair": 2,
+      "_measurement": 4,
+      "_movements": 10,
+      "_resolve_audits": 11,
+      "_resolved_action_summary": 6,
+      "_share_of_voice_percent": 3,
+      "_state": 3,
+      "get_command_center": 3
+    },
+    "loc": 283,
+    "max_cc": 11
+  },
   "app/domain/commerce/__init__.py": {
     "functions": {},
     "loc": 2,
@@ -2395,39 +2512,48 @@
   },
   "app/domain/content/message_builder.py": {
     "functions": {
-      "build_messages": 6
+      "_context_messages": 4,
+      "_skill_instruction": 2,
+      "build_messages": 4
     },
-    "loc": 82,
-    "max_cc": 6
+    "loc": 112,
+    "max_cc": 4
   },
   "app/domain/content/schemas.py": {
     "functions": {
       "ContentGenerationCreate._output_type_known": 2,
       "ContentGenerationCreate._prompt_trimmed_bounded": 3,
+      "ContentGenerationCreate._skill_known": 2,
       "prompt_preview": 2
     },
-    "loc": 117,
+    "loc": 152,
     "max_cc": 3
   },
   "app/domain/content/service.py": {
     "functions": {
+      "_commit_generation": 4,
+      "_generation_website_context": 2,
+      "_idempotent_replay": 4,
       "_insert_generation": 1,
+      "_opportunity_evidence": 6,
+      "_optional_uuid": 2,
       "_project_in_workspace": 2,
       "_require_provider_configured": 3,
       "_reserve_content_capacity": 1,
       "_summary_dto": 3,
       "cancel_generation": 4,
-      "enqueue_generation": 9,
+      "enqueue_generation": 4,
       "get_generation": 2,
       "list_generations": 1,
+      "record_feedback": 11,
       "regenerate": 1,
       "request_fingerprint": 2,
       "to_detail": 1,
       "to_list_item": 1,
       "try_again": 3
     },
-    "loc": 431,
-    "max_cc": 9
+    "loc": 592,
+    "max_cc": 11
   },
   "app/domain/content/website_context.py": {
     "functions": {
@@ -2439,61 +2565,6 @@
     },
     "loc": 265,
     "max_cc": 33
-  },
-  "app/domain/dashboard/__init__.py": {
-    "functions": {},
-    "loc": 1,
-    "max_cc": 0
-  },
-  "app/domain/dashboard/report.py": {
-    "functions": {
-      "_metric_paragraph": 2,
-      "_paragraph_text": 1,
-      "render_dashboard_pdf": 7
-    },
-    "loc": 94,
-    "max_cc": 7
-  },
-  "app/domain/dashboard/schemas.py": {
-    "functions": {},
-    "loc": 81,
-    "max_cc": 0
-  },
-  "app/domain/dashboard/service.py": {
-    "functions": {
-      "_average_price_accuracy": 4,
-      "_bounded_rate": 3,
-      "_commerce_presence_point": 1,
-      "_latest": 1,
-      "_latest_health_before": 4,
-      "_latest_opportunity_before": 4,
-      "_normalized_brand_sov": 5,
-      "_normalized_rank_performance": 6,
-      "_opportunity_execution": 7,
-      "_own_product_snapshots": 4,
-      "_presence_provenance": 5,
-      "_product_presence": 10,
-      "_runs_section": 7,
-      "_score_rate": 2,
-      "_section": 2,
-      "_site_health_metrics": 6,
-      "_site_health_state": 7,
-      "_source": 2,
-      "_standard_presence_point": 1,
-      "_version_identity": 1,
-      "_visibility_section": 6,
-      "_weighted_components": 9,
-      "assemble_response": 14,
-      "build_ai_presence_point": 7,
-      "build_analyze_sections": 8,
-      "build_improve_sections": 10,
-      "fetch_latest_sources": 1,
-      "finalize_ai_presence_points": 11,
-      "get_ai_presence": 9,
-      "get_dashboard": 1
-    },
-    "loc": 852,
-    "max_cc": 14
   },
   "app/domain/entitlements/__init__.py": {
     "functions": {},
@@ -2735,7 +2806,7 @@
     "functions": {
       "OpportunityStatusPatch._known_status": 2
     },
-    "loc": 179,
+    "loc": 194,
     "max_cc": 2
   },
   "app/domain/opportunities/service.py": {
@@ -2744,7 +2815,9 @@
       "_bounded_value": 9,
       "_build_snapshot": 13,
       "_clamp_limit": 2,
+      "_confirmed_decline_hits": 5,
       "_cursor_filters": 5,
+      "_evidence_summary": 8,
       "_filter_clauses": 6,
       "_guidance_enabled": 2,
       "_guidance_findings": 6,
@@ -2757,8 +2830,11 @@
       "_latest_evidence_at": 8,
       "_latest_snapshot": 1,
       "_load_commerce_evidence": 14,
+      "_load_order": 1,
       "_load_site_evidence": 8,
       "_load_visibility_evidence": 14,
+      "_lock_project": 2,
+      "_ordered_items": 8,
       "_project_detail": 7,
       "_project_export_row": 6,
       "_project_guidance": 6,
@@ -2769,9 +2845,11 @@
       "_require_project": 2,
       "_resolve_scored_audit": 3,
       "_resolve_source": 3,
+      "_stable_key": 1,
       "_target_label": 9,
       "_utcnow": 1,
       "_validate_filters": 9,
+      "_validate_status": 2,
       "create_guidance": 13,
       "enqueue_opportunity_refresh": 1,
       "get_grouped_history": 9,
@@ -2779,12 +2857,13 @@
       "get_opportunity": 2,
       "get_summary": 16,
       "list_guidance_history": 2,
-      "list_opportunities": 5,
+      "list_opportunities": 4,
       "load_export_rows": 2,
       "recompute": 29,
+      "update_order": 8,
       "update_status": 4
     },
-    "loc": 1681,
+    "loc": 1933,
     "max_cc": 29
   },
   "app/domain/products/__init__.py": {
@@ -2932,69 +3011,17 @@
     "max_cc": 13
   },
   "app/domain/projects/discovery.py": {
-    "functions": {
-      "_agent_competitor_candidates": 7,
-      "_apply_discovery_result": 5,
-      "_apply_grouped_completion": 12,
-      "_approve_vendor_url": 1,
-      "_candidate_identity_present": 1,
-      "_candidate_name": 2,
-      "_capacity_approved_prompt_rows": 5,
-      "_collect_owned_site": 10,
-      "_commit_discovery_attempt": 4,
-      "_commit_new_discovery": 3,
-      "_commit_progress": 1,
-      "_competitor_domain": 6,
-      "_complete_synthesis": 13,
-      "_confirmed_competitor_items": 10,
-      "_confirmed_domains": 3,
-      "_discover_competitors": 4,
-      "_discovered_project_payload": 9,
-      "_discovery_prompt_rows": 2,
-      "_discovery_statement": 2,
-      "_discovery_topic_rows": 2,
-      "_evidence_item": 1,
-      "_existing_discovery_gaps": 2,
-      "_firecrawl_competitor_candidates": 2,
-      "_grouped_prompt_output": 9,
-      "_has_prompt_cohort_gap": 4,
-      "_industry_terms": 3,
-      "_is_valid_domain_hostname": 3,
-      "_normalized_url": 5,
-      "_persist_project_resources": 8,
-      "_progress": 6,
-      "_read_competitor_site": 6,
-      "_relevant_competitor_page": 6,
-      "_rendered_site_evidence": 3,
-      "_safe_agent_competitor_candidates": 2,
-      "_select_prompt_cohorts": 11,
-      "_suggestion_topic_id": 3,
-      "_synthesize_discovery": 4,
-      "_synthesize_output": 4,
-      "_try_verify_competitor_candidate": 2,
-      "_unique_topic_names": 2,
-      "_valid_prompt_candidates": 4,
-      "_validate_public_hostname": 4,
-      "_validated_prompt_suggestions": 4,
-      "_verified_candidate_identity": 2,
-      "_verified_synthesized_competitors": 7,
-      "_verify_competitor_candidate": 4,
-      "_verify_competitor_candidates": 6,
-      "complete_discovery": 10,
-      "create_discovery": 3,
-      "discovery_catalog": 1,
-      "get_discovery": 2,
-      "process_discovery": 6
-    },
-    "loc": 1401,
-    "max_cc": 13
+    "functions": {},
+    "loc": 19,
+    "max_cc": 0
   },
   "app/domain/projects/discovery_schemas.py": {
     "functions": {
-      "BrandDiscoveryComplete._bounded_prompt_total": 3
+      "BrandDiscoveryComplete._bounded_prompt_total": 3,
+      "DiscoveryCompetitorSuggestion.validate_evidence_urls": 4
     },
-    "loc": 165,
-    "max_cc": 3
+    "loc": 208,
+    "max_cc": 4
   },
   "app/domain/projects/knowledge_base.py": {
     "functions": {
@@ -3028,10 +3055,106 @@
       "clean_profile_products": 5,
       "normalize_benchmark_mode": 4,
       "normalize_intent": 4,
+      "normalize_primary_market": 5,
       "normalize_prompt_rows": 10
     },
-    "loc": 88,
+    "loc": 99,
     "max_cc": 10
+  },
+  "app/domain/projects/observed_competitors.py": {
+    "functions": {
+      "accept_observed_candidate": 3,
+      "list_observed_candidates": 1
+    },
+    "loc": 81,
+    "max_cc": 3
+  },
+  "app/domain/projects/onboarding/__init__.py": {
+    "functions": {},
+    "loc": 19,
+    "max_cc": 0
+  },
+  "app/domain/projects/onboarding/industry_library.py": {
+    "functions": {
+      "industry_context": 3,
+      "industry_names": 1,
+      "library_version": 1,
+      "load_industry_library": 1,
+      "subindustries_by_industry": 3
+    },
+    "loc": 39,
+    "max_cc": 3
+  },
+  "app/domain/projects/onboarding/normalization.py": {
+    "functions": {
+      "normalize_website_url": 6
+    },
+    "loc": 35,
+    "max_cc": 6
+  },
+  "app/domain/projects/onboarding/prompt_generation.py": {
+    "functions": {
+      "_ensure_market": 3,
+      "_fallback_context": 9,
+      "_fallback_values": 1,
+      "_localized_question": 1,
+      "fallback_portfolio": 8,
+      "validated_portfolio": 4
+    },
+    "loc": 152,
+    "max_cc": 9
+  },
+  "app/domain/projects/onboarding/prompt_validation.py": {
+    "functions": {
+      "_has_context_coverage": 4,
+      "_is_near_duplicate": 3,
+      "_mentions_market": 4,
+      "_portfolio_errors": 8,
+      "_prompt_error": 9,
+      "validate_portfolio": 7
+    },
+    "loc": 152,
+    "max_cc": 9
+  },
+  "app/domain/projects/onboarding/research.py": {
+    "functions": {
+      "_fallback_profile": 1,
+      "_model_research": 4,
+      "_research_evidence": 3,
+      "_research_model": 2,
+      "_research_request": 1,
+      "_site_text": 4,
+      "_verified_competitor": 8,
+      "_verified_from_model": 2,
+      "_verify_competitors": 4,
+      "research_brand": 15
+    },
+    "loc": 314,
+    "max_cc": 15
+  },
+  "app/domain/projects/onboarding/service.py": {
+    "functions": {
+      "_confirmed_competitors": 5,
+      "_confirmed_domains": 3,
+      "_persist_project": 13,
+      "_progress": 6,
+      "_reviewed_prompts": 7,
+      "complete_discovery": 12,
+      "create_discovery": 12,
+      "discovery_catalog": 1,
+      "get_discovery": 3,
+      "process_discovery": 6
+    },
+    "loc": 538,
+    "max_cc": 13
+  },
+  "app/domain/projects/onboarding/site_resolution.py": {
+    "functions": {
+      "_http_variant": 1,
+      "resolve_site": 13
+    },
+    "loc": 99,
+    "max_cc": 13
   },
   "app/domain/projects/schemas.py": {
     "functions": {
@@ -3039,12 +3162,13 @@
       "_validate_brand_profile_field": 2,
       "_validate_brand_profile_source": 2
     },
-    "loc": 346,
+    "loc": 382,
     "max_cc": 2
   },
   "app/domain/projects/service.py": {
     "functions": {
       "_apply_brand": 3,
+      "_apply_scalar_project_updates": 3,
       "_build_competitors": 9,
       "_clean_list": 4,
       "_loaded_project_query": 1,
@@ -3056,17 +3180,21 @@
       "get_project": 2,
       "list_projects": 1,
       "project_to_response": 13,
-      "update_project": 29
+      "update_project": 21
     },
-    "loc": 330,
-    "max_cc": 29
+    "loc": 343,
+    "max_cc": 21
   },
   "app/domain/projects/shim.py": {
     "functions": {
-      "project_scoring_identity": 17
+      "_brand_identity": 4,
+      "_competitors": 4,
+      "_domains": 3,
+      "_products_services": 4,
+      "project_scoring_identity": 6
     },
-    "loc": 60,
-    "max_cc": 17
+    "loc": 74,
+    "max_cc": 6
   },
   "app/domain/prompts/__init__.py": {
     "functions": {},
@@ -3139,11 +3267,12 @@
   },
   "app/domain/prompts/portfolio.py": {
     "functions": {
+      "_is_named_comparison": 3,
       "contains_tracked_name": 4,
-      "prompt_identity_is_valid": 5
+      "prompt_identity_is_valid": 4
     },
-    "loc": 33,
-    "max_cc": 5
+    "loc": 39,
+    "max_cc": 4
   },
   "app/domain/prompts/receipts.py": {
     "functions": {
@@ -3156,7 +3285,7 @@
   },
   "app/domain/prompts/schemas.py": {
     "functions": {},
-    "loc": 209,
+    "loc": 214,
     "max_cc": 0
   },
   "app/domain/prompts/service.py": {
@@ -3615,18 +3744,38 @@
     "loc": 166,
     "max_cc": 7
   },
+  "app/evaluations/__init__.py": {
+    "functions": {},
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/evaluations/onboarding_golden.py": {
+    "functions": {
+      "_cohort_issues": 5,
+      "_coverage_issues": 6,
+      "_covers_all": 2,
+      "_identity_issues": 8,
+      "_normalized": 1,
+      "_nvidia_review_input": 2,
+      "evaluate_competitors": 8,
+      "evaluate_portfolio": 5,
+      "evaluate_with_nvidia": 12
+    },
+    "loc": 347,
+    "max_cc": 12
+  },
   "app/main.py": {
     "functions": {
       "_sanitize_correlation_id": 5,
       "create_app": 4,
       "lifespan": 1
     },
-    "loc": 173,
+    "loc": 175,
     "max_cc": 5
   },
   "app/models/__init__.py": {
     "functions": {},
-    "loc": 217,
+    "loc": 237,
     "max_cc": 0
   },
   "app/models/abuse.py": {
@@ -3640,7 +3789,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 292,
+    "loc": 350,
     "max_cc": 1
   },
   "app/models/analytics.py": {
@@ -3661,7 +3810,14 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 751,
+    "loc": 782,
+    "max_cc": 1
+  },
+  "app/models/audit_schedule.py": {
+    "functions": {
+      "_utcnow": 1
+    },
+    "loc": 89,
     "max_cc": 1
   },
   "app/models/billing.py": {
@@ -3673,7 +3829,7 @@
   },
   "app/models/brand.py": {
     "functions": {},
-    "loc": 333,
+    "loc": 371,
     "max_cc": 0
   },
   "app/models/commerce.py": {
@@ -3692,14 +3848,14 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 187,
+    "loc": 236,
     "max_cc": 1
   },
   "app/models/discovery.py": {
     "functions": {
       "_utcnow": 1
     },
-    "loc": 133,
+    "loc": 171,
     "max_cc": 1
   },
   "app/models/integrations.py": {
@@ -3713,7 +3869,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 275,
+    "loc": 352,
     "max_cc": 1
   },
   "app/models/product.py": {
@@ -3723,7 +3879,7 @@
   },
   "app/models/project.py": {
     "functions": {},
-    "loc": 136,
+    "loc": 139,
     "max_cc": 0
   },
   "app/models/prompt.py": {
@@ -3865,6 +4021,24 @@
     "loc": 285,
     "max_cc": 8
   },
+  "app/workers/audit_scheduler.py": {
+    "functions": {
+      "AuditScheduler.__init__": 3,
+      "AuditScheduler._claim_due": 4,
+      "AuditScheduler._finalize_claim": 7,
+      "AuditScheduler._plan_claim": 6,
+      "AuditScheduler._renew_claim": 4,
+      "AuditScheduler.run_forever": 3,
+      "AuditScheduler.run_once": 5,
+      "_utcnow": 1,
+      "_write_heartbeat": 1,
+      "healthcheck": 3,
+      "main": 2,
+      "next_run_after": 10
+    },
+    "loc": 264,
+    "max_cc": 10
+  },
   "app/workers/audit_worker.py": {
     "functions": {
       "AuditWorker.__init__": 3,
@@ -3942,14 +4116,16 @@
       "_install_loop_shutdown_handlers": 2,
       "_install_shutdown_handler": 2,
       "_log_iteration_failure": 2,
+      "_process_claimed_task": 5,
+      "_reap_expired": 4,
       "_run_loop": 5,
       "_set_fallback_signal": 1,
       "_stop_heartbeat": 2,
       "main": 1,
-      "run_once": 10
+      "run_once": 4
     },
-    "loc": 236,
-    "max_cc": 10
+    "loc": 260,
+    "max_cc": 7
   },
   "app/workers/commerce_discovery_worker.py": {
     "functions": {
@@ -4007,7 +4183,7 @@
       "_utcnow": 1,
       "main": 1
     },
-    "loc": 383,
+    "loc": 385,
     "max_cc": 23
   },
   "app/workers/drain.py": {

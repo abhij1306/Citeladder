@@ -33,6 +33,33 @@ class MetricsResponse(BaseModel):
     created_at: datetime
 
 
+class PromptMetricItem(BaseModel):
+    """Persisted prompt score and movement, ordered strongest-to-weakest."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    audit_id: uuid.UUID
+    prompt_id: uuid.UUID | None = None
+    prompt_index: int
+    prompt_text: str
+    cohort: str
+    composite_score: float
+    previous_score: float | None = None
+    immediate_delta: float | None = None
+    rolling_four: list[float] = Field(default_factory=list)
+    per_engine_scores: dict[str, float] = Field(default_factory=dict)
+    components: dict[str, float | None] = Field(default_factory=dict)
+    engine_agreement: float
+    repetition_agreement: float
+    evidence_coverage: float
+    trend_confidence: float
+    decline_confirmed: bool
+    analyzer_version: str
+    scoring_rule_version: str
+    created_at: datetime
+
+
 class RankingRow(BaseModel):
     """One brand-vs-competitor rankings-table row for the dashboard."""
 

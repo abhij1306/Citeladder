@@ -143,7 +143,7 @@ async def test_endpoints_serve_projections_over_http(
     # Metrics projection.
     m = await client.get(f"/api/v1/audits/{audit.id}/metrics", headers=headers)
     assert m.status_code == 200
-    assert m.json()["visibility_score"] == 100.0
+    assert m.json()["visibility_score"] == 87.5
 
     # Audit projection: canonical measurement_mode + the stable aggregate
     # model_provenance list (never a forced singular model), no `mode` alias.

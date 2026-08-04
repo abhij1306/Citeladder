@@ -13,7 +13,8 @@ export type BrandDiscoveryInput = {
   brand_name: string;
   website_url: string;
   industry?: string;
-  country_code?: string;
+  subindustry?: string;
+  primary_market: string;
   language_code?: string;
 };
 
@@ -25,13 +26,14 @@ type DiscoveryProfile = {
   industry: string;
   business_type: 'b2b' | 'b2c' | 'both';
   price_tier: string;
+  field_confidence: Record<string, number>;
 };
 
 type DiscoveryCompetitor = { name: string; aliases: string[]; domains: string[] };
 type DiscoveryPrompt = {
   text: string;
   intent: 'discovery' | 'comparison' | 'purchase' | 'service' | 'local';
-  cohort: 'core' | 'comparison';
+  cohort: 'market_visibility' | 'brand_diagnostic';
 };
 
 export type BrandDiscoveryCompletion = {

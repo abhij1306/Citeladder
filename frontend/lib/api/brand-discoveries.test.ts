@@ -19,6 +19,7 @@ const completion: BrandDiscoveryCompletion = {
     industry: 'Commerce software',
     business_type: 'b2b',
     price_tier: 'premium',
+    field_confidence: {},
   },
   domains: ['acme.example'],
   competitors: [{ name: 'Globex', aliases: [], domains: ['globex.example'] }],
@@ -29,7 +30,7 @@ const completion: BrandDiscoveryCompletion = {
         {
           text: 'How do product feeds improve retail operations?',
           intent: 'discovery',
-          cohort: 'core',
+          cohort: 'market_visibility',
         },
       ],
     },
@@ -54,6 +55,7 @@ describe('brand discovery completion contract', () => {
             crawl_id: CRAWL_ID,
             activation_state: 'queued',
             page_limit: 10,
+            warnings: [],
           },
           { status: 201 },
         );
@@ -67,6 +69,7 @@ describe('brand discovery completion contract', () => {
       crawl_id: CRAWL_ID,
       activation_state: 'queued',
       page_limit: 10,
+      warnings: [],
     });
     expect(idempotencyKey).toBe('complete-once');
     expect(body).toEqual(completion);

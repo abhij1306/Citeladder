@@ -13,6 +13,7 @@ from app.models.analysis import (
     Citation,
     CompetitorMention,
     MetricSnapshot,
+    PromptMetricSnapshot,
     ResponseAnalysis,
 )
 from app.models.analytics import (
@@ -33,6 +34,7 @@ from app.models.audit import (
     ProviderAttempt,
     RawResponseArtifact,
 )
+from app.models.audit_schedule import AuditSchedule
 from app.models.billing import (
     AccountGrant,
     BillingAccount,
@@ -52,6 +54,7 @@ from app.models.brand import (
     BrandProfile,
     BrandProfileSuggestion,
     Competitor,
+    ObservedEntityCandidate,
     OwnedDomain,
     UnintendedDomain,
 )
@@ -65,8 +68,12 @@ from app.models.commerce import (
     FeedIssue,
     OrderFact,
 )
-from app.models.content import ContentGeneration, ContentGenerationAttempt
-from app.models.discovery import BrandDiscovery
+from app.models.content import (
+    BrandKnowledgeArtifact,
+    ContentGeneration,
+    ContentGenerationAttempt,
+)
+from app.models.discovery import BrandDiscovery, BrandResearchSnapshot
 from app.models.integrations import (
     IntegrationConnection,
     IntegrationEvent,
@@ -133,6 +140,7 @@ __all__ = [
     "AuditPromptSnapshot",
     "AuditShoppingSurfaceSnapshot",
     "AuditTask",
+    "AuditSchedule",
     "Base",
     "Brand",
     "BrandAlias",
@@ -141,6 +149,7 @@ __all__ = [
     "BrandProfileSuggestion",
     "BrandMention",
     "BrandDiscovery",
+    "BrandResearchSnapshot",
     "BillingAccount",
     "BillingCustomer",
     "BillingSubscription",
@@ -151,6 +160,7 @@ __all__ = [
     "CompetitorMention",
     "CompetitorProduct",
     "ContentGeneration",
+    "BrandKnowledgeArtifact",
     "ContentGenerationAttempt",
     "CommerceCandidateReview",
     "CommerceDiscoveryArtifact",
@@ -173,6 +183,7 @@ __all__ = [
     "IntegrationSyncRun",
     "MerchantMention",
     "MetricSnapshot",
+    "PromptMetricSnapshot",
     "Opportunity",
     "OpportunityGuidance",
     "OpportunityOrder",
@@ -180,6 +191,7 @@ __all__ = [
     "OpportunityStatusEvent",
     "OrderFact",
     "OwnedDomain",
+    "ObservedEntityCandidate",
     "PendingActivation",
     "Product",
     "ProductMention",

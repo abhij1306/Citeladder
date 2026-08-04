@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.analytics import router as analytics_router
+from app.api.audit_schedules import router as audit_schedules_router
 from app.api.audits import router as audits_router
 from app.api.auth import router as auth_router
 from app.api.billing import router as billing_router
@@ -83,6 +84,7 @@ _ROUTERS = (
     provider_connections_router,
     provider_catalog_router,
     audits_router,
+    audit_schedules_router,
     executions_router,
     site_health_router,
     content_router,

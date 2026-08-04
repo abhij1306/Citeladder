@@ -27,12 +27,16 @@ function discovery(phase: BrandDiscovery['progress']['phase']): BrandDiscovery {
       industry: '',
       business_type: 'b2b',
       price_tier: 'unknown',
+      field_confidence: {},
     },
     domains: [],
     competitors: [],
     topics: [],
     prompt_suggestions: [],
     evidence: [],
+    warnings: [],
+    gaps: [],
+    error_code: '',
     created_at: '2026-08-04T10:00:00Z',
     updated_at: '2026-08-04T10:00:00Z',
   };
@@ -65,15 +69,5 @@ describe('discoveryActivity', () => {
     expect(steps[0]?.detail).toBe('3 useful pages read');
     expect(steps[2]?.detail).toBe('2 comparable brands found');
     expect(steps[3]?.detail).toBe('8 balanced questions prepared');
-  });
-
-  it('marks safe review attention without exposing diagnostic details', () => {
-    const value = discovery('preparing_review');
-    value.status = 'needs_input';
-
-    const steps = discoveryActivity(value);
-
-    expect(steps[4]?.state).toBe('attention');
-    expect(JSON.stringify(steps)).not.toMatch(/gap|exception|attempt|lease/);
   });
 });

@@ -10,13 +10,15 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.content import (
     CONTENT_DEFAULT_OUTPUT_TYPE,
+    CONTENT_DEFAULT_SKILL,
     CONTENT_HISTORY_TITLE_MAX_LEN,
     CONTENT_OUTPUT_TYPES,
     CONTENT_PROMPT_MAX_LEN,
+    CONTENT_SKILLS,
 )
 
 
@@ -25,6 +27,8 @@ class ContentGenerationCreate(BaseModel):
 
     project_id: uuid.UUID
     prompt: str
+    skill_id: str = CONTENT_DEFAULT_SKILL
+    opportunity_id: uuid.UUID | None = None
     output_type: str = CONTENT_DEFAULT_OUTPUT_TYPE
     website_context_enabled: bool = True
 
@@ -45,6 +49,13 @@ class ContentGenerationCreate(BaseModel):
             raise ValueError(f"unknown output_type: {value}")
         return value
 
+    @field_validator("skill_id")
+    @classmethod
+    def _skill_known(cls, value: str) -> str:
+        if value not in CONTENT_SKILLS:
+            raise ValueError(f"unknown skill_id: {value}")
+        return value
+
 
 def prompt_preview(prompt: str) -> str:
     """Deterministic history label: first line, trimmed to the config cap."""
@@ -61,6 +72,8 @@ class ContentGenerationListItem(BaseModel):
     project_id: uuid.UUID
     status: str
     output_type: str
+    skill_id: str = CONTENT_DEFAULT_SKILL
+    opportunity_id: uuid.UUID | None = None
     website_context_status: str
     requested_model: str
     returned_model: str | None = None
@@ -96,6 +109,11 @@ class ContentGenerationDetail(BaseModel):
     project_id: uuid.UUID
     status: str
     output_type: str
+    skill_id: str = CONTENT_DEFAULT_SKILL
+    opportunity_id: uuid.UUID | None = None
+    evidence_context: dict | None = None
+    feedback: str | None = None
+    feedback_at: datetime | None = None
     website_context_status: str
     requested_model: str
     returned_model: str | None = None
@@ -115,3 +133,20 @@ class ContentGenerationDetail(BaseModel):
     latency_ms: int | None = None
     error_detail: str = ""
     generator_version: str = ""
+
+
+class ContentFeedbackRequest(BaseModel):
+    feedback: str = Field(pattern="^(accepted|rejected)$")
+
+
+class BrandKnowledgeArtifactResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    project_id: uuid.UUID
+    content_generation_id: uuid.UUID
+    skill_id: str
+    title: str
+    content: str
+    source_opportunity_id: uuid.UUID | None = None
+    accepted_at: datetime
