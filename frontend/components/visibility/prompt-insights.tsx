@@ -9,6 +9,12 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { visibilityApi } from '@/lib/api/visibility';
 import type { ObservedCompetitor, PromptMetricItem } from '@/lib/api/types';
 
+function movementDelta(delta: number | null): string {
+  if (delta === null) return '';
+  const sign = delta >= 0 ? '+' : '';
+  return ` · ${sign}${delta.toFixed(1)}`;
+}
+
 export function PromptInsights({
   projectId,
   promptQuery,
@@ -46,15 +52,14 @@ export function PromptInsights({
                   <span className="text-foreground line-clamp-2">{item.prompt_text}</span>
                   <span className="text-secondary">
                     {item.composite_score.toFixed(1)} score
-                    {item.immediate_delta === null
-                      ? ''
-                      : ` · ${item.immediate_delta >= 0 ? '+' : ''}${item.immediate_delta.toFixed(1)}`}
+                    {movementDelta(item.immediate_delta)}
                     {item.decline_confirmed ? ' · confirmed decline' : ''}
                   </span>
                 </li>
               ))}
             </ul>
-          ) : !promptQuery.isLoading ? (
+          ) : null}
+          {!promptQuery.data?.length && !promptQuery.isLoading ? (
             <p className="text-muted text-sm">Prompt movement appears after a completed audit.</p>
           ) : null}
         </CardContent>
@@ -95,7 +100,8 @@ export function PromptInsights({
                 </li>
               ))}
             </ul>
-          ) : !suggestionsQuery.isLoading ? (
+          ) : null}
+          {!suggestionsQuery.data?.length && !suggestionsQuery.isLoading ? (
             <p className="text-muted text-sm">No repeated citation candidates yet.</p>
           ) : null}
           {acceptMutation.isError ? (

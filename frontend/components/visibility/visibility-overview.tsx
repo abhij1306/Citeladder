@@ -9,8 +9,7 @@ import { EngineComparison } from '@/components/visibility/engine-comparison';
 import { OverviewSummary } from '@/components/visibility/overview-summary';
 import { RankingsTable } from '@/components/visibility/rankings-table';
 import { PromptInsights } from '@/components/visibility/prompt-insights';
-import type { Visibility } from '@/lib/api/types';
-import type { ObservedCompetitor, PromptMetricItem } from '@/lib/api/types';
+import type { ObservedCompetitor, PromptMetricItem, Visibility } from '@/lib/api/types';
 import type { VisibilityFilters } from '@/lib/visibility/dashboard';
 
 /**

@@ -82,7 +82,8 @@ export function AuditSchedules({
               </li>
             ))}
           </ul>
-        ) : !schedulesQuery.isLoading ? (
+        ) : null}
+        {!schedulesQuery.data?.length && !schedulesQuery.isLoading ? (
           <p className="text-muted text-sm">No scheduled audits yet.</p>
         ) : null}
         {promptSets.length === 0 ? (
@@ -90,7 +91,7 @@ export function AuditSchedules({
         ) : (
           <div className="grid gap-3 border-t pt-4 sm:grid-cols-3">
             <label className="text-secondary grid gap-1 text-xs font-medium">
-              Prompt set
+              <span>Prompt set</span>
               <select
                 className={inputClasses}
                 value={promptSetId}
@@ -104,7 +105,7 @@ export function AuditSchedules({
               </select>
             </label>
             <label className="text-secondary grid gap-1 text-xs font-medium">
-              Cadence
+              <span>Cadence</span>
               <select
                 className={inputClasses}
                 value={cadence}
@@ -119,7 +120,7 @@ export function AuditSchedules({
             </label>
             {cadence === 'every_n_minutes' ? (
               <label className="text-secondary grid gap-1 text-xs font-medium">
-                Minutes
+                <span>Minutes</span>
                 <input
                   className={inputClasses}
                   min="5"

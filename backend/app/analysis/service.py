@@ -336,7 +336,7 @@ async def _previous_prompt_metrics(
                                 PromptMetricSnapshot.prompt_identity == identity,
                                 PromptMetricSnapshot.cohort == cohort,
                             )
-                            for identity, cohort in identities
+                            for identity, cohort in identities.keys()
                         )
                     ),
                 )

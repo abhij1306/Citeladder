@@ -213,7 +213,7 @@ export function OnboardingScreen() {
   }, [discoveryState]);
 
   useEffect(() => {
-    if (maximumCompetitors !== undefined && discoveryState && discoveryState.status === 'ready') {
+    if (maximumCompetitors !== undefined && discoveryState?.status === 'ready') {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- seed an editable persisted draft.
       setCompetitors((prev) =>
         prev.length > 0
