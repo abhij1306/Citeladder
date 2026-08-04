@@ -13,7 +13,7 @@ import {
 } from '@/lib/marketing-content/pricing';
 import { cn } from '@/lib/utils';
 
-import { Badge } from '../primitives/badge';
+import { Badge } from '@/components/ui/badge';
 import { AnimatedPrice } from './animated-price';
 
 /**
@@ -57,22 +57,26 @@ export function PricingTierCard({
       data-tier={plan.key}
       data-highlighted={highlighted ? 'true' : undefined}
       className={cn(
-        'rounded-mkt-lg shadow-mkt-card p-mkt-30 flex h-full flex-col',
-        highlighted ? 'bg-mkt-surface-sunk ring-mkt-primary ring-1' : 'bg-mkt-surface',
+        'shadow-card flex h-full flex-col rounded-lg p-8',
+        highlighted ? 'bg-background-alt ring-accent ring-1' : 'bg-panel',
       )}
     >
-      <div className="gap-mkt-14 flex items-center justify-between">
-        <h3 className="font-mkt-display text-mkt-ink text-mkt-hsm">{plan.name}</h3>
-        {highlighted && <Badge tone="proof">Recommended</Badge>}
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="font-display text-foreground text-xl">{plan.name}</h3>
+        {highlighted && (
+          <Badge variant="status" value="info">
+            Recommended
+          </Badge>
+        )}
       </div>
-      <p className="text-mkt-sm text-mkt-ink-soft mt-mkt-10 min-h-[3rem]">
+      <p className="text-muted mt-3 min-h-[3rem] text-sm">
         {presentation?.blurb ?? plan.description}
       </p>
 
       {/* The price rides the website's own display rung, not the app's
           `text-hero`: an app token on this surface drifts with the dashboard
           ladder rather than the site's. */}
-      <p className="text-mkt-ink text-mkt-h2 mt-mkt-20 gap-mkt-6 flex items-baseline font-mono tabular-nums">
+      <p className="text-foreground mt-5 flex items-baseline gap-2 font-mono text-4xl tabular-nums">
         <AnimatedPrice
           value={numeric}
           format={(value) =>
@@ -87,7 +91,7 @@ export function PricingTierCard({
           announce={settled}
         />
         {price.kind === 'price' && (
-          <span className="text-mkt-ink-soft text-mkt-sm font-normal">per month</span>
+          <span className="text-muted text-sm font-normal">per month</span>
         )}
       </p>
 
@@ -101,28 +105,25 @@ export function PricingTierCard({
           is a success tick, so an absent value rendered "Label — —" behind a
           tick, and dropping it late would also spend one of the five slots on
           something the tier does not include. */}
-      <ul className="border-mkt-black-10 mt-mkt-20 gap-mkt-10 pt-mkt-20 grid flex-1 border-t">
+      <ul className="border-border-subtle mt-5 grid flex-1 gap-3 border-t pt-5">
         {plan.capabilities
           .filter((capability) => isIncluded(capability.value))
           .slice(0, 5)
           .map((capability) => (
-            <li
-              key={capability.key}
-              className="text-mkt-sm text-mkt-ink-soft gap-mkt-10 flex items-start"
-            >
+            <li key={capability.key} className="text-muted flex items-start gap-3 text-sm">
               {/* The glyph sits in a box as tall as the text's first line, so
                   it stays optically aligned on wrapped items without a nudge
                   margin — a margin here would be an off-ladder one-off, which
                   is exactly what this system exists to prevent. */}
-              <span aria-hidden className="text-mkt-sm flex h-[1lh] shrink-0 items-center">
-                <Check className="text-mkt-success size-4" />
+              <span aria-hidden className="flex h-[1lh] shrink-0 items-center text-sm">
+                <Check className="text-success size-4" />
               </span>
               <span>
                 {capabilityLabel(capability.key)}
                 {renderValue(capability.value) !== 'Included' && (
                   <>
                     {' — '}
-                    <span className="text-mkt-ink font-medium">
+                    <span className="text-foreground font-medium">
                       {renderValue(capability.value)}
                     </span>
                   </>
@@ -132,7 +133,7 @@ export function PricingTierCard({
           ))}
       </ul>
 
-      <div className="mt-mkt-20">
+      <div className="mt-5">
         <PlanCta plan={plan} priceKind={price.kind} onCheckout={onCheckout} pending={pending} />
       </div>
     </div>
@@ -154,7 +155,7 @@ function PlanCta({
     return (
       <a
         href={plan.contact_url ?? '/demo'}
-        className="border-mkt-black-10 text-mkt-ink focus-ring text-mkt-sm rounded-mkt-sm inline-flex h-10 w-full items-center justify-center border font-medium"
+        className="border-border-subtle text-foreground focus-ring inline-flex h-10 w-full items-center justify-center rounded-md border text-sm font-medium"
       >
         {CONTACT_LABEL}
       </a>
@@ -169,7 +170,7 @@ function PlanCta({
       type="button"
       disabled={disabled}
       onClick={() => onCheckout(plan)}
-      className="bg-mkt-indigo text-mkt-surface focus-ring text-mkt-sm rounded-mkt-sm inline-flex h-10 w-full items-center justify-center font-medium disabled:cursor-not-allowed disabled:opacity-60"
+      className="bg-accent text-inverse focus-ring inline-flex h-10 w-full items-center justify-center rounded-md text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? 'Starting checkout…' : `Choose ${plan.name}`}
     </button>

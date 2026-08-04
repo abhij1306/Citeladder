@@ -128,7 +128,7 @@ def _capacity_lock_key(account_id: uuid.UUID) -> int:
     digest = hashlib.blake2b(
         OCCUPANCY_LOCK_NAMESPACE.to_bytes(4, "big") + account_id.bytes,
         digest_size=8,
-        person=b"searchify-cap",
+        person=b"citeladder-cap",
     ).digest()
     return int.from_bytes(digest, "big", signed=True)
 

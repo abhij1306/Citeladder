@@ -11,7 +11,7 @@ from sqlalchemy.engine import make_url
 
 # backend/app/core/config/__init__.py -> parents[3] == backend/
 BASE_DIR = Path(__file__).resolve().parents[3]
-# repo root (Searchify/) holds the shared .env used by docker + local dev.
+# repo root (CiteLadder/) holds the shared .env used by docker + local dev.
 PROJECT_ROOT = BASE_DIR.parent
 
 _INSECURE_DEFAULTS = {
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "Searchify"
+    app_name: str = "CiteLadder"
     app_env: str = Field(
         default="development",
         validation_alias=AliasChoices("APP_ENV", "app_env"),
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("JWT_EXPIRE_HOURS", "jwt_expire_hours"),
     )
     # Session cookie name for the HttpOnly JWT (set by B2).
-    session_cookie_name: str = "searchify_session"
+    session_cookie_name: str = "citeladder_session"
     encryption_key: str = Field(
         default="replace-with-32-byte-minimum-secret",
         validation_alias=AliasChoices("ENCRYPTION_KEY", "encryption_key"),
@@ -139,7 +139,7 @@ class Settings(BaseSettings):
 
     # --- Database ---
     database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/searchify",
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/citeladder",
         validation_alias=AliasChoices("DATABASE_URL", "database_url"),
     )
     # Sized so the shared engine pool exactly covers the audit worker's peak
@@ -250,7 +250,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("LOGFIRE_TOKEN", "logfire_token"),
     )
     logfire_service_name: str = Field(
-        default="searchify-backend",
+        default="citeladder-backend",
         validation_alias=AliasChoices("LOGFIRE_SERVICE_NAME", "logfire_service_name"),
     )
     logfire_environment: str = Field(
@@ -287,7 +287,7 @@ def _secret_is_weak(value: str) -> bool:
         len(value.encode("utf-8")) < 32
         or len(set(value)) < 12
         or value in _INSECURE_DEFAULTS
-        or normalized in {"password", "secret", "searchify", "changeme"}
+        or normalized in {"password", "secret", "citeladder", "changeme"}
     )
 
 

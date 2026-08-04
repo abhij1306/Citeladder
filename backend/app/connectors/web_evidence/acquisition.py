@@ -37,7 +37,7 @@ def curl_cffi_pinned_resolution_supported() -> bool:
     try:
         curl = Curl()
         try:
-            curl.setopt(CurlOpt.RESOLVE, ["searchify.invalid:443:127.0.0.1"])
+            curl.setopt(CurlOpt.RESOLVE, ["citeladder.invalid:443:127.0.0.1"])
         finally:
             curl.close()
     # Capability probing is intentionally isolated from application work.

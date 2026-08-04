@@ -112,9 +112,7 @@ async def test_discovery_failure_persists_safe_state_and_reaches_queue_retry(
     async def _fail_acquisition(*args, **kwargs):
         raise RuntimeError("transport unavailable")
 
-    monkeypatch.setattr(
-        discovery_domain, "_collect_owned_site", _fail_acquisition
-    )
+    monkeypatch.setattr(discovery_domain, "_collect_owned_site", _fail_acquisition)
     async with session_factory() as session:
         discovery = await session.get(BrandDiscovery, discovery_id)
         assert discovery is not None

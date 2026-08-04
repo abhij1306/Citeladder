@@ -115,8 +115,8 @@ def _subscription_activation_payload(
         "current_end": current_end,
         "plan_id": price_ref,
         "notes": {
-            "searchify_intent_id": intent_id,
-            "searchify_account_ref": account_ref,
+            "citeladder_intent_id": intent_id,
+            "citeladder_account_ref": account_ref,
         },
     }
     return json.dumps(
@@ -145,8 +145,8 @@ def _payment_payload(
         "currency": currency,
         "created_at": paid_at,
         "notes": {
-            "searchify_intent_id": intent_id,
-            "searchify_account_ref": account_ref,
+            "citeladder_intent_id": intent_id,
+            "citeladder_account_ref": account_ref,
         },
     }
     return json.dumps(

@@ -50,7 +50,7 @@ function AnswerText({ text }: Readonly<{ text: string }>) {
         href={href}
         target="_blank"
         rel="noreferrer"
-        className="text-mkt-indigo underline underline-offset-2"
+        className="text-accent-text underline underline-offset-2"
       >
         {href}
       </a>,
@@ -65,20 +65,20 @@ function AnswerText({ text }: Readonly<{ text: string }>) {
 
 export function FaqGroups() {
   return (
-    <Container className="gap-mkt-40 pb-mkt-100 lg:gap-mkt-70 grid lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <Container className="grid gap-10 pb-30 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-16">
       <nav aria-label="FAQ groups" className="lg:sticky lg:top-28 lg:self-start">
-        <Meta as="p" className="mb-mkt-20">
+        <Meta as="p" className="mb-5">
           On this page
         </Meta>
-        <div className="gap-mkt-6 grid">
+        <div className="grid gap-2">
           {FAQ_GROUPS.map((group) => (
             <a
               key={group.heading}
               href={`#${groupAnchor(group)}`}
-              className="text-mkt-sm text-mkt-ink-soft hover:bg-mkt-surface hover:text-mkt-ink gap-mkt-14 rounded-mkt-sm px-mkt-14 py-mkt-10 flex items-center justify-between transition-colors duration-200"
+              className="text-muted hover:bg-panel hover:text-foreground flex items-center justify-between gap-4 rounded-md px-4 py-3 text-sm transition-colors duration-200"
             >
               {group.heading}
-              <span className="text-mkt-ink-soft text-mkt-xs font-mono tabular-nums">
+              <span className="text-muted font-mono text-xs tabular-nums">
                 {group.items.length}
               </span>
             </a>
@@ -86,23 +86,23 @@ export function FaqGroups() {
         </div>
       </nav>
 
-      <div className="gap-mkt-50 grid">
+      <div className="grid gap-12">
         {FAQ_GROUPS.map((group) => (
           <section key={group.heading} id={groupAnchor(group)} aria-label={group.heading}>
-            <div className="border-mkt-black-10 mb-mkt-10 gap-mkt-20 pb-mkt-20 flex items-baseline justify-between border-b">
-              <h2 className="font-mkt-display text-mkt-h4 text-mkt-ink">{group.heading}</h2>
+            <div className="border-border-subtle mb-3 flex items-baseline justify-between gap-5 border-b pb-5">
+              <h2 className="font-display text-foreground text-2xl">{group.heading}</h2>
               <Meta>{group.items.length} answers</Meta>
             </div>
             {group.items.map((item) => (
-              <details key={item.q} className="border-mkt-black-10 group border-b">
-                <summary className="text-mkt-body text-mkt-ink hover:text-mkt-indigo gap-mkt-30 py-mkt-20 flex cursor-pointer list-none items-center justify-between font-semibold transition-colors [&::-webkit-details-marker]:hidden">
+              <details key={item.q} className="border-border-subtle group border-b">
+                <summary className="text-foreground hover:text-accent-text flex cursor-pointer list-none items-center justify-between gap-8 py-5 text-base font-semibold transition-colors [&::-webkit-details-marker]:hidden">
                   {item.q}
                   <Plus
                     aria-hidden
-                    className="text-mkt-ink-soft size-4 shrink-0 transition-transform duration-300 group-open:rotate-45"
+                    className="text-muted size-4 shrink-0 transition-transform duration-300 group-open:rotate-45"
                   />
                 </summary>
-                <p className="text-mkt-body text-mkt-ink-soft pb-mkt-30 max-w-[90ch]">
+                <p className="text-muted max-w-[90ch] pb-8 text-base">
                   <AnswerText text={item.a} />
                 </p>
               </details>

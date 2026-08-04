@@ -24,6 +24,10 @@ export type NavGroup = {
 
 export const NAV_GROUPS: NavGroup[] = [
   {
+    title: 'Home',
+    items: [{ label: 'Command center', href: '/projects', icon: ICONS.setup }],
+  },
+  {
     title: 'Analyze',
     items: [
       { label: 'Visibility', href: '/visibility', icon: ICONS.visibility },
@@ -38,17 +42,18 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    title: 'Resolve',
+    items: [
+      { label: 'Site health', href: '/site-health', icon: ICONS.siteHealth },
+      { label: 'Issues', href: '/issues', icon: ICONS.issues },
+      { label: 'Recommended actions', href: '/opportunities', icon: ICONS.opportunities },
+    ],
+  },
+  {
     title: 'Improve',
     items: [
       { label: 'Content', href: '/content', icon: ICONS.content },
-      { label: 'Site health', href: '/site-health', icon: ICONS.siteHealth },
-      { label: 'Issues', href: '/issues', icon: ICONS.issues },
-      { label: 'Opportunities', href: '/opportunities', icon: ICONS.opportunities },
       { label: 'Brand knowledge', href: '/knowledge-base', icon: ICONS.knowledgeBase },
-      // Replaces the retired "Setup" item: project creation moved to
-      // /onboarding, and this is where multi-brand workspaces manage what they
-      // have (plan.md §10, decisions 11–12).
-      { label: 'Projects', href: '/projects', icon: ICONS.setup },
     ],
   },
 ];

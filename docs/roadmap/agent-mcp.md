@@ -18,7 +18,7 @@ Two related capabilities, sharing one data-access core:
   re-measure anything.
 - **(b) MCP (Model Context Protocol) server** — a standards-compliant server that exposes the
   same workspace-scoped data + tools to *external* MCP clients (Claude Desktop, IDE agents,
-  etc.), so a user's own agent can query their Searchify workspace.
+  etc.), so a user's own agent can query their CiteLadder workspace.
 
 The unifying rule: **both read the same workspace-scoped projection endpoints the MVP dashboard
 uses; neither bypasses workspace auth and neither recomputes a metric** (invariant 5, invariant

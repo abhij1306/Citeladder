@@ -1,6 +1,6 @@
 # Owner requirements — Razorpay billing and enterprise demos
 
-> Complete this checklist before Searchify enables production checkout. Never
+> Complete this checklist before CiteLadder enables production checkout. Never
 > paste API key secrets or webhook secrets into this file, Git, an issue, or chat.
 > Store secrets directly in the deployment secret manager and mark only the
 > non-secret completion status here.
@@ -33,7 +33,7 @@ Customer communications handled by Razorpay? yes/no:
 ```
 
 Why this is a live-plan gate: Razorpay requires a concrete amount and currency.
-Searchify will derive the India price once from the operator-supplied USD/INR rate,
+CiteLadder will derive the India price once from the operator-supplied USD/INR rate,
 add the configured GST, and freeze the result into the plan. It will not reprice an
 active recurring mandate from a live exchange rate. Non-India launch checkout is
 USD; a cardholder's issuer may convert that charge into the card account currency.
@@ -61,7 +61,7 @@ This document is an engineering checklist, not tax or legal advice.
 
 The legal entity, PAN/GSTIN, settlement bank, registered address, and merchant
 support details belong in Razorpay's merchant onboarding/Dashboard and the
-approved legal documents. They are intentionally not hard-coded into Searchify
+approved legal documents. They are intentionally not hard-coded into CiteLadder
 or collected in its checkout API. The application currently stores only the
 customer account's two-letter billing country. Provider-confirmed country/tax
 reconciliation remains a live-launch gate: until sandbox evidence proves that
@@ -81,7 +81,7 @@ the selected INR/USD route matches Razorpay payment/invoice evidence, keep
 - [ ] Confirm settlement schedule, fees, refunds, disputes, and reserve terms.
 - [ ] Configure the customer-facing business name, logo, support details, and
       invoice settings in Razorpay.
-- [ ] Confirm whether Razorpay or Searchify sends customer subscription
+- [ ] Confirm whether Razorpay or CiteLadder sends customer subscription
       notifications.
 - [ ] Name at least two Razorpay Dashboard users and enable strong MFA/access
       controls; avoid a shared owner login.
@@ -230,13 +230,13 @@ PUBLIC_SALES_EMAIL=sales@<approved-domain>
 
 Launch behavior:
 
-- Searchify owns a stable public `/demo` route.
+- CiteLadder owns a stable public `/demo` route.
 - Every public “Book a demo”/Enterprise sales CTA points to `/demo` through the
   centralized `DEMO_HREF`.
 - `/demo` opens the approved external HTTPS booking destination.
 - Without a booking URL, `/demo` truthfully offers `mailto:<public-sales-email>`;
   it does not show a fake scheduler.
-- Searchify does not persist demo-lead PII in the first release. If a first-party
+- CiteLadder does not persist demo-lead PII in the first release. If a first-party
   form/CRM is desired later, approve its fields, lawful basis/consent, retention,
   deletion, anti-spam controls, notification provider, and processor agreement in
   a separate change.

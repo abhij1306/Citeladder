@@ -19,11 +19,9 @@ export function FinalCta() {
     <Section id="get-started" tone="paper" rhythm="base" aria-label="Get started">
       <Reveal className="mx-auto max-w-5xl">
         <Eyebrow>{cta.kicker}</Eyebrow>
-        <h2 className="font-mkt-display text-mkt-h1 text-mkt-ink mt-mkt-30 max-w-[32ch]">
-          {cta.title}
-        </h2>
-        <p className="text-mkt-lead text-mkt-ink-soft mt-mkt-30 max-w-[80ch]">{cta.body}</p>
-        <div className="mt-mkt-30 gap-mkt-14 flex flex-col sm:flex-row sm:items-center">
+        <h2 className="font-display text-foreground mt-8 max-w-[32ch] text-5xl">{cta.title}</h2>
+        <p className="text-muted mt-8 max-w-[80ch] text-lg">{cta.body}</p>
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center">
           <ButtonLink href={DEMO_HREF} variant="primary" className="w-full sm:w-auto">
             {cta.primaryCta}
             <ArrowRight aria-hidden />

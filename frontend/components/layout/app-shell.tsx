@@ -1,10 +1,12 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { ChartNoAxesCombined, Home, ListChecks, Settings, Sparkles } from 'lucide-react';
+import Link from 'next/link';
 
 import { CommandPalette } from '@/components/ui/command-palette';
+import { BrandAtmosphere } from '@/components/ui/brand-atmosphere';
 import { LogoMark } from '@/components/ui/logo-mark';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { PageHeader } from './page-header';
@@ -38,13 +40,14 @@ import { UserMenu } from './user-menu';
 export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <TooltipProvider>
-      <div className="bg-background flex h-dvh overflow-hidden">
-        <aside className="border-border-subtle bg-sidebar flex w-[var(--sidebar-width)] shrink-0 flex-col border-r transition-[width]">
+      <div className="bg-background relative flex h-dvh overflow-hidden">
+        <BrandAtmosphere variant="app" />
+        <aside className="border-border-subtle bg-sidebar relative z-1 hidden w-[var(--sidebar-width)] shrink-0 flex-col border-r transition-[width] md:flex">
           {/* Logo row — matches topbar height */}
           <div className="border-border-subtle flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b px-4">
             <LogoMark size={24} />
             <span className="text-foreground font-display text-heading-sm font-semibold">
-              Searchify
+              CiteLadder
             </span>
           </div>
 
@@ -52,7 +55,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             <ProjectSwitcher />
           </div>
 
-          <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-2 py-3">
+          <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-1.5 py-2">
             <SidebarNav />
           </div>
 
@@ -61,24 +64,55 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="relative z-1 flex min-w-0 flex-1 flex-col overflow-hidden">
           {/* Top bar with opaque utility chrome. */}
-          <header className="border-border-subtle bg-panel sticky top-0 z-20 grid h-[var(--topbar-height)] shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,420px)_minmax(0,1fr)] items-center border-b px-6">
-            <div aria-hidden />
-            <div className="w-full max-w-105 min-w-0 justify-self-center">
+          <header className="border-border-subtle bg-panel sticky top-0 z-20 flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b px-4 md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,420px)_minmax(0,1fr)] md:px-6">
+            <Link
+              href="/projects"
+              className="flex shrink-0 items-center gap-2 md:hidden"
+              aria-label="CiteLadder command center"
+            >
+              <LogoMark size={24} />
+              <span className="font-display text-foreground font-semibold">CiteLadder</span>
+            </Link>
+            <div aria-hidden className="hidden md:block" />
+            <div className="min-w-0 flex-1 md:w-full md:max-w-105 md:justify-self-center">
               <CommandPalette />
             </div>
-            <div className="justify-self-end">
-              <ThemeToggle />
-            </div>
+            <div aria-hidden className="hidden md:block" />
           </header>
 
-          <main className="content-scroll min-h-0 flex-1 overflow-y-auto">
+          <main className="content-scroll min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0">
             <div className="mx-auto grid w-full max-w-[var(--content-max-width)] gap-[var(--card-gap)] p-[var(--content-gutter)]">
               <PageHeader />
               {children}
             </div>
           </main>
+
+          <nav
+            className="border-border bg-panel fixed inset-x-0 bottom-0 z-30 grid h-16 grid-cols-5 border-t md:hidden"
+            aria-label="Primary mobile navigation"
+          >
+            {[
+              { href: '/projects', label: 'Home', icon: Home },
+              { href: '/visibility', label: 'Analyze', icon: ChartNoAxesCombined },
+              { href: '/opportunities', label: 'Resolve', icon: ListChecks },
+              { href: '/content', label: 'Improve', icon: Sparkles },
+              { href: '/settings', label: 'Manage', icon: Settings },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="text-muted hover:text-accent-text text-2xs flex min-w-0 flex-col items-center justify-center gap-1 font-medium"
+                >
+                  <Icon className="size-4" aria-hidden />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
       </div>
     </TooltipProvider>

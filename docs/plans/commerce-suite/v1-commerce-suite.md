@@ -1,7 +1,7 @@
 # Commerce Suite — M2a, M4 (Shopify), M5 (A1/A2)
 
 > Implementation plan for the Commerce slice of
-> [`docs/plans/v4-commerce-suite-m2-m5.md`](../code/abhij1306/Searchify/docs/plans/v4-commerce-suite-m2-m5.md),
+> [`docs/plans/v4-commerce-suite-m2-m5.md`](../code/abhij1306/CiteLadder/docs/plans/v4-commerce-suite-m2-m5.md),
 > scoped to the approved fastest-value path. Delivered as **one combined PR** on a
 > single branch.
 
@@ -720,7 +720,7 @@ Land GA4 A1 first as an aggregate projection over new ecommerce metric rows, wit
 
    **Locked API decision**
 
-   - Use Shopify Admin GraphQL API only. Searchify is a greenfield new app, so there is no REST compatibility or fallback path in connector, config, tests, or documentation.
+   - Use Shopify Admin GraphQL API only. CiteLadder is a greenfield new app, so there is no REST compatibility or fallback path in connector, config, tests, or documentation.
 
    **Provider/OAuth config**
 

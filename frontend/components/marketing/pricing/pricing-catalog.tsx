@@ -198,29 +198,27 @@ export function PricingCatalog() {
   return (
     <>
       <Section tone="paper" rhythm="tight" aria-label="Plans">
-        <div className="mb-mkt-30 gap-mkt-14 flex flex-wrap items-center">
+        <div className="mb-8 flex flex-wrap items-center gap-4">
           <Switch
             checked={byok}
             onCheckedChange={setByok}
             label={BYOK_SWITCH_LABEL}
             describedBy="byok-disclosure"
           />
-          <span className="text-mkt-ink text-mkt-sm font-medium">{BYOK_SWITCH_LABEL}</span>
-          <p id="byok-disclosure" className="text-mkt-sm text-mkt-ink-soft max-w-[70ch] basis-full">
+          <span className="text-foreground text-sm font-medium">{BYOK_SWITCH_LABEL}</span>
+          <p id="byok-disclosure" className="text-muted max-w-[70ch] basis-full text-sm">
             {BYOK_DISCLOSURE}
           </p>
-          {!byok && (
-            <p className="text-mkt-sm text-mkt-ink-soft basis-full">{FUNDED_UNAVAILABLE_NOTE}</p>
-          )}
+          {!byok && <p className="text-muted basis-full text-sm">{FUNDED_UNAVAILABLE_NOTE}</p>}
         </div>
 
         {notice && (
-          <p role="status" className="text-mkt-sm text-mkt-warning-text mb-mkt-30">
+          <p role="status" className="text-warning-text mb-8 text-sm">
             {notice}
           </p>
         )}
         {activation.isError && (
-          <p role="status" className="text-mkt-sm text-mkt-warning-text mb-mkt-30">
+          <p role="status" className="text-warning-text mb-8 text-sm">
             {activation.error instanceof Error
               ? activation.error.message
               : 'That purchase could not be started. Please try again.'}
@@ -232,7 +230,7 @@ export function PricingCatalog() {
         ) : !catalog ? (
           <LoadingCards />
         ) : (
-          <div className="gap-mkt-20 grid md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {catalog.plans.map((plan) => (
               <PricingTierCard
                 key={plan.key}
@@ -307,12 +305,12 @@ function isStillValid(
 
 function LoadingCards() {
   return (
-    <div className="gap-mkt-20 grid md:grid-cols-2 xl:grid-cols-4" aria-busy="true">
+    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4" aria-busy="true">
       {[0, 1, 2, 3].map((index) => (
         <div
           key={index}
           data-loading-card
-          className="rounded-mkt-lg bg-mkt-surface shadow-mkt-card h-80 animate-pulse"
+          className="bg-panel shadow-card h-80 animate-pulse rounded-lg"
         />
       ))}
       <p className="sr-only">Loading plans…</p>
@@ -321,19 +319,19 @@ function LoadingCards() {
 }
 
 function LoadingShell() {
-  return <div aria-busy="true" className="bg-mkt-surface rounded-mkt-sm h-48 animate-pulse" />;
+  return <div aria-busy="true" className="bg-panel h-48 animate-pulse rounded-md" />;
 }
 
 function CatalogError({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
-    <div className="border-mkt-black-10 rounded-mkt-lg gap-mkt-14 p-mkt-40 grid border border-dashed text-center">
-      <p className="text-mkt-sm text-mkt-ink-soft">
+    <div className="border-border-subtle grid gap-4 rounded-lg border border-dashed p-10 text-center">
+      <p className="text-muted text-sm">
         Plans could not be loaded, so no price is shown. Check your connection and retry.
       </p>
       <button
         type="button"
         onClick={onRetry}
-        className="border-mkt-black-10 text-mkt-ink focus-ring text-mkt-sm rounded-mkt-sm px-mkt-20 mx-auto inline-flex h-10 items-center border font-medium"
+        className="border-border-subtle text-foreground focus-ring mx-auto inline-flex h-10 items-center rounded-md border px-5 text-sm font-medium"
       >
         Retry
       </button>

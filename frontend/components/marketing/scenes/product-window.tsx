@@ -155,7 +155,7 @@ const METRICS: readonly MetricItem[] = [
 
 const EVIDENCE = {
   answer:
-    '“For enterprise analytics, teams most often cite Searchify alongside market leaders for its verifiable citation tracking…”',
+    '“For enterprise analytics, teams most often cite CiteLadder alongside market leaders for its verifiable citation tracking…”',
   chain: [
     ['Provider', 'ChatGPT 4.5'],
     ['Artifact', 'a3f9c1'],
@@ -187,16 +187,16 @@ const OPPORTUNITY_ROWS = [
     detail: 'Increases ChatGPT recommendation score by +14%',
     action: 'Fix Now',
     icon: Zap,
-    iconClassName: 'bg-mkt-warning/10 text-mkt-warning-text border-mkt-warning/50',
-    actionClassName: 'bg-mkt-indigo text-white',
+    iconClassName: 'bg-warning-bg text-warning-text border-warning-border',
+    actionClassName: 'bg-accent text-white',
   },
   {
     title: 'Publish Enterprise Comparison Table for Gemini',
     detail: 'Captures missing citations in enterprise buyer queries',
     action: 'View Draft',
     icon: Bot,
-    iconClassName: 'bg-mkt-frost text-mkt-indigo border-mkt-primary/50',
-    actionClassName: 'bg-mkt-surface border-mkt-black-10 text-mkt-ink border',
+    iconClassName: 'bg-accent-subtle text-accent-text border-accent-border',
+    actionClassName: 'bg-panel border-border-subtle text-foreground border',
   },
 ] as const;
 
@@ -205,7 +205,7 @@ function FrameView({
   status,
   reduceMotion,
   children,
-  className = 'space-y-mkt-14',
+  className = 'space-y-4',
 }: Readonly<{
   title: string;
   status: ReactNode;
@@ -215,14 +215,14 @@ function FrameView({
 }>) {
   return (
     <m.div
-      initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
       transition={{ duration: 0.25, ease: EASE_OUT }}
       className={className}
     >
       <div className="flex items-center justify-between">
-        <p className="font-mkt-display text-mkt-sm text-mkt-ink font-semibold">{title}</p>
+        <p className="font-display text-foreground text-sm font-semibold">{title}</p>
         {status}
       </div>
       {children}
@@ -232,21 +232,16 @@ function FrameView({
 
 function FrameCard({ children, className }: Readonly<{ children: ReactNode; className?: string }>) {
   return (
-    <div
-      className={cn(
-        'bg-mkt-surface-sunk border-mkt-black-10 rounded-mkt-sm p-mkt-14 border',
-        className,
-      )}
-    >
+    <div className={cn('bg-background-alt border-border-subtle rounded-md border p-4', className)}>
       {children}
     </div>
   );
 }
 
 /**
- * Compact, Authentic Searchify Product Showcase Canvas with Real Trend Graphs.
+ * Compact, Authentic CiteLadder Product Showcase Canvas with Real Trend Graphs.
  * Fits comfortably on screen with streamlined sidebar, real-time SVG charts,
- * and a narrative tour connecting "The Shift" to "How Searchify Helps You Win".
+ * and a narrative tour connecting "The Shift" to "How CiteLadder Helps You Win".
  */
 const GRID_COLS_MAP: Record<number, string> = {
   1: 'grid-cols-1',
@@ -267,10 +262,10 @@ export function ProductWindow() {
   const currentStep = STORY_STEPS[activeStep];
 
   return (
-    <div ref={containerRef} className="mkt-snapshot p-mkt-14 sm:p-mkt-20 mx-auto max-w-5xl">
+    <div ref={containerRef} className="citeladder-snapshot mx-auto max-w-5xl p-4 sm:p-5">
       {/* Storytelling Tour Stepper */}
-      <div className="bg-mkt-surface-sunk border-mkt-black-10 mb-mkt-20 rounded-mkt-lg p-mkt-14 sm:p-mkt-14 border">
-        <div className="gap-mkt-10 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <div className="bg-background-alt border-border-subtle mb-5 rounded-lg border p-4 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TourStepper
             steps={STORY_STEPS}
             activeStep={activeStep}
@@ -284,17 +279,17 @@ export function ProductWindow() {
           </div>
         </div>
 
-        <div className="border-mkt-black-10/60 text-mkt-xs mt-mkt-14 pt-mkt-10 flex items-center justify-between border-t">
-          <div className="gap-mkt-10 flex items-center truncate">
-            <span className="bg-mkt-success size-1.5 shrink-0 animate-pulse rounded-full" />
-            <span className="text-mkt-indigo font-mono font-semibold uppercase">
+        <div className="border-border-subtle mt-4 flex items-center justify-between border-t pt-3 text-xs">
+          <div className="flex items-center gap-3 truncate">
+            <span className="bg-success size-1.5 shrink-0 animate-pulse rounded-full" />
+            <span className="text-accent-text font-mono font-semibold uppercase">
               {currentStep.label.split('.')[1]?.trim()}:
             </span>
-            <span className="text-mkt-ink-soft truncate font-medium">
+            <span className="text-muted truncate font-medium">
               {currentStep.productSolution} — every score opens to the answer behind it.
             </span>
           </div>
-          <div className="ml-mkt-10 shrink-0 sm:hidden">
+          <div className="ml-3 shrink-0 sm:hidden">
             <ExampleDataNote />
           </div>
         </div>
@@ -303,14 +298,14 @@ export function ProductWindow() {
       {/* Compact Product Layout Canvas */}
       <div
         aria-hidden
-        className="mkt-snapshot-canvas bg-mkt-surface-sunk grid min-h-[280px] items-stretch gap-0 overflow-hidden lg:grid-cols-[12rem_minmax(0,1fr)]"
+        className="citeladder-snapshot-canvas bg-background-alt grid min-h-[280px] items-stretch gap-0 overflow-hidden lg:grid-cols-[12rem_minmax(0,1fr)]"
       >
         {/* Streamlined Authentic Sidebar */}
-        <aside className="bg-mkt-surface border-mkt-black-10 p-mkt-14 hidden flex-col justify-between border-r lg:flex">
-          <div className="space-y-mkt-20">
+        <aside className="bg-panel border-border-subtle hidden flex-col justify-between border-r p-4 lg:flex">
+          <div className="space-y-5">
             {COMPACT_NAV_GROUPS.map((group) => (
-              <div key={group.title} className="space-y-mkt-6">
-                <p className="text-mkt-xs text-mkt-ink-soft mb-mkt-6 px-mkt-10 font-mono font-semibold uppercase">
+              <div key={group.title} className="space-y-2">
+                <p className="text-muted mb-2 px-3 font-mono text-xs font-semibold uppercase">
                   {group.title}
                 </p>
                 {group.items.map((item) => {
@@ -320,14 +315,12 @@ export function ProductWindow() {
                   return (
                     <div
                       key={item.label}
-                      className={`text-mkt-xs gap-mkt-10 rounded-mkt-sm px-mkt-10 py-mkt-6 relative flex items-center font-medium transition-colors ${
-                        isActive
-                          ? 'bg-mkt-frost text-mkt-indigo font-semibold'
-                          : 'text-mkt-ink-soft'
+                      className={`relative flex items-center gap-3 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                        isActive ? 'bg-accent-subtle text-accent-text font-semibold' : 'text-muted'
                       }`}
                     >
                       {isActive && (
-                        <span className="bg-mkt-indigo rounded-r-mkt-sm absolute top-1 bottom-1 left-0 w-0.5" />
+                        <span className="bg-accent absolute top-1 bottom-1 left-0 w-0.5 rounded-r-md" />
                       )}
                       <Icon className="size-4 shrink-0" />
                       <span className="truncate">{item.label}</span>
@@ -340,7 +333,7 @@ export function ProductWindow() {
         </aside>
 
         {/* Compact Main Workspace Area with Real Graphs */}
-        <div className="bg-mkt-surface p-mkt-20 sm:p-mkt-20 flex flex-col justify-between">
+        <div className="bg-panel flex flex-col justify-between p-5 sm:p-5">
           <AnimatePresence mode="wait">
             {activeStep === 0 && (
               <FrameView
@@ -348,33 +341,33 @@ export function ProductWindow() {
                 reduceMotion={reduceMotion}
                 title="Visibility Overview & Trend Graph"
                 status={
-                  <span className="text-mkt-xs text-mkt-indigo gap-mkt-6 flex items-center font-mono font-semibold">
+                  <span className="text-accent-text flex items-center gap-2 font-mono text-xs font-semibold">
                     <TrendingUp className="size-3" /> Cross-Run Trend
                   </span>
                 }
-                className="space-y-mkt-20"
+                className="space-y-5"
               >
                 {/* Metrics Row */}
                 <div
                   className={cn(
-                    'border-mkt-black-10 bg-mkt-surface rounded-mkt-sm grid border',
+                    'border-border-subtle bg-panel grid rounded-md border',
                     GRID_COLS_MAP[METRICS.length] ?? 'grid-cols-3',
                   )}
                 >
                   {METRICS.map((metric, index) => (
                     <div
                       key={metric.label}
-                      className={`p-mkt-14 sm:p-mkt-14 ${
-                        index < METRICS.length - 1 ? 'border-mkt-black-10 border-r' : ''
+                      className={`p-4 sm:p-4 ${
+                        index < METRICS.length - 1 ? 'border-border-subtle border-r' : ''
                       }`}
                     >
-                      <Meta as="p" className="text-mkt-xs text-mkt-ink-soft">
+                      <Meta as="p" className="text-muted text-xs">
                         {metric.label}
                       </Meta>
-                      <b className="text-mkt-body text-mkt-ink mt-mkt-6 block font-mono leading-none font-semibold tabular-nums">
+                      <b className="text-foreground mt-2 block font-mono text-base leading-none font-semibold tabular-nums">
                         <AnimatedNumber value={metric.value} />
                         {'delta' in metric && metric.delta && (
-                          <small className="text-mkt-xs text-mkt-success-text ml-mkt-6 font-mono font-semibold tabular-nums">
+                          <small className="text-success-text ml-2 font-mono text-xs font-semibold tabular-nums">
                             {metric.delta}
                           </small>
                         )}
@@ -385,46 +378,28 @@ export function ProductWindow() {
 
                 {/* SVG Trend Graph (Real Product Chart) */}
                 <FrameCard>
-                  <div className="text-mkt-xs text-mkt-ink-soft mb-mkt-10 flex items-center justify-between font-mono">
+                  <div className="text-muted mb-3 flex items-center justify-between font-mono text-xs">
                     <span>Visibility Score Trend (Last 8 Audits)</span>
-                    <span className="text-mkt-success-text font-semibold">72.4% Peak</span>
+                    <span className="text-success-text font-semibold">72.4% Peak</span>
                   </div>
-                  <div className="pt-mkt-10 relative flex h-20 w-full items-end">
+                  <div className="relative flex h-20 w-full items-end pt-3">
                     {/* SVG Curve Line */}
                     <svg
-                      className="h-full w-full overflow-visible"
+                      className="text-accent h-full w-full overflow-visible"
                       viewBox="0 0 300 60"
                       preserveAspectRatio="none"
                     >
-                      <defs>
-                        <linearGradient id="visibilityGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop
-                            offset="0%"
-                            stopColor="var(--color-mkt-indigo)"
-                            stopOpacity="0.25"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="var(--color-mkt-indigo)"
-                            stopOpacity="0.0"
-                          />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M 0,45 Q 40,38 80,32 T 160,22 T 240,15 T 300,8 L 300,60 L 0,60 Z"
-                        fill="url(#visibilityGradient)"
-                      />
                       <path
                         d="M 0,45 Q 40,38 80,32 T 160,22 T 240,15 T 300,8"
                         fill="none"
-                        stroke="var(--color-mkt-indigo)"
+                        stroke="currentColor"
                         strokeWidth="2.5"
                         strokeLinecap="round"
                       />
-                      <circle cx="300" cy="8" r="3.5" fill="var(--color-mkt-indigo)" />
+                      <circle cx="300" cy="8" r="3.5" fill="currentColor" />
                     </svg>
                   </div>
-                  <div className="text-mkt-xs text-mkt-ink-soft border-mkt-black-10 mt-mkt-6 pt-mkt-6 flex justify-between border-t font-mono">
+                  <div className="text-muted border-border-subtle mt-2 flex justify-between border-t pt-2 font-mono text-xs">
                     <span>Apr 01</span>
                     <span>May 15</span>
                     <span>Jun 30 (Latest Run)</span>
@@ -439,33 +414,33 @@ export function ProductWindow() {
                 reduceMotion={reduceMotion}
                 title="Answers & Evidence Trace"
                 status={
-                  <span className="text-mkt-xs text-mkt-indigo gap-mkt-6 flex items-center font-mono font-semibold">
-                    <ShieldCheck className="text-mkt-success-text size-3" /> 100% Verifiable
+                  <span className="text-accent-text flex items-center gap-2 font-mono text-xs font-semibold">
+                    <ShieldCheck className="text-success-text size-3" /> 100% Verifiable
                   </span>
                 }
               >
                 <FrameCard>
-                  <div className="text-mkt-xs text-mkt-ink-soft flex items-center justify-between">
-                    <span className="text-mkt-ink gap-mkt-6 flex items-center font-semibold">
-                      <Search className="text-mkt-indigo size-3" />
+                  <div className="text-muted flex items-center justify-between text-xs">
+                    <span className="text-foreground flex items-center gap-2 font-semibold">
+                      <Search className="text-accent-text size-3" />
                       Observed Answer Text
                     </span>
-                    <span className="text-mkt-indigo font-mono font-semibold tabular-nums">
+                    <span className="text-accent-text font-mono font-semibold tabular-nums">
                       Visibility score: <AnimatedNumber value="72.4" />
                     </span>
                   </div>
 
-                  <p className="text-mkt-xs text-mkt-ink mt-mkt-10 leading-relaxed font-medium">
+                  <p className="text-foreground mt-3 text-xs leading-relaxed font-medium">
                     {EVIDENCE.answer}
                   </p>
 
-                  <div className="mt-mkt-14 gap-mkt-6 flex flex-wrap">
+                  <div className="mt-4 flex flex-wrap gap-2">
                     {EVIDENCE.chain.map(([label, value]) => (
                       <span
                         key={label}
-                        className="text-mkt-xs bg-mkt-surface border-mkt-black-10 text-mkt-success-text px-mkt-10 py-mkt-6 rounded-full border font-mono"
+                        className="bg-panel border-border-subtle text-success-text rounded-full border px-3 py-2 font-mono text-xs"
                       >
-                        <span className="text-mkt-ink-soft uppercase">{label}:</span>{' '}
+                        <span className="text-muted uppercase">{label}:</span>{' '}
                         <span className="font-semibold">{value}</span>
                       </span>
                     ))}
@@ -480,30 +455,30 @@ export function ProductWindow() {
                 reduceMotion={reduceMotion}
                 title="Share of Voice & Competitive Chart"
                 status={
-                  <span className="text-mkt-xs text-mkt-indigo font-mono font-semibold">
+                  <span className="text-accent-text font-mono text-xs font-semibold">
                     Market Share Comparison
                   </span>
                 }
               >
-                <FrameCard className="space-y-mkt-14">
+                <FrameCard className="space-y-4">
                   {BENCHMARK_ROWS.map((row) => (
                     <div key={row.label}>
                       <div
                         className={cn(
-                          'text-mkt-xs mb-mkt-6 flex justify-between',
-                          row.own ? 'font-semibold' : 'text-mkt-ink-soft',
+                          'mb-2 flex justify-between text-xs',
+                          row.own ? 'font-semibold' : 'text-muted',
                         )}
                       >
-                        <span className={row.own ? 'text-mkt-ink' : undefined}>{row.label}</span>
-                        <span className={cn('font-mono', row.own && 'text-mkt-indigo')}>
+                        <span className={row.own ? 'text-foreground' : undefined}>{row.label}</span>
+                        <span className={cn('font-mono', row.own && 'text-accent-text')}>
                           {row.value}
                         </span>
                       </div>
-                      <div className="bg-mkt-black-10 h-2 w-full overflow-hidden rounded-full">
+                      <div className="bg-background-alt h-2 w-full overflow-hidden rounded-full">
                         <div
                           className={cn(
                             'h-full rounded-full',
-                            row.own ? 'bg-mkt-indigo' : 'bg-mkt-mist',
+                            row.own ? 'bg-accent' : 'bg-border',
                             row.width,
                             row.opacity,
                           )}
@@ -521,7 +496,7 @@ export function ProductWindow() {
                 reduceMotion={reduceMotion}
                 title="Opportunities & Action Recommendations"
                 status={
-                  <span className="text-mkt-xs text-mkt-indigo font-mono font-semibold">
+                  <span className="text-accent-text font-mono text-xs font-semibold">
                     High-Impact Moves
                   </span>
                 }
@@ -530,20 +505,20 @@ export function ProductWindow() {
                   const Icon = row.icon;
                   return (
                     <FrameCard key={row.title} className="flex items-center justify-between">
-                      <div className="gap-mkt-10 flex items-center">
-                        <span className={cn('rounded-mkt-sm p-mkt-6 border', row.iconClassName)}>
+                      <div className="flex items-center gap-3">
+                        <span className={cn('rounded-md border p-2', row.iconClassName)}>
                           <Icon className="size-3" />
                         </span>
                         <div>
-                          <span className="text-mkt-xs text-mkt-ink block font-semibold">
+                          <span className="text-foreground block text-xs font-semibold">
                             {row.title}
                           </span>
-                          <span className="text-mkt-xs text-mkt-ink-soft">{row.detail}</span>
+                          <span className="text-muted text-xs">{row.detail}</span>
                         </div>
                       </div>
                       <span
                         className={cn(
-                          'text-mkt-xs rounded-mkt-sm px-mkt-10 py-mkt-6 font-semibold',
+                          'rounded-md px-3 py-2 text-xs font-semibold',
                           row.actionClassName,
                         )}
                       >

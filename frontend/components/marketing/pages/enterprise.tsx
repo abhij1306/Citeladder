@@ -105,7 +105,7 @@ export function EnterpriseHero() {
       accent="enterprise-grade evidence."
       lead="Platform security teams can verify: deterministic scoring over immutable, provenance-carrying evidence — deployed and operated in our cloud, with the evidence trail your review process needs."
     >
-      <div className="mt-mkt-30 gap-mkt-14 flex flex-col justify-center sm:flex-row">
+      <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
         <ButtonLink href={DEMO_HREF}>
           Book a demo
           <ArrowRight aria-hidden />
@@ -114,7 +114,7 @@ export function EnterpriseHero() {
           Compare plans
         </ButtonLink>
       </div>
-      <TrustStrip className="mt-mkt-30 justify-center" />
+      <TrustStrip className="mt-8 justify-center" />
     </PageHero>
   );
 }
@@ -130,34 +130,30 @@ export function EnterpriseOps() {
       />
 
       {/* 3 Spacious Pillar Cards */}
-      <StaggerGroup className="gap-mkt-30 grid md:grid-cols-3">
+      <StaggerGroup className="grid gap-8 md:grid-cols-3">
         {CAPABILITIES.map(({ icon: Icon, title, tagline, highlights }) => (
           <StaggerItem key={title} className="h-full">
-            <div className="rounded-mkt-lg bg-mkt-paper border-mkt-black-10 hover:border-mkt-indigo/40 shadow-mkt-card p-mkt-30 flex h-full flex-col justify-between border transition-all duration-200">
+            <div className="bg-background border-border-subtle shadow-card hover:border-accent-border hover:shadow-card-hover flex h-full flex-col justify-between rounded-lg border p-8 transition-all duration-200">
               <div>
-                <div className="gap-mkt-14 flex items-center">
-                  <span className="border-mkt-primary bg-mkt-surface-sunk text-mkt-indigo rounded-mkt-sm grid size-10 shrink-0 place-items-center border">
+                <div className="flex items-center gap-4">
+                  <span className="border-accent bg-background-alt text-accent-text grid size-10 shrink-0 place-items-center rounded-md border">
                     <Icon aria-hidden strokeWidth={1.8} className="size-5" />
                   </span>
-                  <h3 className="font-mkt-display text-mkt-hsm text-mkt-ink leading-snug">
-                    {title}
-                  </h3>
+                  <h3 className="font-display text-foreground text-xl leading-snug">{title}</h3>
                 </div>
-                <p className="text-mkt-body text-mkt-ink-soft mt-mkt-20 leading-relaxed">
-                  {tagline}
-                </p>
+                <p className="text-muted mt-5 text-base leading-relaxed">{tagline}</p>
               </div>
 
-              <ul className="border-mkt-black-10 mt-mkt-30 space-y-mkt-14 pt-mkt-30 border-t">
+              <ul className="border-border-subtle mt-8 space-y-4 border-t pt-8">
                 {highlights.map((item) => (
                   <li
                     key={item}
-                    className="text-mkt-sm text-mkt-ink gap-mkt-14 flex items-center font-medium"
+                    className="text-foreground flex items-center gap-4 text-sm font-medium"
                   >
                     <Check
                       aria-hidden
                       strokeWidth={2.5}
-                      className="text-mkt-success-text size-4 shrink-0"
+                      className="text-success-text size-4 shrink-0"
                     />
                     <span>{item}</span>
                   </li>
@@ -169,22 +165,20 @@ export function EnterpriseOps() {
       </StaggerGroup>
 
       {/* Clean Horizontal Data Flow */}
-      <section aria-label="Platform data flow" className="mt-mkt-50">
-        <div className="mb-mkt-20 flex items-center justify-between">
-          <p className="text-mkt-xs text-mkt-ink-soft font-mono uppercase">
+      <section aria-label="Platform data flow" className="mt-12">
+        <div className="mb-5 flex items-center justify-between">
+          <p className="text-muted font-mono text-xs uppercase">
             Platform Data Flow & Security Boundaries
           </p>
-          <span className="text-mkt-xs text-mkt-indigo font-mono uppercase">
-            docs/architecture.md
-          </span>
+          <span className="text-accent-text font-mono text-xs uppercase">docs/architecture.md</span>
         </div>
-        <Reveal className="rounded-mkt-lg bg-mkt-paper border-mkt-black-10 shadow-mkt-card p-mkt-30 md:p-mkt-30 border">
-          <div className="gap-mkt-20 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+        <Reveal className="bg-background border-border-subtle shadow-card rounded-lg border p-8 md:p-8">
+          <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             {DATA_FLOW_STEPS.map((s) => (
-              <div key={s.step} className="border-mkt-black-10 py-mkt-6 pl-mkt-20 border-l-2">
-                <p className="text-mkt-xs text-mkt-indigo font-mono font-semibold">{s.step}</p>
-                <p className="text-mkt-body text-mkt-ink mt-mkt-6 font-semibold">{s.title}</p>
-                <p className="text-mkt-sm text-mkt-ink-soft mt-mkt-6 leading-snug">{s.detail}</p>
+              <div key={s.step} className="border-border-subtle border-l-2 py-2 pl-5">
+                <p className="text-accent-text font-mono text-xs font-semibold">{s.step}</p>
+                <p className="text-foreground mt-2 text-base font-semibold">{s.title}</p>
+                <p className="text-muted mt-2 text-sm leading-snug">{s.detail}</p>
               </div>
             ))}
           </div>
@@ -205,51 +199,45 @@ export function EnterpriseLimits() {
       />
 
       {/* Spacious 2-Column Limits Grid */}
-      <Reveal className="rounded-mkt-lg bg-mkt-paper border-mkt-black-10 shadow-mkt-card overflow-hidden border">
-        <div className="border-mkt-black-10 bg-mkt-surface-sunk/30 gap-mkt-20 p-mkt-30 md:p-mkt-30 flex flex-col justify-between border-b md:flex-row md:items-center">
+      <Reveal className="bg-background border-border-subtle shadow-card overflow-hidden rounded-lg border">
+        <div className="border-border-subtle bg-background-alt flex flex-col justify-between gap-5 border-b p-8 md:flex-row md:items-center md:p-8">
           <div>
-            <h3 className="font-mkt-display text-mkt-h3 text-mkt-ink">
-              Tailored Enterprise Sizing
-            </h3>
-            <p className="text-mkt-body text-mkt-ink-soft mt-mkt-6">
+            <h3 className="font-display text-foreground text-3xl">Tailored Enterprise Sizing</h3>
+            <p className="text-muted mt-2 text-base">
               We quote directly against your operational numbers — not arbitrary tier buckets.
             </p>
           </div>
-          <span className="border-mkt-primary bg-mkt-surface-sunk text-mkt-indigo text-mkt-sm rounded-mkt-sm px-mkt-20 py-mkt-10 shrink-0 self-start border font-semibold md:self-auto">
+          <span className="border-accent bg-background-alt text-accent-text shrink-0 self-start rounded-md border px-5 py-3 text-sm font-semibold md:self-auto">
             Custom Agreement
           </span>
         </div>
 
-        <StaggerGroup className="bg-mkt-black-10 grid gap-px md:grid-cols-2">
+        <StaggerGroup className="bg-background-alt grid gap-px md:grid-cols-2">
           {CUSTOM_LIMITS.map((item) => (
             <StaggerItem
               key={item.title}
-              className="bg-mkt-paper hover:bg-mkt-surface p-mkt-30 transition-colors"
+              className="bg-background hover:bg-panel p-8 transition-colors"
             >
-              <div className="gap-mkt-14 flex flex-wrap items-center justify-between">
-                <h4 className="font-mkt-display text-mkt-hsm text-mkt-ink">{item.title}</h4>
-                <span className="border-mkt-primary bg-mkt-surface-sunk text-mkt-indigo text-mkt-xs rounded-mkt-sm px-mkt-14 py-mkt-6 border font-mono uppercase">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <h4 className="font-display text-foreground text-xl">{item.title}</h4>
+                <span className="border-accent bg-background-alt text-accent-text rounded-md border px-4 py-2 font-mono text-xs uppercase">
                   {item.badge}
                 </span>
               </div>
-              <p className="text-mkt-xs text-mkt-indigo mt-mkt-10 font-mono uppercase">
-                {item.unit}
-              </p>
-              <p className="text-mkt-body text-mkt-ink-soft mt-mkt-14 leading-relaxed">
-                {item.desc}
-              </p>
+              <p className="text-accent-text mt-3 font-mono text-xs uppercase">{item.unit}</p>
+              <p className="text-muted mt-4 text-base leading-relaxed">{item.desc}</p>
             </StaggerItem>
           ))}
         </StaggerGroup>
       </Reveal>
 
       {/* Bottom Quote CTA Strip */}
-      <div className="rounded-mkt-lg bg-mkt-paper shadow-mkt-card border-mkt-black-10 mt-mkt-30 gap-mkt-30 p-mkt-30 flex flex-col items-start justify-between border md:flex-row md:items-center">
+      <div className="bg-background border-border-subtle shadow-card mt-8 flex flex-col items-start justify-between gap-8 rounded-lg border p-8 md:flex-row md:items-center">
         <div>
-          <p className="font-mkt-display text-mkt-h4 text-mkt-ink">
+          <p className="font-display text-foreground text-2xl">
             Verifiable Operations & Audit Trail
           </p>
-          <p className="text-mkt-body text-mkt-ink-soft mt-mkt-6 max-w-[80ch] leading-relaxed">
+          <p className="text-muted mt-2 max-w-[80ch] text-base leading-relaxed">
             Deterministic scoring rules, immutable run logs, and provenance stamps on every derived
             metric.
           </p>
@@ -267,14 +255,14 @@ export function EnterpriseContactCta() {
   return (
     <Section id="contact" tone="paper" rhythm="base" aria-label="Contact sales">
       <Reveal className="mx-auto max-w-5xl text-center">
-        <h2 className="font-mkt-display text-mkt-h2 text-mkt-ink mb-mkt-20 mx-auto max-w-[32ch]">
+        <h2 className="font-display text-foreground mx-auto mb-5 max-w-[32ch] text-4xl">
           Bring AI visibility in-house.
         </h2>
-        <p className="text-mkt-lead text-mkt-ink-soft mx-auto max-w-[80ch]">
+        <p className="text-muted mx-auto max-w-[80ch] text-lg">
           Tell us your volumes, constraints and review process — we’ll shape an enterprise plan
           around them, starting with a walkthrough of your own category.
         </p>
-        <div className="mt-mkt-30 gap-mkt-14 flex flex-col items-center justify-center sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
             Book a demo
             <ArrowRight aria-hidden />
@@ -283,7 +271,7 @@ export function EnterpriseContactCta() {
             Read the FAQ
           </ButtonLink>
         </div>
-        <TrustStrip className="mt-mkt-30 justify-center" />
+        <TrustStrip className="mt-8 justify-center" />
       </Reveal>
     </Section>
   );

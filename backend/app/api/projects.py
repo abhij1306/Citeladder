@@ -48,9 +48,9 @@ from app.domain.analysis.service import (
     get_visibility_evidence,
     get_visibility_trends,
 )
-from app.domain.dashboard.report import render_dashboard_pdf
-from app.domain.dashboard.schemas import DashboardResponse
-from app.domain.dashboard.service import get_dashboard
+from app.domain.command_center.report import render_executive_pdf
+from app.domain.command_center.schemas import CommandCenterResponse
+from app.domain.command_center.service import get_command_center
 from app.domain.entitlements.enforcement import OccupancyError
 from app.domain.projects.activation import start_initial_site_review
 from app.domain.projects.brand_profile import (
@@ -569,26 +569,52 @@ async def get_project_endpoint(
     return project_to_response(project)
 
 
-@router.get("/{project_id}/dashboard", response_model=DashboardResponse)
-async def get_dashboard_endpoint(
-    project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
-) -> DashboardResponse:
+@router.get("/{project_id}/command-center", response_model=CommandCenterResponse)
+async def get_command_center_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    audit_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> CommandCenterResponse:
     project = await _get_project_or_404(session, ctx.workspace_id, project_id)
-    return await get_dashboard(session, workspace_id=ctx.workspace_id, project=project)
+    try:
+        return await get_command_center(
+            session,
+            workspace_id=ctx.workspace_id,
+            project=project,
+            audit_id=audit_id,
+        )
+    except (AnalysisNotFoundError, LookupError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No completed command-center measurement is available",
+        ) from exc
 
 
-@router.get("/{project_id}/dashboard/report.pdf", response_class=Response)
-async def get_dashboard_report_endpoint(
-    project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
+@router.get("/{project_id}/reports/executive.pdf", response_class=Response)
+async def get_executive_report_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    audit_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> Response:
     project = await _get_project_or_404(session, ctx.workspace_id, project_id)
-    dashboard = await get_dashboard(
-        session, workspace_id=ctx.workspace_id, project=project
-    )
+    try:
+        command_center = await get_command_center(
+            session,
+            workspace_id=ctx.workspace_id,
+            project=project,
+            audit_id=audit_id,
+        )
+    except (AnalysisNotFoundError, LookupError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No completed command-center measurement is available",
+        ) from exc
     slug = re.sub(r"[^a-z0-9]+", "-", project.brand_name.lower()).strip("-")
-    date = dashboard.generated_at.date().isoformat()
-    filename = f"searchify-{slug or 'report'}-{date}.pdf"
-    pdf = await asyncio.to_thread(render_dashboard_pdf, dashboard)
+    date = command_center.measurement.completed_at.date().isoformat()
+    filename = f"citeladder-{slug or 'report'}-{date}.pdf"
+    pdf = await asyncio.to_thread(render_executive_pdf, command_center)
     return Response(
         content=pdf,
         media_type="application/pdf",

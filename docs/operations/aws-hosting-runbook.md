@@ -1,4 +1,4 @@
-# Searchify AWS hosting and operations runbook
+# CiteLadder AWS hosting and operations runbook
 
 - **Primary region:** Asia Pacific (Mumbai), `ap-south-1`
 - **Deployment model:** single-region, Multi-AZ
@@ -17,7 +17,7 @@ no AWS infrastructure as code, production frontend image, deployment workflow,
 immutable post-launch migration policy, or tested recovery system. Complete the
 prerequisites below before creating a public environment.
 
-The design deliberately preserves Searchify's core constraints:
+The design deliberately preserves CiteLadder's core constraints:
 
 - browser API calls remain same-origin and pass through the Next.js rewrite;
 - FastAPI is private and is never a browser-visible cross-origin endpoint;
@@ -28,7 +28,7 @@ The design deliberately preserves Searchify's core constraints:
 
 ## Why ECS/Fargate is the recommended target
 
-Searchify needs a serverful Next.js runtime, a private FastAPI service, six
+CiteLadder needs a serverful Next.js runtime, a private FastAPI service, six
 long-lived worker/dispatcher processes, PostgreSQL queue leases, outbound
 provider/crawler access, and SSE/polling. ECS/Fargate provides one consistent
 private network and deployment model for all of them without managing EC2.
@@ -102,7 +102,7 @@ flowchart TD
     API -. images/logs/secrets .-> VPCE
 ```
 
-There is one public application origin, for example `https://app.searchify.com`.
+There is one public application origin, for example `https://app.citeladder.com`.
 CloudFront sends both page and `/api/*` requests to the frontend target. The
 frontend performs the existing rewrite to a stable private Service Connect
 alias such as `http://api:8000`. Do **not** add a direct public API origin or
@@ -242,7 +242,7 @@ header tests prove it safe.
 
 The `/api/*` behavior must preserve at least:
 
-- the `searchify_session` cookie and any OAuth nonce cookie;
+- the `citeladder_session` cookie and any OAuth nonce cookie;
 - all query strings, including filters, pagination, SSE, OAuth, and webhook data;
 - `X-Workspace-Id`, `Idempotency-Key`, `Last-Event-ID`, `Content-Type`, `Accept`,
   `Origin`, `Referer`, `Sec-Fetch-*`, Razorpay signature/event headers, and
@@ -429,8 +429,8 @@ Create distinct roles:
 
 | Role                 | Permission                                                     |
 | -------------------- | -------------------------------------------------------------- |
-| `searchify_app`      | Required DML/sequence access only; no schema ownership or DDL. |
-| `searchify_migrator` | Schema owner/DDL; used only by the one-off migration task.     |
+| `citeladder_app`      | Required DML/sequence access only; no schema ownership or DDL. |
+| `citeladder_migrator` | Schema owner/DDL; used only by the one-off migration task.     |
 | Break-glass admin    | Stored separately; no application use.                         |
 
 ### Connection budget
@@ -542,7 +542,7 @@ reviewers and branch/environment rules; pin actions by full commit SHA.
 3. For a material migration, create/verify a restorable pre-change snapshot; do
    not treat the snapshot as the only rollback plan.
 4. Run exactly one migration ECS task with the new backend digest and
-   `searchify_migrator` secret. Stream logs and require exit code 0.
+   `citeladder_migrator` secret. Stream logs and require exit code 0.
 5. Verify the Alembic revision and database readiness from a read-only check.
 6. Deploy the API with ECS deployment circuit breaker and automatic rollback.
 7. Deploy DB-derived analytics worker, then provider workers one service at a
@@ -824,7 +824,7 @@ databases, KMS keys, or provider apps with staging.
 
 Site Health acquisition can use ScraperAPI only as a server-side fallback after
 the configured httpx/curl-cffi ladder. Store the credential as a dedicated
-Secrets Manager value (for example `searchify/<environment>/scraperapi-key`),
+Secrets Manager value (for example `citeladder/<environment>/scraperapi-key`),
 grant read access only to the worker task role, and never inject it into Vercel,
 browser configuration, API responses, logs, traces, or artifacts. The API service
 does not need the secret unless it also performs worker duties.

@@ -14,7 +14,7 @@
 ## 1. Goal & positioning
 
 A **prioritized, actionable list of AEO opportunities** derived **deterministically** from
-evidence Searchify has already persisted. Each opportunity answers "here is a concrete thing to
+evidence CiteLadder has already persisted. Each opportunity answers "here is a concrete thing to
 fix or do, here is why (the evidence), and here is how important it is (the score)". Examples:
 
 - A **high-value prompt** where the brand is absent but competitors are cited (from the
@@ -31,7 +31,7 @@ Opportunities is fundamentally a **projection + ranking layer** over already-per
 `MetricSnapshot`), plus roadmap `SiteIssue` (site audit) and roadmap traffic data. It performs
 **no new extraction, calls no provider, and uses no LLM** (invariant 9). Prioritization is a
 **deterministic scoring formula defined in config** (invariants 1 + 9). It is structurally
-analogous to the technical-audit **Issues catalog**, but its inputs span *all* Searchify
+analogous to the technical-audit **Issues catalog**, but its inputs span *all* CiteLadder
 subsystems rather than one crawl.
 
 ## 2. Why deterministic (and not an LLM)

@@ -49,7 +49,7 @@ describe('Landing page (public marketing `/`)', () => {
     const headings = screen.getAllByRole('heading');
     for (const heading of headings) {
       if (heading === h1s[0]) continue;
-      expect(heading).not.toHaveTextContent(/searchify/i);
+      expect(heading).not.toHaveTextContent(/citeladder/i);
     }
 
     // The session-check island stays inert for an anonymous visitor: the 401
@@ -61,17 +61,14 @@ describe('Landing page (public marketing `/`)', () => {
     expect(h1s[0]).toBeInTheDocument();
   });
 
-  it('uses the icon-button construction for the hero action', () => {
+  it('uses the shared primary button for the hero action', () => {
     stubAnonymous();
     const { container } = renderWithProviders(<Page />);
 
-    // The ring/pill/two-badge structure is the construction the travelling
-    // arrow depends on — one badge alone cannot produce the effect.
     const hero = container.querySelector('header');
-    const cta = hero?.querySelector('.mkt-icon-btn');
-    expect(cta).not.toBeNull();
-    expect(cta?.querySelector('.mkt-icon-btn__pill')).not.toBeNull();
-    expect(cta?.querySelectorAll('.mkt-icon-btn__badge')).toHaveLength(2);
+    const cta = hero?.querySelector('a[href="/demo"]');
+    expect(cta).toHaveTextContent('See it on your category');
+    expect(cta?.querySelector('svg')).not.toBeNull();
   });
 
   it('exposes the section anchors the shared chrome links to', () => {

@@ -169,7 +169,7 @@ async def test_request_headers_override_defaults_case_insensitively(
 
     monkeypatch.setattr(curl_transport, "AsyncSession", session_factory)
     transport = curl_transport.CurlCffiTransport(
-        impersonation_profile="chrome", user_agent="Searchify default"
+        impersonation_profile="chrome", user_agent="CiteLadder default"
     )
     await transport.fetch(
         FetchRequest(

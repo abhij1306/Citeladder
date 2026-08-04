@@ -6,7 +6,7 @@ Create Date: 2026-07-17
 
 This revision is the complete greenfield baseline. It contains explicit
 Alembic operations and deliberately does not import live ORM metadata. Rebuild
-it directly while Searchify has no data-retention requirement.
+it directly while CiteLadder has no data-retention requirement.
 """
 
 from __future__ import annotations
@@ -1870,6 +1870,85 @@ def upgrade() -> None:
         postgresql_where=sa.text("superseded_at IS NULL"),
     )
     op.create_table(
+        "opportunity_orders",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("ordered_keys", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("version", sa.Integer(), nullable=False),
+        sa.Column("updated_by_user_id", sa.UUID(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["updated_by_user_id"], ["users.id"], ondelete="RESTRICT"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("project_id", name="uq_opportunity_orders_project"),
+    )
+    op.create_index(
+        op.f("ix_opportunity_orders_project_id"),
+        "opportunity_orders",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_opportunity_orders_workspace_id"),
+        "opportunity_orders",
+        ["workspace_id"],
+        unique=False,
+    )
+    op.create_table(
+        "opportunity_status_events",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("opportunity_id", sa.UUID(), nullable=False),
+        sa.Column("stable_key", sa.String(length=640), nullable=False),
+        sa.Column("previous_status", sa.String(length=16), nullable=False),
+        sa.Column("next_status", sa.String(length=16), nullable=False),
+        sa.Column("changed_by_user_id", sa.UUID(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["changed_by_user_id"], ["users.id"], ondelete="RESTRICT"
+        ),
+        sa.ForeignKeyConstraint(
+            ["opportunity_id"], ["opportunities.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_opportunity_status_events_opportunity_id"),
+        "opportunity_status_events",
+        ["opportunity_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_opportunity_status_events_project_id"),
+        "opportunity_status_events",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_opportunity_status_events_project_created",
+        "opportunity_status_events",
+        ["project_id", "created_at", "id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_opportunity_status_events_workspace_id"),
+        "opportunity_status_events",
+        ["workspace_id"],
+        unique=False,
+    )
+    op.create_table(
         "opportunity_snapshots",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
@@ -3081,9 +3160,7 @@ def upgrade() -> None:
             "scraperapi_options", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
         sa.Column("scraperapi_request_id", sa.String(length=255), nullable=False),
-        sa.Column(
-            "acquisition_policy_version", sa.String(length=32), nullable=False
-        ),
+        sa.Column("acquisition_policy_version", sa.String(length=32), nullable=False),
         sa.Column("extractor_version", sa.String(length=32), nullable=False),
         sa.Column(
             "normalized_facts", postgresql.JSONB(astext_type=Text()), nullable=True
@@ -3335,9 +3412,7 @@ def upgrade() -> None:
             "scraperapi_options", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
         sa.Column("scraperapi_request_id", sa.String(length=255), nullable=False),
-        sa.Column(
-            "acquisition_policy_version", sa.String(length=32), nullable=False
-        ),
+        sa.Column("acquisition_policy_version", sa.String(length=32), nullable=False),
         sa.Column("artifact_id", sa.UUID(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
@@ -4232,9 +4307,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["project_id"], ["projects.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["run_id"], ["commerce_discovery_runs.id"], ondelete="CASCADE"
         ),
@@ -4305,9 +4378,7 @@ def upgrade() -> None:
         sa.Column("acquisition", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("discovery_version", sa.String(length=64), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["project_id"], ["projects.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["run_id"], ["commerce_discovery_runs.id"], ondelete="CASCADE"
         ),
@@ -4364,9 +4435,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["competitor_id"], ["competitors.id"], ondelete="SET NULL"
         ),
-        sa.ForeignKeyConstraint(
-            ["project_id"], ["projects.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["run_id"], ["commerce_discovery_runs.id"], ondelete="CASCADE"
         ),
@@ -4434,9 +4503,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["candidate_id"], ["commerce_discovery_candidates.id"], ondelete="CASCADE"
         ),
-        sa.ForeignKeyConstraint(
-            ["project_id"], ["projects.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["target_competitor_product_id"],
             ["competitor_products.id"],
@@ -4494,9 +4561,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["competitor_id"], ["competitors.id"], ondelete="SET NULL"
         ),
-        sa.ForeignKeyConstraint(
-            ["project_id"], ["projects.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
@@ -4651,12 +4716,8 @@ def upgrade() -> None:
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "discovery_id", name="uq_brand_discovery_task_discovery"
-        ),
-        sa.UniqueConstraint(
-            "idempotency_key", name="uq_brand_discovery_task_key"
-        ),
+        sa.UniqueConstraint("discovery_id", name="uq_brand_discovery_task_discovery"),
+        sa.UniqueConstraint("idempotency_key", name="uq_brand_discovery_task_key"),
     )
     op.create_index(
         "ix_brand_discovery_tasks_claim",
@@ -4722,9 +4783,7 @@ def downgrade() -> None:
         "competitor_products",
         type_="foreignkey",
     )
-    op.drop_constraint(
-        "fk_products_source_artifact_id", "products", type_="foreignkey"
-    )
+    op.drop_constraint("fk_products_source_artifact_id", "products", type_="foreignkey")
     op.drop_constraint(
         "fk_products_source_candidate_id", "products", type_="foreignkey"
     )
@@ -5267,6 +5326,30 @@ def downgrade() -> None:
         "ix_opportunity_snapshots_project_created", table_name="opportunity_snapshots"
     )
     op.drop_table("opportunity_snapshots")
+    op.drop_index(
+        op.f("ix_opportunity_status_events_workspace_id"),
+        table_name="opportunity_status_events",
+    )
+    op.drop_index(
+        "ix_opportunity_status_events_project_created",
+        table_name="opportunity_status_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_status_events_project_id"),
+        table_name="opportunity_status_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_status_events_opportunity_id"),
+        table_name="opportunity_status_events",
+    )
+    op.drop_table("opportunity_status_events")
+    op.drop_index(
+        op.f("ix_opportunity_orders_workspace_id"), table_name="opportunity_orders"
+    )
+    op.drop_index(
+        op.f("ix_opportunity_orders_project_id"), table_name="opportunity_orders"
+    )
+    op.drop_table("opportunity_orders")
     op.drop_index(
         "uq_opportunities_live_target",
         table_name="opportunities",

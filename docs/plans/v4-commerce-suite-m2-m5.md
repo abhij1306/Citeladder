@@ -11,7 +11,7 @@ file plus the codebase — no other design doc is required.
 
 ## 1. What this builds
 
-Searchify's Commerce Suite is a closed **measure → diagnose → attribute** loop at **SKU level**,
+CiteLadder's Commerce Suite is a closed **measure → diagnose → attribute** loop at **SKU level**,
 built on the same deterministic, evidence-provenanced architecture as the brand-visibility slice.
 
 - **Measure** — which products get mentioned in AI shopping answers, where they rank, at what
@@ -147,7 +147,7 @@ count metrics). There is no session identity in the system —
 [`ingest.py:120`](../../backend/app/domain/analytics/ingest.py#L120) passes `session_id=None`, so
 every `ReferralEvent.session_id_hash` is the empty string, and the column exists only for a future
 server-log source. **Any design that joins an order to a session will silently match everything to
-everything.** M5 instead uses the two paths where a real deterministic key exists (§9). Searchify
+everything.** M5 instead uses the two paths where a real deterministic key exists (§9). CiteLadder
 also does not add client-side tracking to manufacture session identity.
 
 **D6 — Deterministic, statistical, and LLM outputs are three separate classes**, stored in
@@ -593,7 +593,7 @@ DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY  # dims (itemId, sessionSource, sessionMedi
 # metrics (itemRevenue, itemsPurchased)
 ```
 
-GA4 has already performed the session → purchase attribution. Searchify reads the attributed
+GA4 has already performed the session → purchase attribution. CiteLadder reads the attributed
 aggregate and classifies `(sessionSource, sessionMedium)` with the **shipped** rule table via
 `classify_referral_signals`, stamping the same `rule_version`. No join, no session identity, no PII.
 
@@ -718,10 +718,10 @@ same-origin `/api/*` only. Reuse existing table/badge/trend-chart primitives; no
 ## 12. Non-goals
 
 - **No agentic checkout or ACP readiness.** No feed-compliance checks, no Instant Checkout
-  eligibility reports, no Delegate Payment. Searchify never transacts and never holds payment
+  eligibility reports, no Delegate Payment. CiteLadder never transacts and never holds payment
   credentials.
 - **No feed management or write-back.** No one-click deploy to storefronts or ad feeds, no schema
-  injection into live pages, no image optimization, no write-scope OAuth. Searchify diagnoses and
+  injection into live pages, no image optimization, no write-scope OAuth. CiteLadder diagnoses and
   drafts; humans deploy. *(Reading a platform's own eligibility verdict is read-only diagnostics
   and is in scope — acting on it automatically is not.)*
 - **No new measurement transports beyond the approved three**, except M2c's gated,

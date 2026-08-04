@@ -81,7 +81,7 @@ def test_prompt_set_has_twelve_safe_generic_prompts(prompts) -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        "How does Searchify rank answers?",
+        "How does CiteLadder rank answers?",
         "Email support at help@example.org for details.",
         "Read https://example.com/guide first.",
         "Compare kettles on kmart.com.au today.",

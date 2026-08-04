@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
  * The field text is `text-sm` (14/20) — the ADS body default, so what the
  * user types reads as primary body text next to the labels above it.
  *
- * The fill is the canvas (`--bg-input` → `--ds-surface-canvas`), so the
+ * The fill is the shared input surface, so the
  * field reads as an inset well on a white card (ΔE76 4.66) instead of
  * vanishing into it (0.00, the Phase 1 regression). Hover deepens the
  * hairline to border-strong rather than tinting it brand blue: blue on hover

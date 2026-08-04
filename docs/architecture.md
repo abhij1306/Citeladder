@@ -1,11 +1,11 @@
-# Searchify — Architecture
+# CiteLadder — Architecture
 
 **Status:** Authoritative architecture reference  
-**Scope:** Standalone Searchify AEO / AI-visibility audit product  
+**Scope:** Standalone CiteLadder AEO / AI-visibility audit product
 **Frontend:** Next.js App Router on Vercel  
 **Backend:** Python / FastAPI on Railway  
 **Primary database and job queue:** PostgreSQL on Railway
-**Product boundary:** Searchify is a full greenfield AEO platform built on workspaces, UUID PKs, BYOK, and a Postgres queue from day one.
+**Product boundary:** CiteLadder is a full greenfield AEO platform built on workspaces, UUID PKs, BYOK, and a Postgres queue from day one.
 
 This is the high-level, whole-product architecture document. The supporting docs go deeper on each layer: [`backend-architecture.md`](backend-architecture.md) (API, models, queue, state machine, analysis), [`frontend-architecture.md`](frontend-architecture.md) (routes, API-contract layer, data flow), [`invariants.md`](invariants.md) (the hard rules), and [`design.md`](design.md) (tokens, theme, per-screen layout).
 
@@ -263,7 +263,7 @@ Estimate calls and cost
 ## 5. Repository shape
 
 ```text
-searchify/
+citeladder/
   frontend/                           # Next.js App Router
   backend/
     app/

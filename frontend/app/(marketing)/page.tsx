@@ -9,25 +9,25 @@ import { WhatWeMeasure } from '@/components/marketing/landing/what-we-measure';
 import { LandingSessionRedirect } from '@/components/marketing/landing-session-redirect';
 
 const DESCRIPTION =
-  'Searchify observes how the major answer engines describe your brand, products and ' +
+  'CiteLadder observes how the major answer engines describe your brand, products and ' +
   'competitors, traces every conclusion back to the answer it came from, and turns the ' +
   'pattern into strategy. Runs on your own provider keys, encrypted at rest.';
 
 // OG images require an absolute URL; they are added with NEXT_PUBLIC_SITE_URL (lib/seo/site.ts).
 export const metadata: Metadata = {
   // Absolute title: the root template must not append to the landing title.
-  title: { absolute: 'Searchify — See your market through AI’s eyes' },
+  title: { absolute: 'CiteLadder — See your market through AI’s eyes' },
   description: DESCRIPTION,
   alternates: { canonical: '/' },
   openGraph: {
-    title: 'Searchify — See your market through AI’s eyes',
+    title: 'CiteLadder — See your market through AI’s eyes',
     description: DESCRIPTION,
     type: 'website',
-    siteName: 'Searchify',
+    siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',
-    title: 'Searchify — See your market through AI’s eyes',
+    title: 'CiteLadder — See your market through AI’s eyes',
     description: DESCRIPTION,
   },
 };

@@ -8,7 +8,7 @@ import {
 } from '@/components/marketing/pages/enterprise';
 
 const DESCRIPTION =
-  'Enterprise Searchify: deterministic, auditable AI-visibility scoring over immutable, ' +
+  'Enterprise CiteLadder: deterministic, auditable AI-visibility scoring over immutable, ' +
   'provenance-carrying evidence. BYOK with Fernet-encrypted write-only keys, UUID workspace ' +
   'isolation, PostgreSQL-durable queues — operated as managed cloud with a security review ' +
   'and a named contact.';
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     title: 'Enterprise — AI visibility with enterprise-grade evidence',
     description: DESCRIPTION,
     type: 'website',
-    siteName: 'Searchify',
+    siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',

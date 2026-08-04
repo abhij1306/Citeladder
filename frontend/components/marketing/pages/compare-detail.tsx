@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { Competitor } from '@/lib/marketing-content/compare';
 import { DEMO_CTA, DEMO_HREF } from '@/lib/marketing-content/nav';
 
-import { Badge } from '../primitives/badge';
+import { Badge } from '@/components/ui/badge';
 import { ButtonLink } from '../primitives/button';
 import { Eyebrow, Meta } from '../primitives/label';
 import { Container, Section } from '../primitives/section';
@@ -26,12 +26,12 @@ import { Reveal } from '../primitives/reveal';
 export function CompareDetailView({ competitor }: Readonly<{ competitor: Competitor }>) {
   return (
     <>
-      <header className="pt-mkt-70 pb-mkt-50 md:pt-mkt-100 md:pb-mkt-70">
+      <header className="pt-16 pb-12 md:pt-30 md:pb-16">
         <Container>
           <Reveal className="max-w-5xl">
             <Link
               href="/compare"
-              className="text-mkt-sm text-mkt-ink-soft hover:text-mkt-ink mb-mkt-30 gap-mkt-10 inline-flex items-center font-semibold transition-colors"
+              className="text-muted hover:text-foreground mb-8 inline-flex items-center gap-3 text-sm font-semibold transition-colors"
             >
               <ArrowLeft className="size-4" aria-hidden />
               All comparisons
@@ -39,14 +39,14 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
             <div>
               <Eyebrow>Comparison</Eyebrow>
             </div>
-            <h1 className="font-mkt-display text-mkt-h1 text-mkt-ink mt-mkt-30 mb-mkt-30 max-w-[32ch]">
-              Searchify vs <em className="mkt-keyword not-italic">{competitor.name}.</em>
+            <h1 className="font-display text-foreground mt-8 mb-8 max-w-[32ch] text-5xl">
+              CiteLadder vs <em className="citeladder-keyword not-italic">{competitor.name}.</em>
             </h1>
-            <p className="text-mkt-lead text-mkt-ink-soft max-w-[80ch]">
+            <p className="text-muted max-w-[80ch] text-lg">
               Two ways to measure brand presence in AI answers — engine coverage, how scoring works,
               and where the evidence lives.
             </p>
-            <div className="mt-mkt-30 gap-mkt-14 flex flex-wrap">
+            <div className="mt-8 flex flex-wrap gap-4">
               <Badge>{competitor.tagline}</Badge>
               <Badge>Last reviewed · {competitor.lastReviewed}</Badge>
             </div>
@@ -55,40 +55,36 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
       </header>
 
       <Section tone="paper" rhythm="tight" aria-label="Quick facts">
-        <div className="border-mkt-black-10 mb-mkt-30 gap-mkt-14 pb-mkt-20 flex flex-wrap items-center justify-between border-b">
+        <div className="border-border-subtle mb-8 flex flex-wrap items-center justify-between gap-4 border-b pb-5">
           <Meta as="p">Quick facts</Meta>
-          <Meta>Searchify column sourced from our source code</Meta>
+          <Meta>CiteLadder column sourced from our source code</Meta>
         </div>
-        <Reveal className="rounded-mkt-lg bg-mkt-surface shadow-mkt-card overflow-hidden">
+        <Reveal className="bg-panel shadow-card overflow-hidden rounded-lg">
           {/* Wider than a phone: scrolls inside its own box so the page body
               never scrolls sideways. */}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[44rem] border-collapse text-left align-top">
               <thead>
-                <tr className="border-mkt-black-10 bg-mkt-surface-sunk border-b">
-                  <th scope="col" className="text-mkt-xs text-mkt-ink-soft p-mkt-20 uppercase">
+                <tr className="border-border-subtle bg-background-alt border-b">
+                  <th scope="col" className="text-muted p-5 text-xs uppercase">
                     Dimension
                   </th>
-                  <th scope="col" className="text-mkt-xs text-mkt-indigo p-mkt-20 uppercase">
-                    Searchify
+                  <th scope="col" className="text-accent-text p-5 text-xs uppercase">
+                    CiteLadder
                   </th>
-                  <th scope="col" className="text-mkt-xs text-mkt-ink-soft p-mkt-20 uppercase">
+                  <th scope="col" className="text-muted p-5 text-xs uppercase">
                     {competitor.name}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {competitor.rows.map((row) => (
-                  <tr key={row.dimension} className="border-mkt-black-10 border-b last:border-b-0">
-                    <td className="text-mkt-sm text-mkt-ink p-mkt-20 w-52 align-top font-semibold">
+                  <tr key={row.dimension} className="border-border-subtle border-b last:border-b-0">
+                    <td className="text-foreground w-52 p-5 align-top text-sm font-semibold">
                       {row.dimension}
                     </td>
-                    <td className="text-mkt-sm text-mkt-ink-soft p-mkt-20 align-top">
-                      {row.searchify}
-                    </td>
-                    <td className="text-mkt-sm text-mkt-ink-soft p-mkt-20 align-top">
-                      {row.competitor}
-                    </td>
+                    <td className="text-muted p-5 align-top text-sm">{row.citeladder}</td>
+                    <td className="text-muted p-5 align-top text-sm">{row.competitor}</td>
                   </tr>
                 ))}
               </tbody>
@@ -96,44 +92,40 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
           </div>
         </Reveal>
 
-        <p className="border-mkt-warning bg-mkt-warning/10 text-mkt-sm text-mkt-ink-soft rounded-mkt-sm mt-mkt-20 gap-mkt-14 p-mkt-20 flex border">
-          <Info
-            aria-hidden
-            strokeWidth={1.9}
-            className="text-mkt-warning-text mt-mkt-6 size-4 shrink-0"
-          />
+        <p className="border-warning-border bg-warning-bg text-muted mt-5 flex gap-4 rounded-md border p-5 text-sm">
+          <Info aria-hidden strokeWidth={1.9} className="text-warning-text mt-2 size-4 shrink-0" />
           <span>
-            Maintained by the Searchify team from each vendor’s public pages. Last reviewed{' '}
+            Maintained by the CiteLadder team from each vendor’s public pages. Last reviewed{' '}
             {competitor.lastReviewed}. Vendor capabilities change — re-check before quoting.
           </span>
         </p>
       </Section>
 
       <Section tone="paper" aria-label="Verdict and fit">
-        <Reveal className="gap-mkt-20 grid lg:grid-cols-2">
-          <div className="rounded-mkt-lg bg-mkt-surface shadow-mkt-card p-mkt-30">
-            <h2 className="font-mkt-display text-mkt-h4 text-mkt-ink">Our verdict.</h2>
-            <p className="text-mkt-body text-mkt-ink-soft mt-mkt-20">{competitor.verdict}</p>
+        <Reveal className="grid gap-5 lg:grid-cols-2">
+          <div className="bg-panel shadow-card rounded-lg p-8">
+            <h2 className="font-display text-foreground text-2xl">Our verdict.</h2>
+            <p className="text-muted mt-5 text-base">{competitor.verdict}</p>
           </div>
-          <div className="rounded-mkt-lg bg-mkt-surface-sunk shadow-mkt-card p-mkt-30">
-            <h2 className="font-mkt-display text-mkt-h4 text-mkt-ink">
+          <div className="bg-background-alt shadow-card rounded-lg p-8">
+            <h2 className="font-display text-foreground text-2xl">
               Where {competitor.name} fits better.
             </h2>
-            <p className="text-mkt-body text-mkt-ink-soft mt-mkt-20">{competitor.betterFit}</p>
+            <p className="text-muted mt-5 text-base">{competitor.betterFit}</p>
           </div>
         </Reveal>
       </Section>
 
       <Section tone="paper" rhythm="base" aria-label="Get started">
         <Reveal className="mx-auto max-w-5xl text-center">
-          <h2 className="font-mkt-display text-mkt-h2 text-mkt-ink mb-mkt-20 mx-auto max-w-[32ch]">
+          <h2 className="font-display text-foreground mx-auto mb-5 max-w-[32ch] text-4xl">
             See your own numbers instead.
           </h2>
-          <p className="text-mkt-lead text-mkt-ink-soft mx-auto max-w-[80ch]">
+          <p className="text-muted mx-auto max-w-[80ch] text-lg">
             Walk through your category with us — your prompts, your competitors, the raw answers
             behind every score.
           </p>
-          <div className="mt-mkt-30 gap-mkt-14 flex flex-col items-center justify-center sm:flex-row">
+          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
               {DEMO_CTA}
               <ArrowRight aria-hidden />

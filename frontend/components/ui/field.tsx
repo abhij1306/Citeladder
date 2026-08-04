@@ -23,6 +23,7 @@ export function Field({
   className?: string;
   children: (props: {
     id: string;
+    required?: boolean;
     'aria-invalid'?: boolean;
     'aria-describedby'?: string;
   }) => ReactNode;
@@ -41,6 +42,7 @@ export function Field({
       </label>
       {children({
         id,
+        required,
         'aria-invalid': error ? true : undefined,
         'aria-describedby': describedBy,
       })}

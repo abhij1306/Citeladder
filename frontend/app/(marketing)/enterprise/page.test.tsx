@@ -18,7 +18,7 @@ describe('Enterprise page (public marketing `/enterprise`)', () => {
     // No h2-h6 may contain the product name (keeps heading queries unambiguous).
     for (const heading of screen.getAllByRole('heading')) {
       if (heading === h1s[0]) continue;
-      expect(heading).not.toHaveTextContent(/searchify/i);
+      expect(heading).not.toHaveTextContent(/citeladder/i);
     }
   });
 
@@ -45,7 +45,7 @@ describe('Enterprise page (public marketing `/enterprise`)', () => {
     // The repo is private — no GitHub or MIT-license links anywhere.
     expect(screen.queryByRole('link', { name: /github|MIT license/i })).toBeNull();
 
-    // The self-host deployment section is gone — Searchify ships as managed
+    // The self-host deployment section is gone — CiteLadder ships as managed
     // cloud only, so no self-host copy may reach the page.
     expect(screen.queryByRole('region', { name: 'Deployment options' })).toBeNull();
     expect(container.textContent).not.toMatch(/self-host|Docker Compose/i);

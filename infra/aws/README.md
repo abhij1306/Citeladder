@@ -1,6 +1,6 @@
 # AWS deployment starter
 
-This directory contains a parameterized ECS/Fargate deployment layer for Searchify.
+This directory contains a parameterized ECS/Fargate deployment layer for CiteLadder.
 It is intentionally separate from the local Docker Compose stack.
 
 The deployment uses:
@@ -48,7 +48,7 @@ Install and configure:
 - an ECS Service Connect private DNS namespace;
 - an ALB frontend target group forwarding to port 3000 and health-checking `/`;
 - a database URL secret using the backend's async driver, for example:
-  `postgresql+asyncpg://searchify_app:<password>@<rds-host>:5432/searchify`.
+  `postgresql+asyncpg://citeladder_app:<password>@<rds-host>:5432/citeladder`.
 
 Set `DB_SSL_MODE=require` in the backend environment. The application passes this to
 asyncpg and refuses production startup when it is not `require`.
@@ -147,8 +147,8 @@ counts are configurable in `config.json`.
 
 ```powershell
 $config = Get-Content infra/aws/config.json -Raw | ConvertFrom-Json
-aws ecs describe-services -Cluster $config.clusterName -Services searchify-$($config.environment)-api,searchify-$($config.environment)-frontend -Region $config.awsRegion -Query 'services[].[serviceName,status,desiredCount,runningCount]' -Output table
-aws logs tail /ecs/searchify/$($config.environment)/api --follow --region $config.awsRegion
+aws ecs describe-services -Cluster $config.clusterName -Services citeladder-$($config.environment)-api,citeladder-$($config.environment)-frontend -Region $config.awsRegion -Query 'services[].[serviceName,status,desiredCount,runningCount]' -Output table
+aws logs tail /ecs/citeladder/$($config.environment)/api --follow --region $config.awsRegion
 ```
 
 Inspect a worker by replacing `api` with its service name.

@@ -61,7 +61,7 @@ const dashboard = {
 };
 
 const pageRow = {
-  canonical_url: 'https://searchify.io/blog/aeo-guide',
+  canonical_url: 'https://citeladder.io/blog/aeo-guide',
   site_url_id: SITE_URL,
   impressions: 420,
   clicks: 31,
@@ -160,7 +160,7 @@ describe('trafficApi.getPages / getQueries', () => {
       cursor: 'cursor-1',
     });
     expect(page.items).toHaveLength(1);
-    expect(page.items[0].canonical_url).toBe('https://searchify.io/blog/aeo-guide');
+    expect(page.items[0].canonical_url).toBe('https://citeladder.io/blog/aeo-guide');
     expect(page.items[0].site_url_id).toBe(SITE_URL);
     expect(page.next_cursor).toBe('cursor-2');
     const url = new URL(seenUrl);

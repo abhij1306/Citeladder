@@ -5,7 +5,7 @@ from typing import Final
 BRAND_LOGO_STATUS_READY: Final = "ready"
 BRAND_LOGO_STATUS_FAILED: Final = "failed"
 
-BRAND_LOGO_USER_AGENT: Final = "SearchifyBrandLogoBot/1.0"
+BRAND_LOGO_USER_AGENT: Final = "CiteLadderBrandLogoBot/1.0"
 BRAND_LOGO_REQUEST_TIMEOUT_SECONDS: Final = 4.0
 BRAND_LOGO_MAX_REDIRECTS: Final = 3
 # Big-brand homepages routinely exceed a few hundred KB of HTML. The icon

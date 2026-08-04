@@ -1,7 +1,7 @@
 """B6 scoring parity: deterministic mention/citation/domain/fanout scoring.
 
 Adapted from the reference ``tests/unit/test_ai_visibility_scoring.py``. Since
-Searchify has no ``ai_visibility.constants`` module, the Best&Less project
+CiteLadder has no ``ai_visibility.constants`` module, the Best&Less project
 identity is inlined here as a plain scoring-identity dict (the same shape
 ``project_scoring_identity`` produces + ``ScoringConfig.from_project`` consumes).
 Verifies the ported scorer matches the reference behavior exactly.

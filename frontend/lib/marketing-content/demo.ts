@@ -10,7 +10,7 @@
 export const DEMO_META = {
   title: 'Book an enterprise demo',
   description:
-    'Discuss Searchify Enterprise volumes, deployment, security review, and support with the team.',
+    'Discuss CiteLadder Enterprise volumes, deployment, security review, and support with the team.',
 } as const;
 
 export const DEMO_HERO = {

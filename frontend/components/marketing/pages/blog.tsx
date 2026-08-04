@@ -9,7 +9,7 @@ import {
 } from '@/lib/marketing-content/blog';
 import { DEMO_CTA, DEMO_HREF } from '@/lib/marketing-content/nav';
 
-import { Badge } from '../primitives/badge';
+import { Badge } from '@/components/ui/badge';
 import { ButtonLink } from '../primitives/button';
 import { Eyebrow, Meta } from '../primitives/label';
 import { PageHero } from '../primitives/page-hero';
@@ -23,13 +23,13 @@ import { JsonLd } from '../seo/json-ld';
  * `/blog` and `/blog/[slug]`.
  *
  * Heading rule: post titles render as paragraphs carrying role="heading" +
- * aria-level rather than as literal h2/h3 — a title may contain "Searchify"
+ * aria-level rather than as literal h2/h3 — a title may contain "CiteLadder"
  * and no h2–h6 on the marketing surface may, so heading queries stay
  * unambiguous. Assistive tech still gets the intended outline.
  */
 function TagRow({ tags }: Readonly<{ tags: readonly string[] }>) {
   return (
-    <div className="mb-mkt-20 gap-mkt-10 flex flex-wrap">
+    <div className="mb-5 flex flex-wrap gap-3">
       {tags.map((tag) => (
         <Badge key={tag}>{tag}</Badge>
       ))}
@@ -43,7 +43,7 @@ function PostMeta({ post }: Readonly<{ post: BlogPost }>) {
   const parts = [post.date, post.readTime].filter((value): value is string => Boolean(value));
   if (parts.length === 0) return null;
   return (
-    <Meta as="p" className="mt-mkt-20">
+    <Meta as="p" className="mt-5">
       {parts.join(' · ')}
     </Meta>
   );
@@ -56,14 +56,12 @@ function BlogCta({
   return (
     <Section tone="paper" rhythm="base" aria-label="Get started">
       <Reveal className="mx-auto max-w-5xl text-center">
-        <h2 className="font-mkt-display text-mkt-h2 text-mkt-ink mb-mkt-20 mx-auto max-w-[32ch]">
-          {title}
-        </h2>
-        <p className="text-mkt-lead text-mkt-ink-soft mx-auto max-w-[80ch]">
+        <h2 className="font-display text-foreground mx-auto mb-5 max-w-[32ch] text-4xl">{title}</h2>
+        <p className="text-muted mx-auto max-w-[80ch] text-lg">
           Walk through your own category — your prompts, your competitors, and the raw answers
           behind every score.
         </p>
-        <div className="mt-mkt-30 gap-mkt-14 flex flex-col items-center justify-center sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
             {DEMO_CTA}
             <ArrowRight aria-hidden />
@@ -83,60 +81,58 @@ export function BlogIndex() {
     <>
       <PageHero
         centered
-        eyebrow="The Searchify blog"
+        eyebrow="The CiteLadder blog"
         title="Notes on"
         accent="AI visibility."
-        lead="Essays, release notes and field reports on answer-engine optimization — evidence-first, and straight from the team building Searchify."
+        lead="Essays, release notes and field reports on answer-engine optimization — evidence-first, and straight from the team building CiteLadder."
       />
 
       {featured ? (
         <>
           <Section rhythm="tight" aria-label="Featured post">
-            <Reveal className="rounded-mkt-lg bg-mkt-surface shadow-mkt-card grid overflow-hidden lg:grid-cols-[1.2fr_0.8fr]">
-              <div className="p-mkt-30 md:p-mkt-40">
+            <Reveal className="bg-panel shadow-card grid overflow-hidden rounded-lg lg:grid-cols-[1.2fr_0.8fr]">
+              <div className="p-8 md:p-10">
                 <TagRow tags={featured.tags} />
                 <p
                   role="heading"
                   aria-level={2}
-                  className="font-mkt-display text-mkt-h3 text-mkt-ink max-w-[32ch]"
+                  className="font-display text-foreground max-w-[32ch] text-3xl"
                 >
                   <Link href={`/blog/${featured.slug}`}>{featured.title}</Link>
                 </p>
-                <p className="text-mkt-body text-mkt-ink-soft mt-mkt-20 max-w-[80ch]">
-                  {featured.excerpt}
-                </p>
+                <p className="text-muted mt-5 max-w-[80ch] text-base">{featured.excerpt}</p>
                 <PostMeta post={featured} />
               </div>
               {/* Cover art is owner-supplied per post; until a cover field
                   exists the slot stays as plain wallpaper — a shipped page
                   must not carry placeholder chrome. */}
-              <div className="mkt-wallpaper p-mkt-30 grid min-h-[14rem] place-items-center" />
+              <div className="citeladder-wallpaper grid min-h-[14rem] place-items-center p-8" />
             </Reveal>
           </Section>
 
           {rest.length > 0 && (
             <Section tone="paper" rhythm="tight" aria-label="All posts">
-              <div className="border-mkt-black-10 mb-mkt-30 gap-mkt-20 pb-mkt-20 flex items-center justify-between border-b">
+              <div className="border-border-subtle mb-8 flex items-center justify-between gap-5 border-b pb-5">
                 <Meta as="p">All notes</Meta>
                 <Meta>
                   {rest.length} {rest.length === 1 ? 'post' : 'posts'}
                 </Meta>
               </div>
-              <StaggerGroup className="gap-mkt-20 grid md:grid-cols-2 lg:grid-cols-3">
+              <StaggerGroup className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
                 {rest.map((post) => (
                   <StaggerItem
                     key={post.slug}
-                    className="rounded-mkt-lg bg-mkt-surface shadow-mkt-card p-mkt-30 h-full"
+                    className="bg-panel shadow-card h-full rounded-lg p-8"
                   >
                     <TagRow tags={post.tags} />
                     <p
                       role="heading"
                       aria-level={3}
-                      className="font-mkt-display text-mkt-ink text-mkt-hsm"
+                      className="font-display text-foreground text-xl"
                     >
                       <Link href={`/blog/${post.slug}`}>{post.title}</Link>
                     </p>
-                    <p className="text-mkt-sm text-mkt-ink-soft mt-mkt-14">{post.excerpt}</p>
+                    <p className="text-muted mt-4 text-sm">{post.excerpt}</p>
                     <PostMeta post={post} />
                   </StaggerItem>
                 ))}
@@ -146,17 +142,17 @@ export function BlogIndex() {
         </>
       ) : (
         <Section tone="paper" rhythm="tight" aria-label="No posts yet">
-          <Reveal className="border-mkt-black-10 rounded-mkt-lg bg-mkt-paper p-mkt-50 mx-auto max-w-2xl border border-dashed text-center">
-            <span className="border-mkt-black-10 bg-mkt-surface text-mkt-ink-soft mx-auto grid size-12 place-items-center rounded-full border">
+          <Reveal className="border-border-subtle bg-background mx-auto max-w-2xl rounded-lg border border-dashed p-12 text-center">
+            <span className="border-border-subtle bg-panel text-muted mx-auto grid size-12 place-items-center rounded-full border">
               <PenLine aria-hidden strokeWidth={1.8} className="size-5" />
             </span>
-            <h2 className="font-mkt-display text-mkt-h4 text-mkt-ink mt-mkt-30">
+            <h2 className="font-display text-foreground mt-8 text-2xl">
               {BLOG_EMPTY_STATE.heading}
             </h2>
-            <p className="text-mkt-body text-mkt-ink-soft mt-mkt-14 mx-auto max-w-[80ch]">
+            <p className="text-muted mx-auto mt-4 max-w-[80ch] text-base">
               {BLOG_EMPTY_STATE.body}
             </p>
-            <div className="mt-mkt-30 gap-mkt-14 flex flex-col items-center justify-center sm:flex-row">
+            <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <ButtonLink href={DEMO_HREF}>
                 {DEMO_CTA}
                 <ArrowRight aria-hidden />
@@ -215,21 +211,17 @@ function blockIdentity(block: BlogBlock): string {
 function PostBlock({ block }: Readonly<{ block: BlogBlock }>) {
   switch (block.type) {
     case 'heading':
-      return (
-        <h2 className="font-mkt-display text-mkt-h4 text-mkt-ink mt-mkt-40 mb-mkt-20">
-          {block.text}
-        </h2>
-      );
+      return <h2 className="font-display text-foreground mt-10 mb-5 text-2xl">{block.text}</h2>;
     case 'list':
       return (
-        <ul className="text-mkt-body text-mkt-ink-soft my-mkt-20 gap-mkt-10 pl-mkt-20 grid list-disc">
+        <ul className="text-muted my-5 grid list-disc gap-3 pl-5 text-base">
           {withOccurrenceKeys(block.items, (item) => item).map(({ key, value }) => (
             <li key={key}>{value}</li>
           ))}
         </ul>
       );
     case 'paragraph':
-      return <p className="text-mkt-body text-mkt-ink-soft my-mkt-20">{block.text}</p>;
+      return <p className="text-muted my-5 text-base">{block.text}</p>;
   }
 }
 
@@ -238,12 +230,12 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
     <>
       {/* datePublished/author appear only once the owner supplies them (B5). */}
       <JsonLd data={blogPostingJsonLd(post)} />
-      <header className="pt-mkt-70 pb-mkt-40 md:pt-mkt-100 md:pb-mkt-50">
+      <header className="pt-16 pb-10 md:pt-30 md:pb-12">
         <Container>
           <Reveal className="max-w-[90ch]">
             <Link
               href="/blog"
-              className="text-mkt-sm text-mkt-ink-soft hover:text-mkt-ink mb-mkt-30 gap-mkt-10 inline-flex items-center font-semibold transition-colors"
+              className="text-muted hover:text-foreground mb-8 inline-flex items-center gap-3 text-sm font-semibold transition-colors"
             >
               <ArrowLeft className="size-4" aria-hidden />
               All notes
@@ -252,16 +244,16 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
               <Eyebrow>Field notes</Eyebrow>
             </div>
             <TagRow tags={post.tags} />
-            <h1 className="font-mkt-display text-mkt-h2 text-mkt-ink mt-mkt-20">{post.title}</h1>
+            <h1 className="font-display text-foreground mt-5 text-4xl">{post.title}</h1>
             {/* The byline is owner-supplied: the row renders only once at
                 least one of author/date/readTime exists. */}
             {(post.author ?? post.date ?? post.readTime) && (
-              <div className="border-mkt-black-10 mt-mkt-30 gap-x-mkt-20 gap-y-mkt-10 pt-mkt-30 flex flex-wrap items-center border-t">
+              <div className="border-border-subtle mt-8 flex flex-wrap items-center gap-x-5 gap-y-3 border-t pt-8">
                 {post.author && (
-                  <span className="text-mkt-sm text-mkt-ink gap-mkt-14 flex items-center font-semibold">
+                  <span className="text-foreground flex items-center gap-4 text-sm font-semibold">
                     <span
                       aria-hidden
-                      className="bg-mkt-ink text-mkt-surface text-mkt-sm grid size-8 place-items-center rounded-full"
+                      className="bg-foreground text-inverse grid size-8 place-items-center rounded-full text-sm"
                     >
                       {authorInitial(post.author)}
                     </span>
@@ -276,8 +268,8 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
       </header>
 
       <Container>
-        <article aria-label="Post content" className="pb-mkt-70 max-w-[90ch]">
-          <p className="text-mkt-lead text-mkt-ink border-mkt-black-10 pl-mkt-20 border-l-2">
+        <article aria-label="Post content" className="max-w-[90ch] pb-16">
+          <p className="text-foreground border-border-subtle border-l-2 pl-5 text-lg">
             {post.excerpt}
           </p>
           {withOccurrenceKeys(post.body, blockIdentity).map(({ key, value }) => (

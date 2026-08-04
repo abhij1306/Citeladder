@@ -97,9 +97,9 @@ class ProviderMetadata:
 
     def as_notes(self) -> dict[str, str]:
         notes = {
-            "searchify_intent_id": self.intent_id,
-            "searchify_account_ref": self.account_ref,
-            "searchify_catalog_revision": self.catalog_revision,
+            "citeladder_intent_id": self.intent_id,
+            "citeladder_account_ref": self.account_ref,
+            "citeladder_catalog_revision": self.catalog_revision,
         }
         notes.update(self.extra)
         return notes

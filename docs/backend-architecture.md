@@ -1,6 +1,6 @@
-# Backend Architecture — Searchify
+# Backend Architecture — CiteLadder
 
-> The visibility-slice backend of Searchify. Modular monolith: FastAPI **web** + a separate
+> The visibility-slice backend of CiteLadder. Modular monolith: FastAPI **web** + a separate
 > **worker** process, PostgreSQL as durable state **and** task queue (no Redis). Built on
 > the full target architecture (workspaces, UUID PKs, BYOK, Postgres queue) from day one.
 > Companion docs: [`../Agents.md`](../Agents.md), [`invariants.md`](invariants.md),
@@ -8,7 +8,7 @@
 
 ## 1. Scope + delivery table
 
-Searchify is a full AEO product; the backend **codes only the visibility slice**. Everything
+CiteLadder is a full AEO product; the backend **codes only the visibility slice**. Everything
 else is documented as roadmap so the product can grow into it without rework. Every
 full-product surface is marked below.
 

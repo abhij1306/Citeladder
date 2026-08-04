@@ -3,10 +3,8 @@ import { extendTailwindMerge } from 'tailwind-merge';
 
 /**
  * tailwind-merge classifies an unrecognised `text-*` class as a COLOUR, so the
- * website type scale (`text-mkt-sm`, `text-mkt-h2`, …) landed in the same
- * conflict group as `text-mkt-ink` and silently dropped whichever came first —
- * which is how a primary button ended up with black text on a black fill.
- * Teaching the merger which names are sizes keeps size and colour independent.
+ * Product-specific font-size utilities must be classified as sizes so they do
+ * not conflict with semantic text colours.
  */
 const twMerge = extendTailwindMerge({
   extend: {
@@ -23,30 +21,6 @@ const twMerge = extendTailwindMerge({
             'heading-sm',
             'display-1',
             'display-2',
-            // Website ladder (text-mkt-*) — docs/website-design-system.md §2.
-            // EVERY rung must be listed: a missing name is not a styling nit,
-            // it silently deletes the size wherever a colour sits beside it,
-            // which is how every subpage headline once fell back to 14px.
-            'mkt-dxl',
-            'mkt-d404',
-            'mkt-h1',
-            'mkt-h2',
-            'mkt-h3',
-            'mkt-h4',
-            'mkt-h5',
-            'mkt-h6',
-            'mkt-h2sm',
-            'mkt-h3sm',
-            'mkt-h4sm',
-            'mkt-hsm',
-            'mkt-lead',
-            'mkt-body',
-            'mkt-button',
-            'mkt-nav',
-            'mkt-sm',
-            'mkt-xs',
-            'mkt-xsb',
-            'mkt-xl-display',
           ],
         },
       ],

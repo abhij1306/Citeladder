@@ -18,7 +18,7 @@ describe('IconButtonLink', () => {
     // The label is announced once even though both badges carry the icon —
     // the duplicated badge is the travel illusion, not a second label.
     const link = screen.getByRole('link', { name: 'Try the demo' });
-    expect(link).toHaveClass('mkt-icon-btn', 'mkt-icon-btn--dark');
+    expect(link).toHaveClass('citeladder-icon-btn', 'citeladder-icon-btn--dark');
     expect(link).toHaveAttribute('href', '/demo');
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');

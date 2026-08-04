@@ -1,36 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" preserveAspectRatio="none" role="presentation">
-  <!--
-    Searchify Proof wallpaper — the one recurring atmosphere behind every
-    product scene (marketing + auth). A soft field of sky, coral and mint
-    that white interface windows sit on top of.
-
-    Referenced from app/(marketing)/marketing-theme.css by the .mkt-wallpaper
-    rule. Extracted out of the brand deck's inline data URI so the art is
-    editable and cached once instead of being repeated in every rule using it.
-
-    NOTE: XML comments may not contain a double hyphen — one here silently
-    broke the whole file, leaving only the flat sky fill behind every scene.
-  -->
+  <!-- CiteLadder citation field: opposing forms progressing upward. -->
   <defs>
     <filter id="blur" x="-25%" y="-25%" width="150%" height="150%">
-      <feGaussianBlur stdDeviation="74" />
+      <feGaussianBlur stdDeviation="82" />
     </filter>
   </defs>
 
-  <rect width="1200" height="700" fill="#cbdaf1" />
+  <rect width="1200" height="700" fill="#f5f8f7" />
 
   <g filter="url(#blur)">
-    <ellipse cx="170" cy="600" rx="360" ry="210" fill="#edb8bb" opacity=".72" />
-    <ellipse cx="1020" cy="90" rx="330" ry="240" fill="#9fc3ef" opacity=".88" />
-    <ellipse cx="760" cy="650" rx="360" ry="180" fill="#abd9cc" opacity=".70" />
-    <ellipse cx="520" cy="110" rx="250" ry="150" fill="#f1d4bd" opacity=".48" />
+    <ellipse cx="130" cy="580" rx="390" ry="250" fill="#a8dadc" opacity=".78" />
+    <ellipse cx="1040" cy="90" rx="360" ry="270" fill="#006d77" opacity=".34" />
+    <ellipse cx="760" cy="670" rx="390" ry="210" fill="#e6f4f3" opacity=".96" />
+    <ellipse cx="500" cy="80" rx="280" ry="180" fill="#7dbfc2" opacity=".48" />
   </g>
 
   <path
-    d="M-40 520C240 330 460 650 720 430S1050 180 1260 320"
+    d="M-40 530C230 350 450 640 700 445S1030 190 1260 300"
     fill="none"
     stroke="#ffffff"
     stroke-width="2"
-    opacity=".52"
+    opacity=".68"
   />
+  <g fill="none" stroke="#006d77" stroke-width="7" opacity=".22">
+    <path d="M160 120h110v110H205v74h-45z" />
+    <path d="M1040 470H930V360h65v-74h45z" />
+    <path d="M505 430h86v86h-51v58h-35z" />
+  </g>
 </svg>

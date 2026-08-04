@@ -19,9 +19,10 @@ test('landing renders on the Proof surface without a backend', async ({ page }) 
   await expect(h1).toBeVisible();
   await expect(h1).toHaveCount(1);
 
-  // The warm paper canvas is the system's most basic signal that the token
-  // layer compiled at all.
-  await expect(page.locator('.mkt-root')).toHaveCSS('background-color', 'rgb(245, 245, 240)');
+  await expect(page.locator('.citeladder-root')).toHaveCSS(
+    'background-color',
+    'rgb(245, 248, 247)',
+  );
 
   // The hero scene is decorative, so its figures must stay out of the
   // accessibility tree while its honesty mark stays visible.

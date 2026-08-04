@@ -1,30 +1,27 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
   Check,
   ChevronDown,
   Download,
-  Gauge,
-  HeartPulse,
-  Lightbulb,
-  ListChecks,
+  GripVertical,
   LoaderCircle,
   Pencil,
   Plus,
-  FolderOpen,
-  type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import {
   Dropdown,
   DropdownContent,
@@ -33,480 +30,307 @@ import {
   DropdownSeparator,
   DropdownTrigger,
 } from '@/components/ui/dropdown';
-import { IconChip } from '@/components/ui/icon-chip';
-import { scoreTextClass } from '@/components/ui/score-band';
 import { Skeleton } from '@/components/ui/skeleton';
+import { opportunitiesApi } from '@/lib/api/opportunities';
 import { projectsApi } from '@/lib/api/projects';
 import { queryKeys } from '@/lib/api/query-keys';
-import type {
-  AIPresence,
-  Dashboard,
-  DashboardSection,
-  DashboardSectionState,
-  Project,
-} from '@/lib/api/types';
+import type { CommandCenter, Opportunity, Project } from '@/lib/api/types';
 import { useProjectContext } from '@/lib/project/project-context';
 import { cn } from '@/lib/utils';
 
-import { ICONS } from '@/lib/icons';
-import { ActivationProgress } from './activation-progress';
-
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function displayValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(1);
-  if (typeof value === 'boolean') return value ? 'Configured' : 'Not configured';
-  if (typeof value === 'string') return value;
-  return 'Available';
+function metricValue(value: number | null, suffix = '') {
+  return value === null ? '—' : `${Number.isInteger(value) ? value : value.toFixed(1)}${suffix}`;
 }
 
-function formatMomentum(value: number | null): string {
-  if (value === null) return '—';
-  const prefix = value > 0 ? '+' : '';
-  return `${prefix}${value.toFixed(1)}`;
+function deltaLabel(delta: number | null, inverse = false) {
+  if (delta === null) return 'No comparable run';
+  const display = inverse ? -delta : delta;
+  return `${display > 0 ? '+' : ''}${display.toFixed(1)} vs previous`;
 }
 
-/** The first non-null metric, split into label + value for the stat layout. */
-function primaryMetric(section: DashboardSection): { label: string; value: unknown } | null {
-  const preferred: Partial<Record<DashboardSection['id'], { key: string; label: string }>> = {
-    visibility: { key: 'visibility_score', label: 'visibility score' },
-    prompts: { key: 'active', label: 'active prompts' },
-    runs: { key: 'completed', label: 'answers completed' },
-    site_health: { key: 'overall_score', label: 'site health score' },
-    issues: { key: 'count', label: 'issues' },
-    opportunities: { key: 'open', label: 'open' },
-    brand_knowledge: { key: 'configured', label: 'profile' },
-  };
-  const metric = preferred[section.id];
-  if (
-    !metric ||
-    section.metrics[metric.key] === null ||
-    section.metrics[metric.key] === undefined
-  ) {
-    return null;
-  }
-  return { label: metric.label, value: section.metrics[metric.key] };
-}
-
-function hasDashboardSignal(section: DashboardSection) {
+function CommandCenterSkeleton() {
   return (
-    section.state === 'ready' || section.state === 'running' || primaryMetric(section) !== null
-  );
-}
-
-/** Every dashboard section owns a glyph; matched 1-to-1 with canonical sidebar nav icons. */
-const SECTION_ICONS: Record<DashboardSection['id'], LucideIcon> = {
-  visibility: ICONS.visibility,
-  answers: ICONS.analytics,
-  traffic: ICONS.traffic,
-  prompts: ICONS.prompts,
-  commerce: ICONS.products,
-  runs: ICONS.runs,
-  content: ICONS.content,
-  site_health: ICONS.siteHealth,
-  issues: ICONS.issues,
-  opportunities: ICONS.opportunities,
-  brand_knowledge: ICONS.knowledgeBase,
-  projects: ICONS.setup,
-};
-
-/** State → badge tone. Colour carries meaning only (WCAG 1.4.1: the label always renders). */
-const SECTION_STATE_BADGE: Record<
-  DashboardSectionState,
-  { variant: 'status'; value: 'success' | 'info' | 'warning' | 'danger' } | { variant: 'neutral' }
-> = {
-  ready: { variant: 'status', value: 'success' },
-  running: { variant: 'status', value: 'info' },
-  not_setup: { variant: 'status', value: 'warning' },
-  failed: { variant: 'status', value: 'danger' },
-  empty: { variant: 'neutral' },
-};
-
-const SECTION_STATE_LABEL: Record<DashboardSectionState, string> = {
-  ready: 'Ready',
-  running: 'In progress',
-  not_setup: 'Needs setup',
-  failed: 'Needs attention',
-  empty: 'No results yet',
-};
-
-function SectionRow({ section }: Readonly<{ section: DashboardSection }>) {
-  const Icon = SECTION_ICONS[section.id];
-  const metric = primaryMetric(section);
-  const badge = SECTION_STATE_BADGE[section.state];
-  const stateLabel = SECTION_STATE_LABEL[section.state];
-  return (
-    <Link
-      href={section.href}
-      data-tour={`dashboard-${section.id}`}
-      className="focus-ring hover:bg-background-alt group flex items-center justify-between gap-3 px-4 py-3 transition-colors"
-      aria-label={`Open ${section.title}`}
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <IconChip className="size-8 shrink-0">
-          <Icon className="size-4" />
-        </IconChip>
-        <span className="text-foreground truncate text-sm font-semibold">{section.title}</span>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-3">
-        {/* No plain-text state fallback: the badge below always renders the
-            state, so a metric-less section showed it twice side by side. */}
-        {metric ? (
-          <div className="text-right">
-            <span
-              className={cn(
-                'mono text-sm font-semibold',
-                typeof metric.value === 'number' && metric.label.includes('score')
-                  ? scoreTextClass(metric.value)
-                  : 'text-foreground',
-              )}
-            >
-              {displayValue(metric.value)}
-            </span>
-            <span className="text-muted ms-1.5 text-xs capitalize">{metric.label}</span>
-          </div>
-        ) : null}
-
-        {badge.variant === 'status' ? (
-          <Badge variant="status" value={badge.value} className="text-2xs px-2 py-0.5 capitalize">
-            {stateLabel}
-          </Badge>
-        ) : (
-          <Badge className="text-2xs px-2 py-0.5 capitalize">{stateLabel}</Badge>
-        )}
-
-        <ArrowRight
-          aria-hidden
-          className="text-muted group-hover:text-accent-text size-4 shrink-0 transition-[color,transform] duration-200 group-hover:translate-x-0.5"
-        />
-      </div>
-    </Link>
-  );
-}
-
-function MetricTile({
-  label,
-  value,
-  icon: Icon,
-  score = false,
-}: Readonly<{ label: string; value: unknown; icon: LucideIcon; score?: boolean }>) {
-  const numeric = typeof value === 'number' ? value : null;
-  return (
-    <Card>
-      <CardContent className="grid gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-muted text-xs">{label}</p>
-          <IconChip>
-            <Icon className="size-6" />
-          </IconChip>
-        </div>
-        <p
-          className={cn(
-            'mono text-2xl leading-none',
-            score ? scoreTextClass(numeric) : numeric === null ? 'text-muted' : 'text-foreground',
-          )}
-        >
-          {displayValue(value)}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="grid gap-6" aria-hidden>
-      <Skeleton className="h-8 w-64" />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-24 w-full" />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-4" aria-hidden>
+      <Skeleton className="h-16 w-full" />
+      <div className="grid gap-3 md:grid-cols-3">
         <Skeleton className="h-28 w-full" />
         <Skeleton className="h-28 w-full" />
         <Skeleton className="h-28 w-full" />
       </div>
+      <Skeleton className="h-52 w-full" />
+      <Skeleton className="h-72 w-full" />
     </div>
   );
 }
 
-function AIPresenceCard({ presence }: Readonly<{ presence: AIPresence }>) {
-  const current = presence.current;
-  if (!current) return null;
-  const labels: Record<string, string> = {
-    brand_visibility: 'Brand visibility',
-    brand_mention_rate: 'Brand mention rate',
-    share_of_voice: 'Share of voice',
-    owned_citation_rate: 'Owned citation rate',
-    web_fundamentals: 'Web Fundamentals',
-    product_presence: 'Product presence',
-    opportunity_execution: 'Opportunity execution',
-  };
+function StateMetric({
+  label,
+  value,
+  delta,
+  suffix,
+  inverse,
+}: Readonly<{
+  label: string;
+  value: number | null;
+  delta: number | null;
+  suffix?: string;
+  inverse?: boolean;
+}>) {
+  const positive = delta !== null && (inverse ? delta < 0 : delta > 0);
   return (
-    <Card aria-label="AI Presence Index">
-      <CardContent className="grid gap-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-muted text-xs">AI Presence Index</p>
-            <p className={cn('mono mt-1 text-2xl', scoreTextClass(current.score))}>
-              {displayValue(current.score)}
-            </p>
-            <p className="text-muted mt-1 text-xs">
-              {current.provisional ? 'Still gathering results' : 'Based on your latest results'}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-muted text-xs">Momentum (30 days)</p>
-            <p className="mono text-foreground mt-1 text-lg">{formatMomentum(presence.momentum)}</p>
-            <p className="text-muted mt-1 text-xs">
-              {current.provisional ? 'More results will improve this view' : 'Ready to compare'}
-            </p>
-          </div>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {Object.entries(current.components)
-            .filter(([key]) => key in labels)
-            .map(([key, component]) => (
-              <div
-                key={key}
-                className="bg-background-alt flex items-center justify-between rounded-md px-3 py-2"
-              >
-                <span className="text-muted text-xs">{labels[key]}</span>
-                <span className="mono text-foreground text-sm">
-                  {component.available ? displayValue(component.score) : '—'}
-                </span>
-              </div>
-            ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="border-border bg-panel shadow-card grid min-h-28 gap-2 rounded-md border p-4">
+      <p className="text-muted text-xs font-medium">{label}</p>
+      <p className="text-foreground font-mono text-3xl leading-none tabular-nums">
+        {metricValue(value, suffix)}
+      </p>
+      <p
+        className={cn(
+          'text-xs',
+          delta === null ? 'text-muted' : positive ? 'text-success' : 'text-danger',
+        )}
+      >
+        {deltaLabel(delta, inverse)}
+      </p>
+    </div>
   );
 }
 
-type SearchParameterReader = Pick<URLSearchParams, 'get'>;
-
-function dashboardPollingInterval(data: Dashboard | undefined): number | false {
-  if (data && data.active_work.length > 0) return 2000;
-  return false;
-}
-
-function activationRequest(
-  searchParams: SearchParameterReader | null,
-  projectId: string,
-): { crawlId: string | null; pageLimit: number | null } {
-  const requestedPageLimit = Number(searchParams?.get('limit'));
-  let pageLimit: number | null = null;
-  if (Number.isSafeInteger(requestedPageLimit) && requestedPageLimit > 0) {
-    pageLimit = requestedPageLimit;
+function MovementChart({ movements }: Readonly<{ movements: CommandCenter['movements'] }>) {
+  if (movements.length === 0) {
+    return (
+      <div className="border-border bg-background-alt grid min-h-36 place-items-center rounded-md border border-dashed p-5 text-center">
+        <p className="text-muted max-w-md text-sm">
+          Movement appears after a run with the same prompts, engines, and measurement mode.
+        </p>
+      </div>
+    );
   }
-  if (searchParams?.get('activation') !== '1' || searchParams.get('project') !== projectId) {
-    return { crawlId: null, pageLimit };
-  }
-  const crawlId = searchParams.get('crawl');
-  if (!crawlId || !UUID_PATTERN.test(crawlId)) return { crawlId: null, pageLimit };
-  return { crawlId, pageLimit };
+  const values = movements.flatMap((row) => [row.current ?? 0, row.previous ?? 0]);
+  const ceiling = Math.max(...values, 1);
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {movements.map((row) => (
+        <div key={row.label} className="border-border bg-panel shadow-card rounded-md border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-foreground text-sm font-medium capitalize">{row.label}</span>
+            <span
+              className={cn(
+                'font-mono text-xs tabular-nums',
+                row.direction === 'positive' ? 'text-success' : 'text-danger',
+              )}
+            >
+              {row.delta !== null && row.delta > 0 ? '+' : ''}
+              {row.delta ?? '—'}
+            </span>
+          </div>
+          <div className="mt-4 flex h-16 items-end justify-center gap-2" aria-hidden>
+            <span
+              className="bg-border w-5 rounded-t-sm"
+              style={{ height: `${Math.max(8, ((row.previous ?? 0) / ceiling) * 64)}px` }}
+            />
+            <span
+              className="bg-accent w-5 rounded-t-sm"
+              style={{ height: `${Math.max(8, ((row.current ?? 0) / ceiling) * 64)}px` }}
+            />
+          </div>
+          <p className="text-muted mt-2 text-center text-xs">Previous · Current</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function visibleAnalyzeSection(section: DashboardSection): boolean {
-  if (section.id === 'visibility' && section.state === 'empty') return false;
-  return hasDashboardSignal(section);
+function ActionRow({
+  action,
+  index,
+  total,
+  onMove,
+  onDrop,
+}: Readonly<{
+  action: Opportunity;
+  index: number;
+  total: number;
+  onMove: (from: number, to: number) => void;
+  onDrop: (from: number, to: number) => void;
+}>) {
+  const [dragging, setDragging] = useState(false);
+  return (
+    <li
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData('text/plain', String(index));
+        setDragging(true);
+      }}
+      onDragEnd={() => setDragging(false)}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop(Number(event.dataTransfer.getData('text/plain')), index);
+      }}
+      className={cn(
+        'border-border grid gap-3 border-b px-3 py-3 last:border-b-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center',
+        dragging && 'opacity-60',
+      )}
+    >
+      <div className="flex items-center gap-1">
+        <GripVertical className="text-muted size-4 cursor-grab" aria-hidden />
+        <span className="text-muted w-6 text-center font-mono text-xs tabular-nums">
+          {index + 1}
+        </span>
+      </div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/opportunities?selected=${action.id}`}
+            className="text-foreground hover:text-accent-text text-sm font-semibold"
+          >
+            {action.title}
+          </Link>
+          {action.severity === 'critical' ? (
+            <Badge variant="status" value="danger">
+              {action.severity}
+            </Badge>
+          ) : (
+            <Badge>{action.severity}</Badge>
+          )}
+        </div>
+        <p className="text-muted mt-1 truncate text-xs">
+          {action.target_label ?? 'Project-wide'} · {action.evidence_summary.count} persisted
+          evidence item(s)
+        </p>
+      </div>
+      <div className="flex items-center justify-end gap-1">
+        <span className="text-muted me-2 font-mono text-xs tabular-nums">
+          {action.priority_score.toFixed(1)}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onMove(index, index - 1)}
+          disabled={index === 0}
+          aria-label={`Move ${action.title} up`}
+        >
+          <ArrowUp className="size-4" aria-hidden />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => onMove(index, index + 1)}
+          disabled={index === total - 1}
+          aria-label={`Move ${action.title} down`}
+        >
+          <ArrowDown className="size-4" aria-hidden />
+        </Button>
+      </div>
+    </li>
+  );
 }
 
-function visibleImproveSection(section: DashboardSection): boolean {
-  if (section.id === 'projects') return false;
-  return hasDashboardSignal(section);
+function ProjectControls({
+  projects,
+  activeProject,
+  activeProjectId,
+  setActiveProjectId,
+  onEditProject,
+}: Readonly<{
+  projects: Project[];
+  activeProject: Project;
+  activeProjectId?: string | null;
+  setActiveProjectId: (projectId: string) => void;
+  onEditProject?: (project: Project) => void;
+}>) {
+  const router = useRouter();
+  return (
+    <Dropdown>
+      <DropdownTrigger asChild>
+        <Button variant="secondary" size="sm">
+          Manage project <ChevronDown className="size-4" aria-hidden />
+        </Button>
+      </DropdownTrigger>
+      <DropdownContent align="end" className="w-56">
+        <DropdownLabel>Workspace brands</DropdownLabel>
+        {projects.map((project) => (
+          <DropdownItem key={project.id} onSelect={() => setActiveProjectId(project.id)}>
+            <BrandLogo
+              name={project.brand_name || project.name}
+              logoUrl={project.brand?.logo_url}
+              websiteUrl={project.website_url}
+              size="sm"
+            />
+            <span className="min-w-0 flex-1 truncate">{project.brand_name || project.name}</span>
+            {project.id === activeProjectId ? (
+              <Check className="text-accent size-4" aria-hidden />
+            ) : null}
+          </DropdownItem>
+        ))}
+        <DropdownSeparator />
+        {onEditProject ? (
+          <DropdownItem onSelect={() => onEditProject(activeProject)}>
+            <Pencil className="size-4" aria-hidden /> Edit active project
+          </DropdownItem>
+        ) : null}
+        <DropdownItem onSelect={() => router.push('/onboarding?new=1')}>
+          <Plus className="size-4" aria-hidden /> Add project
+        </DropdownItem>
+      </DropdownContent>
+    </Dropdown>
+  );
 }
 
-const ACTIVE_WORK_LABELS: Record<string, string> = {
-  runs: 'measuring brand visibility',
-  site_health: 'reviewing your website',
-  content: 'preparing content guidance',
-};
-
-function activeWorkDescriptions(activeWork: string[]): string[] {
-  return activeWork
-    .map((item) => ACTIVE_WORK_LABELS[item])
-    .filter((item): item is string => Boolean(item));
-}
-
-function triggerReportDownload(blob: Blob, project: Project): void {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = `searchify-${project.brand_name || project.name}-report.pdf`;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function DashboardHeader({
+function CommandCenterContent({
   data,
   projects,
   activeProject,
   activeProjectId,
   setActiveProjectId,
   onEditProject,
-  onAddProject,
-  downloading,
-  onDownloadReport,
 }: Readonly<{
-  data: Dashboard;
+  data: CommandCenter;
   projects: Project[];
   activeProject: Project;
   activeProjectId?: string | null;
   setActiveProjectId: (projectId: string) => void;
   onEditProject?: (project: Project) => void;
-  onAddProject: () => void;
-  downloading: boolean;
-  onDownloadReport: () => void;
 }>) {
-  const generatedAt = new Date(data.generated_at);
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="flex items-center gap-3">
-        <BrandLogo
-          name={data.project.brand_name || data.project.name}
-          websiteUrl={data.project.website_url}
-          size="md"
-        />
-        <div>
-          <h2 className="text-foreground text-xl">
-            {data.project.brand_name || data.project.name}
-          </h2>
-          <p className="text-muted mt-1 text-sm">
-            A live summary of your Searchify results · Updated{' '}
-            {generatedAt.toLocaleString('en-US', {
-              dateStyle: 'medium',
-              timeStyle: 'short',
-              timeZone: 'UTC',
-            })}
-          </p>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Dropdown>
-          <DropdownTrigger asChild>
-            <Button variant="secondary" size="sm">
-              <FolderOpen className="size-4" aria-hidden />
-              Manage projects
-              <ChevronDown className="size-4" aria-hidden />
-            </Button>
-          </DropdownTrigger>
-          <DropdownContent align="end" className="w-56">
-            <DropdownLabel>Workspace Brands</DropdownLabel>
-            {projects.map((project) => {
-              const selected = project.id === activeProjectId;
-              const label = project.brand_name || project.name;
-              return (
-                <DropdownItem
-                  key={project.id}
-                  onSelect={() => setActiveProjectId(project.id)}
-                  className={selected ? 'text-accent-text font-medium' : undefined}
-                >
-                  <BrandLogo
-                    name={label}
-                    logoUrl={project.brand?.logo_url}
-                    websiteUrl={project.website_url}
-                    size="sm"
-                  />
-                  <span className="min-w-0 flex-1 truncate">{label}</span>
-                  {selected ? <Check className="text-accent size-4 shrink-0" aria-hidden /> : null}
-                </DropdownItem>
-              );
-            })}
-            <DropdownSeparator className="bg-border-subtle my-1 h-px" />
-            {onEditProject ? (
-              <DropdownItem onSelect={() => onEditProject(activeProject)}>
-                <Pencil className="size-4 shrink-0" aria-hidden />
-                <span>Edit active brand</span>
-              </DropdownItem>
-            ) : null}
-            <DropdownItem onSelect={onAddProject}>
-              <Plus className="size-4 shrink-0" aria-hidden />
-              <span>Add new project</span>
-            </DropdownItem>
-          </DropdownContent>
-        </Dropdown>
-
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={onDownloadReport}
-          disabled={downloading}
-          data-tour="dashboard-report"
-        >
-          {downloading ? (
-            <LoaderCircle className="size-4 animate-spin" aria-hidden />
-          ) : (
-            <Download className="size-4" aria-hidden />
-          )}
-          {downloading ? 'Preparing…' : 'Download report'}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function DashboardSectionGroup({
-  id,
-  title,
-  sections,
-}: Readonly<{ id: string; title: string; sections: DashboardSection[] }>) {
-  if (sections.length === 0) return null;
-  return (
-    <section aria-labelledby={id} className="flex flex-col gap-2">
-      <h2 id={id} className="text-foreground text-heading-sm">
-        {title}
-      </h2>
-      <Card className="overflow-hidden">
-        <div className="divide-border grid content-start divide-y">
-          {sections.map((section) => (
-            <SectionRow key={section.id} section={section} />
-          ))}
-        </div>
-      </Card>
-    </section>
-  );
-}
-
-function VisibilityEmptyState() {
-  return (
-    <Card>
-      <CardContent className="flex flex-wrap items-center justify-between gap-4">
-        <div className="grid gap-1">
-          <h2 className="text-foreground text-heading-sm">Start measuring visibility</h2>
-          <p className="text-secondary text-sm">
-            Connect an answer-engine provider, then launch your first audit to populate this
-            dashboard.
-          </p>
-        </div>
-        <Button asChild variant="secondary" className="shrink-0">
-          <Link href="/settings?tab=providers">
-            Connect providers
-            <ArrowRight className="size-4" aria-hidden />
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function useDashboardReport(project: Project | null | undefined) {
-  const [downloading, setDownloading] = useState(false);
+  const queryClient = useQueryClient();
   const [downloadError, setDownloadError] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [actions, setActions] = useState(data.actions);
+  const reorder = useMutation({
+    mutationFn: (ordered: Opportunity[]) =>
+      opportunitiesApi.updateOrder(activeProject.id, {
+        ordered_opportunity_ids: ordered.map((row) => row.id),
+        expected_version: data.action_order_version,
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.commandCenter(activeProject.id),
+      }),
+    onError: () => setActions(data.actions),
+  });
 
-  const downloadReport = async () => {
-    if (!project) return;
-    setDownloadError(false);
+  const move = (from: number, to: number) => {
+    if (from < 0 || to < 0 || from >= actions.length || to >= actions.length || from === to) return;
+    const next = [...actions];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    setActions(next);
+    reorder.mutate(next);
+  };
+
+  const download = async () => {
     setDownloading(true);
+    setDownloadError(false);
     try {
-      const blob = await projectsApi.downloadDashboardReport(project.id);
-      triggerReportDownload(blob, project);
+      const blob = await projectsApi.downloadExecutiveReport(activeProject.id);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `citeladder-${activeProject.brand_name || activeProject.name}-report.pdf`;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
     } catch {
       setDownloadError(true);
     } finally {
@@ -514,111 +338,149 @@ function useDashboardReport(project: Project | null | undefined) {
     }
   };
 
-  return { downloading, downloadError, downloadReport };
-}
-
-function DashboardContent({
-  data,
-  projects,
-  activeProject,
-  activeProjectId,
-  setActiveProjectId,
-  onEditProject,
-  onAddProject,
-  searchParams,
-  downloading,
-  downloadError,
-  onDownloadReport,
-}: Readonly<{
-  data: Dashboard;
-  projects: Project[];
-  activeProject: Project;
-  activeProjectId?: string | null;
-  setActiveProjectId: (projectId: string) => void;
-  onEditProject?: (project: Project) => void;
-  onAddProject: () => void;
-  searchParams: SearchParameterReader | null;
-  downloading: boolean;
-  downloadError: boolean;
-  onDownloadReport: () => void;
-}>) {
-  const visibility = data.analyze.find((section) => section.id === 'visibility');
-  const analyzeSections = data.analyze.filter(visibleAnalyzeSection);
-  const improveSections = data.improve.filter(visibleImproveSection);
-  const activation = activationRequest(searchParams, activeProject.id);
-  const activeWork = activeWorkDescriptions(data.active_work);
-
   return (
-    <div className="grid gap-6" data-tour="dashboard-overview">
-      <DashboardHeader
-        data={data}
-        projects={projects}
-        activeProject={activeProject}
-        activeProjectId={activeProjectId}
-        setActiveProjectId={setActiveProjectId}
-        onEditProject={onEditProject}
-        onAddProject={onAddProject}
-        downloading={downloading}
-        onDownloadReport={onDownloadReport}
-      />
+    <div className="grid gap-4" data-tour="command-center">
+      <section className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <BrandLogo
+            name={data.project.brand_name || data.project.name}
+            websiteUrl={data.project.website_url}
+            size="md"
+          />
+          <div className="min-w-0">
+            <p className="text-muted text-xs font-medium">Command center</p>
+            <h2 className="font-display text-foreground truncate text-xl font-semibold">
+              {data.project.brand_name || data.project.name}
+            </h2>
+            <p className="text-muted mt-1 text-xs">
+              Updated {new Date(data.measurement.completed_at).toLocaleString()} ·{' '}
+              {data.measurement.logical_engines.join(', ')}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <ProjectControls
+            projects={projects}
+            activeProject={activeProject}
+            activeProjectId={activeProjectId}
+            setActiveProjectId={setActiveProjectId}
+            onEditProject={onEditProject}
+          />
+          <Button variant="secondary" size="sm" onClick={download} disabled={downloading}>
+            {downloading ? (
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <Download className="size-4" aria-hidden />
+            )}
+            {downloading ? 'Preparing…' : 'Executive PDF'}
+          </Button>
+        </div>
+      </section>
 
       {downloadError ? (
-        <Alert tone="danger">Could not download the report. Please try again.</Alert>
+        <Alert tone="danger">The report could not be downloaded. Try again.</Alert>
+      ) : null}
+      {data.stale ? (
+        <Alert tone="warning">
+          New evidence is available. Refresh the measurement before acting.
+        </Alert>
       ) : null}
 
-      {activation.crawlId ? (
-        <ActivationProgress
-          projectId={activeProject.id}
-          crawlId={activation.crawlId}
-          pageLimit={activation.pageLimit}
-        />
-      ) : null}
+      <section aria-labelledby="project-state" className="grid gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="project-state" className="text-foreground text-sm font-semibold">
+            Project state
+          </h2>
+          <Badge>{data.measurement.measurement_mode}</Badge>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <StateMetric label="Visibility" {...data.state.visibility} />
+          <StateMetric label="Share of voice" {...data.state.share_of_voice} suffix="%" />
+          <StateMetric label="Brand rank" {...data.state.brand_rank} inverse />
+        </div>
+      </section>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricTile
-          label="Visibility score"
-          value={data.executive_metrics.visibility_score}
-          icon={Gauge}
-          score
-        />
-        <MetricTile
-          label="Site health"
-          value={data.executive_metrics.site_health_score}
-          icon={HeartPulse}
-          score
-        />
-        <MetricTile
-          label="Open opportunities"
-          value={data.executive_metrics.open_opportunities}
-          icon={Lightbulb}
-        />
-        <MetricTile
-          label="Active prompts"
-          value={data.executive_metrics.active_prompts}
-          icon={ListChecks}
-        />
-      </div>
+      <Card className="p-4">
+        <section aria-labelledby="movement" className="grid gap-3">
+          <div>
+            <h2 id="movement" className="text-foreground text-sm font-semibold">
+              Movement
+            </h2>
+            <p className="text-muted mt-1 text-xs">
+              Only comparable persisted measurements are shown.
+            </p>
+          </div>
+          <MovementChart movements={data.movements} />
+        </section>
+      </Card>
 
-      {data.ai_presence ? <AIPresenceCard presence={data.ai_presence} /> : null}
-      {visibility?.state === 'empty' ? <VisibilityEmptyState /> : null}
-      {activeWork.length > 0 && !activation.crawlId ? (
-        <Alert tone="info">We&apos;re currently {activeWork.join(' and ')}.</Alert>
-      ) : null}
+      <Card className="overflow-hidden">
+        <section aria-labelledby="ranked-actions">
+          <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b p-4">
+            <div>
+              <h2 id="ranked-actions" className="text-foreground text-sm font-semibold">
+                Ranked actions
+              </h2>
+              <p className="text-muted mt-1 text-xs">
+                Shared order · drag or use the arrow controls.
+              </p>
+            </div>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/opportunities">
+                View all <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+          {actions.length ? (
+            <ol>
+              {actions.map((action, index) => (
+                <ActionRow
+                  key={action.id}
+                  action={action}
+                  index={index}
+                  total={actions.length}
+                  onMove={move}
+                  onDrop={move}
+                />
+              ))}
+            </ol>
+          ) : (
+            <div className="p-6 text-center">
+              <p className="text-foreground text-sm font-medium">No open actions</p>
+              <p className="text-muted mt-1 text-xs">
+                Run another audit to look for new opportunities.
+              </p>
+            </div>
+          )}
+        </section>
+      </Card>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <DashboardSectionGroup id="dashboard-analyze" title="Analyze" sections={analyzeSections} />
-        <DashboardSectionGroup id="dashboard-improve" title="Improve" sections={improveSections} />
-      </div>
+      <Card className="p-4">
+        <section
+          aria-labelledby="progress-proof"
+          className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center"
+        >
+          <div>
+            <h2 id="progress-proof" className="text-foreground text-sm font-semibold">
+              Progress and report proof
+            </h2>
+            <p className="text-muted mt-1 text-xs">
+              {data.resolved_actions.count} action(s) resolved since the comparable run. Metric
+              movement is shown alongside completion without claiming causation.
+            </p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={download} disabled={downloading}>
+            <Download className="size-4" aria-hidden /> Download PDF
+          </Button>
+        </section>
+      </Card>
     </div>
   );
 }
 
-/** Active-project landing view backed exclusively by the persisted Dashboard projection. */
 export function DashboardScreen({
   onEditProject,
 }: Readonly<{ onEditProject?: (project: Project) => void }> = {}) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const {
     projects = [],
     activeProject,
@@ -626,56 +488,32 @@ export function DashboardScreen({
     setActiveProjectId,
     isLoading,
   } = useProjectContext();
-  const report = useDashboardReport(activeProject);
-  const dashboard = useQuery({
-    queryKey: queryKeys.projects.dashboard(activeProject?.id ?? ''),
-    queryFn: ({ signal }) => projectsApi.getDashboard(activeProject!.id, { signal }),
+  const commandCenter = useQuery({
+    queryKey: queryKeys.projects.commandCenter(activeProject?.id ?? ''),
+    queryFn: ({ signal }) => projectsApi.getCommandCenter(activeProject!.id, { signal }),
     enabled: Boolean(activeProject),
-    refetchInterval: (query) => dashboardPollingInterval(query.state.data),
   });
 
-  if (isLoading) return <DashboardSkeleton />;
-  if (!activeProject) {
-    return (
-      <Card>
-        <CardContent className="grid gap-3">
-          <CardTitle>Start with a project</CardTitle>
-          <CardDescription>Create a brand to activate your Dashboard.</CardDescription>
-          <Button asChild className="w-fit">
-            <Link href="/onboarding?new=1">
-              <Plus className="size-4" aria-hidden />
-              Add project
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-  if (dashboard.isLoading) return <DashboardSkeleton />;
-  if (dashboard.isError || !dashboard.data) {
+  if (isLoading || (activeProject && commandCenter.isLoading)) return <CommandCenterSkeleton />;
+  if (!activeProject) return null;
+  if (commandCenter.isError || !commandCenter.data) {
     return (
       <Alert tone="danger">
-        Could not load the Dashboard.{' '}
-        <Button variant="ghost" size="sm" onClick={() => dashboard.refetch()}>
+        The command center could not be loaded.{' '}
+        <Button variant="ghost" size="sm" onClick={() => commandCenter.refetch()}>
           Try again
         </Button>
       </Alert>
     );
   }
-
   return (
-    <DashboardContent
-      data={dashboard.data}
+    <CommandCenterContent
+      data={commandCenter.data}
       projects={projects}
       activeProject={activeProject}
       activeProjectId={activeProjectId}
       setActiveProjectId={setActiveProjectId}
       onEditProject={onEditProject}
-      onAddProject={() => router.push('/onboarding?new=1')}
-      searchParams={searchParams}
-      downloading={report.downloading}
-      downloadError={report.downloadError}
-      onDownloadReport={report.downloadReport}
     />
   );
 }

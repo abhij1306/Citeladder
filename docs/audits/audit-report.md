@@ -1,4 +1,4 @@
-# Searchify — Dead Code, Technical Debt & Complexity Cleanup
+# CiteLadder — Dead Code, Technical Debt & Complexity Cleanup
 
 **Date:** 2026-08-02 · **Branch:** `design/framer-design-system`
 **Scope:** `backend/app/**`, `frontend/{app,components,lib}/**`

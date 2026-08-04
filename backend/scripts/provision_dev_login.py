@@ -6,7 +6,7 @@ inputs so no reusable password or capacity knob lives in service code.
 
 Usage (from backend/):
     uv run python -m scripts.provision_dev_login \
-        --email dev@searchify.com \
+        --email dev@citeladder.com \
         --password "..." \
         --counter-allowance 1000000
 """

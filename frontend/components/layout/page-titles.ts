@@ -19,7 +19,7 @@ const PAGE_TITLES: ReadonlyArray<readonly [prefix: string, title: string]> = [
   ['/products', 'Products'],
   ['/runs', 'Runs'],
   ['/content', 'Content'],
-  ['/projects', 'Projects'],
+  ['/projects', 'Command center'],
   ['/knowledge-base', 'Brand knowledge'],
   ['/site-health', 'Site health'],
   ['/issues', 'Issues'],
@@ -42,5 +42,5 @@ export function resolveTitle(pathname: string): string {
   for (const [prefix, title] of PAGE_TITLES) {
     if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return title;
   }
-  return 'Searchify';
+  return 'CiteLadder';
 }

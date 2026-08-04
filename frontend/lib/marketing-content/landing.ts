@@ -38,7 +38,7 @@ export const LANDING_CONTENT = {
     /* The accent clause carries the signature slate→sage sweep, so the hero
        headline turns over to colour on its closing line. */
     titleAccent: 'They ask AI instead.',
-    body: 'AI engines shape what your market buys. Searchify shows what they say about your brand — and links every claim to the answer behind it.',
+    body: 'AI engines shape what your market buys. CiteLadder shows what they say about your brand — and links every claim to the answer behind it.',
     primaryCta: 'See it on your category',
     secondaryCta: 'How it works',
   },
@@ -145,8 +145,8 @@ export const LANDING_CONTENT = {
   },
 
   proof: {
-    kicker: 'Proof',
-    title: 'Every number opens to the answer it came from.',
+    kicker: 'The operating loop',
+    title: 'Move from state to evidence to action to improvement.',
     intro:
       'Scores are derived, not asserted. Open one and you get the answer, the engine, the persisted artifact and the rule version behind it — so the same evidence always yields the same number.',
     /** The closing pull-quote: the verification standard, stated as a rule. */
@@ -155,21 +155,27 @@ export const LANDING_CONTENT = {
     steps: [
       {
         num: '01',
-        kicker: 'Observe',
-        title: 'Ask what your buyers ask',
-        body: 'One run asks your real buyer questions across every engine, on your own provider keys.',
+        kicker: 'State',
+        title: 'See where the brand stands',
+        body: 'Visibility, share of voice, deterministic rank and comparable movement establish the current state.',
       },
       {
         num: '02',
-        kicker: 'Verify',
-        title: 'Trace every answer to its source',
+        kicker: 'Evidence',
+        title: 'Trace every result to its source',
         body: 'Each response is persisted. Mentions, citations and share of voice are computed from that text by versioned rules — never one model judging another.',
       },
       {
         num: '03',
-        kicker: 'Decide',
-        title: 'Turn the pattern into strategy',
+        kicker: 'Action',
+        title: 'Work the ranked queue',
         body: 'Visibility gaps and competitor patterns resolve into prioritised moves, each still linked to the answers behind it.',
+      },
+      {
+        num: '04',
+        kicker: 'Improve',
+        title: 'Measure again on equal terms',
+        body: 'Resolved work and subsequent movement appear side by side without turning correlation into a causal claim.',
       },
     ],
   },

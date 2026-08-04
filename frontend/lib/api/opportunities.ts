@@ -20,6 +20,7 @@ import {
   opportunitySchema,
   opportunityGuidanceHistorySchema,
   opportunityGuidanceItemSchema,
+  opportunityOrderResponseSchema,
   recomputeResponseSchema,
   strictValidate,
 } from './schemas';
@@ -48,6 +49,10 @@ export type OpportunitiesParams = {
 
 /** `PATCH /opportunities/{id}` body — status is the ONLY mutable field. */
 export type OpportunityStatusPatch = { status: OpportunityStatus };
+export type OpportunityOrderUpdate = {
+  ordered_opportunity_ids: string[];
+  expected_version: number;
+};
 
 /** Optional recompute scope; omit both for the latest dashboard sources. */
 export type RecomputeScope = { audit_id?: string; site_crawl_id?: string };
@@ -73,6 +78,14 @@ export const opportunitiesApi = {
       options,
     );
     return strictValidate(opportunitySchema, res, 'opportunities.updateStatus');
+  },
+  updateOrder: async (
+    projectId: string,
+    input: OpportunityOrderUpdate,
+    options?: ApiRequestOptions,
+  ) => {
+    const res = await apiClient.put(`/projects/${projectId}/opportunities/order`, input, options);
+    return strictValidate(opportunityOrderResponseSchema, res, 'opportunities.updateOrder');
   },
   recompute: async (projectId: string, scope?: RecomputeScope, options?: ApiRequestOptions) => {
     const res = await apiClient.post<RecomputeResponse>(

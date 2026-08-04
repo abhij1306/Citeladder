@@ -24,7 +24,7 @@ export const SOLUTIONS_HERO = {
   eyebrow: 'Solutions',
   title: 'One evidence layer for',
   accent: 'every team behind the brand.',
-  lead: 'Searchify measures how answer engines talk about you — giving every team re-checkable proof in its native format.',
+  lead: 'CiteLadder measures how answer engines talk about you — giving every team re-checkable proof in its native format.',
 } as const;
 
 export const SOLUTION_SEGMENTS: readonly SolutionSegment[] = [

@@ -50,7 +50,7 @@ export const BYOK_SWITCH_LABEL = 'Use your own API keys.';
  */
 export const BYOK_DISCLOSURE =
   'With your own keys, provider usage bills straight to your provider accounts at their ' +
-  'rates — Searchify never marks it up. Report-ready latency is not guaranteed in this ' +
+  'rates — CiteLadder never marks it up. Report-ready latency is not guaranteed in this ' +
   'mode, because your key’s rate limits apply.';
 
 /** Shown when funded mode is selected while its inputs are unpriced. */

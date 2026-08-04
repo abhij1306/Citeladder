@@ -9,7 +9,7 @@ import { TrustStrip } from '@/components/marketing/primitives/trust-strip';
 // per visitor, so a number baked into a static description would be wrong for
 // most of them and would go stale the moment the catalog changed.
 const DESCRIPTION =
-  'Pricing for Searchify, the AI visibility and site intelligence platform: ' +
+  'Pricing for CiteLadder, the AI visibility and site intelligence platform: ' +
   'self-serve plans plus a sales-assisted Enterprise agreement. Audits run on your own ' +
   'provider keys. India is billed in INR with GST added; international cards are charged in USD.';
 
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     title: 'Pricing — BYOK AI visibility audits, site health & AEO monitoring',
     description: DESCRIPTION,
     type: 'website',
-    siteName: 'Searchify',
+    siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',
@@ -50,9 +50,9 @@ export default function PricingPage() {
         eyebrow="Pricing"
         title="Pay for the evidence layer."
         accent="Not the API markup."
-        lead="Audits run on your own ChatGPT, Gemini and Claude keys — provider usage bills straight to your accounts at provider rates. Searchify charges for the workspace, the monitoring and the evidence behind every score."
+        lead="Audits run on your own ChatGPT, Gemini and Claude keys — provider usage bills straight to your accounts at provider rates. CiteLadder charges for the workspace, the monitoring and the evidence behind every score."
       >
-        <TrustStrip className="mt-mkt-30 justify-center" />
+        <TrustStrip className="mt-8 justify-center" />
       </PageHero>
       <PricingCatalog />
       <PricingCta />

@@ -121,7 +121,7 @@ describe('SessionGuard', () => {
     }
 
     window.localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, 'old-project');
-    window.localStorage.setItem('searchify-theme', 'dark');
+    window.localStorage.setItem('citeladder-theme', 'dark');
     setActiveWorkspaceId('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
 
     const { queryClient } = renderWithProviders(
@@ -134,7 +134,7 @@ describe('SessionGuard', () => {
     // Session cache was cleared.
     expect(queryClient.getQueryData(queryKeys.auth.me())).toBeUndefined();
     expect(window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY)).toBeNull();
-    expect(window.localStorage.getItem('searchify-theme')).toBe('dark');
+    expect(window.localStorage.getItem('citeladder-theme')).toBe('dark');
     expect(getActiveWorkspaceId()).toBeNull();
   });
 

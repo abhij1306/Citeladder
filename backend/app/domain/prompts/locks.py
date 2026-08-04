@@ -33,7 +33,7 @@ def _advisory_lock_key(namespace: int, entity_id: uuid.UUID) -> int:
     digest = hashlib.blake2b(
         namespace.to_bytes(4, "big") + entity_id.bytes,
         digest_size=8,
-        person=b"searchify-locks",
+        person=b"citeladder-locks",
     ).digest()
     return int.from_bytes(digest, "big", signed=True)
 

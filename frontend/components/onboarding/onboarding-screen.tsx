@@ -305,7 +305,7 @@ export function OnboardingScreen() {
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 sm:gap-6 sm:px-6 lg:px-8">
           <span className="flex shrink-0 items-center gap-2">
             <LogoMark size={24} />
-            <span className="font-mkt-display text-foreground text-base font-bold">Searchify</span>
+            <span className="font-display text-foreground text-base font-bold">CiteLadder</span>
           </span>
 
           {/* Compact inline stepper — replaces the old dedicated stepper card. */}
@@ -390,7 +390,7 @@ export function OnboardingScreen() {
             >
               <div className="grid gap-6">
                 <div className="grid gap-1.5">
-                  <h1 className="font-mkt-display text-foreground text-2xl font-bold sm:text-3xl">
+                  <h1 className="font-display text-foreground text-2xl font-bold sm:text-3xl">
                     {isAdditional ? 'Add a project' : 'What brand are we tracking?'}
                   </h1>
                   <p className="text-muted text-sm">
@@ -491,7 +491,7 @@ export function OnboardingScreen() {
           {step === 1 ? (
             <div className="bg-panel shadow-card grid gap-6 rounded-2xl p-6 sm:p-8">
               <div className="grid gap-1.5">
-                <h1 className="font-mkt-display text-foreground text-2xl font-bold sm:text-3xl">
+                <h1 className="font-display text-foreground text-2xl font-bold sm:text-3xl">
                   Finding what to track
                 </h1>
                 <p className="text-muted text-sm">
@@ -563,7 +563,7 @@ export function OnboardingScreen() {
           {step === 2 ? (
             <div className="bg-panel shadow-card flex h-full flex-col gap-6 rounded-2xl p-6 sm:p-8">
               <div className="grid gap-1.5">
-                <h1 className="font-mkt-display text-foreground text-2xl font-bold sm:text-3xl">
+                <h1 className="font-display text-foreground text-2xl font-bold sm:text-3xl">
                   Does this look right?
                 </h1>
                 <p className="text-muted text-sm">

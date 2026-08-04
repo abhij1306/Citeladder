@@ -1,7 +1,5 @@
 import type { Page } from '@playwright/test';
 
-import { THEME_STORAGE_KEY } from '../../lib/theme';
-
 /**
  * Authed-shell network fixture for e2e + visual specs.
  *
@@ -80,18 +78,4 @@ export async function stubAuthedShell(
  */
 export async function hideDevChrome(page: Page): Promise<void> {
   await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
-}
-
-/**
- * Persist the theme choice BEFORE first paint: the bootstrap script in the
- * root layout reads THEME_STORAGE_KEY from localStorage pre-hydration, so an
- * init script beats it to the document and no reload is needed.
- */
-export async function seedTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
-  await page.addInitScript(
-    ([key, value]) => {
-      window.localStorage.setItem(key, value);
-    },
-    [THEME_STORAGE_KEY, theme] as const,
-  );
 }

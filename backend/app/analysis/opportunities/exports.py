@@ -35,7 +35,7 @@ OPPORTUNITIES_COLUMNS = [
     "created_at",
 ]
 
-_EXPORT_TITLE = "Searchify — Opportunities"
+_EXPORT_TITLE = "CiteLadder — Opportunities"
 
 
 def rows_to_csv(items: list[dict]) -> str:

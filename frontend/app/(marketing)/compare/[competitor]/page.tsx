@@ -24,12 +24,12 @@ export async function generateMetadata({
   if (!competitor) {
     return { title: 'Comparison not found' };
   }
-  // Absolute title: the 'Searchify vs X' phrasing stands on its own — the root
+  // Absolute title: the 'CiteLadder vs X' phrasing stands on its own — the root
   // template would only duplicate the brand.
-  const title = `Searchify vs ${competitor.name}`;
+  const title = `CiteLadder vs ${competitor.name}`;
   const description =
-    `How Searchify compares to ${competitor.name}: engines covered, scoring model, evidence ` +
-    'drill-down, BYOK privacy, and site-health auditing. The Searchify column is ' +
+    `How CiteLadder compares to ${competitor.name}: engines covered, scoring model, evidence ` +
+    'drill-down, BYOK privacy, and site-health auditing. The CiteLadder column is ' +
     `sourced from our source code. Last reviewed ${competitor.lastReviewed}.`;
   return {
     title: { absolute: title },
@@ -39,7 +39,7 @@ export async function generateMetadata({
       title,
       description,
       type: 'website',
-      siteName: 'Searchify',
+      siteName: 'CiteLadder',
     },
     twitter: {
       card: 'summary',

@@ -1,14 +1,14 @@
 /**
  * Competitor-comparison content for /compare and /compare/[competitor].
  *
- * Sourcing rule (internal — never rendered): every `searchify` cell is
+ * Sourcing rule (internal — never rendered): every `citeladder` cell is
  * grounded in this repo's own source code; every `competitor` cell must be
  * confirmed first-party on the vendor's own site before it ships (sources and
  * review date noted per entry below). A row ships only when BOTH cells are
  * written — the table never renders a blank state, so an unsupported
  * dimension is simply omitted from that vendor's `rows`.
  *
- * Engine roster: Searchify coverage is the three engines the platform can
+ * Engine roster: CiteLadder coverage is the three engines the platform can
  * actually audit — ChatGPT, Gemini, and Claude, one approved transport each
  * (see backend `answer_engines/factory.py`) — one audit, one prompt set, your
  * own keys. Breadth is not our claim here; determinism and evidence are.
@@ -18,7 +18,7 @@
 
 export type ComparisonRow = {
   dimension: string;
-  searchify: string;
+  citeladder: string;
   competitor: string;
 };
 
@@ -45,38 +45,38 @@ export type Competitor = {
 const OURS = {
   engines: {
     dimension: 'Engines covered',
-    searchify:
+    citeladder:
       'ChatGPT, Gemini, and Claude — one audit runs the same prompts across all three, ' +
       'side by side, on your own provider keys.',
   },
   scoring: {
     dimension: 'Scoring model',
-    searchify:
+    citeladder:
       'Deterministic and versioned — explicit analyzers and scoring rules over persisted ' +
       'evidence, with analyzer and scoring-rule versions attached to every projection. ' +
       'Same data, same score.',
   },
   evidence: {
     dimension: 'Evidence drill-down',
-    searchify:
+    citeladder:
       'Every headline metric links to the exact persisted run — raw response text, ' +
       'classified citations, and query-fanout evidence included.',
   },
   byok: {
     dimension: 'Bring your own keys',
-    searchify:
+    citeladder:
       'BYOK only — provider keys are Fernet-encrypted at rest, resolved only at execution ' +
       'time, and never returned in API responses, logged, or sent as part of a prompt.',
   },
   siteHealth: {
     dimension: 'Site health / AEO auditing',
-    searchify:
+    citeladder:
       'Built in — first-party SSRF-bounded crawler, Web Fundamentals + AEO scores, grouped issues ' +
       'with remediation, per-URL diagnostics, and workspace-scoped CSV/Markdown exports.',
   },
   provenance: {
     dimension: 'Provenance',
-    searchify:
+    citeladder:
       'Every derived number is stamped with the analyzer and rule version that produced ' +
       'it — scoring-v1, sh-rules-2, opp-formula-1 — so a score change is attributable to ' +
       'data or to code.',
@@ -85,18 +85,18 @@ const OURS = {
   // site-health depth figure, and a row ships only when both cells are written.
   siteHealthDepth: {
     dimension: 'Site health depth',
-    searchify:
+    citeladder:
       '33 deterministic rules across 8 categories, Web Fundamentals and AEO weighted 50/50, ' +
       'plus AI-crawler stance detection and an /llms.txt check.',
   },
   price: {
     dimension: 'Price transparency',
-    searchify:
+    citeladder:
       'Published flat-rate plans: Free to start, $49/month before applicable tax for ' +
       'Paid, and a sales-assisted Enterprise agreement. Model usage is billed by your ' +
       'own provider at their rates and never marked up.',
   },
-} as const satisfies Record<string, { dimension: string; searchify: string }>;
+} as const satisfies Record<string, { dimension: string; citeladder: string }>;
 
 /** "How we compare fairly" claims on the /compare index — all repo-grounded. */
 export const FAIRNESS_POINTS = [
@@ -105,7 +105,7 @@ export const FAIRNESS_POINTS = [
   'Evidence-first scoring — no LLM-as-judge',
 ] as const;
 
-/** "Searchify at a glance" fact rows on the /compare index. */
+/** "CiteLadder at a glance" fact rows on the /compare index. */
 export const FACT_ROWS = [
   { key: 'Engines', value: 'ChatGPT · Gemini · Claude — one audit' },
   { key: 'Scoring', value: 'Deterministic rules, versioned projections' },

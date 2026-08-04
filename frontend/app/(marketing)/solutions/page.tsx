@@ -7,7 +7,7 @@ import {
 } from '@/components/marketing/pages/solutions';
 
 const DESCRIPTION =
-  'How agencies, in-house marketers, founders, ecommerce and PR teams use Searchify: ' +
+  'How agencies, in-house marketers, founders, ecommerce and PR teams use CiteLadder: ' +
   'multi-project client workspaces with CSV/MD evidence exports, period-over-period trends, ' +
   'free sample crawls on BYOK rates, product share of voice and price accuracy, and ' +
   'citation-ownership evidence for every narrative.';
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     title: TITLE,
     description: DESCRIPTION,
     type: 'website',
-    siteName: 'Searchify',
+    siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',

@@ -1,4 +1,4 @@
-# Searchify local stack: postgres + backend web + worker.
+# CiteLadder local stack: postgres + backend web + worker.
 #
 # =============================================================================
 # GOTCHA 1 (docs/invariants.md invariant 11) — READ BEFORE `docker compose up`
@@ -22,7 +22,7 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-searchify}
+      POSTGRES_DB: ${POSTGRES_DB:-citeladder}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     ports:
@@ -30,7 +30,7 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-searchify}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-citeladder}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -47,7 +47,7 @@ services:
     environment: &backend_env
       APP_ENV: ${APP_ENV:-development}
       # skipcq: SCT-A000 - password comes from environment, not hardcoded.
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-searchify}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@db:5432/${POSTGRES_DB:-citeladder}
     depends_on:
       db:
         condition: service_healthy

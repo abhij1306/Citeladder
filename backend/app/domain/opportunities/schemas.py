@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.opportunities import OPPORTUNITY_STATUSES
 
@@ -35,6 +35,16 @@ class OpportunityStatusPatch(_Model):
         if value not in OPPORTUNITY_STATUSES:
             raise ValueError(f"unknown opportunity status: {value!r}")
         return value
+
+
+class OpportunityOrderUpdate(_Model):
+    ordered_opportunity_ids: list[uuid.UUID]
+    expected_version: int = Field(ge=0)
+
+
+class OpportunityOrderResponse(_Model):
+    version: int
+    ordered_opportunity_ids: list[uuid.UUID]
 
 
 class RecomputeRequest(_Model):
@@ -111,6 +121,11 @@ class OpportunityItem(_Model):
     # theme / frozen product name); null when nothing user-facing exists.
     target_label: str | None
     status: str
+    system_rank: int = 0
+    display_rank: int = 0
+    order_source: Literal["system", "manual"] = "system"
+    priority_factors: dict[str, str | float] = Field(default_factory=dict)
+    evidence_summary: dict[str, int | list[str]] = Field(default_factory=dict)
     created_at: str
     updated_at: str
 

@@ -183,7 +183,7 @@ function timeoutApiError(requestId: string) {
   );
 }
 
-/** Parse the delta-seconds form emitted by Searchify's durable usage guards. */
+/** Parse the delta-seconds form emitted by CiteLadder's durable usage guards. */
 function retryAfterSeconds(value: string | null): number | undefined {
   if (!value?.trim()) return undefined;
   const seconds = Number(value);

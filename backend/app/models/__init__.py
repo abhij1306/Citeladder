@@ -77,7 +77,13 @@ from app.models.integrations import (
     IntegrationPropertyMapping,
     IntegrationSyncRun,
 )
-from app.models.opportunity import Opportunity, OpportunityGuidance, OpportunitySnapshot
+from app.models.opportunity import (
+    Opportunity,
+    OpportunityGuidance,
+    OpportunityOrder,
+    OpportunitySnapshot,
+    OpportunityStatusEvent,
+)
 from app.models.product import (
     CompetitorProduct,
     MerchantMention,
@@ -169,7 +175,9 @@ __all__ = [
     "MetricSnapshot",
     "Opportunity",
     "OpportunityGuidance",
+    "OpportunityOrder",
     "OpportunitySnapshot",
+    "OpportunityStatusEvent",
     "OrderFact",
     "OwnedDomain",
     "PendingActivation",

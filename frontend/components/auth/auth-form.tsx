@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { type ComponentProps, type FormEventHandler, type ReactNode, useState } from 'react';
 
 import { Button } from '@/components/marketing/primitives/button';
-import { MktAlert, MktField, MktInput } from '@/components/marketing/primitives/field';
+import { Alert as MktAlert } from '@/components/ui/alert';
+import { Field as MktField } from '@/components/ui/field';
+import { Input as MktInput } from '@/components/ui/input';
 
 type InputProps = ComponentProps<typeof MktInput>;
 
@@ -23,9 +25,9 @@ export function AuthEmailField({
             type="email"
             autoComplete="email"
             placeholder="you@company.com"
-            className="border-mkt-black-10 bg-mkt-surface-sunk/80 text-mkt-ink placeholder:text-mkt-ink-soft focus:border-mkt-indigo focus:ring-mkt-indigo/20 focus:bg-panel pl-10"
+            className="border-border-subtle bg-background-alt text-foreground placeholder:text-muted focus:border-accent focus:ring-accent-border focus:bg-panel pl-10"
           />
-          <Mail className="text-mkt-ink-soft pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Mail className="text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         </div>
       )}
     </MktField>
@@ -58,13 +60,13 @@ export function AuthPasswordField({
             type={visible ? 'text' : 'password'}
             autoComplete={autoComplete}
             placeholder={placeholder}
-            className="border-mkt-black-10 bg-mkt-surface-sunk/80 text-mkt-ink placeholder:text-mkt-ink-soft focus:border-mkt-indigo focus:ring-mkt-indigo/20 focus:bg-panel pr-10 pl-10"
+            className="border-border-subtle bg-background-alt text-foreground placeholder:text-muted focus:border-accent focus:ring-accent-border focus:bg-panel pr-10 pl-10"
           />
-          <Lock className="text-mkt-ink-soft pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+          <Lock className="text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <button
             type="button"
             onClick={() => setVisible((current) => !current)}
-            className="text-mkt-ink-soft hover:text-mkt-ink-soft absolute top-1/2 right-3 -translate-y-1/2 p-1 transition-colors"
+            className="text-muted hover:text-muted absolute top-1/2 right-3 -translate-y-1/2 p-1 transition-colors"
             aria-label={`${visible ? 'Hide' : 'Show'} ${visibilityLabel}`}
           >
             {visible ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -106,11 +108,11 @@ export function AuthFormShell({
     <div className="relative">
       <div className="bg-panel shadow-card relative rounded-2xl p-8 sm:p-10">
         <div className="mb-8 space-y-2 text-center sm:text-left">
-          <div className="border-mkt-primary/30 bg-mkt-surface-sunk text-mkt-indigo mb-2 inline-flex size-10 items-center justify-center rounded-xl border">
+          <div className="border-accent-border bg-background-alt text-accent-text mb-2 inline-flex size-10 items-center justify-center rounded-xl border">
             <Icon className="size-5" />
           </div>
-          <h1 className="font-mkt-display text-mkt-ink text-2xl font-bold sm:text-3xl">{title}</h1>
-          <p className="text-mkt-ink-soft text-sm">{description}</p>
+          <h1 className="font-display text-foreground text-2xl font-bold sm:text-3xl">{title}</h1>
+          <p className="text-muted text-sm">{description}</p>
         </div>
         {error ? (
           <div className="mb-6">
@@ -123,11 +125,11 @@ export function AuthFormShell({
             {pending ? pendingLabel : submitLabel}
           </Button>
         </form>
-        <p className="text-mkt-ink-soft mt-8 text-center text-sm font-medium">
+        <p className="text-muted mt-8 text-center text-sm font-medium">
           {footerPrompt}{' '}
           <Link
             href={footerHref}
-            className="text-mkt-indigo hover:text-mkt-indigo font-semibold transition-colors"
+            className="text-accent-text hover:text-accent-text font-semibold transition-colors"
           >
             {footerLabel}
           </Link>

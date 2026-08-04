@@ -1,6 +1,6 @@
-# Searchify Code Review Guidelines & Agent Reference (`Review.md`)
+# CiteLadder Code Review Guidelines & Agent Reference (`Review.md`)
 
-This document serves as the authoritative code review reference for **AI Code Reviewing Agents** and human reviewers operating on the **Searchify** repository (`abhij1306/Searchify`).
+This document serves as the authoritative code review reference for **AI Code Reviewing Agents** and human reviewers operating on the **CiteLadder** repository (`abhij1306/CiteLadder`).
 
 It is synthesized directly from historical Pull Request reviews, automated CodeRabbit findings, CodeQL security alerts, project invariants, and developer review feedback across all Pull Requests (PR #1 through PR #33).
 
@@ -18,7 +18,7 @@ It is synthesized directly from historical Pull Request reviews, automated CodeR
 
 ## 📋 Code Review Checklist for Agents
 
-When reviewing any Pull Request or code change in `Searchify`, agents MUST systematically verify the code against these critical categories:
+When reviewing any Pull Request or code change in `CiteLadder`, agents MUST systematically verify the code against these critical categories:
 
 - [ ] **0. Zero Config-in-Code**: Are all model IDs, timeouts, limits, thresholds, and endpoints loaded strictly from `app/core/config/*` or `process.env`?
 - [ ] **1. Security & Network Boundary**: Are base URLs, webhooks, and provider endpoints validated for HTTP/HTTPS scheme and SSRF safety?
@@ -251,29 +251,11 @@ Deriving UI flags (e.g., `crawlStarting`, `isPending`) from TanStack Query mutat
   const crawlStarting = createMutation.isSuccess && createMutation.variables?.projectId === activeProjectId;
   ```
 
-#### 🚨 Recurring Anti-Pattern: Global Theme & CSS Pollution
-Mutating `document.documentElement` (`html[data-theme]`) or defining unscoped global styles in nested route layouts (e.g. marketing or settings) without resetting state on unmount or client-side navigation.
-
-* **Incorrect:**
-  ```tsx
-  // BAD: Layout sets global data-theme attribute permanently
-  export default function Layout({ children }) {
-    useEffect(() => {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    }, []);
-    return <div>{children}</div>;
-  }
-  ```
-* **Correct:**
-  ```tsx
-  // GOOD: Clean up global mutations on layout unmount
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    return () => {
-      document.documentElement.removeAttribute('data-theme');
-    };
-  }, []);
-  ```
+#### 🚨 Recurring Anti-Pattern: Route-Owned Global CSS
+Defining unscoped global styles in nested route layouts creates order-dependent
+visual state during client-side navigation. CiteLadder is light-only: global
+tokens and base styles belong exclusively to `frontend/app/globals.css`, and
+routes consume those semantic tokens without mutating the document root.
 
 #### 🚨 Recurring Anti-Pattern: Duplicate `<h1>` Heading Tags
 Rendering an `<h1>` tag in shared app shells (`PageHeader`) as well as in specific nested pages (`UrlDetail`, `Dashboard`). Accessibility and SEO require exactly one `<h1>` per page.

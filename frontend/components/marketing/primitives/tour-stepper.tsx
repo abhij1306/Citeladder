@@ -31,11 +31,11 @@ export function TourStepper({
   return (
     <div
       className={cn(
-        'gap-mkt-10 flex flex-col sm:flex-row sm:items-center sm:justify-between',
+        'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
         className,
       )}
     >
-      <div className="gap-mkt-6 sm:gap-mkt-10 grid grid-cols-2 sm:flex sm:items-center">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         {steps.map((step, idx) => {
           const Icon = step.icon;
           const isActive = idx === activeStep;
@@ -46,11 +46,9 @@ export function TourStepper({
               aria-pressed={isActive}
               onClick={() => onSelectStep(idx)}
               className={cn(
-                'text-mkt-xs gap-mkt-10 rounded-mkt-lg px-mkt-14 py-mkt-10 flex items-center text-left font-semibold transition-colors',
-                compact && 'gap-mkt-6 rounded-mkt-sm px-mkt-14 py-mkt-6',
-                isActive
-                  ? 'bg-mkt-indigo text-white'
-                  : 'bg-mkt-surface text-mkt-ink-soft hover:text-mkt-ink',
+                'flex items-center gap-3 rounded-lg px-4 py-3 text-left text-xs font-semibold transition-colors',
+                compact && 'gap-2 rounded-md px-4 py-2',
+                isActive ? 'bg-accent text-white' : 'bg-panel text-muted hover:text-foreground',
               )}
             >
               <Icon
@@ -58,7 +56,7 @@ export function TourStepper({
                 className={cn(
                   'size-4 shrink-0',
                   compact && 'size-3',
-                  isActive ? 'text-white' : 'text-mkt-indigo',
+                  isActive ? 'text-white' : 'text-accent-text',
                 )}
               />
               <span className="truncate">{step.label}</span>
@@ -67,8 +65,8 @@ export function TourStepper({
         })}
       </div>
 
-      <div className="border-mkt-black-10 gap-mkt-10 pt-mkt-6 flex items-center justify-between border-t sm:justify-end sm:border-t-0 sm:pt-0">
-        <span className="text-mkt-xs text-mkt-ink-soft font-mono font-medium">
+      <div className="border-border-subtle flex items-center justify-between gap-3 border-t pt-2 sm:justify-end sm:border-t-0 sm:pt-0">
+        <span className="text-muted font-mono text-xs font-medium">
           {activeStep + 1} / {steps.length}
         </span>
         <button
@@ -76,7 +74,7 @@ export function TourStepper({
           onClick={onTogglePlay}
           aria-pressed={isPlaying}
           aria-label={isPlaying ? 'Pause story tour' : 'Play story tour'}
-          className="border-mkt-black-10 text-mkt-ink-soft bg-mkt-surface hover:text-mkt-ink rounded-mkt-sm p-mkt-6 border"
+          className="border-border-subtle text-muted bg-panel hover:text-foreground rounded-md border p-2"
           title={isPlaying ? 'Pause story tour' : 'Play story tour'}
         >
           {isPlaying ? (

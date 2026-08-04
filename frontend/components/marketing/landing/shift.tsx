@@ -14,14 +14,12 @@ export function Shift() {
   return (
     <Section id="why" tone="paper" rhythm="base" aria-labelledby="shift-title">
       <SectionHeader eyebrow={shift.kicker} title={shift.title} headingId="shift-title" />
-      <StaggerGroup className="gap-mkt-50 grid lg:grid-cols-3">
+      <StaggerGroup className="grid gap-12 lg:grid-cols-3">
         {shift.facts.map((fact) => (
           <StaggerItem key={fact.num}>
-            <p className="text-mkt-indigo text-mkt-xs font-mono tabular-nums">{fact.num}</p>
-            <h3 className="font-mkt-display text-mkt-ink text-mkt-hsm mt-mkt-20 max-w-[28ch]">
-              {fact.title}
-            </h3>
-            <p className="text-mkt-body text-mkt-ink-soft mt-mkt-20 max-w-[56ch]">{fact.body}</p>
+            <p className="text-accent-text font-mono text-xs tabular-nums">{fact.num}</p>
+            <h3 className="font-display text-foreground mt-5 max-w-[28ch] text-xl">{fact.title}</h3>
+            <p className="text-muted mt-5 max-w-[56ch] text-base">{fact.body}</p>
           </StaggerItem>
         ))}
       </StaggerGroup>

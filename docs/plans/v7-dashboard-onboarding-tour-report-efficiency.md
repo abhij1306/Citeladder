@@ -2,7 +2,7 @@
 
 > **Status:** IN PROGRESS  
 > **Started:** 2026-07-28  
-> **Owner:** Searchify engineering  
+> **Owner:** CiteLadder engineering
 > **Policy:** Greenfield build. No existing data must survive. Keep one complete
 > `migrations/versions/0001_initial.py` revision and reset disposable databases.
 
@@ -134,7 +134,7 @@ pnpm exec playwright test e2e/dashboard-onboarding-tour.spec.ts
 | Date | Decision | Reason |
 | --- | --- | --- |
 | 2026-07-28 | Keep `/projects` as the canonical Dashboard URL. | Avoid an alias and preserve the existing project-management entry point. |
-| 2026-07-28 | Reset databases and maintain one `0001_initial.py` baseline. | Searchify is greenfield and no data compatibility is required. |
+| 2026-07-28 | Reset databases and maintain one `0001_initial.py` baseline. | CiteLadder is greenfield and no data compatibility is required. |
 | 2026-07-28 | Generate reports from persisted projections only. | Preserves provenance and prevents provider/crawler calls from read paths. |
 | 2026-07-28 | Use a cross-route, per-workspace-member tour with replay. | The experience must survive devices and guide users through real product surfaces. |
 | 2026-07-28 | Keep provider batch APIs research-only. | Compatibility and measured economics are not yet proven. |

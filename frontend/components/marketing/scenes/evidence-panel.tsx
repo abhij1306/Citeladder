@@ -2,7 +2,7 @@ import { Download, FileSpreadsheet, ShoppingBag } from 'lucide-react';
 
 import type { SolutionScene } from '@/lib/marketing-content/solutions';
 
-import { Badge } from '../primitives/badge';
+import { Badge } from '@/components/ui/badge';
 import { Meta } from '../primitives/label';
 import { ExampleDataNote, Panel, WallpaperPanel } from './wallpaper-panel';
 
@@ -12,11 +12,11 @@ import { ExampleDataNote, Panel, WallpaperPanel } from './wallpaper-panel';
  */
 function Bar({ width, own = false }: Readonly<{ width: number; own?: boolean }>) {
   return (
-    <span className="bg-mkt-surface-sunk block h-2 flex-1 overflow-hidden rounded-full">
+    <span className="bg-background-alt block h-2 flex-1 overflow-hidden rounded-full">
       <span
         style={{ width: `${width}%` }}
         className={`block h-full rounded-full transition-all duration-300 ${
-          own ? 'bg-mkt-indigo' : 'bg-mkt-mist'
+          own ? 'bg-accent' : 'bg-border'
         }`}
       />
     </span>
@@ -28,20 +28,20 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Client report — share of answers',
     body: (
       <>
-        <div className="gap-mkt-20 grid">
+        <div className="grid gap-5">
           {[
             { name: 'Acme Corp (Client)', share: 68, mentions: '84 mentions', own: true },
             { name: 'Vortex AI (Rival)', share: 42, mentions: '52 mentions', own: false },
             { name: 'Apex Labs (Rival)', share: 24, mentions: '30 mentions', own: false },
           ].map(({ name, share, mentions, own }) => (
-            <div key={name} className="gap-mkt-6 flex flex-col">
-              <div className="text-mkt-sm flex items-center justify-between">
+            <div key={name} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-sm">
                 <span
-                  className={`font-medium ${own ? 'text-mkt-ink font-semibold' : 'text-mkt-ink-soft'}`}
+                  className={`font-medium ${own ? 'text-foreground font-semibold' : 'text-muted'}`}
                 >
                   {name}
                 </span>
-                <span className="text-mkt-xs text-mkt-ink-soft font-mono">
+                <span className="text-muted font-mono text-xs">
                   {share}% SOV · {mentions}
                 </span>
               </div>
@@ -49,18 +49,20 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
             </div>
           ))}
         </div>
-        <div className="border-mkt-black-10 mt-mkt-20 gap-mkt-10 pt-mkt-20 flex flex-wrap items-center justify-between border-t">
-          <div className="gap-mkt-10 flex flex-wrap">
-            <span className="border-mkt-black-10 bg-mkt-surface-sunk text-mkt-ink-soft text-mkt-sm gap-mkt-6 rounded-mkt-sm px-mkt-14 py-mkt-6 inline-flex items-center border font-medium">
+        <div className="border-border-subtle mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-5">
+          <div className="flex flex-wrap gap-3">
+            <span className="border-border-subtle bg-background-alt text-muted inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium">
               <Download aria-hidden strokeWidth={2} className="size-4" />
               Mentions (CSV)
             </span>
-            <span className="border-mkt-black-10 bg-mkt-surface-sunk text-mkt-ink-soft text-mkt-sm gap-mkt-6 rounded-mkt-sm px-mkt-14 py-mkt-6 inline-flex items-center border font-medium">
+            <span className="border-border-subtle bg-background-alt text-muted inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium">
               <FileSpreadsheet aria-hidden strokeWidth={2} className="size-4" />
               Evidence (Markdown)
             </span>
           </div>
-          <Badge tone="proof">4 Engines Audited</Badge>
+          <Badge variant="status" value="info">
+            4 Engines Audited
+          </Badge>
         </div>
       </>
     ),
@@ -69,18 +71,18 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Site health — Web Fundamentals & AEO',
     body: (
       <>
-        <div className="gap-mkt-20 grid">
+        <div className="grid gap-5">
           {[
             { name: 'Web Fundamentals', value: 88, status: 'Optimal' },
             { name: 'AEO Readiness', value: 74, status: 'Good' },
             { name: 'Schema Validation', value: 92, status: 'Validated' },
           ].map(({ name, value, status }) => (
-            <div key={name} className="gap-mkt-6 flex flex-col">
-              <div className="text-mkt-sm flex items-center justify-between">
-                <span className="text-mkt-ink font-medium">{name}</span>
-                <div className="gap-mkt-10 flex items-center">
-                  <span className="text-mkt-xs text-mkt-ink-soft">{status}</span>
-                  <span className="text-mkt-ink font-mono font-semibold tabular-nums">
+            <div key={name} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-foreground font-medium">{name}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-muted text-xs">{status}</span>
+                  <span className="text-foreground font-mono font-semibold tabular-nums">
                     {value}/100
                   </span>
                 </div>
@@ -89,10 +91,14 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
             </div>
           ))}
         </div>
-        <div className="border-mkt-black-10 mt-mkt-20 gap-mkt-10 pt-mkt-20 flex flex-wrap border-t">
-          <Badge tone="good">Search Console Synced</Badge>
-          <Badge tone="good">GA4 Connected</Badge>
-          <Badge tone="neutral">33 Rules Checked</Badge>
+        <div className="border-border-subtle mt-5 flex flex-wrap gap-3 border-t pt-5">
+          <Badge variant="status" value="success">
+            Search Console Synced
+          </Badge>
+          <Badge variant="status" value="success">
+            GA4 Connected
+          </Badge>
+          <Badge>33 Rules Checked</Badge>
         </div>
       </>
     ),
@@ -101,7 +107,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Sample crawl — seeded and capped',
     body: (
       <>
-        <div className="gap-mkt-14 grid">
+        <div className="grid gap-4">
           {[
             { label: 'Pages Sampled', val: '25 / 25 Seeded URLs' },
             { label: 'Prompts Tested', val: '50 Target Queries' },
@@ -110,16 +116,18 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
           ].map(({ label, val }) => (
             <div
               key={label}
-              className="border-mkt-black-10 text-mkt-sm pb-mkt-10 flex items-center justify-between border-b last:border-b-0 last:pb-0"
+              className="border-border-subtle flex items-center justify-between border-b pb-3 text-sm last:border-b-0 last:pb-0"
             >
-              <span className="text-mkt-ink-soft">{label}</span>
-              <span className="text-mkt-ink font-mono font-medium">{val}</span>
+              <span className="text-muted">{label}</span>
+              <span className="text-foreground font-mono font-medium">{val}</span>
             </div>
           ))}
         </div>
-        <div className="border-mkt-black-10 mt-mkt-20 gap-mkt-10 pt-mkt-20 flex flex-wrap border-t">
-          <Badge tone="proof">Raw Run Persisted</Badge>
-          <Badge tone="neutral">Zero Lock-In</Badge>
+        <div className="border-border-subtle mt-5 flex flex-wrap gap-3 border-t pt-5">
+          <Badge variant="status" value="info">
+            Raw Run Persisted
+          </Badge>
+          <Badge>Zero Lock-In</Badge>
         </div>
       </>
     ),
@@ -128,32 +136,38 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Ecommerce — product AI visibility',
     body: (
       <>
-        <div className="rounded-mkt-sm border-mkt-black-10 bg-mkt-surface-sunk p-mkt-14 border">
-          <div className="text-mkt-sm flex items-center justify-between">
-            <span className="text-mkt-ink gap-mkt-10 flex items-center font-semibold">
-              <ShoppingBag className="text-mkt-indigo size-4" aria-hidden />
+        <div className="border-border-subtle bg-background-alt rounded-md border p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-foreground flex items-center gap-3 font-semibold">
+              <ShoppingBag className="text-accent-text size-4" aria-hidden />
               Acoustic Pro ANC Headphones
             </span>
-            <Badge tone="good">100% Price Match</Badge>
+            <Badge variant="status" value="success">
+              100% Price Match
+            </Badge>
           </div>
-          <div className="border-mkt-black-10 text-mkt-sm mt-mkt-14 gap-mkt-10 pt-mkt-14 grid grid-cols-2 border-t">
+          <div className="border-border-subtle mt-4 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
             <div>
-              <span className="text-mkt-xs text-mkt-ink-soft block">Quoted Price</span>
-              <span className="text-mkt-ink font-mono font-semibold">$299.00</span>
+              <span className="text-muted block text-xs">Quoted Price</span>
+              <span className="text-foreground font-mono font-semibold">$299.00</span>
             </div>
             <div>
-              <span className="text-mkt-xs text-mkt-ink-soft block">Engine Rank</span>
-              <span className="text-mkt-indigo font-medium">#1 Recommended</span>
+              <span className="text-muted block text-xs">Engine Rank</span>
+              <span className="text-accent-text font-medium">#1 Recommended</span>
             </div>
           </div>
         </div>
-        <div className="text-mkt-sm text-mkt-ink-soft mt-mkt-20 flex items-center justify-between">
+        <div className="text-muted mt-5 flex items-center justify-between text-sm">
           <span>Competitor Co-Placement:</span>
-          <span className="text-mkt-ink font-medium">Sony WH-1000XM5</span>
+          <span className="text-foreground font-medium">Sony WH-1000XM5</span>
         </div>
-        <div className="border-mkt-black-10 mt-mkt-20 gap-mkt-10 pt-mkt-20 flex flex-wrap border-t">
-          <Badge tone="proof">Shopify Catalog Synced</Badge>
-          <Badge tone="good">64% SKU Share of Voice</Badge>
+        <div className="border-border-subtle mt-5 flex flex-wrap gap-3 border-t pt-5">
+          <Badge variant="status" value="info">
+            Shopify Catalog Synced
+          </Badge>
+          <Badge variant="status" value="success">
+            64% SKU Share of Voice
+          </Badge>
         </div>
       </>
     ),
@@ -162,10 +176,10 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
     label: 'Citation ownership — per prompt',
     body: (
       <>
-        <div className="rounded-mkt-sm bg-mkt-surface-sunk border-mkt-black-10 text-mkt-sm text-mkt-ink mb-mkt-20 p-mkt-14 border font-medium">
+        <div className="bg-background-alt border-border-subtle text-foreground mb-5 rounded-md border p-4 text-sm font-medium">
           &quot;What are the top enterprise AI search platforms?&quot;
         </div>
-        <div className="gap-mkt-14 grid">
+        <div className="grid gap-4">
           {[
             {
               label: 'Owned Domain (Press Release)',
@@ -186,22 +200,24 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
               own: false,
             },
           ].map(({ label, share, engines, own }) => (
-            <div key={label} className="gap-mkt-6 flex flex-col">
-              <div className="text-mkt-sm flex items-center justify-between">
+            <div key={label} className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-sm">
                 <span
-                  className={`font-medium ${own ? 'text-mkt-ink font-semibold' : 'text-mkt-ink-soft'}`}
+                  className={`font-medium ${own ? 'text-foreground font-semibold' : 'text-muted'}`}
                 >
                   {label}
                 </span>
-                <span className="text-mkt-xs text-mkt-ink-soft font-mono">{engines}</span>
+                <span className="text-muted font-mono text-xs">{engines}</span>
               </div>
               <Bar width={share} own={own} />
             </div>
           ))}
         </div>
-        <div className="border-mkt-black-10 mt-mkt-20 gap-mkt-10 pt-mkt-20 flex flex-wrap border-t">
-          <Badge tone="proof">Query Fanout Tracked</Badge>
-          <Badge tone="neutral">Coverage Report Ready</Badge>
+        <div className="border-border-subtle mt-5 flex flex-wrap gap-3 border-t pt-5">
+          <Badge variant="status" value="info">
+            Query Fanout Tracked
+          </Badge>
+          <Badge>Coverage Report Ready</Badge>
         </div>
       </>
     ),
@@ -211,14 +227,14 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
 export function SolutionEvidencePanel({ scene }: Readonly<{ scene: SolutionScene }>) {
   const { label, body } = PANELS[scene];
   return (
-    <WallpaperPanel className="p-mkt-20 sm:p-mkt-30">
-      <div className="mb-mkt-14 gap-mkt-14 flex items-center justify-between">
-        <Meta as="p" className="text-mkt-ink-soft font-medium">
+    <WallpaperPanel className="p-5 sm:p-8">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <Meta as="p" className="text-muted font-medium">
           {label}
         </Meta>
         <ExampleDataNote />
       </div>
-      <Panel className="p-mkt-20">
+      <Panel className="p-5">
         {/* Every figure below is fabricated. `ExampleDataNote` above stays
             readable — it is the honesty mark — but the rows themselves are
             hidden, so a screen reader is not read a table of invented metrics

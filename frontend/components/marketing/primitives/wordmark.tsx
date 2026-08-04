@@ -2,7 +2,7 @@ import { LogoMark } from '@/components/ui/logo-mark';
 import { cn } from '@/lib/utils';
 
 /**
- * The Searchify mark: a lens with a lit centre — "observe, then show the
+ * The CiteLadder mark: a lens with a lit centre — "observe, then show the
  * proof". Geometry is shared verbatim with the app wordmark so the two
  * surfaces stay one brand even though they run different design systems.
  */
@@ -19,12 +19,12 @@ export function Wordmark({ className }: Readonly<{ className?: string }>) {
   return (
     <span
       className={cn(
-        'font-mkt-display text-mkt-ink text-mkt-h6 gap-mkt-14 inline-flex items-center',
+        'font-display text-foreground inline-flex items-center gap-4 text-lg',
         className,
       )}
     >
       <BrandMark />
-      Searchify
+      CiteLadder
     </span>
   );
 }

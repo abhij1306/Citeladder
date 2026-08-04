@@ -42,19 +42,16 @@ export function SolutionsHero() {
       accent={SOLUTIONS_HERO.accent}
       lead={SOLUTIONS_HERO.lead}
     >
-      <nav
-        aria-label="Solutions by team"
-        className="mt-mkt-30 gap-mkt-14 flex flex-wrap justify-center"
-      >
+      <nav aria-label="Solutions by team" className="mt-8 flex flex-wrap justify-center gap-4">
         {SOLUTION_SEGMENTS.map(({ id, label }) => {
           const Icon = SEGMENT_ICONS[id as keyof typeof SEGMENT_ICONS];
           return (
             <a
               key={id}
               href={`#${id}`}
-              className="border-mkt-black-10 bg-mkt-surface text-mkt-ink hover:border-mkt-mist rounded-mkt-sm text-mkt-sm gap-mkt-14 px-mkt-20 py-mkt-14 inline-flex items-center border font-semibold transition-colors duration-200"
+              className="border-border-subtle bg-panel text-foreground shadow-card hover:border-border hover:shadow-card-hover inline-flex items-center gap-4 rounded-md border px-5 py-4 text-sm font-semibold transition-[border-color,box-shadow] duration-200"
             >
-              <Icon aria-hidden strokeWidth={1.8} className="text-mkt-ink-soft size-4" />
+              <Icon aria-hidden strokeWidth={1.8} className="text-muted size-4" />
               {label}
             </a>
           );
@@ -77,7 +74,7 @@ export function SolutionSegments() {
         >
           <Reveal
             className={cn(
-              'gap-mkt-40 lg:gap-mkt-70 grid items-center lg:grid-cols-2',
+              'grid items-center gap-10 lg:grid-cols-2 lg:gap-16',
               // Alternating sides stop five consecutive segments from reading
               // as one long list.
               index % 2 === 1 && '[&>*:first-child]:lg:order-2',
@@ -85,17 +82,17 @@ export function SolutionSegments() {
           >
             <div>
               <Meta as="p">{segment.eyebrow}</Meta>
-              <h2 className="font-mkt-display text-mkt-h3 text-mkt-ink mt-mkt-20 max-w-[32ch]">
+              <h2 className="font-display text-foreground mt-5 max-w-[32ch] text-3xl">
                 {segment.title}
               </h2>
 
-              <Meta as="p" className="mt-mkt-30 mb-mkt-14">
+              <Meta as="p" className="mt-8 mb-4">
                 The pain
               </Meta>
-              <ul className="gap-mkt-14 grid">
+              <ul className="grid gap-4">
                 {segment.pains.map((pain) => (
-                  <li key={pain} className="text-mkt-sm text-mkt-ink-soft gap-mkt-14 flex">
-                    <span aria-hidden className="text-mkt-mist">
+                  <li key={pain} className="text-muted flex gap-4 text-sm">
+                    <span aria-hidden className="text-muted">
                       —
                     </span>
                     {pain}
@@ -103,23 +100,23 @@ export function SolutionSegments() {
                 ))}
               </ul>
 
-              <Meta as="p" className="mt-mkt-30 mb-mkt-14">
-                How Searchify maps
+              <Meta as="p" className="mt-8 mb-4">
+                How CiteLadder maps
               </Meta>
-              <ul className="gap-mkt-14 grid">
+              <ul className="grid gap-4">
                 {segment.mappings.map((mapping) => (
-                  <li key={mapping} className="text-mkt-sm text-mkt-ink-soft gap-mkt-14 flex">
+                  <li key={mapping} className="text-muted flex gap-4 text-sm">
                     <Check
                       aria-hidden
                       strokeWidth={2.5}
-                      className="text-mkt-success-text mt-mkt-6 size-4 shrink-0"
+                      className="text-success-text mt-2 size-4 shrink-0"
                     />
                     {mapping}
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-mkt-30">
+              <div className="mt-8">
                 <TextLink href={DEMO_HREF}>
                   {segment.cta}
                   <ArrowRight aria-hidden />
@@ -139,14 +136,14 @@ export function SolutionsCta() {
   return (
     <Section tone="paper" rhythm="base" aria-label="Get started">
       <Reveal className="mx-auto max-w-5xl text-center">
-        <h2 className="font-mkt-display text-mkt-h2 text-mkt-ink mb-mkt-20 mx-auto max-w-[32ch]">
+        <h2 className="font-display text-foreground mx-auto mb-5 max-w-[32ch] text-4xl">
           Bring your team the version of the truth it reports in.
         </h2>
-        <p className="text-mkt-lead text-mkt-ink-soft mx-auto max-w-[80ch]">
+        <p className="text-muted mx-auto max-w-[80ch] text-lg">
           One observation field, five ways of reading it. We will walk through the one that matches
           how you are measured.
         </p>
-        <div className="mt-mkt-30 gap-mkt-14 flex flex-col items-center justify-center sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">
             {DEMO_CTA}
             <ArrowRight aria-hidden />

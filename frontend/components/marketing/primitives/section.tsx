@@ -17,11 +17,11 @@ import { Reveal } from './reveal';
  * marquee case, which carries its own gap instead of padding.
  */
 const RHYTHM = {
-  hero: 'pt-mkt-70 pb-mkt-70 md:pt-mkt-100 md:pb-mkt-100 xl:pt-mkt-120 xl:pb-mkt-120',
-  base: 'py-mkt-50 md:py-mkt-70 xl:py-mkt-100',
-  open: 'pt-mkt-50 md:pt-mkt-70 xl:pt-mkt-100',
-  close: 'pb-mkt-50 md:pb-mkt-70 xl:pb-mkt-100',
-  tight: 'py-mkt-40 md:py-mkt-50 xl:py-mkt-70',
+  hero: 'pt-16 pb-16 md:pt-30 md:pb-30 xl:pt-28 xl:pb-28',
+  base: 'py-12 md:py-16 xl:py-30',
+  open: 'pt-12 md:pt-16 xl:pt-30',
+  close: 'pb-12 md:pb-16 xl:pb-30',
+  tight: 'py-10 md:py-12 xl:py-16',
   none: '',
 } as const;
 
@@ -35,7 +35,7 @@ type Rhythm = keyof typeof RHYTHM;
  */
 const TONE = {
   paper: '',
-  sunken: 'bg-mkt-surface-sunk',
+  sunken: 'bg-background-alt',
 } as const;
 
 type Tone = keyof typeof TONE;
@@ -72,15 +72,15 @@ export function Section({
       id={id}
       // Two same-tone neighbours stack bottom + top padding and open a gap
       // twice the intended rhythm, which reads as a hole in the page rather
-      // than a section break. `data-mkt-section` lets the stylesheet collapse
+      // than a section break. `data-citeladder-section` lets the stylesheet collapse
       // the seam (marketing-scenes.css); a tone change keeps the full pair,
       // because there the fill edge is the boundary and needs the room.
-      data-mkt-section={tone}
+      data-citeladder-section={tone}
       className={cn(
         'relative w-full',
         TONE[tone],
         RHYTHM[rhythm],
-        divided && 'border-mkt-black-10 border-t',
+        divided && 'border-border-subtle border-t',
         className,
       )}
       {...aria}
@@ -104,8 +104,8 @@ export function Container({
   return (
     <div
       className={cn(
-        'max-w-mkt px-mkt-gutter-phone md:px-mkt-gutter-tablet xl:px-mkt-gutter relative z-1 mx-auto flex w-full flex-col',
-        dense ? 'gap-mkt-10' : 'gap-mkt-30 md:gap-mkt-40 xl:gap-mkt-50',
+        'px-6-phone md:px-6-tablet relative z-1 mx-auto flex w-full max-w-7xl flex-col xl:px-6',
+        dense ? 'gap-3' : 'gap-8 md:gap-10 xl:gap-12',
         className,
       )}
     >
@@ -144,15 +144,15 @@ export function SectionHeader({
   className?: string;
 }>) {
   const HEADING = {
-    h1: 'text-mkt-h1',
-    h2: 'text-mkt-h2',
-    h3: 'text-mkt-h3',
+    h1: 'text-5xl',
+    h2: 'text-4xl',
+    h3: 'text-3xl',
   } as const;
 
   return (
     <Reveal
       className={cn(
-        'gap-mkt-14 flex flex-col',
+        'flex flex-col gap-4',
         align === 'center' && 'items-center text-center',
         className,
       )}
@@ -160,11 +160,11 @@ export function SectionHeader({
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
       <Heading
         id={headingId}
-        className={cn('font-mkt-display text-mkt-ink max-w-[32ch] text-balance', HEADING[size])}
+        className={cn('font-display text-foreground max-w-[32ch] text-balance', HEADING[size])}
       >
         {title}
       </Heading>
-      {lead && <p className="text-mkt-lead text-mkt-ink-soft max-w-[65ch]">{lead}</p>}
+      {lead && <p className="text-muted max-w-[65ch] text-lg">{lead}</p>}
     </Reveal>
   );
 }

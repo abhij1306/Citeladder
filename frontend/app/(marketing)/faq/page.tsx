@@ -7,7 +7,7 @@ import { faqPageJsonLd } from '@/lib/seo/json-ld';
 import { FAQ_GROUPS } from '@/lib/marketing-content/faq';
 
 const DESCRIPTION =
-  'The short version of how Searchify works — engines, scoring, keys, site health, ' +
+  'The short version of how CiteLadder works — engines, scoring, keys, site health, ' +
   'integrations, and billing.';
 
 // OG images require an absolute URL; they are added with NEXT_PUBLIC_SITE_URL (lib/seo/site.ts).
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     title: 'FAQ',
     description: DESCRIPTION,
     type: 'website',
-    siteName: 'Searchify',
+    siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',
@@ -44,7 +44,7 @@ export default function FaqPage() {
         eyebrow="FAQ"
         title="Frequently asked"
         accent="questions."
-        lead="The short version of how Searchify works — engines, scoring, keys, site health, integrations, and billing."
+        lead="The short version of how CiteLadder works — engines, scoring, keys, site health, integrations, and billing."
       />
       <FaqGroups />
     </main>

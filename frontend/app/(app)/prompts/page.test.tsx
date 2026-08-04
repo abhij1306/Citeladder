@@ -91,7 +91,7 @@ function makeEvidenceItem(promptId: string, brandMentioned: boolean, taskId: str
       ? [
           {
             kind: 'brand',
-            name: 'Searchify',
+            name: 'CiteLadder',
             first_offset: 0,
             artifact_id: null,
             analyzer_version: 'v1',
@@ -119,9 +119,9 @@ function makeProject(promptSets: unknown[]) {
   return {
     id: PROJECT_ID,
     workspace_id: WORKSPACE_ID,
-    name: 'Searchify',
-    brand_name: 'Searchify',
-    website_url: 'https://searchify.com',
+    name: 'CiteLadder',
+    brand_name: 'CiteLadder',
+    website_url: 'https://citeladder.com',
     country_code: 'US',
     language_code: 'en',
     benchmark_mode: 'consumer_like',

@@ -2,7 +2,7 @@
 #
 # The dedicated prompt resource: prompt sets group prompts; each prompt carries
 # text/theme/intent + cohort/enabled/origin fields. Adapted from the reference
-# ``PromptInput`` and extended with the columns Searchify's prompt model adds.
+# ``PromptInput`` and extended with the columns CiteLadder's prompt model adds.
 from __future__ import annotations
 
 import uuid

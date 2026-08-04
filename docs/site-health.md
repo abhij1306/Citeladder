@@ -1,6 +1,6 @@
 # Site Health
 
-Site Health is Searchify's in-house **on-page + AEO crawler**. It discovers a
+Site Health is CiteLadder's in-house **on-page + AEO crawler**. It discovers a
 project's URLs with a first-party HTTP crawler (no headless browser, no
 PageSpeed/CrUX, no raw-HTML storage), analyzes each admitted page against a
 deterministic rule catalog, scores it on two dimensions (**Web Fundamentals** and
@@ -104,7 +104,7 @@ All status/vocabulary constants are owned by
 ## Fetching & bot-block classification
 
 Page evidence begins with `SecureFetcher.fetch()` — `httpx`, identifying honestly as the crawler UA
-(`SearchifySiteHealthBot/1.0`), with the full SSRF posture: manual redirects
+(`CiteLadderSiteHealthBot/1.0`), with the full SSRF posture: manual redirects
 revalidated per hop, pinned-IP dial, wire + decoded byte caps, response headers
 redacted to the config allowlist, per-host politeness, robots compliance.
 

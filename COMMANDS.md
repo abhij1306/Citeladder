@@ -1,4 +1,4 @@
-# Searchify command reference
+# CiteLadder command reference
 
 Project-specific commands for local development and verification. Unless a command
 specifies otherwise, run it from the repository root. Commands that say `backend/` or
@@ -6,7 +6,7 @@ specifies otherwise, run it from the repository root. Commands that say `backend
 
 ## Tool versions
 
-Searchify currently expects:
+CiteLadder currently expects:
 
 - Python 3.12+
 - `uv` for backend dependencies and virtual-environment execution
@@ -73,13 +73,13 @@ These commands use the Compose database exposed on host port `55432`:
 
 ```
 docker compose -f infra/docker/docker-compose.yml ps db
-docker compose -f infra/docker/docker-compose.yml exec db pg_isready -U postgres -d searchify
+docker compose -f infra/docker/docker-compose.yml exec db pg_isready -U postgres -d citeladder
 ```
 
 Open a PostgreSQL shell inside the database container:
 
 ```
-docker compose -f infra/docker/docker-compose.yml exec db psql -U postgres -d searchify
+docker compose -f infra/docker/docker-compose.yml exec db psql -U postgres -d citeladder
 ```
 
 Useful commands inside `psql`:
@@ -96,15 +96,15 @@ For a native PostgreSQL installation, use the host, port, user, and database fro
 connection is:
 
 ```
-psql -h 127.0.0.1 -p 55432 -U postgres -d searchify
+psql -h 127.0.0.1 -p 55432 -U postgres -d citeladder
 ```
 
 The SQLAlchemy URL used by the backend includes `+asyncpg`; remove that driver suffix
 when using the `psql` CLI:
 
 ```
-postgresql+asyncpg://postgres:<password>@127.0.0.1:55432/searchify
-postgresql://postgres:<password>@127.0.0.1:55432/searchify
+postgresql+asyncpg://postgres:<password>@127.0.0.1:55432/citeladder
+postgresql://postgres:<password>@127.0.0.1:55432/citeladder
 ```
 
 ## Docker Compose
@@ -130,7 +130,7 @@ PowerShell:
 Remove-Item Env:POSTGRES_USER -ErrorAction SilentlyContinue
 Remove-Item Env:POSTGRES_DB -ErrorAction SilentlyContinue
 Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
-$env:POSTGRES_PASSWORD = "searchify_dev_password"
+$env:POSTGRES_PASSWORD = "citeladder_dev_password"
 docker compose -f infra/docker/docker-compose.yml up -d --build --force-recreate
 ```
 
@@ -138,7 +138,7 @@ Bash:
 
 ```bash
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
-  POSTGRES_PASSWORD=searchify_dev_password \
+  POSTGRES_PASSWORD=citeladder_dev_password \
   docker compose -f infra/docker/docker-compose.yml up -d --build --force-recreate
 ```
 

@@ -34,7 +34,7 @@
 - Make `/demo` the stable internal enterprise funnel. Every “Book a demo” or
   Enterprise sales CTA routes there through the existing centralized
   `DEMO_HREF`; `/enterprise` remains the product explanation page.
-- Use Razorpay-hosted subscription authorization (`short_url`) so Searchify does
+- Use Razorpay-hosted subscription authorization (`short_url`) so CiteLadder does
   not receive card, UPI VPA, bank-account, or mandate credentials.
 - Only verified Razorpay webhook state can grant Paid. Checkout return parameters,
   redirects, and client state never grant access.
@@ -44,7 +44,7 @@
 Razorpay's current integration guide defines the lifecycle as: create a reusable
 Plan, create a Subscription, then authorize it through Standard Checkout. The
 Subscriptions API returns a `short_url` for authorization, and requires the
-subscription to be bounded by `total_count` or `end_at`. Searchify will use that
+subscription to be bounded by `total_count` or `end_at`. CiteLadder will use that
 hosted URL and a config-owned cycle count rather than embedding a card form.
 
 Razorpay webhooks are at-least-once and may arrive out of order. The unique
@@ -58,7 +58,7 @@ requirements, not optional hardening.
 Razorpay documents Cards, UPI AutoPay, and eMandate for Subscriptions, but actual
 availability and mandate limits depend on account activation, bank/app/network,
 business category, and enabled products. The UI must only claim methods confirmed
-in Searchify's activated live account.
+in CiteLadder's activated live account.
 
 ## 3. Commercial catalog and plan provisioning
 
@@ -191,7 +191,7 @@ factory, safe shared HTTP client, fake provider, and
 
 There is no fake Razorpay customer portal. `/billing/manage` returns only actions
 the provider actually supports; authorization/recovery links may be exposed when
-valid, while cancellation remains a first-party Searchify action.
+valid, while cancellation remains a first-party CiteLadder action.
 
 ### Phase D — webhook-owned lifecycle
 
@@ -283,7 +283,7 @@ values.
   solutions, comparison, navigation, and footer through the centralized constant.
 - Keep `/enterprise#contact` valid as explanatory content, but its action points to
   `/demo`.
-- Do not embed a third-party scheduler or collect lead PII in Searchify until its
+- Do not embed a third-party scheduler or collect lead PII in CiteLadder until its
   privacy/cookie behavior and data-processing terms are approved. A plain external
   booking link is the launch default.
 
@@ -365,7 +365,7 @@ product evidence to roll back an integration release.
 ## 9. Explicit non-goals
 
 - Stripe, automatic cross-provider migration, usage/seat billing, coupons,
-  overages, custom card/UPI forms, or Searchify-funded model usage.
+  overages, custom card/UPI forms, or CiteLadder-funded model usage.
 - Self-serve Enterprise checkout or automatic Enterprise entitlement grants.
 - Annual Paid until an exact annual catalog is approved.
 - A first-party lead database, CRM, scheduler embed, or marketing-email workflow;

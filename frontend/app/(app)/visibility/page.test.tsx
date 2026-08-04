@@ -42,7 +42,7 @@ function makeProject() {
   return {
     id: PROJECT_ID,
     workspace_id: WORKSPACE_ID,
-    name: 'Searchify',
+    name: 'CiteLadder',
     brand_name: 'Acme',
     website_url: 'https://acme.com',
     country_code: 'US',

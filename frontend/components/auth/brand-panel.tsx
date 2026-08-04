@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
  * Deliberately free of product screenshots and sample dashboards: an
  * unauthenticated visitor has no data, and inventing a fictional workspace to
  * decorate a sign-in page would misrepresent the product. The panel states
- * what Searchify does and how it treats your keys, and stops there.
+ * what CiteLadder does and how it treats your keys, and stops there.
  *
  * The proof points are labels, not paragraphs. Nobody reads a methodology
  * note while trying to log in, and the marketing site makes the argument at
@@ -47,10 +47,10 @@ export function AuthWordmark({ compact = false }: Readonly<{ compact?: boolean }
   return (
     <Link
       href="/"
-      aria-label="Searchify home"
+      aria-label="CiteLadder home"
       className="group inline-flex items-center gap-3 no-underline"
     >
-      <Wordmark className={cn(compact && 'text-mkt-body')} />
+      <Wordmark className={cn(compact && 'text-base')} />
     </Link>
   );
 }
@@ -60,8 +60,8 @@ export function AuthBrandPanel() {
     <div className="relative col-span-5 flex min-h-full flex-col justify-between px-12 py-12 max-[900px]:hidden xl:px-16">
       {/* Subtle light ambient glow */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="bg-mkt-frost/40 absolute -top-24 -left-24 size-96 rounded-full blur-[100px]" />
-        <div className="bg-mkt-frost/40 absolute top-1/2 -right-24 size-80 rounded-full blur-[90px]" />
+        <div className="bg-accent-soft absolute -top-24 -left-24 size-96 rounded-full blur-[100px]" />
+        <div className="bg-accent-soft absolute top-1/2 -right-24 size-80 rounded-full blur-[90px]" />
       </div>
 
       <div className="flex flex-col gap-10">
@@ -71,19 +71,19 @@ export function AuthBrandPanel() {
 
         {/* Feature showcase */}
         <div className="my-auto max-w-lg space-y-8">
-          <div className="border-mkt-primary/50 bg-mkt-surface-sunk text-mkt-indigo inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
+          <div className="border-accent-border bg-background-alt text-accent-text inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold">
             <span className="relative flex size-2">
-              <span className="bg-mkt-primary absolute inline-flex size-full animate-ping rounded-full opacity-75 motion-reduce:animate-none"></span>
-              <span className="bg-mkt-indigo relative inline-flex size-2 rounded-full"></span>
+              <span className="bg-accent absolute inline-flex size-full animate-ping rounded-full opacity-75 motion-reduce:animate-none"></span>
+              <span className="bg-accent relative inline-flex size-2 rounded-full"></span>
             </span>
             Enterprise AI Search Intelligence
           </div>
 
           <div className="space-y-3">
-            <h2 className="font-mkt-display text-mkt-ink text-3xl leading-tight font-bold sm:text-4xl">
+            <h2 className="font-display text-foreground text-3xl leading-tight font-bold sm:text-4xl">
               See how AI models talk about your brand.
             </h2>
-            <p className="text-mkt-ink-soft text-base leading-relaxed">
+            <p className="text-muted text-base leading-relaxed">
               Continuous, automated audits across ChatGPT, Gemini, and Claude with the real prompts
               your buyers ask.
             </p>
@@ -98,13 +98,13 @@ export function AuthBrandPanel() {
               >
                 <div
                   aria-hidden
-                  className="border-mkt-primary/30 bg-mkt-surface-sunk text-mkt-indigo flex size-10 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200 group-hover:scale-105"
+                  className="border-accent-border bg-background-alt text-accent-text flex size-10 shrink-0 items-center justify-center rounded-lg border transition-transform duration-200 group-hover:scale-105"
                 >
                   <proof.icon className="size-5" strokeWidth={1.75} />
                 </div>
                 <div className="space-y-0.5">
-                  <p className="text-mkt-ink text-sm font-semibold">{proof.lead}</p>
-                  <p className="text-mkt-ink-soft text-xs">{proof.description}</p>
+                  <p className="text-foreground text-sm font-semibold">{proof.lead}</p>
+                  <p className="text-muted text-xs">{proof.description}</p>
                 </div>
               </div>
             ))}
@@ -113,12 +113,12 @@ export function AuthBrandPanel() {
       </div>
 
       {/* Footer info & active engine status */}
-      <div className="text-mkt-ink-soft flex items-center justify-between pt-6 text-xs">
-        <Meta as="p" className="text-mkt-ink-soft">
+      <div className="text-muted flex items-center justify-between pt-6 text-xs">
+        <Meta as="p" className="text-muted">
           © {new Date().getFullYear()} CUBE27
         </Meta>
-        <div className="border-mkt-black-10 bg-panel text-mkt-ink-soft flex items-center gap-2 rounded-full border px-3 py-1">
-          <span className="bg-mkt-success size-1.5 animate-pulse rounded-full motion-reduce:animate-none" />
+        <div className="border-border-subtle bg-panel text-muted flex items-center gap-2 rounded-full border px-3 py-1">
+          <span className="bg-success size-1.5 animate-pulse rounded-full motion-reduce:animate-none" />
           <span>ChatGPT • Gemini • Claude Active</span>
         </div>
       </div>

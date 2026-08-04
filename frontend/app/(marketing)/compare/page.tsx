@@ -3,24 +3,24 @@ import type { Metadata } from 'next';
 import { CompareIndex } from '@/components/marketing/pages/compare';
 
 const DESCRIPTION =
-  'Side-by-side notes on Searchify and other AI visibility tools — what each covers, how ' +
+  'Side-by-side notes on CiteLadder and other AI visibility tools — what each covers, how ' +
   'scoring works, and where the evidence lives. Reviewed on 2026-08-01 from each vendor’s ' +
   'own site.';
 
 // OG images require an absolute URL; they are added with NEXT_PUBLIC_SITE_URL (lib/seo/site.ts).
 export const metadata: Metadata = {
-  title: 'How Searchify compares',
+  title: 'How CiteLadder compares',
   description: DESCRIPTION,
   alternates: { canonical: '/compare' },
   openGraph: {
-    title: 'How Searchify compares',
+    title: 'How CiteLadder compares',
     description: DESCRIPTION,
     type: 'website',
-    siteName: 'Searchify',
+    siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',
-    title: 'How Searchify compares',
+    title: 'How CiteLadder compares',
     description: DESCRIPTION,
   },
 };

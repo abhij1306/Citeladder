@@ -1,4 +1,4 @@
-# Searchify Docker stack
+# CiteLadder Docker stack
 
 Services: `db` (Postgres 16), `migrate` (one-shot `alembic upgrade head`),
 `web` (FastAPI/uvicorn), `worker` (audit worker), `brand-discovery-worker`,
@@ -32,11 +32,11 @@ override the repo `.env`, so you must unset them for the Compose invocation and
 re-supply the repo password explicitly (see `docs/invariants.md` invariant 11):
 
 ```bash
-cd /path/to/Searchify
+cd /path/to/CiteLadder
 cp infra/docker/.env.example infra/docker/.env   # first time only
 
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
-  POSTGRES_PASSWORD=searchify_dev_password \
+  POSTGRES_PASSWORD=citeladder_dev_password \
   docker compose -f infra/docker/docker-compose.yml up -d --force-recreate
 ```
 

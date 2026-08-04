@@ -20,16 +20,12 @@ export function PricingComparison({ catalog }: Readonly<{ catalog: BillingCatalo
     <div className="overflow-x-auto">
       <table className="w-full min-w-[40rem] border-collapse text-left">
         <thead>
-          <tr className="border-mkt-black-10 border-b">
-            <th scope="col" className="text-mkt-sm text-mkt-ink p-mkt-20 font-semibold">
+          <tr className="border-border-subtle border-b">
+            <th scope="col" className="text-foreground p-5 text-sm font-semibold">
               Capability
             </th>
             {catalog.plans.map((plan) => (
-              <th
-                key={plan.key}
-                scope="col"
-                className="text-mkt-sm text-mkt-ink p-mkt-20 font-semibold"
-              >
+              <th key={plan.key} scope="col" className="text-foreground p-5 text-sm font-semibold">
                 {plan.name}
               </th>
             ))}
@@ -37,12 +33,12 @@ export function PricingComparison({ catalog }: Readonly<{ catalog: BillingCatalo
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.key} className="border-mkt-black-10 border-b">
-              <th scope="row" className="text-mkt-sm text-mkt-ink-soft p-mkt-20 font-normal">
+            <tr key={row.key} className="border-border-subtle border-b">
+              <th scope="row" className="text-muted p-5 text-sm font-normal">
                 {capabilityLabel(row.key)}
               </th>
               {catalog.plans.map((plan) => (
-                <td key={plan.key} className="text-mkt-sm text-mkt-ink-soft p-mkt-20">
+                <td key={plan.key} className="text-muted p-5 text-sm">
                   {renderCell(row.values[plan.key]?.value)}
                 </td>
               ))}

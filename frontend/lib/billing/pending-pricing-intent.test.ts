@@ -68,13 +68,13 @@ describe('pending pricing intent', () => {
   });
 
   it('rejects malformed stored JSON without throwing', () => {
-    globalThis.sessionStorage.setItem('searchify.pendingPricingIntent.v1', '{not json');
+    globalThis.sessionStorage.setItem('citeladder.pendingPricingIntent.v1', '{not json');
     expect(readPendingIntent(NOW)).toBeNull();
   });
 
   it('stores no amount, external id, or identity claim', () => {
     writePendingIntent(intent());
-    const raw = globalThis.sessionStorage.getItem('searchify.pendingPricingIntent.v1') ?? '';
+    const raw = globalThis.sessionStorage.getItem('citeladder.pendingPricingIntent.v1') ?? '';
 
     // The record must never become a channel for values the server owns.
     for (const forbidden of [

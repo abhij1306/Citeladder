@@ -30,7 +30,7 @@ add-on or top-up rather than a hardcoded tier column.
 
 **Prices are catalog configuration and deliberately not a focus of this plan** — they change without
 code. What has to be right is the architecture that decides what an account may do, and the shape is:
-BYOK is the baseline product, and anything that costs Searchify money is an activatable add-on or a
+BYOK is the baseline product, and anything that costs CiteLadder money is an activatable add-on or a
 metered top-up rather than a tier column
 ([§4](#4-slice-2--entitlement-architecture), [§5.1](#51-byok-is-the-baseline-funded-execution-is-a-metered-grant)).
 Enterprise is a contact form backed by `override` grants, not a separate code path.
@@ -112,7 +112,7 @@ dominates and lever 3 is the cheapest real win.
 This is the one place I'd push back hardest, because it is a product-integrity question rather than
 a tuning question.
 
-Searchify's claim is that it measures what answer engines say about a brand. That claim holds only
+CiteLadder's claim is that it measures what answer engines say about a brand. That claim holds only
 if the model measured resembles the model real users are served. Measuring with a cheap API model
 and reporting the result as "what ChatGPT says about you" is not a cost trade-off — it invalidates
 the number the customer is buying. It also collides with invariant 10, which pins one approved
@@ -249,7 +249,7 @@ Ranked by expected effect on wall-clock time for one audit:
    - **Every attempt gets its own `ConsumableLedger` row**, keyed by `(task_id, attempt)`, so the
      ledger explains a multi-attempt execution instead of hiding it behind one debit.
    - **Decide per provider whether a timed-out attempt is charged.** A client-side timeout does not
-     cancel server-side generation: the provider may bill tokens Searchify never received. Until that
+     cancel server-side generation: the provider may bill tokens CiteLadder never received. Until that
      is confirmed per provider, treat a timed-out attempt as **billable** — the conservative
      assumption — and record it as such.
    - Set per-route timeouts from measured p95, not from a guess.
@@ -260,7 +260,7 @@ Ranked by expected effect on wall-clock time for one audit:
 
 ### 3.4 Two credential pools with different limits
 
-This distinction must exist in the design from the start. Funded execution runs on Searchify's own
+This distinction must exist in the design from the start. Funded execution runs on CiteLadder's own
 keys, so the rate limit is **global and shared across every concurrent customer**. BYOK execution
 runs on the customer's key, so the limit is per tenant and does not contend.
 
@@ -269,7 +269,7 @@ produces 429s rather than slow responses. The design needs:
 
 - a global concurrency and rate budget for the funded pool, separate from BYOK;
 - a per-account fair share inside the funded pool so one audit cannot monopolise it;
-- pacing sized to Searchify's own documented provider limits, not the customer's;
+- pacing sized to CiteLadder's own documented provider limits, not the customer's;
 - 429 backoff applied to the pool rather than to the individual audit; and
 - an honest queued state surfaced to the user when the funded pool is saturated, rather than an
   audit that appears hung.
@@ -304,7 +304,7 @@ customer's daily score will move for no reason, which reads as a broken product 
 load and churn. Higher repetitions cost linearly more and are the only way to reduce that variance.
 
 **Decided: daily cadence, with smoothing mandatory.** Daily grounded benchmarks are viable because
-BYOK is the baseline — the customer's key pays for execution, so Searchify's marginal cost is
+BYOK is the baseline — the customer's key pays for execution, so CiteLadder's marginal cost is
 infrastructure only. It is only *funded* daily benchmarking that does not clear
 ([§2.3](#23-cadence-is-the-binding-cost-constraint-on-paid-tiers)), and funded accounts buy
 top-up credits at real cost, which prices itself correctly without a special case.
@@ -405,7 +405,7 @@ broken product:
 - **Occupancy is not metering.** Project slots, prompt slots, and monitored URLs are answered by
   counting existing rows at the moment of a mutation. They need no ledger, no reservations, and no
   period accounting — which removes most of the machinery the previous revision proposed.
-- **Only consumables need a ledger**, and only where Searchify funds the spend. At the measured
+- **Only consumables need a ledger**, and only where CiteLadder funds the spend. At the measured
   `$0.1466` per grounded execution, benchmark credits are the one thing genuinely worth metering
   atomically.
 - **A rate limit is its own type, not a consumable.** `manual_runs_per_day` resets on a rolling window
@@ -487,7 +487,7 @@ Placeholder shape at `$99` / `$199` / `$299`, all values configuration:
 | `exports` | flag | yes | yes | yes | — |
 
 Two notes on the economics rather than the prices. Extra providers are BYOK
-([§6](#6-slice-4--additional-providers)), so their marginal cost to Searchify is infrastructure only —
+([§6](#6-slice-4--additional-providers)), so their marginal cost to CiteLadder is infrastructure only —
 they can be cheap unlocks and are a good low-friction upsell. Benchmark cadence is the opposite: one
 project moving from weekly to daily multiplies grounded spend sevenfold, which is exactly why it
 belongs behind a metered add-on rather than inside a tier.
@@ -575,7 +575,7 @@ total_funded_price(tier)   = base_price(tier) + credit_price(cadence)          #
 ```
 
 `base_price` is the subscription: platform, storage, scheduling, evidence, everything that costs
-Searchify money regardless of whose key runs the execution. `credit_price` covers provider spend and
+CiteLadder money regardless of whose key runs the execution. `credit_price` covers provider spend and
 nothing else. A BYOK customer pays `base_price`; a funded customer pays `total_funded_price`.
 
 **Both the BYOK toggle and checkout must derive from these two catalog values**, never from a
@@ -653,7 +653,7 @@ Rules that make this safe:
 
 **Grok and Perplexity** ship as **BYOK key-addition unlocks**: the customer pastes an API key, a
 `provider.grok` or `provider.perplexity` flag grant enables the source, and the catalog exposes it.
-Because the customer's key pays for execution, Searchify's marginal cost is infrastructure only —
+Because the customer's key pays for execution, CiteLadder's marginal cost is infrastructure only —
 cheap unlocks and a low-friction upsell.
 
 **Copilot is catalog-only and explicitly unavailable.** It is listed because the market names it, but
@@ -785,7 +785,7 @@ Building on the redesign already in flight (`hero.tsx`, `proof.tsx`, `see-it.tsx
   the honest answer is nuanced: which model, whether retrieval was on, how often the benchmark runs.
   Explaining this is a trust advantage over competitors who are vague about it.
 - Engine logos limited to providers with shipped adapters; anything else is explicitly labelled.
-- No comparative cost claims. A "3× cheaper" style claim measured against Searchify's own prior
+- No comparative cost claims. A "3× cheaper" style claim measured against CiteLadder's own prior
   estimate is unverifiable by any customer and should not appear.
 
 ### 7.3 In-app
@@ -805,7 +805,7 @@ Building on the redesign already in flight (`hero.tsx`, `proof.tsx`, `see-it.tsx
 ### 8.1 The audit is an LLM proxy unless it is constrained
 
 This is the misuse vector most likely to be missed. A trial or funded account submits arbitrary
-prompt text that Searchify executes on Searchify's keys and returns results for. That is a free LLM
+prompt text that CiteLadder executes on CiteLadder's keys and returns results for. That is a free LLM
 API unless it is bounded — and people will find it. Controls:
 
 - **Topical binding.** Prompts must relate to the project's brand, domain, or category. The existing
@@ -822,7 +822,7 @@ API unless it is bounded — and people will find it. Controls:
   understates real spend on exactly the most expensive path.
   **Until a per-search fee is configured for a route, that route fails closed on the funded path** —
   admitting work against a knowingly incomplete cost figure is how a budget ceiling silently stops
-  being a ceiling. BYOK is unaffected: no Searchify spend, nothing to admit.
+  being a ceiling. BYOK is unaffected: no CiteLadder spend, nothing to admit.
   Plus a graceful exhaustion state and operator alerting — without them an acquisition spike is an
   uncapped bill.
 - Retain the invariant-6 rule that the brand and competitor list is never sent to a provider.
@@ -1036,7 +1036,7 @@ ends, whichever is earlier, and are forfeit on cancellation.
    repetitions and pack burn is a product judgement
    ([§3.6](#36-repetitions-are-a-cost-quality-dial-not-just-a-cost-dial)).
 
-**One risk to track rather than decide.** Daily grounded benchmarking on BYOK costs Searchify nothing
+**One risk to track rather than decide.** Daily grounded benchmarking on BYOK costs CiteLadder nothing
 in provider spend, but it is 30 grounded executions per project per day against a measured 61.5 s each
 — so it is the dominant driver of queue capacity, worker concurrency, and DB pool sizing. The money
 question is answered; the capacity question moves to T4 and T12.

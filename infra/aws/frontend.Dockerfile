@@ -1,4 +1,4 @@
-# Searchify Next.js standalone image.
+# CiteLadder Next.js standalone image.
 # Build from the repository root:
 # docker build -f infra/aws/frontend.Dockerfile --build-arg BACKEND_ORIGIN=http://api:8000 .
 

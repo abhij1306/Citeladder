@@ -166,7 +166,7 @@ MEASUREMENT_PROMPT_MAX_CHARS: Final = 400
 # Substrings that must never appear in a committed measurement prompt: project /
 # customer brand identity. Matched case-insensitively.
 FORBIDDEN_PROMPT_TERMS: Final[tuple[str, ...]] = (
-    "searchify",
+    "citeladder",
     "northwind",
     "contoso",
     "best&less",

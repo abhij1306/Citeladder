@@ -506,7 +506,7 @@ async def test_export_csv_and_markdown(
     md_resp = await client.get(f"{base}/export.md", headers=_headers(scn))
     assert md_resp.status_code == 200
     assert md_resp.headers["content-type"].startswith("text/markdown")
-    assert md_resp.text.startswith("# Searchify — Opportunities")
+    assert md_resp.text.startswith("# CiteLadder — Opportunities")
     assert "missing_structured_data" in md_resp.text
 
     filtered = await client.get(f"{base}/export.csv?type=site", headers=_headers(scn))

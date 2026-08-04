@@ -19,12 +19,12 @@ describe('siteOrigin', () => {
   });
 
   it('returns null for a non-https origin', () => {
-    process.env.NEXT_PUBLIC_SITE_URL = 'http://app.searchify.com';
+    process.env.NEXT_PUBLIC_SITE_URL = 'http://app.citeladder.com';
     expect(siteOrigin()).toBeNull();
   });
 
   it('returns null when credentials are present', () => {
-    process.env.NEXT_PUBLIC_SITE_URL = 'https://user:pass@app.searchify.com';
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://user:pass@app.citeladder.com';
     expect(siteOrigin()).toBeNull();
   });
 
@@ -34,10 +34,10 @@ describe('siteOrigin', () => {
   });
 
   it('returns a URL for a valid https origin', () => {
-    process.env.NEXT_PUBLIC_SITE_URL = 'https://app.searchify.com';
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://app.citeladder.com';
     const origin = siteOrigin();
     expect(origin).toBeInstanceOf(URL);
-    expect(origin?.origin).toBe('https://app.searchify.com');
+    expect(origin?.origin).toBe('https://app.citeladder.com');
   });
 });
 
@@ -48,15 +48,15 @@ describe('absoluteUrl', () => {
   });
 
   it('resolves a path against the configured origin', () => {
-    process.env.NEXT_PUBLIC_SITE_URL = 'https://app.searchify.com';
-    expect(absoluteUrl('/faq')).toBe('https://app.searchify.com/faq');
-    expect(absoluteUrl('/')).toBe('https://app.searchify.com/');
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://app.citeladder.com';
+    expect(absoluteUrl('/faq')).toBe('https://app.citeladder.com/faq');
+    expect(absoluteUrl('/')).toBe('https://app.citeladder.com/');
   });
 });
 
 describe('site constants', () => {
   it('pins the product name and tagline', () => {
-    expect(SITE_NAME).toBe('Searchify');
+    expect(SITE_NAME).toBe('CiteLadder');
     expect(SITE_TAGLINE).toBe('AI visibility analytics');
   });
 });

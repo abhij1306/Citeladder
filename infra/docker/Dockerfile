@@ -24,7 +24,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 FROM ${PYTHON_IMAGE} AS runtime
 
 ARG BUILD_REVISION=unknown
-LABEL org.opencontainers.image.title="searchify-backend" \
+LABEL org.opencontainers.image.title="citeladder-backend" \
       org.opencontainers.image.revision="${BUILD_REVISION}"
 
 ENV PATH="/app/backend/.venv/bin:${PATH}" \

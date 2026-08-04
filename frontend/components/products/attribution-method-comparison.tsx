@@ -81,7 +81,7 @@ const METHOD_DESCRIPTIONS = {
 const METHOD_NOT_CONNECTED_NOTES = {
   ga4_platform_attributed:
     'Search Console and Analytics 4 share one Google OAuth grant in Settings › Integrations.',
-  order_referrer: 'Searchify requests read-only order scopes and never stores customer data.',
+  order_referrer: 'CiteLadder requests read-only order scopes and never stores customer data.',
 } as const;
 
 function MethodCard({

@@ -149,8 +149,8 @@ describe('backend contract drift guard', () => {
       if (contractGuardIsStrict()) {
         throw new Error(
           `[contract-drift] ${detail}\n\nThe contract guard cannot run. Provide a spec via ` +
-            'SEARCHIFY_OPENAPI_JSON, a working backend/.venv, or a reachable ' +
-            'SEARCHIFY_BACKEND_ORIGIN.',
+            'CITELADDER_OPENAPI_JSON, a working backend/.venv, or a reachable ' +
+            'CITELADDER_BACKEND_ORIGIN.',
         );
       }
       console.warn(`[contract-drift] ${detail}\nSkipping the live guard.`);

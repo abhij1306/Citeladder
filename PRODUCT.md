@@ -8,11 +8,11 @@ web
 
 ## Users
 
-Primary customers are enterprise commerce teams. They use Searchify to understand how answer engines represent their brands, catalogs, and competitors — then act on visibility gaps.
+Primary customers are enterprise commerce teams. They use CiteLadder to understand how answer engines represent their brands, catalogs, and competitors — then act on visibility gaps.
 
 ## Product Purpose
 
-Searchify is a commerce-focused AEO (AI Engine Optimization) analysis product. It measures how brands and products appear inside answer-engine responses (ChatGPT, Gemini, Claude), scores those appearances deterministically from persisted evidence, and turns patterns into strategy — visibility, citations, share-of-voice, product-level mentions, and related commerce intelligence.
+CiteLadder is a commerce-focused AEO (AI Engine Optimization) analysis product. It measures how brands and products appear inside answer-engine responses (ChatGPT, Gemini, Claude), scores those appearances deterministically from persisted evidence, and turns patterns into strategy — visibility, citations, share-of-voice, product-level mentions, and related commerce intelligence.
 
 Success means an enterprise team can run audits on their own provider keys, trust scores that trace back to raw answers, and improve how AI channels describe their catalog and brand.
 
@@ -34,14 +34,14 @@ Commerce-focused AEO analysis with deep expertise in crawling and product data �
 - UUID PKs; workspace membership auth on every project-owned query.
 - Sentiment and average position are not computed yet (UI shows em-dash).
 - **Undecided / open:** visual identity and the incumbent design system are explicitly open to replacement; current UI is not a binding aesthetic commitment.
-- **Public copy ban:** never describe Searchify as product-feed optimization, and never imply a feed-ops or feed-management job in app or marketing copy.
+- **Public copy ban:** never describe CiteLadder as product-feed optimization, and never imply a feed-ops or feed-management job in app or marketing copy.
 
 ## Brand Commitments
 
-- Product name: **Searchify**.
+- Product name: **CiteLadder**.
 - Marketing line in use: “See your market through AI’s eyes”; observes how answer engines describe brand, products, and competitors; traces conclusions to source answers; BYOK encrypted at rest.
 - Voice for public surfaces: enterprise commerce / AEO analysis — never partner-internal or feed-tool language.
-- Assets on hand: `frontend/public/icon.svg`, `frontend/public/brand/wallpaper.svg`, self-hosted Apfel Grotezk + Inter in the app. Incumbent dual systems (ADS app tokens + marketing “Searchify Proof”) exist in code/`docs/design.md` but are **not** locked as the future visual world — redesign is welcome.
+- Brand assets use the single-color CiteLadder citation/progression mark. Geist is loaded through `next/font/google` for UI text; self-hosted Apfel Grotezk remains the display face. Product and marketing share the light-only semantic system owned by `frontend/app/globals.css`.
 
 ## Evidence on Hand
 

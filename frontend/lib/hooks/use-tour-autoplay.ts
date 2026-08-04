@@ -8,7 +8,9 @@ import { useReducedMotion } from 'motion/react';
 export function useTourAutoplay(stepCount: number, stepDuration = 6000) {
   const reduceMotion = useReducedMotion();
   const [activeStep, setActiveStep] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(() => !reduceMotion);
+  // Keep the server and first client paint identical. Tours start paused and
+  // retain explicit play/pause controls, including under reduced motion.
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (reduceMotion || !isPlaying) return;

@@ -21,9 +21,9 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
     heading: 'Product',
     items: [
       {
-        q: 'What is Searchify?',
+        q: 'What is CiteLadder?',
         a:
-          'Searchify is an AI visibility and site intelligence platform. It runs ' +
+          'CiteLadder is an AI visibility and site intelligence platform. It runs ' +
           'repeatable audits of your brand across ChatGPT, Gemini, and Claude using your own ' +
           'provider keys, scores the results deterministically, and keeps the persisted evidence ' +
           'behind every number. A built-in, security-bounded crawler also audits your site’s ' +
@@ -31,7 +31,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
           'measure the answers and improve the pages they rely on.',
       },
       {
-        q: 'Which answer engines does Searchify cover?',
+        q: 'Which answer engines does CiteLadder cover?',
         a:
           'ChatGPT, Gemini, and Claude. One audit runs the same prompts across all three, side ' +
           'by side, with comparable scores. Each engine runs through exactly one approved ' +
@@ -52,7 +52,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
         a:
           'When an answer engine grounds its response, it expands your prompt into generated ' +
           'search queries — the query fanout. Those generated queries decide which pages get ' +
-          'retrieved and cited. Searchify persists the fanout as evidence, so you can see which ' +
+          'retrieved and cited. CiteLadder persists the fanout as evidence, so you can see which ' +
           'generated searches shaped the answer.',
       },
       {
@@ -65,7 +65,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
       {
         q: 'How much setup does a first audit need?',
         a:
-          'A brand name, a website and a country. From those, Searchify suggests competitors, ' +
+          'A brand name, a website and a country. From those, CiteLadder suggests competitors, ' +
           'the domains you own and a starting prompt library, all editable before the first run.',
       },
       {
@@ -77,7 +77,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
           'single trailing window — 28 days by default.',
       },
       {
-        q: 'Does Searchify connect AI visibility to real traffic?',
+        q: 'Does CiteLadder connect AI visibility to real traffic?',
         a:
           'It reports a Pearson coefficient between day-aligned cross-engine visibility and ' +
           'AI-referral sessions, alongside the sample size. It is descriptive, not a forecast, ' +
@@ -88,7 +88,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
           'sources even though they are not audited engines.',
       },
       {
-        q: 'Can Searchify measure product-level visibility?',
+        q: 'Can CiteLadder measure product-level visibility?',
         a:
           'Yes. A deterministic sibling analyzer pass scores your catalog from the same ' +
           'persisted responses — product share of voice, rank distribution per engine, whether ' +
@@ -101,11 +101,11 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
         a:
           'Two independent views, deliberately not merged: GA4 platform-attributed revenue, and ' +
           'revenue from Shopify orders whose referrer was an AI source. They are shown side by ' +
-          'side as a cross-check, always partitioned by currency — Searchify never converts or ' +
+          'side as a cross-check, always partitioned by currency — CiteLadder never converts or ' +
           'sums across currencies to manufacture one headline number.',
       },
       {
-        q: 'Can Searchify draft content, and what is it grounded in?',
+        q: 'Can CiteLadder draft content, and what is it grounded in?',
         a:
           'Yes — drafts are grounded in a snapshot of your own crawled pages, passed as data ' +
           'rather than as instructions, so page text can never rewrite the prompt. Each draft ' +
@@ -121,7 +121,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
         q: 'Do I need my own API keys?',
         a:
           'Yes — audits are BYOK. You connect your own OpenAI, Anthropic, and Google keys, pay ' +
-          'your providers directly, and keep full control over usage and spend. Searchify never ' +
+          'your providers directly, and keep full control over usage and spend. CiteLadder never ' +
           'resells model calls.',
       },
       {
@@ -162,7 +162,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
           'schema and minimum depth are judged per type rather than by one global rule.',
       },
       {
-        q: 'Does Searchify check whether AI crawlers can reach my site?',
+        q: 'Does CiteLadder check whether AI crawlers can reach my site?',
         a:
           'Yes. The crawler records the allow or block stance your robots rules take toward ' +
           'GPTBot, ClaudeBot, PerplexityBot and Google-Extended, and flags a blocked stance as ' +
@@ -185,7 +185,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
     heading: 'Account & billing',
     items: [
       {
-        q: 'How much does Searchify cost?',
+        q: 'How much does CiteLadder cost?',
         // No amount here on purpose: prices are region-resolved per visitor
         // and published by the catalog, so a number baked into this answer
         // would be wrong for most readers and stale for the rest.
@@ -201,7 +201,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
         a:
           'No. Audits execute on your own provider keys, so ChatGPT, Gemini and Claude usage ' +
           'is billed to your own provider accounts at their rates and never passes through us. ' +
-          'Searchify charges for the workspace, the monitoring and the evidence; the current ' +
+          'CiteLadder charges for the workspace, the monitoring and the evidence; the current ' +
           'plan prices are on /pricing.',
       },
       {

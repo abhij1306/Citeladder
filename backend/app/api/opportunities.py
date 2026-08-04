@@ -28,6 +28,7 @@ from app.core.config.errors import (
 from app.core.config.opportunities import (
     CODE_OPPORTUNITY_GUIDANCE_IDEMPOTENCY_CONFLICT,
     CODE_OPPORTUNITY_GUIDANCE_UNAVAILABLE,
+    CODE_OPPORTUNITY_ORDER_CONFLICT,
     GUIDANCE_HISTORY_DEFAULT_LIMIT,
     GUIDANCE_HISTORY_MAX_LIMIT,
     GUIDANCE_IDEMPOTENCY_KEY_MAX_LEN,
@@ -43,6 +44,8 @@ from app.domain.opportunities.schemas import (
     OpportunityGuidanceItem,
     OpportunityHistoryResponse,
     OpportunityItem,
+    OpportunityOrderResponse,
+    OpportunityOrderUpdate,
     OpportunityStatusPatch,
     OpportunitySummary,
     RecomputeRequest,
@@ -53,6 +56,7 @@ from app.domain.opportunities.service import (
     OpportunityGuidanceIdempotencyConflictError,
     OpportunityGuidanceUnavailableError,
     OpportunityNotFoundError,
+    OpportunityOrderConflictError,
     OpportunitySupersededError,
     OpportunityValidationError,
 )
@@ -223,6 +227,7 @@ async def update_status_endpoint(
             workspace_id=ctx.workspace_id,
             opportunity_id=opportunity_id,
             status=payload.status,
+            changed_by_user_id=ctx.user.id,
         )
     except OpportunityNotFoundError as exc:
         raise _not_found(exc) from exc
@@ -231,6 +236,38 @@ async def update_status_endpoint(
     except OpportunitySupersededError as exc:
         raise _superseded(exc) from exc
     return OpportunityItem.model_validate(item)
+
+
+@router.put(
+    "/projects/{project_id}/opportunities/order",
+    response_model=OpportunityOrderResponse,
+)
+async def update_order_endpoint(
+    project_id: uuid.UUID,
+    payload: OpportunityOrderUpdate,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> OpportunityOrderResponse:
+    try:
+        result = await service.update_order(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            ordered_opportunity_ids=payload.ordered_opportunity_ids,
+            expected_version=payload.expected_version,
+            updated_by_user_id=ctx.user.id,
+        )
+    except OpportunityNotFoundError as exc:
+        raise _not_found(exc) from exc
+    except OpportunityValidationError as exc:
+        raise _validation(exc) from exc
+    except OpportunityOrderConflictError as exc:
+        raise ApiException(
+            status.HTTP_409_CONFLICT,
+            CODE_OPPORTUNITY_ORDER_CONFLICT,
+            str(exc),
+        ) from exc
+    return OpportunityOrderResponse.model_validate(result)
 
 
 # =========================================================================

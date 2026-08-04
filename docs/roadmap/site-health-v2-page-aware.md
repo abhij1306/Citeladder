@@ -82,7 +82,7 @@ Sources: [Profound Agent Analytics](https://tryprofound.com/features/agent-analy
 [Searchable docs](https://docs.searchable.com), [SKYA features](https://skya.one/features),
 [Goodie](https://higoodie.com).
 
-| Capability | Searchify today | Profound | Searchable | SKYA | Goodie |
+| Capability | CiteLadder today | Profound | Searchable | SKYA | Goodie |
 |---|---|---|---|---|---|
 | Page-type-aware rules / per-type schema | No — one 9-rule catalog for all URLs | Per-page health in "Pages" (citations + bot activity + health + content quality) | AEO analysis per page | Per-page-type schema + "AEO depth" | Partial (prioritized recommendations) |
 | AI-crawler access audit (robots/blocks) | No | Yes — how AI bots crawl, fetchability problems, bot-intent classification | Partial (technical + AEO audit) | Yes — crawlability/indexation for answer engines | Yes — "how AI crawlers experience your site" |
@@ -120,7 +120,7 @@ automation.**
 Rationale:
 
 - **A block is the finding, not an obstacle.** A site that refuses a well-behaved
-  crawler identifying itself as `SearchifySiteHealthBot/1.0` is, by that fact, not
+  crawler identifying itself as `CiteLadderSiteHealthBot/1.0` is, by that fact, not
   AEO-ready — the AI crawlers we audit for (GPTBot / ClaudeBot / PerplexityBot) are
   equally well-identified and get the same treatment. Reporting `bot_blocked` is
   more useful to the customer than a score obtained by disguise.
@@ -349,7 +349,7 @@ The escalation ladder and render tier this section originally specified were bui
 and then removed; see §4 for the decision and its rationale. What stands:
 
 - **One request per target.** `SecureFetcher.fetch()` issues a single `httpx`
-  request identifying as `SearchifySiteHealthBot/1.0`, with manual redirects
+  request identifying as `CiteLadderSiteHealthBot/1.0`, with manual redirects
   revalidated per hop through `resolve_target` (SSRF/scope/DNS), pinned-IP dial
   preserving Host + TLS SNI, wire/decoded byte caps, `PERSISTED_RESPONSE_HEADERS`
   redaction, per-host politeness (semaphore + fixed delay), no env proxy trust, and

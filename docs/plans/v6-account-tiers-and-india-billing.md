@@ -70,9 +70,9 @@ Use a provider abstraction, but launch providers in this order:
 
 1. **Razorpay for INR/India customers.** Its subscription product documents cards, UPI
    AutoPay, and eMandate, automated billing, retries, invoices, and subscription webhooks.
-   This is the lower-risk India launch route, subject to Searchify's account/KYC and requested
+   This is the lower-risk India launch route, subject to CiteLadder's account/KYC and requested
    payment methods being activated.
-2. **Stripe for international customers only after Searchify receives an Indian Stripe
+2. **Stripe for international customers only after CiteLadder receives an Indian Stripe
    account invitation and export payments are enabled.** Stripe is a good technical fit and
    remains the preferred international provider, but it is currently invite-only in India,
    so it cannot be the only go-live dependency.
@@ -218,7 +218,7 @@ Create `app/core/config/billing.py` as the only owner of:
 - Stripe and Razorpay credentials/secret names.
 
 Secrets stay in server environment variables and never enter response DTOs. Unlike BYOK answer
-engine keys, these are Searchify's own infrastructure credentials.
+engine keys, these are CiteLadder's own infrastructure credentials.
 
 Define a `BillingProvider` protocol under `connectors/billing/` with operations equivalent to:
 
@@ -227,7 +227,7 @@ Define a `BillingProvider` protocol under `connectors/billing/` with operations 
 - `verify_and_parse_webhook` returning a provider-neutral event.
 
 Implement `RazorpayBillingProvider` and `StripeBillingProvider` behind a factory. Domain code
-owns lifecycle rules; adapters only translate provider APIs. Use hosted checkout so Searchify
+owns lifecycle rules; adapters only translate provider APIs. Use hosted checkout so CiteLadder
 never receives card or UPI credentials.
 
 Provider routing is server-owned. **Country comes from the server's own billing profile, never
@@ -299,11 +299,11 @@ Tier data is not stored in localStorage and is not trusted from checkout query p
 
 The owner and an India-qualified accountant/legal adviser must resolve and record:
 
-1. Searchify legal entity type, bank account, PAN, GST registration/treatment, invoice fields,
+1. CiteLadder legal entity type, bank account, PAN, GST registration/treatment, invoice fields,
    and whether displayed prices include GST.
 2. Domestic SaaS place-of-supply and GST invoicing; export-of-services documentation, LUT/IGST
    approach, foreign inward-remittance evidence, purpose code, and whether an IEC is required
-   for Searchify's facts.
+   for CiteLadder's facts.
 3. Refund/cancellation policy, Terms, Privacy notice, recurring-debit consent copy, and support
    contact shown in checkout.
 4. Final Free/Paid names, INR and international prices, monthly/annual cadence, trial policy,
@@ -315,7 +315,7 @@ The owner and an India-qualified accountant/legal adviser must resolve and recor
 
 No code should infer tax residency from IP address. Collect a billing country/address through
 hosted checkout and rely on provider-generated tax invoices only after accounting review says
-they meet Searchify's obligations.
+they meet CiteLadder's obligations.
 
 ## 9. Implementation task graph
 

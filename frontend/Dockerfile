@@ -36,7 +36,7 @@ FROM ${NODE_IMAGE} AS runtime
 
 ARG BACKEND_ORIGIN
 ARG BUILD_REVISION=unknown
-LABEL org.opencontainers.image.title="searchify-frontend" \
+LABEL org.opencontainers.image.title="citeladder-frontend" \
       org.opencontainers.image.revision="${BUILD_REVISION}"
 
 ENV NODE_ENV=production \

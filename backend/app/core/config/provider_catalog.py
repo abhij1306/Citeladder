@@ -179,7 +179,7 @@ class RoutePolicy:
     whether the route accepts an explicit reasoning control at all;
     ``representative_status`` records consumer-representativeness evidence for
     the pinned model; ``batch_enabled`` gates any batch/async submission path.
-    No prompt-caching knob exists — Searchify requests never enable provider
+    No prompt-caching knob exists — CiteLadder requests never enable provider
     prompt caching.
     """
 
@@ -358,7 +358,7 @@ def is_endpoint_approved(transport_provider: str, base_url: str) -> bool:
 
 
 # --- Public provider catalog (display surface, NOT a write enum) ----------
-# The public/commercial surface shows more providers than Searchify can
+# The public/commercial surface shows more providers than CiteLadder can
 # execute: shipped BYOK engines plus explicitly COMING-SOON ones. This catalog
 # is display-only. ``ACTIVE_TRANSPORTS`` stays OpenAI/Anthropic/Google only, so
 # a create/test/audit routing path can never
@@ -535,14 +535,14 @@ TELEMETRY_FUNDED_ADMISSION_DENIED: Final = "funded.execution.admission_denied"
 # --- Platform provisioning identity (T11) -----------------------------------
 # The reserved system workspace holds the operator's platform-funded rows
 # (exactly one, enforced by the partial unique index on Workspace.is_system).
-SYSTEM_WORKSPACE_NAME: Final = "Searchify Platform (system)"
+SYSTEM_WORKSPACE_NAME: Final = "CiteLadder Platform (system)"
 # Environment variables the provisioning CLI reads platform keys from, keyed
 # by transport. The VALUES are secret material and are only ever accepted as
 # SecretStr, Fernet-encrypted before flush, and never printed or logged.
 PLATFORM_CREDENTIAL_ENV_VARS: Final[dict[str, str]] = {
-    TRANSPORT_OPENAI: "SEARCHIFY_PLATFORM_OPENAI_API_KEY",
-    TRANSPORT_ANTHROPIC: "SEARCHIFY_PLATFORM_ANTHROPIC_API_KEY",
-    TRANSPORT_GOOGLE: "SEARCHIFY_PLATFORM_GOOGLE_API_KEY",
+    TRANSPORT_OPENAI: "CITELADDER_PLATFORM_OPENAI_API_KEY",
+    TRANSPORT_ANTHROPIC: "CITELADDER_PLATFORM_ANTHROPIC_API_KEY",
+    TRANSPORT_GOOGLE: "CITELADDER_PLATFORM_GOOGLE_API_KEY",
 }
 
 

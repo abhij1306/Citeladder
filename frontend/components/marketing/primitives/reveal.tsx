@@ -1,7 +1,4 @@
-'use client';
-
 import type { ReactNode } from 'react';
-import { useGsapReveal } from '@/lib/hooks/use-gsap-reveal';
 
 type MotionChildren = Readonly<{ children: ReactNode; className?: string }>;
 type Direction = 'up' | 'left' | 'right';
@@ -16,20 +13,20 @@ export function Reveal({
   className,
   from = 'up',
 }: MotionChildren & { from?: Direction }) {
-  const ref = useGsapReveal<HTMLDivElement>({ from, stagger: false });
-
   return (
-    <div ref={ref} data-mkt-reveal="" data-mkt-reveal-from={from} className={className}>
+    <div
+      data-citeladder-reveal=""
+      data-citeladder-reveal-from={from}
+      className={className}
+    >
       {children}
     </div>
   );
 }
 
 export function StaggerGroup({ children, className }: MotionChildren) {
-  const ref = useGsapReveal<HTMLDivElement>({ from: 'up', stagger: true });
-
   return (
-    <div ref={ref} data-mkt-reveal="stagger" className={className}>
+    <div data-citeladder-reveal="stagger" className={className}>
       {children}
     </div>
   );

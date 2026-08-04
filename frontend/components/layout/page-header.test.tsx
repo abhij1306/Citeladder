@@ -40,7 +40,7 @@ describe('PageHeader', () => {
   });
 
   it('falls back to the product name for unknown routes', () => {
-    expect(renderTitle('/nope')).toBe('Searchify');
+    expect(renderTitle('/nope')).toBe('CiteLadder');
   });
 
   it('renders the summary and actions slots alongside the title', () => {

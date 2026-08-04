@@ -11,7 +11,6 @@ import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { IntegrationSettings } from '@/components/settings/integration-settings';
 import { BillingSettings } from '@/components/settings/billing-settings';
 import { ProviderSettings } from '@/components/settings/provider-settings';
@@ -265,23 +264,6 @@ export function SettingsScreen() {
                   </DetailRow>
                 ) : null}
               </dl>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Appearance</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between gap-6">
-                <div>
-                  <div className="text-secondary text-sm font-medium">Theme</div>
-                  <p className="text-muted mt-1 text-xs">
-                    Applies to this browser and syncs with the sidebar toggle.
-                  </p>
-                </div>
-                <ThemeToggle />
-              </div>
             </CardContent>
           </Card>
         </div>

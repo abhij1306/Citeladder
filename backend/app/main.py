@@ -97,7 +97,7 @@ _ROUTERS = (
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     configure_logging()
-    logger.info("searchify backend starting", extra={"app_env": settings.app_env})
+    logger.info("citeladder backend starting", extra={"app_env": settings.app_env})
     try:
         yield
     finally:

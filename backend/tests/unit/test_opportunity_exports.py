@@ -94,7 +94,7 @@ class TestMarkdown:
     def test_empty_items_render_valid_table(self) -> None:
         output = rows_to_markdown([])
         lines = output.splitlines()
-        assert lines[0] == "# Searchify — Opportunities"
+        assert lines[0] == "# CiteLadder — Opportunities"
         assert lines[2] == "| " + " | ".join(OPPORTUNITIES_COLUMNS) + " |"
         assert set(lines[3]) <= {"|", "-"}
 

@@ -138,9 +138,9 @@ README bring-up order. Gotchas that bite every session:
 - On this dev machine the app/alembic/pytest/seeds all reach the **host
   Postgres at 127.0.0.1:5432** (root `.env` creds) — the docker `db`
   container publishes no ports. The pytest suite self-provisions a throwaway
-  `searchify_tests_<runid>` DB.
+  `citeladder_tests_<runid>` DB.
 - Recreate a clean DB:
-  `psql <root .env creds> -c "DROP DATABASE IF EXISTS searchify WITH (FORCE);" -c "CREATE DATABASE searchify;"`
+  `psql <root .env creds> -c "DROP DATABASE IF EXISTS citeladder WITH (FORCE);" -c "CREATE DATABASE citeladder;"`
   then `uv run alembic upgrade head` (greenfield policy: edit models +
   recreate; never add revision files), `bash testing/local-stack/seed.sh`
   (needs the :3000 proxy up), then

@@ -1,4 +1,4 @@
-# Invariants — Searchify
+# Invariants — CiteLadder
 
 > Hard rules. A change that violates any of these is a review failure regardless of whether
 > it "works". Numbered so reviews and commits can cite them (e.g. "violates invariant 5").

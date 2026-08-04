@@ -78,7 +78,7 @@ export function GeneratePromptsDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title="Generate prompts & topics"
-      description="Searchify drafts topic-organized prompt suggestions from your brand profile."
+      description="CiteLadder drafts topic-organized prompt suggestions from your brand profile."
       className="w-130"
       footer={
         <>

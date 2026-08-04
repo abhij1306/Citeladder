@@ -12,14 +12,14 @@ import {
   projectSchema,
   strictValidate,
   workspaceSchema,
-  dashboardSchema,
+  commandCenterSchema,
 } from './schemas';
 import type {
   BrandProfile,
   BrandProfileAcceptResponse,
   BrandProfileDraft,
   BrandProfileSuggestion,
-  Dashboard,
+  CommandCenter,
   Project,
   Workspace,
 } from './types';
@@ -61,12 +61,15 @@ export const projectsApi = {
     const res = await apiClient.get<Project>(`/projects/${projectId}`, options);
     return strictValidate(projectSchema, res, 'projects.getProject');
   },
-  getDashboard: async (projectId: string, options?: ApiRequestOptions) => {
-    const res = await apiClient.get<Dashboard>(`/projects/${projectId}/dashboard`, options);
-    return strictValidate(dashboardSchema, res, 'projects.getDashboard');
+  getCommandCenter: async (projectId: string, options?: ApiRequestOptions) => {
+    const res = await apiClient.get<CommandCenter>(
+      `/projects/${projectId}/command-center`,
+      options,
+    );
+    return strictValidate(commandCenterSchema, res, 'projects.getCommandCenter');
   },
-  downloadDashboardReport: (projectId: string, options?: ApiRequestOptions) =>
-    apiClient.getBlob(`/projects/${projectId}/dashboard/report.pdf`, options),
+  downloadExecutiveReport: (projectId: string, options?: ApiRequestOptions) =>
+    apiClient.getBlob(`/projects/${projectId}/reports/executive.pdf`, options),
   createProject: async (input: ProjectInput, options?: ApiRequestOptions) => {
     const res = await apiClient.post<Project>('/projects', input, options);
     return strictValidate(projectSchema, res, 'projects.createProject');

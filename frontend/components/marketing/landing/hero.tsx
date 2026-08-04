@@ -6,10 +6,9 @@ import { DEMO_HREF } from '@/lib/marketing-content/nav';
 import { ButtonLink, IconButtonLink } from '../primitives/button';
 import { Eyebrow } from '../primitives/label';
 import { Container } from '../primitives/section';
-import { HeroAtmosphere } from './hero-atmosphere';
 import { HeroEntrance } from './hero-entrance';
-import { HeadlineRotatingWord } from './headline-rotating-word';
 import { RotatingEngineLogos } from './rotating-engine-logos';
+import { BrandAtmosphere } from '@/components/ui/brand-atmosphere';
 
 /**
  * The hook — a centred opener standing on the atmospheric field.
@@ -30,23 +29,18 @@ import { RotatingEngineLogos } from './rotating-engine-logos';
 export function Hero() {
   const { hook } = LANDING_CONTENT;
   return (
-    <header className="mkt-field-hero mkt-grid-field -mt-mkt-nav pt-mkt-nav relative overflow-hidden">
-      <HeroAtmosphere />
-      <Container className="pt-mkt-80 pb-mkt-70 md:pt-mkt-120 md:pb-mkt-80 relative z-1">
+    <header className="citeladder-field-hero citeladder-grid-field relative -mt-16 overflow-hidden pt-16">
+      <BrandAtmosphere variant="hero" />
+      <Container className="relative z-1 pt-20 pb-16 md:pt-28 md:pb-20">
         <HeroEntrance className="mx-auto max-w-5xl text-center">
           <div className="flex justify-center">
             <Eyebrow>{hook.eyebrow}</Eyebrow>
           </div>
-          <h1 className="font-mkt-display text-mkt-h1 text-mkt-ink mt-mkt-30 mx-auto max-w-[32ch] text-balance">
-            {hook.title}{' '}
-            <em className="mkt-keyword not-italic">
-              They ask <HeadlineRotatingWord /> instead.
-            </em>
+          <h1 className="font-display text-foreground mx-auto mt-8 max-w-[32ch] text-5xl text-balance">
+            {hook.title} <em className="text-accent-text not-italic">{hook.titleAccent}</em>
           </h1>
-          <p className="text-mkt-lead text-mkt-ink-soft mt-mkt-30 mx-auto max-w-[80ch]">
-            {hook.body}
-          </p>
-          <div className="mt-mkt-30 gap-mkt-14 flex flex-col justify-center sm:flex-row sm:items-center">
+          <p className="text-muted mx-auto mt-8 max-w-[80ch] text-lg">{hook.body}</p>
+          <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row sm:items-center">
             <IconButtonLink
               href={DEMO_HREF}
               title={hook.primaryCta}
@@ -57,7 +51,7 @@ export function Hero() {
               {hook.secondaryCta}
             </ButtonLink>
           </div>
-          <RotatingEngineLogos className="mt-mkt-30 md:mt-mkt-40" />
+          <RotatingEngineLogos className="mx-auto mt-10 max-w-2xl" />
         </HeroEntrance>
       </Container>
     </header>

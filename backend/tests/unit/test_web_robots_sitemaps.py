@@ -23,7 +23,7 @@ from app.connectors.web_evidence.sitemaps import (
 )
 from app.core.config.site_health import site_health_settings
 
-_UA = "SearchifySiteHealthBot/1.0"
+_UA = "CiteLadderSiteHealthBot/1.0"
 
 
 # --- robots ---------------------------------------------------------------

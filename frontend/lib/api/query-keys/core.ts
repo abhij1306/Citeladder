@@ -15,7 +15,7 @@ export const projectKeys = {
   all: ['projects'] as const,
   list: () => ['projects', 'list'] as const,
   detail: (projectId: string) => ['projects', 'detail', projectId] as const,
-  dashboard: (projectId: string) => ['projects', 'dashboard', projectId] as const,
+  commandCenter: (projectId: string) => ['projects', 'command-center', projectId] as const,
   brandProfile: (projectId: string) => ['projects', 'brand-profile', projectId] as const,
 };
 

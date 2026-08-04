@@ -1,19 +1,19 @@
 <div align="center">
 
-# Searchify
+# CiteLadder
 
 <strong>Own how your brand appears in AI answers — and strengthen the pages those answers rely on.</strong>
 
 [Architecture](docs/architecture.md) · [Backend](docs/backend-architecture.md) · [Frontend](docs/frontend-architecture.md) · [Site Health](docs/site-health.md) · [Development](docs/DEVELOPMENT.md)
 
 <p align="center">
-  Searchify is an open-source AI visibility and site intelligence platform for measuring brand presence across answer engines, inspecting the evidence behind every result, and improving on-page AEO readiness.
+  CiteLadder is an open-source AI visibility and site intelligence platform for measuring brand presence across answer engines, inspecting the evidence behind every result, and improving on-page AEO readiness.
 </p>
 
 <p align="center">
-  <a href="https://github.com/abhij1306/Searchify/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/abhij1306/Searchify?style=flat-square"></a>
-  <a href="https://github.com/abhij1306/Searchify/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/abhij1306/Searchify?style=flat-square"></a>
-  <a href="https://github.com/abhij1306/Searchify/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/abhij1306/Searchify?style=flat-square"></a>
+  <a href="https://github.com/abhij1306/CiteLadder/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/abhij1306/CiteLadder?style=flat-square"></a>
+  <a href="https://github.com/abhij1306/CiteLadder/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/abhij1306/CiteLadder?style=flat-square"></a>
+  <a href="https://github.com/abhij1306/CiteLadder/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/github/license/abhij1306/CiteLadder?style=flat-square"></a>
   <img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white&style=flat-square">
   <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white&style=flat-square">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-15%2B-4169E1?logo=postgresql&logoColor=white&style=flat-square">
@@ -28,15 +28,15 @@
 
 ---
 
-<a id="what-searchify-does"></a>
-## What Searchify does
+<a id="what-citeladder-does"></a>
+## What CiteLadder does
 
-Searchify connects two workflows that are usually fragmented across separate tools:
+CiteLadder connects two workflows that are usually fragmented across separate tools:
 
 1. **Measure AI visibility.** Run repeatable audits across ChatGPT, Claude, and Gemini using your own provider keys. Compare your brand with competitors, track visibility and share of voice over time, and inspect persisted mention, citation, and query-fanout evidence.
 2. **Improve answer readiness.** Crawl your site with a security-bounded acquisition ladder. Choose the URLs that matter, score Web Fundamentals and AEO health, investigate grouped issues, and drill into evidence and remediation for each page.
 
-Every report is built from persisted, versioned evidence. Searchify does not silently re-run providers, re-fetch pages, or invent missing metrics while rendering a dashboard.
+Every report is built from persisted, versioned evidence. CiteLadder does not silently re-run providers, re-fetch pages, or invent missing metrics while rendering a dashboard.
 
 <a id="product-highlights"></a>
 ## Product highlights
@@ -73,14 +73,14 @@ Every report is built from persisted, versioned evidence. Searchify does not sil
 - Typed API contracts validated at runtime with Zod and Pydantic.
 - Light and dark themes, responsive application shell, and reusable design tokens.
 
-> Searchify currently ships an active-project Dashboard with authenticated PDF reporting, Visibility Intelligence, audit evidence, provider management, Site Health, grouped Issues, and per-URL diagnostics. New projects attempt to queue a Free Site Health crawl on a best-effort basis; project creation remains successful if crawl queueing fails. Each workspace member can replay the guided product tour from the user menu.
+> CiteLadder currently ships an active-project Dashboard with authenticated PDF reporting, Visibility Intelligence, audit evidence, provider management, Site Health, grouped Issues, and per-URL diagnostics. New projects attempt to queue a Free Site Health crawl on a best-effort basis; project creation remains successful if crawl queueing fails. Each workspace member can replay the guided product tour from the user menu.
 
 ---
 
 <a id="table-of-contents"></a>
 ## Table of contents
 
-- [What Searchify does](#what-searchify-does)
+- [What CiteLadder does](#what-citeladder-does)
 - [Product highlights](#product-highlights)
 - [Architecture](#architecture)
 - [Tech stack](#tech-stack)
@@ -102,7 +102,7 @@ Every report is built from persisted, versioned evidence. Searchify does not sil
 <a id="architecture"></a>
 ## Architecture
 
-Searchify is engineered as a modular monolith with strict security boundaries, immutable evidence persistence, and durable background worker orchestration.
+CiteLadder is engineered as a modular monolith with strict security boundaries, immutable evidence persistence, and durable background worker orchestration.
 
 ### System Components
 
@@ -136,7 +136,7 @@ Searchify is engineered as a modular monolith with strict security boundaries, i
 ## Repository layout
 
 ```
-Searchify/
+CiteLadder/
 ├── Agents.md                 # Coding-agent bootstrap; unified contract + rules
 ├── README.md                 # This file
 ├── LICENSE                   # MIT
@@ -187,7 +187,7 @@ cp infra/docker/.env.example infra/docker/.env    # then edit secrets for anythi
 
 # 2. Start Postgres first
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
-  POSTGRES_PASSWORD=searchify_dev_password \
+  POSTGRES_PASSWORD=citeladder_dev_password \
   docker compose -f infra/docker/docker-compose.yml up -d --force-recreate db
 
 # 3. Apply migrations without leaving the project root
@@ -195,7 +195,7 @@ env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
 
 # 4. Bring up the application services
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
-  POSTGRES_PASSWORD=searchify_dev_password \
+  POSTGRES_PASSWORD=citeladder_dev_password \
   docker compose -f infra/docker/docker-compose.yml up -d --build
 
 # 5. Start the frontend (from frontend/)
@@ -217,7 +217,7 @@ discover and analyze the project website.
 cd backend
 uv sync
 # point DATABASE_URL at your Postgres, e.g.
-export DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/searchify"
+export DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/citeladder"
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --port 8000     # web API
 uv run python -m app.workers.audit_worker            # audit worker (separate shell)
@@ -249,7 +249,7 @@ dataset from `backend/`:
 APP_ENV=development uv run python -m scripts.seed_dev_data
 ```
 
-This creates the demo login `demo@searchify.dev` / `DemoPass123!`, two
+This creates the demo login `demo@citeladder.dev` / `DemoPass123!`, two
 workspaces, two projects with completed audits (mention/citation evidence),
 a completed Site Health crawl, and a product catalog whose fixture answers
 produce real Commerce Visibility numbers (product mentions, prices, share of
@@ -294,7 +294,7 @@ uv run alembic check                 # assert no ORM-vs-migration drift
 > disposable local or CI database that you are willing to lose — never against a
 > shared, staging, or production database.
 
-> **Greenfield migration policy.** Searchify maintains one complete
+> **Greenfield migration policy.** CiteLadder maintains one complete
 > `0001_initial` baseline. Schema work is folded into that revision, then
 > verified with a fresh disposable database (`alembic upgrade head` and
 > `alembic check`).
@@ -305,7 +305,7 @@ uv run alembic check                 # assert no ORM-vs-migration drift
 ```bash
 # Backend (from backend/) — needs only a running local Postgres; server creds
 # come from the repo .env DATABASE_URL. The suite creates and drops a
-# throwaway searchify_tests_<runid> database automatically.
+# throwaway citeladder_tests_<runid> database automatically.
 cd backend
 uv run pytest -q
 uv run ruff check .

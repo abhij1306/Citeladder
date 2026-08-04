@@ -1,7 +1,7 @@
 """Component tests for the projects + prompts API (B3, httpx ASGITransport).
 
 Adapted from the reference ``tests/component/test_ai_visibility_api.py`` to
-Searchify's UUID + workspace-scoped model. Covers the B3 acceptance:
+CiteLadder's UUID + workspace-scoped model. Covers the B3 acceptance:
   - project CRUD persists normalized brand identity + prompts, workspace-scoped;
   - prompt-intent + benchmark_mode validation;
   - CSV bulk-import persists prompts as ``imported``;

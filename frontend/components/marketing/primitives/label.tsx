@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
  * The "meta" role: small (12/16), semibold labels with tabular numerals
  * (`font-mono tabular-nums`) — the same numeric recipe every figure in the
  * app renders with, so numbers align and read as data. The default ink is
- * `text-mkt-ink-soft` (paper/surface-only — on sunken/wash bands callers
- * pass `text-mkt-ink-soft`); kickers layer `uppercase` on top. Codifying
+ * `text-muted` (paper/surface-only — on sunken/wash bands callers
+ * pass `text-muted`); kickers layer `uppercase` on top. Codifying
  * the recipe as one component is why every label on the surface matches.
  */
 export function Meta({
@@ -16,12 +16,7 @@ export function Meta({
   as: Tag = 'span',
 }: Readonly<{ children: ReactNode; className?: string; as?: 'span' | 'p' | 'div' }>) {
   return (
-    <Tag
-      className={cn(
-        'text-mkt-xs text-mkt-ink-soft font-mono font-semibold tabular-nums',
-        className,
-      )}
-    >
+    <Tag className={cn('text-muted font-mono text-xs font-semibold tabular-nums', className)}>
       {children}
     </Tag>
   );
@@ -44,8 +39,8 @@ export function Eyebrow({
   className,
 }: Readonly<{ children: ReactNode; dot?: boolean; className?: string }>) {
   return (
-    <p className={cn('gap-mkt-10 text-mkt-xsb text-mkt-ink-soft flex items-center', className)}>
-      {dot && <span aria-hidden className="bg-mkt-indigo size-mkt-6 shrink-0 rounded-full" />}
+    <p className={cn('text-muted flex items-center gap-3 text-xs font-semibold', className)}>
+      {dot && <span aria-hidden className="bg-accent size-2 shrink-0 rounded-full" />}
       {children}
     </p>
   );

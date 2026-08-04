@@ -85,7 +85,7 @@ describe('useAuthMutation', () => {
     const { result, queryClient } = setup();
     queryClient.setQueryData(['old-account', 'private'], { secret: 'stale' });
     window.localStorage.setItem(ACTIVE_PROJECT_STORAGE_KEY, project.id);
-    window.localStorage.setItem('searchify-theme', 'dark');
+    window.localStorage.setItem('citeladder-theme', 'dark');
     setActiveWorkspaceId(project.workspace_id);
 
     let requestStarted: (() => void) | undefined;
@@ -122,7 +122,7 @@ describe('useAuthMutation', () => {
     expect(queryClient.getQueryData(['old-account', 'private'])).toBeUndefined();
     expect(queryClient.getQueryData(queryKeys.auth.me())).toMatchObject({ id: sessionUser.id });
     expect(window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY)).toBeNull();
-    expect(window.localStorage.getItem('searchify-theme')).toBe('dark');
+    expect(window.localStorage.getItem('citeladder-theme')).toBe('dark');
     expect(getActiveWorkspaceId()).toBeNull();
   });
 
@@ -159,7 +159,7 @@ describe('useAuthMutation', () => {
   it('resumes a captured pricing intent instead of the normal destination', async () => {
     mswServer.use(http.get('/api/v1/projects', () => HttpResponse.json([project])));
     globalThis.sessionStorage.setItem(
-      'searchify.pendingPricingIntent.v1',
+      'citeladder.pendingPricingIntent.v1',
       JSON.stringify({
         version: 1,
         kind: 'checkout',
@@ -187,7 +187,7 @@ describe('useAuthMutation', () => {
 
   it('ignores a malformed stored intent and uses the normal destination', async () => {
     mswServer.use(http.get('/api/v1/projects', () => HttpResponse.json([project])));
-    globalThis.sessionStorage.setItem('searchify.pendingPricingIntent.v1', '{"version":99}');
+    globalThis.sessionStorage.setItem('citeladder.pendingPricingIntent.v1', '{"version":99}');
     const { result } = setup();
 
     act(() => {

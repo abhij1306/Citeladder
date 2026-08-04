@@ -60,7 +60,7 @@ function stepAt(id: string | null | undefined) {
 }
 
 function isCurrentStepLocation(pathname: string, search: string, stepPath: string) {
-  const expected = new URL(stepPath, 'https://searchify.local');
+  const expected = new URL(stepPath, 'https://citeladder.local');
   return pathname === expected.pathname && search === expected.search.slice(1);
 }
 
@@ -110,8 +110,8 @@ export function ProductTourProvider({ children }: Readonly<{ children: ReactNode
   }, [persist]);
 
   useEffect(() => {
-    window.addEventListener('searchify:replay-product-tour', replay);
-    return () => window.removeEventListener('searchify:replay-product-tour', replay);
+    window.addEventListener('citeladder:replay-product-tour', replay);
+    return () => window.removeEventListener('citeladder:replay-product-tour', replay);
   }, [replay]);
 
   useEffect(() => {
@@ -169,8 +169,8 @@ export function ProductTourProvider({ children }: Readonly<{ children: ReactNode
       // overlay SVG's inline fill, the var() resolves per active theme.
       overlayColor: 'var(--overlay-scrim)',
       overlayOpacity: 1,
-      // Themed via app/tour.css (.driver-popover.searchify-tour).
-      popoverClass: 'searchify-tour',
+      // Themed via app/tour.css (.driver-popover.citeladder-tour).
+      popoverClass: 'citeladder-tour',
       popoverOffset: 12,
       stagePadding: 6,
       stageRadius: 12,

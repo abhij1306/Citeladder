@@ -44,11 +44,11 @@ export function CatalogPurchases({
   if (catalog.addons.length === 0 && catalog.topups.length === 0) return null;
 
   return (
-    <div className="gap-mkt-30 grid">
+    <div className="grid gap-8">
       {catalog.addons.length > 0 && (
-        <section aria-label="Add-ons" className="gap-mkt-14 grid">
-          <h3 className="font-mkt-display text-mkt-ink text-mkt-hsm">Add-ons</h3>
-          <div className="gap-mkt-14 grid sm:grid-cols-2 lg:grid-cols-3">
+        <section aria-label="Add-ons" className="grid gap-4">
+          <h3 className="font-display text-foreground text-xl">Add-ons</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {catalog.addons.map((addon) => (
               <PurchaseRow
                 key={addon.key}
@@ -64,9 +64,9 @@ export function CatalogPurchases({
       )}
 
       {catalog.topups.length > 0 && (
-        <section aria-label="Top-ups" className="gap-mkt-14 grid">
-          <h3 className="font-mkt-display text-mkt-ink text-mkt-hsm">Top-ups</h3>
-          <div className="gap-mkt-14 grid sm:grid-cols-2 lg:grid-cols-3">
+        <section aria-label="Top-ups" className="grid gap-4">
+          <h3 className="font-display text-foreground text-xl">Top-ups</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {catalog.topups.map((topup) => (
               <PurchaseRow
                 key={topup.key}
@@ -110,28 +110,28 @@ function PurchaseRow({
     // the plans it supplements.
     <div
       data-catalog-key={entry.key}
-      className="rounded-mkt-lg bg-mkt-surface shadow-mkt-card gap-mkt-6 p-mkt-20 flex flex-col"
+      className="bg-panel shadow-card flex flex-col gap-2 rounded-lg p-5"
     >
-      <div className="gap-mkt-10 flex flex-wrap items-baseline justify-between">
-        <span className="text-mkt-ink text-mkt-sm font-medium">{entry.name}</span>
-        <span className="text-mkt-ink text-mkt-sm tabular-nums">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <span className="text-foreground text-sm font-medium">{entry.name}</span>
+        <span className="text-foreground text-sm tabular-nums">
           {entry.unit_price
             ? `${formatMoney(entry.unit_price, catalog.currency_minor_units)} ${cadence}`
             : 'Not yet priced'}
         </span>
       </div>
-      <p className="text-mkt-xs text-mkt-ink-soft flex-1">{entry.description}</p>
-      {footnote && <p className="text-mkt-xs text-mkt-ink-soft">{footnote}</p>}
+      <p className="text-muted flex-1 text-xs">{entry.description}</p>
+      {footnote && <p className="text-muted text-xs">{footnote}</p>}
       <button
         type="button"
         disabled={!purchasable || pending}
         onClick={onPurchase}
-        className="border-mkt-black-10 text-mkt-ink focus-ring text-mkt-xs mt-mkt-6 rounded-mkt-pill px-mkt-14 inline-flex h-8 w-fit items-center justify-center border font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+        className="border-border-subtle text-foreground focus-ring mt-2 inline-flex h-8 w-fit items-center justify-center rounded-full border px-4 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? 'Starting…' : `Add ${entry.name}`}
       </button>
       {!purchasable && entry.unavailable_reason && (
-        <p className="text-mkt-xs text-mkt-ink-soft">{reasonLabel(entry.unavailable_reason)}</p>
+        <p className="text-muted text-xs">{reasonLabel(entry.unavailable_reason)}</p>
       )}
     </div>
   );

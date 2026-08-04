@@ -55,9 +55,9 @@ describe('sitemap', () => {
   });
 
   it('absolutizes entries once a canonical origin exists', () => {
-    process.env.NEXT_PUBLIC_SITE_URL = 'https://app.searchify.com';
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://app.citeladder.com';
     for (const entry of sitemap()) {
-      expect(entry.url).toMatch(/^https:\/\/app\.searchify\.com\//);
+      expect(entry.url).toMatch(/^https:\/\/app\.citeladder\.com\//);
     }
   });
 });
@@ -99,15 +99,15 @@ describe('robots', () => {
   });
 
   it('emits an absolute sitemap URL once an origin exists', () => {
-    process.env.NEXT_PUBLIC_SITE_URL = 'https://app.searchify.com';
-    expect(robots().sitemap).toBe('https://app.searchify.com/sitemap.xml');
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://app.citeladder.com';
+    expect(robots().sitemap).toBe('https://app.citeladder.com/sitemap.xml');
   });
 });
 
 describe('manifest', () => {
   it('carries no literal hex colours (design-token guard)', () => {
     const result = manifest();
-    expect(result.name).toBe('Searchify');
+    expect(result.name).toBe('CiteLadder');
     expect(result.start_url).toBe('/');
     expect(result).not.toHaveProperty('theme_color');
     expect(result).not.toHaveProperty('background_color');

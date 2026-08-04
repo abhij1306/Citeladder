@@ -22,7 +22,7 @@ import { ButtonLink } from '../primitives/button';
 import { Wordmark } from '../primitives/wordmark';
 import { DropItemLink, MobileItemLink } from './nav-items';
 
-const ACTIVE_PROJECT_STORAGE_KEY = 'searchify.active-project-id';
+const ACTIVE_PROJECT_STORAGE_KEY = 'citeladder.active-project-id';
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
 
 function hasStoredActiveProject(): boolean {
@@ -35,8 +35,8 @@ function hasStoredActiveProject(): boolean {
 }
 
 const NAV_LINK =
-  'text-mkt-sm text-mkt-ink-soft hover:text-mkt-ink relative z-1 inline-flex items-center gap-mkt-6 ' +
-  'rounded-mkt-sm px-mkt-20 py-mkt-14 font-semibold transition-colors duration-200';
+  'text-sm text-muted hover:text-foreground relative z-1 inline-flex items-center gap-2 ' +
+  'rounded-md px-5 py-4 font-semibold transition-colors duration-200';
 
 /**
  * Panel geometry per menu. A drop with a labelled group renders two columns —
@@ -194,15 +194,15 @@ export function MarketingNav() {
       data-scrolled={scrolled ? 'true' : undefined}
       className={cn(
         'fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color] duration-300',
-        surfaceVisible ? 'border-mkt-black-10 bg-mkt-surface' : 'border-transparent bg-transparent',
+        surfaceVisible ? 'border-border-subtle bg-panel' : 'border-transparent bg-transparent',
       )}
     >
       <nav
         ref={navRef}
         aria-label="Main navigation"
-        className="h-mkt-nav max-w-mkt-wide px-mkt-gutter gap-mkt-20 mx-auto flex w-full items-center"
+        className="mx-auto flex h-16 w-full max-w-screen-2xl items-center gap-5 px-6"
       >
-        <Link href="/" aria-label="Searchify home" className="shrink-0">
+        <Link href="/" aria-label="CiteLadder home" className="shrink-0">
           <Wordmark />
         </Link>
 
@@ -228,7 +228,7 @@ export function MarketingNav() {
               style={{ left: lens.left, width: lens.width }}
               transition={{ layout: { duration: 0.18, ease: EASE_OUT } }}
               className={cn(
-                'border-mkt-black-10 bg-mkt-surface shadow-modal-value rounded-mkt-sm pointer-events-none',
+                'border-border-subtle bg-panel shadow-modal-value pointer-events-none rounded-md',
                 'absolute inset-y-0 border',
               )}
             />
@@ -296,8 +296,8 @@ export function MarketingNav() {
                   maxWidth: 'calc(100vw - 2rem)',
                 }}
                 className={cn(
-                  'border-mkt-black-10 bg-mkt-surface shadow-modal-value rounded-mkt-sm absolute top-full',
-                  'mt-mkt-6 overflow-hidden border',
+                  'border-border-subtle bg-panel shadow-modal-value absolute top-full rounded-md',
+                  'mt-2 overflow-hidden border',
                 )}
               >
                 <div className={cn('grid', DROP_LAYOUT[openDrop].twoColumn && 'sm:grid-cols-2')}>
@@ -308,17 +308,15 @@ export function MarketingNav() {
                       // unrelated rows.
                       <div
                         key={group.label}
-                        className="border-mkt-black-10 bg-mkt-surface-sunk p-mkt-10 border-t sm:border-t-0 sm:border-l"
+                        className="border-border-subtle bg-background-alt border-t p-3 sm:border-t-0 sm:border-l"
                       >
-                        <p className="text-mkt-xs text-mkt-ink-soft px-mkt-14 pt-mkt-10 pb-mkt-10 uppercase">
-                          {group.label}
-                        </p>
+                        <p className="text-muted px-4 pt-3 pb-3 text-xs uppercase">{group.label}</p>
                         {group.items.map((item) => (
                           <DropItemLink key={item.title} item={item} onSelect={closeDrop} />
                         ))}
                       </div>
                     ) : (
-                      <div key="items" className="p-mkt-10">
+                      <div key="items" className="p-3">
                         {group.items.map((item) => (
                           <DropItemLink key={item.title} item={item} onSelect={closeDrop} />
                         ))}
@@ -331,7 +329,7 @@ export function MarketingNav() {
           </AnimatePresence>
         </div>
 
-        <div className="gap-mkt-10 ml-auto flex shrink-0 items-center lg:ml-0">
+        <div className="ml-auto flex shrink-0 items-center gap-3 lg:ml-0">
           {isAuthenticated ? (
             <ButtonLink href={dashboardHref} variant="nav">
               Dashboard
@@ -340,7 +338,7 @@ export function MarketingNav() {
             <>
               <Link
                 href="/login"
-                className="text-mkt-sm text-mkt-ink-soft hover:text-mkt-ink px-mkt-14 hidden font-semibold transition-colors sm:inline-flex"
+                className="text-muted hover:text-foreground hidden px-4 text-sm font-semibold transition-colors sm:inline-flex"
               >
                 Log in
               </Link>
@@ -351,7 +349,7 @@ export function MarketingNav() {
           )}
           <button
             type="button"
-            className="border-mkt-black-10 text-mkt-ink rounded-mkt-sm grid size-10 place-items-center border lg:hidden"
+            className="border-border-subtle text-foreground grid size-10 place-items-center rounded-md border lg:hidden"
             aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileOpen}
             aria-controls="mobile-menu"
@@ -369,21 +367,21 @@ export function MarketingNav() {
       {mobileOpen && (
         <div
           id="mobile-menu"
-          className="border-mkt-black-10 bg-mkt-surface-sunk px-mkt-gutter py-mkt-20 max-h-[calc(100dvh-var(--spacing-mkt-nav))] overflow-y-auto border-t lg:hidden"
+          className="border-border-subtle bg-background-alt max-h-[calc(100dvh-4rem)] overflow-y-auto border-t px-6 py-5 lg:hidden"
         >
           {NAV_DROPS.map(({ key, label, href, groups }) => (
-            <div key={key} className="border-mkt-black-10 border-b last:border-b-0">
+            <div key={key} className="border-border-subtle border-b last:border-b-0">
               <div className="flex items-center">
                 <Link
                   href={href}
-                  className="text-mkt-body text-mkt-ink py-mkt-20 flex-1 font-semibold"
+                  className="text-foreground flex-1 py-5 text-base font-semibold"
                   onClick={() => setMobileOpen(false)}
                 >
                   {label}
                 </Link>
                 <button
                   type="button"
-                  className="text-mkt-ink grid size-10 place-items-center"
+                  className="text-foreground grid size-10 place-items-center"
                   aria-label={`Open ${label} menu`}
                   aria-expanded={openAcc === key}
                   aria-controls={`acc-${key}`}
@@ -398,13 +396,11 @@ export function MarketingNav() {
                   />
                 </button>
               </div>
-              <div id={`acc-${key}`} hidden={openAcc !== key} className="pb-mkt-10">
+              <div id={`acc-${key}`} hidden={openAcc !== key} className="pb-3">
                 {groups.map((group) => (
                   <Fragment key={group.label ?? 'items'}>
                     {group.label && (
-                      <p className="text-mkt-xs text-mkt-ink-soft px-mkt-14 pt-mkt-14 pb-mkt-6 uppercase">
-                        {group.label}
-                      </p>
+                      <p className="text-muted px-4 pt-4 pb-2 text-xs uppercase">{group.label}</p>
                     )}
                     {group.items.map((item) => (
                       <MobileItemLink
@@ -422,12 +418,12 @@ export function MarketingNav() {
             </div>
           ))}
 
-          <div className="mt-mkt-20 gap-mkt-10 grid">
+          <div className="mt-5 grid gap-3">
             {NAV_LINKS.map(({ label, href }) => (
               <Link
                 key={href}
                 href={href}
-                className="text-mkt-body text-mkt-ink py-mkt-10 font-semibold"
+                className="text-foreground py-3 text-base font-semibold"
                 onClick={() => setMobileOpen(false)}
               >
                 {label}
@@ -435,7 +431,7 @@ export function MarketingNav() {
             ))}
             <Link
               href={isAuthenticated ? dashboardHref : '/login'}
-              className="text-mkt-body text-mkt-ink-soft py-mkt-10 font-semibold"
+              className="text-muted py-3 text-base font-semibold"
               onClick={() => setMobileOpen(false)}
             >
               {isAuthenticated ? 'Dashboard' : 'Log in'}

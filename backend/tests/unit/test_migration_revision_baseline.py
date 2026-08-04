@@ -1,4 +1,4 @@
-"""Static guards for Searchify's pre-launch, single-revision baseline."""
+"""Static guards for CiteLadder's pre-launch, single-revision baseline."""
 
 from __future__ import annotations
 

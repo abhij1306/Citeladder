@@ -41,7 +41,7 @@ describe('Blog index (public marketing `/blog`)', () => {
     expect(h1s).toHaveLength(1);
     expect(h1s[0]).toHaveTextContent(/notes on/i);
     for (const heading of container.querySelectorAll('h2, h3, h4, h5, h6')) {
-      expect(heading).not.toHaveTextContent(/searchify/i);
+      expect(heading).not.toHaveTextContent(/citeladder/i);
     }
 
     const featured = screen.getByRole('region', { name: 'Featured post' });

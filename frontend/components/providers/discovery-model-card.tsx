@@ -8,7 +8,7 @@ import { inputClasses } from '@/components/ui/input';
 import { discoveryModelOptions, type DiscoveryModelOption } from '@/lib/providers/catalog';
 import type { ProviderCatalog } from '@/lib/api/types';
 
-const STORAGE_KEY = 'searchify.discovery-model';
+const STORAGE_KEY = 'citeladder.discovery-model';
 
 function readStored(): string {
   if (typeof window === 'undefined') return '';

@@ -22,19 +22,19 @@ export function SeeIt() {
   const { seeIt } = LANDING_CONTENT;
   return (
     <Section id="see-it" tone="paper" rhythm="base" aria-labelledby="see-it-title">
-      <Reveal className="mb-mkt-30 md:mb-mkt-40 mx-auto max-w-5xl text-center">
-        <p className="text-mkt-xs text-mkt-indigo font-mono uppercase">{seeIt.kicker}</p>
-        {/* No weight or tracking class here: the `text-mkt-h2` rung owns both,
+      <Reveal className="mx-auto mb-8 max-w-5xl text-center md:mb-10">
+        <p className="text-accent-text font-mono text-xs uppercase">{seeIt.kicker}</p>
+        {/* No weight or tracking class here: the `text-4xl` rung owns both,
             and check-frontend-architecture fails the build if markup overrides
             them (the whole reason heading weight stays uniform site-wide). */}
-        <h2 id="see-it-title" className="font-mkt-display text-mkt-h2 text-mkt-ink mt-mkt-10">
+        <h2 id="see-it-title" className="font-display text-foreground mt-3 text-4xl">
           {seeIt.title}
         </h2>
       </Reveal>
       <Reveal>
         <ProductWindow />
       </Reveal>
-      <div className="mt-mkt-40 flex justify-center">
+      <div className="mt-10 flex justify-center">
         <ButtonLink href={DEMO_HREF} variant="primary" className="w-full sm:w-auto">
           {seeIt.cta}
           <ArrowRight aria-hidden />

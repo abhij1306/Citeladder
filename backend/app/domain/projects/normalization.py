@@ -45,7 +45,7 @@ def normalize_prompt_rows(
     Drops rows with empty text, trims text/theme, casefolds+validates intent,
     and preserves the ``branded``/``enabled``/``origin``/``generation_evidence``
     fields when present. Mirrors the reference ``_normalize_prompts`` while
-    carrying the extra columns Searchify's dedicated prompt resource adds.
+    carrying the extra columns CiteLadder's dedicated prompt resource adds.
     """
     normalized: list[dict[str, Any]] = []
     for prompt in prompts or []:

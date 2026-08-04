@@ -227,7 +227,7 @@ async def test_derivation_provenance_on_every_row(session_factory, db_session) -
     }
 
     (query_row,) = by_dataset[DATASET_GSC_QUERY_DAILY]
-    assert query_row.dimension_key == "searchify | 2026-07-20"
+    assert query_row.dimension_key == "citeladder | 2026-07-20"
     assert query_row.date == date(2026, 7, 20)
     # Each row points at the artifact of ITS dataset (not just any artifact).
     artifact_dataset = {artifact.id: artifact.dataset for artifact in artifacts}

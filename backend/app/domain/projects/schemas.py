@@ -2,7 +2,7 @@
 #
 # Adapted from the reference ``schemas/ai_visibility.py``
 # (``AiVisibilityProjectCreate/Update``, ``CompetitorInput``) to UUID +
-# workspace-scoped Searchify, and aligned to the committed frontend contract
+# workspace-scoped CiteLadder, and aligned to the committed frontend contract
 # (``docs/frontend-architecture.md`` §7): brand aliases are carried nested under
 # ``brand.aliases`` and the project response embeds its ``prompt_sets``.
 from __future__ import annotations

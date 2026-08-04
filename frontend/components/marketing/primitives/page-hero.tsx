@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
+import { BrandAtmosphere } from '@/components/ui/brand-atmosphere';
 
 import { Eyebrow } from './label';
 import { Container } from './section';
@@ -28,13 +29,14 @@ export function PageHero({
   centered?: boolean;
 }>) {
   return (
-    <header className="mkt-field-hero mkt-grid-field pt-mkt-70 pb-mkt-70 md:pt-mkt-100 md:pb-mkt-80 relative overflow-hidden">
+    <header className="citeladder-field-hero citeladder-grid-field relative overflow-hidden pt-16 pb-16 md:pt-30 md:pb-20">
+      <BrandAtmosphere variant="page" />
       <Container className="relative z-1">
         <Reveal className={cn('max-w-5xl', centered && 'mx-auto text-center')}>
           <Eyebrow>{eyebrow}</Eyebrow>
           <h1
             className={cn(
-              'font-mkt-display text-mkt-h1 text-mkt-ink mt-mkt-30 mb-mkt-30 max-w-[32ch]',
+              'font-display text-foreground mt-8 mb-8 max-w-[32ch] text-5xl',
               centered && 'mx-auto',
             )}
           >
@@ -42,16 +44,12 @@ export function PageHero({
             {accent && (
               <>
                 {' '}
-                <em className="mkt-keyword not-italic">{accent}</em>
+                <em className="citeladder-keyword not-italic">{accent}</em>
               </>
             )}
           </h1>
           {lead && (
-            <p
-              className={cn('text-mkt-lead text-mkt-ink-soft max-w-[80ch]', centered && 'mx-auto')}
-            >
-              {lead}
-            </p>
+            <p className={cn('text-muted max-w-[80ch] text-lg', centered && 'mx-auto')}>{lead}</p>
           )}
           {children}
         </Reveal>

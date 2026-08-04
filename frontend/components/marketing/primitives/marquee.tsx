@@ -43,19 +43,19 @@ export function Marquee({
 }>) {
   return (
     <div
-      className={cn('mkt-marquee relative w-full overflow-hidden', className)}
+      className={cn('citeladder-marquee relative w-full overflow-hidden', className)}
       role="group"
       aria-label={label}
     >
       <div
-        className="mkt-marquee-track"
+        className="citeladder-marquee-track"
         data-direction={direction === 'right' ? 'reverse' : undefined}
         style={
           {
-            '--mkt-marquee-duration': `${speed}s`,
+            '--citeladder-marquee-duration': `${speed}s`,
             // One copy as a fraction of the whole track — the exact distance
             // the keyframe travels.
-            '--mkt-marquee-copy': `${100 / copies}%`,
+            '--citeladder-marquee-copy': `${100 / copies}%`,
           } as CSSProperties
         }
       >

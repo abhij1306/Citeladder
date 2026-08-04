@@ -1,7 +1,7 @@
-# Contributing to Searchify
+# Contributing to CiteLadder
 
 Thanks for contributing. This guide covers the workflow, conventions, and the review bar
-for changes to Searchify. Read [`Agents.md`](Agents.md) and
+for changes to CiteLadder. Read [`Agents.md`](Agents.md) and
 [`docs/invariants.md`](docs/invariants.md) first — they define the contract every change
 must respect.
 

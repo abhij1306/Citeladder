@@ -27,7 +27,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const post = POSTS.find((candidate) => candidate.slug === slug);
   if (!post) return {};
-  // The root template appends ' · Searchify', so the bare post title is enough.
+  // The root template appends ' · CiteLadder', so the bare post title is enough.
   const title = post.title;
   // OG images require an absolute URL; they are added with NEXT_PUBLIC_SITE_URL (lib/seo/site.ts).
   return {
@@ -38,7 +38,7 @@ export async function generateMetadata({
       title,
       description: post.excerpt,
       type: 'article',
-      siteName: 'Searchify',
+      siteName: 'CiteLadder',
     },
     twitter: {
       card: 'summary',

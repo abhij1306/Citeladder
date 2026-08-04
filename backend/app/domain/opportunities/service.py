@@ -117,7 +117,13 @@ from app.models.analysis import (
 from app.models.analytics import AnalyticsTask
 from app.models.audit import Audit, AuditPromptSnapshot
 from app.models.brand import OwnedDomain
-from app.models.opportunity import Opportunity, OpportunityGuidance, OpportunitySnapshot
+from app.models.opportunity import (
+    Opportunity,
+    OpportunityGuidance,
+    OpportunityOrder,
+    OpportunitySnapshot,
+    OpportunityStatusEvent,
+)
 from app.models.product import ProductMetricSnapshot
 from app.models.project import Project
 from app.models.site_health import SiteCrawl, SiteIssue, SiteUrl
@@ -128,11 +134,13 @@ __all__ = [
     "OpportunitySupersededError",
     "OpportunityGuidanceUnavailableError",
     "OpportunityGuidanceIdempotencyConflictError",
+    "OpportunityOrderConflictError",
     "InvalidCursorError",
     "recompute",
     "list_opportunities",
     "get_opportunity",
     "update_status",
+    "update_order",
     "get_summary",
     "load_export_rows",
     "create_guidance",
@@ -208,6 +216,10 @@ class OpportunitySupersededError(Exception):
     """A mutation targeted a superseded row (maps to 409, coded)."""
 
     code = CODE_OPPORTUNITY_SUPERSEDED
+
+
+class OpportunityOrderConflictError(Exception):
+    """The shared queue changed after the caller read its version."""
 
 
 class OpportunityGuidanceUnavailableError(Exception):
@@ -966,8 +978,9 @@ async def list_opportunities(
             filters=filters,
             sort_values=[last.priority_score, str(last.id)],
         )
+    order = await _load_order(session, workspace_id=workspace_id, project_id=project_id)
     return {
-        "items": [_project_item(row) for row in rows],
+        "items": _ordered_items(rows, order),
         "next_cursor": next_cursor,
     }
 
@@ -992,6 +1005,7 @@ async def update_status(
     workspace_id: uuid.UUID,
     opportunity_id: uuid.UUID,
     status: str,
+    changed_by_user_id: uuid.UUID,
 ) -> dict:
     """Mutate the human workflow status (the ONLY mutable field)."""
     if status not in OPPORTUNITY_STATUSES:
@@ -1008,9 +1022,100 @@ async def update_status(
         raise OpportunitySupersededError(
             "Opportunity was superseded by a newer recompute"
         )
-    row.status = status
+    previous_status = row.status
+    if previous_status != status:
+        row.status = status
+        session.add(
+            OpportunityStatusEvent(
+                workspace_id=workspace_id,
+                project_id=row.project_id,
+                opportunity_id=row.id,
+                stable_key=_stable_key(row),
+                previous_status=previous_status,
+                next_status=status,
+                changed_by_user_id=changed_by_user_id,
+            )
+        )
     await session.commit()
     return _project_item(row)
+
+
+async def _load_order(
+    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> OpportunityOrder | None:
+    return await session.scalar(
+        select(OpportunityOrder).where(
+            OpportunityOrder.workspace_id == workspace_id,
+            OpportunityOrder.project_id == project_id,
+        )
+    )
+
+
+async def update_order(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    ordered_opportunity_ids: list[uuid.UUID],
+    expected_version: int,
+    updated_by_user_id: uuid.UUID,
+) -> dict:
+    """Persist one shared project order without mutating derived evidence."""
+    await _require_project(session, workspace_id=workspace_id, project_id=project_id)
+    if len(set(ordered_opportunity_ids)) != len(ordered_opportunity_ids):
+        raise OpportunityValidationError("ordered opportunity ids must be unique")
+
+    rows = list(
+        (
+            await session.scalars(
+                select(Opportunity).where(
+                    Opportunity.workspace_id == workspace_id,
+                    Opportunity.project_id == project_id,
+                    Opportunity.id.in_(ordered_opportunity_ids),
+                    Opportunity.superseded_at.is_(None),
+                )
+            )
+        ).all()
+    )
+    by_id = {row.id: row for row in rows}
+    if set(by_id) != set(ordered_opportunity_ids):
+        raise OpportunityValidationError(
+            "ordered opportunity ids must identify live project opportunities"
+        )
+
+    order = await session.scalar(
+        select(OpportunityOrder)
+        .where(
+            OpportunityOrder.workspace_id == workspace_id,
+            OpportunityOrder.project_id == project_id,
+        )
+        .with_for_update()
+    )
+    current_version = order.version if order is not None else 0
+    if expected_version != current_version:
+        raise OpportunityOrderConflictError(
+            f"queue version changed from {expected_version} to {current_version}"
+        )
+
+    ordered_keys = [_stable_key(by_id[item_id]) for item_id in ordered_opportunity_ids]
+    if order is None:
+        order = OpportunityOrder(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            ordered_keys=ordered_keys,
+            version=1,
+            updated_by_user_id=updated_by_user_id,
+        )
+        session.add(order)
+    else:
+        order.ordered_keys = ordered_keys
+        order.version += 1
+        order.updated_by_user_id = updated_by_user_id
+    await session.commit()
+    return {
+        "version": order.version,
+        "ordered_opportunity_ids": ordered_opportunity_ids,
+    }
 
 
 # =========================================================================
@@ -1607,7 +1712,34 @@ def _target_label(row: Opportunity) -> str | None:
     return row.target_url or prompt_text or theme_label or product_name or None
 
 
-def _project_item(row: Opportunity) -> dict:
+def _stable_key(row: Opportunity) -> str:
+    # JSON tuple encoding is reversible and collision-safe when either persisted
+    # identity component contains the separator used by older concatenated keys.
+    return json.dumps(
+        [row.rule_id, row.target_key],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def _evidence_summary(row: Opportunity) -> dict:
+    sources = {
+        "analysis": list(row.source_analysis_ids or []),
+        "issue": list(row.source_issue_ids or []),
+        "metric": list(row.source_metric_ids or []),
+        "traffic": list(row.source_traffic_ids or []),
+    }
+    kinds = [kind for kind, values in sources.items() if values]
+    return {"count": sum(len(values) for values in sources.values()), "kinds": kinds}
+
+
+def _project_item(
+    row: Opportunity,
+    *,
+    system_rank: int = 0,
+    display_rank: int = 0,
+    order_source: str = "system",
+) -> dict:
     return {
         "id": row.id,
         "project_id": row.project_id,
@@ -1622,9 +1754,47 @@ def _project_item(row: Opportunity) -> dict:
         "target_theme": row.target_theme,
         "target_label": _target_label(row),
         "status": row.status,
+        "system_rank": system_rank,
+        "display_rank": display_rank,
+        "order_source": order_source,
+        "priority_factors": {
+            "severity": row.severity,
+            "system_score": row.priority_score,
+            "formula_version": row.formula_version,
+        },
+        "evidence_summary": _evidence_summary(row),
         "created_at": _iso(row.created_at),
         "updated_at": _iso(row.updated_at),
     }
+
+
+def _ordered_items(
+    rows: list[Opportunity], order: OpportunityOrder | None
+) -> list[dict]:
+    system_rank = {row.id: index for index, row in enumerate(rows, start=1)}
+    if order is None or not order.ordered_keys:
+        return [
+            _project_item(row, system_rank=index, display_rank=index)
+            for index, row in enumerate(rows, start=1)
+        ]
+
+    manual_rank = {key: index for index, key in enumerate(order.ordered_keys)}
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            manual_rank.get(_stable_key(row), len(manual_rank) + system_rank[row.id]),
+            system_rank[row.id],
+        ),
+    )
+    return [
+        _project_item(
+            row,
+            system_rank=system_rank[row.id],
+            display_rank=index,
+            order_source="manual" if _stable_key(row) in manual_rank else "system",
+        )
+        for index, row in enumerate(ordered, start=1)
+    ]
 
 
 def _project_detail(row: Opportunity) -> dict:

@@ -1,11 +1,11 @@
-# Agents.md — Searchify
+# Agents.md — CiteLadder
 
 > Session bootstrap for coding agents. Terse. Read this first, then read only the
 > companion doc your task touches. Do not read the whole `docs/` tree up front.
 
-## What Searchify is
+## What CiteLadder is
 
-Searchify is a greenfield **AEO / AI-visibility SaaS** — an original "Searchable"-class
+CiteLadder is a greenfield **AEO / AI-visibility SaaS** — an original "Searchable"-class
 product that measures how brands appear inside answer-engine responses (ChatGPT, Gemini,
 Claude). A workspace defines a **brand + competitors + prompts**, runs a one-time **audit**
 (prompt × engine × repetition executions across BYOK answer engines), scores each response
@@ -116,11 +116,11 @@ in-progress work that breaks the global build).
 # Backend — focused tests + lint (from backend/)
 # Tests need only a running local Postgres (creds come from the repo .env
 # DATABASE_URL) — no env vars, no Docker. The suite creates and drops a
-# throwaway searchify_tests_<runid> database automatically.
+# throwaway citeladder_tests_<runid> database automatically.
 uv run pytest tests/unit/test_<area>.py tests/component/test_<area>.py -q
 uv run ruff check .
 
-# Migrations — Searchify is greenfield and keeps one explicit 0001_initial.
+# Migrations — CiteLadder is greenfield and keeps one explicit 0001_initial.
 # Fold schema changes into it, reset the disposable development DB, and verify
 # the complete baseline from scratch. Do not add 0002+ revisions pre-launch.
 # Verify both migration execution and ORM drift on a DISPOSABLE database.

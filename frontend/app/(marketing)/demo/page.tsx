@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     title: DEMO_META.title,
     description: DEMO_META.description,
     type: 'website',
-    siteName: 'Searchify',
+    siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',
@@ -59,7 +59,7 @@ export default function DemoPage() {
         accent={DEMO_HERO.accent}
         lead={DEMO_HERO.lead}
       >
-        <div className="mt-mkt-30 gap-mkt-14 flex flex-col items-center justify-center sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
           {actionHref ? (
             <ButtonLink
               href={actionHref}
@@ -91,26 +91,24 @@ export default function DemoPage() {
           )}
         </div>
         {!actionHref && (
-          <p className="text-mkt-sm text-mkt-ink-soft mt-mkt-30 mx-auto max-w-[80ch]">
-            {DEMO_SELF_SERVE_FALLBACK}
-          </p>
+          <p className="text-muted mx-auto mt-8 max-w-[80ch] text-sm">{DEMO_SELF_SERVE_FALLBACK}</p>
         )}
       </PageHero>
 
       <Section tone="paper" rhythm="tight" aria-label="What to expect">
-        <div className="gap-mkt-20 mx-auto grid max-w-4xl md:grid-cols-3">
+        <div className="mx-auto grid max-w-4xl gap-5 md:grid-cols-3">
           {DEMO_CARDS.map(([title, description]) => (
             <section
               key={title}
-              className="border-mkt-black-10 bg-mkt-paper rounded-mkt-lg p-mkt-30 border"
+              className="border-border-subtle bg-background rounded-lg border p-8"
             >
-              <h2 className="font-mkt-display text-mkt-ink text-mkt-hsm">{title}</h2>
-              <p className="text-mkt-sm text-mkt-ink-soft mt-mkt-10">{description}</p>
+              <h2 className="font-display text-foreground text-xl">{title}</h2>
+              <p className="text-muted mt-3 text-sm">{description}</p>
             </section>
           ))}
         </div>
-        <p className="text-mkt-sm text-mkt-ink-soft mt-mkt-30 mx-auto max-w-5xl text-center">
-          Searchify does not store demo-lead details on this page. If scheduling is enabled, the
+        <p className="text-muted mx-auto mt-8 max-w-5xl text-center text-sm">
+          CiteLadder does not store demo-lead details on this page. If scheduling is enabled, the
           approved booking provider’s privacy terms apply at the external destination.
         </p>
       </Section>

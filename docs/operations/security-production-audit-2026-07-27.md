@@ -1,4 +1,4 @@
-# Searchify security and production-readiness audit
+# CiteLadder security and production-readiness audit
 
 - **Audit date:** 2026-07-27
 - **Repository revision:** `7effabf91f8012982a816d807ab9df93b9aece85`
@@ -16,7 +16,7 @@
 
 ## Executive verdict
 
-**At the reviewed baseline, Searchify was not ready for an unrestricted public
+**At the reviewed baseline, CiteLadder was not ready for an unrestricted public
 production launch.** A controlled staging deployment was reasonable only after
 the immediate staging gates below were met. This historical verdict is not an
 approval or rejection of the remediation branch: the final remediated revision
@@ -117,7 +117,7 @@ task/AZ/region failures. The principal trust boundaries are browser → CloudFro
 → Next.js, Next.js → private FastAPI, API/workers → PostgreSQL, and
 API/workers → third-party providers or arbitrary public crawl targets.
 
-| Class                        | Searchify examples                                                                                                      | Required handling                                                                                                                                                     |
+| Class                        | CiteLadder examples                                                                                                      | Required handling                                                                                                                                                     |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Restricted secrets           | Password hashes, JWT signing key, Fernet key, BYOK keys, OAuth refresh/access tokens, provider and Razorpay secrets     | Never return/log; least-privilege runtime access; application encryption where designed; KMS-encrypted secret/backup storage; versioned rotation and audited recovery |
 | Confidential tenant data     | Brands, competitors, prompts, raw answer artifacts, citations, products, crawl evidence, integrations, metrics, exports | Workspace authorization on every query; no shared caching; encryption in transit/at rest; retention/erasure policy; access audit                                      |
@@ -648,7 +648,7 @@ Checkout is correctly disabled by default, but it must remain disabled until the
 [Razorpay owner checklist](razorpay-and-demo-owner-requirements.md) is completed.
 Privacy, terms, refund/support processes, and approved data-processing language
 are not published. Public comparison/pricing/blog surfaces still contain
-`[TODO(user)]`, and a visibility help link uses `searchify.example`. Complete
+`[TODO(user)]`, and a visibility help link uses `citeladder.example`. Complete
 legal/accounting review, merchant KYC and sandbox lifecycle tests, incident and
 support ownership, real contact/legal links, and removal of launch placeholders
 before public indexing or charging customers.

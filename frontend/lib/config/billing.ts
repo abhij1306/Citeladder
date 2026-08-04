@@ -29,7 +29,7 @@ export const PRICING_RESUME_QUERY_PARAM = 'resumeActivation';
 export const PRICING_RETURN_PATH = '/pricing';
 
 /** Same-tab storage key for a captured (untrusted) pricing intent. */
-export const PENDING_PRICING_INTENT_KEY = 'searchify.pendingPricingIntent.v1';
+export const PENDING_PRICING_INTENT_KEY = 'citeladder.pendingPricingIntent.v1';
 
 /**
  * A captured intent older than this is stale: the catalog it was captured

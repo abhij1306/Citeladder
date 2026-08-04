@@ -15,7 +15,7 @@ so one hallucination propagates into every downstream surface.
 
 from typing import Final
 
-BRAND_EVIDENCE_USER_AGENT: Final = "SearchifyBrandEvidenceBot/1.0"
+BRAND_EVIDENCE_USER_AGENT: Final = "CiteLadderBrandEvidenceBot/1.0"
 
 # One homepage fetch per draft. The budget is deliberately tight: this runs
 # inline in a user-facing request, and the homepage is where a brand states

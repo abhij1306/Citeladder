@@ -1,7 +1,7 @@
 # Audit planner (invariant 9 — deterministic; invariant 3 — frozen snapshots).
 #
 # Adapts the reference ``ai_visibility/service.create_run`` + ``cancel_run`` to
-# Searchify's workspace-scoped, UUID, BYOK-routed model. ``create_audit``:
+# CiteLadder's workspace-scoped, UUID, BYOK-routed model. ``create_audit``:
 #   1. resolves + authorizes the project and prompt source (workspace-scoped);
 #   2. resolves one provider route per requested logical engine from the
 #      workspace's ``ProviderConnection``s (never the key — invariant 6);

@@ -83,7 +83,7 @@ function GrantAlert({ family, status }: Readonly<{ family: GrantFamily; status: 
   if (status === 'pending_revocation') {
     return (
       <Alert tone="warning">
-        Disconnect is finishing — Searchify is retrying the {title} revocation in the background.
+        Disconnect is finishing — CiteLadder is retrying the {title} revocation in the background.
         Previously imported data is kept.
       </Alert>
     );
@@ -313,20 +313,20 @@ function ConnectionRow({
                 <strong className="text-foreground font-semibold">last connection</strong> on the{' '}
                 {familyTitle} OAuth grant, so disconnecting it also{' '}
                 <strong className="text-foreground font-semibold">revokes the grant</strong>:
-                Searchify&rsquo;s access at {familyTitle} is removed and the stored tokens are
+                CiteLadder&rsquo;s access at {familyTitle} is removed and the stored tokens are
                 deleted. Previously imported {label} data is kept.
               </p>
               <p className="text-secondary text-sm">
                 If {familyTitle}&nbsp;can&rsquo;t be reached to complete the revocation, the grant
                 moves to{' '}
                 <strong className="text-foreground font-semibold">pending revocation</strong> and
-                Searchify retries in the background.
+                CiteLadder retries in the background.
               </p>
             </>
           ) : (
             <>
               <p className="text-secondary text-sm">
-                Searchify stops syncing {label} for{' '}
+                CiteLadder stops syncing {label} for{' '}
                 <span className="font-mono text-xs">{connection.account_ref}</span> and removes this
                 connection. Previously imported data is kept.
               </p>

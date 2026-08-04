@@ -269,105 +269,6 @@ export const projectSchema = responseObject({
   updated_at: z.string(),
 });
 
-// The active-project Dashboard is a read-only projection over persisted
-// product-area rows. Metric shapes remain owned by their source subsystems,
-// so the dashboard carries them as a strict record rather than duplicating
-// each source DTO here.
-export const dashboardSectionStateSchema = z.enum([
-  'ready',
-  'running',
-  'empty',
-  'not_setup',
-  'failed',
-]);
-
-export const dashboardSourceSchema = responseObject({
-  id: uuid(),
-  kind: z.string(),
-  timestamp: z.string(),
-});
-
-export const dashboardSectionSchema = responseObject({
-  id: z.enum([
-    'visibility',
-    'answers',
-    'traffic',
-    'prompts',
-    'commerce',
-    'runs',
-    'content',
-    'site_health',
-    'issues',
-    'opportunities',
-    'brand_knowledge',
-    'projects',
-  ]),
-  title: z.string(),
-  href: z.string(),
-  state: dashboardSectionStateSchema,
-  metrics: z.record(z.string(), z.unknown()),
-  source: dashboardSourceSchema.nullable(),
-});
-
-export const dashboardSchema = responseObject({
-  project: responseObject({
-    id: uuid(),
-    workspace_id: uuid(),
-    name: z.string(),
-    brand_name: z.string(),
-    website_url: z.string(),
-  }),
-  generated_at: z.string(),
-  executive_metrics: z.record(z.string(), z.unknown()),
-  analyze: z.array(dashboardSectionSchema),
-  improve: z.array(dashboardSectionSchema),
-  active_work: z.array(z.string()),
-  ai_presence: responseObject({
-    current: z
-      .object({
-        score: z.number().nullable(),
-        formula_kind: z.string(),
-        formula_version: z.string(),
-        provisional: z.boolean(),
-        coverage: z.record(z.string(), z.boolean()),
-        components: z.record(
-          z.string(),
-          z
-            .object({ score: z.number().nullable(), weight: z.number(), available: z.boolean() })
-            .strict(),
-        ),
-        source_snapshot_ids: z.record(z.string(), z.array(uuid())),
-        versions: z.record(z.string(), z.string()),
-        comparable_to_latest: z.boolean().nullable(),
-        timestamp: z.string(),
-      })
-      .strict()
-      .nullable(),
-    momentum: z.number().nullable(),
-    trend_points: z.array(
-      z
-        .object({
-          score: z.number().nullable(),
-          formula_kind: z.string(),
-          formula_version: z.string(),
-          provisional: z.boolean(),
-          coverage: z.record(z.string(), z.boolean()),
-          components: z.record(
-            z.string(),
-            z
-              .object({ score: z.number().nullable(), weight: z.number(), available: z.boolean() })
-              .strict(),
-          ),
-          source_snapshot_ids: z.record(z.string(), z.array(uuid())),
-          versions: z.record(z.string(), z.string()),
-          comparable_to_latest: z.boolean().nullable(),
-          timestamp: z.string(),
-        })
-        .strict(),
-    ),
-  }).nullable(),
-});
-
 // ---------------------------------------------------------------------------
 // Providers (BYOK) — secret never present
 // ---------------------------------------------------------------------------
@@ -2456,8 +2357,66 @@ export const opportunitySchema = responseObject({
   // theme / frozen product name); null when nothing user-facing exists.
   target_label: z.string().nullable(),
   status: opportunityStatusSchema,
+  system_rank: z.number().int(),
+  display_rank: z.number().int(),
+  order_source: z.enum(['system', 'manual']),
+  priority_factors: z.record(z.string(), z.union([z.string(), z.number()])),
+  evidence_summary: responseObject({
+    count: z.number().int(),
+    kinds: z.array(z.string()),
+  }),
   created_at: z.string(),
   updated_at: z.string(),
+});
+
+const commandCenterMetricSchema = responseObject({
+  value: z.number().nullable(),
+  delta: z.number().nullable(),
+});
+
+export const commandCenterSchema = responseObject({
+  project: responseObject({
+    id: uuid(),
+    name: z.string(),
+    brand_name: z.string(),
+    website_url: z.string(),
+  }),
+  measurement: responseObject({
+    audit_id: uuid(),
+    completed_at: z.string(),
+    measurement_mode: z.string(),
+    benchmark_mode: z.string(),
+    logical_engines: z.array(z.string()),
+    comparable_audit_id: uuid().nullable(),
+  }),
+  state: responseObject({
+    visibility: commandCenterMetricSchema,
+    share_of_voice: commandCenterMetricSchema,
+    brand_rank: commandCenterMetricSchema,
+  }),
+  movements: z.array(
+    responseObject({
+      label: z.string(),
+      direction: z.string(),
+      current: z.number().nullable(),
+      previous: z.number().nullable(),
+      delta: z.number().nullable(),
+    }),
+  ),
+  actions: z.array(opportunitySchema),
+  action_order_version: z.number().int(),
+  resolved_actions: responseObject({
+    since_audit_id: uuid().nullable(),
+    count: z.number().int(),
+    titles: z.array(z.string()),
+  }),
+  report_available: z.boolean(),
+  stale: z.boolean(),
+});
+
+export const opportunityOrderResponseSchema = responseObject({
+  version: z.number().int(),
+  ordered_opportunity_ids: z.array(uuid()),
 });
 
 // Full evidence bundle + provenance for one opportunity. Superseded rows stay

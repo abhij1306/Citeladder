@@ -2,7 +2,7 @@
  * Real-stack lifecycle helper for `content-integration.spec.ts` (Task 8).
  *
  * Boots the WHOLE vertical with no stubs in app code:
- *   - a disposable Postgres database `searchify_e2e_<runid>` created from the
+ *   - a disposable Postgres database `citeladder_e2e_<runid>` created from the
  *     admin server behind `E2E_ADMIN_DATABASE_URL` (fallback: the backend
  *     `settings.database_url` server), schema from `Base.metadata` — never
  *     alembic;
@@ -317,7 +317,7 @@ export async function startRealStack(): Promise<RealStack> {
   const backendDir = path.join(repoRoot, 'backend');
   const frontendDir = path.join(repoRoot, 'frontend');
   const runId = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-  const dbName = `searchify_e2e_${runId}`;
+  const dbName = `citeladder_e2e_${runId}`;
 
   mockProvider.requests = [];
   mockProvider.delayMs = 0;

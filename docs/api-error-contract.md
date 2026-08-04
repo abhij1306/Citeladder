@@ -1,6 +1,6 @@
-# API Error Contract — Searchify
+# API Error Contract — CiteLadder
 
-> The canonical, end-to-end contract for **how a Searchify API call fails**: the wire
+> The canonical, end-to-end contract for **how a CiteLadder API call fails**: the wire
 > envelope every non-2xx response carries, how the backend produces it, and how the
 > frontend consumes it. Companion docs: [`Agents.md`](../Agents.md),
 > [`invariants.md`](invariants.md), [`backend-architecture.md`](backend-architecture.md)

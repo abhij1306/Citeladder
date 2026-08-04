@@ -35,6 +35,7 @@ const eslintConfig = [
     ignores: [
       'node_modules/**',
       '.next/**',
+      '.next-stale-codex/**',
       'out/**',
       'coverage/**',
       'playwright-report/**',

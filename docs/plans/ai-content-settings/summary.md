@@ -1,4 +1,4 @@
-# Searchify — Content (AI generation workspace) + Settings hub — Summary (v3)
+# CiteLadder — Content (AI generation workspace) + Settings hub — Summary (v3)
 
 ## Overview
 Turn `/content` into a real AI content-generation workspace: a prominent prompt

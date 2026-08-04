@@ -36,6 +36,11 @@ const item = {
   target_theme: 'crm',
   target_label: 'best crm for small teams',
   status: 'open' as const,
+  system_rank: 1,
+  display_rank: 1,
+  order_source: 'system' as const,
+  priority_factors: { severity_weight: 40, evidence_weight: 20 },
+  evidence_summary: { count: 2, kinds: ['response_analysis', 'metric_snapshot'] },
   created_at: '2026-07-24T00:00:00Z',
   updated_at: '2026-07-24T00:00:00Z',
 };

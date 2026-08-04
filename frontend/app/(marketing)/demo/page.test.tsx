@@ -15,12 +15,12 @@ afterEach(() => {
 
 describe('Demo page', () => {
   it('uses the approved HTTPS booking destination', () => {
-    process.env.DEMO_BOOKING_URL = 'https://cal.example.com/searchify';
+    process.env.DEMO_BOOKING_URL = 'https://cal.example.com/citeladder';
     process.env.PUBLIC_SALES_EMAIL = 'sales@example.com';
     render(<Page />);
     expect(screen.getByRole('link', { name: /schedule demo/i })).toHaveAttribute(
       'href',
-      'https://cal.example.com/searchify',
+      'https://cal.example.com/citeladder',
     );
   });
 

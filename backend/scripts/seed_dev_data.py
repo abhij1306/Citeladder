@@ -1,9 +1,9 @@
-"""Seed realistic development data for Searchify.
+"""Seed realistic development data for CiteLadder.
 
 Creates, through the real ORM/domain layer (never raw SQL), a full demo
 dataset covering every major surface of the app:
 
-  - A demo user (login: demo@searchify.dev / DemoPass123!) with a personal
+  - A demo user (login: demo@citeladder.dev / DemoPass123!) with a personal
     workspace (auto-created via ``register_user``) plus a second workspace.
   - Two ``Project``s with normalized brand identity (Brand/BrandAlias/
     Competitor/OwnedDomain/UnintendedDomain), covering all three
@@ -77,6 +77,15 @@ from app.domain.auth.service import EmailAlreadyRegisteredError, register_user
 from app.domain.billing.bootstrap import ensure_user_billing
 from app.domain.entitlements.grants import issue_override_bundle
 from app.domain.entitlements.types import GrantSpec
+from app.domain.opportunities.service import (
+    list_opportunities,
+)
+from app.domain.opportunities.service import (
+    recompute as recompute_opportunities,
+)
+from app.domain.opportunities.service import (
+    update_status as update_opportunity_status,
+)
 from app.domain.site_health.planner import create_crawl
 from app.domain.site_health.selection import (
     BULK_SELECT_MODE_ALL,
@@ -103,7 +112,7 @@ from app.workers.site_health_worker import SiteHealthWorker
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("seed_dev_data")
 
-DEMO_EMAIL = "demo@searchify.dev"
+DEMO_EMAIL = "demo@citeladder.dev"
 DEMO_PASSWORD = "DemoPass123!"
 DEMO_WORKSPACE_NAMES = ("Wanderlust Gear Co.", "Wanderlust Gear Co. - Agency")
 _PUBLIC_IP = "93.184.216.34"
@@ -250,12 +259,16 @@ def _prompt_bucket(prompt: str) -> int:
     return int(digest.hexdigest(), 16) % 3
 
 
+_seed_audit_generation = 0
+
+
 class _SeedStubAdapter:
     def __init__(
         self, *, logical_engine: str, transport_provider: str, **_: object
     ) -> None:
         self.logical_engine = logical_engine
         self.transport_provider = transport_provider
+        self.generation = _seed_audit_generation
 
     async def execute(self, request: AnswerEngineRequest) -> AnswerEngineResponse:
         prompt = request.prompt
@@ -269,7 +282,7 @@ class _SeedStubAdapter:
         # and close behind it: the analyzer's price/destination extraction
         # scans a line-clipped window centered on the mention
         # (PRODUCT_PRICE_WINDOW_CHARS=160, PRODUCT_ATTRIBUTE_WINDOW_CHARS=200).
-        bucket = _prompt_bucket(prompt)
+        bucket = min(2, _prompt_bucket(prompt) + self.generation)
         if bucket == 0:
             answer = (
                 f"For '{prompt}', popular options include TrailBlaze Packs and "
@@ -640,7 +653,7 @@ async def seed() -> None:
                 transport_provider=transport,
                 api_key_encrypted=encrypt_secret(f"dev-fake-key-for-{engine}"),
                 active=True,
-                last_test_status="success",
+                last_test_status="ok",
                 last_tested_at=datetime.now(UTC),
             )
             session.add(connection)
@@ -825,6 +838,8 @@ async def seed() -> None:
             transport_provider=TRANSPORT_GOOGLE,
             api_key_encrypted=encrypt_secret("dev-fake-key-for-gemini-agency"),
             active=True,
+            last_test_status="ok",
+            last_tested_at=datetime.now(UTC),
         )
         session.add(connection2)
         await session.flush()
@@ -863,6 +878,7 @@ async def seed() -> None:
                 prompt_ids=active_prompt_ids,
                 repetitions=2,
                 random_seed="42",
+                measurement_mode="pulse",
             )
             audit1_id = audit1.id
         worker1 = AuditWorker(session_factory=SessionLocal, owner="seed-worker-1")
@@ -879,6 +895,7 @@ async def seed() -> None:
                 prompt_set_id=prompt_set2_id,
                 repetitions=1,
                 random_seed="7",
+                measurement_mode="pulse",
             )
             audit2_id = audit2.id
         worker2 = AuditWorker(session_factory=SessionLocal, owner="seed-worker-2")
@@ -932,6 +949,75 @@ async def seed() -> None:
         crawl2_id = crawl2.id
     await worker3.run_until_idle()
     logger.info("Completed site health analysis crawl %s", crawl2_id)
+
+    # 7. Materialize the first action set and resolve one item between two
+    # comparable Wanderlust audits. The second deterministic adapter generation
+    # improves the evidence mix without changing prompt or engine identity.
+    async with SessionLocal() as session:
+        await recompute_opportunities(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            audit_id=audit1_id,
+            site_crawl_id=crawl2_id,
+        )
+        actions = await list_opportunities(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+        )
+        if actions["items"]:
+            await update_opportunity_status(
+                session,
+                workspace_id=workspace_id,
+                opportunity_id=actions["items"][0]["id"],
+                status="resolved",
+                changed_by_user_id=demo_user_id,
+            )
+
+    global _seed_audit_generation
+    _seed_audit_generation = 1
+    audit_worker.build_adapter = _build_seed_adapter
+    audit_settings.min_request_interval_seconds = 0.0
+    audit_settings.heartbeat_interval_seconds = 3600.0
+    try:
+        async with SessionLocal() as session:
+            comparison_audit = await create_audit(
+                session,
+                trigger=AUDIT_TRIGGER_SYSTEM,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                engines=[ENGINE_CHATGPT, ENGINE_CLAUDE, ENGINE_GEMINI],
+                prompt_set_id=None,
+                prompt_ids=active_prompt_ids,
+                repetitions=2,
+                random_seed="43",
+                measurement_mode="pulse",
+            )
+            comparison_audit_id = comparison_audit.id
+        comparison_worker = AuditWorker(
+            session_factory=SessionLocal, owner="seed-worker-comparison"
+        )
+        await comparison_worker.run_until_idle()
+    finally:
+        _seed_audit_generation = 0
+        audit_worker.build_adapter = _original_build_adapter
+        audit_settings.min_request_interval_seconds = _original_min_interval
+        audit_settings.heartbeat_interval_seconds = _original_heartbeat
+
+    async with SessionLocal() as session:
+        await recompute_opportunities(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            audit_id=comparison_audit_id,
+            site_crawl_id=crawl2_id,
+        )
+    logger.info(
+        "Completed comparable audit %s with action history for project %s",
+        comparison_audit_id,
+        project_id,
+    )
 
     # The password is deliberately NOT logged (CodeQL: clear-text logging of
     # sensitive information). It is a fixed dev-seed constant defined at the top

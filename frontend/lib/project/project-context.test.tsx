@@ -118,11 +118,11 @@ describe('ProjectProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('Globex'));
     expect(screen.getByTestId('active-id')).toHaveTextContent(PROJECT_2);
-    expect(window.localStorage.getItem('searchify.active-project-id')).toBe(PROJECT_2);
+    expect(window.localStorage.getItem('citeladder.active-project-id')).toBe(PROJECT_2);
   });
 
   it('restores a persisted selection when it still exists', async () => {
-    window.localStorage.setItem('searchify.active-project-id', PROJECT_2);
+    window.localStorage.setItem('citeladder.active-project-id', PROJECT_2);
     mswServer.use(
       http.get('/api/v1/projects', () =>
         HttpResponse.json([project(PROJECT_1, 'Acme'), project(PROJECT_2, 'Globex')]),
@@ -167,7 +167,7 @@ describe('ProjectProvider', () => {
     includeNew = true;
 
     await waitFor(() =>
-      expect(window.localStorage.getItem('searchify.active-project-id')).toBe(PROJECT_2),
+      expect(window.localStorage.getItem('citeladder.active-project-id')).toBe(PROJECT_2),
     );
   });
 

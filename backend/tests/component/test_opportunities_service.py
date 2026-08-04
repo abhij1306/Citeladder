@@ -9,6 +9,7 @@ can only be verified against a real database. Seed helpers live in
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -35,13 +36,18 @@ from app.domain.opportunities import service
 from app.domain.opportunities.service import (
     InvalidCursorError,
     OpportunityNotFoundError,
+    OpportunityOrderConflictError,
     OpportunitySupersededError,
     OpportunityValidationError,
 )
 from app.models.analysis import Citation, MetricSnapshot
 from app.models.analytics import AnalyticsTask
 from app.models.audit import Audit
-from app.models.opportunity import OpportunitySnapshot
+from app.models.opportunity import (
+    Opportunity,
+    OpportunitySnapshot,
+    OpportunityStatusEvent,
+)
 from app.models.product import ProductMetricSnapshot
 from app.models.project import Project
 from app.models.site_health import SiteCrawl, SiteIssue
@@ -580,12 +586,14 @@ async def test_rerecompute_supersedes_carries_status_and_closes_vanished(
     await service.update_status(
         db_session,
         workspace_id=scn.workspace_id,
+        changed_by_user_id=scn.user_id,
         opportunity_id=first_brand.id,
         status="in_progress",
     )
     await service.update_status(
         db_session,
         workspace_id=scn.workspace_id,
+        changed_by_user_id=scn.user_id,
         opportunity_id=first_thin.id,
         status="dismissed",
     )
@@ -658,6 +666,7 @@ async def test_update_status_validates_persists_and_rejects_superseded(
     item = await service.update_status(
         db_session,
         workspace_id=scn.workspace_id,
+        changed_by_user_id=scn.user_id,
         opportunity_id=thin.id,
         status="resolved",
     )
@@ -670,6 +679,7 @@ async def test_update_status_validates_persists_and_rejects_superseded(
         await service.update_status(
             db_session,
             workspace_id=scn.workspace_id,
+            changed_by_user_id=scn.user_id,
             opportunity_id=thin.id,
             status="bogus",
         )
@@ -677,6 +687,7 @@ async def test_update_status_validates_persists_and_rejects_superseded(
         await service.update_status(
             db_session,
             workspace_id=scn.workspace_id,
+            changed_by_user_id=scn.user_id,
             opportunity_id=uuid.uuid4(),
             status="resolved",
         )
@@ -691,10 +702,83 @@ async def test_update_status_validates_persists_and_rejects_superseded(
         await service.update_status(
             db_session,
             workspace_id=scn.workspace_id,
+            changed_by_user_id=scn.user_id,
             opportunity_id=thin.id,
             status="open",
         )
     assert excinfo.value.code == CODE_OPPORTUNITY_SUPERSEDED
+
+
+async def test_status_events_are_append_only_and_project_order_is_versioned(
+    db_session: AsyncSession,
+) -> None:
+    scn = await _seed_scenario(db_session)
+    await service.recompute(
+        db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
+    )
+    rows = await _live_rows(db_session, scn)
+    ordered_ids = [row.id for row in reversed(rows)]
+
+    response = await service.update_order(
+        db_session,
+        workspace_id=scn.workspace_id,
+        project_id=scn.project_id,
+        ordered_opportunity_ids=ordered_ids,
+        expected_version=0,
+        updated_by_user_id=scn.user_id,
+    )
+    assert response == {"version": 1, "ordered_opportunity_ids": ordered_ids}
+    page = await service.list_opportunities(
+        db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
+    )
+    assert [item["id"] for item in page["items"]] == ordered_ids
+    assert all(item["order_source"] == "manual" for item in page["items"])
+
+    with pytest.raises(OpportunityOrderConflictError):
+        await service.update_order(
+            db_session,
+            workspace_id=scn.workspace_id,
+            project_id=scn.project_id,
+            ordered_opportunity_ids=ordered_ids,
+            expected_version=0,
+            updated_by_user_id=scn.user_id,
+        )
+
+    target = rows[0]
+    await service.update_status(
+        db_session,
+        workspace_id=scn.workspace_id,
+        opportunity_id=target.id,
+        status="resolved",
+        changed_by_user_id=scn.user_id,
+    )
+    await service.update_status(
+        db_session,
+        workspace_id=scn.workspace_id,
+        opportunity_id=target.id,
+        status="resolved",
+        changed_by_user_id=scn.user_id,
+    )
+    events = list(
+        (
+            await db_session.scalars(
+                select(OpportunityStatusEvent).where(
+                    OpportunityStatusEvent.opportunity_id == target.id
+                )
+            )
+        ).all()
+    )
+    assert [(event.previous_status, event.next_status) for event in events] == [
+        ("open", "resolved")
+    ]
+
+
+def test_stable_order_key_is_collision_safe() -> None:
+    left = Opportunity(rule_id="rule:target", target_key="key")
+    right = Opportunity(rule_id="rule", target_key="target:key")
+
+    assert service._stable_key(left) != service._stable_key(right)
+    assert json.loads(service._stable_key(left)) == ["rule:target", "key"]
 
 
 # =========================================================================
@@ -837,6 +921,7 @@ async def test_list_defaults_to_active_statuses(db_session: AsyncSession) -> Non
     await service.update_status(
         db_session,
         workspace_id=scn.workspace_id,
+        changed_by_user_id=scn.user_id,
         opportunity_id=thin.id,
         status="dismissed",
     )

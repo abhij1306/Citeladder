@@ -281,7 +281,7 @@ function DiscoveryStrip({
   return (
     <ProgressRow crawl={crawl} narration={narration} counts={counts} active={!cancelPending}>
       {sampleMode ? (
-        <p className="text-mkt-ink-soft text-sm">
+        <p className="text-muted text-sm">
           We&apos;ll automatically analyze a {entitlement.sample_url_limit}-page sample of your
           site. Choosing which pages to monitor needs a monitored-URL allowance.
         </p>

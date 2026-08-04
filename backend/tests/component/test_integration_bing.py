@@ -309,7 +309,7 @@ async def test_fixture_import_refresh_artifacts_derivation(
     assert home.metrics == {"clicks": 12, "impressions": 340}
     pricing = by_key["https://example.com/pricing | 2026-07-21"]
     assert pricing.metrics == {"clicks": 5, "impressions": 120}
-    query = by_key["searchify | 2026-07-20"]
+    query = by_key["citeladder | 2026-07-20"]
     assert query.dataset == DATASET_BING_QUERY_DAILY
     assert query.metrics == {"clicks": 7, "impressions": 95}
 

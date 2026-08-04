@@ -1,4 +1,4 @@
-# Searchify — Content (AI generation workspace) + Settings hub — Detailed Plan (v3)
+# CiteLadder — Content (AI generation workspace) + Settings hub — Detailed Plan (v3)
 
 ## Summary
 Replace the superseded Content CRUD/scratchpad with a real, cancellable AI
@@ -357,7 +357,7 @@ snapshot)`:
 ### Settings (`/settings`)
 - Align `settings-screen.tsx` to `settings-account-*.html`: **account role,
   account status, account created, user id, email** (all read-only, from
-  `GET /auth/me`), an appearance/theme toggle, and links to `/providers` +
+  `GET /auth/me`), light-only appearance guidance, and links to `/providers` +
   `/setup` only. No fabricated fields; no BYOK UI; no editable fields.
 - Confirm the user menu shows **Settings directly above Sign out** (already wired
   in `user-menu.tsx`); keep the `user-menu.test.tsx` ordering assertion.
@@ -764,7 +764,7 @@ Files: `frontend/components/settings/settings-screen.tsx`,
 
 - Align `settings-screen.tsx` to `settings-account-*.html`: read-only **email,
   account role, account status, account created, user id** (from `/auth/me`), an
-  appearance/theme toggle, and links to `/providers` + `/setup` only. No fabricated
+  light-only appearance guidance, and links to `/providers` + `/setup` only. No fabricated
   fields, no BYOK UI, no editable fields; token-only.
 - Keep/confirm Settings directly above Sign out in `user-menu.tsx`; keep the
   `user-menu.test.tsx` ordering assertion.
@@ -796,14 +796,14 @@ Files: `frontend/e2e/content-integration.spec.ts`,
 lifecycle helper).
 
 - **Disposable Postgres lifecycle** (`real-stack.ts`, run in the spec's
-  `beforeAll`/`afterAll`): derive a unique DB name `searchify_e2e_<runid>` (runid =
+  `beforeAll`/`afterAll`): derive a unique DB name `citeladder_e2e_<runid>` (runid =
   short uuid); connect to the admin/maintenance DB from a base
-  `E2E_ADMIN_DATABASE_URL` and `CREATE DATABASE searchify_e2e_<runid>`; build the
+  `E2E_ADMIN_DATABASE_URL` and `CREATE DATABASE citeladder_e2e_<runid>`; build the
   worker/API `DATABASE_URL` pointing at it; run schema creation from
   `Base.metadata` against that DB (`cd backend && DATABASE_URL=… uv run python -m
   app.scripts.create_schema` or the existing greenfield create step — never
   alembic against a real DB); on teardown terminate connections and
-  `DROP DATABASE searchify_e2e_<runid>` in a `finally` so a failed assertion still
+  `DROP DATABASE citeladder_e2e_<runid>` in a `finally` so a failed assertion still
   drops it.
 - **Mock Mistral server** (`real-stack.ts`): start a local `http.createServer`
   (or a Playwright-managed Node script) on an ephemeral port that answers
@@ -886,9 +886,9 @@ Per task:
 Schema recreation (greenfield) — **disposable DB only**:
 ```bash
 cd backend
-DATABASE_URL="postgresql+asyncpg://<user>:<pass>@<host>/searchify_scratch_<runid>" \
+DATABASE_URL="postgresql+asyncpg://<user>:<pass>@<host>/citeladder_scratch_<runid>" \
   uv run alembic downgrade base && \
-DATABASE_URL="postgresql+asyncpg://<user>:<pass>@<host>/searchify_scratch_<runid>" \
+DATABASE_URL="postgresql+asyncpg://<user>:<pass>@<host>/citeladder_scratch_<runid>" \
   uv run alembic upgrade head
 ```
 Never run downgrade/upgrade against the developer's real dev database.

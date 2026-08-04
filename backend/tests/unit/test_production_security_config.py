@@ -18,7 +18,7 @@ def _production_settings(**updates: object) -> Settings:
         "referral_hash_salt": _VALID + "ref",
         "order_hash_salt": _VALID + "order",
         "database_url": (
-            f"postgresql+asyncpg://searchify:{_VALID}db@database.example.com/searchify"
+            f"postgresql+asyncpg://citeladder:{_VALID}db@database.example.com/citeladder"
         ),
         "db_ssl_mode": "require",
     }
@@ -45,8 +45,8 @@ def test_duplicated_secrets_and_database_password_are_rejected() -> None:
         jwt_secret_key=duplicated,
         encryption_key=duplicated,
         database_url=(
-            "postgresql+asyncpg://searchify:"
-            f"{duplicated}@database.example.com/searchify"
+            "postgresql+asyncpg://citeladder:"
+            f"{duplicated}@database.example.com/citeladder"
         ),
     )
     issues = validate_production_security(candidate)

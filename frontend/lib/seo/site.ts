@@ -1,7 +1,7 @@
 import { getSiteUrl } from '@/lib/config/env';
 
 /**
- * Canonical public origin, e.g. 'https://app.searchify.com'. Unset in dev and
+ * Canonical public origin, e.g. 'https://app.citeladder.com'. Unset in dev and
  * until the production domain is approved (owner blocker B3) — every consumer
  * degrades instead of guessing: `metadataBase` is omitted, canonicals stay
  * relative, `robots.ts` emits no `sitemap:` line, and the Organization JSON-LD
@@ -9,7 +9,7 @@ import { getSiteUrl } from '@/lib/config/env';
  * `new URL()` in a try, https-only, no credentials.
  */
 
-export const SITE_NAME = 'Searchify';
+export const SITE_NAME = 'CiteLadder';
 export const SITE_TAGLINE = 'AI visibility analytics';
 
 /** Parses NEXT_PUBLIC_SITE_URL. Returns null when unset or not a clean https origin. */

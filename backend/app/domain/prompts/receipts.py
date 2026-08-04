@@ -28,7 +28,7 @@ from app.domain.prompts.normalization import prompt_text_hash
 
 # Domain separation: this key must never collide with another HMAC use of the
 # same secret.
-_RECEIPT_CONTEXT = b"searchify.prompt-generation-receipt.v2"
+_RECEIPT_CONTEXT = b"citeladder.prompt-generation-receipt.v2"
 
 
 def _receipt_message(

@@ -15,8 +15,8 @@ import { AuthBrandPanel, AuthWordmark } from '@/components/auth/brand-panel';
  * instead of each column floating its own way. Below 900px the brand panel
  * drops and the form keeps the same bands.
  *
- * `.mkt-root` scopes the Proof system (light-only canvas, focus ring). There
- * is no ThemeToggle here: Proof is a light-only identity, and a toggle that
+ * `.citeladder-root` scopes the Proof system (light-only canvas, focus ring). There
+ * is no theme control here: CiteLadder is light-only, and a control that
  * changed nothing would be a broken control.
  *
  * The single-h1 rule: the pages own the only h1 — the wordmarks are spans,
@@ -24,12 +24,12 @@ import { AuthBrandPanel, AuthWordmark } from '@/components/auth/brand-panel';
  */
 export default function AuthLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className="mkt-root bg-mkt-surface-sunk text-mkt-ink selection:bg-mkt-indigo selection:text-accent-fg relative min-h-dvh w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
+    <div className="citeladder-root bg-background-alt text-foreground selection:bg-accent selection:text-accent-fg relative min-h-dvh w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
       {/* Subtle light ambient background lighting */}
       <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="bg-mkt-frost/50 absolute -top-40 -left-40 size-125 rounded-full blur-[120px]" />
-        <div className="bg-mkt-frost/50 absolute -right-40 -bottom-40 size-125 rounded-full blur-[120px]" />
-        <div className="bg-mkt-frost/30 absolute top-1/2 left-1/2 size-150 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px]" />
+        <div className="bg-accent-soft absolute -top-40 -left-40 size-125 rounded-full blur-[120px]" />
+        <div className="bg-accent-soft absolute -right-40 -bottom-40 size-125 rounded-full blur-[120px]" />
+        <div className="bg-accent-soft absolute top-1/2 left-1/2 size-150 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px]" />
       </div>
 
       <AuthBrandPanel />
@@ -47,17 +47,17 @@ export default function AuthLayout({ children }: Readonly<{ children: ReactNode 
             {children}
 
             {/* Mobile reassurance pills - No separating border lines */}
-            <ul className="text-mkt-ink-soft mt-8 flex flex-wrap items-center justify-center gap-2 text-xs min-[900px]:hidden">
-              <li className="border-mkt-black-10 bg-panel flex items-center gap-1.5 rounded-full border px-3 py-1">
-                <span aria-hidden className="bg-mkt-indigo size-1.5 rounded-full" />
+            <ul className="text-muted mt-8 flex flex-wrap items-center justify-center gap-2 text-xs min-[900px]:hidden">
+              <li className="border-border-subtle bg-panel flex items-center gap-1.5 rounded-full border px-3 py-1">
+                <span aria-hidden className="bg-accent size-1.5 rounded-full" />
                 Deterministic scoring
               </li>
-              <li className="border-mkt-black-10 bg-panel flex items-center gap-1.5 rounded-full border px-3 py-1">
-                <span aria-hidden className="bg-mkt-success size-1.5 rounded-full" />
+              <li className="border-border-subtle bg-panel flex items-center gap-1.5 rounded-full border px-3 py-1">
+                <span aria-hidden className="bg-success size-1.5 rounded-full" />
                 Verified evidence
               </li>
-              <li className="border-mkt-black-10 bg-panel flex items-center gap-1.5 rounded-full border px-3 py-1">
-                <span aria-hidden className="bg-mkt-primary size-1.5 rounded-full" />
+              <li className="border-border-subtle bg-panel flex items-center gap-1.5 rounded-full border px-3 py-1">
+                <span aria-hidden className="bg-accent size-1.5 rounded-full" />
                 Encrypted keys
               </li>
             </ul>
@@ -65,7 +65,7 @@ export default function AuthLayout({ children }: Readonly<{ children: ReactNode 
         </div>
 
         {/* Footer band */}
-        <footer className="text-mkt-ink-soft text-xs">
+        <footer className="text-muted text-xs">
           <span className="min-[900px]:hidden">© {new Date().getFullYear()} CUBE27</span>
         </footer>
       </main>

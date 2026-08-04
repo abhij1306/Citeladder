@@ -3,7 +3,7 @@
  * `pnpm check:contract` entry point.
  *
  * Runs the same vitest file as `pnpm test` does, but with
- * `SEARCHIFY_CONTRACT_STRICT=1` so a missing OpenAPI source FAILS instead of
+ * `CITELADDER_CONTRACT_STRICT=1` so a missing OpenAPI source FAILS instead of
  * skipping (see `lib/api/contract-drift.ts` → `contractGuardIsStrict`). The
  * script exists because the npm script previously invoked vitest directly:
  * that made `check:contract` byte-identical to the wrapper it was documented
@@ -20,7 +20,7 @@ const result = spawnSync(
   {
     stdio: 'inherit',
     shell: true,
-    env: { ...process.env, SEARCHIFY_CONTRACT_STRICT: '1' },
+    env: { ...process.env, CITELADDER_CONTRACT_STRICT: '1' },
   },
 );
 

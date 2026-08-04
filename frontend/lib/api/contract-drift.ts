@@ -13,11 +13,11 @@
  *     stripped), but `schemas.ts` should be updated promptly.
  *
  * The OpenAPI document is obtained DETERMINISTICALLY (no live server needed):
- *   1. `SEARCHIFY_OPENAPI_JSON` — path to a schema export (CI override);
+ *   1. `CITELADDER_OPENAPI_JSON` — path to a schema export (CI override);
  *   2. generated offline from the checked-in backend code via the backend
  *      virtualenv (`backend/.venv`) — importing the FastAPI app needs no
  *      server, database, or network;
- *   3. fetched from the live backend at `SEARCHIFY_BACKEND_ORIGIN`
+ *   3. fetched from the live backend at `CITELADDER_BACKEND_ORIGIN`
  *      (default `http://localhost:8000`) as a last resort.
  *
  * Wired into `pnpm test` via `contract-drift.test.ts`; runnable standalone as
@@ -66,7 +66,7 @@ export const CONTRACT_SCHEMA_MAP = {
   // Projects / brand
   projectSchema: 'ProjectResponse',
   competitorSchema: 'CompetitorResponse',
-  dashboardSchema: 'app__domain__dashboard__schemas__DashboardResponse',
+  commandCenterSchema: 'CommandCenterResponse',
   brandProfileSchema: 'BrandProfileResponse',
   brandProfileDraftSchema: 'BrandProfileDraft',
   brandProfileSuggestionSchema: 'BrandProfileSuggestionResponse',
@@ -143,7 +143,7 @@ export const CONTRACT_SCHEMA_MAP = {
   // Site health
   siteCrawlSchema: 'CrawlResponse',
   siteCrawlListPageSchema: 'CrawlListPage',
-  siteHealthDashboardSchema: 'app__domain__site_health__api_schemas__DashboardResponse',
+  siteHealthDashboardSchema: 'DashboardResponse',
   siteHealthEntitlementSchema: 'SiteHealthEntitlementResponse',
   monitoredUrlsResponseSchema: 'MonitoredUrlsResponse',
   inventoryPageSchema: 'InventoryPage',
@@ -363,14 +363,14 @@ function backendPythonCandidates(root: string): string[] {
  * `pnpm check:contract` runs the same vitest file as `pnpm test`, so the
  * documented "the wrapper skips, check:contract fails" split needs an explicit
  * signal — without one both paths skipped and the guard could silently never
- * run anywhere. Only `check:contract` sets `SEARCHIFY_CONTRACT_STRICT=1`.
+ * run anywhere. Only `check:contract` sets `CITELADDER_CONTRACT_STRICT=1`.
  *
  * Deliberately NOT keyed on `CI`: the CI frontend job runs `pnpm test` without
  * a backend virtualenv, so treating `CI` as strict would fail the whole suite
  * on an unavailable spec rather than on real contract drift.
  */
 export function contractGuardIsStrict(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.SEARCHIFY_CONTRACT_STRICT);
+  return Boolean(env.CITELADDER_CONTRACT_STRICT);
 }
 
 /**
@@ -390,13 +390,13 @@ export async function acquireOpenApiSpec(options?: {
   const errors: string[] = [];
 
   // 1. Explicit export (CI override).
-  const exportPath = env.SEARCHIFY_OPENAPI_JSON;
+  const exportPath = env.CITELADDER_OPENAPI_JSON;
   if (exportPath) {
     try {
       const spec = JSON.parse(readFileSync(exportPath, 'utf8')) as OpenApiSpec;
       return { acquired: { spec, source: 'env-file', detail: exportPath }, errors };
     } catch (error) {
-      errors.push(`SEARCHIFY_OPENAPI_JSON (${exportPath}): ${String(error)}`);
+      errors.push(`CITELADDER_OPENAPI_JSON (${exportPath}): ${String(error)}`);
     }
   }
 
@@ -422,7 +422,7 @@ export async function acquireOpenApiSpec(options?: {
 
   // 3. Live backend (last resort — handy in local dev).
   const fetchImpl = options?.fetchImpl ?? fetch;
-  const origin = env.SEARCHIFY_BACKEND_ORIGIN ?? CONTRACT_BACKEND_ORIGIN;
+  const origin = env.CITELADDER_BACKEND_ORIGIN ?? CONTRACT_BACKEND_ORIGIN;
   try {
     const response = await fetchImpl(`${origin}/openapi.json`, {
       signal: AbortSignal.timeout(CONTRACT_LIVE_FETCH_TIMEOUT_MS),

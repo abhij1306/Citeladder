@@ -21,7 +21,7 @@ describe('FAQ page (public marketing `/faq`)', () => {
     // No h2-h6 may contain the product name (keeps heading queries unambiguous).
     for (const heading of screen.getAllByRole('heading')) {
       if (heading === h1s[0]) continue;
-      expect(heading).not.toHaveTextContent(/searchify/i);
+      expect(heading).not.toHaveTextContent(/citeladder/i);
     }
   });
 

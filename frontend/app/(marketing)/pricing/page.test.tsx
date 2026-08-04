@@ -23,7 +23,7 @@ describe('Pricing page (public marketing `/pricing`)', () => {
 
     for (const heading of screen.getAllByRole('heading')) {
       if (heading === h1s[0]) continue;
-      expect(heading).not.toHaveTextContent(/searchify/i);
+      expect(heading).not.toHaveTextContent(/citeladder/i);
     }
   });
 

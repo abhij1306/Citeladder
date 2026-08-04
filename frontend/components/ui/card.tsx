@@ -7,22 +7,17 @@ import { cardClasses } from './card-variants';
 export { cardClasses } from './card-variants';
 
 /**
- * Card (§8) — bg-panel, BORDERLESS, --radius-lg (12px), --card-padding,
- * resting on the ADS raised shadow rung (`shadow-card`).
+ * Card (§8) — bg-panel, --radius-lg, --card-padding, and the shared
+ * `shadow-card` elevation rung owned by globals.css.
  * Composed from header / title / description / content slots.
  *
- * Elevation model (docs/design.md §4a): a card is a --bg-panel fill lifted
- * off the sunken canvas by `--ds-shadow-raised` — the same surface/shadow
- * pairing atlassian.design specifies for raised surfaces. Separation comes
- * from light (the shadow) and the canvas tint step, never from a drawn
- * border: like Gmail/Trello, cards carry no outline at all. Interactive
+ * Elevation model (docs/design.md): a card is a --bg-panel fill lifted
+ * off the canvas through the shared card shadow. Interactive
  * cards lift on hover — `hover:shadow-card-hover` (the overlay rung) plus
  * a 2px rise — which is why the base transition includes box-shadow.
  *
- * If a surface genuinely needs to float persistently, it is an overlay —
- * use Dialog, Dropdown, Tooltip or the command palette, which own the
- * `shadow-modal-value` rung. scripts/check-elevation.mjs enforces the
- * rung assignments.
+ * Dialog, Dropdown, Tooltip, and the command palette retain the deeper
+ * `shadow-modal-value` overlay rung.
  *
  * Optional eyebrow header hook: render <CardEyebrow> above <CardTitle> for the
  * micro-label — e.g.

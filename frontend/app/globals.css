@@ -1,73 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════
-   Searchify — Design System (single token source of truth)
-   v3.1: the Atlassian Design System, elevated — borderless cards resting
-   on the ADS raised shadow rung (§4a).
-
-   LIGHT/DARK are both ADS verbatim, ported into app/ds-tokens.css and
-   consumed here. This file owns the SEMANTIC layer only — it names the
-   design decisions (--bg-panel, --text-primary, --score-high-text) and
-   points each one at an ADS primitive. Values live upstream; meanings
-   live here. The previous Figma port (royal blue #2756FF, the authored
-   warm-charcoal "dusk" dark deck) is fully replaced.
-
-     ds-tokens.css  →  THIS FILE     →  @theme inline  →  components
-     (ADS values)      (semantics)      (utilities)       (classes)
-
-   ELEVATION (ADS, §4a). Cards rest on the ADS raised rung — a soft
-   `--ds-shadow-raised` lift over the sunken canvas, edged by the SUBTLE
-   6% hairline (the shadow, not the border, separates the card). The
-   overlay rung (`--ds-shadow-overlay`) is reserved for surfaces that
-   genuinely float — modal/dropdown/tooltip/popover/palette — and for the
-   hover lift of interactive cards, which temporarily float. Every other
-   in-flow surface (table, sidebar, input, page header, badge) stays flat.
-   No gradients on chrome, no glass, no catchlight rings. Machine-enforced
-   in scripts/check-elevation.mjs.
-
-   Components consume ONLY the bridged Tailwind semantic tokens below —
-   never raw hex (no-raw-hex guard), never a bare --ds-* name.
-   4px grid · WCAG 2.1 AA ≥ 4.5:1 for every documented text/surface pair
-   in both themes (machine-enforced in app/globals.test.ts).
-   Names mirror docs/design.md.
-═══════════════════════════════════════════════════════════════════════ */
-
 @import 'tailwindcss';
-
-/* The Atlassian primitive layer. Must come before the semantic blocks
-   below, which resolve against it. */
-@import './ds-tokens.css';
-
-/* The type and space layers: the --text-* ladder, weights, tracking and
-   leading (ds-type) and the spacing ladder, density tokens, shell geometry
-   and radii (ds-space). Both were split out of this file, which now owns
-   colour semantics only. They must come before the marketing block, whose
-   tokens resolve against the app ladder. */
-@import './ds-type.css';
-@import './ds-space.css';
-
-/* The marketing/auth "Proof" creative system registers its mkt-namespaced
-   tokens here rather than from the (marketing) layout: Tailwind v4 builds
-   utilities from a single `@import 'tailwindcss'` graph, so a second import
-   would duplicate preflight and the whole utility layer. Unused @theme
-   values are tree-shaken — app routes pay nothing for this.
-
-   Three owners: -theme holds the @theme token block plus the scene rules a
-   utility cannot express; -motion holds every keyframe and scroll timeline;
-   -cta owns the double-ring CTA construction, which is a component rule and
-   so does not belong in the token file.
-   The split keeps the token file inside its deliberate 400-line budget. */
-@import './(marketing)/marketing-theme.css';
-@import './(marketing)/marketing-motion.css';
-@import './(marketing)/marketing-cta.css';
-@import './(marketing)/marketing-scenes.css';
-
-/* Chrome rules (focus rings, selection, the logo mark, scrollbars, a11y
-   media queries) — no tokens, so it comes last. */
-@import './app-chrome.css';
-
-/* Product-tour chrome (driver.js popover + stage) — token-only rules that
-   override the library's default theme. Imported here so the specificity
-   beats driver.css regardless of bundle order. */
-@import './tour.css';
 
 @font-face {
   font-family: 'Apfel Grotezk';
@@ -77,484 +8,206 @@
   font-display: swap;
 }
 
-/* Apfel Grotezk has no native 600 cut; Fett serves semibold and bold display. */
 @font-face {
   font-family: 'Apfel Grotezk';
   src: url('/fonts/ApfelGrotezk-Fett.woff2') format('woff2');
   font-style: normal;
-  font-weight: 600;
+  font-weight: 600 700;
   font-display: swap;
 }
 
-@font-face {
-  font-family: 'Apfel Grotezk';
-  src: url('/fonts/ApfelGrotezk-Fett.woff2') format('woff2');
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-}
+/* CiteLadder's single light-only design-system owner. */
+@theme {
+  --font-sans: var(--font-geist), system-ui, sans-serif;
+  --font-mono: var(--font-geist), system-ui, sans-serif;
+  --font-display: 'Apfel Grotezk', var(--font-geist), system-ui, sans-serif;
 
-/* The `dark:` variant, scoped to the hand-rolled theme attribute (the same
-   selector lib/theme.ts drives). Deleted in the ADS port and restored here:
-   without it every `dark:` utility is a silent no-op. */
-@custom-variant dark (&:where(html[data-theme='dark'] *));
+  --color-background: #f5f8f7;
+  --color-background-alt: #eef3f2;
+  --color-panel: #ffffff;
+  --color-elevated: #ffffff;
+  --color-well: #e8efed;
+  --color-active: #dce7e5;
+  --color-input: #ffffff;
+  --color-sidebar: #f9fbfa;
+  --color-surface-inverse: #162322;
+  --color-border: #cbd8d5;
+  --color-border-subtle: #dce5e3;
+  --color-border-strong: #9cafab;
+  --color-foreground: #162322;
+  --color-secondary: #405451;
+  --color-muted: #617370;
+  --color-subtle: #869591;
+  --color-inverse: #ffffff;
+  --color-on-inverse: #ffffff;
+  --color-link: #006d77;
 
-/* ─── TAILWIND v4 TOKEN BRIDGE (§9) ────────────────────────────────────
-   Bridge raw CSS variables to semantic Tailwind utilities. Components use
-   only these bridged names (bg-background, text-foreground, bg-accent,
-   text-success, bg-citation-owned, text-run-completed, bg-score-high, …).
-──────────────────────────────────────────────────────────────────────── */
-@theme inline {
-  /* Fonts */
-  --font-sans: var(--font-primary-family);
-  --font-mono: var(--font-mono-family);
-  --font-display: var(--font-display-family);
+  --color-accent: #006d77;
+  --color-accent-hover: #005a63;
+  --color-accent-active: #00444b;
+  --color-accent-fg: #ffffff;
+  --color-accent-subtle: #e6f4f3;
+  --color-accent-soft: #eef8f7;
+  --color-accent-border: #a8dadc;
+  --color-accent-text: #005a63;
 
-  /* Surfaces */
-  --color-background: var(--bg-base);
-  --color-background-alt: var(--bg-alt);
-  --color-panel: var(--bg-panel);
-  --color-elevated: var(--bg-elevated);
-  --color-well: var(--bg-well);
-  --color-active: var(--bg-active);
-  --color-input: var(--bg-input);
-  --color-sidebar: var(--bg-sidebar);
-  --color-surface-inverse: var(--bg-inverse);
+  --color-success: #19724b;
+  --color-success-bg: #e9f6ee;
+  --color-success-border: #9fd2b4;
+  --color-success-text: #135d3d;
+  --color-warning: #9a5b00;
+  --color-warning-bg: #fff5df;
+  --color-warning-border: #e7c47c;
+  --color-warning-text: #754500;
+  --color-danger: #b33a3a;
+  --color-danger-solid: #a92f35;
+  --color-danger-solid-hover: #8f252b;
+  --color-danger-fg: #ffffff;
+  --color-danger-bg: #fff0f0;
+  --color-danger-border: #e7aaaa;
+  --color-danger-text: #8f292e;
+  --color-info: #006d77;
+  --color-info-bg: #e6f4f3;
+  --color-info-border: #a8dadc;
+  --color-info-text: #005a63;
+  --color-neutral-bg: #eef3f2;
 
-  /* Borders */
-  --color-border: var(--border);
-  --color-border-subtle: var(--border-subtle);
-  --color-border-strong: var(--border-strong);
+  --color-sentiment-positive: #19724b;
+  --color-sentiment-positive-bg: #e9f6ee;
+  --color-sentiment-positive-text: #135d3d;
+  --color-sentiment-neutral: #617370;
+  --color-sentiment-neutral-bg: #eef3f2;
+  --color-sentiment-neutral-text: #405451;
+  --color-sentiment-negative: #b33a3a;
+  --color-sentiment-negative-bg: #fff0f0;
+  --color-sentiment-negative-text: #8f292e;
 
-  /* Text */
-  --color-foreground: var(--text-primary);
-  --color-secondary: var(--text-secondary);
-  --color-muted: var(--text-muted);
-  --color-subtle: var(--text-subtle);
-  --color-inverse: var(--text-inverse);
-  /* Keyed `--color-on-inverse` (not `--color-text-on-inverse`) so the
-     generated utility is the intended `text-on-inverse`. */
-  --color-on-inverse: var(--text-on-inverse);
-  --color-link: var(--text-link);
+  --color-citation-owned: #006d77;
+  --color-citation-owned-bg: #e6f4f3;
+  --color-citation-owned-border: #a8dadc;
+  --color-citation-owned-text: #005a63;
+  --color-citation-competitor: #7a5477;
+  --color-citation-competitor-bg: #f5eef4;
+  --color-citation-competitor-border: #d6bfd3;
+  --color-citation-competitor-text: #634360;
+  --color-citation-third-party: #617370;
+  --color-citation-third-party-bg: #eef3f2;
+  --color-citation-third-party-border: #cbd8d5;
+  --color-citation-third-party-text: #405451;
 
-  /* Accent — ADS brand blue */
-  --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-active: var(--accent-active);
-  --color-accent-fg: var(--accent-fg);
-  --color-accent-subtle: var(--accent-subtle);
-  --color-accent-soft: var(--accent-soft);
-  --color-accent-border: var(--accent-border);
-  --color-accent-text: var(--accent-text);
+  --color-run-draft: #617370;
+  --color-run-draft-bg: #eef3f2;
+  --color-run-queued: #617370;
+  --color-run-queued-bg: #eef3f2;
+  --color-run-running: #006d77;
+  --color-run-running-bg: #e6f4f3;
+  --color-run-analyzing: #67558a;
+  --color-run-analyzing-bg: #f1edf8;
+  --color-run-completed: #19724b;
+  --color-run-completed-bg: #e9f6ee;
+  --color-run-partial: #9a5b00;
+  --color-run-partial-bg: #fff5df;
+  --color-run-failed: #b33a3a;
+  --color-run-failed-bg: #fff0f0;
+  --color-run-cancelled: #617370;
+  --color-run-cancelled-bg: #eef3f2;
 
-  /* Semantic status */
-  --color-success: var(--success);
-  --color-success-bg: var(--success-bg);
-  --color-success-border: var(--success-border);
-  --color-success-text: var(--success-text);
-  --color-warning: var(--warning);
-  --color-warning-bg: var(--warning-bg);
-  --color-warning-border: var(--warning-border);
-  --color-warning-text: var(--warning-text);
-  --color-danger: var(--danger);
-  --color-danger-solid: var(--danger-solid);
-  --color-danger-solid-hover: var(--danger-solid-hover);
-  --color-danger-fg: var(--danger-fg);
-  --color-danger-bg: var(--danger-bg);
-  --color-danger-border: var(--danger-border);
-  --color-danger-text: var(--danger-text);
-  --color-info: var(--info);
-  --color-info-bg: var(--info-bg);
-  --color-info-border: var(--info-border);
-  --color-info-text: var(--info-text);
-  --color-neutral-bg: var(--neutral-bg);
+  --color-score-low: #b33a3a;
+  --color-score-low-bg: #fff0f0;
+  --color-score-low-border: #e7aaaa;
+  --color-score-low-text: #8f292e;
+  --color-score-low-ring: #b33a3a;
+  --color-score-mid: #9a5b00;
+  --color-score-mid-bg: #fff5df;
+  --color-score-mid-border: #e7c47c;
+  --color-score-mid-text: #754500;
+  --color-score-mid-ring: #9a5b00;
+  --color-score-good: #006d77;
+  --color-score-good-bg: #e6f4f3;
+  --color-score-good-border: #a8dadc;
+  --color-score-good-text: #005a63;
+  --color-score-good-ring: #006d77;
+  --color-score-high: #19724b;
+  --color-score-high-bg: #e9f6ee;
+  --color-score-high-border: #9fd2b4;
+  --color-score-high-text: #135d3d;
+  --color-score-high-ring: #19724b;
 
-  /* Sentiment */
-  --color-sentiment-positive: var(--sentiment-positive);
-  --color-sentiment-positive-bg: var(--sentiment-positive-bg);
-  --color-sentiment-positive-text: var(--sentiment-positive-text);
-  --color-sentiment-neutral: var(--sentiment-neutral);
-  --color-sentiment-neutral-bg: var(--sentiment-neutral-bg);
-  --color-sentiment-neutral-text: var(--sentiment-neutral-text);
-  --color-sentiment-negative: var(--sentiment-negative);
-  --color-sentiment-negative-bg: var(--sentiment-negative-bg);
-  --color-sentiment-negative-text: var(--sentiment-negative-text);
+  --color-chart-1: #006d77;
+  --color-chart-2: #19724b;
+  --color-chart-3: #9a5b00;
+  --color-chart-4: #b33a3a;
+  --color-chart-5: #67558a;
+  --color-chart-6: #317f86;
+  --color-chart-7: #9b761c;
+  --color-chart-8: #7a5477;
+  --color-series-1: #006d77;
+  --color-series-2: #19724b;
+  --color-series-3: #9a5b00;
+  --color-series-4: #b33a3a;
+  --color-series-5: #67558a;
+  --color-series-other: #869591;
+  --color-chart-tooltip: #162322;
+  --color-chart-tooltip-fg: #ffffff;
+  --color-overlay-scrim: rgb(22 35 34 / 40%);
 
-  /* Citation classification — owned is ADS blue (green identity dropped) */
-  --color-citation-owned: var(--citation-owned);
-  --color-citation-owned-bg: var(--citation-owned-bg);
-  --color-citation-owned-border: var(--citation-owned-border);
-  --color-citation-owned-text: var(--citation-owned-text);
-  --color-citation-competitor: var(--citation-competitor);
-  --color-citation-competitor-bg: var(--citation-competitor-bg);
-  --color-citation-competitor-border: var(--citation-competitor-border);
-  --color-citation-competitor-text: var(--citation-competitor-text);
-  --color-citation-third-party: var(--citation-third-party);
-  --color-citation-third-party-bg: var(--citation-third-party-bg);
-  --color-citation-third-party-border: var(--citation-third-party-border);
-  --color-citation-third-party-text: var(--citation-third-party-text);
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-full: 9999px;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-card: 0 10px 28px rgb(22 35 34 / 14%);
+  --shadow-card-hover: 0 14px 36px rgb(22 35 34 / 18%);
+  --shadow-elevated: 0 12px 32px rgb(22 35 34 / 16%);
+  --shadow-lg: 0 12px 32px rgb(22 35 34 / 16%);
+  --shadow-modal-value: 0 18px 48px rgb(22 35 34 / 20%);
 
-  /* Run status */
-  --color-run-draft: var(--run-draft);
-  --color-run-draft-bg: var(--run-draft-bg);
-  --color-run-queued: var(--run-queued);
-  --color-run-queued-bg: var(--run-queued-bg);
-  --color-run-running: var(--run-running);
-  --color-run-running-bg: var(--run-running-bg);
-  --color-run-analyzing: var(--run-analyzing);
-  --color-run-analyzing-bg: var(--run-analyzing-bg);
-  --color-run-completed: var(--run-completed);
-  --color-run-completed-bg: var(--run-completed-bg);
-  --color-run-partial: var(--run-partial);
-  --color-run-partial-bg: var(--run-partial-bg);
-  --color-run-failed: var(--run-failed);
-  --color-run-failed-bg: var(--run-failed-bg);
-  --color-run-cancelled: var(--run-cancelled);
-  --color-run-cancelled-bg: var(--run-cancelled-bg);
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.5rem;
+  --text-heading-sm: 0.9375rem;
 
-  /* Score bands — solid = ring hue; bg/border/text/ring from the ADS ramp */
-  --color-score-low: var(--score-low);
-  --color-score-low-bg: var(--score-low-bg);
-  --color-score-low-border: var(--score-low-border);
-  --color-score-low-text: var(--score-low-text);
-  --color-score-low-ring: var(--score-low-ring);
-  --color-score-mid: var(--score-mid);
-  --color-score-mid-bg: var(--score-mid-bg);
-  --color-score-mid-border: var(--score-mid-border);
-  --color-score-mid-text: var(--score-mid-text);
-  --color-score-mid-ring: var(--score-mid-ring);
-  --color-score-good: var(--score-good);
-  --color-score-good-bg: var(--score-good-bg);
-  --color-score-good-border: var(--score-good-border);
-  --color-score-good-text: var(--score-good-text);
-  --color-score-good-ring: var(--score-good-ring);
-  --color-score-high: var(--score-high);
-  --color-score-high-bg: var(--score-high-bg);
-  --color-score-high-border: var(--score-high-border);
-  --color-score-high-text: var(--score-high-text);
-  --color-score-high-ring: var(--score-high-ring);
-
-  /* Chart palette (--chart-1..8) + the legacy series slots aliased onto it
-     (fixed order, never cycled). Each slot keeps its HUE across themes while
-     its lightness adapts, so a series stays identifiable through a theme swap
-     without going illegible on the other canvas (asserted in globals.test.ts). */
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-chart-6: var(--chart-6);
-  --color-chart-7: var(--chart-7);
-  --color-chart-8: var(--chart-8);
-  --color-series-1: var(--series-1);
-  --color-series-2: var(--series-2);
-  --color-series-3: var(--series-3);
-  --color-series-4: var(--series-4);
-  --color-series-5: var(--series-5);
-  --color-series-other: var(--series-other);
-  --color-chart-tooltip: var(--chart-tooltip-bg);
-  --color-chart-tooltip-fg: var(--chart-tooltip-fg);
-
-  /* Shadows / elevation — the ADS raised/overlay model (§4a): cards rest
-     on the raised rung (`shadow-card`), interactive cards lift to the
-     overlay rung on hover (`shadow-card-hover`), and true overlays carry
-     `shadow-modal-value`. xs/sm/elevated stay `none` on purpose. See
-     scripts/check-elevation.mjs. */
-  --shadow-xs: var(--shadow-xs-value);
-  --shadow-sm: var(--shadow-sm-value);
-  --shadow-card: var(--shadow-card-value);
-  --shadow-card-hover: var(--shadow-card-hover-value);
-  --shadow-elevated: var(--shadow-elevated-value);
-  --shadow-lg: var(--shadow-lg-value);
-  --shadow-modal-value: var(--shadow-modal);
-
-  /* Overlay scrim (dialog/drawer backdrop) — bridged so components avoid raw
-     var() escapes (no-raw-hex + token-escape guard). */
-  --color-overlay-scrim: var(--overlay-scrim);
-
-  /* Motion (§13) */
   --transition-fast: 100ms;
   --transition-base: 180ms;
   --transition-slow: 280ms;
-
-  /* Layering — named stacks, never arbitrary z-index values. */
   --z-index-overlay: 40;
   --z-index-modal: 50;
   --z-index-toast: 60;
 }
 
-/* ─── SEMANTIC LAYER — LIGHT (§4) ──────────────────────────────────────
-   Every value points at an ADS primitive from ds-tokens.css. No literal
-   colour is authored here; the only hex in this block is the handful of
-   pure-white/inverse foregrounds ADS itself states as hex.
-──────────────────────────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
-
-  /* Fonts — two faces total: Inter for UI/body/data (no monospace is
-     shipped; the "mono" family aliases Inter so numeric contexts keep
-     their tabular-nums recipe), Apfel Grotezk for headings/display.
-     Marketing aliases the same display family (marketing-theme.css). */
-  --font-primary-family: var(--font-inter), system-ui, sans-serif;
-  --font-mono-family: var(--font-inter), system-ui, sans-serif;
-  --font-display-family: 'Apfel Grotezk', var(--font-inter), system-ui, sans-serif;
-
-  /* ── Surfaces — the flat tint ladder ──────────────────────────────────
-     The app canvas is SUNKEN and panels sit on it as plain white fills.
-     This inversion (canvas darker than card) is what carries hierarchy now
-     that cards cast no shadow.
-
-     --bg-alt and --bg-well are the ADS alpha neutral at two depths (6% and
-     14%), so they tint whatever surface they land on rather than hard-coding
-     one grey that only works on white. They used to be two different opaque
-     greys; keeping them as distinct ALPHA steps is what gives every quiet
-     control a real hover — without it `neutral` and `ghost` buttons hover to
-     the same value they already have. --bg-active is the pressed step. */
-  --bg-base: var(--ds-surface-canvas);
-  --bg-alt: var(--ds-background-neutral);
-  --bg-panel: var(--ds-surface);
-  --bg-elevated: var(--ds-surface-raised);
-  --bg-well: var(--ds-background-neutral-hovered);
-  --bg-active: var(--ds-background-neutral-pressed);
-  /* The field fill is the CANVAS, not white: on a white card the input reads
-     as an inset well (ΔE76 4.66) instead of disappearing into the card (0.00). */
-  --bg-input: var(--ds-surface-canvas);
-  /* Inverse surface pair — tooltip and any bold on-dark chip. */
-  --bg-inverse: var(--ds-background-neutral-bold);
-  --text-on-inverse: var(--ds-text-inverse); /* 7.65:1 on bg-inverse, both themes */
-  /* Sidebar takes the PANEL surface, not the canvas. Together with the white
-     top bar this makes the chrome one continuous frame around a recessed
-     content well — the Jira arrangement. Sharing the canvas tone instead
-     (the other flat option) merges the sidebar into the workspace and leaves
-     the top bar as the only light band, which reads as an inconsistency
-     rather than a decision. */
-  --bg-sidebar: var(--ds-surface);
-  --surface-overlay: var(--ds-surface-overlay);
-
-  /* Borders — ADS alpha hairlines, two real tiers, STRUCTURAL only (§4a):
-     cards and buttons carry no border at all. --border-subtle is the 6%
-     alpha (4.66 ΔE76 on white) for chrome frames, overlay edges, in-card
-     separators and table rules; --border is the 14% alpha (11.61) for form
-     fields and outline-affordance chips. globals.test asserts the subtle
-     alpha stays strictly weaker so the tiers cannot re-collapse. */
-  --border-subtle: var(--ds-border-subtle);
-  --border: var(--ds-border);
-  --border-strong: var(--ds-border-bold);
-  --border-focus: var(--ds-border-focused);
-
-  /* Text — body pairs verified ≥ 4.5:1 (globals.test.ts) */
-  --text-primary: var(--ds-text); /* #172B4D — 13.3:1 on bg-base */
-  --text-secondary: var(--ds-text-subtle); /* #44546F — 7.3:1 on bg-base */
-  --text-muted: var(--ds-text-subtlest); /* #626F86 — 4.6:1; captions */
-  --text-subtle: var(--ds-text-disabled); /* decorative / disabled only */
-  --text-inverse: var(--ds-text-inverse); /* on accent/bold fills */
-  --text-link: var(--accent-text); /* alias of --accent-text — no --text-accent token */
-
-  /* Accent — ADS brand blue #0C66E4 */
-  --accent: var(--ds-background-brand-bold);
-  --accent-hover: var(--ds-background-brand-bold-hovered);
-  --accent-active: var(--ds-background-brand-bold-pressed);
-  --accent-fg: var(--ds-text-inverse); /* 5.2:1 on accent */
-  --accent-subtle: var(--ds-background-brand-subtlest);
-  /* Kept token, derived from --accent-subtle via color-mix (documented in
-     design.md §4) — resolves per theme. */
-  --accent-soft: color-mix(in srgb, var(--accent-subtle) 45%, transparent);
-  --accent-border: var(--ds-background-brand-subtler);
-  --accent-text: var(--ds-link); /* accent as text — 5.9:1 on bg-panel */
-
-  /* Semantic status — composed from the ADS accent ramp */
-  --success: var(--ds-accent-green-bolder);
-  --success-bg: var(--ds-accent-green-subtlest);
-  --success-border: var(--ds-accent-green-subtler);
-  --success-text: var(--ds-accent-green-text);
-  --warning: var(--ds-accent-orange-bolder);
-  --warning-bg: var(--ds-accent-orange-subtlest);
-  --warning-border: var(--ds-accent-orange-subtler);
-  --warning-text: var(--ds-accent-orange-text);
-  --danger: var(--ds-accent-red-bolder);
-  /* DESTRUCTIVE BUTTON FILL — ADS states its own bold/bold-hovered pair for
-     exactly this case, both already clearing AA against white (5.2:1 and
-     6.7:1), so unlike the Figma port no hand-deepening is needed. Kept
-     separate from --danger, which is also the sentiment-negative solid and
-     the score-low ring. */
-  --danger-solid: var(--ds-background-danger-bold);
-  --danger-solid-hover: var(--ds-background-danger-bold-hovered);
-  --danger-fg: var(--ds-text-inverse);
-  --danger-bg: var(--ds-accent-red-subtlest);
-  --danger-border: var(--ds-accent-red-subtler);
-  --danger-text: var(--ds-accent-red-text);
-  --info: var(--ds-accent-blue-bolder);
-  --info-bg: var(--ds-accent-blue-subtlest);
-  --info-border: var(--ds-accent-blue-subtler);
-  --info-text: var(--ds-accent-blue-text);
-  --neutral-bg: var(--ds-accent-gray-subtlest);
-
-  /* Sentiment (positive / neutral / negative) — green / gray / red */
-  --sentiment-positive: var(--ds-accent-green-bolder);
-  --sentiment-positive-bg: var(--ds-accent-green-subtlest);
-  --sentiment-positive-text: var(--ds-accent-green-text);
-  --sentiment-neutral: var(--ds-accent-gray-bolder);
-  --sentiment-neutral-bg: var(--ds-accent-gray-subtlest);
-  --sentiment-neutral-text: var(--ds-accent-gray-text);
-  --sentiment-negative: var(--ds-accent-red-bolder);
-  --sentiment-negative-bg: var(--ds-accent-red-subtlest);
-  --sentiment-negative-text: var(--ds-accent-red-text);
-  /* Sentiment is not computed yet — render the neutral "—" placeholder below. */
-  --value-placeholder: var(--text-muted);
-
-  /* Citation classification — owned / competitor / third-party map to
-     blue / magenta / gray. Magenta replaces the old orange for competitor
-     so it cannot be confused with the warning hue, which is now orange. */
-  --citation-owned: var(--ds-accent-blue-bolder);
-  --citation-owned-bg: var(--ds-accent-blue-subtlest);
-  --citation-owned-border: var(--ds-accent-blue-subtler);
-  --citation-owned-text: var(--ds-accent-blue-text);
-  --citation-competitor: var(--ds-accent-magenta-bolder);
-  --citation-competitor-bg: var(--ds-accent-magenta-subtlest);
-  --citation-competitor-border: var(--ds-accent-magenta-subtler);
-  --citation-competitor-text: var(--ds-accent-magenta-text);
-  --citation-third-party: var(--ds-accent-gray-bolder);
-  --citation-third-party-bg: var(--ds-accent-gray-subtlest);
-  --citation-third-party-border: var(--ds-accent-gray-subtler);
-  --citation-third-party-text: var(--ds-accent-gray-text);
-
-  /* Run status (audit lifecycle) — solid = the AA-safe text hue, so a
-     status dot and its label always agree. */
-  --run-draft: var(--ds-accent-gray-text);
-  --run-draft-bg: var(--ds-accent-gray-subtlest);
-  --run-queued: var(--ds-accent-gray-text);
-  --run-queued-bg: var(--ds-accent-gray-subtlest);
-  --run-running: var(--ds-accent-blue-text);
-  --run-running-bg: var(--ds-accent-blue-subtlest);
-  --run-analyzing: var(--ds-accent-purple-text);
-  --run-analyzing-bg: var(--ds-accent-purple-subtlest);
-  --run-completed: var(--ds-accent-green-text);
-  --run-completed-bg: var(--ds-accent-green-subtlest);
-  --run-partial: var(--ds-accent-yellow-text);
-  --run-partial-bg: var(--ds-accent-yellow-subtlest);
-  --run-failed: var(--ds-accent-red-text);
-  --run-failed-bg: var(--ds-accent-red-subtlest);
-  --run-cancelled: var(--ds-accent-gray-text);
-  --run-cancelled-bg: var(--ds-accent-gray-subtlest);
-
-  /* Score bands (visibility %) — thresholds stay 25/50/75 (score-band.ts
-     unchanged). Four rungs red → orange → TEAL → green. Ring takes the
-     `bolder` step so the arc reads at 2px stroke; text takes the AA-safe
-     `text` step. */
-  --score-low: var(--ds-accent-red-bolder);
-  --score-low-bg: var(--ds-accent-red-subtlest); /* 0–24%   */
-  --score-low-border: var(--ds-accent-red-subtler);
-  --score-low-text: var(--ds-accent-red-text);
-  --score-low-ring: var(--ds-accent-red-bolder);
-  --score-mid: var(--ds-accent-orange-bolder);
-  --score-mid-bg: var(--ds-accent-orange-subtlest); /* 25–49%  */
-  --score-mid-border: var(--ds-accent-orange-subtler);
-  --score-mid-text: var(--ds-accent-orange-text);
-  --score-mid-ring: var(--ds-accent-orange-bolder);
-  --score-good: var(--ds-accent-teal-bolder);
-  --score-good-bg: var(--ds-accent-teal-subtlest); /* 50–74%  */
-  --score-good-border: var(--ds-accent-teal-subtler);
-  --score-good-text: var(--ds-accent-teal-text);
-  --score-good-ring: var(--ds-accent-teal-bolder);
-  --score-high: var(--ds-accent-green-bolder);
-  --score-high-bg: var(--ds-accent-green-subtlest); /* 75–100% */
-  --score-high-border: var(--ds-accent-green-subtler);
-  --score-high-text: var(--ds-accent-green-text);
-  --score-high-ring: var(--ds-accent-green-bolder);
-
-  /* ─── Chart palette — the ADS accent ramp, one hue per slot ────────────
-     Categorical, fixed order, never cycled. Dark overrides the LIGHTNESS
-     of each slot but not its HUE (ADS ramps are hue-stable to within a
-     degree), so a series keeps its identity across a theme switch while
-     staying legible on both canvases — the old palette held one value for
-     both themes and paid for it in dark. Asserted in globals.test.ts.
-     The legacy --series-* slots alias onto it (the "fold into Other" rule
-     in series-palette.ts is unchanged). */
-  --chart-1: var(--ds-accent-blue-bolder);
-  --chart-2: var(--ds-accent-green-bolder);
-  --chart-3: var(--ds-accent-orange-bolder);
-  --chart-4: var(--ds-accent-red-bolder);
-  --chart-5: var(--ds-accent-purple-bolder);
-  --chart-6: var(--ds-accent-teal-bolder);
-  --chart-7: var(--ds-accent-yellow-bolder);
-  --chart-8: var(--ds-accent-magenta-bolder);
-  --series-1: var(--chart-1); /* brand — the user's own data series */
-  --series-2: var(--chart-2);
-  --series-3: var(--chart-3);
-  --series-4: var(--chart-4);
-  --series-5: var(--chart-5);
-  --series-other: var(--ds-accent-gray-subtle); /* the "Other" bucket — deliberately achromatic */
-  --chart-tooltip-bg: var(--ds-background-neutral-bold); /* inverse chip */
-  --chart-tooltip-fg: var(--ds-text-inverse);
-
-  /* ─── Elevation — ADS raised + overlay (§4a) ──────────────────────────
-     A card is a white fill on the sunken canvas carrying the ADS raised
-     shadow, edged by the subtle 6% hairline — depth AND the tint step now
-     separate it from the canvas, so the border no longer has to. The
-     overlay rung belongs to surfaces that genuinely float (modal,
-     dropdown, tooltip, palette) and to the hover lift of an interactive
-     card, which floats for as long as the pointer is over it. xs/sm and
-     the legacy elevated alias stay `none` so no third rung creeps in.
-     Enforced by scripts/check-elevation.mjs. */
-  --shadow-1: none;
-  --shadow-2: var(--ds-shadow-raised);
-  --shadow-3: var(--ds-shadow-overlay);
-  --shadow-4: var(--ds-shadow-overlay);
-  --shadow-xs-value: none;
-  --shadow-sm-value: none;
-  --shadow-card-value: var(--ds-shadow-raised);
-  --shadow-card-hover-value: var(--ds-shadow-overlay);
-  --shadow-elevated-value: none;
-  --shadow-lg-value: var(--ds-shadow-overlay);
-  --shadow-modal: var(--ds-shadow-overlay);
-  /* Width comes from the ADS token so this and the :focus-visible outline
-     below cannot drift apart. */
-  --focus-ring: 0 0 0 var(--ds-border-width-focused) var(--ds-border-focused);
-  --overlay-scrim: var(--ds-blanket);
-
-  /* Skeleton */
-  --skeleton-base: var(--ds-accent-gray-subtlest);
-  --skeleton-highlight: var(--ds-surface);
-
-  /* ─── Motion (§13) — theme-independent. The type tokens (§7) live in
-     ds-type.css and the spacing/density/geometry tokens (§8) in
-     ds-space.css; this file owns colour semantics only. ─── */
-  --transition-fast: 100ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 180ms cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  --sidebar-width: 224px;
+  --topbar-height: 48px;
+  --nav-item-height: 32px;
+  --content-gutter: 20px;
+  --content-max-width: 1440px;
+  --card-padding: 16px;
+  --card-gap: 16px;
+  --control-height-sm: 32px;
+  --control-height: 32px;
+  --control-height-lg: 44px;
+  --table-row-height: 36px;
+  --table-header-height: 32px;
+  --table-cell-padding-x: 12px;
+  --table-cell-padding-y: 6px;
+  --dialog-scroll: 60vh;
+  --score-ring: 72px;
+  --focus-ring: 0 0 0 2px #007f87;
+  --skeleton-base: #e4ecea;
+  --skeleton-highlight: #f7faf9;
+  --value-placeholder: #617370;
 }
 
-/* ─── DARK THEME (§5) — html[data-theme='dark'] ────────────────────────
-   Almost empty, and that is the point.
-
-   Every semantic token above resolves through a `var(--ds-*)` indirection,
-   and ds-tokens.css already flips all ~150 primitives under this same
-   selector. So the dark theme needs no restatement here: --bg-panel is
-   `var(--ds-surface)` in both themes and simply resolves to #FFFFFF or
-   #161A1D. The old dark block restated 120 hand-authored values and could
-   drift out of step with light; this one cannot.
-
-   Two deliberate reversals from the previous dark theme, both recorded in
-   app/globals.test.ts:
-   · The "never near-black" floor is GONE. It was an aesthetic rule for the
-     warm-charcoal dusk deck (base #262522). ADS dark genuinely is
-     near-black (sunken #101214) and we follow it.
-   · The accent no longer changes hue between themes. Light royal blue +
-     dark violet was intentional under the dusk system; ADS uses one blue
-     family throughout (#0C66E4 → #579DFF), so the two themes now agree.
-
-   Still machine-enforced (§6): the surface ladder keeps its ORDER
-   (--bg-base < --bg-panel ≤ --bg-elevated by luminance), every documented
-   text/status/accent pair meets AA ≥ 4.5:1, and the in-flow shadow rungs
-   stay `none`.
-──────────────────────────────────────────────────────────────────────── */
-html[data-theme='dark'] {
-  color-scheme: dark;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   RESET & BASE
-═══════════════════════════════════════════════════════════════════════ */
 *,
 *::before,
 *::after {
@@ -563,30 +216,22 @@ html[data-theme='dark'] {
 
 html {
   min-height: 100%;
-  background: var(--bg-base);
+  background: #f5f8f7;
   scrollbar-gutter: stable;
-  font-size: 100%; /* respects user font-size (WCAG 1.4.4) */
 }
 
 body {
   margin: 0;
   min-height: 100dvh;
-  background-color: var(--bg-base);
-  color: var(--text-primary);
-  font-family: var(--font-primary-family);
-  font-size: var(--text-sm); /* 14px — the ADS body default */
-  line-height: 1.5; /* WCAG 1.4.12 */
+  background: #f5f8f7;
+  color: #162322;
+  font-family: var(--font-geist), system-ui, sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   text-size-adjust: 100%;
 }
 
-/* The element base sits in @layer base so Tailwind's utility layer always
-   beats it — when these rules were unlayered they out-specified the very
-   utilities the components set (a `text-lg` heading got this line-height,
-   not the token's). This is also what lets the marketing surface drop its
-   `revert-layer` hack when its own sweep lands. Line-height and tracking
-   carry no declarations here: the size tokens own both (§7). */
 @layer base {
   h1,
   h2,
@@ -595,101 +240,289 @@ body {
   h5,
   h6 {
     margin: 0;
-    font-family: var(--font-display-family);
-    font-weight: var(--weight-medium);
-    font-synthesis: none;
-    color: var(--text-primary);
+    font-family: 'Apfel Grotezk', var(--font-geist), system-ui, sans-serif;
+    color: #162322;
   }
 
   p {
-    margin-block-start: 0;
-    margin-block-end: var(--space-200);
-  }
-
-  p:last-child {
-    margin-block-end: 0;
+    margin: 0;
   }
 }
 
-/* Theme-toggle flash suppression: transitions/animations off during a swap */
-html[data-theme-transition] *,
-html[data-theme-transition] *::before,
-html[data-theme-transition] *::after {
-  transition: none !important;
-  animation: none !important;
+:focus-visible {
+  outline: 2px solid #007f87;
+  outline-offset: 2px;
 }
 
-/* ─── Numeric utility — tabular numerals for every metric (§5). No
-   monospace face is shipped: --font-mono-family aliases Inter, so
-   .mono/font-mono/code/kbd keep their tabular alignment without a second font. ─── */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  border-color: #007f87 !important;
+  box-shadow: var(--focus-ring);
+}
+
+::selection {
+  background: #a8dadc;
+  color: #162322;
+}
+
 .mono,
 .font-mono,
 code,
 pre,
 kbd,
 samp {
-  font-family: var(--font-mono-family);
+  font-family: var(--font-geist), system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   font-synthesis: none;
-  letter-spacing: 0;
-  -webkit-font-smoothing: antialiased;
 }
 
-/* Value placeholder — the neutral "—" shown for not-yet-computed metrics. */
 .value-placeholder {
   color: var(--value-placeholder);
 }
 
-/* ─── Skeleton shimmer (§11) — ~1.2s loop between base → highlight ───── */
+.logo-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  color: #006d77;
+}
+
+.logo-mark svg {
+  width: 100%;
+  height: 100%;
+}
+
+.logo-mark path {
+  fill: currentColor;
+}
+
 @keyframes skeleton-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 
 .skeleton {
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   background-color: var(--skeleton-base);
   background-image: linear-gradient(
     90deg,
-    var(--skeleton-base) 0%,
-    var(--skeleton-highlight) 50%,
-    var(--skeleton-base) 100%
+    var(--skeleton-base),
+    var(--skeleton-highlight),
+    var(--skeleton-base)
   );
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.2s ease-in-out infinite;
 }
 
-/* ─── Live activity pulse — "work is still happening" ────────────────────
-   A small breathing dot for phases whose progress is real but not
-   countable (link checking, background discovery). The counters can sit
-   unchanged for a while there, and a frozen row reads as a hung run — this
-   is the signal that the crawl is alive. Deliberately opacity/scale only:
-   it composites on the GPU and never reflows the status row. */
-@keyframes activity-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.45;
-    transform: scale(0.82);
+.sidebar-scroll,
+.content-scroll {
+  scrollbar-color: #cbd8d5 transparent;
+  scrollbar-width: thin;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --topbar-height: 52px;
+    --content-gutter: 16px;
+    --control-height-sm: 44px;
+    --control-height: 44px;
+    --table-row-height: 44px;
   }
 }
 
-.activity-dot {
-  border-radius: var(--radius-full, 9999px);
-  animation: activity-pulse 1.4s ease-in-out infinite;
-}
-
-/* Honor the OS setting: the dot still marks the phase, it just stops moving. */
 @media (prefers-reduced-motion: reduce) {
-  .skeleton,
-  .activity-dot {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* Shared CiteLadder atmosphere: one image, three restrained intensity levels. */
+.brand-atmosphere {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.brand-atmosphere-image {
+  position: absolute;
+  inset: -12%;
+  background: url('/brand/wallpaper.svg') center / cover no-repeat;
+  transform: scale(1.08);
+  animation: citeladder-atmosphere-drift 22s cubic-bezier(0.16, 1, 0.3, 1) infinite alternate;
+}
+
+.brand-atmosphere-signal {
+  position: absolute;
+  inset: 12% 8% auto auto;
+  width: min(32vw, 28rem);
+  aspect-ratio: 1;
+  border: 1px solid rgb(0 109 119 / 16%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3rem rgb(0 109 119 / 5%),
+    0 0 0 7rem rgb(0 109 119 / 3%);
+  animation: citeladder-signal-pulse 9s ease-in-out infinite alternate;
+}
+
+.brand-atmosphere-hero {
+  opacity: 0.82;
+}
+
+.brand-atmosphere-page {
+  opacity: 0.68;
+}
+
+.brand-atmosphere-page .brand-atmosphere-image {
+  inset: -28% -12%;
+  animation-duration: 28s;
+}
+
+.brand-atmosphere-site {
+  position: fixed;
+  opacity: 0.22;
+}
+
+.brand-atmosphere-site .brand-atmosphere-image {
+  inset: -20%;
+  animation-duration: 36s;
+}
+
+.brand-atmosphere-app {
+  position: fixed;
+  inset: var(--topbar-height) 0 0 var(--sidebar-width);
+  opacity: 0.62;
+}
+
+.brand-atmosphere-app .brand-atmosphere-image {
+  inset: -20%;
+  animation-duration: 32s;
+}
+
+@keyframes citeladder-atmosphere-drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(1.08);
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) scale(1.16);
+  }
+}
+
+@keyframes citeladder-signal-pulse {
+  from {
+    transform: translate3d(0, 0, 0) scale(0.9);
+    opacity: 0.36;
+  }
+  to {
+    transform: translate3d(-8%, 6%, 0) scale(1.06);
+    opacity: 0.68;
+  }
+}
+
+/* Six-engine rotating wordmarks: no cards or implied availability states. */
+.engine-roster {
+  color: var(--color-accent-text);
+}
+
+.engine-rotor-slot {
+  height: 4rem;
+  perspective: 48rem;
+}
+
+.engine-rotor-inner {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: citeladder-engine-flip 8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.engine-rotor-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  backface-visibility: hidden;
+}
+
+.engine-rotor-face-alternate {
+  transform: rotateX(180deg);
+}
+
+.engine-roster-static {
+  display: none;
+}
+
+.engine-roster-static-item {
+  display: flex;
+  min-height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+}
+
+@keyframes citeladder-engine-flip {
+  0%,
+  42% {
+    transform: rotateX(0deg);
+  }
+  50%,
+  92% {
+    transform: rotateX(180deg);
+  }
+  100% {
+    transform: rotateX(360deg);
+  }
+}
+
+@media (max-width: 767px) {
+  .brand-atmosphere-app {
+    inset: var(--topbar-height) 0 4rem;
+  }
+
+  .engine-rotor-face {
+    gap: 0.375rem;
+    padding-inline: 0.375rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-atmosphere-image,
+  .brand-atmosphere-signal,
+  .engine-rotor-inner {
     animation: none;
+  }
+
+  .engine-roster-motion {
+    display: none;
+  }
+
+  .engine-roster-static {
+    display: grid;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 3px solid ButtonText;
+  }
+}
+
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
   }
 }

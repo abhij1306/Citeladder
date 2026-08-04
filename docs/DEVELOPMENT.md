@@ -1,6 +1,6 @@
-# Development guide — Searchify
+# Development guide — CiteLadder
 
-Everything you need to run, test, and troubleshoot Searchify locally, plus the two
+Everything you need to run, test, and troubleshoot CiteLadder locally, plus the two
 environment gotchas that will otherwise cost you an afternoon. Pair this with
 [`../Agents.md`](../Agents.md) (contract + rules) and [`invariants.md`](invariants.md)
 (the review-blocking hard rules, including the canonical gotcha runbooks §11–12).
@@ -21,7 +21,7 @@ environment gotchas that will otherwise cost you an afternoon. Pair this with
 ```bash
 cd backend
 uv sync                     # creates backend/.venv and installs deps from uv.lock
-export DATABASE_URL="postgresql+asyncpg://postgres:<password>@localhost:5432/searchify"
+export DATABASE_URL="postgresql+asyncpg://postgres:<password>@localhost:5432/citeladder"
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --port 8000
 ```
@@ -55,7 +55,7 @@ cp infra/docker/.env.example infra/docker/.env
 
 # Use the env -u workaround (gotcha 1) — verbatim:
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
-  POSTGRES_PASSWORD=searchify_dev_password \
+  POSTGRES_PASSWORD=citeladder_dev_password \
   docker compose -f infra/docker/docker-compose.yml up -d --force-recreate
 
 cd backend && uv run alembic upgrade head
@@ -70,7 +70,7 @@ worker). See `infra/docker/README.md` for details.
 
 Backend tests use a real Postgres (each test runs against an isolated schema). No
 configuration is needed: the suite derives server credentials from the repo `.env`
-`DATABASE_URL`, creates a throwaway `searchify_tests_<runid>` database for the run, and
+`DATABASE_URL`, creates a throwaway `citeladder_tests_<runid>` database for the run, and
 drops it on teardown — nothing persists and the dev database is never touched.
 
 ```bash
@@ -92,7 +92,7 @@ pnpm test:e2e         # Playwright (needs a browser + a running stack)
 
 ## Migrations (single greenfield baseline)
 
-Searchify is greenfield and keeps one complete `0001_initial` revision. Fold
+CiteLadder is greenfield and keeps one complete `0001_initial` revision. Fold
 every schema change into that baseline, reset only disposable databases, and
 verify the complete schema from scratch. Do not introduce additive revision
 files while this policy is in effect.

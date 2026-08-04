@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reset the Searchify database: drop, recreate, and run migrations."""
+"""Reset the CiteLadder database: drop, recreate, and run migrations."""
 
 import asyncio
 import os
@@ -36,9 +36,7 @@ def _database_url() -> str:
 
 
 def _connection_details(database_url: str) -> tuple[str, str, str]:
-    driver_url = database_url.replace(
-        "postgresql+asyncpg://", "postgresql://", 1
-    )
+    driver_url = database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
     parsed = urlsplit(driver_url)
     target_db = unquote(parsed.path.removeprefix("/"))
     if not target_db:
@@ -53,9 +51,7 @@ def _connection_details(database_url: str) -> tuple[str, str, str]:
     user = parsed.username or ""
     port = f":{parsed.port}" if parsed.port is not None else ""
     credentials = f"{user}:***@" if parsed.password is not None else f"{user}@"
-    redacted_netloc = (
-        f"{credentials}{hostname}{port}" if user else f"{hostname}{port}"
-    )
+    redacted_netloc = f"{credentials}{hostname}{port}" if user else f"{hostname}{port}"
     redacted = urlunsplit(parsed._replace(netloc=redacted_netloc, path="/postgres"))
     return admin_url, redacted, target_db
 
@@ -65,7 +61,7 @@ def _quote_identifier(value: str) -> str:
 
 
 async def reset_database(database_url: str) -> None:
-    """Drop and recreate the searchify database."""
+    """Drop and recreate the citeladder database."""
     admin_url, redacted_url, target_db = _connection_details(database_url)
     quoted_target = _quote_identifier(target_db)
     print(f"Connecting to {redacted_url}...")
@@ -112,7 +108,7 @@ def run_migrations(database_url: str) -> None:
 
 def main() -> None:
     print("=" * 50)
-    print("Searchify Database Reset")
+    print("CiteLadder Database Reset")
     print("=" * 50)
 
     try:

@@ -1,49 +1,26 @@
 import Image from 'next/image';
+
 import { cn } from '@/lib/utils';
 
 import { EngineLogo, type OfficialEngineKey } from '../primitives/engine-logo';
 
 type ExtendedLogoKey = 'grok' | 'copilot' | 'perplexity';
+type LogoKey = OfficialEngineKey | ExtendedLogoKey;
 
-/**
- * Each plate turns between a SHIPPED engine and a PLANNED one.
- *
- * Keeping the planned marks is a deliberate, user-approved deviation from the
- * "no provider logo without a shipped adapter" gate (see
- * docs/plans/v8-delivered.md §4.4). The replacement gate is what the code
- * below enforces: every planned face is visibly and accessibly labelled
- * "Coming soon", is never a link or a connect affordance, and has no route in
- * the provider catalog — so the board can never imply six working
- * integrations.
- */
 const LOGO_PAIRS = [
-  {
-    primary: { key: 'openai', label: 'ChatGPT', color: 'text-mkt-engine-openai' },
-    alternate: { key: 'grok', label: 'Grok', color: 'text-mkt-engine-grok' },
-  },
-  {
-    primary: { key: 'gemini', label: 'Gemini', color: 'text-mkt-engine-gemini' },
-    alternate: { key: 'copilot', label: 'Copilot', color: 'text-mkt-engine-copilot' },
-  },
-  {
-    primary: { key: 'claude', label: 'Claude', color: 'text-mkt-engine-claude' },
-    alternate: {
-      key: 'perplexity',
-      label: 'Perplexity',
-      color: 'text-mkt-engine-perplexity',
-    },
-  },
+  [
+    { key: 'openai', label: 'ChatGPT' },
+    { key: 'grok', label: 'Grok' },
+  ],
+  [
+    { key: 'gemini', label: 'Gemini' },
+    { key: 'copilot', label: 'Copilot' },
+  ],
+  [
+    { key: 'claude', label: 'Claude' },
+    { key: 'perplexity', label: 'Perplexity' },
+  ],
 ] as const;
-
-/** The shipped engines, in board order. Everything else is coming soon. */
-const AVAILABLE_LABELS = LOGO_PAIRS.map((pair) => pair.primary.label);
-const COMING_SOON_LABELS = LOGO_PAIRS.map((pair) => pair.alternate.label);
-
-function joinLabels(labels: readonly string[]): string {
-  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
-}
-
-const ENGINE_ROSTER_LABEL = `Available: ${joinLabels(AVAILABLE_LABELS)}. Coming soon: ${joinLabels(COMING_SOON_LABELS)}.`;
 
 const EXTENDED_LOGOS: Record<
   Exclude<ExtendedLogoKey, 'grok'>,
@@ -59,71 +36,66 @@ const EXTENDED_LOGOS: Record<
   },
 };
 
-function ProviderLogo({ logo }: Readonly<{ logo: OfficialEngineKey | ExtendedLogoKey }>) {
+function ProviderLogo({ logo }: Readonly<{ logo: LogoKey }>) {
   if (logo === 'openai' || logo === 'gemini' || logo === 'claude') {
-    return <EngineLogo engine={logo} className="size-8 shrink-0" />;
+    return <EngineLogo engine={logo} className="size-7 shrink-0" />;
   }
-
   if (logo === 'grok') {
     return (
       <Image
         src="/brand/grok.webp"
         alt=""
-        width={34}
-        height={34}
-        priority
-        loading="eager"
-        unoptimized
-        className="size-[34px] shrink-0 object-contain"
+        width={30}
+        height={30}
+        className="size-7 shrink-0 object-contain"
       />
     );
   }
-
   const definition = EXTENDED_LOGOS[logo];
   return (
-    <svg aria-hidden viewBox={definition.viewBox} className="size-8 shrink-0 fill-current">
+    <svg aria-hidden viewBox={definition.viewBox} className="size-7 shrink-0 fill-current">
       <path d={definition.path} />
     </svg>
   );
 }
 
-/**
- * The provider board under the hero CTAs: three plates, each turning between
- * two marks.
- *
- * All brand mark geometries are held locally to avoid network requests.
- * The board is a single `role="img"` with one label rather than six list items.
- */
+function LogoFace({
+  logo,
+  alternate,
+}: Readonly<{
+  logo: (typeof LOGO_PAIRS)[number][number];
+  alternate?: boolean;
+}>) {
+  return (
+    <span className={cn('engine-rotor-face', alternate && 'engine-rotor-face-alternate')}>
+      <ProviderLogo logo={logo.key} />
+      <span className="text-foreground text-sm font-semibold">{logo.label}</span>
+    </span>
+  );
+}
+
 export function RotatingEngineLogos({ className }: Readonly<{ className?: string }>) {
   return (
     <div
-      data-engine-roster
-      className={cn('mkt-logo-board', className)}
+      className={cn('engine-roster', className)}
       role="img"
-      aria-label={ENGINE_ROSTER_LABEL}
+      aria-label="ChatGPT, Grok, Gemini, Copilot, Claude and Perplexity."
     >
-      <ul aria-hidden className="gap-mkt-14 sm:gap-mkt-20 mx-auto grid max-w-lg grid-cols-3">
-        {LOGO_PAIRS.map(({ primary, alternate }, index) => (
-          <li
-            key={primary.key}
-            data-logo-slot={index + 1}
-            className="mkt-logo-slot rounded-mkt-lg relative h-12 overflow-hidden"
-          >
-            {[primary, alternate].map((face, faceIndex) => (
-              <span
-                key={face.key}
-                data-logo-face={faceIndex === 0 ? 'primary' : 'alternate'}
-                className={cn(
-                  'mkt-logo-face gap-mkt-14 px-mkt-14 absolute inset-0 flex items-center justify-center font-medium',
-                  face.color,
-                )}
-              >
-                <ProviderLogo logo={face.key} />
-                <span className="text-mkt-body text-mkt-ink hidden font-semibold sm:inline">
-                  {face.label}
-                </span>
-              </span>
-            ))}
+      <ul aria-hidden className="engine-roster-motion mx-auto grid max-w-2xl grid-cols-3 gap-3">
+        {LOGO_PAIRS.map(([primary, alternate], index) => (
+          <li key={primary.key} className="engine-rotor-slot">
+            <span className="engine-rotor-inner" style={{ animationDelay: `${index * -1.8}s` }}>
+              <LogoFace logo={primary} />
+              <LogoFace logo={alternate} alternate />
+            </span>
+          </li>
+        ))}
+      </ul>
+      <ul aria-hidden className="engine-roster-static grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {LOGO_PAIRS.flat().map((logo) => (
+          <li key={logo.key} className="engine-roster-static-item">
+            <ProviderLogo logo={logo.key} />
+            <span className="text-sm font-semibold">{logo.label}</span>
           </li>
         ))}
       </ul>

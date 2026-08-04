@@ -4,7 +4,7 @@ import { BlogIndex } from '@/components/marketing/pages/blog';
 
 const DESCRIPTION =
   'Essays, release notes, and field reports on answer-engine optimization — ' +
-  'evidence-first, and straight from the team building Searchify.';
+  'evidence-first, and straight from the team building CiteLadder.';
 
 // OG images require an absolute URL; they are added with NEXT_PUBLIC_SITE_URL (lib/seo/site.ts).
 export const metadata: Metadata = {
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     title: 'Blog — notes on AI visibility',
     description: DESCRIPTION,
     type: 'website',
-    siteName: 'Searchify',
+    siteName: 'CiteLadder',
   },
   twitter: {
     card: 'summary',

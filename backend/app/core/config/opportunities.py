@@ -90,6 +90,7 @@ OPPORTUNITY_ACTIVE_STATUSES: Final[frozenset[str]] = frozenset(
 # Coded API failures (stable tokens returned to the client)
 # =========================================================================
 CODE_OPPORTUNITY_SUPERSEDED: Final = "opportunity_superseded"
+CODE_OPPORTUNITY_ORDER_CONFLICT: Final = "opportunity_order_conflict"
 CODE_OPPORTUNITY_GUIDANCE_UNAVAILABLE: Final = "opportunity_guidance_unavailable"
 CODE_OPPORTUNITY_GUIDANCE_IDEMPOTENCY_CONFLICT: Final = (
     "opportunity_guidance_idempotency_conflict"

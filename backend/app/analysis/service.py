@@ -1,7 +1,7 @@
 # Analysis + finalize wiring (B6, invariants 4/7/9).
 #
 # Adapts the reference ``ai_visibility`` per-execution ``_analyze`` +
-# ``_finalize_run`` aggregation to Searchify's queue model:
+# ``_finalize_run`` aggregation to CiteLadder's queue model:
 #   - ``analyze_task`` deterministically scores ONE completed execution from its
 #     persisted answer + citations (no provider call — invariant 9) and persists
 #     the derived rows (``ResponseAnalysis`` + ``BrandMention`` /

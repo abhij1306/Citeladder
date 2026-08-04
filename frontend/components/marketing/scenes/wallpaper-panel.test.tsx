@@ -11,6 +11,6 @@ describe('WallpaperPanel', () => {
       </WallpaperPanel>,
     );
 
-    expect(screen.getByText('Scene').parentElement).not.toHaveClass('rounded-mkt-lg');
+    expect(screen.getByText('Scene').parentElement).not.toHaveClass('rounded-lg');
   });
 });

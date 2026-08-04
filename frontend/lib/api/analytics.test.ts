@@ -48,7 +48,7 @@ const headline = {
 const referralRow = {
   id: REFERRAL,
   occurred_at: '2026-07-21T14:03:00Z',
-  landing_url: 'https://searchify.io/blog/aeo-guide',
+  landing_url: 'https://citeladder.io/blog/aeo-guide',
   referrer_host: 'chatgpt.com',
   is_ai_referral: true,
   ai_source: 'chatgpt' as const,

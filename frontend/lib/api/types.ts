@@ -52,9 +52,7 @@ import type {
   workspaceSchema,
   productTourSchema,
   productTourStatusSchema,
-  dashboardSchema,
-  dashboardSectionSchema,
-  dashboardSectionStateSchema,
+  commandCenterSchema,
   // Site Health
   crawlAnalysisStatusSchema,
   crawlDiscoveryStatusSchema,
@@ -168,11 +166,7 @@ export type OAuthStartResponse = z.infer<typeof oauthStartResponseSchema>;
 export type Workspace = z.infer<typeof workspaceSchema>;
 export type ProductTourStatus = z.infer<typeof productTourStatusSchema>;
 export type ProductTour = z.infer<typeof productTourSchema>;
-export type Dashboard = z.infer<typeof dashboardSchema>;
-export type DashboardSection = z.infer<typeof dashboardSectionSchema>;
-export type DashboardSectionState = z.infer<typeof dashboardSectionStateSchema>;
-export type AIPresence = NonNullable<Dashboard['ai_presence']>;
-export type AIPresencePoint = NonNullable<AIPresence['current']>;
+export type CommandCenter = z.infer<typeof commandCenterSchema>;
 export type BrandProfileSource = z.infer<typeof brandProfileSourceSchema>;
 export type BrandProfileDraft = z.infer<typeof brandProfileDraftSchema>;
 export type BrandProfile = z.infer<typeof brandProfileSchema>;

@@ -88,7 +88,7 @@ export function ConnectProviderDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="Connect a provider"
-      description="Pick an AI engine and paste its API key. Keys are write-only — Searchify never displays a stored secret."
+      description="Pick an AI engine and paste its API key. Keys are write-only — CiteLadder never displays a stored secret."
     >
       <div className="grid gap-4">
         <Field label="AI engine">

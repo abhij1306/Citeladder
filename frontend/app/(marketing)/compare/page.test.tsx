@@ -21,12 +21,12 @@ describe('Compare index page (/compare)', () => {
 
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
-    expect(h1s[0]).toHaveTextContent(/how searchify compares/i);
+    expect(h1s[0]).toHaveTextContent(/how citeladder compares/i);
 
-    // Heading-name convention: only the h1 may contain "Searchify".
+    // Heading-name convention: only the h1 may contain "CiteLadder".
     for (const heading of screen.getAllByRole('heading')) {
       if (heading === h1s[0]) continue;
-      expect(heading).not.toHaveTextContent(/searchify/i);
+      expect(heading).not.toHaveTextContent(/citeladder/i);
     }
   });
 
@@ -66,25 +66,25 @@ describe('CompareDetailView (/compare/[competitor])', () => {
 
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
-    expect(h1s[0]).toHaveTextContent(`Searchify vs ${competitor.name}.`);
+    expect(h1s[0]).toHaveTextContent(`CiteLadder vs ${competitor.name}.`);
 
     for (const heading of screen.getAllByRole('heading')) {
       if (heading === h1s[0]) continue;
-      expect(heading).not.toHaveTextContent(/searchify/i);
+      expect(heading).not.toHaveTextContent(/citeladder/i);
     }
   });
 
   it('renders both columns, the freshness badge, and the editorial blocks', () => {
     const { container } = render(<CompareDetailView competitor={competitor} />);
 
-    // Table header: real Searchify column, competitor column named for the slug.
-    expect(screen.getByRole('columnheader', { name: 'Searchify' })).toBeInTheDocument();
+    // Table header: real CiteLadder column, competitor column named for the slug.
+    expect(screen.getByRole('columnheader', { name: 'CiteLadder' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: competitor.name })).toBeInTheDocument();
 
     // Every row ships with BOTH cells written — dimension, ours, theirs.
     for (const row of competitor.rows) {
       expect(screen.getByText(row.dimension)).toBeInTheDocument();
-      expect(screen.getByText(row.searchify)).toBeInTheDocument();
+      expect(screen.getByText(row.citeladder)).toBeInTheDocument();
       expect(screen.getByText(row.competitor)).toBeInTheDocument();
     }
 
@@ -111,7 +111,7 @@ describe('CompareDetailView (/compare/[competitor])', () => {
   it('shows the freshness line under the table', () => {
     render(<CompareDetailView competitor={competitor} />);
 
-    expect(screen.getByText(/Maintained by the Searchify team/i)).toBeInTheDocument();
+    expect(screen.getByText(/Maintained by the CiteLadder team/i)).toBeInTheDocument();
     expect(
       screen.getByText(new RegExp(`Last reviewed\\s+${competitor.lastReviewed}`, 'i')),
     ).toBeInTheDocument();

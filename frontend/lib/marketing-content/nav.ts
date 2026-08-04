@@ -91,7 +91,7 @@ export const NAV_DROPS: readonly NavDrop[] = [
         items: [
           { title: 'Blog', desc: 'Guides and audit teardowns', href: '/blog' },
           { title: 'FAQ', desc: 'Straight answers on how it works', href: '/faq' },
-          { title: 'Compare', desc: 'How Searchify compares', href: '/compare' },
+          { title: 'Compare', desc: 'How CiteLadder compares', href: '/compare' },
         ],
       },
     ],

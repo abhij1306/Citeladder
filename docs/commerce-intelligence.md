@@ -1,6 +1,6 @@
 # Commerce Intelligence and AI Presence
 
-Commerce is a workspace-scoped, evidence-first extension of Searchify. All IDs
+Commerce is a workspace-scoped, evidence-first extension of CiteLadder. All IDs
 are UUIDs, all reads and writes require workspace membership, and catalogue edits
 never mutate the catalog identity frozen in an existing audit configuration.
 Derived views project immutable crawl/import/answer-engine evidence; no dashboard

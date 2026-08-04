@@ -474,7 +474,6 @@ async def test_analyze_persists_page_type_classifier_and_v2_versions(
 async def test_thin_page_generates_multiple_issues(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-
     seed, _site_url_id, _task_id = await _seed_analyze_ready(
         session_factory, root="https://example.com/thin"
     )

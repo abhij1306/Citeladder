@@ -208,7 +208,7 @@ async def seed_platform_connection(
         select(Workspace).where(Workspace.is_system.is_(True))
     )
     if system is None:
-        system = Workspace(name="Searchify Platform (system)", is_system=True)
+        system = Workspace(name="CiteLadder Platform (system)", is_system=True)
         session.add(system)
         await session.flush()
     for engine in engines:

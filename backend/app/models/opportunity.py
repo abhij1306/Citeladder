@@ -42,6 +42,7 @@ _FK_PROJECT = "projects.id"
 _FK_PROMPT = "prompts.id"
 _FK_SITE_CRAWL = "site_crawls.id"
 _FK_OPPORTUNITY = "opportunities.id"
+_FK_USER = "users.id"
 _ON_DELETE_CASCADE = "CASCADE"
 
 
@@ -146,6 +147,82 @@ class Opportunity(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class OpportunityOrder(Base):
+    """One shared, optimistic project ordering over stable opportunity keys."""
+
+    __tablename__ = "opportunity_orders"
+    __table_args__ = (
+        UniqueConstraint("project_id", name="uq_opportunity_orders_project"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    ordered_keys: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_FK_USER, ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class OpportunityStatusEvent(Base):
+    """Append-only audit trail for human opportunity workflow changes."""
+
+    __tablename__ = "opportunity_status_events"
+    __table_args__ = (
+        Index(
+            "ix_opportunity_status_events_project_created",
+            "project_id",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    opportunity_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_OPPORTUNITY, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    stable_key: Mapped[str] = mapped_column(String(640))
+    previous_status: Mapped[str] = mapped_column(String(16))
+    next_status: Mapped[str] = mapped_column(String(16))
+    changed_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_FK_USER, ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
     )
 
 

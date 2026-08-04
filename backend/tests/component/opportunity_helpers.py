@@ -74,6 +74,7 @@ SCORE_THIN_CONTENT = 10.0
 
 @dataclass
 class Scenario:
+    user_id: uuid.UUID
     workspace_id: uuid.UUID
     project_id: uuid.UUID
     prompt0_id: uuid.UUID
@@ -472,6 +473,12 @@ async def _seed_scenario(
     session: AsyncSession, *, email: str | None = None
 ) -> Scenario:
     workspace_id, project_id, prompt_ids = await _seed_base(session, email=email)
+    user_id = await session.scalar(
+        select(WorkspaceMember.user_id).where(
+            WorkspaceMember.workspace_id == workspace_id
+        )
+    )
+    assert user_id is not None
     audit, analysis0, analysis1, metric_snapshot = await _add_visibility(
         session,
         workspace_id=workspace_id,
@@ -484,6 +491,7 @@ async def _seed_scenario(
     await session.commit()
     assert metric_snapshot is not None
     return Scenario(
+        user_id=user_id,
         workspace_id=workspace_id,
         project_id=project_id,
         prompt0_id=prompt_ids[0],

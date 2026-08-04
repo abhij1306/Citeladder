@@ -202,6 +202,6 @@ Implement this only after the preceding slices pass acceptance tests.
 ## Assumptions
 
 - Commerce scoring activates only when a project has an accepted product catalog and sufficient ProductMetricSnapshot evidence; otherwise the cross-industry formula applies.
-- Searchify is still pre-production, so resetting development databases and rebuilding the single baseline is authorized.
+- CiteLadder is still pre-production, so resetting development databases and rebuilding the single baseline is authorized.
 - The ScraperAPI credential remains server-only and is never returned or logged.
 - No customer-specific names, branding, or logic are introduced.

@@ -1,7 +1,7 @@
 /**
  * Badge token maps (§8). Each family maps a value → bridged semantic token
  * classes (bg + text + border). No raw hex; all classes resolve to the
- * `@theme inline` bridge in globals.css.
+ * semantic Tailwind declarations in globals.css.
  *
  * Families:
  *  - status:         success | warning | danger | info

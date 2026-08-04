@@ -30,8 +30,8 @@ from app.core.config.billing import (
 )
 
 _SECONDS_PER_DAY = 86_400
-_NOTE_INTENT = "searchify_intent_id"
-_NOTE_ACCOUNT = "searchify_account_ref"
+_NOTE_INTENT = "citeladder_intent_id"
+_NOTE_ACCOUNT = "citeladder_account_ref"
 
 
 class RazorpayBillingProvider:

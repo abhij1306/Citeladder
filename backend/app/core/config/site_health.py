@@ -54,7 +54,7 @@ SITE_HEALTH_MAX_SAME_AS_CHARS: Final = 256
 
 # backend/app/core/config/site_health.py -> parents[3] == backend/
 _BASE_DIR = Path(__file__).resolve().parents[3]
-# Repo root (Searchify/) holds the shared .env used by docker + local dev.
+# Repo root (CiteLadder/) holds the shared .env used by docker + local dev.
 _PROJECT_ROOT = _BASE_DIR.parent
 
 if TYPE_CHECKING:
@@ -512,7 +512,7 @@ APPLICABILITY_OBSERVED_CONTENT: Final = "observed_content"
 # =========================================================================
 # The crawler's own user-agent (also the SecureFetcher default) — robots.txt
 # policy is evaluated for this identity.
-SITE_HEALTH_USER_AGENT: Final = "SearchifySiteHealthBot/1.0 (+https://searchify)"
+SITE_HEALTH_USER_AGENT: Final = "CiteLadderSiteHealthBot/1.0 (+https://citeladder)"
 # Well-known paths probed once per crawl during the root discover task.
 ROBOTS_TXT_PATH: Final = "/robots.txt"
 LLMS_TXT_PATH: Final = "/llms.txt"

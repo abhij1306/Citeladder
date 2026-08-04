@@ -158,7 +158,7 @@ export function ActivationProgress({
             {ready ? 'Your first review is ready' : 'Preparing your first review'}
           </h2>
           <p className="text-secondary text-sm">
-            You can keep using Searchify while this finishes automatically.
+            You can keep using CiteLadder while this finishes automatically.
           </p>
         </div>
         <ActivityProgress label="First review progress" steps={steps} />

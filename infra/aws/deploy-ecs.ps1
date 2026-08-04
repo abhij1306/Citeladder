@@ -738,7 +738,7 @@ foreach ($spec in $backendTaskSpecs) {
 $frontendDefinition = New-FrontendTaskDefinition -Family "$servicePrefix-frontend" -Image $frontendImage -Cpu (Get-TaskSize -Config $config -Name "frontend" -Property "cpu" -Fallback 512) -Memory (Get-TaskSize -Config $config -Name "frontend" -Property "memory" -Fallback 1024) -BackendOrigin $config.backendOrigin -ExecutionRoleArn $config.executionRoleArn -LogGroup "/ecs/$servicePrefix/frontend" -Region $region
 $taskDefinitions["frontend"] = $frontendDefinition
 
-Write-Host "Searchify ECS deployment plan"
+Write-Host "CiteLadder ECS deployment plan"
 Write-Host "  AWS account: $accountId"
 Write-Host "  Region:      $region"
 Write-Host "  Environment: $($config.environment)"
@@ -764,8 +764,8 @@ if ($LASTEXITCODE -ne 0) {
   throw "Docker login to ECR failed"
 }
 
-$backendLocal = "searchify-backend:$ImageTag"
-$frontendLocal = "searchify-frontend:$ImageTag"
+$backendLocal = "citeladder-backend:$ImageTag"
+$frontendLocal = "citeladder-frontend:$ImageTag"
 
 Invoke-Native -Command "docker" -Arguments @("build", "--file", "infra/docker/Dockerfile", "--tag", $backendLocal, "--label", "org.opencontainers.image.revision=$ImageTag", ".") | Out-Null
 Invoke-Native -Command "docker" -Arguments @("build", "--file", "infra/aws/frontend.Dockerfile", "--build-arg", "BACKEND_ORIGIN=$($config.backendOrigin)", "--tag", $frontendLocal, "--label", "org.opencontainers.image.revision=$ImageTag", ".") | Out-Null

@@ -20,7 +20,7 @@ describe('Solutions page (public marketing `/solutions`)', () => {
     const headings = screen.getAllByRole('heading');
     for (const heading of headings) {
       if (heading === h1s[0]) continue;
-      expect(heading).not.toHaveTextContent(/searchify/i);
+      expect(heading).not.toHaveTextContent(/citeladder/i);
     }
   });
 

@@ -56,7 +56,7 @@ export function UserMenu({ className }: Readonly<{ className?: string }>) {
           </DropdownItem>
           <DropdownItem
             onSelect={() => {
-              window.dispatchEvent(new Event('searchify:replay-product-tour'));
+              window.dispatchEvent(new Event('citeladder:replay-product-tour'));
             }}
           >
             <Map className="size-4 shrink-0" aria-hidden />

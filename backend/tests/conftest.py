@@ -1,9 +1,9 @@
-"""Shared test fixtures for the Searchify backend.
+"""Shared test fixtures for the CiteLadder backend.
 
 Uses an async Postgres database with a fresh, isolated schema per test (no
 SQLite: the models use Postgres UUID columns). No configuration is needed:
 the suite derives server credentials from the app settings (repo ``.env``
-``DATABASE_URL``), creates a throwaway ``searchify_tests_<runid>`` database
+``DATABASE_URL``), creates a throwaway ``citeladder_tests_<runid>`` database
 for the session, and drops it on teardown — nothing persists between runs.
 """
 
@@ -183,11 +183,11 @@ def test_database_url() -> Iterator[str]:
 
     Reuses the server (host/port/credentials) from ``settings.database_url``
     but never touches the dev database itself: a dedicated
-    ``searchify_tests_<runid>`` database is created up front and force-dropped
+    ``citeladder_tests_<runid>`` database is created up front and force-dropped
     on teardown, so test state can never persist between runs.
     """
     base = make_url(settings.database_url)
-    db_name = f"searchify_tests_{_TEST_RUN_ID}"
+    db_name = f"citeladder_tests_{_TEST_RUN_ID}"
     admin_dsn = base.set(drivername="postgresql", database="postgres").render_as_string(
         hide_password=False
     )

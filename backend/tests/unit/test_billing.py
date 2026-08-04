@@ -154,7 +154,7 @@ async def test_razorpay_adapter_creates_hosted_subscription(
         body = request.content.decode()
         assert '"plan_id":"plan_test"' in body
         assert '"total_count":1200' in body
-        assert "searchify_intent_id" in body
+        assert "citeladder_intent_id" in body
         assert "test-secret" not in body
         return httpx.Response(
             200,
@@ -238,8 +238,8 @@ async def test_razorpay_fetch_subscription_echoes_intent_identity(
                 "updated_at": 3,
                 "cancel_at_cycle_end": 1,
                 "notes": {
-                    "searchify_intent_id": "intent-1",
-                    "searchify_account_ref": "account-1",
+                    "citeladder_intent_id": "intent-1",
+                    "citeladder_account_ref": "account-1",
                 },
             },
         )

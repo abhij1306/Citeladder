@@ -67,7 +67,7 @@ const FOOTER_COLUMNS: readonly FooterColumn[] = [
 ];
 
 const LINK =
-  'text-mkt-sm text-mkt-ink-soft hover:text-mkt-ink inline-flex items-center gap-mkt-6 transition-[color,transform] duration-200 hover:translate-x-0.5';
+  'text-sm text-muted hover:text-foreground inline-flex items-center gap-2 transition-[color,transform] duration-200 hover:translate-x-0.5';
 
 function FooterColumnLink({ link }: Readonly<{ link: FooterLink }>) {
   if (link.external) {
@@ -98,7 +98,7 @@ function SocialButton({ social }: Readonly<{ social: SocialLink }>) {
       target={external ? '_blank' : undefined}
       rel={external ? 'noreferrer' : undefined}
       aria-label={social.label}
-      className="border-mkt-black-10 bg-mkt-surface text-mkt-ink-soft hover:border-mkt-indigo hover:text-mkt-indigo rounded-mkt-sm grid size-10 place-items-center border transition-colors duration-200"
+      className="border-border-subtle bg-panel text-muted hover:border-accent hover:text-accent-text grid size-10 place-items-center rounded-md border transition-colors duration-200"
     >
       <Icon aria-hidden className="size-4" />
     </a>
@@ -110,24 +110,24 @@ function SocialButton({ social }: Readonly<{ social: SocialLink }>) {
  */
 export function MarketingFooter() {
   return (
-    <footer className="border-mkt-black-10 bg-mkt-surface-sunk relative border-t">
-      <Container className="py-mkt-50 sm:py-mkt-70">
+    <footer className="border-border-subtle bg-background-alt relative border-t">
+      <Container className="py-12 sm:py-16">
         <nav
           aria-label="Footer"
-          className="gap-x-mkt-30 gap-y-mkt-40 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[1.5fr_repeat(5,minmax(0,1fr))]"
+          className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-3 lg:grid-cols-[1.5fr_repeat(5,minmax(0,1fr))]"
         >
           {/* Brand Block */}
-          <div className="space-y-mkt-20 col-span-2 sm:col-span-3 lg:col-span-1">
-            <Link href="/" aria-label="Searchify home" className="inline-block">
+          <div className="col-span-2 space-y-5 sm:col-span-3 lg:col-span-1">
+            <Link href="/" aria-label="CiteLadder home" className="inline-block">
               <Wordmark />
             </Link>
 
-            <p className="text-mkt-sm text-mkt-ink-soft max-w-[28ch] leading-relaxed">
+            <p className="text-muted max-w-[28ch] text-sm leading-relaxed">
               Verifiable AI visibility — every metric opens to the answer it came from.
             </p>
 
             {SOCIAL_LINKS.length > 0 && (
-              <div className="gap-mkt-10 pt-mkt-10 flex">
+              <div className="flex gap-3 pt-3">
                 {SOCIAL_LINKS.map((social) => (
                   <SocialButton key={social.key} social={social} />
                 ))}
@@ -137,11 +137,11 @@ export function MarketingFooter() {
 
           {/* Link Columns */}
           {FOOTER_COLUMNS.map((column) => (
-            <div key={column.key} className="space-y-mkt-14">
-              <p className="f-col-label text-mkt-ink text-mkt-xs mb-mkt-14 font-mono font-semibold uppercase">
+            <div key={column.key} className="space-y-4">
+              <p className="f-col-label text-foreground mb-4 font-mono text-xs font-semibold uppercase">
                 {column.label}
               </p>
-              <div className="gap-mkt-14 grid justify-items-start">
+              <div className="grid justify-items-start gap-4">
                 {column.links.map((link) => (
                   <FooterColumnLink key={link.label} link={link} />
                 ))}
@@ -151,8 +151,8 @@ export function MarketingFooter() {
         </nav>
 
         {/* Legal & Attribution Footer Strip */}
-        <div className="border-mkt-black-10 mt-mkt-50 gap-mkt-20 pt-mkt-30 flex flex-col border-t sm:flex-row sm:items-center sm:justify-between">
-          <Meta>© {new Date().getFullYear()} Searchify · A CUBE27 product</Meta>
+        <div className="border-border-subtle mt-12 flex flex-col gap-5 border-t pt-8 sm:flex-row sm:items-center sm:justify-between">
+          <Meta>© {new Date().getFullYear()} CiteLadder · A CUBE27 product</Meta>
           <Meta>Audits run on your own provider keys</Meta>
         </div>
       </Container>

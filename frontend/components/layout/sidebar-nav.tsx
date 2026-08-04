@@ -39,7 +39,7 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
       href={item.href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative flex h-[var(--nav-item-height)] items-center gap-2 rounded-sm px-2 text-sm transition-colors',
+        'relative flex h-[var(--nav-item-height)] items-center gap-1.5 rounded-sm px-1.5 text-sm transition-colors',
         active
           ? 'bg-accent-border text-accent-hover font-semibold'
           : 'text-secondary hover:text-foreground hover:bg-background-alt font-medium',
@@ -67,11 +67,11 @@ export function SidebarNav({ className }: Readonly<{ className?: string }>) {
   const pathname = usePathname() ?? '';
 
   return (
-    <nav aria-label="Primary" className={cn('flex flex-col gap-6', className)}>
+    <nav aria-label="Primary" className={cn('flex flex-col gap-3', className)}>
       {NAV_GROUPS.map((group) => (
         <div key={group.title} className="flex flex-col gap-0">
-          <p className={cn(eyebrowClasses, 'px-1 py-0')}>{group.title}</p>
-          <ul className="flex flex-col gap-1">
+          <p className={cn(eyebrowClasses, 'px-1 pb-0.5')}>{group.title}</p>
+          <ul className="flex flex-col gap-0.5">
             {group.items.map((item) => (
               <li key={item.href}>
                 <NavLink item={item} active={isActive(pathname, item.href)} />

@@ -1,4 +1,4 @@
-# Frontend Architecture — Searchify
+# Frontend Architecture — CiteLadder
 
 > Next.js App Router frontend for the visibility slice. Consumes the live workspace-scoped
 > `/api/v1` backend contract (B2–B6) through a same-origin proxy. No mock-only fallback, no
@@ -14,7 +14,7 @@
   from [`design.md`](design.md). **Radix** primitives + **lucide** icons; **CVA** for variants.
 - Frontend conventions: typed API client with `ApiError` + request-id + abort, per-domain
   endpoint modules with zod `strictValidate`, a `queryKeys` module, a React Query retry policy,
-  CVA primitives, a single-`globals.css` token bridge, and a `data-theme` toggle — on
+  CVA primitives and a single light-only `globals.css` token owner — on
   **App Router**.
 - **Role**: render the seven current application screens and orchestrate calls to the FastAPI backend. It owns
   no business logic and no source of truth — **the backend is the source of truth** (§7).
@@ -194,11 +194,11 @@ reuses the cached dataset rather than refetching.
   declared fields** (the frontend declares a field the backend model no longer has — drift
   the UI needs) and **WARNS on additive-only diffs** (backend fields not yet declared —
   update `schemas.ts` promptly). The OpenAPI document is obtained deterministically: from
-  `SEARCHIFY_OPENAPI_JSON` (path to a schema export) when set, else generated offline from
+  `CITELADDER_OPENAPI_JSON` (path to a schema export) when set, else generated offline from
   the checked-in backend code (`backend/.venv` — no server, database, or network), else
-  fetched from the live backend at `SEARCHIFY_BACKEND_ORIGIN` (default
+  fetched from the live backend at `CITELADDER_BACKEND_ORIGIN` (default
   `http://localhost:8000`). When no source is available the plain vitest wrapper logs and
-  skips, while `pnpm check:contract` **fails** — it sets `SEARCHIFY_CONTRACT_STRICT=1`,
+  skips, while `pnpm check:contract` **fails** — it sets `CITELADDER_CONTRACT_STRICT=1`,
   which `contractGuardIsStrict` turns into a hard error instead of a skip. **`pnpm test`
   alone is therefore not sufficient verification of the contract**: always run
   `pnpm check:contract` too (from `backend/`-adjacent checkouts, where the offline
@@ -252,7 +252,7 @@ responses pass through `strictValidate`.
 
 - **Vitest + Testing Library + jsdom + msw** for unit/component (client throws `ApiError`,
   `strictValidate` throws on mismatch, `shouldRetryQuery` matrix, form validation, table CRUD,
-  dashboard rendering from data, theme toggle).
+  command-center rendering from data and light-only appearance settings).
 - **Playwright** smoke: login → shell → Visibility → open run → open execution.
 - **Playwright real-stack content integration** (`e2e/content-integration.spec.ts`, own config
   `e2e/content-integration.config.ts`): disposable Postgres DB + real API + real
@@ -264,8 +264,8 @@ responses pass through `strictValidate`.
 
 ## 9. Architectural notes
 
-- **Pre-hydration `data-theme` bootstrap** in root `layout.tsx` avoids a theme flash; the
-  `theme-toggle` primitive persists `data-theme`.
+- CiteLadder is light-only. Root layout loads Geist through `next/font/google`; there is
+  no theme bootstrap, persisted theme preference, or alternate theme infrastructure.
 - **Retry policy** (`shouldRetryQuery`): retry 408/429/5xx/network up to 2×; `staleTime` 15s;
   `refetchOnWindowFocus:false`.
 - **`index.ts` is a compat facade** — it spreads the per-domain modules and owns no transport.

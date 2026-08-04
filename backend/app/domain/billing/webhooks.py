@@ -46,8 +46,8 @@ from app.models.billing import (
     PendingActivation,
 )
 
-_NOTE_INTENT = "searchify_intent_id"
-_NOTE_ACCOUNT = "searchify_account_ref"
+_NOTE_INTENT = "citeladder_intent_id"
+_NOTE_ACCOUNT = "citeladder_account_ref"
 
 RESULT_IGNORED = "ignored"
 RESULT_DUPLICATE = "duplicate"

@@ -63,7 +63,7 @@ test.describe('marketing navigation (real-engine CSS contract)', () => {
     await expect(page.locator('html')).toHaveCSS('color-scheme', 'light');
 
     // Even with dark explicitly stored by the app, the public surface stays paper.
-    await page.evaluate(() => window.localStorage.setItem('searchify-theme', 'dark'));
+    await page.evaluate(() => window.localStorage.setItem('citeladder-theme', 'dark'));
     await page.reload();
     await expect(page.locator('html')).toHaveCSS('color-scheme', 'light');
   });
