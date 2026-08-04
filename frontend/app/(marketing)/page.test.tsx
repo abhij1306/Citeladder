@@ -67,7 +67,7 @@ describe('Landing page (public marketing `/`)', () => {
 
     const hero = container.querySelector('header');
     const cta = hero?.querySelector('a[href="/demo"]');
-    expect(cta).toHaveTextContent('See it on your category');
+    expect(cta).toHaveTextContent('Book a demo');
     expect(cta?.querySelector('svg')).not.toBeNull();
   });
 
@@ -88,10 +88,8 @@ describe('Landing page (public marketing `/`)', () => {
     renderWithProviders(<Page />);
 
     const finalCta = screen.getByRole('region', { name: 'Get started' });
-    // Asserted by DESTINATION, not by label: the funnel is the contract here,
-    // and the landing close says "Book a working session" while the subpages
-    // say "Book a demo" — pinning the wording made this test fail on copy.
-    const cta = within(finalCta).getByRole('link', { name: /book a working session/i });
+    // Asserted by DESTINATION, not by label: the funnel is the contract here.
+    const cta = within(finalCta).getByRole('link', { name: /book a demo/i });
     expect(cta).toHaveAttribute('href', DEMO_HREF);
   });
 

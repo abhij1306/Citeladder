@@ -66,7 +66,7 @@ describe('CompareDetailView (/compare/[competitor])', () => {
 
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
-    expect(h1s[0]).toHaveTextContent(`CiteLadder vs ${competitor.name}.`);
+    expect(h1s[0]).toHaveTextContent(`CiteLadder vs ${competitor.name}`);
 
     for (const heading of screen.getAllByRole('heading')) {
       if (heading === h1s[0]) continue;
@@ -74,7 +74,7 @@ describe('CompareDetailView (/compare/[competitor])', () => {
     }
   });
 
-  it('renders both columns, the freshness badge, and the editorial blocks', () => {
+  it('renders both columns, the freshness stamp, and the editorial blocks', () => {
     const { container } = render(<CompareDetailView competitor={competitor} />);
 
     // Table header: real CiteLadder column, competitor column named for the slug.
@@ -88,16 +88,18 @@ describe('CompareDetailView (/compare/[competitor])', () => {
       expect(screen.getByText(row.competitor)).toBeInTheDocument();
     }
 
-    // Header badges: the vendor's tagline and the freshness stamp — never a
+    // Header carries the vendor tagline and the freshness stamp — never a
     // verification-process badge.
     expect(screen.getByText(competitor.tagline)).toBeInTheDocument();
-    expect(screen.getByText(`Last reviewed · ${competitor.lastReviewed}`)).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(`Comparison · ${competitor.lastReviewed}`)),
+    ).toBeInTheDocument();
 
     // Editorial blocks: verdict plus the honest "where they fit better".
     const editorial = screen.getByRole('region', { name: 'Verdict and fit' });
     expect(within(editorial).getByText(competitor.verdict)).toBeInTheDocument();
     expect(
-      within(editorial).getByRole('heading', { name: `Where ${competitor.name} fits better.` }),
+      within(editorial).getByRole('heading', { name: `Where ${competitor.name} fits better` }),
     ).toBeInTheDocument();
     expect(within(editorial).getByText(competitor.betterFit)).toBeInTheDocument();
 

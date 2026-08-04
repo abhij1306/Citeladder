@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { BrandAtmosphere } from '@/components/ui/brand-atmosphere';
 import { cn } from '@/lib/utils';
 
 /**
@@ -23,13 +24,14 @@ export function WallpaperPanel({
   return (
     <div
       className={cn(
-        'citeladder-wallpaper shadow-card relative overflow-hidden',
+        'bg-background-alt shadow-card relative overflow-hidden',
         rounded && 'rounded-lg',
         className,
       )}
       {...rest}
     >
-      {children}
+      <BrandAtmosphere variant="panel" />
+      <div className="relative z-1">{children}</div>
     </div>
   );
 }

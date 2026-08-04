@@ -49,4 +49,26 @@ describe('MarketingFooter', () => {
     expect(screen.queryByRole('link', { name: /github/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /documentation/i })).toBeNull();
   });
+
+  it('exposes the legal strip with policy links', () => {
+    render(<MarketingFooter />);
+
+    const legal = screen.getByRole('navigation', { name: 'Legal' });
+    expect(within(legal).getByRole('link', { name: 'Terms of Service' })).toHaveAttribute(
+      'href',
+      '/terms',
+    );
+    expect(within(legal).getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute(
+      'href',
+      '/privacy',
+    );
+    expect(within(legal).getByRole('link', { name: 'Cookies' })).toHaveAttribute(
+      'href',
+      '/cookies',
+    );
+    expect(within(legal).getByRole('link', { name: 'AI Policy' })).toHaveAttribute(
+      'href',
+      '/ai-policy',
+    );
+  });
 });

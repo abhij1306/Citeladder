@@ -249,11 +249,11 @@ export function PricingCatalog() {
         )}
       </Section>
 
-      <Section tone="paper" rhythm="tight" aria-label="Plan comparison">
+      <Section tone="sunken" rhythm="tight" aria-label="Plan comparison">
         <SectionHeader
           eyebrow="Compare"
-          title="What each plan includes."
-          lead="Every value here is the limit the platform actually enforces."
+          title="Side by side."
+          lead="Every cell is a limit the platform enforces."
           headingId="pricing-compare-title"
         />
         {catalog ? <PricingComparison catalog={catalog} /> : <LoadingShell />}

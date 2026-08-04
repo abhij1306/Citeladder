@@ -129,15 +129,21 @@ describe('BlogPostView (`/blog/[slug]` sync view)', () => {
     }
     const listCount = post.body.filter((block) => block.type === 'list').length;
     const listItems = post.body.flatMap((block) => (block.type === 'list' ? block.items : []));
-    const renderedLists = within(article).getAllByRole('list');
-    expect(renderedLists).toHaveLength(listCount);
-    expect(within(article).getAllByRole('listitem')).toHaveLength(listItems.length);
+    if (listCount === 0) {
+      expect(within(article).queryAllByRole('list')).toHaveLength(0);
+    } else {
+      expect(within(article).getAllByRole('list')).toHaveLength(listCount);
+      expect(within(article).getAllByRole('listitem')).toHaveLength(listItems.length);
+    }
 
     // No byline row while the owner-supplied fields are absent (B5), and no
-    // unfinished placeholder may reach the page.
+    // unfinished placeholder or internal version ids may reach the page.
     const header = container.querySelector('header');
     expect(header?.querySelector('.border-t')).toBeNull();
     expect(container.textContent).not.toMatch(/TODO\(user\)/);
+    expect(container.textContent).not.toMatch(
+      /scoring-v1|b6-analysis-1|sh-rules-2|opp-formula-1|traffic-formula-1|product-scoring-v2/i,
+    );
 
     // Closing CTA band routes through the stable demo funnel.
     const ctaBand = screen.getByRole('region', { name: 'Get started' });

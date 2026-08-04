@@ -39,8 +39,8 @@ export const LANDING_CONTENT = {
        headline turns over to colour on its closing line. */
     titleAccent: 'They ask AI instead.',
     body: 'AI engines shape what your market buys. CiteLadder shows what they say about your brand — and links every claim to the answer behind it.',
-    primaryCta: 'See it on your category',
-    secondaryCta: 'How it works',
+    primaryCta: 'Book a demo',
+    secondaryCta: 'See how it works',
   },
 
   shift: {
@@ -48,19 +48,19 @@ export const LANDING_CONTENT = {
     title: 'The first page of search is now a conversation.',
     facts: [
       {
-        num: '01',
+        label: 'Ask',
         title: 'Buyers ask before they browse.',
-        body: 'Comparisons, shortlists and “best tool for…” questions start inside an answer engine — and increasingly end there too.',
+        body: 'Comparisons and shortlists start inside an answer engine — and often end there.',
       },
       {
-        num: '02',
+        label: 'Cite',
         title: 'Answers cite, they don’t rank.',
-        body: 'There is no position ten to climb from. Either the engine names you and cites a page, or your category conversation happens without you.',
+        body: 'Either the engine names you and cites a page, or the category conversation happens without you.',
       },
       {
-        num: '03',
+        label: 'Gap',
         title: 'You can’t fix what you can’t see.',
-        body: 'Every engine answers differently, and re-asking by hand is not a measurement. You have to run the same questions the same way, on a schedule.',
+        body: 'Every engine answers differently. The same questions, run the same way, are the only measurement.',
       },
     ],
   },
@@ -146,36 +146,31 @@ export const LANDING_CONTENT = {
 
   proof: {
     kicker: 'The operating loop',
-    title: 'Move from state to evidence to action to improvement.',
-    intro:
-      'Scores are derived, not asserted. Open one and you get the answer, the engine, the persisted artifact and the rule version behind it — so the same evidence always yields the same number.',
+    title: 'State. Evidence. Action. Improve.',
+    intro: 'Every score opens to the answer, engine, artifact and rule that produced it.',
     /** The closing pull-quote: the verification standard, stated as a rule. */
     standard:
-      'Persist the raw answer behind every score. Version the rules that produced it. Never let one model silently judge another.',
+      'Persist the raw answer. Version the rules. Never let one model silently judge another.',
     steps: [
       {
-        num: '01',
-        kicker: 'State',
-        title: 'See where the brand stands',
-        body: 'Visibility, share of voice, deterministic rank and comparable movement establish the current state.',
+        label: 'State',
+        title: 'Where you stand',
+        body: 'Visibility, share of voice, rank and movement — the current picture.',
       },
       {
-        num: '02',
-        kicker: 'Evidence',
-        title: 'Trace every result to its source',
-        body: 'Each response is persisted. Mentions, citations and share of voice are computed from that text by versioned rules — never one model judging another.',
+        label: 'Evidence',
+        title: 'What produced it',
+        body: 'Mentions and citations from persisted answers, scored by versioned rules.',
       },
       {
-        num: '03',
-        kicker: 'Action',
-        title: 'Work the ranked queue',
-        body: 'Visibility gaps and competitor patterns resolve into prioritised moves, each still linked to the answers behind it.',
+        label: 'Action',
+        title: 'What to do next',
+        body: 'Gaps become a ranked queue, still linked to the answers behind them.',
       },
       {
-        num: '04',
-        kicker: 'Improve',
-        title: 'Measure again on equal terms',
-        body: 'Resolved work and subsequent movement appear side by side without turning correlation into a causal claim.',
+        label: 'Improve',
+        title: 'Measure again',
+        body: 'Re-run on equal terms. Movement sits beside resolved work — without inventing causality.',
       },
     ],
   },
@@ -183,8 +178,8 @@ export const LANDING_CONTENT = {
   cta: {
     kicker: 'Get started',
     title: 'Bring evidence to the conversation about your market.',
-    body: 'A working session on your category, your competitors and the questions your buyers are already asking answer engines.',
-    primaryCta: 'Book a working session',
+    body: 'A working session on your category, competitors and the questions buyers already ask.',
+    primaryCta: 'Book a demo',
     secondaryCta: 'See pricing',
   },
 } as const;
@@ -201,26 +196,23 @@ export const WHAT_WE_MEASURE = [
   {
     term: 'Measurement mode',
     detail:
-      'Pulse is the light, frequent check; benchmark is the full run with the wider prompt set. ' +
-      'They answer different questions, so results from the two are reported separately and ' +
-      'never averaged together.',
+      'Pulse for frequent checks; benchmark for the full prompt set. Never averaged together.',
   },
   {
     term: 'Exact model',
     detail:
-      'A single execution records the one model that produced it. An aggregate spanning several ' +
-      'models says so and lists them — it never picks one to stand in for the rest.',
+      'One execution, one model. Aggregates list every model — never picks one to stand in for the rest.',
   },
   {
     term: 'Retrieval state',
     detail:
-      'Whether the engine searched the web before answering is frozen with the run. The same ' +
-      'prompt with retrieval on and off is two different measurements, and we keep them apart.',
+      'Web search on or off is frozen with the run. Same prompt, two states, two measurements.',
   },
   {
     term: 'Benchmark cadence',
-    detail:
-      'How many benchmark runs your plan includes. It is an allowance you spend when you choose ' +
-      'to, not a schedule — nothing runs on its own.',
+    detail: 'An allowance you spend when you choose — nothing runs on its own.',
   },
 ] as const;
+
+export const WHAT_WE_MEASURE_NOTE =
+  'Trends stay partitioned by mode, model and retrieval — points under different conditions are never folded into one line.';

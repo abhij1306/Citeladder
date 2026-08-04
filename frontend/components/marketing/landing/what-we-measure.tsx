@@ -1,19 +1,13 @@
-import { WHAT_WE_MEASURE } from '@/lib/marketing-content/landing';
+import { WHAT_WE_MEASURE, WHAT_WE_MEASURE_NOTE } from '@/lib/marketing-content/landing';
 
 import { Section, SectionHeader } from '../primitives/section';
 import { Reveal, StaggerGroup, StaggerItem } from '../primitives/reveal';
 
 /**
- * The measurement disclosure, between the product beat and the proof beat.
+ * Measurement disclosure — four axes, one line each.
  *
- * Every number elsewhere on the site is qualified by these four axes, so they
- * are stated once, plainly, rather than left implicit: which mode a run used,
- * which exact model produced an answer (or that an aggregate spans several),
- * whether retrieval was on, and what cadence means here.
- *
- * Cadence is deliberately described as an ALLOWANCE, not a schedule. No
- * dispatcher ships in this release, so any wording implying automatic runs
- * would promise behaviour the platform does not have.
+ * Kept terse on purpose: the terms themselves carry the meaning; the detail
+ * only states the invariant a claim-guard test pins. Trends note stays below.
  */
 export function WhatWeMeasure() {
   return (
@@ -21,26 +15,32 @@ export function WhatWeMeasure() {
       <SectionHeader
         eyebrow="What we measure"
         title="Every number says how it was produced."
-        lead="A score without its measurement conditions is not evidence. These four travel with every figure, in the app and in every export."
+        lead="Four conditions travel with every figure — in the app and in every export."
         headingId="what-we-measure-title"
       />
-      <StaggerGroup className="grid gap-5 md:grid-cols-2">
-        {WHAT_WE_MEASURE.map((item) => (
-          <StaggerItem key={item.term} className="h-full">
-            <div className="bg-panel shadow-card h-full rounded-lg p-8">
+      <StaggerGroup className="border-border-subtle bg-panel shadow-card overflow-hidden rounded-lg border">
+        <div className="grid md:grid-cols-2">
+          {WHAT_WE_MEASURE.map((item, index) => (
+            <StaggerItem key={item.term} className={cnMeasureCell(index)}>
               <h3 className="font-display text-foreground text-xl">{item.term}</h3>
-              <p className="text-muted mt-4 text-base">{item.detail}</p>
-            </div>
-          </StaggerItem>
-        ))}
+              <p className="text-muted mt-3 max-w-[48ch] text-sm leading-relaxed">{item.detail}</p>
+            </StaggerItem>
+          ))}
+        </div>
       </StaggerGroup>
       <Reveal>
-        <p className="text-muted mt-8 max-w-[90ch] text-sm">{WHAT_WE_MEASURE_NOTE}</p>
+        <p className="text-muted mt-6 max-w-[80ch] text-sm">{WHAT_WE_MEASURE_NOTE}</p>
       </Reveal>
     </Section>
   );
 }
 
-const WHAT_WE_MEASURE_NOTE =
-  'Trends are partitioned by mode, model and retrieval state — points measured under different ' +
-  'conditions are never folded into one line, because that line would describe no real run.';
+function cnMeasureCell(index: number): string {
+  const edges = [
+    'border-border-subtle border-b md:border-r',
+    'border-border-subtle border-b',
+    'border-border-subtle md:border-r max-md:border-b',
+    '',
+  ];
+  return `bg-panel hover:bg-accent-soft p-6 transition-colors duration-200 md:p-8 ${edges[index]}`;
+}

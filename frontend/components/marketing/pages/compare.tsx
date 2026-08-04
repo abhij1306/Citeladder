@@ -7,15 +7,13 @@ import { DEMO_CTA, DEMO_HREF } from '@/lib/marketing-content/nav';
 import { ButtonLink } from '../primitives/button';
 import { Meta } from '../primitives/label';
 import { PageHero } from '../primitives/page-hero';
-import { Section, SectionHeader } from '../primitives/section';
+import { Section } from '../primitives/section';
 import { Reveal, StaggerGroup, StaggerItem } from '../primitives/reveal';
 
 /**
- * `/compare` — the comparison index. Competitor cards render from the content
- * module; the "how we compare fairly" band exists because these pages make
- * claims about other people's products, so our own sourcing discipline
- * (deterministic, evidence-first, on the reader's own keys) is stated openly
- * on the page.
+ * `/compare` — comparison index. Competitor rows are a ledger, not a card
+ * grid: name, one-line position, link. Fairness claims sit as a strip above a
+ * compact glance table — no nested feature boxes.
  */
 
 export function CompareIndex() {
@@ -26,43 +24,47 @@ export function CompareIndex() {
         eyebrow="Comparisons"
         title="How CiteLadder"
         accent="compares."
-        lead="Side-by-side notes on CiteLadder and four other AI visibility tools — what each covers, how scoring works, and where the evidence lives. Reviewed on 2026-08-01."
+        lead="Side-by-side notes on engines, scoring, evidence and keys. Reviewed 2026-08-01."
       />
 
       <Section tone="paper" rhythm="tight" aria-label="Competitors">
-        <div className="border-border-subtle mb-8 flex items-center justify-between gap-5 border-b pb-5">
+        <div className="mb-5 flex items-center justify-between gap-4">
           <Meta as="p">Choose a tool</Meta>
           <Meta>{COMPETITORS.length} comparisons</Meta>
         </div>
 
         {COMPETITORS.length === 0 ? (
-          <p className="border-border-subtle text-muted rounded-lg border border-dashed p-10 text-center text-sm">
-            Comparison notes are published as each vendor review completes.
+          <p className="border-border-subtle text-muted rounded-lg border border-dashed p-8 text-center text-sm">
+            Comparison notes publish as each vendor review completes.
           </p>
         ) : (
-          <StaggerGroup className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <StaggerGroup className="border-border-subtle divide-border-subtle bg-panel shadow-card divide-y overflow-hidden rounded-lg border">
             {COMPETITORS.map((competitor) => (
-              <StaggerItem key={competitor.slug} className="h-full">
+              <StaggerItem key={competitor.slug}>
                 <Link
                   href={`/compare/${competitor.slug}`}
-                  className="bg-panel shadow-card hover:shadow-card-hover flex h-full flex-col rounded-lg p-8 transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5"
+                  className="hover:bg-accent-soft group flex items-center gap-5 px-5 py-4 transition-colors duration-200 md:px-6 md:py-5"
                 >
-                  <span className="flex items-center gap-4">
-                    <span
-                      aria-hidden
-                      className="border-border-subtle bg-panel text-foreground font-display grid size-10 place-items-center rounded-md border text-base font-semibold"
-                    >
-                      {competitor.name.charAt(0)}
-                    </span>
-                    <span className="text-foreground text-base font-semibold">
+                  <span
+                    aria-hidden
+                    className="bg-accent-soft text-accent-text font-display grid size-9 shrink-0 place-items-center rounded-md text-sm font-semibold"
+                  >
+                    {competitor.name.charAt(0)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="text-foreground block text-base font-semibold">
                       {competitor.name}
                     </span>
+                    <span className="text-muted mt-1 block text-sm">{competitor.tagline}</span>
                   </span>
-                  <span className="text-muted mt-5 block text-sm">{competitor.tagline}</span>
-                  <span className="text-accent-text mt-auto flex items-center gap-3 pt-8 text-sm font-semibold">
-                    CiteLadder vs {competitor.name}
-                    <ArrowRight className="size-4" aria-hidden />
+                  <span className="text-accent-text hidden items-center gap-2 text-sm font-semibold sm:inline-flex">
+                    vs {competitor.name}
+                    <ArrowRight
+                      className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
+                      aria-hidden
+                    />
                   </span>
+                  <ArrowRight className="text-accent-text size-4 shrink-0 sm:hidden" aria-hidden />
                 </Link>
               </StaggerItem>
             ))}
@@ -70,61 +72,57 @@ export function CompareIndex() {
         )}
       </Section>
 
-      <Section tone="sunken" rhythm="base" aria-labelledby="compare-fair-title">
-        <SectionHeader
-          eyebrow="How we compare fairly"
-          title="Compared honestly, in the open."
-          lead="Every competitor fact on these pages comes from the vendor's own public site, with the review date on the page."
-          headingId="compare-fair-title"
-        />
-        <Reveal className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="bg-panel shadow-card rounded-lg p-8">
-            <p className="text-muted max-w-[80ch] text-base">
-              CiteLadder scores deterministically — explicit analyzer and scoring-rule versions ride
-              with every projection, so every claim on these pages can be traced back to persisted
-              evidence.
-            </p>
-            <ul className="mt-8 grid gap-4">
-              {FAIRNESS_POINTS.map((point) => (
-                <li key={point} className="text-muted flex gap-4 text-sm">
-                  <Check
-                    aria-hidden
-                    strokeWidth={2.5}
-                    className="text-success-text mt-2 size-4 shrink-0"
-                  />
-                  {point}
-                </li>
-              ))}
-            </ul>
-          </div>
+      <Section tone="sunken" rhythm="tight" aria-labelledby="compare-fair-title">
+        <Reveal className="mb-6 max-w-3xl">
+          <h2 id="compare-fair-title" className="font-display text-foreground text-3xl">
+            Compared honestly.
+          </h2>
+          <p className="text-muted mt-3 text-base">
+            Competitor facts come from each vendor’s public site. Ours come from this codebase.
+          </p>
+        </Reveal>
 
-          <div className="bg-background-alt shadow-card rounded-lg p-8">
-            <Meta as="p" className="mb-5">
-              CiteLadder at a glance
-            </Meta>
-            <dl className="grid gap-0">
-              {FACT_ROWS.map((row) => (
-                <div
-                  key={row.key}
-                  className="border-border-subtle grid grid-cols-[7rem_minmax(0,1fr)] gap-5 border-b py-4 last:border-b-0 last:pb-0"
-                >
-                  <dt className="text-muted text-sm">{row.key}</dt>
-                  <dd className="text-foreground m-0 text-sm">{row.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
+        <ul className="mb-8 grid gap-3 md:grid-cols-3">
+          {FAIRNESS_POINTS.map((point) => (
+            <li
+              key={point}
+              className="text-foreground md:border-border-subtle flex gap-3 text-sm font-medium md:block md:border-l md:pl-4"
+            >
+              <Check
+                aria-hidden
+                strokeWidth={2.5}
+                className="text-accent-text mt-0.5 size-4 shrink-0 md:mt-0 md:mb-2"
+              />
+              <span className="text-muted font-normal md:block">{point}</span>
+            </li>
+          ))}
+        </ul>
+
+        <Reveal>
+          <Meta as="p" className="mb-3">
+            At a glance
+          </Meta>
+          <dl className="border-border-subtle divide-border-subtle grid divide-y border-t sm:grid-cols-2 sm:gap-x-8 sm:divide-y-0">
+            {FACT_ROWS.map((row) => (
+              <div
+                key={row.key}
+                className="sm:border-border-subtle grid grid-cols-[7rem_minmax(0,1fr)] gap-3 py-3 sm:border-t"
+              >
+                <dt className="text-muted text-sm">{row.key}</dt>
+                <dd className="text-foreground m-0 text-sm">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
         </Reveal>
       </Section>
 
       <Section tone="paper" rhythm="base" aria-label="Get started">
-        <Reveal className="mx-auto max-w-5xl text-center">
-          <h2 className="font-display text-foreground mx-auto mb-5 max-w-[32ch] text-4xl">
+        <Reveal className="mx-auto max-w-3xl text-center">
+          <h2 className="font-display text-foreground mx-auto mb-3 max-w-[28ch] text-3xl">
             Don’t compare pages. Compare evidence.
           </h2>
-          <p className="text-muted mx-auto max-w-[80ch] text-lg">
-            Run the same prompts across ChatGPT, Gemini and Claude — and read the raw responses
-            yourself.
+          <p className="text-muted mx-auto max-w-[56ch] text-base">
+            Same prompts across ChatGPT, Gemini and Claude — raw responses included.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <ButtonLink href={DEMO_HREF} className="w-full sm:w-auto">

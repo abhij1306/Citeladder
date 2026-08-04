@@ -78,7 +78,7 @@ describe('Enterprise page (public marketing `/enterprise`)', () => {
     // plan. The page previously answered all six with the bare word "Custom",
     // which read as six identical facts; sizing is now stated once, up front.
     expect(within(limits).getByText('prompt × engine × repetition')).toBeInTheDocument();
-    expect(within(limits).getByText(/sized to your volumes/i)).toBeInTheDocument();
+    expect(within(limits).getByText(/sized to concurrent evaluation/i)).toBeInTheDocument();
     expect(within(limits).queryByText('Custom')).not.toBeInTheDocument();
   });
 

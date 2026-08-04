@@ -344,12 +344,26 @@ samp {
   }
 }
 
-/* Shared CiteLadder atmosphere: one image, three restrained intensity levels. */
+/* Shared CiteLadder atmosphere: one image, restrained intensity levels. */
 .brand-atmosphere {
   position: absolute;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
+}
+
+.brand-atmosphere-panel {
+  opacity: 0.48;
+}
+
+.brand-atmosphere-panel .brand-atmosphere-image {
+  inset: -30%;
+  animation-duration: 26s;
+}
+
+.brand-atmosphere-panel .brand-atmosphere-signal {
+  inset: auto auto 8% 12%;
+  width: min(48%, 12rem);
 }
 
 .brand-atmosphere-image {

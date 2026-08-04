@@ -4,22 +4,23 @@ import { StaggerGroup, StaggerItem } from '../primitives/reveal';
 import { Section, SectionHeader } from '../primitives/section';
 
 /**
- * The problem, stated as three sharp facts. No cards, no wallpaper — a big
- * numbered statement per fact, set at full width so the type carries the
- * hierarchy instead of a boxed panel. This is the beat that turns the hook's
- * claim into a mechanism the buyer recognises from their own behaviour.
+ * The problem, stated as three plain facts. Spacing and a shared rule carry
+ * the hierarchy; status colors and decorative product wallpaper are reserved
+ * for actual state and product scenes.
  */
 export function Shift() {
   const { shift } = LANDING_CONTENT;
   return (
     <Section id="why" tone="paper" rhythm="base" aria-labelledby="shift-title">
       <SectionHeader eyebrow={shift.kicker} title={shift.title} headingId="shift-title" />
-      <StaggerGroup className="grid gap-12 lg:grid-cols-3">
+      <StaggerGroup className="border-border-subtle grid gap-8 border-t pt-8 lg:grid-cols-3 lg:gap-10">
         {shift.facts.map((fact) => (
-          <StaggerItem key={fact.num}>
-            <p className="text-accent-text font-mono text-xs tabular-nums">{fact.num}</p>
-            <h3 className="font-display text-foreground mt-5 max-w-[28ch] text-xl">{fact.title}</h3>
-            <p className="text-muted mt-5 max-w-[56ch] text-base">{fact.body}</p>
+          <StaggerItem key={fact.label}>
+            <p className="text-accent-text text-xs font-semibold tracking-wide uppercase">
+              {fact.label}
+            </p>
+            <h3 className="font-display text-foreground mt-4 max-w-[28ch] text-xl">{fact.title}</h3>
+            <p className="text-muted mt-3 max-w-[48ch] text-base">{fact.body}</p>
           </StaggerItem>
         ))}
       </StaggerGroup>
