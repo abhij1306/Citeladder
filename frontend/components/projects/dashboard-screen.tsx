@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -146,17 +146,19 @@ function ActionRow({
   total,
   onMove,
   onDrop,
+  reorderPending,
 }: Readonly<{
   action: Opportunity;
   index: number;
   total: number;
   onMove: (from: number, to: number) => void;
   onDrop: (from: number, to: number) => void;
+  reorderPending: boolean;
 }>) {
   const [dragging, setDragging] = useState(false);
   return (
     <li
-      draggable
+      draggable={!reorderPending}
       onDragStart={(event) => {
         event.dataTransfer.setData('text/plain', String(index));
         setDragging(true);
@@ -165,7 +167,7 @@ function ActionRow({
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => {
         event.preventDefault();
-        onDrop(Number(event.dataTransfer.getData('text/plain')), index);
+        if (!reorderPending) onDrop(Number(event.dataTransfer.getData('text/plain')), index);
       }}
       className={cn(
         'border-border grid gap-3 border-b px-3 py-3 last:border-b-0 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center',
@@ -207,7 +209,7 @@ function ActionRow({
           variant="ghost"
           size="icon"
           onClick={() => onMove(index, index - 1)}
-          disabled={index === 0}
+          disabled={reorderPending || index === 0}
           aria-label={`Move ${action.title} up`}
         >
           <ArrowUp className="size-4" aria-hidden />
@@ -216,7 +218,7 @@ function ActionRow({
           variant="ghost"
           size="icon"
           onClick={() => onMove(index, index + 1)}
-          disabled={index === total - 1}
+          disabled={reorderPending || index === total - 1}
           aria-label={`Move ${action.title} down`}
         >
           <ArrowDown className="size-4" aria-hidden />
@@ -296,25 +298,40 @@ function CommandCenterContent({
   const [downloadError, setDownloadError] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [actions, setActions] = useState(data.actions);
+  const [reorderError, setReorderError] = useState(false);
+  const orderVersion = useRef(data.action_order_version);
+  const reorderPending = useRef(false);
   const reorder = useMutation({
     mutationFn: (ordered: Opportunity[]) =>
       opportunitiesApi.updateOrder(activeProject.id, {
         ordered_opportunity_ids: ordered.map((row) => row.id),
-        expected_version: data.action_order_version,
+        expected_version: orderVersion.current,
       }),
-    onSuccess: () =>
+    onSuccess: (result) => {
+      orderVersion.current = result.version;
+      reorderPending.current = false;
+      setReorderError(false);
       queryClient.invalidateQueries({
         queryKey: queryKeys.projects.commandCenter(activeProject.id),
-      }),
-    onError: () => setActions(data.actions),
+      });
+    },
+    onError: () => {
+      reorderPending.current = false;
+      orderVersion.current = data.action_order_version;
+      setActions(data.actions);
+      setReorderError(true);
+    },
   });
 
   const move = (from: number, to: number) => {
+    if (reorderPending.current) return;
     if (from < 0 || to < 0 || from >= actions.length || to >= actions.length || from === to) return;
     const next = [...actions];
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);
     setActions(next);
+    setReorderError(false);
+    reorderPending.current = true;
     reorder.mutate(next);
   };
 
@@ -380,6 +397,11 @@ function CommandCenterContent({
       {downloadError ? (
         <Alert tone="danger">The report could not be downloaded. Try again.</Alert>
       ) : null}
+      {reorderError ? (
+        <Alert tone="warning">
+          The shared action order changed. Review the refreshed order and try again.
+        </Alert>
+      ) : null}
       {data.stale ? (
         <Alert tone="warning">
           New evidence is available. Refresh the measurement before acting.
@@ -441,6 +463,7 @@ function CommandCenterContent({
                   total={actions.length}
                   onMove={move}
                   onDrop={move}
+                  reorderPending={reorder.isPending}
                 />
               ))}
             </ol>
@@ -508,6 +531,7 @@ export function DashboardScreen({
   }
   return (
     <CommandCenterContent
+      key={`${activeProject.id}:${commandCenter.data.action_order_version}`}
       data={commandCenter.data}
       projects={projects}
       activeProject={activeProject}

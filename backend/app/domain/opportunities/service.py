@@ -1055,6 +1055,18 @@ async def _load_order(
     )
 
 
+async def _lock_project(
+    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> None:
+    locked_id = await session.scalar(
+        select(Project.id)
+        .where(Project.id == project_id, Project.workspace_id == workspace_id)
+        .with_for_update()
+    )
+    if locked_id is None:
+        raise OpportunityNotFoundError(_PROJECT_NOT_FOUND)
+
+
 async def update_order(
     session: AsyncSession,
     *,
@@ -1065,7 +1077,9 @@ async def update_order(
     updated_by_user_id: uuid.UUID,
 ) -> dict:
     """Persist one shared project order without mutating derived evidence."""
-    await _require_project(session, workspace_id=workspace_id, project_id=project_id)
+    # Lock the always-present parent so concurrent first writes serialize even
+    # before an OpportunityOrder row exists.
+    await _lock_project(session, workspace_id=workspace_id, project_id=project_id)
     if len(set(ordered_opportunity_ids)) != len(ordered_opportunity_ids):
         raise OpportunityValidationError("ordered opportunity ids must be unique")
 

@@ -8,6 +8,7 @@ const viewports = [
   ['mobile', { width: 390, height: 844 }],
   ['mobile-small', { width: 360, height: 800 }],
 ] as const;
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.PORT ?? '3000'}`;
 
 export default defineConfig({
   testDir: '.',
@@ -17,10 +18,10 @@ export default defineConfig({
     name,
     use: { ...devices['Desktop Chrome'], viewport },
   })),
-  use: { baseURL: 'http://127.0.0.1:3000', colorScheme: 'light' },
+  use: { baseURL, colorScheme: 'light' },
   webServer: {
     command: 'pnpm dev',
-    url: 'http://127.0.0.1:3000',
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
   },
 });

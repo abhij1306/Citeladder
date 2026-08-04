@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -26,6 +27,10 @@ _SUBTLE = colors.HexColor("#E6F4F3")
 
 def _metric(value: float | int | None, suffix: str = "") -> str:
     return "—" if value is None else f"{value:g}{suffix}"
+
+
+def _paragraph_text(value: object) -> str:
+    return escape(str(value))
 
 
 def render_executive_pdf(command_center: CommandCenterResponse) -> bytes:
@@ -66,10 +71,14 @@ def render_executive_pdf(command_center: CommandCenterResponse) -> bytes:
     )
     story = [
         Paragraph("CiteLadder", ParagraphStyle("Brand", parent=body, textColor=_TEAL)),
-        Paragraph(f"{command_center.project.brand_name} executive report", title),
+        Paragraph(
+            f"{_paragraph_text(command_center.project.brand_name)} executive report",
+            title,
+        ),
         Paragraph(
             f"Completed {command_center.measurement.completed_at:%d %b %Y} · "
-            f"{command_center.measurement.measurement_mode} measurement",
+            f"{_paragraph_text(command_center.measurement.measurement_mode)} "
+            "measurement",
             body,
         ),
         Spacer(1, 8 * mm),
@@ -190,11 +199,13 @@ def render_executive_pdf(command_center: CommandCenterResponse) -> bytes:
         raw_kinds = action.evidence_summary.get("kinds", [])
         kinds = ", ".join(raw_kinds) if isinstance(raw_kinds, list) else "none"
         kinds = kinds or "none"
+        formula_version = action.priority_factors.get("formula_version", "—")
         story.append(
             Paragraph(
-                f"<b>{action.display_rank}. {action.title}</b><br/>"
-                f"Target: {action.target_label or '—'} · Evidence types: {kinds} · "
-                f"Formula: {action.priority_factors.get('formula_version', '—')}",
+                f"<b>{action.display_rank}. {_paragraph_text(action.title)}</b><br/>"
+                f"Target: {_paragraph_text(action.target_label or '—')} · "
+                f"Evidence types: {_paragraph_text(kinds)} · "
+                f"Formula: {_paragraph_text(formula_version)}",
                 body,
             )
         )
