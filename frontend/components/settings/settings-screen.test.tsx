@@ -126,9 +126,9 @@ describe('SettingsScreen', () => {
     expect(screen.getByText('Last updated')).toBeInTheDocument();
   });
 
-  it('renders a theme toggle on the Account tab', () => {
+  it('does not expose a theme control in the light-only product', () => {
     renderScreen();
-    expect(screen.getByRole('button', { name: /toggle color theme/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /toggle color theme/i })).not.toBeInTheDocument();
   });
 
   it('shows the provider settings panel on the Provider Settings tab', async () => {
@@ -140,7 +140,7 @@ describe('SettingsScreen', () => {
     await ue.click(screen.getByRole('tab', { name: 'Providers' }));
     expect(screen.getByTestId('provider-settings-panel')).toBeVisible();
     // Account content is hidden while another tab is active.
-    expect(screen.getByText('Appearance')).not.toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Account' })).not.toBeVisible();
   });
 
   it('opens the Provider Settings tab from a ?tab=providers deep link', () => {

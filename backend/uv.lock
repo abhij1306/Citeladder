@@ -345,6 +345,88 @@ wheels = [
 ]
 
 [[package]]
+name = "citeladder-backend"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "alembic" },
+    { name = "argon2-cffi" },
+    { name = "asyncpg" },
+    { name = "cryptography" },
+    { name = "curl-cffi" },
+    { name = "defusedxml" },
+    { name = "email-validator" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "joserfc" },
+    { name = "lxml" },
+    { name = "protego" },
+    { name = "pydantic-settings" },
+    { name = "python-multipart" },
+    { name = "reportlab" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "structlog" },
+    { name = "tldextract" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "lxml-stubs" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+    { name = "types-defusedxml" },
+    { name = "types-reportlab" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "asyncpg-stubs" },
+    { name = "lxml-stubs" },
+    { name = "types-defusedxml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = ">=1.16.5,<2" },
+    { name = "argon2-cffi", specifier = ">=25.1.0,<26" },
+    { name = "asyncpg", specifier = ">=0.30.0,<1" },
+    { name = "cryptography", specifier = ">=50.0.0,<51" },
+    { name = "curl-cffi", specifier = ">=0.11,<1" },
+    { name = "defusedxml", specifier = ">=0.7.1,<1" },
+    { name = "email-validator", specifier = ">=2.3.0,<3" },
+    { name = "fastapi", specifier = ">=0.116.0,<1" },
+    { name = "httpx", specifier = ">=0.28.1,<1" },
+    { name = "joserfc", specifier = ">=1.6.8,<2" },
+    { name = "lxml", specifier = ">=6.1.0,<7" },
+    { name = "lxml-stubs", marker = "extra == 'dev'", specifier = ">=0.5.1,<1" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.3.0,<3" },
+    { name = "protego", specifier = ">=0.3.1,<1" },
+    { name = "pydantic-settings", specifier = ">=2.10.0,<3" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3,<10" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.1.0,<2" },
+    { name = "python-multipart", specifier = ">=0.0.31,<1" },
+    { name = "reportlab", specifier = ">=5.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.0,<1" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.43,<3" },
+    { name = "structlog", specifier = ">=25.4.0,<27" },
+    { name = "tldextract", specifier = ">=5.1.0,<6" },
+    { name = "types-defusedxml", marker = "extra == 'dev'", specifier = ">=0.7.0,<1" },
+    { name = "types-reportlab", marker = "extra == 'dev'", specifier = ">=4.5.1.20260728" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.35.0,<1" },
+]
+provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "asyncpg-stubs", specifier = ">=0.31.3" },
+    { name = "lxml-stubs", specifier = ">=0.5.1" },
+    { name = "types-defusedxml", specifier = ">=0.7.0.20260504" },
+]
+
+[[package]]
 name = "click"
 version = "8.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1341,86 +1423,6 @@ wheels = [
 ]
 
 [[package]]
-name = "citeladder-backend"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "alembic" },
-    { name = "argon2-cffi" },
-    { name = "asyncpg" },
-    { name = "cryptography" },
-    { name = "curl-cffi" },
-    { name = "defusedxml" },
-    { name = "email-validator" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "joserfc" },
-    { name = "lxml" },
-    { name = "protego" },
-    { name = "pydantic-settings" },
-    { name = "python-multipart" },
-    { name = "reportlab" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "structlog" },
-    { name = "tldextract" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "lxml-stubs" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-    { name = "types-defusedxml" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "asyncpg-stubs" },
-    { name = "lxml-stubs" },
-    { name = "types-defusedxml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "alembic", specifier = ">=1.16.5,<2" },
-    { name = "argon2-cffi", specifier = ">=25.1.0,<26" },
-    { name = "asyncpg", specifier = ">=0.30.0,<1" },
-    { name = "cryptography", specifier = ">=50.0.0,<51" },
-    { name = "curl-cffi", specifier = ">=0.11,<1" },
-    { name = "defusedxml", specifier = ">=0.7.1,<1" },
-    { name = "email-validator", specifier = ">=2.3.0,<3" },
-    { name = "fastapi", specifier = ">=0.116.0,<1" },
-    { name = "httpx", specifier = ">=0.28.1,<1" },
-    { name = "joserfc", specifier = ">=1.6.8,<2" },
-    { name = "lxml", specifier = ">=6.1.0,<7" },
-    { name = "lxml-stubs", marker = "extra == 'dev'", specifier = ">=0.5.1,<1" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.3.0,<3" },
-    { name = "protego", specifier = ">=0.3.1,<1" },
-    { name = "pydantic-settings", specifier = ">=2.10.0,<3" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3,<10" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.1.0,<2" },
-    { name = "python-multipart", specifier = ">=0.0.31,<1" },
-    { name = "reportlab", specifier = ">=5.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.0,<1" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.43,<3" },
-    { name = "structlog", specifier = ">=25.4.0,<27" },
-    { name = "tldextract", specifier = ">=5.1.0,<6" },
-    { name = "types-defusedxml", marker = "extra == 'dev'", specifier = ">=0.7.0,<1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.35.0,<1" },
-]
-provides-extras = ["dev"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "asyncpg-stubs", specifier = ">=0.31.3" },
-    { name = "lxml-stubs", specifier = ">=0.5.1" },
-    { name = "types-defusedxml", specifier = ">=0.7.0.20260504" },
-]
-
-[[package]]
 name = "sqlalchemy"
 version = "2.0.51"
 source = { registry = "https://pypi.org/simple" }
@@ -1510,6 +1512,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/da/d2/4553c8fa9cdebfe1e84b950cf790a4d2376a97fa016e43f7c65323fa6c7d/types_defusedxml-0.7.0.20260504.tar.gz", hash = "sha256:2ab2828a3f97111ba1c16cee273ad4124a831fc9198c41bf8368ff6ea48ad300", size = 10729, upload-time = "2026-05-04T05:22:50.192Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bf/2d/8a4b5ba1d732b8bc691f0efbb1c6f77cb5f6f473b2afe181d83d910773c5/types_defusedxml-0.7.0.20260504-py3-none-any.whl", hash = "sha256:a959e3a0a43b93e464bd625d91ec9193a2703ddc10443bdd627792485fae0b10", size = 13467, upload-time = "2026-05-04T05:22:49.319Z" },
+]
+
+[[package]]
+name = "types-reportlab"
+version = "4.5.1.20260728"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/b8/3115698bcebda28ef903c5a2c3f8673dc31f9023774246f25ffc09dd19b6/types_reportlab-4.5.1.20260728.tar.gz", hash = "sha256:5c8d0a2f12a533e400b9cbff82c5d11798b1a405a8ec5a2a5d84fb0ebee58c1e", size = 72669, upload-time = "2026-07-28T04:51:24.453Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a2/07/c8127a9e56083bbac9e5285ce1c27a659e11c660fb1af71c2b2707770c34/types_reportlab-4.5.1.20260728-py3-none-any.whl", hash = "sha256:a4841e6668cc4b86d1acde75ee804307c49774c43c772f0d8addb2ed24b503ad", size = 113079, upload-time = "2026-07-28T04:51:23.261Z" },
 ]
 
 [[package]]

@@ -13,9 +13,9 @@ function renderNav() {
 }
 
 describe('SidebarNav', () => {
-  it('renders both groups', () => {
+  it('renders the operating-loop groups', () => {
     renderNav();
-    for (const group of ['Analyze', 'Improve']) {
+    for (const group of ['Home', 'Analyze', 'Resolve', 'Improve']) {
       expect(screen.getByText(group)).toBeInTheDocument();
     }
   });
@@ -51,21 +51,21 @@ describe('SidebarNav', () => {
 
   it('renders exactly the nav model as links', () => {
     renderNav();
-    expect(NAV_GROUPS).toHaveLength(2);
+    expect(NAV_GROUPS).toHaveLength(4);
     const labels = NAV_GROUPS.flatMap((group) => group.items.map((item) => item.label));
     expect(labels).toEqual([
+      'Command center',
       'Visibility',
       'AI Referrals',
       'Traffic',
       'Prompts',
       'Commerce',
       'Runs',
-      'Content',
       'Site health',
       'Issues',
-      'Opportunities',
+      'Recommended actions',
+      'Content',
       'Brand knowledge',
-      'Projects',
     ]);
     for (const label of labels) {
       expect(screen.getByRole('link', { name: new RegExp(label, 'i') })).toBeInTheDocument();

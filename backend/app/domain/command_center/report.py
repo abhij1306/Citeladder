@@ -187,7 +187,9 @@ def render_executive_pdf(command_center: CommandCenterResponse) -> bytes:
     )
     story.extend([Paragraph("Evidence appendix", heading)])
     for action in command_center.actions:
-        kinds = ", ".join(action.evidence_summary.get("kinds", [])) or "none"
+        raw_kinds = action.evidence_summary.get("kinds", [])
+        kinds = ", ".join(raw_kinds) if isinstance(raw_kinds, list) else "none"
+        kinds = kinds or "none"
         story.append(
             Paragraph(
                 f"<b>{action.display_rank}. {action.title}</b><br/>"
