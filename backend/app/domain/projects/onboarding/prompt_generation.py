@@ -112,7 +112,7 @@ def _fallback_context(industry, industry_context, products_services, target_audi
         ]
     audiences = list(industry_context.get("customer_types") or [])
     uses = _values_or_default(industry_context.get("use_cases"), "their needs")
-    audience = target_audience.strip() or (audiences[0] if audiences else "buyers")
+    audience = target_audience.strip() or next(iter(audiences), "buyers")
     return categories, audience, uses
 
 
