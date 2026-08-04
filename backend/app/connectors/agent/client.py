@@ -204,11 +204,19 @@ class DefaultAgentClient:
 def _strip_json_fence(content: str) -> str:
     """Normalize the harmless JSON fences emitted by some compatible hosts."""
     stripped = content.strip()
-    if not stripped.startswith("```"):
-        return stripped
-    opening, separator, remainder = stripped.partition("\n")
+    fenced_body = _fenced_json_body(stripped)
+    if fenced_body is not None:
+        return fenced_body
+    return stripped
+
+
+def _fenced_json_body(content: str) -> str | None:
+    """Return content from a complete Markdown JSON fence, if present."""
+    if not content.startswith("```"):
+        return None
+    opening, separator, remainder = content.partition("\n")
     if not separator or opening.casefold() not in {"```", "```json"}:
-        return stripped
+        return None
     body = remainder.rstrip()
     if body.endswith("```"):
         body = body[:-3]

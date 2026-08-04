@@ -111,11 +111,14 @@ def _fallback_context(industry, industry_context, products_services, target_audi
             industry.casefold() if industry != "General" else "products and services"
         ]
     audiences = list(industry_context.get("customer_types") or [])
-    uses = list(industry_context.get("use_cases") or [])
-    if not uses:
-        uses = ["their needs"]
+    uses = _values_or_default(industry_context.get("use_cases"), "their needs")
     audience = target_audience.strip() or (audiences[0] if audiences else "buyers")
     return categories, audience, uses
+
+
+def _values_or_default(values, fallback):
+    normalized = list(values or [])
+    return normalized or [fallback]
 
 
 def validated_portfolio(

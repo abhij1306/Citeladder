@@ -805,9 +805,10 @@
       "DefaultAgentClient.complete_json": 1,
       "DefaultAgentClient.complete_structured_json": 2,
       "DefaultAgentClient.model": 1,
+      "_fenced_json_body": 5,
       "_strip_json_fence": 2
     },
-    "loc": 211,
+    "loc": 223,
     "max_cc": 8
   },
   "app/connectors/answer_engines/__init__.py": {
@@ -1327,9 +1328,10 @@
   "app/core/config/agent.py": {
     "functions": {
       "DefaultAgentSettings.configured": 1,
-      "DefaultAgentSettings.resolved_api_key": 5
+      "DefaultAgentSettings.resolved_api_key": 5,
+      "_is_nvidia_host": 2
     },
-    "loc": 98,
+    "loc": 102,
     "max_cc": 5
   },
   "app/core/config/analysis.py": {
@@ -3089,20 +3091,22 @@
     "functions": {
       "normalize_website_url": 6
     },
-    "loc": 35,
+    "loc": 34,
     "max_cc": 6
   },
   "app/domain/projects/onboarding/prompt_generation.py": {
     "functions": {
       "_ensure_market": 3,
-      "_fallback_context": 9,
+      "_ensure_use_case": 2,
+      "_fallback_context": 8,
       "_fallback_values": 1,
       "_localized_question": 1,
+      "_values_or_default": 3,
       "fallback_portfolio": 8,
       "validated_portfolio": 4
     },
-    "loc": 152,
-    "max_cc": 9
+    "loc": 165,
+    "max_cc": 8
   },
   "app/domain/projects/onboarding/prompt_validation.py": {
     "functions": {
@@ -3789,7 +3793,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 350,
+    "loc": 358,
     "max_cc": 1
   },
   "app/models/analytics.py": {

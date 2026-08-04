@@ -28,6 +28,10 @@ STRUCTURED_OUTPUT_PROMPT_JSON = "prompt_json"
 STRUCTURED_OUTPUT_JSON_SCHEMA = "json_schema"
 
 
+def _is_nvidia_host(host: str) -> bool:
+    return host == "nvidia.com" or host.endswith(".nvidia.com")
+
+
 class DefaultAgentSettings(BaseSettings):
     """Env-overridable default-agent knobs (``DEFAULT_AGENT_*``).
 
@@ -90,9 +94,7 @@ class DefaultAgentSettings(BaseSettings):
         if self.api_key.strip():
             return self.api_key.strip()
         host = (urlsplit(self.base_url).hostname or "").casefold()
-        if (
-            host == "nvidia.com" or host.endswith(".nvidia.com")
-        ) and self.nvidia_api_key.strip():
+        if _is_nvidia_host(host) and self.nvidia_api_key.strip():
             return self.nvidia_api_key.strip()
         return self.mistral_api_key.strip()
 
