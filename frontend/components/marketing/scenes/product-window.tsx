@@ -262,7 +262,10 @@ export function ProductWindow() {
   const currentStep = STORY_STEPS[activeStep];
 
   return (
-    <div ref={containerRef} className="citeladder-snapshot mx-auto max-w-5xl p-4 sm:p-5">
+    <div
+      ref={containerRef}
+      className="citeladder-snapshot bg-panel shadow-card mx-auto max-w-5xl rounded-lg p-4 sm:p-5"
+    >
       {/* Storytelling Tour Stepper */}
       <div className="bg-background-alt border-border-subtle mb-5 rounded-lg border p-4 sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

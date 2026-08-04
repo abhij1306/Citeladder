@@ -147,4 +147,12 @@ describe('Landing page (public marketing `/`)', () => {
     expect(product).toHaveTextContent(/every score opens to the answer behind it/i);
     expect(product).toHaveTextContent(/example data/i);
   });
+
+  it('uses white panel cards for the shift facts and product demo', () => {
+    stubAnonymous();
+    const { container } = renderWithProviders(<Page />);
+
+    expect(container.querySelectorAll('#why article.bg-panel')).toHaveLength(3);
+    expect(container.querySelector('#see-it .citeladder-snapshot.bg-panel')).not.toBeNull();
+  });
 });
