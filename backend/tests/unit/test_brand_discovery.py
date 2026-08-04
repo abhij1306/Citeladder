@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from app.domain.projects.discovery_schemas import BrandDiscoveryCreate
@@ -21,6 +23,7 @@ from app.domain.projects.onboarding.prompt_validation import (
     validate_portfolio,
 )
 from app.domain.projects.onboarding.service import discovery_catalog
+from app.domain.projects.onboarding.site_resolution import resolve_site
 
 
 def test_normalizes_url_idn_path_fragment_and_market() -> None:
@@ -51,6 +54,39 @@ def test_general_industry_is_deterministic_fallback() -> None:
 
     assert selected == "General"
     assert len(context["archetypes"]) == 5
+
+
+@pytest.mark.asyncio
+async def test_https_to_http_redirect_is_not_used_as_research(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RedirectingFetcher:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            pass
+
+        async def fetch(self, _request: object):
+            return SimpleNamespace(
+                status_code=200,
+                final_url="http://example.com/",
+                body=b"<html><title>Untrusted</title><p>content</p></html>",
+                charset="utf-8",
+            )
+
+    monkeypatch.setattr(
+        "app.domain.projects.onboarding.site_resolution.SecureFetcher",
+        RedirectingFetcher,
+    )
+
+    resolved = await resolve_site("example.com", "https://example.com/")
+
+    assert resolved.page is None
+    assert resolved.warning == "research_degraded"
 
 
 def test_fallback_portfolio_is_exactly_five_neutral_and_five_branded() -> None:

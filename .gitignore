@@ -28,3 +28,5 @@ backend/var/measurements/
 # Local screenshot/debug scratch scripts and their output
 frontend/.*.mjs
 frontend/.*.png
+.runtime/
+backend/.runtime/

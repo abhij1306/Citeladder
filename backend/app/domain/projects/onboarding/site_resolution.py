@@ -77,7 +77,7 @@ async def resolve_site(entered_url: str, normalized_url: str) -> ResolvedSite:
                 raise SiteNotFoundError("site_not_found")
             page = None
             warning = ""
-            is_https = urlsplit(request_url).scheme == "https"
+            is_https = urlsplit(final_url).scheme == "https"
             if 200 <= result.status_code < 300 and is_https:
                 extracted = extract_brand_page(
                     result.body, url=final_url, charset=result.charset

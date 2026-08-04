@@ -7,6 +7,8 @@ from typing import Final
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.config import BASE_DIR
+
 CADENCE_ONE_TIME: Final = "one_time"
 CADENCE_EVERY_N_MINUTES: Final = "every_n_minutes"
 CADENCE_HOURLY: Final = "hourly"
@@ -39,7 +41,9 @@ class AuditScheduleSettings(BaseSettings):
     failure_retry_seconds: int = Field(default=300, gt=0)
     max_consecutive_failures: int = Field(default=5, gt=0)
     health_stale_seconds: int = Field(default=180, gt=0)
-    heartbeat_path: str = Field(default="/app/runtime/audit-scheduler-heartbeat")
+    heartbeat_path: str = Field(
+        default=str(BASE_DIR / ".runtime" / "audit-scheduler-heartbeat")
+    )
 
 
 audit_schedule_settings = AuditScheduleSettings()

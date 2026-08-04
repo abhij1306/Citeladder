@@ -50,6 +50,19 @@ async def test_complete_json_uses_json_mode_without_key_in_body() -> None:
 
 
 @pytest.mark.asyncio
+async def test_complete_json_removes_markdown_fences() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": '```json\n{"ok":true}\n```'}}]},
+        )
+
+    result = await _client(handler).complete_json(system="system", user="user")
+
+    assert result == '{"ok":true}'
+
+
+@pytest.mark.asyncio
 async def test_complete_structured_json_requests_strict_schema() -> None:
     captured: dict[str, object] = {}
 

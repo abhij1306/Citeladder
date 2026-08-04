@@ -808,7 +808,7 @@
       "_fenced_json_body": 5,
       "_strip_json_fence": 2
     },
-    "loc": 223,
+    "loc": 224,
     "max_cc": 8
   },
   "app/connectors/answer_engines/__init__.py": {
@@ -1361,7 +1361,7 @@
   },
   "app/core/config/audit_schedules.py": {
     "functions": {},
-    "loc": 45,
+    "loc": 49,
     "max_cc": 0
   },
   "app/core/config/audits.py": {
@@ -4030,17 +4030,18 @@
       "AuditScheduler.__init__": 3,
       "AuditScheduler._claim_due": 4,
       "AuditScheduler._finalize_claim": 7,
-      "AuditScheduler._plan_claim": 6,
+      "AuditScheduler._plan_claim": 5,
       "AuditScheduler._renew_claim": 4,
       "AuditScheduler.run_forever": 3,
       "AuditScheduler.run_once": 5,
+      "_current_claim": 5,
       "_utcnow": 1,
       "_write_heartbeat": 1,
       "healthcheck": 3,
       "main": 2,
       "next_run_after": 10
     },
-    "loc": 264,
+    "loc": 288,
     "max_cc": 10
   },
   "app/workers/audit_worker.py": {

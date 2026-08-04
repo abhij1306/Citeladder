@@ -73,12 +73,13 @@ class DefaultAgentClient:
         return httpx.URL(self._settings.base_url).host or ""
 
     async def complete_json(self, *, system: str, user: str) -> str:
-        """Run one JSON-mode completion and return the raw content string."""
-        return await self._complete(
+        """Run one JSON-mode completion and return normalized JSON content."""
+        raw = await self._complete(
             system=system,
             user=user,
             response_format={"type": "json_object"},
         )
+        return _strip_json_fence(raw)
 
     async def complete_structured_json(
         self,

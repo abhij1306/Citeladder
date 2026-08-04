@@ -156,8 +156,13 @@ class AuditScheduler:
         self, schedule_id: uuid.UUID, scheduled_for: datetime, now: datetime
     ) -> bool:
         async with self._session_factory() as session:
-            schedule = await session.get(AuditSchedule, schedule_id)
-            if schedule is None or schedule.lease_owner != self.owner:
+            schedule = await _current_claim(
+                session,
+                schedule_id=schedule_id,
+                owner=self.owner,
+                scheduled_for=scheduled_for,
+            )
+            if schedule is None:
                 return False
             try:
                 await create_audit(
@@ -242,7 +247,26 @@ class AuditScheduler:
 
 
 def _write_heartbeat(now: datetime) -> None:
+    HEARTBEAT_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     HEARTBEAT_PATH.write_text(now.isoformat(), encoding="utf-8")
+
+
+async def _current_claim(
+    session: AsyncSession,
+    *,
+    schedule_id: uuid.UUID,
+    owner: str,
+    scheduled_for: datetime,
+) -> AuditSchedule | None:
+    schedule = await session.get(AuditSchedule, schedule_id)
+    if schedule is None or schedule.lease_owner != owner:
+        return None
+    if schedule.enabled and schedule.next_run_at == scheduled_for:
+        return schedule
+    schedule.lease_owner = None
+    schedule.lease_expires_at = None
+    await session.commit()
+    return None
 
 
 def healthcheck() -> int:
