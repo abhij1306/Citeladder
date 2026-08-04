@@ -112,6 +112,7 @@ def test_shim_produces_expected_dict_shape() -> None:
         "country_code": "AU",
         "language_code": "en-AU",
         "benchmark_mode": "controlled_localized",
+        "products_services": [],
     }
     # The shim must NOT duplicate brand_name into the alias list.
     assert "Acme Corp" not in identity["brand_aliases"]
