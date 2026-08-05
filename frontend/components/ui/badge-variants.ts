@@ -34,6 +34,7 @@ export const runStatusBadge = {
   draft: 'bg-run-draft-bg text-run-draft',
   queued: 'bg-run-queued-bg text-run-queued',
   running: 'bg-run-running-bg text-run-running',
+  paused: 'bg-run-queued-bg text-run-queued',
   analyzing: 'bg-run-analyzing-bg text-run-analyzing',
   completed: 'bg-run-completed-bg text-run-completed',
   partial: 'bg-run-partial-bg text-run-partial',

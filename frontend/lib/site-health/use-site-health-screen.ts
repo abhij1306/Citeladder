@@ -9,7 +9,12 @@ import {
   siteHealthQueries,
   type CreateCrawlInput,
 } from '@/lib/api/site-health';
-import type { SiteCrawl, SiteHealthDashboard, SiteHealthEntitlement } from '@/lib/api/types';
+import type {
+  PhaseMutationResponse,
+  SiteCrawl,
+  SiteHealthDashboard,
+  SiteHealthEntitlement,
+} from '@/lib/api/types';
 import {
   downloadCrawlExport,
   type ExportFormat,
@@ -94,10 +99,9 @@ export function useSiteHealthScreen(projectId: string | null) {
   // stream open for it is the same waste by another route.
   useCrawlEvents(crawl?.id, projectId, active && !stalled);
 
-  // THE single subscription's fan-out: when the dashboard's poll (or an SSE
-  // invalidation) lands a crawl that actually moved, refresh every list derived
-  // from it. Keyed on a progress fingerprint rather than object identity, so a
-  // refetch that returns an unchanged crawl costs nothing downstream.
+  // Refresh crawl-derived lists only when persisted progress changes. The
+  // first sighting mounts its own queries, and unchanged dashboard polls do no
+  // downstream work.
   const crawlId = crawl?.id ?? null;
   const crawlVersion = crawl ? crawlProgressVersion(crawl) : null;
   const lastSeenRef = useRef<{ crawlId: string; version: string } | null>(null);
@@ -105,8 +109,6 @@ export function useSiteHealthScreen(projectId: string | null) {
     if (!crawlId || crawlVersion === null) return;
     const previous = lastSeenRef.current;
     lastSeenRef.current = { crawlId, version: crawlVersion };
-    // Nothing to refresh on the first sighting of a crawl (its lists are
-    // mounting against it) or when the fingerprint is unchanged.
     if (previous?.crawlId !== crawlId || previous.version === crawlVersion) return;
     invalidateCrawlViews(queryClient, crawlId);
   }, [crawlId, crawlVersion, queryClient]);
@@ -191,6 +193,46 @@ export function useSiteHealthScreen(projectId: string | null) {
       }
     },
   });
+  const applyPhaseResult = (result: PhaseMutationResponse) => {
+    if (!projectId) return;
+    queryClient.setQueryData<SiteHealthDashboard>(
+      queryKeys.siteHealth.dashboard(projectId),
+      (previous) =>
+        previous
+          ? {
+              ...previous,
+              crawl: result.crawl,
+              phase_runs: result.created_new_crawl
+                ? { discovery: null, analysis: null }
+                : result.phase_run
+                  ? {
+                      ...previous.phase_runs,
+                      [result.phase_run.phase]: result.phase_run,
+                    }
+                  : previous.phase_runs,
+            }
+          : previous,
+    );
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.siteHealth.monitored(projectId),
+    });
+  };
+  const startDiscoveryMutation = useMutation({
+    ...siteHealthMutations.startDiscovery(),
+    onSuccess: applyPhaseResult,
+  });
+  const stopDiscoveryMutation = useMutation({
+    ...siteHealthMutations.stopDiscovery(),
+    onSuccess: applyPhaseResult,
+  });
+  const startAnalysisMutation = useMutation({
+    ...siteHealthMutations.startAnalysis(),
+    onSuccess: applyPhaseResult,
+  });
+  const stopAnalysisMutation = useMutation({
+    ...siteHealthMutations.stopAnalysis(),
+    onSuccess: applyPhaseResult,
+  });
 
   const startCrawl = (input?: CreateCrawlInput) =>
     projectId && createMutation.mutate(input ?? { project_id: projectId });
@@ -222,6 +264,7 @@ export function useSiteHealthScreen(projectId: string | null) {
     entitlementQuery,
     dashboardQuery,
     pagesQuery,
+    monitoredQuery,
     crawl,
     active,
     stalled,
@@ -233,6 +276,10 @@ export function useSiteHealthScreen(projectId: string | null) {
     startPending,
     createMutation,
     cancelMutation,
+    startDiscoveryMutation,
+    stopDiscoveryMutation,
+    startAnalysisMutation,
+    stopAnalysisMutation,
     startCrawl,
     cancelCrawl,
     runExport,

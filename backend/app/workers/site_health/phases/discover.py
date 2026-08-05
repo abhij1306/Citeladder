@@ -782,6 +782,7 @@ class DiscoverPhaseMixin(PhaseSupport):
                 outcome.output, depth, input_mode=input_mode
             ),
             enqueue_children=input_mode != INPUT_MODE_EXACT_URLS,
+            phase_run_id=task.phase_run_id,
         )
         await self._persist_sitemap_candidates(
             session,
@@ -789,6 +790,7 @@ class DiscoverPhaseMixin(PhaseSupport):
             outcome=outcome,
             depth=depth,
             input_mode=input_mode,
+            phase_run_id=task.phase_run_id,
         )
         crawl.discovered_url_count += 1
         task.result_artifact_id = artifact_id
@@ -802,6 +804,7 @@ class DiscoverPhaseMixin(PhaseSupport):
         outcome: _DiscoverOutcome,
         depth: int,
         input_mode: str,
+        phase_run_id: uuid.UUID | None,
     ) -> None:
         if (
             depth != 0
@@ -811,12 +814,18 @@ class DiscoverPhaseMixin(PhaseSupport):
         ):
             return
         candidates = self._sitemap_candidates(outcome.sitemap_urls)
-        admission = await admit_candidates(session, crawl=crawl, candidates=candidates)
+        admission = await admit_candidates(
+            session,
+            crawl=crawl,
+            candidates=candidates,
+            phase_run_id=phase_run_id,
+        )
         await self._write_sitemap_observations(
             session,
             crawl=crawl,
             candidates=candidates,
             admission=admission,
+            phase_run_id=phase_run_id,
         )
 
     @staticmethod
@@ -889,6 +898,7 @@ class DiscoverPhaseMixin(PhaseSupport):
         crawl: SiteCrawl,
         candidates: list[FrontierCandidate],
         admission,
+        phase_run_id: uuid.UUID | None,
     ) -> None:
         """Sparse admission-time observations for sitemap-sourced URLs.
 
@@ -910,6 +920,7 @@ class DiscoverPhaseMixin(PhaseSupport):
                     project_id=crawl.project_id,
                     crawl_id=crawl.id,
                     site_url_id=site_url_id,
+                    phase_run_id=phase_run_id,
                     source_kind=OBSERVATION_SOURCE_SITEMAP,
                     depth=candidate.depth,
                     observed_url=candidate.url,

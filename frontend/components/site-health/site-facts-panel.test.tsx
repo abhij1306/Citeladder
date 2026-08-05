@@ -115,6 +115,7 @@ function dashboard(crawlValue: SiteCrawl | null): SiteHealthDashboard {
     score_summary: null,
     quota: { used: 4, limit: 50 },
     root_errors: [],
+    phase_runs: { discovery: null, analysis: null },
   };
 }
 

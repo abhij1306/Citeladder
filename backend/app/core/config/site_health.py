@@ -197,6 +197,21 @@ URL_VALUE_PRIORITIES: Final[dict[str, int]] = {
     "other": 20,
 }
 
+# Development-only resumable phase controls.  The values are operational
+# ceilings, not product-tier entitlements, and are frozen into each crawl.
+PHASE_DISCOVERY: Final = "discovery"
+PHASE_ANALYSIS: Final = "analysis"
+PHASES: Final[frozenset[str]] = frozenset({PHASE_DISCOVERY, PHASE_ANALYSIS})
+PHASE_RUN_RUNNING: Final = "running"
+PHASE_RUN_STOPPED: Final = "stopped"
+PHASE_RUN_COMPLETED: Final = "completed"
+PHASE_RUN_FAILED: Final = "failed"
+PHASE_RUN_STATUSES: Final[frozenset[str]] = frozenset(
+    {PHASE_RUN_RUNNING, PHASE_RUN_STOPPED, PHASE_RUN_COMPLETED, PHASE_RUN_FAILED}
+)
+FRONTIER_PENDING: Final = "pending"
+FRONTIER_ADMITTED: Final = "admitted"
+
 
 class SiteHealthRuntimePolicy:
     """The neutral crawl policy projected from a resolved allowance.
@@ -293,6 +308,7 @@ CRAWL_STATUS_DRAFT: Final = "draft"
 CRAWL_STATUS_VALIDATING: Final = "validating"
 CRAWL_STATUS_QUEUED: Final = "queued"
 CRAWL_STATUS_RUNNING: Final = "running"
+CRAWL_STATUS_PAUSED: Final = "paused"
 CRAWL_STATUS_COMPLETED: Final = "completed"
 CRAWL_STATUS_PARTIALLY_COMPLETED: Final = "partially_completed"
 CRAWL_STATUS_FAILED: Final = "failed"
@@ -303,6 +319,7 @@ CRAWL_STATUSES: Final[frozenset[str]] = frozenset(
         CRAWL_STATUS_VALIDATING,
         CRAWL_STATUS_QUEUED,
         CRAWL_STATUS_RUNNING,
+        CRAWL_STATUS_PAUSED,
         CRAWL_STATUS_COMPLETED,
         CRAWL_STATUS_PARTIALLY_COMPLETED,
         CRAWL_STATUS_FAILED,
@@ -323,6 +340,7 @@ CRAWL_ACTIVE_STATUSES: Final[frozenset[str]] = frozenset(
         CRAWL_STATUS_VALIDATING,
         CRAWL_STATUS_QUEUED,
         CRAWL_STATUS_RUNNING,
+        CRAWL_STATUS_PAUSED,
     }
 )
 
@@ -331,6 +349,7 @@ CRAWL_ACTIVE_STATUSES: Final[frozenset[str]] = frozenset(
 #     completed | sample_completed | failed | cancelled
 DISCOVERY_STATUS_PENDING: Final = "pending"
 DISCOVERY_STATUS_RUNNING: Final = "running"
+DISCOVERY_STATUS_STOPPED: Final = "stopped"
 DISCOVERY_STATUS_COMPLETED: Final = "completed"
 DISCOVERY_STATUS_SAMPLE_COMPLETED: Final = "sample_completed"
 DISCOVERY_STATUS_FAILED: Final = "failed"
@@ -339,6 +358,7 @@ DISCOVERY_STATUSES: Final[frozenset[str]] = frozenset(
     {
         DISCOVERY_STATUS_PENDING,
         DISCOVERY_STATUS_RUNNING,
+        DISCOVERY_STATUS_STOPPED,
         DISCOVERY_STATUS_COMPLETED,
         DISCOVERY_STATUS_SAMPLE_COMPLETED,
         DISCOVERY_STATUS_FAILED,
@@ -351,6 +371,7 @@ DISCOVERY_STATUSES: Final[frozenset[str]] = frozenset(
 #     completed | partially_completed | failed | cancelled
 ANALYSIS_STATUS_PENDING: Final = "pending"
 ANALYSIS_STATUS_RUNNING: Final = "running"
+ANALYSIS_STATUS_STOPPED: Final = "stopped"
 ANALYSIS_STATUS_COMPLETED: Final = "completed"
 ANALYSIS_STATUS_PARTIALLY_COMPLETED: Final = "partially_completed"
 ANALYSIS_STATUS_FAILED: Final = "failed"
@@ -359,6 +380,7 @@ ANALYSIS_STATUSES: Final[frozenset[str]] = frozenset(
     {
         ANALYSIS_STATUS_PENDING,
         ANALYSIS_STATUS_RUNNING,
+        ANALYSIS_STATUS_STOPPED,
         ANALYSIS_STATUS_COMPLETED,
         ANALYSIS_STATUS_PARTIALLY_COMPLETED,
         ANALYSIS_STATUS_FAILED,
@@ -655,6 +677,15 @@ CODE_MONITORING_NOT_ALLOWED: Final = "monitoring_not_allowed"
 CODE_QUOTA_EXCEEDED: Final = "site_health_quota_exceeded"
 CODE_STALE_SELECTION_VERSION: Final = "stale_selection_version"
 CODE_CRAWL_ALREADY_ACTIVE: Final = "crawl_already_active"
+CODE_DISCOVERY_LIMIT_EXCEEDED: Final = "site_health_discovery_limit_exceeded"
+CODE_ANALYSIS_LIMIT_EXCEEDED: Final = "site_health_analysis_limit_exceeded"
+CODE_PHASE_ALREADY_RUNNING: Final = "site_health_phase_already_running"
+CODE_PHASE_NOT_RESUMABLE: Final = "site_health_phase_not_resumable"
+CODE_ADVANCED_CONTROLS_UNAVAILABLE: Final = "advanced_controls_unavailable"
+
+# Bound one resume operation so a large cancelled frontier is cloned across
+# multiple explicit discovery batches instead of one oversized transaction.
+CANCELLED_DISCOVERY_TASK_CLONE_LIMIT: Final = 32
 
 # =========================================================================
 # Crawl lifecycle event types (safe SSE payloads; Free excludes totals)
@@ -664,6 +695,10 @@ EVENT_CRAWL_QUEUED: Final = "crawl.queued"
 EVENT_CRAWL_RUNNING: Final = "crawl.running"
 EVENT_DISCOVERY_PROGRESS: Final = "discovery.progress"
 EVENT_ANALYSIS_PROGRESS: Final = "analysis.progress"
+EVENT_DISCOVERY_STARTED: Final = "discovery.started"
+EVENT_DISCOVERY_STOPPED: Final = "discovery.stopped"
+EVENT_ANALYSIS_STARTED: Final = "analysis.started"
+EVENT_ANALYSIS_STOPPED: Final = "analysis.stopped"
 EVENT_CRAWL_STATUS: Final = "crawl.status"
 EVENT_CRAWL_COMPLETED: Final = "crawl.completed"
 # Emitted INSTEAD of ``crawl.completed`` when the crawl terminalizes as
@@ -1882,6 +1917,8 @@ class SiteHealthSettings(BaseSettings):
     advanced_controls_enabled: bool = False
     automatic_page_limit: int = SAMPLE_URL_LIMIT
     max_requested_page_limit: int = 500
+    max_discovery_urls: int = 50_000
+    max_analysis_urls: int = 50_000
     max_preview_rows: int = 500
     max_preview_input_bytes: int = 262_144
     max_seed_urls: int = 500
@@ -2057,6 +2094,8 @@ class SiteHealthSettings(BaseSettings):
         for name in (
             "automatic_page_limit",
             "max_requested_page_limit",
+            "max_discovery_urls",
+            "max_analysis_urls",
             "max_preview_rows",
             "max_preview_input_bytes",
             "max_seed_urls",

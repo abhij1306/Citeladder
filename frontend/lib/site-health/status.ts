@@ -42,6 +42,7 @@ const TERMINAL_OVERALL: ReadonlySet<CrawlOverallStatus> = new Set<CrawlOverallSt
   'partially_completed',
   'failed',
   'cancelled',
+  'paused',
 ]);
 
 /** Overall statuses at which a cooperative cancel is still meaningful. */

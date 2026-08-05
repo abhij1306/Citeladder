@@ -170,6 +170,7 @@ export function SiteHealthScreen() {
       <CrawlIntakeDialog
         projectId={projectId}
         open={intakeOpen}
+        advancedControlsEnabled={Boolean(entitlementQuery.data?.advanced_controls_enabled)}
         onClose={() => setIntakeOpen(false)}
         onStart={startCrawl}
       />

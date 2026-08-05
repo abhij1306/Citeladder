@@ -5,39 +5,43 @@ import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { getSiteHealthAdvancedControlsEnabled } from '@/lib/config/operational';
 import { siteHealthApi, type CreateCrawlInput } from '@/lib/api/site-health';
+import { SITE_HEALTH_DEFAULT_PHASE_BATCH_SIZE } from '@/lib/config/operational';
 import { PAGE_TYPES } from '@/lib/site-health/page-types';
 
 /** Development-only guided admission flow. The preview endpoint owns validation. */
 export function CrawlIntakeDialog({
   projectId,
   open,
+  advancedControlsEnabled,
   onClose,
   onStart,
 }: Readonly<{
   projectId: string;
   open: boolean;
+  advancedControlsEnabled: boolean;
   onClose: () => void;
   onStart: (input: CreateCrawlInput) => void;
 }>) {
-  const advanced = getSiteHealthAdvancedControlsEnabled();
   const [urls, setUrls] = useState('');
   const [mode, setMode] = useState<CreateCrawlInput['input_mode']>('auto');
-  const [limit, setLimit] = useState('10');
+  const [limit, setLimit] = useState(String(SITE_HEALTH_DEFAULT_PHASE_BATCH_SIZE));
   const [types, setTypes] = useState<string[]>([]);
   const preview = useMutation({
     mutationFn: () =>
       siteHealthApi.previewUrls({ project_id: projectId, content: urls, input_format: 'text' }),
   });
   if (!open) return null;
+  const discoveryCount = Number(limit);
+  const validDiscoveryCount = Number.isSafeInteger(discoveryCount) && discoveryCount > 0;
   const start = () => {
+    if (advancedControlsEnabled && !validDiscoveryCount) return;
     onStart({
       project_id: projectId,
-      ...(advanced
+      ...(advancedControlsEnabled
         ? {
             input_mode: mode,
-            requested_page_limit: Number(limit),
+            discovery_count: discoveryCount,
             seed_urls: urls
               .split(/\r?\n/)
               .map((value) => value.trim())
@@ -65,8 +69,8 @@ export function CrawlIntakeDialog({
             not fetched.
           </p>
         </div>
-        {!advanced ? (
-          <Alert tone="info">This crawl will automatically analyze up to 10 pages.</Alert>
+        {!advancedControlsEnabled ? (
+          <Alert tone="info">This crawl will use the automatic page budget.</Alert>
         ) : (
           <>
             <label className="grid gap-1 text-sm">
@@ -167,7 +171,10 @@ export function CrawlIntakeDialog({
           <Button
             size="sm"
             onClick={start}
-            disabled={advanced && mode === 'exact_urls' && !urls.trim()}
+            disabled={
+              advancedControlsEnabled &&
+              (!validDiscoveryCount || (mode === 'exact_urls' && !urls.trim()))
+            }
           >
             Start crawl
           </Button>

@@ -825,6 +825,7 @@ export const siteHealthEntitlementSchema = responseObject({
   entitlement_lifecycle_version: z.number().int(),
   valid_until: z.string().nullable(),
   contributing_grant_ids: z.array(uuid()),
+  advanced_controls_enabled: z.boolean(),
 });
 
 // Independent crawl lifecycle sub-states (plan §Persistence lifecycle states).
@@ -833,6 +834,7 @@ export const crawlOverallStatusSchema = z.enum([
   'validating',
   'queued',
   'running',
+  'paused',
   'completed',
   'partially_completed',
   'failed',
@@ -841,6 +843,7 @@ export const crawlOverallStatusSchema = z.enum([
 export const crawlDiscoveryStatusSchema = z.enum([
   'pending',
   'running',
+  'stopped',
   'completed',
   'sample_completed',
   'failed',
@@ -849,6 +852,7 @@ export const crawlDiscoveryStatusSchema = z.enum([
 export const crawlAnalysisStatusSchema = z.enum([
   'pending',
   'running',
+  'stopped',
   'completed',
   'partially_completed',
   'failed',
@@ -932,6 +936,17 @@ export const siteScoreSummarySchema = responseObject({
   by_page_type: z.record(z.string(), pageTypeScoreSummarySchema),
 });
 
+export const crawlCountersSchema = responseObject({
+  discovered: z.number().int().nullable(),
+  selected: z.number().int(),
+  queued: z.number().int(),
+  running: z.number().int(),
+  analyzed: z.number().int(),
+  errors: z.number().int(),
+  blocked: z.number().int(),
+  by_page_type: z.record(z.string(), z.number().int()),
+});
+
 // Why a crawl failed (SH-2/SH-5 — B1): stable machine `code` + human
 // `message` + the terminal HTTP status / attempt count when present. Projected
 // from the root discover task's terminal fetch attempts; null on any crawl
@@ -962,6 +977,9 @@ export const siteCrawlSchema = responseObject({
   visible_url_count: z.number().int(),
   analyzed_count: z.number().int(),
   failed_count: z.number().int(),
+  discovery_requested_count: z.number().int(),
+  analysis_requested_count: z.number().int(),
+  counters: crawlCountersSchema,
   // Redactable count fields (Free → null / absent, never a number).
   discovered_count: z.number().int().nullable().optional(),
   total_url_count: z.number().int().nullable(),
@@ -984,6 +1002,25 @@ export const siteCrawlSchema = responseObject({
   updated_at: z.string(),
   started_at: z.string().nullable(),
   completed_at: z.string().nullable(),
+});
+
+export const phaseRunSchema = responseObject({
+  id: uuid(),
+  phase: z.enum(['discovery', 'analysis']),
+  status: z.enum(['running', 'stopped', 'completed', 'failed']),
+  requested_count: z.number().int(),
+  processed_count: z.number().int(),
+  created_at: z.string(),
+  stopped_at: z.string().nullable(),
+  completed_at: z.string().nullable(),
+});
+
+export const phaseMutationResponseSchema = responseObject({
+  crawl: siteCrawlSchema,
+  phase_run: phaseRunSchema.nullable(),
+  created_new_crawl: z.boolean(),
+  selection_version: z.number().int().nullable(),
+  scheduled_count: z.number().int(),
 });
 
 export const urlPreviewRowSchema = responseObject({
@@ -1314,6 +1351,10 @@ export const siteHealthDashboardSchema = responseObject({
   // B3: same root-failure projection as the pages response — the failed
   // crawl's dashboard renders the failure block without a second fetch.
   root_errors: z.array(rootErrorSchema),
+  phase_runs: responseObject({
+    discovery: phaseRunSchema.nullable(),
+    analysis: phaseRunSchema.nullable(),
+  }),
 });
 
 // Stable coded failures (plan §API contract). The frontend keys UX (upgrade
@@ -1323,6 +1364,10 @@ export const siteHealthErrorCodeSchema = z.enum([
   'site_health_quota_exceeded',
   'stale_selection_version',
   'crawl_already_active',
+  'site_health_discovery_limit_exceeded',
+  'site_health_analysis_limit_exceeded',
+  'site_health_phase_already_running',
+  'site_health_phase_not_resumable',
   'ssrf_blocked',
   'robots_denied',
   'redirect_limit',

@@ -45,7 +45,9 @@ from app.connectors.web_evidence.url_policy import (
 from app.core.config.site_health import (
     ANALYZER_VERSION,
     CLASSIFIER_VERSION,
+    CODE_ADVANCED_CONTROLS_UNAVAILABLE,
     CODE_CRAWL_ALREADY_ACTIVE,
+    CODE_DISCOVERY_LIMIT_EXCEEDED,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_DRAFT,
     CRAWL_STATUS_QUEUED,
@@ -62,6 +64,8 @@ from app.core.config.site_health import (
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
     OBSERVATION_SOURCE_ROOT,
     PAGE_TYPES,
+    PHASE_DISCOVERY,
+    PHASE_RUN_RUNNING,
     RULE_CATALOG_VERSION,
     SCORING_VERSION,
     TASK_KIND_ANALYZE,
@@ -88,6 +92,7 @@ from app.domain.site_health.state_events import (
 from app.models.project import Project
 from app.models.site_health import (
     SiteCrawl,
+    SiteCrawlPhaseRun,
     SiteCrawlTask,
     SiteHealthProfile,
     SiteUrl,
@@ -250,6 +255,7 @@ def _frozen_configuration(
     requested_page_limit: int | None = None,
     seed_urls: list[str] | None = None,
     page_types: list[str] | None = None,
+    advanced_controls_enabled: bool = False,
 ) -> dict:
     """Freeze the operational settings + runtime projection (invariant 9).
 
@@ -259,7 +265,7 @@ def _frozen_configuration(
     the rule/scoring versions.
     """
     s = site_health_settings
-    return {
+    configuration = {
         "discovery_mode": runtime.discovery_mode,
         "sample_mode": _is_sample_mode(runtime),
         "count_disclosure": bool(runtime.count_disclosure),
@@ -278,6 +284,8 @@ def _frozen_configuration(
         "page_profile_rule_version": PAGE_PROFILE_RULE_VERSION,
         "input_mode": input_mode,
         "requested_page_limit": requested_page_limit,
+        "max_discovery_urls": s.max_discovery_urls,
+        "max_analysis_urls": s.max_analysis_urls,
         "seed_urls": list(seed_urls or []),
         "page_types": list(page_types or []),
         "max_frontier_urls": s.max_frontier_urls,
@@ -296,6 +304,9 @@ def _frozen_configuration(
         "rule_catalog_version": RULE_CATALOG_VERSION,
         "scoring_version": SCORING_VERSION,
     }
+    if advanced_controls_enabled:
+        configuration["advanced_controls_enabled"] = True
+    return configuration
 
 
 def _controls_for_request(
@@ -318,7 +329,7 @@ def _controls_for_request(
     ):
         raise CrawlPlanError(
             "advanced crawl controls are unavailable",
-            code="advanced_controls_unavailable",
+            code=CODE_ADVANCED_CONTROLS_UNAVAILABLE,
         )
     if mode == INPUT_MODE_EXACT_URLS and not raw_seeds:
         raise CrawlPlanError(
@@ -360,10 +371,10 @@ def _resolved_page_limit(requested_page_limit: int | None) -> int:
         and requested_page_limit is not None
         else site_health_settings.automatic_page_limit
     )
-    if limit <= 0 or limit > site_health_settings.max_requested_page_limit:
+    if limit <= 0 or limit > site_health_settings.max_discovery_urls:
         raise CrawlPlanError(
             "requested_page_limit is outside the allowed range",
-            code="invalid_crawl_request",
+            code=CODE_DISCOVERY_LIMIT_EXCEEDED,
         )
     return int(limit)
 
@@ -597,6 +608,7 @@ async def create_crawl(
         requested_page_limit=page_limit,
         seed_urls=accepted_seeds,
         page_types=selected_types,
+        advanced_controls_enabled=site_health_settings.advanced_controls_enabled,
     )
 
     # Keep a full-inventory project's earlier discovered URLs visible while
@@ -630,6 +642,7 @@ async def create_crawl(
         random_seed=seed,
         configuration=configuration,
         sample_mode=sample_mode,
+        discovery_requested_count=page_limit,
         extractor_version=EXTRACTOR_VERSION,
         analyzer_version=ANALYZER_VERSION,
         rule_catalog_version=RULE_CATALOG_VERSION,
@@ -637,6 +650,17 @@ async def create_crawl(
     )
     session.add(crawl)
     await session.flush()  # assign crawl.id
+
+    discovery_run = SiteCrawlPhaseRun(
+        workspace_id=workspace_id,
+        crawl_id=crawl.id,
+        phase=PHASE_DISCOVERY,
+        ordinal=1,
+        status=PHASE_RUN_RUNNING,
+        requested_count=page_limit,
+    )
+    session.add(discovery_run)
+    await session.flush()
 
     # All roots/manual seeds pass the same policy above. Exact mode deliberately
     # creates only the accepted explicit tasks; it cannot discover descendants.
@@ -653,6 +677,7 @@ async def create_crawl(
             SiteCrawlTask(
                 crawl_id=crawl.id,
                 workspace_id=workspace_id,
+                phase_run_id=discovery_run.id,
                 task_kind=TASK_KIND_DISCOVER,
                 requested_url=initial_url,
                 url_hash=url_hash,

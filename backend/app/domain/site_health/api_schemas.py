@@ -15,6 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.config.site_health import site_health_settings
+
 # Presentation-status literals (superset of the persisted page-analysis states,
 # adding the mockup-facing `not_selected` / `error` / `blocked` / `cancelled`).
 PageAnalysisStatus = Literal[
@@ -51,6 +53,7 @@ class CreateCrawlRequest(_Model):
     seed: str | None = None
     input_mode: Literal["auto", "exact_urls", "discovery_seeds"] | None = None
     requested_page_limit: int | None = Field(default=None, ge=1)
+    discovery_count: int | None = Field(default=None, ge=1)
     seed_urls: list[str] | None = None
     page_types: list[str] | None = None
 
@@ -119,6 +122,19 @@ class RerunPageResponse(_Model):
     analysis_status: str
 
 
+class StartDiscoveryRequest(_Model):
+    additional_url_count: int = Field(ge=1)
+
+
+class StartAnalysisRequest(_Model):
+    requested_url_count: int = Field(ge=1)
+    site_url_ids: list[uuid.UUID] = Field(
+        default_factory=list,
+        max_length=site_health_settings.max_analysis_urls,
+    )
+    expected_selection_version: int = Field(ge=0)
+
+
 # =========================================================================
 # Entitlement
 # =========================================================================
@@ -140,6 +156,7 @@ class SiteHealthEntitlementResponse(_Model):
     entitlement_lifecycle_version: int
     valid_until: datetime | None
     contributing_grant_ids: list[uuid.UUID]
+    advanced_controls_enabled: bool
 
 
 # =========================================================================
@@ -178,6 +195,28 @@ class CrawlFailureSummary(_Model):
     target_url: str
 
 
+class CrawlCounters(_Model):
+    discovered: int | None
+    selected: int
+    queued: int
+    running: int
+    analyzed: int
+    errors: int
+    blocked: int
+    by_page_type: dict[str, int] = {}
+
+
+class PhaseRunResponse(_Model):
+    id: uuid.UUID
+    phase: Literal["discovery", "analysis"]
+    status: Literal["running", "stopped", "completed", "failed"]
+    requested_count: int
+    processed_count: int
+    created_at: str
+    stopped_at: str | None
+    completed_at: str | None
+
+
 class CrawlResponse(_Model):
     id: uuid.UUID
     workspace_id: uuid.UUID
@@ -193,6 +232,9 @@ class CrawlResponse(_Model):
     visible_url_count: int
     analyzed_count: int
     failed_count: int
+    discovery_requested_count: int
+    analysis_requested_count: int
+    counters: CrawlCounters
     # Redactable count fields (Free → None, never a number).
     discovered_count: int | None = None
     total_url_count: int | None = None
@@ -213,6 +255,14 @@ class CrawlResponse(_Model):
     updated_at: str
     started_at: str | None
     completed_at: str | None
+
+
+class PhaseMutationResponse(_Model):
+    crawl: CrawlResponse
+    phase_run: PhaseRunResponse | None
+    created_new_crawl: bool
+    selection_version: int | None
+    scheduled_count: int
 
 
 class CrawlListPage(_Model):
@@ -541,6 +591,7 @@ class DashboardResponse(_Model):
     # B3: same root-failure projection as the pages response, so the failed
     # crawl's dashboard can render the failure block without a second fetch.
     root_errors: list[RootError] = []
+    phase_runs: dict[Literal["discovery", "analysis"], PhaseRunResponse | None] = {}
 
 
 class SiteHealthError(_Model):

@@ -45,6 +45,8 @@ from app.core.config.site_health import (
     AUTOMATIC_MONITOR_LIMIT_KEY,
     CRAWL_ACTIVE_STATUSES,
     DISCOVERY_STATUS_RUNNING,
+    FRONTIER_ADMITTED,
+    FRONTIER_PENDING,
     OBSERVATION_SOURCE_LINK,
     OBSERVATION_SOURCE_ROOT,
     SELECTION_SOURCE_BOOTSTRAP,
@@ -65,6 +67,7 @@ from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,
     SiteCrawlTask,
+    SiteDiscoveryFrontier,
     SiteUrl,
     SiteUrlObservation,
     WorkspaceSiteHealthRuntime,
@@ -290,6 +293,7 @@ async def _enqueue_task(
     randomized_position: int = 0,
     parent_site_url_id: uuid.UUID | None = None,
     priority: int = 0,
+    phase_run_id: uuid.UUID | None = None,
 ) -> uuid.UUID | None:
     """Enqueue one queue row conflict-safely (returns id, or None if it existed).
 
@@ -327,6 +331,7 @@ async def _enqueue_task(
         .values(
             crawl_id=crawl.id,
             workspace_id=crawl.workspace_id,
+            phase_run_id=phase_run_id,
             site_url_id=site_url_id,
             task_kind=task_kind,
             requested_url=url,
@@ -406,6 +411,9 @@ async def _add_free_sample(
     source_kind: str = OBSERVATION_SOURCE_LINK,
     analyze: bool = True,
     selection_source: str = SELECTION_SOURCE_FREE_SAMPLE,
+    phase_run_id: uuid.UUID | None = None,
+    value_kind: str = "other",
+    value_priority: int = 0,
 ) -> tuple[bool, bool]:
     """Admit a Free URL into the inventory; optionally monitor + analyze it.
 
@@ -476,6 +484,9 @@ async def _add_free_sample(
             crawl_id=crawl.id,
             site_url_id=site_url_id,
             source_kind=source_kind,
+            phase_run_id=phase_run_id,
+            value_kind=value_kind,
+            value_priority=value_priority,
             depth=depth,
             observed_url=url,
             final_url=url,
@@ -495,6 +506,7 @@ async def _add_free_sample(
             task_kind=TASK_KIND_ANALYZE,
             depth=depth,
             priority=1,
+            phase_run_id=phase_run_id,
         )
     return newly_activated, observation_id is not None
 
@@ -596,40 +608,28 @@ def _candidate_allowed(
     }
 
 
-async def _requested_budget_exhausted(
-    session: AsyncSession,
-    *,
-    crawl: SiteCrawl,
-    candidate: FrontierCandidate,
-    configuration: dict,
-) -> bool:
-    requested_limit = configuration.get("requested_page_limit")
-    if requested_limit is None:
-        return False
-    task_count = await session.scalar(
-        select(func.count())
-        .select_from(SiteCrawlTask)
-        .where(
-            SiteCrawlTask.crawl_id == crawl.id,
-            SiteCrawlTask.task_kind == TASK_KIND_DISCOVER,
-        )
+def _requested_discovery_target(crawl: SiteCrawl) -> int:
+    configured = int((crawl.configuration or {}).get("requested_page_limit") or 0)
+    return int(
+        crawl.discovery_requested_count
+        or configured
+        or site_health_settings.automatic_page_limit
     )
-    if int(task_count or 0) < int(requested_limit):
-        return False
-    existing_task = await session.scalar(
-        select(SiteCrawlTask.id)
-        .where(SiteCrawlTask.crawl_id == crawl.id)
-        .where(SiteCrawlTask.url_hash == candidate.url_hash)
-        .limit(1)
-    )
-    return existing_task is None
+
+
+def _requested_budget_exhausted(crawl: SiteCrawl, admitted: int) -> bool:
+    return crawl.admitted_url_count + admitted >= _requested_discovery_target(crawl)
 
 
 def _frontier_full(crawl: SiteCrawl, admitted: int) -> bool:
     current = crawl.admitted_url_count + admitted
     if crawl.sample_mode:
         return current >= site_health_settings.sample_discovery_url_cap
-    return current >= site_health_settings.max_frontier_urls
+    frozen_limit = int(
+        (crawl.configuration or {}).get("max_frontier_urls")
+        or site_health_settings.max_frontier_urls
+    )
+    return current >= frozen_limit
 
 
 async def _record_sample_admission(
@@ -639,6 +639,7 @@ async def _record_sample_admission(
     candidate: FrontierCandidate,
     site_url_id: uuid.UUID,
     progress: _AdmissionProgress,
+    phase_run_id: uuid.UUID | None,
 ) -> None:
     analyze = progress.remaining is not None and progress.remaining > 0
     automatic_limit = int(
@@ -659,6 +660,9 @@ async def _record_sample_admission(
         source_kind=candidate.source_kind,
         analyze=analyze,
         selection_source=selection_source,
+        phase_run_id=phase_run_id,
+        value_kind=classify_url_admission(candidate.url).value_kind,
+        value_priority=candidate.value_priority,
     )
     if newly_activated and progress.remaining is not None:
         progress.remaining -= 1
@@ -674,6 +678,7 @@ async def _record_admission(
     position: int,
     enqueue_children: bool,
     progress: _AdmissionProgress,
+    phase_run_id: uuid.UUID | None,
 ) -> None:
     site_url_id, _created = await _upsert_site_url(
         session, crawl=crawl, candidate=candidate
@@ -688,6 +693,7 @@ async def _record_admission(
             candidate=candidate,
             site_url_id=site_url_id,
             progress=progress,
+            phase_run_id=phase_run_id,
         )
         return
     if progress.remaining is not None and progress.remaining > 0:
@@ -700,6 +706,9 @@ async def _record_admission(
             depth=candidate.depth,
             source_kind=candidate.source_kind,
             selection_source=SELECTION_SOURCE_BOOTSTRAP,
+            phase_run_id=phase_run_id,
+            value_kind=classify_url_admission(candidate.url).value_kind,
+            value_priority=candidate.value_priority,
         )
         if newly_activated:
             progress.remaining -= 1
@@ -714,11 +723,130 @@ async def _record_admission(
             depth=candidate.depth,
             randomized_position=position,
             parent_site_url_id=None,
+            priority=candidate.value_priority,
+            phase_run_id=phase_run_id,
         )
         if task_id is not None:
             progress.admitted += 1
         return
     progress.admitted += 1
+
+
+async def _store_frontier_candidates(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    candidates: list[FrontierCandidate],
+    configuration: dict,
+) -> None:
+    """Persist admissible candidates before applying the current batch budget."""
+    eligible = [
+        candidate
+        for candidate in _ordered_unique_candidates(candidates)
+        if _candidate_allowed(crawl, candidate, configuration)
+    ]
+    if not eligible:
+        return
+    existing_count = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(SiteDiscoveryFrontier)
+            .where(SiteDiscoveryFrontier.crawl_id == crawl.id)
+        )
+        or 0
+    )
+    frontier_limit = (
+        site_health_settings.sample_discovery_url_cap
+        if crawl.sample_mode
+        else int(
+            configuration.get("max_frontier_urls")
+            or site_health_settings.max_frontier_urls
+        )
+    )
+    remaining_capacity = max(frontier_limit - existing_count, 0)
+    if remaining_capacity == 0:
+        return
+    existing_hashes = set(
+        (
+            await session.scalars(
+                select(SiteDiscoveryFrontier.url_hash).where(
+                    SiteDiscoveryFrontier.crawl_id == crawl.id,
+                    SiteDiscoveryFrontier.url_hash.in_(
+                        [candidate.url_hash for candidate in eligible]
+                    ),
+                )
+            )
+        ).all()
+    )
+    admitted_candidates = [
+        candidate for candidate in eligible if candidate.url_hash not in existing_hashes
+    ][:remaining_capacity]
+    if not admitted_candidates:
+        return
+    await session.execute(
+        pg_insert(SiteDiscoveryFrontier)
+        .values(
+            [
+                {
+                    "workspace_id": crawl.workspace_id,
+                    "crawl_id": crawl.id,
+                    "normalized_url": candidate.url,
+                    "url_hash": candidate.url_hash,
+                    "depth": candidate.depth,
+                    "source_kind": candidate.source_kind,
+                    "value_kind": classify_url_admission(candidate.url).value_kind,
+                    "value_priority": candidate.value_priority,
+                    "parent_position": candidate.parent_position,
+                    "link_ordinal": candidate.link_ordinal,
+                    "status": FRONTIER_PENDING,
+                }
+                for candidate in admitted_candidates
+            ]
+        )
+        .on_conflict_do_nothing(index_elements=["crawl_id", "url_hash"])
+    )
+
+
+async def _pending_frontier(
+    session: AsyncSession, *, crawl: SiteCrawl
+) -> list[tuple[SiteDiscoveryFrontier, FrontierCandidate]]:
+    remaining = max(_requested_discovery_target(crawl) - crawl.admitted_url_count, 0)
+    if remaining == 0:
+        return []
+    rows = list(
+        (
+            await session.scalars(
+                select(SiteDiscoveryFrontier)
+                .where(
+                    SiteDiscoveryFrontier.crawl_id == crawl.id,
+                    SiteDiscoveryFrontier.status == FRONTIER_PENDING,
+                )
+                .order_by(
+                    SiteDiscoveryFrontier.value_priority.desc(),
+                    SiteDiscoveryFrontier.parent_position.asc(),
+                    SiteDiscoveryFrontier.link_ordinal.asc(),
+                    SiteDiscoveryFrontier.url_hash.asc(),
+                )
+                .limit(min(remaining, site_health_settings.admission_batch_size))
+                .with_for_update(skip_locked=True)
+            )
+        ).all()
+    )
+    return [
+        (
+            row,
+            FrontierCandidate(
+                url=row.normalized_url,
+                url_hash=row.url_hash,
+                depth=row.depth,
+                source_kind=row.source_kind,
+                value_priority=row.value_priority,
+                parent_position=row.parent_position,
+                link_ordinal=row.link_ordinal,
+            ),
+        )
+        for row in rows
+    ]
 
 
 async def admit_candidates(
@@ -727,6 +855,7 @@ async def admit_candidates(
     crawl: SiteCrawl,
     candidates: list[FrontierCandidate],
     enqueue_children: bool = True,
+    phase_run_id: uuid.UUID | None = None,
 ) -> AdmissionResult:
     """Admit a deterministically-ordered batch of candidates.
 
@@ -744,19 +873,17 @@ async def admit_candidates(
     Caller owns the commit (progressive batches commit per admission call).
     """
     configuration = dict(crawl.configuration or {})
+    if any(
+        _candidate_allowed(crawl, candidate, configuration) for candidate in candidates
+    ):
+        await _store_frontier_candidates(
+            session, crawl=crawl, candidates=candidates, configuration=configuration
+        )
     progress = _AdmissionProgress(remaining=await _automatic_remaining(session, crawl))
-    for position, candidate in enumerate(_ordered_unique_candidates(candidates)):
-        # Defense in depth: candidates normally passed the policy during link/
-        # sitemap/manual parsing, but admission is the last gate before a task
-        # can exist and therefore protects every producer uniformly.
-        if not _candidate_allowed(crawl, candidate, configuration):
-            continue
-        if await _requested_budget_exhausted(
-            session,
-            crawl=crawl,
-            candidate=candidate,
-            configuration=configuration,
-        ):
+    for position, (frontier, candidate) in enumerate(
+        await _pending_frontier(session, crawl=crawl)
+    ):
+        if _requested_budget_exhausted(crawl, progress.admitted):
             break
         if _frontier_full(crawl, progress.admitted):
             break
@@ -767,7 +894,10 @@ async def admit_candidates(
             position=position,
             enqueue_children=enqueue_children,
             progress=progress,
+            phase_run_id=phase_run_id,
         )
+        frontier.status = FRONTIER_ADMITTED
+        frontier.admitted_at = _utcnow()
 
     # Live delta so the frontier ceiling above and the progress event advance
     # within a task. ``CrawlLifecycle.reconcile`` then re-derives this counter
@@ -785,4 +915,20 @@ async def admit_candidates(
         sample_capped=sample_capped,
         site_url_ids=progress.site_url_ids,
         observed=progress.observed,
+    )
+
+
+async def drain_discovery_frontier(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    phase_run_id: uuid.UUID,
+) -> AdmissionResult:
+    """Activate persisted frontier rows for a resumed discovery batch."""
+    return await admit_candidates(
+        session,
+        crawl=crawl,
+        candidates=[],
+        enqueue_children=True,
+        phase_run_id=phase_run_id,
     )

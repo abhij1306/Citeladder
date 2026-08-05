@@ -28,6 +28,7 @@ function dashboard(scoreSummary: SiteScoreSummary | null): SiteHealthDashboard {
     score_summary: scoreSummary,
     quota: { used: 4, limit: 50 },
     root_errors: [],
+    phase_runs: { discovery: null, analysis: null },
   };
 }
 
@@ -66,6 +67,18 @@ function crawl(scoreSummary: SiteScoreSummary | null): SiteCrawl {
     visible_url_count: 3,
     analyzed_count: 3,
     failed_count: 0,
+    discovery_requested_count: 3,
+    analysis_requested_count: 3,
+    counters: {
+      discovered: 3,
+      selected: 3,
+      queued: 0,
+      running: 0,
+      analyzed: 3,
+      errors: 0,
+      blocked: 0,
+      by_page_type: {},
+    },
     discovered_count: 3,
     total_url_count: 3,
     has_more_site_urls: false,

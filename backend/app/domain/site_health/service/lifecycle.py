@@ -23,10 +23,19 @@ from app.core.config.site_health import (
     CRAWL_TERMINAL_STATUSES,
     DISCOVERY_STATUS_CANCELLED,
     EVENT_CRAWL_CANCELLED,
+    PAGE_ANALYSIS_STATUS_COMPLETED,
+    PHASE_ANALYSIS,
+    PHASE_DISCOVERY,
+    POLICY_BLOCKING_ERROR_CODES,
+    TASK_KIND_ANALYZE,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
     TASK_STATUS_FAILED,
+    TASK_STATUS_LEASED,
+    TASK_STATUS_QUEUED,
+    TASK_STATUS_RETRY_WAIT,
+    TASK_STATUS_RUNNING,
     TASK_STATUS_SUCCEEDED,
 )
 from app.domain.entitlements.service import (
@@ -43,6 +52,7 @@ from app.domain.site_health.service.presentation import (
     _crawl_count_disclosure,
     _score_summary,
     project_crawl,
+    project_phase_run,
 )
 from app.domain.site_health.service.queries import (
     _failure_summary_for,
@@ -60,10 +70,102 @@ from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,
     SiteCrawlEvent,
+    SiteCrawlPhaseRun,
     SiteCrawlTask,
+    SitePageAnalysis,
 )
 
 logger = logging.getLogger("app.domain.site_health.service.lifecycle")
+
+
+async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
+    latest_tasks = (
+        select(
+            SiteCrawlTask.site_url_id,
+            SiteCrawlTask.status,
+            SiteCrawlTask.error_code,
+        )
+        .where(
+            SiteCrawlTask.crawl_id == crawl.id,
+            SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+            SiteCrawlTask.site_url_id.is_not(None),
+        )
+        .distinct(SiteCrawlTask.site_url_id)
+        .order_by(SiteCrawlTask.site_url_id, SiteCrawlTask.generation.desc())
+        .subquery()
+    )
+    queued_statuses = {TASK_STATUS_QUEUED, TASK_STATUS_RETRY_WAIT}
+    running_statuses = {TASK_STATUS_LEASED, TASK_STATUS_RUNNING}
+    task_counts = (
+        await session.execute(
+            select(
+                func.count()
+                .filter(latest_tasks.c.status.in_(queued_statuses))
+                .label("queued"),
+                func.count()
+                .filter(latest_tasks.c.status.in_(running_statuses))
+                .label("running"),
+                func.count()
+                .filter(latest_tasks.c.status == TASK_STATUS_SUCCEEDED)
+                .label("analyzed"),
+                func.count()
+                .filter(latest_tasks.c.status == TASK_STATUS_FAILED)
+                .label("failed"),
+                func.count()
+                .filter(
+                    latest_tasks.c.status == TASK_STATUS_FAILED,
+                    latest_tasks.c.error_code.in_(POLICY_BLOCKING_ERROR_CODES),
+                )
+                .label("blocked"),
+            ).select_from(latest_tasks)
+        )
+    ).one()
+    selected = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(MonitoredSiteUrl)
+            .where(
+                MonitoredSiteUrl.project_id == crawl.project_id,
+                MonitoredSiteUrl.active.is_(True),
+            )
+        )
+        or 0
+    )
+    latest_analyses = (
+        select(
+            SitePageAnalysis.site_url_id,
+            func.coalesce(SitePageAnalysis.page_type, "other").label("page_type"),
+        )
+        .where(
+            SitePageAnalysis.crawl_id == crawl.id,
+            SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
+        )
+        .distinct(SitePageAnalysis.site_url_id)
+        .order_by(SitePageAnalysis.site_url_id, SitePageAnalysis.created_at.desc())
+        .subquery()
+    )
+    page_types = {
+        str(page_type): int(count)
+        for page_type, count in (
+            await session.execute(
+                select(latest_analyses.c.page_type, func.count())
+                .select_from(latest_analyses)
+                .group_by(latest_analyses.c.page_type)
+            )
+        ).all()
+    }
+    blocked = int(task_counts.blocked)
+    disclose = _crawl_count_disclosure(crawl)
+    return {
+        "discovered": int(crawl.admitted_url_count or 0) if disclose else None,
+        "selected": selected,
+        "queued": int(task_counts.queued),
+        "running": int(task_counts.running),
+        "analyzed": int(task_counts.analyzed),
+        "errors": int(task_counts.failed) - blocked,
+        "blocked": blocked,
+        "by_page_type": page_types,
+    }
 
 
 # =========================================================================
@@ -236,10 +338,36 @@ async def get_dashboard(
         # so the failed dashboard needs no second fetch to explain itself.
         failure_summary = await _failure_summary_for(session, crawl)
         root_errors = await _root_errors_for(session, crawl)
+    counters = await _crawl_counters(session, crawl) if crawl is not None else None
+    phase_runs: dict[str, dict | None] = {
+        PHASE_DISCOVERY: None,
+        PHASE_ANALYSIS: None,
+    }
+    if crawl is not None:
+        latest_runs = (
+            await session.scalars(
+                select(SiteCrawlPhaseRun)
+                .where(
+                    SiteCrawlPhaseRun.crawl_id == crawl.id,
+                    SiteCrawlPhaseRun.phase.in_([PHASE_DISCOVERY, PHASE_ANALYSIS]),
+                )
+                .distinct(SiteCrawlPhaseRun.phase)
+                .order_by(
+                    SiteCrawlPhaseRun.phase,
+                    SiteCrawlPhaseRun.ordinal.desc(),
+                )
+            )
+        ).all()
+        for latest_run in latest_runs:
+            phase_runs[latest_run.phase] = project_phase_run(latest_run)
     return {
         "project_id": project_id,
         "crawl": (
-            project_crawl(crawl, failure_summary=failure_summary)
+            project_crawl(
+                crawl,
+                failure_summary=failure_summary,
+                counters=counters,
+            )
             if crawl is not None
             else None
         ),
@@ -249,6 +377,7 @@ async def get_dashboard(
             "limit": int(runtime.monitored_url_limit),
         },
         "root_errors": root_errors,
+        "phase_runs": phase_runs,
     }
 
 

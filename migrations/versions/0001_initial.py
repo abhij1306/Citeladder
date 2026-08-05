@@ -167,9 +167,7 @@ def upgrade() -> None:
         sa.Column("consumed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("jti"),
     )
@@ -246,7 +244,9 @@ def upgrade() -> None:
         sa.Column("lease_expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["prompt_set_id"], ["prompt_sets.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -1696,6 +1696,8 @@ def upgrade() -> None:
         sa.Column("discovered_url_count", sa.Integer(), nullable=False),
         sa.Column("analyzed_url_count", sa.Integer(), nullable=False),
         sa.Column("failed_url_count", sa.Integer(), nullable=False),
+        sa.Column("discovery_requested_count", sa.Integer(), nullable=False),
+        sa.Column("analysis_requested_count", sa.Integer(), nullable=False),
         sa.Column("inventory_complete", sa.Boolean(), nullable=False),
         sa.Column("score_summary", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("site_facts", postgresql.JSONB(astext_type=Text()), nullable=True),
@@ -1732,6 +1734,103 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_site_crawls_workspace_id"),
         "site_crawls",
+        ["workspace_id"],
+        unique=False,
+    )
+    op.create_table(
+        "site_crawl_phase_runs",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("crawl_id", sa.UUID(), nullable=False),
+        sa.Column("phase", sa.String(length=16), nullable=False),
+        sa.Column("ordinal", sa.Integer(), nullable=False),
+        sa.Column("status", sa.String(length=16), nullable=False),
+        sa.Column("requested_count", sa.Integer(), nullable=False),
+        sa.Column("processed_count", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("stopped_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "crawl_id", "phase", "ordinal", name="uq_site_phase_run_ordinal"
+        ),
+    )
+    op.create_index(
+        "ix_site_phase_runs_crawl_phase",
+        "site_crawl_phase_runs",
+        ["crawl_id", "phase", "status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_crawl_phase_runs_crawl_id"),
+        "site_crawl_phase_runs",
+        ["crawl_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_crawl_phase_runs_status"),
+        "site_crawl_phase_runs",
+        ["status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_crawl_phase_runs_workspace_id"),
+        "site_crawl_phase_runs",
+        ["workspace_id"],
+        unique=False,
+    )
+    op.create_table(
+        "site_discovery_frontier",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("crawl_id", sa.UUID(), nullable=False),
+        sa.Column("normalized_url", sa.String(length=2048), nullable=False),
+        sa.Column("url_hash", sa.String(length=64), nullable=False),
+        sa.Column("depth", sa.Integer(), nullable=False),
+        sa.Column("source_kind", sa.String(length=16), nullable=False),
+        sa.Column("value_kind", sa.String(length=32), nullable=False),
+        sa.Column("value_priority", sa.Integer(), nullable=False),
+        sa.Column("parent_position", sa.Integer(), nullable=False),
+        sa.Column("link_ordinal", sa.Integer(), nullable=False),
+        sa.Column("status", sa.String(length=16), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("admitted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "crawl_id", "url_hash", name="uq_site_discovery_frontier_url"
+        ),
+    )
+    op.create_index(
+        "ix_site_discovery_frontier_pending",
+        "site_discovery_frontier",
+        [
+            "crawl_id",
+            "status",
+            sa.text("value_priority DESC"),
+            "parent_position",
+            "link_ordinal",
+            "url_hash",
+        ],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_discovery_frontier_crawl_id"),
+        "site_discovery_frontier",
+        ["crawl_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_discovery_frontier_workspace_id"),
+        "site_discovery_frontier",
         ["workspace_id"],
         unique=False,
     )
@@ -2874,6 +2973,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("crawl_id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("phase_run_id", sa.UUID(), nullable=True),
         sa.Column("site_url_id", sa.UUID(), nullable=True),
         sa.Column("task_kind", sa.String(length=16), nullable=False),
         sa.Column("requested_url", sa.String(length=2048), nullable=False),
@@ -2899,6 +2999,9 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["phase_run_id"], ["site_crawl_phase_runs.id"], ondelete="SET NULL"
+        ),
         sa.ForeignKeyConstraint(
             ["parent_site_url_id"], ["site_urls.id"], ondelete="SET NULL"
         ),
@@ -2949,6 +3052,12 @@ def upgrade() -> None:
         op.f("ix_site_crawl_tasks_site_url_id"),
         "site_crawl_tasks",
         ["site_url_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_crawl_tasks_phase_run_id"),
+        "site_crawl_tasks",
+        ["phase_run_id"],
         unique=False,
     )
     op.create_index(
@@ -3626,6 +3735,9 @@ def upgrade() -> None:
         sa.Column("source_kind", sa.String(length=16), nullable=False),
         sa.Column("parent_site_url_id", sa.UUID(), nullable=True),
         sa.Column("source_artifact_id", sa.UUID(), nullable=True),
+        sa.Column("phase_run_id", sa.UUID(), nullable=True),
+        sa.Column("value_kind", sa.String(length=32), nullable=False),
+        sa.Column("value_priority", sa.Integer(), nullable=False),
         sa.Column("depth", sa.Integer(), nullable=False),
         sa.Column("observed_url", sa.String(length=2048), nullable=False),
         sa.Column("final_url", sa.String(length=2048), nullable=False),
@@ -3638,6 +3750,9 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(
             ["source_artifact_id"], ["site_fetch_artifacts.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["phase_run_id"], ["site_crawl_phase_runs.id"], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(
             ["workspace_id", "project_id", "crawl_id"],
@@ -3667,6 +3782,12 @@ def upgrade() -> None:
         op.f("ix_site_url_observations_project_id"),
         "site_url_observations",
         ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_url_observations_phase_run_id"),
+        "site_url_observations",
+        ["phase_run_id"],
         unique=False,
     )
     op.create_index(
@@ -5283,6 +5404,10 @@ def downgrade() -> None:
         op.f("ix_site_url_observations_project_id"), table_name="site_url_observations"
     )
     op.drop_index(
+        op.f("ix_site_url_observations_phase_run_id"),
+        table_name="site_url_observations",
+    )
+    op.drop_index(
         op.f("ix_site_url_observations_crawl_id"), table_name="site_url_observations"
     )
     op.drop_table("site_url_observations")
@@ -5406,6 +5531,9 @@ def downgrade() -> None:
         op.f("ix_site_crawl_tasks_workspace_id"), table_name="site_crawl_tasks"
     )
     op.drop_index(op.f("ix_site_crawl_tasks_status"), table_name="site_crawl_tasks")
+    op.drop_index(
+        op.f("ix_site_crawl_tasks_phase_run_id"), table_name="site_crawl_tasks"
+    )
     op.drop_index(
         op.f("ix_site_crawl_tasks_site_url_id"), table_name="site_crawl_tasks"
     )
@@ -5627,6 +5755,30 @@ def downgrade() -> None:
         op.f("ix_traffic_query_stats_project_id"), table_name="traffic_query_stats"
     )
     op.drop_table("traffic_query_stats")
+    op.drop_index(
+        op.f("ix_site_discovery_frontier_workspace_id"),
+        table_name="site_discovery_frontier",
+    )
+    op.drop_index(
+        op.f("ix_site_discovery_frontier_crawl_id"),
+        table_name="site_discovery_frontier",
+    )
+    op.drop_index(
+        "ix_site_discovery_frontier_pending", table_name="site_discovery_frontier"
+    )
+    op.drop_table("site_discovery_frontier")
+    op.drop_index(
+        op.f("ix_site_crawl_phase_runs_workspace_id"),
+        table_name="site_crawl_phase_runs",
+    )
+    op.drop_index(
+        op.f("ix_site_crawl_phase_runs_status"), table_name="site_crawl_phase_runs"
+    )
+    op.drop_index(
+        op.f("ix_site_crawl_phase_runs_crawl_id"), table_name="site_crawl_phase_runs"
+    )
+    op.drop_index("ix_site_phase_runs_crawl_phase", table_name="site_crawl_phase_runs")
+    op.drop_table("site_crawl_phase_runs")
     op.drop_index(op.f("ix_site_crawls_workspace_id"), table_name="site_crawls")
     op.drop_index(op.f("ix_site_crawls_status"), table_name="site_crawls")
     op.drop_index(op.f("ix_site_crawls_project_id"), table_name="site_crawls")

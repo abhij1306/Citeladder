@@ -18,7 +18,11 @@ from sqlalchemy import and_, case, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.entitlements import KEY_MONITORED_URLS
-from app.core.config.site_health import CRAWL_STATUS_FAILED, TASK_KIND_ANALYZE
+from app.core.config.site_health import (
+    CRAWL_STATUS_FAILED,
+    TASK_KIND_ANALYZE,
+    site_health_settings,
+)
 from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_account,
     refresh_site_health_runtime_for_workspace,
@@ -140,6 +144,7 @@ async def _site_health_entitlement_view(
             if resolved and capability is not None
             else []
         ),
+        "advanced_controls_enabled": site_health_settings.advanced_controls_enabled,
     }
 
 

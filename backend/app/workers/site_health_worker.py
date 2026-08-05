@@ -48,6 +48,7 @@ from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.resolver import SystemDnsResolver
 from app.connectors.web_evidence.robots import RobotsPolicy
 from app.connectors.web_evidence.url_policy import (
+    classify_url_admission,
     split_host_port,
 )
 from app.core.config.site_health import (
@@ -561,6 +562,9 @@ class SiteHealthWorker(
                 ),
                 parent_site_url_id=task.parent_site_url_id,
                 source_artifact_id=artifact_id,
+                phase_run_id=task.phase_run_id,
+                value_kind=classify_url_admission(task.requested_url).value_kind,
+                value_priority=task.priority,
                 depth=depth,
                 observed_url=output.requested_url,
                 final_url=output.final_url,

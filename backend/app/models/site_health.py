@@ -35,6 +35,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    desc,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -45,9 +46,11 @@ from app.core.config.site_health import (
     CRAWL_STATUS_DRAFT,
     DISCOVERY_MODE_SAMPLE,
     DISCOVERY_STATUS_PENDING,
+    FRONTIER_PENDING,
     INITIAL_TASK_GENERATION,
     PAGE_ANALYSIS_STATUS_PENDING,
     PAGE_TYPE_OTHER,
+    PHASE_RUN_RUNNING,
     SAMPLE_DISCOVERY_URL_CAP,
     SAMPLE_URL_LIMIT,
     SELECTION_SOURCE_USER,
@@ -65,6 +68,7 @@ _FK_WORKSPACE = "workspaces.id"
 _FK_PROJECT = "projects.id"
 _FK_SITE_HEALTH_PROFILE = "site_health_profiles.id"
 _FK_SITE_CRAWL = "site_crawls.id"
+_FK_SITE_CRAWL_PHASE_RUN = "site_crawl_phase_runs.id"
 _FK_SITE_CRAWL_TASK = "site_crawl_tasks.id"
 _FK_SITE_URL = "site_urls.id"
 _FK_SITE_FETCH_ARTIFACT = "site_fetch_artifacts.id"
@@ -236,6 +240,8 @@ class SiteCrawl(Base):
     discovered_url_count: Mapped[int] = mapped_column(Integer, default=0)
     analyzed_url_count: Mapped[int] = mapped_column(Integer, default=0)
     failed_url_count: Mapped[int] = mapped_column(Integer, default=0)
+    discovery_requested_count: Mapped[int] = mapped_column(Integer, default=0)
+    analysis_requested_count: Mapped[int] = mapped_column(Integer, default=0)
     inventory_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     score_summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # v2 P2 (spec §5.5): bounded site-level facts written ONCE by the root
@@ -274,6 +280,98 @@ class SiteCrawl(Base):
         cascade=CASCADE_ALL_DELETE_ORPHAN,
         passive_deletes=True,
         order_by="SiteCrawlEvent.created_at",
+    )
+
+
+class SiteCrawlPhaseRun(Base):
+    """One user-started discovery or analysis batch within a resumable crawl."""
+
+    __tablename__ = "site_crawl_phase_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "crawl_id", "phase", "ordinal", name="uq_site_phase_run_ordinal"
+        ),
+        Index("ix_site_phase_runs_crawl_phase", "crawl_id", "phase", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    crawl_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_SITE_CRAWL, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    phase: Mapped[str] = mapped_column(String(16))
+    ordinal: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(
+        String(16), default=PHASE_RUN_RUNNING, index=True
+    )
+    requested_count: Mapped[int] = mapped_column(Integer)
+    processed_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+    stopped_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class SiteDiscoveryFrontier(Base):
+    """Persisted, deterministic discovery candidates awaiting a later batch."""
+
+    __tablename__ = "site_discovery_frontier"
+    __table_args__ = (
+        UniqueConstraint("crawl_id", "url_hash", name="uq_site_discovery_frontier_url"),
+        Index(
+            "ix_site_discovery_frontier_pending",
+            "crawl_id",
+            "status",
+            desc("value_priority"),
+            "parent_position",
+            "link_ordinal",
+            "url_hash",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    crawl_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_SITE_CRAWL, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    normalized_url: Mapped[str] = mapped_column(String(2048))
+    url_hash: Mapped[str] = mapped_column(String(64))
+    depth: Mapped[int] = mapped_column(Integer, default=0)
+    source_kind: Mapped[str] = mapped_column(String(16))
+    value_kind: Mapped[str] = mapped_column(String(32), default="other")
+    value_priority: Mapped[int] = mapped_column(Integer, default=0)
+    parent_position: Mapped[int] = mapped_column(Integer, default=0)
+    link_ordinal: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(16), default=FRONTIER_PENDING)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    admitted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
 
@@ -422,6 +520,14 @@ class SiteUrlObservation(Base):
         ForeignKey(_FK_SITE_FETCH_ARTIFACT, ondelete=_ON_DELETE_SET_NULL),
         nullable=True,
     )
+    phase_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_SITE_CRAWL_PHASE_RUN, ondelete=_ON_DELETE_SET_NULL),
+        nullable=True,
+        index=True,
+    )
+    value_kind: Mapped[str] = mapped_column(String(32), default="other")
+    value_priority: Mapped[int] = mapped_column(Integer, default=0)
     depth: Mapped[int] = mapped_column(Integer, default=0)
     observed_url: Mapped[str] = mapped_column(String(2048), default="")
     final_url: Mapped[str] = mapped_column(String(2048), default="")
@@ -550,6 +656,12 @@ class SiteCrawlTask(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    phase_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_SITE_CRAWL_PHASE_RUN, ondelete=_ON_DELETE_SET_NULL),
+        nullable=True,
         index=True,
     )
     # Nullable: a discover task may enqueue before a SiteUrl identity exists.

@@ -33,6 +33,7 @@ const entitlement = {
   entitlement_lifecycle_version: 3,
   valid_until: null,
   contributing_grant_ids: [UUID2],
+  advanced_controls_enabled: false,
 };
 
 // The real bounded site-facts blob the worker persists (`_crawl_setup` in
@@ -70,6 +71,18 @@ const crawl = {
   visible_url_count: 42,
   analyzed_count: 0,
   failed_count: 0,
+  discovery_requested_count: 42,
+  analysis_requested_count: 0,
+  counters: {
+    discovered: 42,
+    selected: 0,
+    queued: 0,
+    running: 0,
+    analyzed: 0,
+    errors: 0,
+    blocked: 0,
+    by_page_type: {},
+  },
   total_url_count: null,
   score_summary: null,
   failure_summary: null,

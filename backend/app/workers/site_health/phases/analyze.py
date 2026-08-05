@@ -399,6 +399,7 @@ class AnalyzePhaseMixin(PhaseSupport):
                         depth=task.depth,
                         generation=task.generation,
                         parent_site_url_id=task.parent_site_url_id,
+                        phase_run_id=task.phase_run_id,
                     )
                     record_crawl_event(
                         session,

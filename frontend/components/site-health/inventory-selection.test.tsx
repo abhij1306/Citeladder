@@ -24,6 +24,7 @@ const entitlement: SiteHealthEntitlement = {
   entitlement_lifecycle_version: 1,
   valid_until: null,
   contributing_grant_ids: [],
+  advanced_controls_enabled: false,
 };
 
 const crawl = {

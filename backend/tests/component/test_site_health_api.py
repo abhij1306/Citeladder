@@ -34,6 +34,7 @@ from app.core.config.site_health import (
     SELECTION_SOURCE_USER,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+    site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.models.project import Project
@@ -53,6 +54,7 @@ from app.models.site_health import (
 )
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
+from tests.component.site_health_helpers import seed_monitored_urls_allowance
 
 pytestmark = pytest.mark.asyncio
 
@@ -77,6 +79,52 @@ async def _register(client: httpx.AsyncClient, email: str) -> None:
         json={"email": email, "password": "password123"},
     )
     assert reg.status_code == 201
+
+
+async def test_terminal_bulk_analysis_creates_lineage_crawl(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(site_health_settings, "advanced_controls_enabled", True)
+    await _register(client, "phase-rerun@example.com")
+    async with session_factory() as session:
+        scenario = await _seed_scenario(session, email="phase-rerun@example.com")
+        await seed_monitored_urls_allowance(
+            session,
+            workspace_id=scenario.workspace_id,
+            monitored_urls=50,
+        )
+        crawl = await session.get(SiteCrawl, scenario.crawl_id)
+        profile = await session.get(
+            SiteHealthProfile, crawl.profile_id if crawl else None
+        )
+        assert crawl is not None and profile is not None
+        crawl.configuration = {
+            **(crawl.configuration or {}),
+            "advanced_controls_enabled": True,
+            "max_analysis_urls": 50_000,
+            "max_discovery_urls": 50_000,
+        }
+        selection_version = profile.selection_version
+        await session.commit()
+
+    response = await client.post(
+        f"/api/v1/site-crawls/{scenario.crawl_id}/analysis/start",
+        headers={"X-Workspace-Id": str(scenario.workspace_id)},
+        json={
+            "requested_url_count": 1,
+            "site_url_ids": [str(scenario.monitored_url_id)],
+            "expected_selection_version": selection_version,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["created_new_crawl"] is True
+    assert payload["crawl"]["id"] != str(scenario.crawl_id)
+    assert payload["phase_run"]["requested_count"] == 1
+    assert payload["scheduled_count"] == 1
 
 
 async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:

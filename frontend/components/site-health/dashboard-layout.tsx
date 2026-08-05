@@ -1,12 +1,17 @@
 'use client';
 
+import { useState } from 'react';
+
 import { InventorySection } from '@/components/site-health/inventory-section';
 import { PageTypeScores } from '@/components/site-health/page-type-scores';
+import { PhaseControls } from '@/components/site-health/phase-controls';
 import { ScoreSection } from '@/components/site-health/score-section';
 import { SiteFactsPanel } from '@/components/site-health/site-facts-panel';
 import { StatusStrip } from '@/components/site-health/status-strip';
 import type { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
 import type { SiteHealthEntitlement } from '@/lib/api/types';
+
+const EMPTY_URL_SELECTION: ReadonlySet<string> = new Set();
 
 /**
  * The canonical Site Health dashboard layout.
@@ -42,6 +47,12 @@ export function SiteHealthDashboardLayout({
     cancelCrawl,
     startCrawl,
   } = screen;
+  const [urlSelection, setUrlSelection] = useState<{
+    crawlId: string | undefined;
+    ids: Set<string>;
+  }>({ crawlId: crawl?.id, ids: new Set() });
+  const selectedUrlIds =
+    urlSelection.crawlId === crawl?.id ? urlSelection.ids : EMPTY_URL_SELECTION;
 
   return (
     <div className="grid gap-6" data-testid="site-health-canonical">
@@ -74,9 +85,29 @@ export function SiteHealthDashboardLayout({
           `site_facts`; self-hides until a crawl persists it. */}
       <SiteFactsPanel crawl={crawl} dashboard={dashboardQuery.data} />
 
+      <PhaseControls screen={screen} selectedUrlIds={selectedUrlIds} />
+
       {/* Per-page-type score breakdown (v2 P1) — data-driven like the score
           cards: renders once a score summary exists, hides itself before. */}
-      <PageTypeScores crawl={crawl} dashboard={dashboardQuery.data} />
+      <PageTypeScores
+        crawl={crawl}
+        dashboard={dashboardQuery.data}
+        selectedUrlIds={selectedUrlIds}
+        onSelectionChange={(ids) => setUrlSelection({ crawlId: crawl?.id, ids })}
+        onReanalyze={(siteUrlIds) => {
+          const selectionVersion = screen.monitoredQuery.data?.selection_version;
+          if (!crawl || selectionVersion === undefined || siteUrlIds.length === 0) return;
+          screen.startAnalysisMutation.mutate({
+            crawlId: crawl.id,
+            input: {
+              requested_url_count: siteUrlIds.length,
+              site_url_ids: siteUrlIds,
+              expected_selection_version: selectionVersion,
+            },
+          });
+        }}
+        reanalyzePending={screen.startAnalysisMutation.isPending}
+      />
 
       <InventorySection
         mode={inventoryMode}

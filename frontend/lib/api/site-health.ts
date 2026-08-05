@@ -21,6 +21,7 @@ import {
   monitoredUrlsResponseSchema,
   pageDetailSchema,
   pagesPageSchema,
+  phaseMutationResponseSchema,
   rerunPageResponseSchema,
   siteCrawlListPageSchema,
   siteCrawlSchema,
@@ -38,6 +39,7 @@ import type {
   MonitoredUrlsResponse,
   PageDetail,
   PagesPage,
+  PhaseMutationResponse,
   RerunPageResponse,
   SiteCrawl,
   SiteCrawlListPage,
@@ -61,6 +63,7 @@ export type CreateCrawlInput = {
   seed?: string;
   input_mode?: 'auto' | 'exact_urls' | 'discovery_seeds';
   requested_page_limit?: number;
+  discovery_count?: number;
   seed_urls?: string[];
   page_types?: string[];
 };
@@ -132,6 +135,13 @@ export type BulkSelectMonitoredInput = {
   expected_selection_version: number;
 };
 
+export type StartDiscoveryInput = { additional_url_count: number };
+export type StartAnalysisInput = {
+  requested_url_count: number;
+  site_url_ids: string[];
+  expected_selection_version: number;
+};
+
 export const siteHealthApi = {
   getEntitlements: async (options?: ApiRequestOptions) => {
     const res = await apiClient.get<SiteHealthEntitlement>('/entitlements', options);
@@ -165,6 +175,46 @@ export const siteHealthApi = {
       options,
     );
     return strictValidate(siteCrawlSchema, res, 'siteHealth.cancelCrawl');
+  },
+  startDiscovery: async (
+    crawlId: string,
+    input: StartDiscoveryInput,
+    options?: ApiRequestOptions,
+  ) => {
+    const res = await apiClient.post<PhaseMutationResponse>(
+      `/site-crawls/${crawlId}/discovery/start`,
+      input,
+      options,
+    );
+    return strictValidate(phaseMutationResponseSchema, res, 'siteHealth.startDiscovery');
+  },
+  stopDiscovery: async (crawlId: string, options?: ApiRequestOptions) => {
+    const res = await apiClient.post<PhaseMutationResponse>(
+      `/site-crawls/${crawlId}/discovery/stop`,
+      undefined,
+      options,
+    );
+    return strictValidate(phaseMutationResponseSchema, res, 'siteHealth.stopDiscovery');
+  },
+  startAnalysis: async (
+    crawlId: string,
+    input: StartAnalysisInput,
+    options?: ApiRequestOptions,
+  ) => {
+    const res = await apiClient.post<PhaseMutationResponse>(
+      `/site-crawls/${crawlId}/analysis/start`,
+      input,
+      options,
+    );
+    return strictValidate(phaseMutationResponseSchema, res, 'siteHealth.startAnalysis');
+  },
+  stopAnalysis: async (crawlId: string, options?: ApiRequestOptions) => {
+    const res = await apiClient.post<PhaseMutationResponse>(
+      `/site-crawls/${crawlId}/analysis/stop`,
+      undefined,
+      options,
+    );
+    return strictValidate(phaseMutationResponseSchema, res, 'siteHealth.stopAnalysis');
   },
   getInventory: async (crawlId: string, params?: InventoryParams, options?: ApiRequestOptions) => {
     const path = withQuery(`/site-crawls/${crawlId}/inventory`, definedQuery(params));
@@ -373,6 +423,24 @@ export const siteHealthMutations = {
   cancelCrawl: () =>
     mutationOptions({
       mutationFn: (crawlId: string) => siteHealthApi.cancelCrawl(crawlId),
+    }),
+  startDiscovery: () =>
+    mutationOptions({
+      mutationFn: (vars: { crawlId: string; input: StartDiscoveryInput }) =>
+        siteHealthApi.startDiscovery(vars.crawlId, vars.input),
+    }),
+  stopDiscovery: () =>
+    mutationOptions({
+      mutationFn: (crawlId: string) => siteHealthApi.stopDiscovery(crawlId),
+    }),
+  startAnalysis: () =>
+    mutationOptions({
+      mutationFn: (vars: { crawlId: string; input: StartAnalysisInput }) =>
+        siteHealthApi.startAnalysis(vars.crawlId, vars.input),
+    }),
+  stopAnalysis: () =>
+    mutationOptions({
+      mutationFn: (crawlId: string) => siteHealthApi.stopAnalysis(crawlId),
     }),
   replaceMonitoredUrls: () =>
     mutationOptions({

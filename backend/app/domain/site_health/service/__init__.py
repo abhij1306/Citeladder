@@ -59,6 +59,7 @@ from app.domain.site_health.service.presentation import (
     display_label_for,
     presentation_status_for,
     project_crawl,
+    project_phase_run,
 )
 from app.domain.site_health.service.queries import (
     get_crawl_summary,
@@ -91,6 +92,7 @@ __all__ = [
     "load_crawl_for_stream",
     "presentation_status_for",
     "project_crawl",
+    "project_phase_run",
     "display_label_for",
     # Re-exported for the router's Free-redaction check and the pure unit tests;
     # both predate the split and neither should have to know which module they

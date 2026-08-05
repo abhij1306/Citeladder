@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_health import (
     CRAWL_ACTIVE_STATUSES,
+    CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_RUNNING,
     SITE_CRAWL_QUEUE_SPEC,
     site_health_settings,
@@ -250,6 +251,29 @@ async def test_stalled_backstop_ignores_crawls_with_outstanding_work(
 
 
 @pytest.mark.asyncio
+async def test_stalled_backstop_ignores_paused_phase_control_crawls(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    stale = datetime.now(UTC) - timedelta(seconds=3600)
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=1)
+        await session.execute(
+            update(SiteCrawlTask)
+            .where(SiteCrawlTask.crawl_id == seed.crawl_id)
+            .values(status=TASK_STATUS_SUCCEEDED, completed_at=stale)
+        )
+        await session.execute(
+            update(SiteCrawl)
+            .where(SiteCrawl.id == seed.crawl_id)
+            .values(status=CRAWL_STATUS_PAUSED, updated_at=stale)
+        )
+        await session.commit()
+
+    assert await _worker(session_factory)._reconcile_stalled_crawls() == 0
+    assert (await _crawl(session_factory, seed.crawl_id)).status == CRAWL_STATUS_PAUSED
+
+
+@pytest.mark.asyncio
 async def test_leased_heartbeats_across_the_whole_body(
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
@@ -343,17 +367,22 @@ async def test_load_events_resumes_after_the_anchor(
         second = await _add_event(session, crawl_id=seed.crawl_id, event_type="b")
         third = await _add_event(session, crawl_id=seed.crawl_id, event_type="c")
         await session.commit()
-        anchor_id, second_id, third_id = first.id, second.id, third.id
+        ordered = sorted(
+            (first, second, third), key=lambda row: (row.created_at, row.id)
+        )
+        anchor_id = ordered[0].id
+        last_id = ordered[-1].id
+        expected_ids = [row.id for row in ordered[1:]]
 
     async with session_factory() as session:
         rows = await load_events(session, crawl_id=seed.crawl_id, after=anchor_id)
-        assert [row.id for row in rows] == [second_id, third_id]
+        assert [row.id for row in rows] == expected_ids
 
         # No anchor replays everything.
         assert len(await load_events(session, crawl_id=seed.crawl_id)) == 3
 
         # The LAST event as anchor leaves nothing to send.
-        assert await load_events(session, crawl_id=seed.crawl_id, after=third_id) == []
+        assert await load_events(session, crawl_id=seed.crawl_id, after=last_id) == []
 
 
 @pytest.mark.asyncio

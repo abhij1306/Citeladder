@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -246,6 +246,7 @@ function ScoredInventory({
   onCancel: () => void;
   cancelPending: boolean;
 }>) {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>('monitored');
   // Shared page-type filter (v2 P1): one server-backed value that composes
   // with whichever tab is active — never a client filter over the page window.
@@ -279,6 +280,23 @@ function ScoredInventory({
       limit: PAGE_LIMIT,
     }),
   );
+  const refetchActivePages = pagesQuery.refetch;
+  const lastProgressRef = useRef(crawl.updated_at);
+  useEffect(() => {
+    if (pager.cursor || lastProgressRef.current === crawl.updated_at) return;
+    lastProgressRef.current = crawl.updated_at;
+    void refetchActivePages();
+  }, [crawl.updated_at, pager.cursor, refetchActivePages]);
+
+  const prefetchTab = (nextTab: (typeof TABS)[number]) => {
+    void queryClient.prefetchQuery(
+      siteHealthQueries.pages(crawl.id, {
+        ...nextTab.params,
+        page_type: pageType || undefined,
+        limit: PAGE_LIMIT,
+      }),
+    );
+  };
 
   const rows = pagesQuery.data?.items ?? [];
   const nextCursor = pagesQuery.data?.next_cursor ?? null;
@@ -297,7 +315,7 @@ function ScoredInventory({
     );
   } else if (pagesQuery.isLoading) {
     body = (
-      <div className="grid gap-2 p-[var(--card-padding)]">
+      <div className="grid min-h-40 gap-2 p-[var(--card-padding)]">
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-8 w-full" />
@@ -328,6 +346,8 @@ function ScoredInventory({
                 key={t.key}
                 type="button"
                 onClick={() => setTab(t.key)}
+                onMouseEnter={() => prefetchTab(t)}
+                onFocus={() => prefetchTab(t)}
                 aria-current={t.key === tab ? 'true' : undefined}
                 className={segmentedItemClasses(t.key === tab)}
               >

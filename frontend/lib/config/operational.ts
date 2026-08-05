@@ -62,6 +62,10 @@ export const MIN_REPETITIONS = 1;
 export const MAX_REPETITIONS = 10;
 export const DEFAULT_REPETITIONS = 1;
 
+// Initial user-editable batch size for advanced Site Health controls. The
+// backend remains authoritative for entitlement and maximum limits.
+export const SITE_HEALTH_DEFAULT_PHASE_BATCH_SIZE = 10;
+
 // Polling cadences and retry ceilings.
 export const ACTIVE_RUN_POLL_MS = 3_000;
 export const BILLING_CONFIRM_POLL_MS = 3_000;
@@ -70,8 +74,3 @@ export const CONTENT_LIST_POLL_MS = 3_000;
 export const CONTENT_DETAIL_POLL_MS = 2_000;
 export const SYNC_RUN_POLL_MS = 3_000;
 export const ATTRIBUTION_RECOMPUTE_POLL_MS = 3_000;
-
-/** Development-only Site Health intake controls. Production remains automatic. */
-export function getSiteHealthAdvancedControlsEnabled(): boolean {
-  return process.env.NEXT_PUBLIC_SITE_HEALTH_ADVANCED_CONTROLS === 'true';
-}

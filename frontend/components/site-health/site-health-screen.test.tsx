@@ -51,6 +51,7 @@ const entitlement = {
   entitlement_lifecycle_version: 1,
   valid_until: null,
   contributing_grant_ids: [],
+  advanced_controls_enabled: false,
 };
 
 // Bounded site-facts blob the worker persists (`_crawl_setup` in
@@ -89,6 +90,18 @@ function crawl(overrides: Record<string, unknown> = {}) {
     visible_url_count: 3,
     analyzed_count: 0,
     failed_count: 0,
+    discovery_requested_count: 3,
+    analysis_requested_count: 0,
+    counters: {
+      discovered: 3,
+      selected: 0,
+      queued: 0,
+      running: 0,
+      analyzed: 0,
+      errors: 0,
+      blocked: 0,
+      by_page_type: {},
+    },
     discovered_count: 3,
     total_url_count: 3,
     has_more_site_urls: false,
@@ -141,6 +154,7 @@ function mockRoutes(crawlOverrides: Record<string, unknown> = {}) {
         score_summary: null,
         quota: { used: 3, limit: 50 },
         root_errors: [],
+        phase_runs: { discovery: null, analysis: null },
       }),
     ),
     http.get(`/api/v1/projects/${PROJECT}/monitored-urls`, () =>
@@ -294,6 +308,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
               latency_ms: 120,
             },
           ],
+          phase_runs: { discovery: null, analysis: null },
         }),
       ),
     );
@@ -405,6 +420,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
           score_summary: summary,
           quota: { used: 4, limit: 50 },
           root_errors: [],
+          phase_runs: { discovery: null, analysis: null },
         }),
       ),
     );
@@ -475,6 +491,7 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
           score_summary: serverCrawl.score_summary,
           quota: { used: monitored.length, limit: 50 },
           root_errors: [],
+          phase_runs: { discovery: null, analysis: null },
         }),
       ),
       http.get(`/api/v1/projects/${PROJECT}/monitored-urls`, () =>

@@ -63,6 +63,7 @@ import type {
   crawlDiscoveryStatusSchema,
   crawlFailureSummarySchema,
   crawlOverallStatusSchema,
+  crawlCountersSchema,
   deliveryFactsSchema,
   inventoryPageSchema,
   inventoryRowSchema,
@@ -78,6 +79,8 @@ import type {
   pagesPageSchema,
   pageTypeSchema,
   pageTypeScoreSummarySchema,
+  phaseMutationResponseSchema,
+  phaseRunSchema,
   rerunPageResponseSchema,
   rootErrorSchema,
   siteCrawlListPageSchema,
@@ -216,6 +219,7 @@ export type Visibility = z.infer<typeof visibilitySchema>;
 // --- Site Health ---
 export type SiteHealthEntitlement = z.infer<typeof siteHealthEntitlementSchema>;
 export type CrawlOverallStatus = z.infer<typeof crawlOverallStatusSchema>;
+export type CrawlCounters = z.infer<typeof crawlCountersSchema>;
 export type CrawlDiscoveryStatus = z.infer<typeof crawlDiscoveryStatusSchema>;
 export type CrawlAnalysisStatus = z.infer<typeof crawlAnalysisStatusSchema>;
 export type PageAnalysisStatus = z.infer<typeof pageAnalysisStatusSchema>;
@@ -225,6 +229,8 @@ export type SiteScoreSummary = z.infer<typeof siteScoreSummarySchema>;
 export type CrawlFailureSummary = z.infer<typeof crawlFailureSummarySchema>;
 export type RootError = z.infer<typeof rootErrorSchema>;
 export type SiteCrawl = z.infer<typeof siteCrawlSchema>;
+export type PhaseRun = z.infer<typeof phaseRunSchema>;
+export type PhaseMutationResponse = z.infer<typeof phaseMutationResponseSchema>;
 export type UrlPreviewResponse = z.infer<typeof urlPreviewResponseSchema>;
 export type InventoryRow = z.infer<typeof inventoryRowSchema>;
 export type InventoryPage = z.infer<typeof inventoryPageSchema>;
