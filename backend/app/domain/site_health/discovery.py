@@ -621,15 +621,19 @@ def _requested_budget_exhausted(crawl: SiteCrawl, admitted: int) -> bool:
     return crawl.admitted_url_count + admitted >= _requested_discovery_target(crawl)
 
 
-def _frontier_full(crawl: SiteCrawl, admitted: int) -> bool:
-    current = crawl.admitted_url_count + admitted
+def _frontier_limit(crawl: SiteCrawl, configuration: dict | None = None) -> int:
     if crawl.sample_mode:
-        return current >= site_health_settings.sample_discovery_url_cap
-    frozen_limit = int(
-        (crawl.configuration or {}).get("max_frontier_urls")
+        return site_health_settings.sample_discovery_url_cap
+    frozen = configuration if configuration is not None else (crawl.configuration or {})
+    return int(
+        frozen.get("max_frontier_urls")
         or site_health_settings.max_frontier_urls
     )
-    return current >= frozen_limit
+
+
+def _frontier_full(crawl: SiteCrawl, admitted: int) -> bool:
+    current = crawl.admitted_url_count + admitted
+    return current >= _frontier_limit(crawl)
 
 
 async def _record_sample_admission(
@@ -755,15 +759,7 @@ async def _store_frontier_candidates(
         )
         or 0
     )
-    frontier_limit = (
-        site_health_settings.sample_discovery_url_cap
-        if crawl.sample_mode
-        else int(
-            configuration.get("max_frontier_urls")
-            or site_health_settings.max_frontier_urls
-        )
-    )
-    remaining_capacity = max(frontier_limit - existing_count, 0)
+    remaining_capacity = max(_frontier_limit(crawl, configuration) - existing_count, 0)
     if remaining_capacity == 0:
         return
     existing_hashes = set(
