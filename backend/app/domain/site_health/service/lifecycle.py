@@ -168,6 +168,46 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
     }
 
 
+def _empty_phase_runs() -> dict[str, dict | None]:
+    return {PHASE_DISCOVERY: None, PHASE_ANALYSIS: None}
+
+
+async def _latest_phase_runs(
+    session: AsyncSession, *, crawl_id: uuid.UUID
+) -> dict[str, dict | None]:
+    phase_runs = _empty_phase_runs()
+    latest_runs = (
+        await session.scalars(
+            select(SiteCrawlPhaseRun)
+            .where(
+                SiteCrawlPhaseRun.crawl_id == crawl_id,
+                SiteCrawlPhaseRun.phase.in_([PHASE_DISCOVERY, PHASE_ANALYSIS]),
+            )
+            .distinct(SiteCrawlPhaseRun.phase)
+            .order_by(
+                SiteCrawlPhaseRun.phase,
+                SiteCrawlPhaseRun.ordinal.desc(),
+            )
+        )
+    ).all()
+    for latest_run in latest_runs:
+        phase_runs[latest_run.phase] = project_phase_run(latest_run)
+    return phase_runs
+
+
+async def _dashboard_crawl_details(
+    session: AsyncSession, crawl: SiteCrawl | None
+) -> tuple[dict | None, list[dict], dict | None, dict[str, dict | None]]:
+    if crawl is None:
+        return None, [], None, _empty_phase_runs()
+    return (
+        await _failure_summary_for(session, crawl),
+        await _root_errors_for(session, crawl),
+        await _crawl_counters(session, crawl),
+        await _latest_phase_runs(session, crawl_id=crawl.id),
+    )
+
+
 # =========================================================================
 # Cancel (atomic)
 # =========================================================================
@@ -330,36 +370,11 @@ async def get_dashboard(
             MonitoredSiteUrl.active.is_(True),
         )
     )
-    failure_summary = None
-    root_errors: list[dict] = []
-    if crawl is not None:
-        # B1/B3: a FAILED crawl carries its humanized failure summary (inside
-        # the crawl projection) and its root-target failed calls (top level)
-        # so the failed dashboard needs no second fetch to explain itself.
-        failure_summary = await _failure_summary_for(session, crawl)
-        root_errors = await _root_errors_for(session, crawl)
-    counters = await _crawl_counters(session, crawl) if crawl is not None else None
-    phase_runs: dict[str, dict | None] = {
-        PHASE_DISCOVERY: None,
-        PHASE_ANALYSIS: None,
-    }
-    if crawl is not None:
-        latest_runs = (
-            await session.scalars(
-                select(SiteCrawlPhaseRun)
-                .where(
-                    SiteCrawlPhaseRun.crawl_id == crawl.id,
-                    SiteCrawlPhaseRun.phase.in_([PHASE_DISCOVERY, PHASE_ANALYSIS]),
-                )
-                .distinct(SiteCrawlPhaseRun.phase)
-                .order_by(
-                    SiteCrawlPhaseRun.phase,
-                    SiteCrawlPhaseRun.ordinal.desc(),
-                )
-            )
-        ).all()
-        for latest_run in latest_runs:
-            phase_runs[latest_run.phase] = project_phase_run(latest_run)
+    # B1/B3 and counters stay bundled with the selected crawl projection; an
+    # empty dashboard returns the same neutral values without branching here.
+    failure_summary, root_errors, counters, phase_runs = await _dashboard_crawl_details(
+        session, crawl
+    )
     return {
         "project_id": project_id,
         "crawl": (

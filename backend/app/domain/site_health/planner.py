@@ -245,6 +245,10 @@ def _is_sample_mode(runtime) -> bool:
     return runtime.discovery_mode == DISCOVERY_MODE_SAMPLE
 
 
+def _advanced_controls_configuration(enabled: bool) -> dict[str, bool]:
+    return {"advanced_controls_enabled": True} if enabled else {}
+
+
 def _frozen_configuration(
     *,
     root_registrable_domain: str,
@@ -284,6 +288,7 @@ def _frozen_configuration(
         "page_profile_rule_version": PAGE_PROFILE_RULE_VERSION,
         "input_mode": input_mode,
         "requested_page_limit": requested_page_limit,
+        **_advanced_controls_configuration(advanced_controls_enabled),
         "max_discovery_urls": s.max_discovery_urls,
         "max_analysis_urls": s.max_analysis_urls,
         "seed_urls": list(seed_urls or []),
@@ -304,8 +309,6 @@ def _frozen_configuration(
         "rule_catalog_version": RULE_CATALOG_VERSION,
         "scoring_version": SCORING_VERSION,
     }
-    if advanced_controls_enabled:
-        configuration["advanced_controls_enabled"] = True
     return configuration
 
 

@@ -166,6 +166,47 @@ def _score_summary(crawl: SiteCrawl) -> dict | None:
     }
 
 
+def _default_crawl_counters(
+    crawl: SiteCrawl,
+    *,
+    summary: dict | None,
+    disclose: bool,
+    analysis_requested_count: int,
+) -> dict:
+    return {
+        "discovered": int(crawl.admitted_url_count or 0) if disclose else None,
+        "selected": int((summary or {}).get("selected_count", 0)),
+        "queued": max(
+            analysis_requested_count
+            - int(crawl.analyzed_url_count or 0)
+            - int(crawl.failed_url_count or 0),
+            0,
+        ),
+        "running": 0,
+        "analyzed": int(crawl.analyzed_url_count or 0),
+        "errors": int(crawl.failed_url_count or 0),
+        "blocked": 0,
+        "by_page_type": {
+            page_type: int(values.get("analyzed_count", 0))
+            for page_type, values in ((summary or {}).get("by_page_type") or {}).items()
+        },
+    }
+
+
+def _crawl_disclosure_fields(crawl: SiteCrawl, *, disclose: bool) -> dict:
+    return {
+        "discovered_count": (
+            int(crawl.discovered_url_count or 0) if disclose else None
+        ),
+        "total_url_count": (
+            int(crawl.discovered_url_count or 0)
+            if (disclose and crawl.inventory_complete)
+            else None
+        ),
+        "has_more_site_urls": ((not crawl.inventory_complete) if disclose else None),
+    }
+
+
 def project_crawl(
     crawl: SiteCrawl,
     *,
@@ -190,24 +231,12 @@ def project_crawl(
     summary = _score_summary(crawl)
     analysis_requested_count = int(crawl.analysis_requested_count or 0)
     discovery_requested_count = int(crawl.discovery_requested_count or 0)
-    default_counters = {
-        "discovered": int(crawl.admitted_url_count or 0) if disclose else None,
-        "selected": int((summary or {}).get("selected_count", 0)),
-        "queued": max(
-            analysis_requested_count
-            - int(crawl.analyzed_url_count or 0)
-            - int(crawl.failed_url_count or 0),
-            0,
-        ),
-        "running": 0,
-        "analyzed": int(crawl.analyzed_url_count or 0),
-        "errors": int(crawl.failed_url_count or 0),
-        "blocked": 0,
-        "by_page_type": {
-            page_type: int(values.get("analyzed_count", 0))
-            for page_type, values in ((summary or {}).get("by_page_type") or {}).items()
-        },
-    }
+    projected_counters = counters or _default_crawl_counters(
+        crawl,
+        summary=summary,
+        disclose=disclose,
+        analysis_requested_count=analysis_requested_count,
+    )
     return {
         "id": crawl.id,
         "workspace_id": crawl.workspace_id,
@@ -225,16 +254,8 @@ def project_crawl(
         "failed_count": int(crawl.failed_url_count or 0),
         "discovery_requested_count": discovery_requested_count,
         "analysis_requested_count": analysis_requested_count,
-        "counters": counters or default_counters,
-        "discovered_count": (
-            int(crawl.discovered_url_count or 0) if disclose else None
-        ),
-        "total_url_count": (
-            int(crawl.discovered_url_count or 0)
-            if (disclose and crawl.inventory_complete)
-            else None
-        ),
-        "has_more_site_urls": ((not crawl.inventory_complete) if disclose else None),
+        "counters": projected_counters,
+        **_crawl_disclosure_fields(crawl, disclose=disclose),
         "score_summary": summary,
         "failure_summary": failure_summary,
         # v2 P2: bounded site-level facts (robots AI-crawler stance, llms.txt,

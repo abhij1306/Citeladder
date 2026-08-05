@@ -411,27 +411,21 @@ async def _analysis_candidates(
     return [*explicit_rows, *ranked]
 
 
-async def start_analysis(
+async def _lock_analysis_source(
     session: AsyncSession,
     *,
     workspace_id: uuid.UUID,
     crawl_id: uuid.UUID,
     requested_url_count: int,
     site_url_ids: list[uuid.UUID],
-    expected_selection_version: int,
-) -> PhaseMutationResult:
-    source_crawl = await session.scalar(
+) -> tuple[SiteCrawl, bool]:
+    crawl = await session.scalar(
         select(SiteCrawl)
-        .where(
-            SiteCrawl.id == crawl_id,
-            SiteCrawl.workspace_id == workspace_id,
-        )
+        .where(SiteCrawl.id == crawl_id, SiteCrawl.workspace_id == workspace_id)
         .with_for_update()
     )
-    if source_crawl is None:
+    if crawl is None:
         raise PhaseControlError("Site Health crawl not found", code="not_found")
-    terminal_source = source_crawl.status in CRAWL_TERMINAL_STATUSES
-    crawl = source_crawl
     if await _running_phase(session, crawl_id=crawl.id, phase=PHASE_ANALYSIS):
         raise PhaseControlError(
             "Analysis is already running", code=CODE_PHASE_ALREADY_RUNNING
@@ -447,6 +441,15 @@ async def start_analysis(
             "The analysis count must include every selected URL",
             code="invalid_selection",
         )
+    return crawl, crawl.status in CRAWL_TERMINAL_STATUSES
+
+
+async def _lock_analysis_profile(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    expected_selection_version: int,
+) -> SiteHealthProfile:
     profile = await session.scalar(
         select(SiteHealthProfile)
         .where(SiteHealthProfile.id == crawl.profile_id)
@@ -458,22 +461,17 @@ async def start_analysis(
         raise PhaseControlError(
             "The monitored selection changed", code="stale_selection_version"
         )
-    await refresh_site_health_runtime_for_workspace(
-        session, workspace_id=workspace_id, at=_now()
-    )
-    runtime = await lock_runtime(session, workspace_id)
-    candidates = await _analysis_candidates(
-        session,
-        crawl=crawl,
-        explicit_ids=site_url_ids,
-        requested_count=requested_url_count,
-        include_completed=terminal_source,
-    )
-    if not candidates:
-        raise PhaseControlError(
-            "No eligible URLs are available for this analysis batch",
-            code="invalid_selection",
-        )
+    return profile
+
+
+async def _ensure_monitoring_capacity(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    crawl: SiteCrawl,
+    candidates: list[SiteUrl],
+    monitored_url_limit: int,
+) -> None:
     used = int(
         await session.scalar(
             select(func.count())
@@ -485,85 +483,100 @@ async def start_analysis(
         )
         or 0
     )
+    candidate_ids = [row.id for row in candidates]
     existing = set(
         (
             await session.scalars(
                 select(MonitoredSiteUrl.site_url_id).where(
                     MonitoredSiteUrl.project_id == crawl.project_id,
-                    MonitoredSiteUrl.site_url_id.in_([row.id for row in candidates]),
+                    MonitoredSiteUrl.site_url_id.in_(candidate_ids),
                     MonitoredSiteUrl.active.is_(True),
                 )
             )
         ).all()
     )
-    if (
-        used + len([row for row in candidates if row.id not in existing])
-        > runtime.monitored_url_limit
-    ):
+    additional = sum(row.id not in existing for row in candidates)
+    if used + additional > monitored_url_limit:
         raise PhaseControlError(
             "The monitored URL quota would be exceeded",
             code="site_health_quota_exceeded",
         )
-    if terminal_source:
-        configuration = dict(source_crawl.configuration or {})
-        lineage = list(configuration.get(INVENTORY_SOURCE_CRAWL_IDS_KEY) or [])
-        configuration[INVENTORY_SOURCE_CRAWL_IDS_KEY] = [
-            str(source_crawl.id),
-            *[value for value in lineage if value != str(source_crawl.id)],
-        ]
-        crawl = SiteCrawl(
-            workspace_id=source_crawl.workspace_id,
-            project_id=source_crawl.project_id,
-            profile_id=source_crawl.profile_id,
-            status=CRAWL_STATUS_QUEUED,
-            root_url=source_crawl.root_url,
-            random_seed=source_crawl.random_seed,
-            configuration=configuration,
-            sample_mode=source_crawl.sample_mode,
-            discovery_status=DISCOVERY_STATUS_COMPLETED,
-            inventory_complete=True,
-            discovered_url_count=source_crawl.discovered_url_count,
-            admitted_url_count=source_crawl.admitted_url_count,
-            extractor_version=source_crawl.extractor_version,
-            analyzer_version=source_crawl.analyzer_version,
-            rule_catalog_version=source_crawl.rule_catalog_version,
-            scoring_version=source_crawl.scoring_version,
-        )
-        session.add(crawl)
-        await session.flush()
-    run = SiteCrawlPhaseRun(
-        workspace_id=workspace_id,
-        crawl_id=crawl.id,
-        phase=PHASE_ANALYSIS,
-        ordinal=await _next_ordinal(session, crawl_id=crawl.id, phase=PHASE_ANALYSIS),
-        status=PHASE_RUN_RUNNING,
-        requested_count=requested_url_count,
+
+
+async def _analysis_target_crawl(
+    session: AsyncSession, *, source: SiteCrawl, create_new: bool
+) -> SiteCrawl:
+    if not create_new:
+        return source
+    configuration = dict(source.configuration or {})
+    lineage = list(configuration.get(INVENTORY_SOURCE_CRAWL_IDS_KEY) or [])
+    configuration[INVENTORY_SOURCE_CRAWL_IDS_KEY] = [
+        str(source.id),
+        *[value for value in lineage if value != str(source.id)],
+    ]
+    crawl = SiteCrawl(
+        workspace_id=source.workspace_id,
+        project_id=source.project_id,
+        profile_id=source.profile_id,
+        status=CRAWL_STATUS_QUEUED,
+        root_url=source.root_url,
+        random_seed=source.random_seed,
+        configuration=configuration,
+        sample_mode=source.sample_mode,
+        discovery_status=DISCOVERY_STATUS_COMPLETED,
+        inventory_complete=True,
+        discovered_url_count=source.discovered_url_count,
+        admitted_url_count=source.admitted_url_count,
+        extractor_version=source.extractor_version,
+        analyzer_version=source.analyzer_version,
+        rule_catalog_version=source.rule_catalog_version,
+        scoring_version=source.scoring_version,
     )
-    session.add(run)
+    session.add(crawl)
     await session.flush()
-    now = _now()
-    if terminal_source:
-        for row in candidates:
-            value = classify_url_admission(row.normalized_url)
-            session.add(
-                SiteUrlObservation(
-                    workspace_id=workspace_id,
-                    project_id=crawl.project_id,
-                    crawl_id=crawl.id,
-                    site_url_id=row.id,
-                    phase_run_id=run.id,
-                    source_kind=OBSERVATION_SOURCE_ROOT,
-                    value_kind=value.value_kind,
-                    value_priority=value.priority,
-                    depth=row.depth,
-                    observed_url=row.normalized_url,
-                    final_url=row.normalized_url,
-                    content_type="",
-                    title=row.latest_title or "",
-                )
+    return crawl
+
+
+def _record_analysis_inventory(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    crawl: SiteCrawl,
+    phase_run_id: uuid.UUID,
+    candidates: list[SiteUrl],
+) -> None:
+    for row in candidates:
+        value = classify_url_admission(row.normalized_url)
+        session.add(
+            SiteUrlObservation(
+                workspace_id=workspace_id,
+                project_id=crawl.project_id,
+                crawl_id=crawl.id,
+                site_url_id=row.id,
+                phase_run_id=phase_run_id,
+                source_kind=OBSERVATION_SOURCE_ROOT,
+                value_kind=value.value_kind,
+                value_priority=value.priority,
+                depth=row.depth,
+                observed_url=row.normalized_url,
+                final_url=row.normalized_url,
+                content_type="",
+                title=row.latest_title or "",
             )
-        crawl.admitted_url_count = len(candidates)
-        crawl.discovered_url_count = len(candidates)
+        )
+    crawl.admitted_url_count = len(candidates)
+    crawl.discovered_url_count = len(candidates)
+
+
+async def _schedule_analysis_tasks(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    crawl: SiteCrawl,
+    phase_run_id: uuid.UUID,
+    candidates: list[SiteUrl],
+    now: datetime,
+) -> None:
     await session.execute(
         pg_insert(MonitoredSiteUrl)
         .values(
@@ -603,7 +616,7 @@ async def start_analysis(
             {
                 "crawl_id": crawl.id,
                 "workspace_id": workspace_id,
-                "phase_run_id": run.id,
+                "phase_run_id": phase_run_id,
                 "site_url_id": row.id,
                 "task_kind": TASK_KIND_ANALYZE,
                 "requested_url": row.normalized_url,
@@ -622,6 +635,82 @@ async def start_analysis(
         .on_conflict_do_nothing(
             index_elements=["crawl_id", "task_kind", "url_hash", "generation"]
         )
+    )
+
+
+async def start_analysis(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    crawl_id: uuid.UUID,
+    requested_url_count: int,
+    site_url_ids: list[uuid.UUID],
+    expected_selection_version: int,
+) -> PhaseMutationResult:
+    source_crawl, terminal_source = await _lock_analysis_source(
+        session,
+        workspace_id=workspace_id,
+        crawl_id=crawl_id,
+        requested_url_count=requested_url_count,
+        site_url_ids=site_url_ids,
+    )
+    profile = await _lock_analysis_profile(
+        session,
+        crawl=source_crawl,
+        expected_selection_version=expected_selection_version,
+    )
+    await refresh_site_health_runtime_for_workspace(
+        session, workspace_id=workspace_id, at=_now()
+    )
+    runtime = await lock_runtime(session, workspace_id)
+    candidates = await _analysis_candidates(
+        session,
+        crawl=source_crawl,
+        explicit_ids=site_url_ids,
+        requested_count=requested_url_count,
+        include_completed=terminal_source,
+    )
+    if not candidates:
+        raise PhaseControlError(
+            "No eligible URLs are available for this analysis batch",
+            code="invalid_selection",
+        )
+    await _ensure_monitoring_capacity(
+        session,
+        workspace_id=workspace_id,
+        crawl=source_crawl,
+        candidates=candidates,
+        monitored_url_limit=runtime.monitored_url_limit,
+    )
+    crawl = await _analysis_target_crawl(
+        session, source=source_crawl, create_new=terminal_source
+    )
+    run = SiteCrawlPhaseRun(
+        workspace_id=workspace_id,
+        crawl_id=crawl.id,
+        phase=PHASE_ANALYSIS,
+        ordinal=await _next_ordinal(session, crawl_id=crawl.id, phase=PHASE_ANALYSIS),
+        status=PHASE_RUN_RUNNING,
+        requested_count=requested_url_count,
+    )
+    session.add(run)
+    await session.flush()
+    now = _now()
+    if terminal_source:
+        _record_analysis_inventory(
+            session,
+            workspace_id=workspace_id,
+            crawl=crawl,
+            phase_run_id=run.id,
+            candidates=candidates,
+        )
+    await _schedule_analysis_tasks(
+        session,
+        workspace_id=workspace_id,
+        crawl=crawl,
+        phase_run_id=run.id,
+        candidates=candidates,
+        now=now,
     )
     profile.selection_version += 1
     crawl.analysis_requested_count += len(candidates)

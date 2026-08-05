@@ -626,8 +626,7 @@ def _frontier_limit(crawl: SiteCrawl, configuration: dict | None = None) -> int:
         return site_health_settings.sample_discovery_url_cap
     frozen = configuration if configuration is not None else (crawl.configuration or {})
     return int(
-        frozen.get("max_frontier_urls")
-        or site_health_settings.max_frontier_urls
+        frozen.get("max_frontier_urls") or site_health_settings.max_frontier_urls
     )
 
 
@@ -869,12 +868,9 @@ async def admit_candidates(
     Caller owns the commit (progressive batches commit per admission call).
     """
     configuration = dict(crawl.configuration or {})
-    if any(
-        _candidate_allowed(crawl, candidate, configuration) for candidate in candidates
-    ):
-        await _store_frontier_candidates(
-            session, crawl=crawl, candidates=candidates, configuration=configuration
-        )
+    await _store_frontier_candidates(
+        session, crawl=crawl, candidates=candidates, configuration=configuration
+    )
     progress = _AdmissionProgress(remaining=await _automatic_remaining(session, crawl))
     for position, (frontier, candidate) in enumerate(
         await _pending_frontier(session, crawl=crawl)

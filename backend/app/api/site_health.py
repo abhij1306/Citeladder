@@ -228,6 +228,12 @@ async def _enforce_phase_mutation_request(
     )
 
 
+def _crawl_requested_page_limit(payload: CreateCrawlRequest) -> int | None:
+    if payload.discovery_count is not None:
+        return payload.discovery_count
+    return payload.requested_page_limit
+
+
 # =========================================================================
 # Entitlement
 # =========================================================================
@@ -268,11 +274,7 @@ async def create_crawl_endpoint(
             exclude_globs=payload.exclude_globs,
             random_seed=payload.seed,
             input_mode=payload.input_mode,
-            requested_page_limit=(
-                payload.discovery_count
-                if payload.discovery_count is not None
-                else payload.requested_page_limit
-            ),
+            requested_page_limit=_crawl_requested_page_limit(payload),
             seed_urls=payload.seed_urls,
             page_types=payload.page_types,
         )
