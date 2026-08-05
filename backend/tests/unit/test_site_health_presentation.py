@@ -58,6 +58,8 @@ def _crawl(**overrides: object) -> SiteCrawl:
         "analyzed_url_count": 3,
         "failed_url_count": 1,
         "discovered_url_count": 42,
+        "discovery_requested_count": 42,
+        "analysis_requested_count": 7,
         "score_summary": None,
         "site_facts": None,
         "configuration": {"count_disclosure": True},
