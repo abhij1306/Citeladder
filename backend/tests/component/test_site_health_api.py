@@ -19,12 +19,15 @@ from dataclasses import dataclass
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_health import (
+    CODE_ADVANCED_CONTROLS_UNAVAILABLE,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
+    CRAWL_STATUS_PAUSED,
+    DISCOVERY_STATUS_STOPPED,
     ERROR_HTTP_5XX,
     FETCH_ATTEMPT_OUTCOME_ERROR,
     INITIAL_TASK_GENERATION,
@@ -36,7 +39,13 @@ from app.core.config.site_health import (
     TASK_KIND_DISCOVER,
     site_health_settings,
 )
-from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
+from app.core.config.task_queue import (
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_QUEUED,
+    TASK_STATUS_SUCCEEDED,
+)
+from app.domain.site_health.phase_control import start_discovery
 from app.models.project import Project
 from app.models.site_health import (
     MonitoredSiteUrl,
@@ -81,6 +90,26 @@ async def _register(client: httpx.AsyncClient, email: str) -> None:
     assert reg.status_code == 201
 
 
+async def test_stop_phase_endpoints_require_advanced_controls(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(site_health_settings, "advanced_controls_enabled", False)
+    await _register(client, "phase-stop-gate@example.com")
+    async with session_factory() as session:
+        scenario = await _seed_scenario(session, email="phase-stop-gate@example.com")
+
+    headers = {"X-Workspace-Id": str(scenario.workspace_id)}
+    for phase in ("discovery", "analysis"):
+        response = await client.post(
+            f"/api/v1/site-crawls/{scenario.crawl_id}/{phase}/stop",
+            headers=headers,
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == CODE_ADVANCED_CONTROLS_UNAVAILABLE
+
+
 async def test_terminal_bulk_analysis_creates_lineage_crawl(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
@@ -103,9 +132,8 @@ async def test_terminal_bulk_analysis_creates_lineage_crawl(
         crawl.configuration = {
             **(crawl.configuration or {}),
             "advanced_controls_enabled": True,
-            "max_analysis_urls": 50_000,
-            "max_discovery_urls": 50_000,
         }
+        crawl.discovery_requested_count = 3
         selection_version = profile.selection_version
         await session.commit()
 
@@ -123,8 +151,61 @@ async def test_terminal_bulk_analysis_creates_lineage_crawl(
     payload = response.json()
     assert payload["created_new_crawl"] is True
     assert payload["crawl"]["id"] != str(scenario.crawl_id)
+    assert payload["crawl"]["discovery_requested_count"] == 3
     assert payload["phase_run"]["requested_count"] == 1
     assert payload["scheduled_count"] == 1
+
+
+async def test_discovery_resume_clones_only_the_requested_batch(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "phase-clone-limit@example.com")
+    async with session_factory() as session:
+        scenario = await _seed_scenario(session, email="phase-clone-limit@example.com")
+        crawl = await session.get(SiteCrawl, scenario.crawl_id)
+        assert crawl is not None
+        crawl.status = CRAWL_STATUS_PAUSED
+        crawl.discovery_status = DISCOVERY_STATUS_STOPPED
+        crawl.configuration = {
+            **(crawl.configuration or {}),
+            "advanced_controls_enabled": True,
+            "max_discovery_urls": 50,
+        }
+        for index in range(3):
+            url_hash = _hash(f"https://acme.test/resume-{index}")
+            session.add(
+                SiteCrawlTask(
+                    crawl_id=crawl.id,
+                    workspace_id=crawl.workspace_id,
+                    task_kind=TASK_KIND_DISCOVER,
+                    requested_url=f"https://acme.test/resume-{index}",
+                    url_hash=url_hash,
+                    generation=INITIAL_TASK_GENERATION,
+                    idempotency_key=f"{crawl.id}:discover:{url_hash}:0",
+                    status=TASK_STATUS_CANCELLED,
+                )
+            )
+        await session.commit()
+
+    async with session_factory() as session:
+        result = await start_discovery(
+            session,
+            workspace_id=scenario.workspace_id,
+            crawl_id=scenario.crawl_id,
+            additional_url_count=1,
+        )
+        assert result.phase_run is not None
+        assert result.scheduled_count == 1
+        queued = await session.scalar(
+            select(func.count())
+            .select_from(SiteCrawlTask)
+            .where(
+                SiteCrawlTask.phase_run_id == result.phase_run.id,
+                SiteCrawlTask.status == TASK_STATUS_QUEUED,
+            )
+        )
+        assert queued == 1
 
 
 async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:

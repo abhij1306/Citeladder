@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import codecs
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -844,6 +845,35 @@ async def _pending_frontier(
     ]
 
 
+async def _admission_batch(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    candidates: list[FrontierCandidate],
+    configuration: dict,
+) -> Sequence[tuple[SiteDiscoveryFrontier | None, FrontierCandidate]]:
+    if crawl.sample_mode:
+        eligible = (
+            candidate
+            for candidate in _ordered_unique_candidates(candidates)
+            if _candidate_allowed(crawl, candidate, configuration)
+        )
+        return [
+            (None, candidate)
+            for candidate in list(eligible)[: site_health_settings.admission_batch_size]
+        ]
+    await _store_frontier_candidates(
+        session, crawl=crawl, candidates=candidates, configuration=configuration
+    )
+    return await _pending_frontier(session, crawl=crawl)
+
+
+def _mark_frontier_admitted(frontier: SiteDiscoveryFrontier | None) -> None:
+    if frontier is not None:
+        frontier.status = FRONTIER_ADMITTED
+        frontier.admitted_at = _utcnow()
+
+
 async def admit_candidates(
     session: AsyncSession,
     *,
@@ -868,12 +898,14 @@ async def admit_candidates(
     Caller owns the commit (progressive batches commit per admission call).
     """
     configuration = dict(crawl.configuration or {})
-    await _store_frontier_candidates(
-        session, crawl=crawl, candidates=candidates, configuration=configuration
-    )
     progress = _AdmissionProgress(remaining=await _automatic_remaining(session, crawl))
     for position, (frontier, candidate) in enumerate(
-        await _pending_frontier(session, crawl=crawl)
+        await _admission_batch(
+            session,
+            crawl=crawl,
+            candidates=candidates,
+            configuration=configuration,
+        )
     ):
         if _requested_budget_exhausted(crawl, progress.admitted):
             break
@@ -888,8 +920,7 @@ async def admit_candidates(
             progress=progress,
             phase_run_id=phase_run_id,
         )
-        frontier.status = FRONTIER_ADMITTED
-        frontier.admitted_at = _utcnow()
+        _mark_frontier_admitted(frontier)
 
     # Live delta so the frontier ceiling above and the progress event advance
     # within a task. ``CrawlLifecycle.reconcile`` then re-derives this counter

@@ -145,6 +145,7 @@ export const CONTRACT_SCHEMA_MAP = {
   siteCrawlListPageSchema: 'CrawlListPage',
   siteHealthDashboardSchema: 'DashboardResponse',
   siteHealthEntitlementSchema: 'SiteHealthEntitlementResponse',
+  phaseMutationResponseSchema: 'PhaseMutationResponse',
   monitoredUrlsResponseSchema: 'MonitoredUrlsResponse',
   inventoryPageSchema: 'InventoryPage',
   pagesPageSchema: 'PagesPage',

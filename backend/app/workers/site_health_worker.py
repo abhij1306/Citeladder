@@ -550,6 +550,7 @@ class SiteHealthWorker(
             site_url.latest_content_type = (output.content_type or "")[:128]
             site_url.last_seen_crawl_id = crawl.id
             site_url.discovery_status = DISCOVERY_STATUS_COMPLETED
+        value = classify_url_admission(task.requested_url)
         await session.execute(
             pg_insert(SiteUrlObservation)
             .values(
@@ -563,8 +564,8 @@ class SiteHealthWorker(
                 parent_site_url_id=task.parent_site_url_id,
                 source_artifact_id=artifact_id,
                 phase_run_id=task.phase_run_id,
-                value_kind=classify_url_admission(task.requested_url).value_kind,
-                value_priority=task.priority,
+                value_kind=value.value_kind,
+                value_priority=value.priority,
                 depth=depth,
                 observed_url=output.requested_url,
                 final_url=output.final_url,

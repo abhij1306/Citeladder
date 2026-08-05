@@ -10,6 +10,7 @@ import { SiteFactsPanel } from '@/components/site-health/site-facts-panel';
 import { StatusStrip } from '@/components/site-health/status-strip';
 import type { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
 import type { SiteHealthEntitlement } from '@/lib/api/types';
+import type { PhaseMutation } from '@/components/site-health/phase-controls';
 
 const EMPTY_URL_SELECTION: ReadonlySet<string> = new Set();
 
@@ -51,6 +52,7 @@ export function SiteHealthDashboardLayout({
     crawlId: string | undefined;
     ids: Set<string>;
   }>({ crawlId: crawl?.id, ids: new Set() });
+  const [lastPhaseMutation, setLastPhaseMutation] = useState<PhaseMutation | null>(null);
   const selectedUrlIds =
     urlSelection.crawlId === crawl?.id ? urlSelection.ids : EMPTY_URL_SELECTION;
 
@@ -85,27 +87,38 @@ export function SiteHealthDashboardLayout({
           `site_facts`; self-hides until a crawl persists it. */}
       <SiteFactsPanel crawl={crawl} dashboard={dashboardQuery.data} />
 
-      <PhaseControls screen={screen} selectedUrlIds={selectedUrlIds} />
+      <PhaseControls
+        screen={screen}
+        selectedUrlIds={selectedUrlIds}
+        lastMutation={lastPhaseMutation}
+        onMutationStart={setLastPhaseMutation}
+      />
 
       {/* Per-page-type score breakdown (v2 P1) — data-driven like the score
           cards: renders once a score summary exists, hides itself before. */}
       <PageTypeScores
+        key={crawl?.id ?? 'no-crawl'}
         crawl={crawl}
         dashboard={dashboardQuery.data}
         selectedUrlIds={selectedUrlIds}
         onSelectionChange={(ids) => setUrlSelection({ crawlId: crawl?.id, ids })}
-        onReanalyze={(siteUrlIds) => {
-          const selectionVersion = screen.monitoredQuery.data?.selection_version;
-          if (!crawl || selectionVersion === undefined || siteUrlIds.length === 0) return;
-          screen.startAnalysisMutation.mutate({
-            crawlId: crawl.id,
-            input: {
-              requested_url_count: siteUrlIds.length,
-              site_url_ids: siteUrlIds,
-              expected_selection_version: selectionVersion,
-            },
-          });
-        }}
+        onReanalyze={
+          entitlement.advanced_controls_enabled
+            ? (siteUrlIds) => {
+                const selectionVersion = screen.monitoredQuery.data?.selection_version;
+                if (!crawl || selectionVersion === undefined || siteUrlIds.length === 0) return;
+                setLastPhaseMutation('startAnalysis');
+                screen.startAnalysisMutation.mutate({
+                  crawlId: crawl.id,
+                  input: {
+                    requested_url_count: siteUrlIds.length,
+                    site_url_ids: siteUrlIds,
+                    expected_selection_version: selectionVersion,
+                  },
+                });
+              }
+            : undefined
+        }
         reanalyzePending={screen.startAnalysisMutation.isPending}
       />
 

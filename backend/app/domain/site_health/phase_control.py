@@ -43,6 +43,7 @@ from app.core.config.site_health import (
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_CHECK,
+    site_health_settings,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
@@ -170,7 +171,11 @@ def _resume_crawl(crawl: SiteCrawl) -> None:
 
 
 async def _clone_cancelled_discovery_tasks(
-    session: AsyncSession, *, crawl: SiteCrawl, phase_run_id: uuid.UUID
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    phase_run_id: uuid.UUID,
+    requested_count: int,
 ) -> int:
     rows = list(
         (
@@ -182,7 +187,7 @@ async def _clone_cancelled_discovery_tasks(
                     SiteCrawlTask.status == TASK_STATUS_CANCELLED,
                 )
                 .order_by(SiteCrawlTask.updated_at.desc(), SiteCrawlTask.id.desc())
-                .limit(CANCELLED_DISCOVERY_TASK_CLONE_LIMIT)
+                .limit(min(requested_count, CANCELLED_DISCOVERY_TASK_CLONE_LIMIT))
             )
         ).all()
     )
@@ -235,7 +240,10 @@ async def start_discovery(
         raise PhaseControlError(
             "Discovery is already running", code=CODE_PHASE_ALREADY_RUNNING
         )
-    ceiling = int((crawl.configuration or {}).get("max_discovery_urls") or 0)
+    ceiling = int(
+        (crawl.configuration or {}).get("max_discovery_urls")
+        or site_health_settings.max_discovery_urls
+    )
     if (
         additional_url_count <= 0
         or crawl.admitted_url_count + additional_url_count > ceiling
@@ -262,7 +270,10 @@ async def start_discovery(
     scheduled = admitted.admitted
     if scheduled == 0:
         scheduled = await _clone_cancelled_discovery_tasks(
-            session, crawl=crawl, phase_run_id=run.id
+            session,
+            crawl=crawl,
+            phase_run_id=run.id,
+            requested_count=additional_url_count,
         )
     record_crawl_event(
         session,
@@ -430,7 +441,10 @@ async def _lock_analysis_source(
         raise PhaseControlError(
             "Analysis is already running", code=CODE_PHASE_ALREADY_RUNNING
         )
-    ceiling = int((crawl.configuration or {}).get("max_analysis_urls") or 0)
+    ceiling = int(
+        (crawl.configuration or {}).get("max_analysis_urls")
+        or site_health_settings.max_analysis_urls
+    )
     if requested_url_count <= 0 or requested_url_count > ceiling:
         raise PhaseControlError(
             "The requested analysis batch is too large for this environment",
@@ -525,6 +539,7 @@ async def _analysis_target_crawl(
         sample_mode=source.sample_mode,
         discovery_status=DISCOVERY_STATUS_COMPLETED,
         inventory_complete=True,
+        discovery_requested_count=source.discovery_requested_count,
         discovered_url_count=source.discovered_url_count,
         admitted_url_count=source.admitted_url_count,
         extractor_version=source.extractor_version,

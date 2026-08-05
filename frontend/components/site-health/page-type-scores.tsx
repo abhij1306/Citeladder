@@ -210,9 +210,7 @@ function PageTypeDetails({
     }),
   );
   const pages = pagesQuery.data?.items ?? [];
-  const selectedInType = pages
-    .filter((page) => selectedUrlIds.has(page.site_url_id))
-    .map((page) => page.site_url_id);
+  const selectedIds = [...selectedUrlIds];
   const toggleUrl = (siteUrlId: string) => {
     const next = new Set(selectedUrlIds);
     if (next.has(siteUrlId)) next.delete(siteUrlId);
@@ -259,8 +257,8 @@ function PageTypeDetails({
           <div className="flex items-center justify-between gap-3">
             <Button
               size="sm"
-              onClick={() => onReanalyze?.(selectedInType)}
-              disabled={selectedInType.length === 0 || reanalyzePending || !onReanalyze}
+              onClick={() => onReanalyze?.(selectedIds)}
+              disabled={selectedIds.length === 0 || reanalyzePending || !onReanalyze}
             >
               {reanalyzePending ? 'Starting…' : 'Re-analyze selected'}
             </Button>

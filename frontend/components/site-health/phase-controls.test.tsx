@@ -50,14 +50,23 @@ describe('PhaseControls', () => {
       startAnalysisMutation,
       stopAnalysisMutation,
     };
+    const onMutationStart = vi.fn();
 
-    render(<PhaseControls screen={siteHealthScreen as never} selectedUrlIds={new Set()} />);
+    render(
+      <PhaseControls
+        screen={siteHealthScreen as never}
+        selectedUrlIds={new Set()}
+        lastMutation={null}
+        onMutationStart={onMutationStart}
+      />,
+    );
 
     expect(screen.getByRole('heading', { name: 'URL discovery' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'URL analysis' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Stop discovery' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Start analysis' }));
+    expect(onMutationStart).toHaveBeenCalledWith('startAnalysis');
     expect(startAnalysisMutation.mutate).toHaveBeenCalledOnce();
     expect(screen.queryByText('stale discovery error')).not.toBeInTheDocument();
   });

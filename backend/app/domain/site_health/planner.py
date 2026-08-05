@@ -501,6 +501,28 @@ async def preview_crawl_urls(
     }
 
 
+async def _initial_discovery_phase_run_id(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    requested_count: int,
+    enabled: bool,
+) -> uuid.UUID | None:
+    if not enabled:
+        return None
+    run = SiteCrawlPhaseRun(
+        workspace_id=crawl.workspace_id,
+        crawl_id=crawl.id,
+        phase=PHASE_DISCOVERY,
+        ordinal=1,
+        status=PHASE_RUN_RUNNING,
+        requested_count=requested_count,
+    )
+    session.add(run)
+    await session.flush()
+    return run.id
+
+
 async def create_crawl(
     session: AsyncSession,
     *,
@@ -654,16 +676,12 @@ async def create_crawl(
     session.add(crawl)
     await session.flush()  # assign crawl.id
 
-    discovery_run = SiteCrawlPhaseRun(
-        workspace_id=workspace_id,
-        crawl_id=crawl.id,
-        phase=PHASE_DISCOVERY,
-        ordinal=1,
-        status=PHASE_RUN_RUNNING,
+    discovery_phase_run_id = await _initial_discovery_phase_run_id(
+        session,
+        crawl=crawl,
         requested_count=page_limit,
+        enabled=bool(configuration.get("advanced_controls_enabled")),
     )
-    session.add(discovery_run)
-    await session.flush()
 
     # All roots/manual seeds pass the same policy above. Exact mode deliberately
     # creates only the accepted explicit tasks; it cannot discover descendants.
@@ -680,7 +698,7 @@ async def create_crawl(
             SiteCrawlTask(
                 crawl_id=crawl.id,
                 workspace_id=workspace_id,
-                phase_run_id=discovery_run.id,
+                phase_run_id=discovery_phase_run_id,
                 task_kind=TASK_KIND_DISCOVER,
                 requested_url=initial_url,
                 url_hash=url_hash,

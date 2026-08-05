@@ -763,7 +763,7 @@
       "stop_analysis_endpoint": 2,
       "stop_discovery_endpoint": 2
     },
-    "loc": 1116,
+    "loc": 1118,
     "max_cc": 10
   },
   "app/api/traffic.py": {
@@ -3442,11 +3442,13 @@
     "functions": {
       "_active_free_sample_count": 2,
       "_add_free_sample": 3,
+      "_admission_batch": 5,
       "_automatic_remaining": 6,
       "_candidate_allowed": 6,
       "_enqueue_task": 2,
       "_frontier_full": 1,
       "_frontier_limit": 5,
+      "_mark_frontier_admitted": 2,
       "_ordered_unique_candidates": 2,
       "_pending_frontier": 3,
       "_record_admission": 7,
@@ -3466,7 +3468,7 @@
       "drain_discovery_frontier": 1,
       "extract_discovery_links": 16
     },
-    "loc": 926,
+    "loc": 957,
     "max_cc": 16
   },
   "app/domain/site_health/entitlements.py": {
@@ -3536,7 +3538,7 @@
       "stop_analysis": 3,
       "stop_discovery": 3
     },
-    "loc": 765,
+    "loc": 780,
     "max_cc": 8
   },
   "app/domain/site_health/planner.py": {
@@ -3548,6 +3550,7 @@
       "_controls_for_request": 8,
       "_frozen_configuration": 3,
       "_has_active_crawl": 2,
+      "_initial_discovery_phase_run_id": 2,
       "_is_sample_mode": 1,
       "_load_project": 3,
       "_normalize_globs": 7,
@@ -3561,7 +3564,7 @@
       "get_crawl": 2,
       "preview_crawl_urls": 11
     },
-    "loc": 898,
+    "loc": 916,
     "max_cc": 14
   },
   "app/domain/site_health/schemas.py": {
@@ -4493,7 +4496,7 @@
       "_acquisition_values": 3,
       "main": 1
     },
-    "loc": 858,
+    "loc": 859,
     "max_cc": 10
   }
 }

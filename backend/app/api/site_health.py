@@ -330,6 +330,7 @@ async def start_discovery_endpoint(
 async def stop_discovery_endpoint(
     crawl_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> PhaseMutationResponse:
+    await _require_advanced_controls(session, workspace_id=ctx.workspace_id)
     await _enforce_phase_mutation_request(
         session,
         workspace_id=ctx.workspace_id,
@@ -389,6 +390,7 @@ async def start_analysis_endpoint(
 async def stop_analysis_endpoint(
     crawl_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> PhaseMutationResponse:
+    await _require_advanced_controls(session, workspace_id=ctx.workspace_id)
     await _enforce_phase_mutation_request(
         session,
         workspace_id=ctx.workspace_id,

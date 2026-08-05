@@ -203,7 +203,10 @@ export function useSiteHealthScreen(projectId: string | null) {
               ...previous,
               crawl: result.crawl,
               phase_runs: result.created_new_crawl
-                ? { discovery: null, analysis: null }
+                ? {
+                    discovery: null,
+                    analysis: result.phase_run?.phase === 'analysis' ? result.phase_run : null,
+                  }
                 : result.phase_run
                   ? {
                       ...previous.phase_runs,
