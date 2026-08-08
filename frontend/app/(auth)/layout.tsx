@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { AuthBrandPanel, AuthWordmark } from '@/components/auth/brand-panel';
@@ -26,9 +27,19 @@ export default function AuthLayout({ children }: Readonly<{ children: ReactNode 
           <div className="w-full max-w-sm sm:max-w-md">{children}</div>
         </div>
 
-        {/* Footer band */}
-        <footer className="text-muted pb-2 text-center text-xs">
-          <span>© {new Date().getFullYear()} CiteLadder · Privacy · Terms</span>
+        {/* Footer band. Privacy and Terms are LINKS: rendering the words of a
+            legal notice as inert text on the screen where an account is
+            created offers a policy the reader cannot go and read. */}
+        <footer className="text-muted flex flex-wrap justify-center gap-x-1.5 pb-2 text-center text-xs">
+          <span>© {new Date().getFullYear()} CiteLadder</span>
+          <span aria-hidden="true">·</span>
+          <Link href="/privacy" className="hover:text-foreground transition-colors">
+            Privacy
+          </Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/terms" className="hover:text-foreground transition-colors">
+            Terms
+          </Link>
         </footer>
       </main>
     </div>

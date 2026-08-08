@@ -26,7 +26,7 @@ describe('ReviewStep competitor limit', () => {
         onToggleCompetitor={vi.fn()}
         onTogglePrompt={vi.fn()}
         onEditPrompt={vi.fn()}
-        onRenameCompetitor={vi.fn()}
+        onEditCompetitorDomain={vi.fn()}
         onAddCompetitor={vi.fn()}
       />,
     );
@@ -57,7 +57,7 @@ describe('ReviewStep competitor limit', () => {
         onToggleCompetitor={vi.fn()}
         onTogglePrompt={vi.fn()}
         onEditPrompt={vi.fn()}
-        onRenameCompetitor={vi.fn()}
+        onEditCompetitorDomain={vi.fn()}
         onAddCompetitor={add}
       />,
     );

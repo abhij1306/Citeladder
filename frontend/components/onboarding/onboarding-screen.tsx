@@ -322,61 +322,63 @@ export function OnboardingScreen() {
             </p>
           </div>
 
-          {/* Vertical Stepper Flow */}
-          <ol className="relative my-auto list-none space-y-10 p-0 pl-1 sm:space-y-12">
-            {/* Connector line */}
+          {/* Vertical Stepper Flow. The connector is a SIBLING of the list:
+              `ol` permits only `li` (plus script/template) as content, and a
+              bare decorative `div` inside it is invalid markup. */}
+          <div className="relative my-auto">
             <div
               className="bg-brand-canvas-border absolute top-4 bottom-4 left-4.5 w-0.5"
               aria-hidden="true"
             />
-
-            {STEPS.map((stage, index) => {
-              const isDone = index < step;
-              const isCurrent = index === step;
-              return (
-                <li
-                  key={stage.id}
-                  aria-current={isCurrent ? 'step' : undefined}
-                  className="relative flex items-center gap-4"
-                >
-                  <span
-                    className={cn(
-                      'relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all sm:size-10',
-                      isDone && 'bg-accent text-accent-fg shadow-accent/30 shadow-md',
-                      isCurrent && 'bg-accent text-accent-fg ring-accent/20 ring-4',
-                      !isDone &&
-                        !isCurrent &&
-                        'border-brand-canvas-border bg-brand-canvas-raised text-brand-canvas-muted border',
-                    )}
+            <ol className="relative list-none space-y-10 p-0 pl-1 sm:space-y-12">
+              {STEPS.map((stage, index) => {
+                const isDone = index < step;
+                const isCurrent = index === step;
+                return (
+                  <li
+                    key={stage.id}
+                    aria-current={isCurrent ? 'step' : undefined}
+                    className="relative flex items-center gap-4"
                   >
-                    {isDone ? (
-                      <>
-                        <Check className="size-4.5" strokeWidth={2.5} aria-hidden="true" />
-                        <span className="sr-only">Completed:</span>
-                      </>
-                    ) : (
-                      index + 1
-                    )}
-                  </span>
-                  <div className="space-y-1">
-                    <p
+                    <span
                       className={cn(
-                        'text-base font-semibold transition-colors sm:text-lg',
-                        isCurrent && 'text-brand-canvas-foreground',
-                        isDone && 'text-brand-canvas-secondary',
-                        !isDone && !isCurrent && 'text-brand-canvas-muted',
+                        'relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all sm:size-10',
+                        isDone && 'bg-accent text-accent-fg shadow-accent/30 shadow-md',
+                        isCurrent && 'bg-accent text-accent-fg ring-accent/20 ring-4',
+                        !isDone &&
+                          !isCurrent &&
+                          'border-brand-canvas-border bg-brand-canvas-raised text-brand-canvas-muted border',
                       )}
                     >
-                      {stage.title}
-                    </p>
-                    <p className="text-brand-canvas-muted text-xs sm:text-sm">
-                      {stage.description}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
+                      {isDone ? (
+                        <>
+                          <Check className="size-4.5" strokeWidth={2.5} aria-hidden="true" />
+                          <span className="sr-only">Completed:</span>
+                        </>
+                      ) : (
+                        index + 1
+                      )}
+                    </span>
+                    <div className="space-y-1">
+                      <p
+                        className={cn(
+                          'text-base font-semibold transition-colors sm:text-lg',
+                          isCurrent && 'text-brand-canvas-foreground',
+                          isDone && 'text-brand-canvas-secondary',
+                          !isDone && !isCurrent && 'text-brand-canvas-muted',
+                        )}
+                      >
+                        {stage.title}
+                      </p>
+                      <p className="text-brand-canvas-muted text-xs sm:text-sm">
+                        {stage.description}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
         </div>
 
         <div className="border-brand-canvas-border/80 text-brand-canvas-muted relative z-10 border-t pt-4 text-xs">
@@ -424,9 +426,15 @@ export function OnboardingScreen() {
         </header>
 
         {/* Step Stage Content — Top aligned across all steps so headers start at the same vertical offset */}
+        {/* The stage OWNS the vertical scroll. Its ancestors are
+            `h-screen overflow-hidden`, so without this a review step taller
+            than the viewport — or any step on a short laptop — clipped its
+            own action row with nothing able to scroll to it. `min-h-0` is
+            what lets a flex child shrink below its content and actually
+            scroll instead of stretching the column. */}
         <main
           className={cn(
-            'mx-auto flex w-full flex-1 flex-col justify-start py-2 sm:py-4',
+            'mx-auto flex min-h-0 w-full flex-1 flex-col justify-start overflow-y-auto py-2 sm:py-4',
             step === 2 ? 'max-w-3xl lg:max-w-4xl' : 'max-w-xl',
           )}
         >
@@ -702,9 +710,22 @@ export function OnboardingScreen() {
                       ),
                     )
                   }
-                  onRenameCompetitor={(index, name) =>
+                  onEditCompetitorDomain={(index, domain) =>
                     setCompetitors((prev) =>
-                      prev.map((item, i) => (i === index ? { ...item, name } : item)),
+                      prev.map((item, i) =>
+                        i === index
+                          ? {
+                              ...item,
+                              domains: [domain],
+                              // A manually added competitor has no name yet, and
+                              // the submit payload drops any competitor whose
+                              // name is blank — so the domain doubles as the
+                              // name until the user gives it one. A discovered
+                              // competitor keeps the name it came with.
+                              name: item.name || domain,
+                            }
+                          : item,
+                      ),
                     )
                   }
                   onAddCompetitor={() =>

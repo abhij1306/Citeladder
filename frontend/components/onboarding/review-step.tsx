@@ -59,11 +59,11 @@ function DomainChip({
 function CompetitorChip({
   competitor,
   onToggle,
-  onRename,
+  onEditDomain,
 }: Readonly<{
   competitor: ReviewCompetitor;
   onToggle: () => void;
-  onRename: (domain: string) => void;
+  onEditDomain: (domain: string) => void;
 }>) {
   const primaryDomain = competitor.domains.find(Boolean) || competitor.name;
   const displayName = competitor.name || primaryDomain || 'Competitor';
@@ -73,11 +73,15 @@ function CompetitorChip({
   );
   const [editDomain, setEditDomain] = useState(primaryDomain);
 
+  // The field is labelled, seeded, and placeheld as a DOMAIN, so it writes the
+  // domain. It used to write `name` instead, which left `domains` holding the
+  // value the user had just replaced — the submitted payload carried both, and
+  // the chip's link still pointed at the old host.
   const handleSave = () => {
     setIsEditing(false);
     const trimmed = editDomain.trim();
     if (trimmed) {
-      onRename(trimmed);
+      onEditDomain(trimmed);
     }
   };
 
@@ -156,7 +160,7 @@ export function ReviewStep({
   onToggleCompetitor,
   onTogglePrompt,
   onEditPrompt,
-  onRenameCompetitor,
+  onEditCompetitorDomain,
   onAddCompetitor,
   maximumCompetitors,
 }: Readonly<{
@@ -167,7 +171,7 @@ export function ReviewStep({
   onToggleCompetitor: (index: number) => void;
   onTogglePrompt: (index: number) => void;
   onEditPrompt: (index: number, text: string) => void;
-  onRenameCompetitor: (index: number, name: string) => void;
+  onEditCompetitorDomain: (index: number, domain: string) => void;
   onAddCompetitor: () => void;
   maximumCompetitors: number | undefined;
 }>) {
@@ -240,7 +244,7 @@ export function ReviewStep({
                   key={competitor.id}
                   competitor={competitor}
                   onToggle={() => onToggleCompetitor(index)}
-                  onRename={(domain) => onRenameCompetitor(index, domain)}
+                  onEditDomain={(domain) => onEditCompetitorDomain(index, domain)}
                 />
               ))}
             </div>

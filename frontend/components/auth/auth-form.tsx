@@ -134,8 +134,13 @@ export function AuthFormShell({
   children: ReactNode;
 }>) {
   const [oauthNotice, setOauthNotice] = useState<string | null>(null);
+  const [oauthPending, setOauthPending] = useState(false);
 
   async function handleGoogleSignIn() {
+    // The button stays live for the whole round trip otherwise, and a second
+    // click starts a second authorization before the first can redirect.
+    if (oauthPending) return;
+    setOauthPending(true);
     setOauthNotice(null);
     try {
       const { authorize_url } = await authApi.oauthStart('google');
@@ -146,6 +151,10 @@ export function AuthFormShell({
       } else {
         setOauthNotice('Unable to start Google sign-in. Please try email below.');
       }
+    } finally {
+      // Cleared even on the success path: `assignLocation` may be a no-op in a
+      // test, and a permanently disabled button would strand the user.
+      setOauthPending(false);
     }
   }
 
@@ -165,10 +174,11 @@ export function AuthFormShell({
               variant="secondary"
               size="lg"
               className="w-full gap-2 text-sm font-medium"
+              disabled={oauthPending}
               onClick={() => void handleGoogleSignIn()}
             >
               <GoogleIcon />
-              <span>Continue with Google</span>
+              <span>{oauthPending ? 'Starting Google sign-in…' : 'Continue with Google'}</span>
             </Button>
 
             {oauthNotice ? <MktAlert>{oauthNotice}</MktAlert> : null}
