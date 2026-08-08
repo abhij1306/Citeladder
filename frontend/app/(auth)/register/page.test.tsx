@@ -62,4 +62,3 @@ describe('RegisterPage', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 });
-

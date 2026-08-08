@@ -38,7 +38,7 @@ export function Field({
 
   return (
     <div className={cn('grid gap-1.5', className)}>
-      <label htmlFor={id} className={cn('text-sm font-medium text-foreground', labelClassName)}>
+      <label htmlFor={id} className={cn('text-foreground text-sm font-medium', labelClassName)}>
         {label}
         {required ? <span className="text-danger ms-0.5">*</span> : null}
       </label>
@@ -61,4 +61,3 @@ export function Field({
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, EyeOff, type LucideIcon } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { type ComponentProps, type ReactNode, useState } from 'react';
 
@@ -51,7 +51,7 @@ export function AuthEmailField({
           autoComplete="email"
           spellCheck={false}
           placeholder="hello@app.com"
-          className="h-10 px-3 text-sm"
+          size="lg"
         />
       )}
     </Field>
@@ -84,7 +84,9 @@ export function AuthPasswordField({
             type={visible ? 'text' : 'password'}
             autoComplete={autoComplete}
             placeholder={placeholder}
-            className="h-10 px-3 pr-9 text-sm"
+            size="lg"
+            // Room for the visibility toggle that sits inside the field.
+            className="pr-9"
           />
           <button
             type="button"
@@ -104,7 +106,6 @@ export function AuthPasswordField({
   );
 }
 
-
 export function AuthFormShell({
   title,
   description,
@@ -119,7 +120,6 @@ export function AuthFormShell({
   showOAuth = true,
   children,
 }: Readonly<{
-  icon?: LucideIcon;
   title: string;
   description: string;
   error?: string;
@@ -158,8 +158,6 @@ export function AuthFormShell({
         <p className="text-muted mt-1 text-xs sm:text-sm">{description}</p>
       </div>
 
-
-
       <div className="mt-6 space-y-4">
         {showOAuth && (
           <>
@@ -180,7 +178,6 @@ export function AuthFormShell({
               <span className="text-muted text-xs font-normal">or</span>
               <span className="bg-border h-px flex-1" aria-hidden="true" />
             </div>
-
           </>
         )}
 
@@ -192,14 +189,14 @@ export function AuthFormShell({
           <Button
             type="submit"
             size="lg"
-            className="w-full font-medium text-sm mt-2"
+            className="mt-2 w-full text-sm font-medium"
             disabled={pending}
           >
             {pending ? pendingLabel : submitLabel}
           </Button>
         </form>
 
-        <p className="text-muted text-center text-sm pt-1">
+        <p className="text-muted pt-1 text-center text-sm">
           {footerPrompt}{' '}
           <Link
             href={footerHref}
@@ -211,7 +208,4 @@ export function AuthFormShell({
       </div>
     </div>
   );
-
 }
-
-

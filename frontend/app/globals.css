@@ -30,10 +30,12 @@
   --color-sidebar: #ffffff;
   --color-surface-inverse: #101828;
 
-  /* Borders — Untitled UI Gray-200 / Gray-300 crisp hairlines. */
+  /* Borders — Untitled UI Gray-200/300 hairlines; `-bold` (Gray-400) is the
+     hover step for a control resting at `-strong`, short of the blue focus. */
   --color-border: #e4e7ec;
   --color-border-subtle: #f2f4f7;
   --color-border-strong: #d0d5dd;
+  --color-border-bold: #98a2b3;
 
   /* Text — Untitled UI Gray-900 Ink → Gray-700 Slate → Gray-600 → Gray-500. */
   --color-foreground: #101828;
@@ -71,6 +73,15 @@
   --color-brand-google-yellow: #fbbc05;
   --color-brand-google-red: #ea4335;
 
+  /* Brand canvas — the dark half of the split auth/onboarding screens, and the
+     only surface dark in every theme. Named for the ROLE, not the shade. */
+  --color-brand-canvas: #020617;
+  --color-brand-canvas-raised: #0f172a;
+  --color-brand-canvas-glow: #1e3a8a;
+  --color-brand-canvas-border: #1e293b;
+  --color-brand-canvas-foreground: #ffffff;
+  --color-brand-canvas-secondary: #cbd5e1;
+  --color-brand-canvas-muted: #94a3b8;
 
   /* Status — app-only functional colour; never carries meaning alone. */
   --color-success: #19724b;
@@ -390,6 +401,7 @@ samp {
     --content-gutter: 16px;
     --control-height-sm: 44px;
     --control-height: 44px;
+    --control-height-lg: 44px;
     --table-row-height: 44px;
   }
 }

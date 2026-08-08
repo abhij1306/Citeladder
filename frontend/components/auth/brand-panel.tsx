@@ -1,9 +1,13 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 import { LogoMark } from '@/components/ui/logo-mark';
 import { cn } from '@/lib/utils';
 
-export function AuthWordmark({ compact = false, light = false }: Readonly<{ compact?: boolean; light?: boolean }>) {
+export function AuthWordmark({
+  compact = false,
+  light = false,
+}: Readonly<{ compact?: boolean; light?: boolean }>) {
   return (
     <Link
       href="/"
@@ -16,38 +20,56 @@ export function AuthWordmark({ compact = false, light = false }: Readonly<{ comp
       <span
         className={cn(
           'font-display font-semibold tracking-tight',
-          light ? 'text-white' : 'text-foreground',
+          light ? 'text-brand-canvas-foreground' : 'text-foreground',
           compact ? 'text-lg' : 'text-xl',
         )}
       >
         CiteLadder
       </span>
-
-
     </Link>
   );
 }
 
-
-
-export function AuthBrandPanel() {
+/**
+ * The dark half of a split auth or onboarding screen.
+ *
+ * Shared rather than copied: auth and onboarding present the SAME brand
+ * surface, and two hand-tuned stacks of glow and ribbon geometry drifted apart
+ * the moment either was touched. Callers supply only the content; the ambient
+ * treatment and the `min-[900px]` split point live here once.
+ *
+ * Colours come from the `brand-canvas-*` tokens. This is the one surface in the
+ * app that stays dark in every theme, so it needs named roles — raw palette
+ * classes describe a shade no theme can reach.
+ */
+export function BrandCanvas({
+  children,
+  className,
+}: Readonly<{ children: ReactNode; className?: string }>) {
   return (
-    <div className="bg-slate-950 relative col-span-1 flex min-h-full flex-col items-center justify-center overflow-hidden px-8 py-12 text-white max-[900px]:hidden">
-      {/* Dark ambient background glow */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="bg-radial from-blue-900/20 via-slate-950/80 to-slate-950 absolute -top-1/4 -left-1/4 size-[150%] rounded-full blur-3xl" />
-        <div className="bg-blue-600/10 absolute top-1/2 left-1/2 size-96 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px]" />
-        {/* Abstract dark ribbon lines */}
-        <div className="border-slate-800/40 absolute top-1/3 -left-20 h-96 w-[600px] -rotate-12 rounded-[100px] border-2" />
-        <div className="border-slate-800/30 absolute top-1/4 -left-10 h-96 w-[650px] -rotate-12 rounded-[120px] border" />
+    <div
+      className={cn(
+        'bg-brand-canvas text-brand-canvas-foreground relative flex flex-col overflow-hidden max-[900px]:hidden',
+        className,
+      )}
+    >
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div className="from-brand-canvas-glow/20 via-brand-canvas/80 to-brand-canvas absolute -top-1/4 -left-1/4 size-[150%] rounded-full bg-radial blur-3xl" />
+        <div className="bg-accent/10 absolute top-1/2 left-1/2 size-96 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px]" />
+        <div className="border-brand-canvas-border/40 absolute top-1/3 -left-20 h-96 w-[600px] -rotate-12 rounded-[100px] border-2" />
+        <div className="border-brand-canvas-border/30 absolute top-1/4 -left-10 h-96 w-[650px] -rotate-12 rounded-[120px] border" />
       </div>
-
-      {/* Centered Brand Mark & Wordmark */}
-      <div className="relative z-10 flex items-center justify-center">
-        <AuthWordmark light />
-      </div>
+      {children}
     </div>
   );
 }
 
-
+export function AuthBrandPanel() {
+  return (
+    <BrandCanvas className="col-span-1 min-h-full items-center justify-center px-8 py-12">
+      <div className="relative z-10 flex items-center justify-center">
+        <AuthWordmark light />
+      </div>
+    </BrandCanvas>
+  );
+}

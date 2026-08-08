@@ -23,9 +23,7 @@ export default function AuthLayout({ children }: Readonly<{ children: ReactNode 
         </header>
 
         <div className="flex flex-1 items-center justify-center py-6">
-          <div className="w-full max-w-sm sm:max-w-md">
-            {children}
-          </div>
+          <div className="w-full max-w-sm sm:max-w-md">{children}</div>
         </div>
 
         {/* Footer band */}

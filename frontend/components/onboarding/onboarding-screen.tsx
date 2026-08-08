@@ -8,14 +8,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Check } from 'lucide-react';
 
-import { AuthWordmark } from '@/components/auth/brand-panel';
+import { AuthWordmark, BrandCanvas } from '@/components/auth/brand-panel';
 import { Alert } from '@/components/ui/alert';
 import { ActivityProgress } from '@/components/ui/activity-progress';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-
-import { LogoMark } from '@/components/ui/logo-mark';
 import { MarketSelect } from '@/components/ui/market-select';
 import { queryKeys } from '@/lib/api/query-keys';
 import { projectsApi } from '@/lib/api/projects';
@@ -54,19 +52,18 @@ import { ReviewStep } from './review-step';
  * the welcome framing, and Cancel returns to `/projects` instead of leaving the
  * user nowhere.
  */
-const STEPS = ['Brand', 'Discovery', 'Review'] as const;
-type StepIndex = 0 | 1 | 2;
-
 /**
- * Per-step stage geometry. The short form/progress/congrats steps are narrow
- * cards centered both ways; the data-dense review step is wide, top-aligned,
- * and flex-height so its internal columns fill the stage rather than scroll it.
+ * The three stages, as DATA. The stepper needs a title and a description per
+ * step; deriving them from a bare label with nested ternaries at the render
+ * site meant three separate chains had to be kept in the same order as the
+ * array, and adding a step meant editing each one.
  */
-const STEP_STAGE: Record<StepIndex, { maxWidth: string; centerY: string; stageAlign: string }> = {
-  0: { maxWidth: 'max-w-3xl', centerY: 'justify-center', stageAlign: 'sm:justify-center' },
-  1: { maxWidth: 'max-w-3xl', centerY: 'justify-center', stageAlign: 'sm:justify-center' },
-  2: { maxWidth: 'max-w-4xl', centerY: 'justify-center', stageAlign: 'sm:justify-center' },
-};
+const STEPS = [
+  { id: 'brand', title: 'Basic information', description: 'Name & domain details' },
+  { id: 'discovery', title: 'AI Research', description: 'Auto-finding competitors' },
+  { id: 'review', title: 'Review & Confirm', description: 'Finalize tracking scope' },
+] as const;
+type StepIndex = 0 | 1 | 2;
 
 function stepQueryValue(step: StepIndex): 'brand' | 'discovery' | 'review' {
   if (step === 2) return 'review';
@@ -312,82 +309,80 @@ export function OnboardingScreen() {
   return (
     <div className="bg-panel text-foreground selection:bg-accent selection:text-accent-fg relative h-screen max-h-screen w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
       {/* Left Brand Panel — Vertical Stepper (Desktop ≥900px) */}
-      <div className="bg-slate-950 relative col-span-5 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 text-white max-[900px]:hidden lg:col-span-4 xl:p-10">
-        {/* Dark ambient background glow */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="bg-radial from-blue-900/20 via-slate-950/80 to-slate-950 absolute -top-1/4 -left-1/4 size-[150%] rounded-full blur-3xl" />
-          <div className="bg-blue-600/10 absolute top-1/2 left-1/2 size-96 -translate-x-1/2 -translate-y-1/2 rounded-full blur-[100px]" />
-          {/* Abstract dark globe / ribbon lines matching reference screenshot */}
-          <div className="border-slate-800/40 absolute -bottom-20 -left-20 size-96 rounded-full border-2" />
-          <div className="border-slate-800/30 absolute -bottom-10 -left-10 size-[450px] rounded-full border" />
-        </div>
-
+      <BrandCanvas className="col-span-5 h-screen max-h-screen justify-between p-6 lg:col-span-4 xl:p-10">
         <div className="relative z-10 flex flex-col gap-8">
           <AuthWordmark light />
 
           <div className="space-y-1.5">
-            <h2 className="font-display text-white text-xl font-bold tracking-tight sm:text-2xl">
+            <h2 className="font-display text-brand-canvas-foreground text-xl font-bold tracking-tight sm:text-2xl">
               Set up your project
             </h2>
-            <p className="text-slate-300 text-sm">
+            <p className="text-brand-canvas-secondary text-sm">
               Create your workspace in a few clicks.
             </p>
           </div>
 
           {/* Vertical Stepper Flow */}
-          <div className="relative my-auto space-y-10 pl-1 sm:space-y-12">
+          <ol className="relative my-auto list-none space-y-10 p-0 pl-1 sm:space-y-12">
             {/* Connector line */}
-            <div className="bg-slate-800 absolute top-4 bottom-4 left-4.5 w-0.5" aria-hidden="true" />
+            <div
+              className="bg-brand-canvas-border absolute top-4 bottom-4 left-4.5 w-0.5"
+              aria-hidden="true"
+            />
 
-            {STEPS.map((label, index) => {
+            {STEPS.map((stage, index) => {
               const isDone = index < step;
               const isCurrent = index === step;
               return (
-                <div key={label} className="relative flex items-center gap-4">
+                <li
+                  key={stage.id}
+                  aria-current={isCurrent ? 'step' : undefined}
+                  className="relative flex items-center gap-4"
+                >
                   <span
                     className={cn(
                       'relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all sm:size-10',
-                      isDone
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                        : isCurrent
-                          ? 'bg-blue-600 text-white ring-4 ring-blue-500/20'
-                          : 'border-slate-700 bg-slate-900 text-slate-400 border',
+                      isDone && 'bg-accent text-accent-fg shadow-accent/30 shadow-md',
+                      isCurrent && 'bg-accent text-accent-fg ring-accent/20 ring-4',
+                      !isDone &&
+                        !isCurrent &&
+                        'border-brand-canvas-border bg-brand-canvas-raised text-brand-canvas-muted border',
                     )}
                   >
-                    {isDone ? <Check className="size-4.5" strokeWidth={2.5} /> : index + 1}
+                    {isDone ? (
+                      <>
+                        <Check className="size-4.5" strokeWidth={2.5} aria-hidden="true" />
+                        <span className="sr-only">Completed:</span>
+                      </>
+                    ) : (
+                      index + 1
+                    )}
                   </span>
                   <div className="space-y-1">
                     <p
                       className={cn(
-                        'text-base sm:text-lg font-semibold transition-colors',
-                        isCurrent ? 'text-white' : isDone ? 'text-slate-200' : 'text-slate-400',
+                        'text-base font-semibold transition-colors sm:text-lg',
+                        isCurrent && 'text-brand-canvas-foreground',
+                        isDone && 'text-brand-canvas-secondary',
+                        !isDone && !isCurrent && 'text-brand-canvas-muted',
                       )}
                     >
-                      {label === 'Brand'
-                        ? 'Basic information'
-                        : label === 'Discovery'
-                          ? 'AI Research'
-                          : 'Review & Confirm'}
+                      {stage.title}
                     </p>
-                    <p className="text-slate-400 text-xs sm:text-sm">
-                      {label === 'Brand'
-                        ? 'Name & domain details'
-                        : label === 'Discovery'
-                          ? 'Auto-finding competitors'
-                          : 'Finalize tracking scope'}
+                    <p className="text-brand-canvas-muted text-xs sm:text-sm">
+                      {stage.description}
                     </p>
                   </div>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ol>
         </div>
 
-
-        <div className="border-slate-800/80 text-slate-400 relative z-10 border-t pt-4 text-xs">
+        <div className="border-brand-canvas-border/80 text-brand-canvas-muted relative z-10 border-t pt-4 text-xs">
           <span>© {new Date().getFullYear()} CiteLadder · Onboarding</span>
         </div>
-      </div>
+      </BrandCanvas>
 
       {/* Right Canvas — Form & Details */}
       <div className="bg-panel relative col-span-12 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 min-[900px]:col-span-7 sm:p-8 lg:col-span-8 lg:p-10">
@@ -395,11 +390,11 @@ export function OnboardingScreen() {
         <header className="border-border-subtle border-b pb-3 min-[900px]:hidden">
           <div className="flex items-center justify-between gap-4">
             <AuthWordmark compact />
-            <ol className="flex items-center gap-2 list-none p-0">
-              {STEPS.map((label, index) => {
+            <ol className="flex list-none items-center gap-2 p-0">
+              {STEPS.map((stage, index) => {
                 const state = index < step ? 'done' : index === step ? 'current' : 'upcoming';
                 return (
-                  <li key={label} className="flex items-center">
+                  <li key={stage.id} className="flex items-center">
                     <span
                       aria-current={state === 'current' ? 'step' : undefined}
                       className={cn(
@@ -411,7 +406,15 @@ export function OnboardingScreen() {
                             : 'border-border-subtle bg-well text-muted border',
                       )}
                     >
-                      {state === 'done' ? <Check className="size-3" strokeWidth={3} /> : index + 1}
+                      {state === 'done' ? (
+                        <Check className="size-3" strokeWidth={3} aria-hidden="true" />
+                      ) : (
+                        index + 1
+                      )}
+                      {/* The dot alone is not a label: a screen reader would
+                          otherwise announce a bare number, or nothing at all
+                          once the check replaces it. */}
+                      <span className="sr-only">{stage.title}</span>
                     </span>
                   </li>
                 );
@@ -427,20 +430,20 @@ export function OnboardingScreen() {
             step === 2 ? 'max-w-3xl lg:max-w-4xl' : 'max-w-xl',
           )}
         >
-
           <div className="p-1 sm:p-2">
             {step === 0 ? (
               <form noValidate onSubmit={submitBrand} className="space-y-6">
                 <div className="space-y-1">
                   <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
-                    {isAdditional ? 'Add a project' : 'Let\'s get started'}
+                    {isAdditional ? 'Add a project' : "Let's get started"}
                   </h1>
                   <p className="text-muted text-sm">
-                    We&apos;ll review your website, suggest comparable brands, and prepare balanced questions.
+                    We&apos;ll review your website, suggest comparable brands, and prepare balanced
+                    questions.
                   </p>
                 </div>
 
-                <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 items-start">
+                <div className="grid items-start gap-x-6 gap-y-5 sm:grid-cols-2">
                   <Field
                     label="Brand name"
                     required
@@ -451,7 +454,7 @@ export function OnboardingScreen() {
                         {...props}
                         {...form.register('brand_name')}
                         placeholder="Acme"
-                        className="h-10 px-3 text-sm"
+                        size="lg"
                       />
                     )}
                   </Field>
@@ -466,15 +469,12 @@ export function OnboardingScreen() {
                         {...form.register('website_url')}
                         placeholder="acme.com"
                         inputMode="url"
-                        className="h-10 px-3 text-sm"
+                        size="lg"
                       />
                     )}
                   </Field>
                   {/* Row 2: Industry on left, Subindustry on RIGHT */}
-                  <Field
-                    label="Industry"
-                    error={form.formState.errors.industry?.message}
-                  >
+                  <Field label="Industry" error={form.formState.errors.industry?.message}>
                     {(props) => (
                       <Controller
                         control={form.control}
@@ -497,10 +497,7 @@ export function OnboardingScreen() {
                   </Field>
 
                   {selectedIndustry !== 'General' && subindustryOptions.length > 0 ? (
-                    <Field
-                      label="Subindustry"
-                      error={form.formState.errors.subindustry?.message}
-                    >
+                    <Field label="Subindustry" error={form.formState.errors.subindustry?.message}>
                       {(props) => (
                         <Controller
                           control={form.control}
@@ -567,7 +564,7 @@ export function OnboardingScreen() {
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
-                  <Button type="submit" size="lg" className="font-medium text-sm">
+                  <Button type="submit" size="lg" className="text-sm font-medium">
                     Continue
                   </Button>
                   {isAdditional ? (
@@ -586,8 +583,8 @@ export function OnboardingScreen() {
                     Finding what to track
                   </h1>
                   <p className="text-muted text-sm">
-                    We&apos;re learning about {brand?.brand_name || 'your brand'} and preparing useful
-                    questions. You can review everything before the project is created.
+                    We&apos;re learning about {brand?.brand_name || 'your brand'} and preparing
+                    useful questions. You can review everything before the project is created.
                   </p>
                 </div>
 
@@ -599,7 +596,7 @@ export function OnboardingScreen() {
                 </div>
 
                 {(discovery.discovery?.warnings ?? []).map((warning) => (
-                  <Alert key={warning} tone="warning" className="py-2.5 px-3 text-xs">
+                  <Alert key={warning} tone="warning" className="px-3 py-2.5 text-xs">
                     {warningMessage(warning)}
                   </Alert>
                 ))}
@@ -643,7 +640,7 @@ export function OnboardingScreen() {
                       !discovery.discovery ||
                       discovery.discovery.prompt_suggestions.length === 0
                     }
-                    className="font-medium text-sm"
+                    className="text-sm font-medium"
                   >
                     {discovery.isRunning ? 'Searching…' : 'Review'}
                   </Button>
@@ -656,7 +653,6 @@ export function OnboardingScreen() {
 
             {step === 2 ? (
               <div className="space-y-3">
-
                 <div className="space-y-1">
                   <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
                     Does this look right?
@@ -669,7 +665,7 @@ export function OnboardingScreen() {
                 {/* Discovered Profile at TOP */}
                 {discovery.discovery?.profile.description ? (
                   <div className="border-border-subtle bg-well/40 rounded-lg border px-3.5 py-2.5">
-                    <p className="text-3xs text-muted font-semibold uppercase tracking-wider">
+                    <p className="text-3xs text-muted font-semibold tracking-wider uppercase">
                       Discovered Profile
                     </p>
                     <p className="text-foreground mt-0.5 text-xs leading-relaxed">
@@ -753,14 +749,13 @@ export function OnboardingScreen() {
                 ) : null}
                 {hasSelectedPrompt && !hasCompletePromptPortfolio ? (
                   <Alert tone="warning">
-                    Keep all ten questions selected with non-empty text: five neutral market questions
-                    and five unbranded, brand-relevant questions.
+                    Keep all ten questions selected with non-empty text: five neutral market
+                    questions and five unbranded, brand-relevant questions.
                   </Alert>
                 ) : null}
 
-                <div className="flex items-center gap-3 -mt-1 pt-1 pb-4">
+                <div className="-mt-1 flex items-center gap-3 pt-1 pb-4">
                   <Button
-
                     size="lg"
                     onClick={() => complete.mutate()}
                     disabled={
@@ -769,21 +764,24 @@ export function OnboardingScreen() {
                       !hasSelectedPrompt ||
                       !hasCompletePromptPortfolio
                     }
-                    className="font-medium text-sm"
+                    className="text-sm font-medium"
                   >
                     {complete.isPending ? 'Creating…' : 'Create project'}
                   </Button>
-                  <Button variant="ghost" size="lg" onClick={() => setStep(1)} disabled={complete.isPending}>
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    onClick={() => setStep(1)}
+                    disabled={complete.isPending}
+                  >
                     Back
                   </Button>
                 </div>
               </div>
             ) : null}
-
           </div>
         </main>
       </div>
     </div>
   );
 }
-

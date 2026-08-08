@@ -92,5 +92,3 @@ describe('LoginPage', () => {
     expect(replace).not.toHaveBeenCalled();
   });
 });
-
-

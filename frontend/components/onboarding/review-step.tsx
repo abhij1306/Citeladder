@@ -15,23 +15,42 @@ function competitorUrl(competitor: ReviewCompetitor): string {
   return /^https?:\/\//i.test(domain) ? domain : `https://${domain}`;
 }
 
+/**
+ * A reviewable suggestion, in both states.
+ *
+ * An unselected chip is rendered MUTED rather than dropped. Hiding it made
+ * every exclusion permanent — and discovery legitimately returns more
+ * suggestions than the cap pre-selects, so the extras were unreachable before
+ * the user ever touched anything. A review step whose choices cannot be undone
+ * is not a review step.
+ */
 function DomainChip({
   label,
   selected,
   onToggle,
 }: Readonly<{ label: string; selected: boolean; onToggle: () => void }>) {
-  if (!selected) return null;
   return (
-    <div className="inline-flex items-center gap-1.5 rounded-lg border border-accent-border/60 bg-accent-soft/80 px-3 py-1.5 text-sm font-medium text-accent-hover transition-all">
+    <div
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
+        selected
+          ? 'border-accent-border/60 bg-accent-soft/80 text-accent-hover'
+          : 'border-border-subtle text-muted border-dashed',
+      )}
+    >
       <span className="truncate">{label}</span>
       <button
         type="button"
         onClick={onToggle}
-        aria-label={`Exclude ${label}`}
-        aria-pressed={true}
-        className="text-muted hover:text-foreground shrink-0 p-0.5 cursor-pointer transition-colors"
+        aria-label={`${selected ? 'Exclude' : 'Include'} ${label}`}
+        aria-pressed={selected}
+        className="text-muted hover:text-foreground shrink-0 cursor-pointer p-0.5 transition-colors"
       >
-        <X className="size-3.5" aria-hidden />
+        {selected ? (
+          <X className="size-3.5" aria-hidden />
+        ) : (
+          <Plus className="size-3.5" aria-hidden />
+        )}
       </button>
     </div>
   );
@@ -49,7 +68,9 @@ function CompetitorChip({
   const primaryDomain = competitor.domains.find(Boolean) || competitor.name;
   const displayName = competitor.name || primaryDomain || 'Competitor';
 
-  const [isEditing, setIsEditing] = useState(competitor.name === '' && competitor.domains.length === 0);
+  const [isEditing, setIsEditing] = useState(
+    competitor.name === '' && competitor.domains.length === 0,
+  );
   const [editDomain, setEditDomain] = useState(primaryDomain);
 
   const handleSave = () => {
@@ -61,9 +82,17 @@ function CompetitorChip({
   };
 
   const url = competitorUrl(competitor);
+  const selected = competitor.selected;
 
   return (
-    <div className="flex items-center justify-between gap-1.5 rounded-lg border border-accent-border/60 bg-accent-soft/80 px-3 py-1.5 text-sm font-medium text-accent-hover transition-all">
+    <div
+      className={cn(
+        'flex items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
+        selected
+          ? 'border-accent-border/60 bg-accent-soft/80 text-accent-hover'
+          : 'border-border-subtle text-muted border-dashed',
+      )}
+    >
       {isEditing ? (
         <input
           autoFocus
@@ -80,7 +109,7 @@ function CompetitorChip({
           }}
           placeholder="e.g. acme.com"
           aria-label={`Edit domain for ${displayName}`}
-          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-accent-hover focus:ring-0 focus:outline-none placeholder:text-accent-hover/50"
+          className="text-accent-hover placeholder:text-accent-hover/50 min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-medium focus:ring-0 focus:outline-none"
         />
       ) : (
         <button
@@ -90,7 +119,7 @@ function CompetitorChip({
             setIsEditing(true);
           }}
           title="Click chip to edit domain"
-          className="min-w-0 flex-1 text-left truncate text-sm font-medium text-accent-hover cursor-pointer"
+          className="text-accent-hover min-w-0 flex-1 cursor-pointer truncate text-left text-sm font-medium"
         >
           {displayName}
         </button>
@@ -105,11 +134,15 @@ function CompetitorChip({
       <button
         type="button"
         onClick={onToggle}
-        aria-label={`Exclude ${displayName}`}
-        aria-pressed={true}
-        className="text-muted hover:text-foreground shrink-0 p-0.5 cursor-pointer transition-colors"
+        aria-label={`${selected ? 'Exclude' : 'Include'} ${displayName}`}
+        aria-pressed={selected}
+        className="text-muted hover:text-foreground shrink-0 cursor-pointer p-0.5 transition-colors"
       >
-        <X className="size-3.5" aria-hidden />
+        {selected ? (
+          <X className="size-3.5" aria-hidden />
+        ) : (
+          <Plus className="size-3.5" aria-hidden />
+        )}
       </button>
     </div>
   );
@@ -145,19 +178,21 @@ export function ReviewStep({
     maximumCompetitors === undefined || selectedCompetitors.length >= maximumCompetitors;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-12 items-start w-full">
+    <div className="grid w-full items-start gap-5 lg:grid-cols-12">
       {/* Left Column (5 cols): Domains & Competitors */}
-      <div className="lg:col-span-5 space-y-4">
+      <div className="space-y-4 lg:col-span-5">
         {/* Card 1: Your Domains */}
-        <div className="bg-panel border border-border-subtle/80 shadow-xs rounded-xl p-4 space-y-2.5">
+        <div className="bg-panel border-border-subtle/80 space-y-2.5 rounded-xl border p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+            <span className="text-muted text-xs font-semibold tracking-wider uppercase">
               Your Domains
             </span>
-            <Badge variant="neutral" className="text-xs px-2 py-0.5">{selectedDomains.length} selected</Badge>
+            <Badge variant="neutral" className="px-2 py-0.5 text-xs">
+              {selectedDomains.length} selected
+            </Badge>
           </div>
-          {selectedDomains.length === 0 ? (
-            <p className="text-muted text-xs italic">None selected — click to add domains.</p>
+          {domains.length === 0 ? (
+            <p className="text-muted text-xs italic">No domains were discovered.</p>
           ) : (
             <div className="flex flex-wrap gap-2 pt-0.5">
               {domains.map((entry, index) => (
@@ -173,13 +208,13 @@ export function ReviewStep({
         </div>
 
         {/* Card 2: Competitors — Sleek Single-Line Chips */}
-        <div className="bg-panel border border-border-subtle/80 shadow-xs rounded-xl p-4 space-y-3">
+        <div className="bg-panel border-border-subtle/80 space-y-3 rounded-xl border p-4 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+            <span className="text-muted text-xs font-semibold tracking-wider uppercase">
               Competitors
             </span>
             <div className="flex items-center gap-2">
-              <Badge variant="neutral" className="text-xs px-2 py-0.5">
+              <Badge variant="neutral" className="px-2 py-0.5 text-xs">
                 {selectedCompetitors.length} of {maximumCompetitors ?? '…'}
               </Badge>
               <Button
@@ -187,7 +222,7 @@ export function ReviewStep({
                 size="sm"
                 onClick={onAddCompetitor}
                 disabled={competitorLimitReached}
-                className="text-accent-text hover:bg-accent-soft border border-dashed border-accent-border/60 gap-1 px-2.5 h-6 text-xs font-medium rounded-lg"
+                className="text-accent-text hover:bg-accent-soft border-accent-border/60 h-6 gap-1 rounded-lg border border-dashed px-2.5 text-xs font-medium"
               >
                 <Plus className="size-3.5" aria-hidden />
                 Add competitor
@@ -196,40 +231,39 @@ export function ReviewStep({
           </div>
 
           {/* 2-Column Grid for Competitor Chips */}
-          {selectedCompetitors.length === 0 ? (
-            <p className="text-muted text-xs italic">No competitors selected.</p>
+          {competitors.length === 0 ? (
+            <p className="text-muted text-xs italic">No competitors were discovered.</p>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              {competitors.map((competitor, index) => {
-                if (!competitor.selected) return null;
-                return (
-                  <CompetitorChip
-                    key={competitor.id}
-                    competitor={competitor}
-                    onToggle={() => onToggleCompetitor(index)}
-                    onRename={(domain) => onRenameCompetitor(index, domain)}
-                  />
-                );
-              })}
+              {competitors.map((competitor, index) => (
+                <CompetitorChip
+                  key={competitor.id}
+                  competitor={competitor}
+                  onToggle={() => onToggleCompetitor(index)}
+                  onRename={(domain) => onRenameCompetitor(index, domain)}
+                />
+              ))}
             </div>
           )}
         </div>
       </div>
 
       {/* Right Column (7 cols): Starting Prompts Portfolio */}
-      <div className="lg:col-span-7 bg-panel border border-border-subtle/80 shadow-xs rounded-xl p-4 space-y-3">
+      <div className="bg-panel border-border-subtle/80 space-y-3 rounded-xl border p-4 shadow-xs lg:col-span-7">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-muted uppercase tracking-wider">
+          <span className="text-muted text-xs font-semibold tracking-wider uppercase">
             Starting Prompts ({selectedPrompts} selected)
           </span>
-          <span className="text-xs text-muted font-normal">Check to select / edit text</span>
+          <span className="text-muted text-xs font-normal">Check to select / edit text</span>
         </div>
 
         <div className="max-h-80 overflow-y-auto pr-1">
           {prompts.length === 0 ? (
-            <p className="text-muted text-xs italic py-2">None found — you can write your own after setup.</p>
+            <p className="text-muted py-2 text-xs italic">
+              None found — you can write your own after setup.
+            </p>
           ) : (
-            <ul className="flex flex-col gap-2 list-none p-0 m-0">
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {prompts.map((prompt, index) => (
                 <li key={prompt.id}>
                   <div
@@ -253,13 +287,13 @@ export function ReviewStep({
                         onChange={(event) => onEditPrompt(index, event.target.value)}
                         aria-label={`Prompt ${index + 1}`}
                         className={cn(
-                          'min-w-0 flex-1 border-0 bg-transparent px-0 h-7 text-sm shadow-none focus:ring-0',
+                          'h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus:ring-0',
                           !prompt.selected && 'text-muted line-through',
                         )}
                       />
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <Badge variant="neutral" className="text-xs py-0.5 px-2 font-normal">
+                      <Badge variant="neutral" className="px-2 py-0.5 text-xs font-normal">
                         {prompt.cohort === 'market_visibility' ? 'Industry' : 'Brand'}
                       </Badge>
                     </div>
