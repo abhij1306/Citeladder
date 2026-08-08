@@ -257,49 +257,119 @@
     "loc": 157,
     "max_cc": 4
   },
-  "app/analysis/site_health/page_types.py": {
+  "app/analysis/site_health/intelligence.py": {
     "functions": {
-      "PageTypeAssessment.to_evidence": 4,
+      "KnowledgeIndex.has_any": 1,
+      "KnowledgeIndex.has_usable": 2,
+      "KnowledgeIndex.only_historical": 3,
+      "QuestionCoverageReport.state_of": 1,
+      "_answerability": 1,
+      "_bounded": 2,
+      "_coverage_state": 14,
+      "_discoverability": 1,
+      "_journey": 4,
+      "_knowledge": 8,
+      "_machine": 2,
+      "_mean": 4,
+      "_ratio": 2,
+      "_resolve_journey": 5,
+      "_resolve_one": 7,
+      "_resolve_stage": 10,
+      "_share": 1,
+      "_trust": 2,
+      "_unsupported_reason": 5,
+      "resolve_journeys": 2,
+      "resolve_question_coverage": 8,
+      "score_dimensions": 10
+    },
+    "loc": 682,
+    "max_cc": 14
+  },
+  "app/analysis/site_health/knowledge.py": {
+    "functions": {
+      "KnowledgeVocabulary.primary_type_for": 3,
+      "_add_assertion": 6,
+      "_compile_entity_types": 5,
+      "_compile_journey": 13,
+      "_compile_predicates": 6,
+      "_dedupe_entities": 4,
+      "_extract_contact_points": 6,
+      "_extract_dates": 6,
+      "_extract_money": 9,
+      "_extract_organization": 14,
+      "_extract_role_entity": 11,
+      "_extract_schema_entities": 7,
+      "_link_entities": 5,
+      "_mappings": 6,
+      "_money_binding": 15,
+      "_organization_schema_evidence": 9,
+      "_parse_date": 6,
+      "_path_scope": 3,
+      "_recognized_blocks": 5,
+      "_strip_title_suffix": 4,
+      "_tuple_of_str": 5,
+      "compile_vocabulary": 12,
+      "extract_page_knowledge": 4,
+      "identity_key_for": 2,
+      "normalize_text": 2,
+      "resolve_temporal_state": 4,
+      "scope_key_for": 4
+    },
+    "loc": 1169,
+    "max_cc": 15
+  },
+  "app/analysis/site_health/page_kinds.py": {
+    "functions": {
+      "PageKindAssessment.to_evidence": 4,
       "_alternatives": 4,
       "_classification_outcome": 7,
-      "_classification_signals": 8,
+      "_classification_signals": 9,
       "_conflicts": 4,
-      "_content_heuristic": 19,
+      "_content_heuristic": 13,
+      "_is_absolute_http_url": 4,
+      "_mapping": 2,
       "_normalized_path": 5,
-      "_schema_suggestion": 6,
+      "_schema_suggestion": 3,
       "_signal": 1,
-      "classify": 4,
+      "_str_sequence": 3,
+      "classify": 3,
       "is_question_heading": 4
     },
-    "loc": 341,
-    "max_cc": 19
+    "loc": 387,
+    "max_cc": 13
   },
   "app/analysis/site_health/parser.py": {
     "functions": {
       "_author_and_dates": 21,
       "_body_text": 5,
       "_canonical_href": 5,
+      "_contact_points": 9,
+      "_cta_texts": 13,
       "_delivery_facts": 9,
       "_empty_facts": 1,
       "_expand_gated_words": 5,
       "_first_answer_text": 15,
+      "_form_fields": 17,
       "_headings": 9,
       "_hreflang_alternates": 12,
       "_images": 5,
       "_inline_script_chars": 10,
+      "_is_cta_anchor": 5,
       "_landmarks": 3,
+      "_link_context": 7,
       "_links_and_assets": 28,
       "_meta_content": 5,
       "_meta_property_map": 10,
+      "_money_mentions": 11,
       "_outbound_domains": 15,
       "_parse_robots_directives": 9,
       "_question_heading_ratio": 8,
       "_safe_parser_encoding": 4,
       "_structured_data": 9,
       "_text": 3,
-      "extract_page_facts": 17
+      "extract_page_facts": 18
     },
-    "loc": 856,
+    "loc": 1124,
     "max_cc": 28
   },
   "app/analysis/site_health/rules.py": {
@@ -368,7 +438,7 @@
       "_ScoredLike.weight": 1,
       "_mean": 2,
       "_round": 1,
-      "aggregate_by_page_type": 13,
+      "aggregate_by_page_kind": 13,
       "aggregate_scores": 10,
       "overall_score": 5,
       "score_analysis": 1,
@@ -751,9 +821,15 @@
       "get_issue_detail_endpoint": 3,
       "get_issue_history_endpoint": 5,
       "get_issues_endpoint": 3,
+      "get_knowledge_assertions_endpoint": 2,
+      "get_knowledge_contradictions_endpoint": 2,
+      "get_knowledge_entities_endpoint": 2,
+      "get_knowledge_relations_endpoint": 2,
       "get_monitored_urls_endpoint": 2,
       "get_page_detail_endpoint": 2,
       "get_pages_endpoint": 3,
+      "get_schema_graph_endpoint": 2,
+      "get_site_intelligence_endpoint": 2,
       "list_crawls_endpoint": 3,
       "preview_crawl_urls_endpoint": 3,
       "replace_monitored_urls_endpoint": 3,
@@ -763,7 +839,7 @@
       "stop_analysis_endpoint": 2,
       "stop_discovery_endpoint": 2
     },
-    "loc": 1118,
+    "loc": 1285,
     "max_cc": 10
   },
   "app/api/traffic.py": {
@@ -1153,10 +1229,12 @@
   "app/connectors/web_evidence/acquisition.py": {
     "functions": {
       "curl_cffi_pinned_resolution_supported": 4,
-      "curl_trigger_for_result": 6
+      "curl_trigger_for_result": 10,
+      "loads_script": 4,
+      "readable_text_length": 2
     },
-    "loc": 70,
-    "max_cc": 6
+    "loc": 157,
+    "max_cc": 10
   },
   "app/connectors/web_evidence/brand_evidence.py": {
     "functions": {
@@ -1176,19 +1254,51 @@
     "loc": 322,
     "max_cc": 8
   },
+  "app/connectors/web_evidence/browser_transport.py": {
+    "functions": {
+      "PatchrightTransport.__init__": 1,
+      "PatchrightTransport._guard_requests": 1,
+      "PatchrightTransport._navigate": 3,
+      "PatchrightTransport._rendered_body": 6,
+      "PatchrightTransport._wait_for_readiness": 3,
+      "PatchrightTransport.aclose": 1,
+      "PatchrightTransport.fetch": 7,
+      "PatchrightTransport.route_handler": 4,
+      "_BrowserPool.__init__": 1,
+      "_BrowserPool._browser_for": 6,
+      "_BrowserPool._evict_idle": 5,
+      "_BrowserPool._launch_args": 2,
+      "_BrowserPool.aclose": 5,
+      "_BrowserPool.new_context": 2,
+      "_BrowserPool.release": 3,
+      "_authority": 8,
+      "_close_quietly": 2,
+      "_content_type": 3,
+      "_host_resolver_rule": 2,
+      "_load_patchright": 2,
+      "_normalize_host": 2,
+      "_redacted_headers": 4,
+      "_same_authority": 3,
+      "_timeout_error_type": 2
+    },
+    "loc": 549,
+    "max_cc": 8
+  },
   "app/connectors/web_evidence/contracts.py": {
     "functions": {
+      "AcquisitionTransport.aclose": 1,
       "AcquisitionTransport.fetch": 1,
       "DnsResolver.resolve": 1,
       "FetchError.__init__": 1
     },
-    "loc": 221,
+    "loc": 232,
     "max_cc": 1
   },
   "app/connectors/web_evidence/curl_transport.py": {
     "functions": {
       "CurlCffiTransport.__init__": 1,
       "CurlCffiTransport._bounded_body": 4,
+      "CurlCffiTransport.aclose": 1,
       "CurlCffiTransport.fetch": 12,
       "_charset": 3,
       "_content_type": 1,
@@ -1198,10 +1308,9 @@
       "_redacted_headers": 3,
       "_request_headers": 2,
       "_singleton_header_value": 3,
-      "_transport_error_code": 2,
-      "_validate_resolved_target": 5
+      "_transport_error_code": 2
     },
-    "loc": 259,
+    "loc": 246,
     "max_cc": 12
   },
   "app/connectors/web_evidence/favicon.py": {
@@ -1218,20 +1327,21 @@
     "functions": {
       "SecureFetcher.__aenter__": 1,
       "SecureFetcher.__aexit__": 1,
-      "SecureFetcher.__init__": 5,
+      "SecureFetcher.__init__": 7,
       "SecureFetcher._build_httpx_request": 4,
       "SecureFetcher._continue_acquisition_ladder": 6,
-      "SecureFetcher._continue_with_scraperapi": 14,
+      "SecureFetcher._continue_with_browser": 7,
       "SecureFetcher._fetch_curl": 7,
       "SecureFetcher._fetch_http": 8,
       "SecureFetcher._finalize_no_body": 2,
+      "SecureFetcher._ladder_trigger": 2,
       "SecureFetcher._limits": 5,
       "SecureFetcher._read_body": 18,
       "SecureFetcher._resolve": 4,
       "SecureFetcher._trace": 1,
       "SecureFetcher._trace_curl_result": 1,
-      "SecureFetcher.aclose": 1,
-      "SecureFetcher.fetch": 7,
+      "SecureFetcher.aclose": 5,
+      "SecureFetcher.fetch": 8,
       "_DeflateDecoder.__init__": 1,
       "_DeflateDecoder.decompress": 4,
       "_DeflateDecoder.eof": 1,
@@ -1243,7 +1353,7 @@
       "is_bot_block_result": 3,
       "redact_headers": 4
     },
-    "loc": 1336,
+    "loc": 1271,
     "max_cc": 18
   },
   "app/connectors/web_evidence/resolver.py": {
@@ -1281,6 +1391,13 @@
     "loc": 172,
     "max_cc": 12
   },
+  "app/connectors/web_evidence/targets.py": {
+    "functions": {
+      "validate_resolved_target": 5
+    },
+    "loc": 45,
+    "max_cc": 5
+  },
   "app/connectors/web_evidence/url_policy.py": {
     "functions": {
       "_decode_unreserved_escapes": 2,
@@ -1289,6 +1406,7 @@
       "_idna_host": 3,
       "_is_hard_excluded_asset": 2,
       "_is_infrastructure_asset_exception": 4,
+      "_is_inventory_document": 2,
       "_is_unsafe_ip": 12,
       "_normalize_globs": 4,
       "_normalize_path": 2,
@@ -1296,7 +1414,7 @@
       "_path_is_hard_excluded": 3,
       "_resolve_relative": 1,
       "canonicalize": 16,
-      "classify_url_admission": 13,
+      "classify_url_admission": 14,
       "is_admissible": 1,
       "is_in_scope": 6,
       "narrow": 5,
@@ -1307,7 +1425,7 @@
       "split_host_port": 3,
       "validate_address": 3
     },
-    "loc": 575,
+    "loc": 615,
     "max_cc": 16
   },
   "app/core/__init__.py": {
@@ -1517,6 +1635,122 @@
     "loc": 22,
     "max_cc": 0
   },
+  "app/core/config/industry_packs/__init__.py": {
+    "functions": {},
+    "loc": 23,
+    "max_cc": 0
+  },
+  "app/core/config/industry_packs/benchmark.py": {
+    "functions": {
+      "_build_parser": 2,
+      "_fixture_facts": 3,
+      "_registered_version": 4,
+      "main": 2,
+      "run_benchmark": 7
+    },
+    "loc": 125,
+    "max_cc": 7
+  },
+  "app/core/config/industry_packs/catalog.py": {
+    "functions": {
+      "_freeze": 5,
+      "_normalized_lookup_key": 1,
+      "_read_json": 3,
+      "_registry_entry": 5,
+      "_registry_matches": 4,
+      "_safe_catalog_path": 2,
+      "_taxonomy_matches": 5,
+      "canonical_content_hash": 1,
+      "canonical_json_bytes": 1,
+      "load_pack": 5,
+      "load_resolved_pack": 5,
+      "pack_manifest": 1,
+      "registered_pack_refs": 2,
+      "registry": 3,
+      "resolve_pack_id": 9,
+      "taxonomy": 3
+    },
+    "loc": 221,
+    "max_cc": 9
+  },
+  "app/core/config/industry_packs/reference.py": {
+    "functions": {
+      "_abstention_reason": 6,
+      "_alternatives": 4,
+      "_compile_signal": 4,
+      "_compiled_registered_pack": 1,
+      "_conflicts": 10,
+      "_decide_role": 5,
+      "_empty_result": 1,
+      "_field_values": 6,
+      "_match_membership": 4,
+      "_match_regex": 4,
+      "_match_signal": 5,
+      "_match_substring": 11,
+      "_normalize_collection": 6,
+      "_normalize_page_facts": 15,
+      "_normalize_text": 2,
+      "_plain": 7,
+      "_rank_roles": 4,
+      "_score_role": 10,
+      "_secondary_roles": 6,
+      "_temporal_state": 10,
+      "classify_page": 10,
+      "classify_registered_page": 1,
+      "compile_pack": 6
+    },
+    "loc": 677,
+    "max_cc": 15
+  },
+  "app/core/config/industry_packs/validate.py": {
+    "functions": {
+      "_build_parser": 1,
+      "_collect_pack_ids": 6,
+      "_collect_term_ids": 13,
+      "_computed_counts": 5,
+      "_error": 2,
+      "_load_canonical_docs": 4,
+      "_read_json": 3,
+      "_require_namespaced_ids": 6,
+      "_require_refs": 4,
+      "_schema_type_matches": 10,
+      "_validate_capability_compatibility": 6,
+      "_validate_classification_policy": 7,
+      "_validate_entry_fixtures": 3,
+      "_validate_entry_identity": 6,
+      "_validate_faq_case": 8,
+      "_validate_faq_fixture": 9,
+      "_validate_hygiene": 12,
+      "_validate_no_customer_markers": 5,
+      "_validate_pack": 5,
+      "_validate_pack_graph": 8,
+      "_validate_pack_journeys": 4,
+      "_validate_pack_outputs": 6,
+      "_validate_pack_policies": 5,
+      "_validate_pack_roles": 4,
+      "_validate_registry_entry": 7,
+      "_validate_registry_identity": 6,
+      "_validate_required_files": 3,
+      "_validate_role_case": 10,
+      "_validate_role_fixture": 8,
+      "_validate_role_signals": 3,
+      "_validate_schema_array": 8,
+      "_validate_schema_object": 10,
+      "_validate_schema_string": 5,
+      "_validate_schema_subset": 8,
+      "_validate_signal": 7,
+      "_validate_signal_matcher": 7,
+      "_validate_signal_weight": 7,
+      "_validate_sources": 7,
+      "_validate_special_fixtures": 14,
+      "_validate_taxonomy": 4,
+      "_validate_taxonomy_node": 7,
+      "main": 2,
+      "validate_catalog": 7
+    },
+    "loc": 1358,
+    "max_cc": 14
+  },
   "app/core/config/integrations.py": {
     "functions": {
       "IntegrationSettings._check_operational_bounds": 5,
@@ -1619,11 +1853,11 @@
   },
   "app/core/config/site_health.py": {
     "functions": {
-      "PageTypeProfile.__init__": 2,
-      "PageTypeSchemaExpectation.__init__": 1,
+      "PageKindProfile.__init__": 2,
+      "PageKindSchemaExpectation.__init__": 1,
       "SiteHealthRule.__init__": 3,
       "SiteHealthRuntimePolicy.__init__": 1,
-      "SiteHealthSettings._validate_acquisition_ladder": 11,
+      "SiteHealthSettings._validate_acquisition_ladder": 13,
       "SiteHealthSettings._validate_discovery_cap": 2,
       "SiteHealthSettings._validate_lease_and_heartbeat": 12,
       "SiteHealthSettings._validate_sample_limits": 6,
@@ -1632,12 +1866,17 @@
       "_site_task_claim_order": 1,
       "runtime_policy_for_allowance": 2
     },
-    "loc": 2243,
-    "max_cc": 12
+    "loc": 2440,
+    "max_cc": 13
   },
   "app/core/config/site_health_page_profiles.py": {
     "functions": {},
-    "loc": 143,
+    "loc": 144,
+    "max_cc": 0
+  },
+  "app/core/config/site_intelligence.py": {
+    "functions": {},
+    "loc": 374,
     "max_cc": 0
   },
   "app/core/config/suggestions.py": {
@@ -3435,7 +3674,7 @@
   },
   "app/domain/site_health/api_schemas.py": {
     "functions": {},
-    "loc": 603,
+    "loc": 908,
     "max_cc": 0
   },
   "app/domain/site_health/discovery.py": {
@@ -3445,6 +3684,7 @@
       "_admission_batch": 5,
       "_automatic_remaining": 6,
       "_candidate_allowed": 6,
+      "_candidate_from_frontier_row": 1,
       "_enqueue_task": 2,
       "_frontier_full": 1,
       "_frontier_limit": 5,
@@ -3452,7 +3692,7 @@
       "_ordered_unique_candidates": 2,
       "_pending_frontier": 3,
       "_record_admission": 7,
-      "_record_sample_admission": 8,
+      "_record_sample_admission": 9,
       "_requested_budget_exhausted": 1,
       "_requested_discovery_target": 5,
       "_safe_parser_encoding": 4,
@@ -3468,7 +3708,7 @@
       "drain_discovery_frontier": 1,
       "extract_discovery_links": 16
     },
-    "loc": 957,
+    "loc": 989,
     "max_cc": 16
   },
   "app/domain/site_health/entitlements.py": {
@@ -3493,6 +3733,46 @@
     "loc": 202,
     "max_cc": 11
   },
+  "app/domain/site_health/industry_pack.py": {
+    "functions": {
+      "_checked_role_id": 3,
+      "_compiled": 3,
+      "_registered_version": 4,
+      "_vocabulary": 3,
+      "build_role_facts": 15,
+      "classify_industry_role": 15,
+      "compiled_pack_for_manifest": 8,
+      "freeze_pack_manifest": 3,
+      "frozen_manifest": 8,
+      "knowledge_vocabulary_for_manifest": 8,
+      "resolve_project_pack_id": 8
+    },
+    "loc": 339,
+    "max_cc": 15
+  },
+  "app/domain/site_health/intelligence.py": {
+    "functions": {
+      "_PageTally._add_answerability": 12,
+      "_PageTally._add_delivery": 12,
+      "_PageTally._add_schema": 9,
+      "_PageTally._add_trust": 7,
+      "_PageTally._schema_matches_visible": 12,
+      "_PageTally.add": 2,
+      "_PageTally.to_signals": 4,
+      "_corpus_counts": 6,
+      "_corpus_signals": 9,
+      "_coverage_payload": 2,
+      "_dimensions_payload": 2,
+      "_journeys_payload": 2,
+      "_knowledge_index": 7,
+      "_knowledge_summary": 1,
+      "_overlay_not_applicable": 7,
+      "_versions": 1,
+      "build_intelligence_projection": 4
+    },
+    "loc": 510,
+    "max_cc": 12
+  },
   "app/domain/site_health/inventory_scope.py": {
     "functions": {
       "freeze_inventory_lineage": 4,
@@ -3502,6 +3782,27 @@
     },
     "loc": 62,
     "max_cc": 8
+  },
+  "app/domain/site_health/knowledge.py": {
+    "functions": {
+      "_evidence_ref": 1,
+      "_extract_all": 2,
+      "_group_contradictions": 8,
+      "_load_pages": 6,
+      "_mark_root": 6,
+      "_merge": 7,
+      "_merge_assertions": 4,
+      "_merge_entities": 6,
+      "_merge_relations": 4,
+      "_persist": 9,
+      "_site_identity_key": 5,
+      "build_crawl_knowledge": 7,
+      "conflict_policy_permits_multiple": 2,
+      "current_assertion": 1,
+      "historical_assertion": 1
+    },
+    "loc": 680,
+    "max_cc": 9
   },
   "app/domain/site_health/normalization.py": {
     "functions": {
@@ -3527,7 +3828,7 @@
       "_max_task_generations": 3,
       "_next_ordinal": 2,
       "_now": 1,
-      "_pause_if_idle": 4,
+      "_pause_if_idle": 6,
       "_record_analysis_inventory": 3,
       "_resume_crawl": 2,
       "_running_phase": 1,
@@ -3538,7 +3839,7 @@
       "stop_analysis": 3,
       "stop_discovery": 3
     },
-    "loc": 780,
+    "loc": 802,
     "max_cc": 8
   },
   "app/domain/site_health/planner.py": {
@@ -3559,19 +3860,21 @@
       "_resolved_page_limit": 5,
       "_upsert_profile": 4,
       "_validate_control_values": 5,
-      "create_crawl": 14,
-      "create_page_rerun_crawl": 11,
+      "create_crawl": 15,
+      "create_page_rerun_crawl": 12,
       "get_crawl": 2,
       "preview_crawl_urls": 11
     },
-    "loc": 916,
-    "max_cc": 14
+    "loc": 938,
+    "max_cc": 15
   },
   "app/domain/site_health/schemas.py": {
     "functions": {
+      "FrontierCandidate.analyzable": 1,
+      "FrontierCandidate.from_admission": 1,
       "FrontierCandidate.order_key": 1
     },
-    "loc": 100,
+    "loc": 157,
     "max_cc": 1
   },
   "app/domain/site_health/selection.py": {
@@ -3610,7 +3913,7 @@
   },
   "app/domain/site_health/service/__init__.py": {
     "functions": {},
-    "loc": 102,
+    "loc": 116,
     "max_cc": 0
   },
   "app/domain/site_health/service/common.py": {
@@ -3625,6 +3928,25 @@
     "loc": 115,
     "max_cc": 3
   },
+  "app/domain/site_health/service/intelligence.py": {
+    "functions": {
+      "_assertion_payload": 10,
+      "_blocks": 6,
+      "_empty_projection": 1,
+      "_entity_payload": 9,
+      "_load_crawl": 4,
+      "_snapshot": 1,
+      "dimension_order": 2,
+      "get_intelligence_overview": 6,
+      "get_knowledge_assertions": 5,
+      "get_knowledge_contradictions": 3,
+      "get_knowledge_entities": 4,
+      "get_knowledge_relations": 3,
+      "get_schema_graph": 11
+    },
+    "loc": 521,
+    "max_cc": 11
+  },
   "app/domain/site_health/service/issues.py": {
     "functions": {
       "_group_issue_history": 13,
@@ -3635,7 +3957,7 @@
       "get_issue_detail": 14,
       "get_issue_history": 6,
       "get_issues": 16,
-      "issue_group_page_types": 5
+      "issue_group_page_kinds": 5
     },
     "loc": 875,
     "max_cc": 16
@@ -3666,7 +3988,7 @@
       "_link_reference_row": 3,
       "_matches_page_status": 3,
       "_page_facts": 24,
-      "_page_type_matches": 3,
+      "_page_kind_matches": 3,
       "_score_summary": 12,
       "_single_h1_variant": 4,
       "display_label_for": 6,
@@ -3680,10 +4002,12 @@
   "app/domain/site_health/service/queries.py": {
     "functions": {
       "_failure_summary_for": 2,
+      "_industry_role": 17,
       "_issue_counts_by_site_url": 3,
       "_latest_analysis_by_site_url": 3,
       "_latest_analyze_task_by_site_url": 4,
       "_monitored_site_url_ids": 2,
+      "_role_summary_fields": 6,
       "_root_errors_for": 2,
       "_scan_window": 2,
       "_site_health_entitlement_view": 8,
@@ -3696,14 +4020,15 @@
       "get_pages": 29,
       "list_crawls": 6
     },
-    "loc": 912,
+    "loc": 969,
     "max_cc": 29
   },
   "app/domain/site_health/snapshot.py": {
     "functions": {
+      "_intelligence_summary": 4,
       "persist_crawl_snapshot": 9
     },
-    "loc": 240,
+    "loc": 278,
     "max_cc": 9
   },
   "app/domain/site_health/state_events.py": {
@@ -3846,7 +4171,7 @@
   },
   "app/models/__init__.py": {
     "functions": {},
-    "loc": 237,
+    "loc": 245,
     "max_cc": 0
   },
   "app/models/abuse.py": {
@@ -3936,6 +4261,17 @@
     "loc": 577,
     "max_cc": 1
   },
+  "app/models/knowledge.py": {
+    "functions": {
+      "_utcnow": 1,
+      "assertion_id": 1,
+      "contradiction_group_id": 1,
+      "entity_id": 1,
+      "relation_id": 1
+    },
+    "loc": 355,
+    "max_cc": 1
+  },
   "app/models/opportunity.py": {
     "functions": {
       "_utcnow": 1
@@ -3950,7 +4286,7 @@
   },
   "app/models/project.py": {
     "functions": {},
-    "loc": 139,
+    "loc": 147,
     "max_cc": 0
   },
   "app/models/prompt.py": {
@@ -3969,7 +4305,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 1225,
+    "loc": 1318,
     "max_cc": 1
   },
   "app/models/traffic.py": {
@@ -4362,6 +4698,7 @@
       "CrawlLifecycle._evaluate_broken_internal_links": 7,
       "CrawlLifecycle._evaluate_hreflang_conflicts": 3,
       "CrawlLifecycle._evaluate_sitemap_orphans": 14,
+      "CrawlLifecycle._failed_url_count": 2,
       "CrawlLifecycle._load_latest_analyses": 1,
       "CrawlLifecycle._persist_evaluations": 7,
       "CrawlLifecycle._persist_snapshot": 1,
@@ -4379,10 +4716,11 @@
       "_pass_through_hreflang_evaluation": 1,
       "_pause_running_crawl": 2,
       "_start_planned_analysis": 3,
+      "_stop_drained_phases": 3,
       "_utcnow": 1,
       "crawl_root_identity": 2
     },
-    "loc": 967,
+    "loc": 1024,
     "max_cc": 34
   },
   "app/workers/site_health/outcomes.py": {
@@ -4406,7 +4744,7 @@
       "AnalyzePhaseMixin._run_analyze": 9,
       "AnalyzePhaseMixin._write_page_analysis": 25
     },
-    "loc": 627,
+    "loc": 649,
     "max_cc": 25
   },
   "app/workers/site_health/phases/discover.py": {
@@ -4430,7 +4768,7 @@
       "DiscoverPhaseMixin._write_sitemap_observations": 3,
       "_classify_robots_fetch": 4
     },
-    "loc": 944,
+    "loc": 945,
     "max_cc": 19
   },
   "app/workers/site_health/phases/link_check.py": {
@@ -4486,17 +4824,19 @@
       "SiteHealthWorker._record_crash": 1,
       "SiteHealthWorker._resolve_site_url_id": 5,
       "SiteHealthWorker._robots_crawl_delay": 2,
+      "SiteHealthWorker._shared_browser_transport": 3,
       "SiteHealthWorker._trace_outcome": 6,
       "SiteHealthWorker._traced_attempt": 4,
       "SiteHealthWorker._write_artifact": 4,
       "SiteHealthWorker._write_attempt": 3,
       "SiteHealthWorker._write_observation": 8,
+      "SiteHealthWorker.aclose": 2,
       "SiteHealthWorker.run_forever": 4,
       "SiteHealthWorker.run_once": 6,
       "_acquisition_values": 3,
       "main": 1
     },
-    "loc": 859,
+    "loc": 887,
     "max_cc": 10
   }
 }
