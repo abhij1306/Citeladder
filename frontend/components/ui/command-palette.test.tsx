@@ -67,9 +67,9 @@ describe('CommandPalette', () => {
 
   it('lists every nav destination and every project', async () => {
     await open();
-    // One from each nav group, plus both projects.
-    expect(screen.getByRole('option', { name: /visibility/i })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /site health/i })).toBeInTheDocument();
+    // Layer destinations, plus both projects.
+    expect(screen.getByRole('option', { name: /demand/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /site/i })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /acme/i })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /orbit/i })).toBeInTheDocument();
   });
@@ -83,14 +83,14 @@ describe('CommandPalette', () => {
   it('filters on substring across label and group', async () => {
     const user = await open();
     await user.keyboard('site');
-    expect(screen.getByRole('option', { name: /site health/i })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /^visibility/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /site/i })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^commerce/i })).not.toBeInTheDocument();
   });
 
   it('navigates to the highlighted route on Enter', async () => {
     const user = await open();
-    await user.keyboard('issues{Enter}');
-    expect(push).toHaveBeenCalledWith('/issues');
+    await user.keyboard('demand{Enter}');
+    expect(push).toHaveBeenCalledWith('/demand');
   });
 
   it('switches project rather than navigating', async () => {

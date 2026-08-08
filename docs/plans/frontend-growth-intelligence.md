@@ -247,19 +247,69 @@ Fix the drift across docs, app, and site once:
 
 ## 10. Delivery order
 
-| Step | Work | Gate |
-|---|---|---|
-| 1 | Website content corrections (§8.1, §9) | none |
-| 2 | Shared components (§5) and the coverage rule (§6) | none |
-| 3 | Landing structure (§8.2) | none |
-| 4 | Sidebar regrouping (§4) | first `/site` route |
-| 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 |
-| 6 | Content workspace (§7.3) | stage 4 |
-| 7 | Demand workspace (§7.4) | stage 3 |
-| 8 | Agent workspace (§7.5) | stage 5 |
-| 9 | Contextual agent actions, Reports, schedules | stage 6 |
+| Step | Work | Gate | Status |
+|---|---|---|---|
+| 1 | Website content corrections (§8.1, §9) | none | **Done** |
+| 2 | Shared components (§5) and the coverage rule (§6) | none | **Done** |
+| 3 | Landing structure (§8.2) | none | **Done** |
+| 4 | Sidebar regrouping (§4) | first `/site` route | **Done** |
+| 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 | Pages tab shipped; rest pending |
+| 6 | Content workspace (§7.3) | stage 4 | Not started |
+| 7 | Demand workspace (§7.4) | stage 3 | Visibility/Traffic regrouped; signals pending |
+| 8 | Agent workspace (§7.5) | stage 5 | Not started |
+| 9 | Contextual agent actions, Reports, schedules | stage 6 | `/reports` stub only |
 
 Steps 1–3 have no backend dependency and are the correct first commits after this branch merges.
+
+## 13. Implementation log
+
+Recorded so future work does not re-derive these decisions or re-litigate them.
+
+### Shipped (branch `feat/frontend-growth-intelligence`, PR #52)
+
+**Steps 1–4 complete**, plus the parts of 5/7/9 that existing projections already
+back. Components live in `frontend/components/intelligence/`.
+
+**Empty shells are acceptable while the product is pre-users.** §3 originally said to
+leave the current route in place rather than ship an empty shell. That rule exists to
+protect users from a promise the API cannot keep, and there are none yet — so `/site`,
+`/demand` and `/reports` render declared-but-empty panels for surfaces whose backend has
+not landed. Revisit before the first real user, not before.
+
+### Gotchas
+
+- **`/prompts` owns `?tab=`.** Its manage mode already uses that param, so it is NOT
+  embedded as a tab under `/demand` — the two would collide. §11 already schedules the
+  prompts URL-contract change; do the move there, not here.
+- **Band tones on the landing page cascade.** `Section` enforces "no two adjacent bands
+  share a tone". The page had only two sunken sections in an eight-section run, so
+  moving `Workflow` above `Platform` forced four sections to flip. `page.test.tsx`
+  asserts alternation — trust it over eyeballing.
+- **§8.1 was wrong about `AgentConsole`.** It claimed the section needs no copy change
+  because its transcript derives from `platform.modules`. The transcript is hardcoded,
+  and it carried three approval claims. The claim guard caught them; the plan text
+  above has not been edited, so treat that sentence as stale.
+- **`Insight` returns `null` without evidence.** Deliberate (§5). Consumers rendering
+  lists must filter before computing counts, or a count will disagree with the rows.
+- **`DecisionKind` is a closed union of two members.** Adding a third fails
+  `decision-count.test.ts` at the type level. That failure is the signal to go back to
+  the layer plan, not to edit the test.
+- **SonarCloud runs in automatic-analysis mode** — there is no `sonar-project.properties`
+  and adding one switches the project to CI-based analysis. Duplication exclusions can
+  only be set in the SonarCloud UI. `faq.ts` tripped the 3% new-code duplication gate
+  because Sonar's tokenizer counts the repeated `'...' +` concatenation shape across
+  every answer; answers are now single template literals. Keep them that way.
+- **Marketing cannot import `Insight`.** The landing page's insight card in
+  `evidence-chain.tsx` mirrors the anatomy rather than importing the component: `Insight`
+  requires a resolvable evidence href and refuses to render without one, and marketing is
+  monochrome-plus-blue so it cannot use the app's danger fill for the priority chip.
+
+### Not yet done
+
+Everything gated on a backend stage that does not exist: Facts/Corpus/Schema/Journeys/
+Evidence tabs (§7.2), Overview (§7.1), the Content workspace (§7.3), demand signals and
+the coverage panel (§7.4), and the entire Agent workspace (§7.5). The §11 UI-debt items
+remain open and deliberately deferred. A live accessibility pass (§11) has still not run.
 
 ## 11. UI debt
 

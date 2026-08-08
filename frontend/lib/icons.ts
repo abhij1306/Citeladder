@@ -3,14 +3,18 @@ import {
   BookOpen,
   Bot,
   Check,
+  FileBarChart,
   FileText,
   Gauge,
+  Globe,
+  LayoutDashboard,
   Lightbulb,
   ListChecks,
   LoaderCircle,
   MessageSquareText,
   OctagonAlert,
   Package,
+  Radar,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -40,6 +44,12 @@ import {
  * per pair so call sites stay consistent and grep-able.
  */
 export const ICONS = {
+  // The four layers (§4) — these are the sidebar's primary destinations.
+  site: Globe,
+  demand: Radar,
+  agent: Bot,
+  reports: FileBarChart,
+  overview: LayoutDashboard,
   // Nav concepts.
   visibility: Gauge,
   analytics: Bot,
