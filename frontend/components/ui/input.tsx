@@ -18,10 +18,11 @@ import { cn } from '@/lib/utils';
  * pre-empts the focus signal, which owns blue on its own.
  */
 export const inputClasses =
-  'focus-ring h-[var(--control-height)] w-full rounded-sm border border-border bg-input px-2 text-sm text-foreground transition-[border-color,box-shadow] placeholder:text-muted hover:border-border-strong focus:border-accent aria-invalid:border-danger disabled:cursor-not-allowed disabled:opacity-50';
+  'focus-ring h-[var(--control-height)] w-full rounded-sm border border-border-strong/80 bg-input px-2.5 text-sm text-foreground transition-[border-color,box-shadow] placeholder:text-muted hover:border-border-bold focus:border-accent aria-invalid:border-danger disabled:cursor-not-allowed disabled:opacity-50';
 
 const textareaClasses =
-  'focus-ring min-h-24 w-full resize-y rounded-sm border border-border bg-input p-2 text-sm text-foreground transition-[border-color,box-shadow] placeholder:text-muted hover:border-border-strong focus:border-accent aria-invalid:border-danger disabled:cursor-not-allowed disabled:opacity-50';
+  'focus-ring min-h-24 w-full resize-y rounded-sm border border-border-strong/80 bg-input p-2.5 text-sm text-foreground transition-[border-color,box-shadow] placeholder:text-muted hover:border-border-bold focus:border-accent aria-invalid:border-danger disabled:cursor-not-allowed disabled:opacity-50';
+
 
 export function Input({
   className,

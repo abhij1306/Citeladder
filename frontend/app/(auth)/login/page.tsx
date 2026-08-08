@@ -1,7 +1,6 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Lock } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
 import { AuthEmailField, AuthFormShell, AuthPasswordField } from '@/components/auth/auth-form';
@@ -24,17 +23,16 @@ export default function LoginPage() {
 
   return (
     <AuthFormShell
-      icon={Lock}
       title="Sign in"
-      description="Pick up where your brand left off."
+      description="Welcome back! Please sign in to continue."
       error={mutation.isError ? authErrorMessage(mutation.error) : undefined}
       onSubmit={handleSubmit(submit)}
       pending={isSubmitting || mutation.isPending}
-      submitLabel="Sign in"
+      submitLabel="Continue"
       pendingLabel="Signing in…"
       footerPrompt="Don't have an account?"
       footerHref="/register"
-      footerLabel="Create one"
+      footerLabel="Sign up"
     >
       <AuthEmailField error={errors.email?.message} inputProps={register('email')} />
       <AuthPasswordField
@@ -47,3 +45,4 @@ export default function LoginPage() {
     </AuthFormShell>
   );
 }
+

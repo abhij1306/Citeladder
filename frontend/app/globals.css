@@ -66,6 +66,12 @@
   --color-brand-copilot-cyan: #00a4ef;
   --color-brand-copilot-green: #35c759;
 
+  --color-brand-google-blue: #4285f4;
+  --color-brand-google-green: #34a853;
+  --color-brand-google-yellow: #fbbc05;
+  --color-brand-google-red: #ea4335;
+
+
   /* Status — app-only functional colour; never carries meaning alone. */
   --color-success: #19724b;
   --color-success-bg: #e9f6ee;

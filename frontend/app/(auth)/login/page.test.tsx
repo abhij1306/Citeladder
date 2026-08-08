@@ -32,14 +32,12 @@ afterEach(() => {
 afterAll(() => mswServer.close());
 
 describe('LoginPage', () => {
-  it('renders email as the only sign-in path (no OAuth buttons or divider)', () => {
+  it('renders Google sign-in and email sign-in paths with divider', () => {
     renderWithProviders(<LoginPage />);
 
-    expect(screen.queryByRole('button', { name: /continue with google/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /continue with github/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /continue with apple/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/or continue with email/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /continue with google/i })).toBeInTheDocument();
+    expect(screen.getByText(/^or$/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^continue$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show Password' })).toBeInTheDocument();
   });
 
@@ -54,7 +52,7 @@ describe('LoginPage', () => {
     );
 
     renderWithProviders(<LoginPage />);
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
 
     expect(await screen.findByText(/email is required/i)).toBeInTheDocument();
     expect(screen.getByText(/password is required/i)).toBeInTheDocument();
@@ -70,9 +68,9 @@ describe('LoginPage', () => {
     );
 
     renderWithProviders(<LoginPage />);
-    await user.type(screen.getByLabelText(/email/i), 'user@example.com');
+    await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
     await user.type(screen.getByLabelText(/password/i, { selector: 'input' }), 'sup3rsecret');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/onboarding'));
   });
@@ -86,11 +84,13 @@ describe('LoginPage', () => {
     );
 
     renderWithProviders(<LoginPage />);
-    await user.type(screen.getByLabelText(/email/i), 'user@example.com');
+    await user.type(screen.getByLabelText(/email address/i), 'user@example.com');
     await user.type(screen.getByLabelText(/password/i, { selector: 'input' }), 'wrongpass');
-    await user.click(screen.getByRole('button', { name: /sign in/i }));
+    await user.click(screen.getByRole('button', { name: /^continue$/i }));
 
     expect(await screen.findByText(/invalid email or password/i)).toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
 });
+
+
