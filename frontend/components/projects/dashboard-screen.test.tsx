@@ -51,6 +51,14 @@ const commandCenter = {
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
+// This file mocks useQuery wholesale to return the command-center fixture, so
+// TopInsights would receive that shape instead of an opportunities page. It is
+// a separate unit with its own tests (components/intelligence); stub it out
+// rather than teaching this fixture two response shapes.
+vi.mock('@/components/intelligence/top-insights', () => ({
+  TopInsights: () => null,
+}));
+
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => queryResult,
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),

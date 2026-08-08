@@ -253,7 +253,7 @@ Fix the drift across docs, app, and site once:
 | 2 | Shared components (§5) and the coverage rule (§6) | none | **Done** |
 | 3 | Landing structure (§8.2) | none | **Done** |
 | 4 | Sidebar regrouping (§4) | first `/site` route | **Done** |
-| 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 | Pages tab shipped; rest pending |
+| 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 | Pages tab + Overview insight list shipped; rest pending |
 | 6 | Content workspace (§7.3) | stage 4 | Not started |
 | 7 | Demand workspace (§7.4) | stage 3 | Visibility/Traffic regrouped; signals pending |
 | 8 | Agent workspace (§7.5) | stage 5 | Not started |
@@ -303,6 +303,13 @@ not landed. Revisit before the first real user, not before.
   `evidence-chain.tsx` mirrors the anatomy rather than importing the component: `Insight`
   requires a resolvable evidence href and refuses to render without one, and marketing is
   monochrome-plus-blue so it cannot use the app's danger fill for the priority chip.
+- **`opportunity_type` is a closed enum**: `visibility | site | traffic | topic`. It is NOT
+  free-form, and it does not carry `content_*` or `prompt_*` members. `opportunity-insight.ts`
+  maps it exhaustively to the four layers; extend that map when the backend enum grows.
+- **`dashboard-screen.test.tsx` mocks `@tanstack/react-query` wholesale.** Any child added
+  to `DashboardScreen` that runs its own query will receive the command-center fixture
+  instead of its own response shape. `TopInsights` is stubbed there for that reason — do
+  the same for the next such child rather than teaching that fixture two shapes.
 
 ### Not yet done
 

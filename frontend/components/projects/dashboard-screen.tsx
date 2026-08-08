@@ -1,6 +1,8 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import { TopInsights } from '@/components/intelligence/top-insights';
 import {
   ArrowDown,
   ArrowRight,
@@ -557,14 +559,19 @@ export function DashboardScreen({
     );
   }
   return (
-    <CommandCenterContent
-      key={`${activeProject.id}:${commandCenter.data.action_order_version}`}
-      data={commandCenter.data}
-      projects={projects}
-      activeProject={activeProject}
-      activeProjectId={activeProjectId}
-      setActiveProjectId={setActiveProjectId}
-      onEditProject={onEditProject}
-    />
+    <div className="flex flex-col gap-6">
+      <CommandCenterContent
+        key={`${activeProject.id}:${commandCenter.data.action_order_version}`}
+        data={commandCenter.data}
+        projects={projects}
+        activeProject={activeProject}
+        activeProjectId={activeProjectId}
+        setActiveProjectId={setActiveProjectId}
+        onEditProject={onEditProject}
+      />
+      {/* Top insights across all layers (§7.1). Ranked server-side by the
+          deterministic formula; this surface does not reorder them. */}
+      <TopInsights projectId={activeProject.id} />
+    </div>
   );
 }
