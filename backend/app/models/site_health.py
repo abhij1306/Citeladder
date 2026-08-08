@@ -986,10 +986,17 @@ class SitePageAnalysis(Base):
     # vocabularies: an Education program page may be page_kind=article while
     # industry_role=education.program_detail.
     #
-    # NULL role with a non-null ``role_abstention_reason`` is an EXECUTED
-    # abstention (the classifier ran and declined); both NULL means the pack
-    # classifier never ran for this row. Collapsing those two into one state is
-    # what would let "we did not look" read as "there is nothing here".
+    # Three states, and ``role_abstention_reason`` is NOT NULL with a ``""``
+    # default, so the discriminator is empty vs non-empty, never NULL:
+    #
+    #   - ``industry_role_id`` set                      -> a selected role;
+    #   - NULL role, NON-EMPTY abstention reason        -> an EXECUTED
+    #     abstention (the classifier ran and declined);
+    #   - NULL role, EMPTY ("") abstention reason       -> the pack classifier
+    #     never ran for this row.
+    #
+    # Collapsing the last two into one state is what would let "we did not
+    # look" read as "there is nothing here".
     industry_role_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     industry_role_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     industry_role_margin: Mapped[float | None] = mapped_column(Float, nullable=True)

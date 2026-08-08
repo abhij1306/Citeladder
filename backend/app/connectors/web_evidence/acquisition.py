@@ -21,8 +21,14 @@ from app.core.config.site_health import (
 # Subtrees whose contents are never readable page text. Removed whole (open tag
 # through close tag) before the remaining markup is stripped, so a 200 KB
 # inline bundle cannot read as 200 KB of content.
+#
+# The close pattern is ``</name`` followed by anything up to ``>`` rather than
+# ``\s*>``: HTML ends the element at ``</script bar>`` and ``</script/>`` just
+# as it does at ``</script>``. Accepting only the tidy form is what lets a
+# hostile page hide an unclosed-looking bundle from the strip below. ``\b``
+# still keeps ``</scripting>`` from closing a ``script``.
 _NON_TEXT_SUBTREES = re.compile(
-    r"<(script|style|template|noscript)\b[^>]*>.*?</\1\s*>",
+    r"<(script|style|template|noscript)\b[^>]*>.*?</\1\b[^>]*>",
     re.IGNORECASE | re.DOTALL,
 )
 _UNCLOSED_NON_TEXT = re.compile(
@@ -33,7 +39,8 @@ _COMMENT_CLOSE = "-->"
 _TAGS = re.compile(r"<[^>]*>", re.DOTALL)
 _SCRIPT_SRC = re.compile(r"<script\b[^>]*\bsrc\s*=", re.IGNORECASE)
 _INLINE_SCRIPT = re.compile(
-    r"<script\b(?![^>]*\bsrc\s*=)[^>]*>(.*?)</script\s*>", re.IGNORECASE | re.DOTALL
+    r"<script\b(?![^>]*\bsrc\s*=)[^>]*>(.*?)</script\b[^>]*>",
+    re.IGNORECASE | re.DOTALL,
 )
 
 
@@ -130,9 +137,7 @@ def loads_script(body: bytes, *, scan_bytes: int, min_inline_chars: int) -> bool
     # Comments are stripped first: a commented-out ``<script src=...>`` is
     # inert markup, and treating it as evidence that the page builds itself
     # client-side would escalate a plain static page to a browser render.
-    text = strip_comments(
-        body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
-    )
+    text = strip_comments(body[: max(0, scan_bytes)].decode("utf-8", errors="replace"))
     if _SCRIPT_SRC.search(text):
         return True
     return any(

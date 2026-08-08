@@ -165,6 +165,16 @@ export function KnowledgePanel({ projectId, crawlId }: PanelProps) {
 
   return (
     <div className="grid gap-4">
+      {/* A failed contradictions request must SAY so. This card is absent when
+          nothing conflicts, so letting an error render the same absence states
+          "no facts conflict" — the strongest claim in this panel — on no
+          evidence at all. */}
+      {contradictions.isError ? (
+        <Alert tone="danger">
+          Conflicting facts could not be loaded. This is not a finding that the crawl&apos;s facts
+          agree.
+        </Alert>
+      ) : null}
       {(contradictions.data?.items.length ?? 0) > 0 ? (
         <Card>
           <CardHeader>
@@ -234,6 +244,14 @@ export function KnowledgePanel({ projectId, crawlId }: PanelProps) {
                   <code className="text-muted text-2xs">{assertion.predicate_id}</code>
                   <span className="text-foreground text-sm">{assertion.normalized_value}</span>
                   <Badge>{assertion.temporal_state}</Badge>
+                  {/* An unscoped claim is missing a qualifier the pack requires
+                      — a fee with no stated year or grade. Rendering it exactly
+                      like a fully qualified one publishes it as if scoped. */}
+                  {assertion.scope_complete ? null : (
+                    <Badge variant="status" value="warning">
+                      unscoped
+                    </Badge>
+                  )}
                   {assertion.contradiction_group_id ? (
                     <Badge variant="status" value="danger">
                       conflicting

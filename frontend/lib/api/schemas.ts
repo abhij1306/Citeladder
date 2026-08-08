@@ -3321,6 +3321,9 @@ export const knowledgeAssertionItemSchema = responseObject({
   unit: z.string(),
   currency: z.string(),
   scope: z.record(z.string(), z.string()),
+  // false = a pack-required qualifier was never evidenced. Render such a claim
+  // as unscoped; it must never read as fully qualified.
+  scope_complete: z.boolean(),
   temporal_state: z.string(),
   effective_from: z.string().nullable(),
   effective_to: z.string().nullable(),

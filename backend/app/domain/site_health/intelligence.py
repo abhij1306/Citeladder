@@ -353,9 +353,7 @@ class _PageTally:
     # role_id -> pages carrying that role that also link onward internally.
     role_continuity: dict[str, int] = field(default_factory=dict)
 
-    def add(
-        self, facts: Mapping, *, final_url: str, role_ids: Sequence[str]
-    ) -> None:
+    def add(self, facts: Mapping, *, final_url: str, role_ids: Sequence[str]) -> None:
         self.analyzed += 1
         for role_id in role_ids:
             self.role_pages[role_id] = self.role_pages.get(role_id, 0) + 1
@@ -384,9 +382,7 @@ class _PageTally:
             # a crawl-wide total was a fabricated number: it reported that every
             # role linked onward whenever any page did.
             for role_id in role_ids:
-                self.role_continuity[role_id] = (
-                    self.role_continuity.get(role_id, 0) + 1
-                )
+                self.role_continuity[role_id] = self.role_continuity.get(role_id, 0) + 1
 
     def _add_schema(self, facts: Mapping) -> None:
         structured = facts.get("structured_data") or {}

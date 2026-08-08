@@ -378,7 +378,7 @@ async def _analysis_candidates(
         .subquery()
     )
     if explicit_ids:
-        valid = set(
+        admitted_ids = set(
             (
                 await session.scalars(
                     select(SiteUrl.id).where(
@@ -388,9 +388,29 @@ async def _analysis_candidates(
                 )
             ).all()
         )
-        if valid != set(explicit_ids):
+        if admitted_ids != set(explicit_ids):
             raise PhaseControlError(
                 "One or more selected URLs are not in this crawl",
+                code="invalid_selection",
+            )
+        # Admission is not enough. A document or an excluded URL is in the
+        # inventory for coverage but carries no HTML the analyzer can read, so
+        # scheduling one spends a budget slot to produce a guaranteed failure.
+        # Rejected rather than silently dropped: a caller that asked for these
+        # specific URLs needs to be told which ones it cannot have.
+        analyzable = set(
+            (
+                await session.scalars(
+                    select(SiteUrl.id).where(
+                        SiteUrl.id.in_(explicit_ids),
+                        SiteUrl.corpus_disposition == CORPUS_DISPOSITION_ANALYZE,
+                    )
+                )
+            ).all()
+        )
+        if analyzable != set(explicit_ids):
+            raise PhaseControlError(
+                "One or more selected URLs cannot be analyzed as HTML",
                 code="invalid_selection",
             )
     completed = (
@@ -419,8 +439,8 @@ async def _analysis_candidates(
         # Automatic selection only ever proposes analyzable items. A document or
         # an excluded URL stays in the inventory for coverage, but spending an
         # analysis budget slot on one would fetch evidence the HTML analyzer
-        # cannot read. An explicit user selection is deliberately not filtered
-        # here — that path validates admission separately.
+        # cannot read. Explicit selections are held to the same rule above,
+        # where a non-analyzable pick is reported instead of silently dropped.
         SiteUrl.corpus_disposition == CORPUS_DISPOSITION_ANALYZE,
     ]
     if not include_completed:

@@ -23,6 +23,8 @@ import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Final
+from urllib.parse import urlsplit
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -256,9 +258,25 @@ def _site_identity_key(crawl: SiteCrawl, pages: Sequence[_PageInput]) -> str:
     different business and orphan every prior assertion.
     """
     domain = str((crawl.configuration or {}).get("root_registrable_domain") or "")
-    if not domain and pages:
-        domain = pages[0].final_url
+    if not domain:
+        # A HOST, never a full URL. ``pages[0]`` is merely the first row by
+        # ``created_at``, so keying on its path and query made two crawls that
+        # analyzed the same site in a different order produce different
+        # organization identities and orphan every prior assertion. The crawl's
+        # own root URL comes first; the marked root page is the last resort.
+        fallback = str(getattr(crawl, "root_url", "") or "") or next(
+            (page.final_url for page in pages if page.is_crawl_root), ""
+        )
+        domain = _host_of(fallback)
     return identity_key_for(domain)
+
+
+def _host_of(url: str) -> str:
+    """The bare host of ``url``, or ``""`` when it names none."""
+    try:
+        return (urlsplit(str(url or "")).hostname or "").casefold().rstrip(".")
+    except ValueError:
+        return ""
 
 
 # =========================================================================
@@ -493,9 +511,7 @@ def _group_contradictions(
         # Unscoped members are EXCLUDED rather than disqualifying the whole
         # claim: two fully-scoped values still contradict each other even when a
         # third, unscoped one sits beside them.
-        scoped = [
-            member for member in members if member.candidate.scope_complete
-        ]
+        scoped = [member for member in members if member.candidate.scope_complete]
         if len({member.candidate.normalized_value for member in scoped}) < 2:
             continue
         disputes += 1
@@ -522,6 +538,39 @@ def conflict_policy_permits_multiple(policy: str, cardinality: str) -> bool:
 # =========================================================================
 # Persist
 # =========================================================================
+# PostgreSQL binds at most 32767 parameters per statement. A single
+# ``VALUES`` batch spends one parameter per COLUMN per ROW, so the widest table
+# here (assertions, 25 columns) exceeds the limit at roughly 1300 rows — well
+# under ``MAX_ASSERTIONS_PER_CRAWL``. Chunking by parameter budget rather than a
+# flat row count keeps every table under the ceiling as columns are added.
+_MAX_BIND_PARAMS: Final = 30_000
+
+
+async def _insert_chunked(
+    session: AsyncSession,
+    model: type,
+    rows: list[dict],
+    *,
+    constraint: str,
+) -> None:
+    """Insert ``rows`` as conflict-safe batches within the bind-parameter cap.
+
+    A large crawl reaches the configured caps legitimately; sending it as one
+    statement fails the whole finalization with a driver-level parameter error
+    after all the extraction work is already done.
+    """
+    if not rows:
+        return
+    per_row = max(1, len(rows[0]))
+    size = max(1, _MAX_BIND_PARAMS // per_row)
+    for start in range(0, len(rows), size):
+        await session.execute(
+            pg_insert(model)
+            .values(rows[start : start + size])
+            .on_conflict_do_nothing(constraint=constraint)
+        )
+
+
 async def _persist(
     session: AsyncSession,
     *,
@@ -559,12 +608,12 @@ async def _persist(
         }
         for ref, merged_entity in merged.entities.items()
     ]
-    if entity_rows:
-        await session.execute(
-            pg_insert(KnowledgeEntity)
-            .values(entity_rows)
-            .on_conflict_do_nothing(constraint="uq_knowledge_entity_identity")
-        )
+    await _insert_chunked(
+        session,
+        KnowledgeEntity,
+        entity_rows,
+        constraint="uq_knowledge_entity_identity",
+    )
 
     assertion_rows = []
     for merged_assertion in merged.assertions.values():
@@ -625,12 +674,12 @@ async def _persist(
                 "industry_pack_version": pack_version,
             }
         )
-    if assertion_rows:
-        await session.execute(
-            pg_insert(KnowledgeAssertion)
-            .values(assertion_rows)
-            .on_conflict_do_nothing(constraint="uq_knowledge_assertion_claim")
-        )
+    await _insert_chunked(
+        session,
+        KnowledgeAssertion,
+        assertion_rows,
+        constraint="uq_knowledge_assertion_claim",
+    )
 
     relation_rows = [
         {
@@ -674,12 +723,12 @@ async def _persist(
         }
         for merged_relation in merged.relations.values()
     ]
-    if relation_rows:
-        await session.execute(
-            pg_insert(KnowledgeRelation)
-            .values(relation_rows)
-            .on_conflict_do_nothing(constraint="uq_knowledge_relation_edge")
-        )
+    await _insert_chunked(
+        session,
+        KnowledgeRelation,
+        relation_rows,
+        constraint="uq_knowledge_relation_edge",
+    )
 
 
 def current_assertion(candidate: AssertionCandidate) -> bool:

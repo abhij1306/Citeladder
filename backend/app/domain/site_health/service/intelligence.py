@@ -50,6 +50,9 @@ __all__ = [
 
 _CRAWL_NOT_FOUND = "crawl not found"
 _MAX_PAGE_SIZE = 200
+# Rows fetched per round trip while streaming the whole-crawl schema histogram.
+# Bounds how many full ``normalized_facts`` blobs are resident at once.
+_SCHEMA_GRAPH_CHUNK = 200
 
 
 def _bounded(limit: int) -> int:
@@ -288,6 +291,10 @@ def _assertion_payload(assertion: KnowledgeAssertion, subject: KnowledgeEntity) 
         "unit": assertion.unit or "",
         "currency": assertion.currency or "",
         "scope": dict(assertion.scope or {}),
+        # False means a pack-REQUIRED qualifier was never evidenced — a fee with
+        # no stated year or grade. Omitting it rendered such a claim exactly
+        # like a fully qualified one, which is the one thing the model forbids.
+        "scope_complete": bool(assertion.scope_complete),
         "temporal_state": assertion.temporal_state,
         "effective_from": (
             assertion.effective_from.isoformat() if assertion.effective_from else None
@@ -342,9 +349,7 @@ async def get_knowledge_contradictions(
     )
     total = int(
         await session.scalar(
-            select(
-                func.count(func.distinct(KnowledgeAssertion.contradiction_group_id))
-            )
+            select(func.count(func.distinct(KnowledgeAssertion.contradiction_group_id)))
             .select_from(KnowledgeAssertion)
             .where(*where)
         )
@@ -428,36 +433,43 @@ async def get_schema_graph(
     Read from each artifact's persisted ``normalized_facts``: the parse already
     happened at analysis time and is immutable evidence. Re-parsing here would
     be a second, divergent implementation of the same extraction.
+
+    This is a whole-crawl histogram, so unlike every paged reader here it cannot
+    take a row LIMIT without reporting a partial site as the whole one. It is
+    STREAMED instead: each row carries a complete ``normalized_facts`` blob —
+    headings, anchors, structured data — and a crawl with thousands of analyzed
+    pages would otherwise materialize all of it in the API process at once.
     """
 
     crawl = await _load_crawl(
         session, workspace_id=workspace_id, project_id=project_id, crawl_id=crawl_id
     )
-    rows = (
-        await session.execute(
-            select(
-                SitePageAnalysis.site_url_id,
-                SiteUrl.normalized_url,
-                SiteFetchArtifact.normalized_facts,
-            )
-            .join(
-                SiteFetchArtifact,
-                SiteFetchArtifact.id == SitePageAnalysis.artifact_id,
-            )
-            .join(SiteUrl, SiteUrl.id == SitePageAnalysis.site_url_id)
-            .where(
-                SitePageAnalysis.crawl_id == crawl.id,
-                SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
-                SitePageAnalysis.is_current.is_(True),
-            )
+    statement = (
+        select(
+            SitePageAnalysis.site_url_id,
+            SiteUrl.normalized_url,
+            SiteFetchArtifact.normalized_facts,
         )
-    ).all()
+        .join(
+            SiteFetchArtifact,
+            SiteFetchArtifact.id == SitePageAnalysis.artifact_id,
+        )
+        .join(SiteUrl, SiteUrl.id == SitePageAnalysis.site_url_id)
+        .where(
+            SitePageAnalysis.crawl_id == crawl.id,
+            SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
+            SitePageAnalysis.is_current.is_(True),
+        )
+        .execution_options(yield_per=_SCHEMA_GRAPH_CHUNK)
+    )
 
     types: dict[str, dict] = {}
+    analyzed_pages = 0
     pages_with_schema = 0
     invalid_pages: list[dict] = []
     bound = _bounded(limit)
-    for site_url_id, url, facts in rows:
+    async for site_url_id, url, facts in await session.stream(statement):
+        analyzed_pages += 1
         blocks = _blocks(facts)
         if not blocks:
             continue
@@ -490,7 +502,7 @@ async def get_schema_graph(
 
     return {
         "crawl_id": str(crawl.id),
-        "analyzed_pages": len(rows),
+        "analyzed_pages": analyzed_pages,
         "pages_with_schema": pages_with_schema,
         "types": sorted(types.values(), key=lambda item: -item["pages"]),
         "invalid": invalid_pages,

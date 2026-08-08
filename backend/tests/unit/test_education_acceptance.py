@@ -67,9 +67,7 @@ FIXTURES = (
 
 @pytest.fixture(scope="module")
 def corpus() -> dict:
-    return json.loads(
-        (FIXTURES / "acceptance-corpus.json").read_text(encoding="utf-8")
-    )
+    return json.loads((FIXTURES / "acceptance-corpus.json").read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")
@@ -190,9 +188,13 @@ def _contradiction_count(analyzed: dict, vocabulary) -> tuple[int, frozenset[str
             spec.conflict_policy, spec.cardinality
         ):
             continue
-        if any(not member.scope_complete for member in members):
-            continue
-        if len({member.normalized_value for member in members}) < 2:
+        # Mirror production ``_group_contradictions``: unscoped members are
+        # EXCLUDED from the comparison, not treated as disqualifying the whole
+        # claim. Skipping the claim outright made this acceptance check accept a
+        # dispute count the shipped grouper would never produce — two scoped
+        # values still contradict each other with an unscoped third beside them.
+        scoped = [member for member in members if member.scope_complete]
+        if len({member.normalized_value for member in scoped}) < 2:
             continue
         disputes += 1
         disputed.add(predicate_id)
@@ -287,9 +289,9 @@ def test_the_fixture_publishes_no_structured_data(analyzed, corpus):
 def test_every_page_classifies_into_the_role_the_fixture_declares(analyzed, corpus):
     """The fixture is the authority; a drift in either direction fails here."""
     for page in corpus["pages"]:
-        assert analyzed["roles_by_case"][page["case"]] == page["expected_role"], (
-            page["case"]
-        )
+        assert analyzed["roles_by_case"][page["case"]] == page["expected_role"], page[
+            "case"
+        ]
 
 
 def test_the_admissions_funnel_is_identified(analyzed):
@@ -332,9 +334,7 @@ def test_the_organization_is_established_from_visible_content(analyzed, corpus):
 def test_one_inbox_yields_one_contact_point(analyzed, corpus):
     """A percent-escaped ``mailto:`` is the same address, not a second one."""
     contacts = [
-        a
-        for a in analyzed["assertions"]
-        if a.predicate_id == "education.contact_point"
+        a for a in analyzed["assertions"] if a.predicate_id == "education.contact_point"
     ]
     assert len(contacts) == corpus["expected"]["organization_contact_points"]
     assert all("%" not in contact.normalized_value for contact in contacts)

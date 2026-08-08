@@ -68,7 +68,19 @@ p = sync_playwright().start();\
 b = p.chromium.launch(headless=True, args=['--no-sandbox']);\
 b.close();\
 p.stop();\
-print('chromium launch OK')"; \
+print('chromium launch OK as root')" \
+      # Then prove it again AS THE RUNTIME IDENTITY. A root launch says nothing
+      # about uid 10001: the install above is deliberately read-only to that
+      # user, so one missing execute bit under /opt/ms-playwright passes the
+      # root probe and fails every live crawl — the exact silent failure this
+      # probe exists to catch.
+      && runuser -u appuser -- python -c "\
+from patchright.sync_api import sync_playwright;\
+p = sync_playwright().start();\
+b = p.chromium.launch(headless=True, args=['--no-sandbox']);\
+b.close();\
+p.stop();\
+print('chromium launch OK as appuser')"; \
     fi
 COPY --chown=0:0 backend/app ./app
 COPY --chown=0:0 backend/alembic.ini ./alembic.ini

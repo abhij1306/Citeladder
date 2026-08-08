@@ -310,10 +310,15 @@ def _form_fields(root: Any) -> list[str]:
         for node in root.iter("input", "select", "textarea"):
             if len(fields) >= _MAX_FORM_FIELDS:
                 break
+            # Every action control, not just the two obvious ones: ``reset`` and
+            # ``image`` are buttons too, and their label would otherwise enter
+            # the classifier as something the page ASKS the visitor for.
             if str(node.get("type") or "").strip().casefold() in {
                 "hidden",
                 "submit",
                 "button",
+                "reset",
+                "image",
             }:
                 continue
             candidate = (

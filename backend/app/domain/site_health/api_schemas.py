@@ -835,6 +835,9 @@ class KnowledgeAssertionItem(_Model):
     unit: str = ""
     currency: str = ""
     scope: dict[str, str] = {}
+    # False = a pack-required qualifier was never evidenced. Such a claim must
+    # not be read as scoped, so the reader is told rather than left to guess.
+    scope_complete: bool = True
     temporal_state: str
     effective_from: str | None = None
     effective_to: str | None = None

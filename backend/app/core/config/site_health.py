@@ -1528,7 +1528,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         weight=2.0,
         applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description=(
-            "Word count is below the per-page-type minimum (PAGE_KIND_PROFILES)."
+            "Word count is below the per-page-kind minimum (PAGE_KIND_PROFILES)."
         ),
         remediation="Add substantive, answer-oriented body content to the page.",
         display_label="Thin content",
