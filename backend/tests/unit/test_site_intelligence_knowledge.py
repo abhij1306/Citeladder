@@ -169,6 +169,22 @@ def test_missing_root_name_is_reported_as_a_warning_not_invented(education):
     assert not result.assertions
 
 
+def test_percent_escaped_mailto_yields_one_usable_address():
+    """``mailto:%20info@x.test`` is one inbox, not an unusable second one.
+
+    Observed live on the first acceptance corpus: the raw escape persisted as a
+    contact point AND duplicated the real address.
+    """
+    facts = extract_page_facts(
+        b"<html><body>"
+        b"<a href='mailto:%20info@x.test'>a</a>"
+        b"<a href='mailto:info@x.test'>b</a>"
+        b"</body></html>",
+        final_url="https://a.test/",
+    )
+    assert facts["contact_points"] == [{"channel": "email", "value": "info@x.test"}]
+
+
 def test_contact_points_are_scoped_by_channel_and_deduplicated(education):
     result = knowledge(
         education, _HOME, role="education.institution_home", url="https://a.test/",
