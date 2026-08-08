@@ -8,7 +8,7 @@
 # Recognition (P2): a block is recorded when its ``@type`` is in the config
 # ``STRUCTURED_DATA_RECOGNIZED_TYPES`` set — the v1
 # ``STRUCTURED_DATA_REQUIRED_PROPERTIES`` types UNION every type named by
-# ``PAGE_TYPE_EXPECTED_SCHEMA``. The v1 map keeps owning the back-compat
+# ``PAGE_KIND_EXPECTED_SCHEMA``. The v1 map keeps owning the back-compat
 # ``required``/``present``/``missing``/``valid`` fields (types outside it
 # validate with ``required=()``, ``valid=True``; the per-type expectation
 # rules own required/recommended validation for them, spec §5.2).

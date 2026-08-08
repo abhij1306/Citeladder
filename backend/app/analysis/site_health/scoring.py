@@ -31,7 +31,7 @@ from app.core.config.site_health import (
     DIMENSION_TECHNICAL,
     DIMENSION_WEIGHT_AEO,
     DIMENSION_WEIGHT_TECHNICAL,
-    PAGE_TYPES,
+    PAGE_KINDS,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
@@ -249,42 +249,42 @@ def aggregate_scores(
 
 
 @dataclass(frozen=True)
-class PageTypeScoreInput:
+class PageKindScoreInput:
     """One latest-completed analysis's scores + its classified page type.
 
-    Feeds the crawl-level ``by_page_type`` rollup (v2 P1, spec §5.2/§5.6).
+    Feeds the crawl-level ``by_page_kind`` rollup (v2 P1, spec §5.2/§5.6).
     A missing/errored URL is simply NOT passed in — the rollup never
     fabricates a zero for it, and a ``None`` dimension score is skipped
     rather than averaged as zero.
     """
 
-    page_type: str
+    page_kind: str
     technical_score: float | None
     aeo_score: float | None
     overall_score: float | None
 
 
-def aggregate_by_page_type(
-    analyses: Iterable[PageTypeScoreInput],
+def aggregate_by_page_kind(
+    analyses: Iterable[PageKindScoreInput],
 ) -> dict[str, dict[str, float | int | None]]:
     """Per-page-type rollup: analyzed count + mean technical/aeo/overall.
 
     Only page types with at least one input appear. Key order is
-    deterministic: the config ``PAGE_TYPES`` taxonomy order first, then any
+    deterministic: the config ``PAGE_KINDS`` taxonomy order first, then any
     unrecognized type (defensive — the classifier only emits taxonomy
     members) sorted after it.
     """
-    grouped: dict[str, list[PageTypeScoreInput]] = {}
+    grouped: dict[str, list[PageKindScoreInput]] = {}
     for analysis in analyses:
-        grouped.setdefault(analysis.page_type, []).append(analysis)
+        grouped.setdefault(analysis.page_kind, []).append(analysis)
 
-    ordered = [page_type for page_type in PAGE_TYPES if page_type in grouped]
-    ordered += sorted(t for t in grouped if t not in PAGE_TYPES)
+    ordered = [page_kind for page_kind in PAGE_KINDS if page_kind in grouped]
+    ordered += sorted(t for t in grouped if t not in PAGE_KINDS)
 
     rollup: dict[str, dict[str, float | int | None]] = {}
-    for page_type in ordered:
-        rows = grouped[page_type]
-        rollup[page_type] = {
+    for page_kind in ordered:
+        rows = grouped[page_kind]
+        rollup[page_kind] = {
             "analyzed_count": len(rows),
             "technical_score": _mean(
                 [r.technical_score for r in rows if r.technical_score is not None]

@@ -7,7 +7,7 @@
 # the rule's dimension/category/severity/weight/version for provenance.
 #
 # PURE + deterministic (no I/O, no ORM). Applicability is driven by the rule's
-# ``applicability_key`` ("always" | "has_html" | "page_type:<type>" (v2 P1) |
+# ``applicability_key`` ("always" | "has_html" | "page_kind:<type>" (v2 P1) |
 # "site_root" | "crawl_finalize" (v2 P2, spec §5.2/§5.3)). ``site_root`` rules
 # resolve against the worker-injected ``facts["site"]`` (present only in the
 # crawl root's own analysis, so they evaluate exactly once per crawl);
@@ -16,7 +16,7 @@
 # writer filters them out before persisting. If a rule's check raises, its
 # outcome is ERROR (preserved, given zero scoring credit) — a single broken
 # check never aborts the whole evaluation. Per-type thin-content minimums and
-# rule-weight overrides are config-owned (``PAGE_TYPE_PROFILES``, invariant 1);
+# rule-weight overrides are config-owned (``PAGE_KIND_PROFILES``, invariant 1);
 # the v1 analysis-owned ``MIN_SUFFICIENT_WORDS`` constant moved there in v2.
 from __future__ import annotations
 
@@ -35,10 +35,10 @@ from app.core.config.site_health import (
     APPLICABILITY_SITE_ROOT,
     EXPAND_GATED_MAX_RATIO,
     META_DESCRIPTION_LENGTH_BAND,
-    PAGE_TYPE_APPLICABILITY_PREFIX,
-    PAGE_TYPE_EXPECTED_SCHEMA,
-    PAGE_TYPE_OTHER,
-    PAGE_TYPE_PROFILES,
+    PAGE_KIND_APPLICABILITY_PREFIX,
+    PAGE_KIND_EXPECTED_SCHEMA,
+    PAGE_KIND_OTHER,
+    PAGE_KIND_PROFILES,
     QUESTION_HEADINGS_MIN_RATIO,
     RENDER_BLOCKING_MAX_RESOURCES,
     RULE_OUTCOME_ERROR,
@@ -52,8 +52,8 @@ from app.core.config.site_health import (
     SOCIAL_DOMAINS,
     TITLE_LENGTH_BAND,
     TTFB_WARN_MS,
-    PageTypeProfile,
-    PageTypeSchemaExpectation,
+    PageKindProfile,
+    PageKindSchemaExpectation,
     SiteHealthRule,
 )
 from app.core.config.site_health_page_profiles import (
@@ -67,20 +67,20 @@ from app.core.config.site_health_page_profiles import (
 )
 
 
-def _profile_for(facts: dict) -> PageTypeProfile | None:
-    """The config profile for ``facts["page_type"]`` (None when unknown)."""
-    page_type = str(facts.get("page_type") or "").strip().lower()
-    return PAGE_TYPE_PROFILES.get(page_type)
+def _profile_for(facts: dict) -> PageKindProfile | None:
+    """The config profile for ``facts["page_kind"]`` (None when unknown)."""
+    page_kind = str(facts.get("page_kind") or "").strip().lower()
+    return PAGE_KIND_PROFILES.get(page_kind)
 
 
 def _sufficient_word_minimum(facts: dict) -> tuple[int, str]:
     """Per-type thin-content minimum, falling back to the ``other`` profile.
 
-    Returns ``(minimum, page_type)`` so the check evidence records exactly
+    Returns ``(minimum, page_kind)`` so the check evidence records exactly
     which profile drove the outcome.
     """
-    profile = _profile_for(facts) or PAGE_TYPE_PROFILES[PAGE_TYPE_OTHER]
-    return profile.min_sufficient_words, profile.page_type
+    profile = _profile_for(facts) or PAGE_KIND_PROFILES[PAGE_KIND_OTHER]
+    return profile.min_sufficient_words, profile.page_kind
 
 
 @dataclass(frozen=True)
@@ -186,11 +186,11 @@ def _check_open_graph_present(facts: dict) -> tuple[str, dict]:
 def _check_thin_content(facts: dict) -> tuple[str, dict]:
     body = facts.get("body") or {}
     word_count = int(body.get("word_count", 0) or 0)
-    minimum, page_type = _sufficient_word_minimum(facts)
+    minimum, page_kind = _sufficient_word_minimum(facts)
     return _pass_fail(word_count >= minimum), {
         "word_count": word_count,
         "minimum": minimum,
-        "page_type": page_type,
+        "page_kind": page_kind,
     }
 
 
@@ -367,21 +367,21 @@ def _check_llms_txt_present(facts: dict) -> tuple[str, dict]:
 # --- v2 P2: per-type schema validity checks --------------------------------
 
 
-def _expectation_for(facts: dict) -> PageTypeSchemaExpectation:
+def _expectation_for(facts: dict) -> PageKindSchemaExpectation:
     """The config schema expectation for the page's classified type.
 
     Falls back to the ``other`` expectation for an absent/unknown page type
     (same fallback convention as the thin-content minimum).
     """
-    page_type = str(facts.get("page_type") or "").strip().lower()
-    if page_type == PRODUCT_SCHEMA_EXPECTATION.page_type:
+    page_kind = str(facts.get("page_kind") or "").strip().lower()
+    if page_kind == PRODUCT_SCHEMA_EXPECTATION.page_kind:
         return PRODUCT_SCHEMA_EXPECTATION
-    return PAGE_TYPE_EXPECTED_SCHEMA.get(
-        page_type, PAGE_TYPE_EXPECTED_SCHEMA[PAGE_TYPE_OTHER]
+    return PAGE_KIND_EXPECTED_SCHEMA.get(
+        page_kind, PAGE_KIND_EXPECTED_SCHEMA[PAGE_KIND_OTHER]
     )
 
 
-def _expected_blocks(facts: dict, expectation: PageTypeSchemaExpectation) -> list[dict]:
+def _expected_blocks(facts: dict, expectation: PageKindSchemaExpectation) -> list[dict]:
     """Structured-data blocks whose type is expected for the page type."""
     sd = facts.get("structured_data") or {}
     expected = set(expectation.expected_types)
@@ -398,7 +398,7 @@ def _check_schema_expected_for_type(facts: dict) -> tuple[str, dict]:
     found_types = sorted(str(t) for t in (sd.get("types") or []))
     blocks = _expected_blocks(facts, expectation)
     return _pass_fail(bool(blocks)), {
-        "page_type": expectation.page_type,
+        "page_kind": expectation.page_kind,
         "expected_types": list(expectation.expected_types),
         "found_types": found_types[:20],
     }
@@ -433,7 +433,7 @@ def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
     best_missing = min((_missing_paths(block, paths) for block in blocks), key=len)
     evidence = {
-        "page_type": expectation.page_type,
+        "page_kind": expectation.page_kind,
         "expected_types": list(expectation.expected_types),
         label: list(paths),
         "missing": best_missing,
@@ -479,7 +479,7 @@ def _check_schema_matches_content(facts: dict) -> tuple[str, dict]:
         candidate.lower() in hay for candidate in candidates for hay in lowered
     )
     return _pass_fail(matched), {
-        "page_type": expectation.page_type,
+        "page_kind": expectation.page_kind,
         "candidates": [c[:256] for c in candidates],
         "matched_visible_content": matched,
     }
@@ -790,17 +790,17 @@ def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
             return False, "no_html"
         is_shell, _evidence = _server_render_signals(facts)
         return not is_shell, "content_not_server_rendered"
-    if key.startswith(PAGE_TYPE_APPLICABILITY_PREFIX):
-        # page_type:<type> tokens resolve against facts["page_type"]: the
+    if key.startswith(PAGE_KIND_APPLICABILITY_PREFIX):
+        # page_kind:<type> tokens resolve against facts["page_kind"]: the
         # token must name exactly the page's (known) type. An absent/unknown
         # page type — or a token naming any other type — is inapplicable
         # (fail-closed).
         profile = _profile_for(facts)
         applies = (
             profile is not None
-            and key == f"{PAGE_TYPE_APPLICABILITY_PREFIX}{profile.page_type}"
+            and key == f"{PAGE_KIND_APPLICABILITY_PREFIX}{profile.page_kind}"
         )
-        return applies, "other_page_type"
+        return applies, "other_page_kind"
     if key == APPLICABILITY_SITE_ROOT:
         # Site-level rules apply only inside the crawl root's own analysis,
         # where the worker injected facts["site"] from the crawl's
@@ -816,9 +816,9 @@ def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
 
 
 def _weight_for(rule: SiteHealthRule, facts: dict) -> float:
-    """The rule's weight, with any per-(rule_id, page_type) config override.
+    """The rule's weight, with any per-(rule_id, page_kind) config override.
 
-    Resolved at evaluation time from ``PAGE_TYPE_PROFILES`` so the emitted
+    Resolved at evaluation time from ``PAGE_KIND_PROFILES`` so the emitted
     ``RuleEvaluation`` carries exactly the weight scoring will credit.
     """
     profile = _profile_for(facts)
@@ -874,8 +874,8 @@ def evaluate_all(facts: dict) -> list[RuleEvaluation]:
     """Evaluate every catalog rule against ``facts`` (catalog order)."""
     supplemental = (
         PRODUCT_ANALYSIS_RULES
-        if str(facts.get("page_type") or "").lower()
-        == PRODUCT_SCHEMA_EXPECTATION.page_type
+        if str(facts.get("page_kind") or "").lower()
+        == PRODUCT_SCHEMA_EXPECTATION.page_kind
         else ()
     )
     return [evaluate_rule(rule, facts) for rule in (*SITE_HEALTH_RULES, *supplemental)]

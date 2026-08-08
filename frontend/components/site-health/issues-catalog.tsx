@@ -13,8 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/typography';
 import { siteHealthQueries, type IssuesParams } from '@/lib/api/site-health';
 import type { IssueDimension, SiteIssue } from '@/lib/api/types';
-import { PageTypeBadge } from '@/components/site-health/page-type-badge';
-import { PageTypeSelect } from '@/components/site-health/page-type-select';
+import { PageKindBadge } from '@/components/site-health/page-kind-badge';
+import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import {
   dimensionLabel,
   issueTitle,
@@ -87,7 +87,7 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterKey>('all');
-  const [pageType, setPageType] = useState('');
+  const [pageKind, setPageKind] = useState('');
   const [cursorStack, setCursorStack] = useState<string[]>([]);
 
   const cursor = cursorStack.at(-1);
@@ -95,11 +95,11 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
     () => ({
       ...filterParams(filter),
       query: query.trim() || undefined,
-      page_type: pageType || undefined,
+      page_kind: pageKind || undefined,
       cursor,
       limit: ISSUE_LIMIT,
     }),
-    [filter, query, pageType, cursor],
+    [filter, query, pageKind, cursor],
   );
 
   const issuesQuery = useQuery(siteHealthQueries.issues(crawlId, params));
@@ -119,8 +119,8 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
   };
   // Same server-backed reset behavior as the chips: a filter edit restarts
   // from the first page (filter-bound cursors are rejected server-side).
-  const selectPageType = (next: string) => {
-    setPageType(next);
+  const selectPageKind = (next: string) => {
+    setPageKind(next);
     setCursorStack([]);
   };
   const goNext = () => {
@@ -139,7 +139,7 @@ export function IssuesCatalog({ crawlId }: Readonly<{ crawlId: string }>) {
           aria-label="Search issues"
           className="max-w-xs"
         />
-        <PageTypeSelect value={pageType} onChange={selectPageType} />
+        <PageKindSelect value={pageKind} onChange={selectPageKind} />
         <div className="flex flex-wrap items-center gap-1.5">
           {FILTERS.map((f) => (
             <button
@@ -287,7 +287,7 @@ function IssueCard({ issue, crawlId }: Readonly<{ issue: SiteIssue; crawlId: str
                         <span className="text-foreground text-sm font-medium">
                           {url.title ?? url.display_url}
                         </span>
-                        <PageTypeBadge pageType={url.page_type} />
+                        <PageKindBadge pageKind={url.page_kind} />
                       </span>
                       <span className="mono text-2xs text-muted">{url.display_url}</span>
                     </Link>

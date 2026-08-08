@@ -133,8 +133,7 @@ def _acquisition_values(
             "acquisition_rung": None,
             "acquisition_trigger": "",
             "impersonation_profile": "",
-            "scraperapi_options": None,
-            "scraperapi_request_id": "",
+            "acquisition_options": None,
             "acquisition_policy_version": "",
         }
     return {
@@ -142,12 +141,9 @@ def _acquisition_values(
         "acquisition_rung": acquisition.rung,
         "acquisition_trigger": acquisition.trigger[:32],
         "impersonation_profile": acquisition.impersonation_profile[:64],
-        "scraperapi_options": (
-            dict(acquisition.scraperapi_options)
-            if acquisition.scraperapi_options
-            else None
+        "acquisition_options": (
+            dict(acquisition.options) if acquisition.options else None
         ),
-        "scraperapi_request_id": acquisition.scraperapi_request_id[:255],
         "acquisition_policy_version": acquisition.policy_version[:32],
     }
 

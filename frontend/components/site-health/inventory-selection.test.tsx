@@ -50,7 +50,7 @@ function row(id: string, url: string): InventoryRow {
     aeo_score: null,
     overall_score: null,
     last_audited: null,
-    page_type: null,
+    page_kind: null,
   };
 }
 
@@ -154,7 +154,7 @@ describe('InventorySelection', () => {
     expect(screen.getByRole('button', { name: /analyze 1 of 50 pages/i })).toBeEnabled();
   });
 
-  it('wires the page-type filter as a server param, set and cleared', async () => {
+  it('wires the page-kind filter as a server param, set and cleared', async () => {
     const user = userEvent.setup();
     const seen: Array<string | null> = [];
     mswServer.use(
@@ -167,7 +167,7 @@ describe('InventorySelection', () => {
         }),
       ),
       http.get(`/api/v1/site-crawls/${crawl.id}/inventory`, ({ request }) => {
-        seen.push(new URL(request.url).searchParams.get('page_type'));
+        seen.push(new URL(request.url).searchParams.get('page_kind'));
         return HttpResponse.json({
           items: [row(URL_A, 'https://acme.com/a')],
           next_cursor: null,
@@ -179,8 +179,8 @@ describe('InventorySelection', () => {
       <InventorySelection crawl={crawl} entitlement={entitlement} projectId={PROJECT} />,
     );
 
-    const select = await screen.findByLabelText('Filter by page type');
-    // No page-type param on the initial unfiltered request.
+    const select = await screen.findByLabelText('Filter by page kind');
+    // No page-kind param on the initial unfiltered request.
     await waitFor(() => expect(seen.length).toBeGreaterThan(0));
     expect(seen.at(-1)).toBeNull();
 
@@ -191,12 +191,12 @@ describe('InventorySelection', () => {
     // went through its loading skeleton and the form REMOUNTED — the `select`
     // reference above is now a detached node whose change events never reach
     // React. Re-acquire the mounted control before clearing.
-    const remountedSelect = await screen.findByLabelText('Filter by page type');
+    const remountedSelect = await screen.findByLabelText('Filter by page kind');
 
-    // Clearing back to "All page types" drops the param entirely. The
+    // Clearing back to "All page kinds" drops the param entirely. The
     // unfiltered combination is already cached (no new request), so force a
     // fresh combination via the search filter and assert THAT request omits
-    // page_type. (Select by the option's visible label — user-event does not
+    // page_kind. (Select by the option's visible label — user-event does not
     // fire a change event for selectOptions(select, '').)
     fireEvent.change(remountedSelect, { target: { value: '' } });
     expect(remountedSelect).toHaveValue('');

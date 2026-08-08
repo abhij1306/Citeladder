@@ -15,6 +15,7 @@ dependencies = [
   "httpx>=0.28.1,<1",
   "joserfc>=1.6.8,<2",
   "lxml>=6.1.0,<7",
+  "patchright>=1.52,<2",
   "protego>=0.3.1,<1",
   "pydantic-settings>=2.10.0,<3",
   "python-multipart>=0.0.31,<1",

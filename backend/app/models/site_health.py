@@ -36,6 +36,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     desc,
+    text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -43,18 +44,21 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.config.site_health import (
     ANALYSIS_STATUS_PENDING,
+    CORPUS_DISPOSITION_ANALYZE,
     CRAWL_STATUS_DRAFT,
     DISCOVERY_MODE_SAMPLE,
     DISCOVERY_STATUS_PENDING,
     FRONTIER_PENDING,
     INITIAL_TASK_GENERATION,
+    ITEM_KIND_HTML_PAGE,
     PAGE_ANALYSIS_STATUS_PENDING,
-    PAGE_TYPE_OTHER,
+    PAGE_KIND_OTHER,
     PHASE_RUN_RUNNING,
     SAMPLE_DISCOVERY_URL_CAP,
     SAMPLE_URL_LIMIT,
     SELECTION_SOURCE_USER,
     TASK_KIND_DISCOVER,
+    TEMPORAL_STATE_UNKNOWN,
     site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
@@ -425,6 +429,17 @@ class SiteUrl(Base):
     display_url: Mapped[str] = mapped_column(String(2048), default="")
     host: Mapped[str] = mapped_column(String(255), default="")
     depth: Mapped[int] = mapped_column(Integer, default=0)
+    # Corpus disposition (Site Intelligence §4). ``analyze`` items reach the
+    # HTML analyzer; ``inventory_only`` items (documents, known-but-not-worth-
+    # analyzing pages) stay counted in coverage without paying analysis cost;
+    # ``exclude`` items are confidently irrelevant. The reason/version make the
+    # decision explainable and reproducible after a classifier change.
+    corpus_disposition: Mapped[str] = mapped_column(
+        String(16), default=CORPUS_DISPOSITION_ANALYZE
+    )
+    disposition_reason: Mapped[str] = mapped_column(String(32), default="")
+    disposition_version: Mapped[str] = mapped_column(String(32), default="")
+    item_kind: Mapped[str] = mapped_column(String(16), default=ITEM_KIND_HTML_PAGE)
     discovery_status: Mapped[str] = mapped_column(String(24), default="")
     latest_source_kind: Mapped[str] = mapped_column(String(16), default="")
     latest_title: Mapped[str] = mapped_column(String(1024), default="")
@@ -793,8 +808,9 @@ class SiteFetchAttempt(Base):
     acquisition_rung: Mapped[int | None] = mapped_column(Integer, nullable=True)
     acquisition_trigger: Mapped[str] = mapped_column(String(32), default="")
     impersonation_profile: Mapped[str] = mapped_column(String(64), default="")
-    scraperapi_options: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    scraperapi_request_id: Mapped[str] = mapped_column(String(255), default="")
+    # Bounded, transport-neutral options describing the winning rung's request
+    # shape (never a credential, never a vendor request id).
+    acquisition_options: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     acquisition_policy_version: Mapped[str] = mapped_column(String(32), default="")
     # Set on the succeeding attempt (SET NULL if the artifact is later removed).
     artifact_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -861,8 +877,9 @@ class SiteFetchArtifact(Base):
     acquisition_rung: Mapped[int | None] = mapped_column(Integer, nullable=True)
     acquisition_trigger: Mapped[str] = mapped_column(String(32), default="")
     impersonation_profile: Mapped[str] = mapped_column(String(64), default="")
-    scraperapi_options: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    scraperapi_request_id: Mapped[str] = mapped_column(String(255), default="")
+    # Bounded, transport-neutral options describing the winning rung's request
+    # shape (never a credential, never a vendor request id).
+    acquisition_options: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     acquisition_policy_version: Mapped[str] = mapped_column(String(32), default="")
     extractor_version: Mapped[str] = mapped_column(String(32), default="")
     # Bounded normalized parsed facts (analyze tasks). Never a raw body.
@@ -876,16 +893,44 @@ class SiteFetchArtifact(Base):
 
 
 class SitePageAnalysis(Base):
-    """Artifact-derived per-URL analysis projection (unique ``artifact_id``).
+    """The single page-understanding owner (append-only; DTO ``PageUnderstanding``).
 
     Carries the Technical/AEO/overall scores, the analysis status, the
-    analyzer/scoring versions, and the source evaluation/artifact ID arrays for
-    full provenance. One analysis per immutable artifact.
+    analyzer/scoring versions, the generic ``page_kind``, the pack-governed
+    ``industry_role``, and the source evaluation/artifact ID arrays for full
+    provenance.
+
+    APPEND-ONLY, keyed by ``(artifact_id, analyzer_version, pack_id,
+    pack_version)`` with one ``is_current`` row per artifact. Recomputing the
+    same artifact under a NEW analyzer or pack version writes a NEW row rather
+    than mutating the old one — which is exactly what recrawl comparison needs,
+    and what stops a pack upgrade from silently reinterpreting history. A read
+    API renders the frozen versions on the row it loads and never re-resolves
+    the current pack.
+
+    ``PageUnderstanding`` is this row's API/DTO name, NOT a second table.
     """
 
     __tablename__ = "site_page_analyses"
     __table_args__ = (
-        UniqueConstraint("artifact_id", name="uq_site_page_analysis_artifact"),
+        # The append-only identity. ``artifact_id`` alone is deliberately NOT
+        # unique any more: one artifact legitimately has several analyses, one
+        # per (analyzer, pack) version pair.
+        UniqueConstraint(
+            "artifact_id",
+            "analyzer_version",
+            "industry_pack_id",
+            "industry_pack_version",
+            name="uq_site_page_analysis_version",
+        ),
+        # One current row per artifact, enforced by the database rather than by
+        # convention, so a failed supersede can never leave two live rows.
+        Index(
+            "uq_site_page_analysis_current",
+            "artifact_id",
+            unique=True,
+            postgresql_where=text("is_current"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -927,13 +972,51 @@ class SitePageAnalysis(Base):
     # v2 P1: the deterministic page-type classification + its version
     # (invariant 4). ``other`` is the fail-safe default when no signal
     # classifies the page.
-    page_type: Mapped[str] = mapped_column(String(24), default=PAGE_TYPE_OTHER)
+    page_kind: Mapped[str] = mapped_column(String(24), default=PAGE_KIND_OTHER)
     classifier_version: Mapped[str] = mapped_column(String(32), default="")
     # The bounded classifier evidence (ranked signals / confidence / schema
     # suggestion) behind the classification — the same dict
-    # ``PageTypeAssessment.to_evidence()`` produces, persisted for the per-URL
+    # ``PageKindAssessment.to_evidence()`` produces, persisted for the per-URL
     # detail "why this type?" disclosure.
-    page_type_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    page_kind_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    # --- Pack-governed industry role (independent of page_kind) ----------
+    # ``page_kind`` answers what the page structurally IS; ``industry_role``
+    # answers what job it performs in the active industry. They are separate
+    # vocabularies: an Education program page may be page_kind=article while
+    # industry_role=education.program_detail.
+    #
+    # NULL role with a non-null ``role_abstention_reason`` is an EXECUTED
+    # abstention (the classifier ran and declined); both NULL means the pack
+    # classifier never ran for this row. Collapsing those two into one state is
+    # what would let "we did not look" read as "there is nothing here".
+    industry_role_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    industry_role_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    industry_role_margin: Mapped[float | None] = mapped_column(Float, nullable=True)
+    industry_role_confidence: Mapped[str] = mapped_column(String(16), default="")
+    role_abstention_reason: Mapped[str] = mapped_column(String(32), default="")
+    # Bounded evidence/alternatives/conflicts + secondary roles.
+    industry_role_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    secondary_role_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    # The EXACT frozen pack manifest this row was produced under. Empty strings
+    # (never NULL) for an unpacked analysis keep the append-only unique key
+    # usable — Postgres treats NULLs in a unique constraint as distinct, which
+    # would let duplicate unpacked rows accumulate.
+    industry_pack_id: Mapped[str] = mapped_column(String(64), default="")
+    industry_pack_version: Mapped[str] = mapped_column(String(32), default="")
+    pack_content_hash: Mapped[str] = mapped_column(String(64), default="")
+    catalog_version: Mapped[str] = mapped_column(String(32), default="")
+    role_classifier_version: Mapped[str] = mapped_column(String(64), default="")
+    # Corpus/temporal state carried onto the understanding for report grouping.
+    corpus_disposition: Mapped[str] = mapped_column(
+        String(16), default=CORPUS_DISPOSITION_ANALYZE
+    )
+    temporal_state: Mapped[str] = mapped_column(
+        String(16), default=TEMPORAL_STATE_UNKNOWN
+    )
+    # Exactly one live row per artifact (see the partial unique index above).
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True)
+
     # Source provenance arrays (evaluation + artifact IDs).
     source_evaluation_ids: Mapped[list | None] = mapped_column(
         ARRAY(PGUUID(as_uuid=True)), nullable=True

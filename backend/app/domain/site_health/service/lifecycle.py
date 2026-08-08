@@ -134,7 +134,7 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
     latest_analyses = (
         select(
             SitePageAnalysis.site_url_id,
-            func.coalesce(SitePageAnalysis.page_type, "other").label("page_type"),
+            func.coalesce(SitePageAnalysis.page_kind, "other").label("page_kind"),
         )
         .where(
             SitePageAnalysis.crawl_id == crawl.id,
@@ -144,13 +144,13 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
         .order_by(SitePageAnalysis.site_url_id, SitePageAnalysis.created_at.desc())
         .subquery()
     )
-    page_types = {
-        str(page_type): int(count)
-        for page_type, count in (
+    page_kinds = {
+        str(page_kind): int(count)
+        for page_kind, count in (
             await session.execute(
-                select(latest_analyses.c.page_type, func.count())
+                select(latest_analyses.c.page_kind, func.count())
                 .select_from(latest_analyses)
-                .group_by(latest_analyses.c.page_type)
+                .group_by(latest_analyses.c.page_kind)
             )
         ).all()
     }
@@ -164,7 +164,7 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
         "analyzed": int(task_counts.analyzed),
         "errors": int(task_counts.failed) - blocked,
         "blocked": blocked,
-        "by_page_type": page_types,
+        "by_page_kind": page_kinds,
     }
 
 

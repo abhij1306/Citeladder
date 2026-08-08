@@ -139,6 +139,21 @@ def _start_planned_analysis(crawl: SiteCrawl, *, analyze_total: int) -> None:
         apply_analysis_status(crawl, ANALYSIS_STATUS_RUNNING)
 
 
+def _stop_drained_phases(crawl: SiteCrawl) -> None:
+    """Stop phase sub-states left RUNNING once every task has drained.
+
+    An advanced-control crawl is parked between user-started phases, so its
+    phases terminalize to STOPPED (resumable) rather than COMPLETED. Callers
+    must only reach this once no non-terminal task of any kind remains: a
+    RUNNING sub-state with no work behind it is not a live phase, it is a lie
+    the dashboard renders as an in-flight run.
+    """
+    if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
+        apply_discovery_status(crawl, DISCOVERY_STATUS_STOPPED)
+    if crawl.analysis_status == ANALYSIS_STATUS_RUNNING:
+        apply_analysis_status(crawl, ANALYSIS_STATUS_STOPPED)
+
+
 def _pause_running_crawl(crawl: SiteCrawl) -> None:
     """Park a drained advanced-control crawl until another phase is started."""
     if crawl.status == CRAWL_STATUS_RUNNING:
@@ -331,7 +346,13 @@ class CrawlLifecycle:
             # kind, every route into a terminal status, including a sweeper
             # reclaim that never runs a phase finalize) and idempotent, so it
             # also self-heals a counter that has already drifted.
-            crawl.failed_url_count = discover_failed + counts["analyze_failed"]
+            # Counting FAILED tasks would bill one URL twice when both its
+            # discover and its analyze task fail (a blocked page fails at both
+            # stages), which inflated the dashboard's failure count above the
+            # number of URLs the crawl actually holds. The unit is a distinct
+            # URL identity, so count distinct ``url_hash`` over failed tasks of
+            # every kind instead.
+            crawl.failed_url_count = await self._failed_url_count(session, crawl_id)
             # Same treatment for the analyzed counter: the analyze phase still
             # increments it live so the progress EVENT carries a fresh number,
             # but the succeeded-task count is the authority and repairs any
@@ -570,6 +591,15 @@ class CrawlLifecycle:
         )
         if outstanding:
             return False
+        # The loop above only sees phase runs still marked RUNNING. Once an
+        # earlier reconcile completed them, a later drained reconcile finds no
+        # rows, skips the loop, and used to park the crawl PAUSED with the phase
+        # sub-states left exactly as they were — so a crawl whose work had fully
+        # drained kept reporting ``analysis_status=running`` forever, and the UI
+        # kept rendering a live run with no non-terminal task behind it. The
+        # phase sub-states are derived from the drained task counts, not from
+        # the presence of a RUNNING phase-run row.
+        _stop_drained_phases(crawl)
         _pause_running_crawl(crawl)
         return True
 
@@ -621,6 +651,29 @@ class CrawlLifecycle:
             )
             await self.reconcile(crawl_id)
         return len(stalled)
+
+    async def _failed_url_count(
+        self, session: AsyncSession, crawl_id: uuid.UUID
+    ) -> int:
+        """Distinct URLs with at least one terminally failed task, any kind.
+
+        ``link_check`` is excluded: a broken outbound link is page EVIDENCE (it
+        becomes an issue on the page that links to it), not a failure to acquire
+        the URL being crawled, and counting it here would report a healthy page
+        as a failed one.
+        """
+        return int(
+            await session.scalar(
+                select(func.count(func.distinct(SiteCrawlTask.url_hash))).where(
+                    SiteCrawlTask.crawl_id == crawl_id,
+                    SiteCrawlTask.status == TASK_STATUS_FAILED,
+                    SiteCrawlTask.task_kind.in_(
+                        [TASK_KIND_DISCOVER, TASK_KIND_ANALYZE]
+                    ),
+                )
+            )
+            or 0
+        )
 
     async def _task_counts(
         self, session: AsyncSession, crawl_id: uuid.UUID

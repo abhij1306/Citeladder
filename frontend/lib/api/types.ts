@@ -77,8 +77,10 @@ import type {
   pageDetailSchema,
   pageSummarySchema,
   pagesPageSchema,
-  pageTypeSchema,
-  pageTypeScoreSummarySchema,
+  industryRoleManifestSchema,
+  industryRoleSchema,
+  pageKindSchema,
+  pageKindScoreSummarySchema,
   phaseMutationResponseSchema,
   phaseRunSchema,
   rerunPageResponseSchema,
@@ -223,8 +225,10 @@ export type CrawlCounters = z.infer<typeof crawlCountersSchema>;
 export type CrawlDiscoveryStatus = z.infer<typeof crawlDiscoveryStatusSchema>;
 export type CrawlAnalysisStatus = z.infer<typeof crawlAnalysisStatusSchema>;
 export type PageAnalysisStatus = z.infer<typeof pageAnalysisStatusSchema>;
-export type PageType = z.infer<typeof pageTypeSchema>;
-export type PageTypeScoreSummary = z.infer<typeof pageTypeScoreSummarySchema>;
+export type PageKind = z.infer<typeof pageKindSchema>;
+export type IndustryRole = z.infer<typeof industryRoleSchema>;
+export type IndustryRoleManifest = z.infer<typeof industryRoleManifestSchema>;
+export type PageKindScoreSummary = z.infer<typeof pageKindScoreSummarySchema>;
 export type SiteScoreSummary = z.infer<typeof siteScoreSummarySchema>;
 export type CrawlFailureSummary = z.infer<typeof crawlFailureSummarySchema>;
 export type RootError = z.infer<typeof rootErrorSchema>;

@@ -45,7 +45,7 @@ from app.domain.site_health.service.issues import (
     get_issue_detail,
     get_issue_history,
     get_issues,
-    issue_group_page_types,
+    issue_group_page_kinds,
 )
 from app.domain.site_health.service.lifecycle import (
     cancel_crawl,
@@ -83,7 +83,7 @@ __all__ = [
     "get_pages",
     "get_page_detail",
     "get_issues",
-    "issue_group_page_types",
+    "issue_group_page_kinds",
     "get_issue_detail",
     "get_issue_history",
     "get_grouped_issue_history",

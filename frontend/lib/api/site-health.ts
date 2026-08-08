@@ -65,7 +65,7 @@ export type CreateCrawlInput = {
   requested_page_limit?: number;
   discovery_count?: number;
   seed_urls?: string[];
-  page_types?: string[];
+  page_kinds?: string[];
 };
 export type UrlPreviewInput = Pick<
   CreateCrawlInput,
@@ -83,7 +83,7 @@ export type InventoryParams = {
   status?: string;
   monitored?: boolean;
   /** v2 P1: filter to one classified page type (omitted = all types). */
-  page_type?: string;
+  page_kind?: string;
 };
 
 type CrawlListParams = { project_id: string; limit?: number; cursor?: string };
@@ -93,7 +93,7 @@ export type PagesParams = {
   status?: string;
   monitored?: boolean;
   /** v2 P1: filter to one classified page type (omitted = all types). */
-  page_type?: string;
+  page_kind?: string;
 };
 export type IssuesParams = {
   cursor?: string;
@@ -105,7 +105,7 @@ export type IssuesParams = {
   rule?: string;
   site_url_id?: string;
   /** v2 P1: filter to issues affecting one classified page type. */
-  page_type?: string;
+  page_kind?: string;
 };
 
 /** Keyset params for a grouped issue's affected-URL page. */
@@ -356,7 +356,7 @@ export const siteHealthQueries = {
         query: params?.query ?? null,
         status: params?.status ?? null,
         monitored: params?.monitored ?? null,
-        page_type: params?.page_type ?? null,
+        page_kind: params?.page_kind ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.getInventory(crawlId, params, { signal }),
     }),
@@ -372,7 +372,7 @@ export const siteHealthQueries = {
         limit: params?.limit ?? null,
         status: params?.status ?? null,
         monitored: params?.monitored ?? null,
-        page_type: params?.page_type ?? null,
+        page_kind: params?.page_kind ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.getPages(crawlId, params, { signal }),
     }),
@@ -392,7 +392,7 @@ export const siteHealthQueries = {
         dimension: params?.dimension ?? null,
         rule: params?.rule ?? null,
         site_url_id: params?.site_url_id ?? null,
-        page_type: params?.page_type ?? null,
+        page_kind: params?.page_kind ?? null,
       }),
       queryFn: ({ signal }) => siteHealthApi.getIssues(crawlId, params, { signal }),
     }),

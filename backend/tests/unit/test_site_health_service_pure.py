@@ -227,7 +227,7 @@ def test_unmonitored_with_nothing_is_not_selected() -> None:
 
 
 # --------------------------------------------------------------------------
-# score_summary projection (v2 P1 by_page_type breakdown)
+# score_summary projection (v2 P1 by_page_kind breakdown)
 # --------------------------------------------------------------------------
 
 
@@ -245,7 +245,7 @@ def test_score_summary_projects_by_page_type() -> None:
             "analyzed_count": 3,
             "issue_count": 2,
             "scoring_version": "sh-scoring-2",
-            "by_page_type": {
+            "by_page_kind": {
                 "article": {
                     "analyzed_count": 2,
                     "technical_score": 85.0,
@@ -263,20 +263,20 @@ def test_score_summary_projects_by_page_type() -> None:
     )
     projected = _score_summary(cast(SiteCrawl, crawl))
     assert projected is not None
-    by_page_type = projected["by_page_type"]
-    assert set(by_page_type) == {"article", "product"}
-    assert by_page_type["article"] == {
+    by_page_kind = projected["by_page_kind"]
+    assert set(by_page_kind) == {"article", "product"}
+    assert by_page_kind["article"] == {
         "analyzed_count": 2,
         "technical_score": 85.0,
         "aeo_score": 70.0,
         "overall_score": 77.5,
     }
     # A None mean is projected as None, never fabricated as zero.
-    assert by_page_type["product"]["technical_score"] is None
+    assert by_page_kind["product"]["technical_score"] is None
 
 
 def test_score_summary_without_breakdown_projects_empty_map() -> None:
-    # Pre-P1 summaries carry no by_page_type key: the strict DTO shape gets
+    # Pre-P1 summaries carry no by_page_kind key: the strict DTO shape gets
     # an empty map rather than a missing key.
     crawl = _crawl_with_summary(
         {
@@ -290,7 +290,7 @@ def test_score_summary_without_breakdown_projects_empty_map() -> None:
     )
     projected = _score_summary(cast(SiteCrawl, crawl))
     assert projected is not None
-    assert projected["by_page_type"] == {}
+    assert projected["by_page_kind"] == {}
     assert projected["scoring_version"] == "sh-scoring-2"
 
 

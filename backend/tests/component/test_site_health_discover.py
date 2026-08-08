@@ -968,11 +968,11 @@ async def test_plain_fetch_persists_one_attempt_row(
         assert row.acquisition_transport == "httpx"
         assert row.acquisition_rung == 1
         assert row.acquisition_trigger == "initial"
-        assert row.scraperapi_options is None
+        assert row.acquisition_options is None
         assert artifact.acquisition_transport == "httpx"
         assert artifact.acquisition_rung == 1
         assert artifact.acquisition_trigger == "initial"
-        assert artifact.scraperapi_options is None
+        assert artifact.acquisition_options is None
 
 
 @pytest.mark.asyncio

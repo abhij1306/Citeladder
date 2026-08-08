@@ -276,7 +276,7 @@ async def create_crawl_endpoint(
             input_mode=payload.input_mode,
             requested_page_limit=_crawl_requested_page_limit(payload),
             seed_urls=payload.seed_urls,
-            page_types=payload.page_types,
+            page_kinds=payload.page_kinds,
         )
     except CrawlAlreadyActiveError as exc:
         raise ApiException.coded(
@@ -495,7 +495,7 @@ async def get_inventory_endpoint(
     query: Annotated[str | None, Query()] = None,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     monitored: Annotated[bool | None, Query()] = None,
-    page_type: Annotated[str | None, Query()] = None,
+    page_kind: Annotated[str | None, Query()] = None,
 ) -> InventoryPage:
     try:
         page = await service.get_inventory(
@@ -507,7 +507,7 @@ async def get_inventory_endpoint(
             query=query,
             status=status_filter,
             monitored=monitored,
-            page_type=page_type,
+            page_kind=page_kind,
         )
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
@@ -638,7 +638,7 @@ async def get_pages_endpoint(
     cursor: Annotated[str | None, Query()] = None,
     status_filter: Annotated[str | None, Query(alias="status")] = None,
     monitored: Annotated[bool | None, Query()] = None,
-    page_type: Annotated[str | None, Query()] = None,
+    page_kind: Annotated[str | None, Query()] = None,
 ) -> PagesPage:
     try:
         page = await service.get_pages(
@@ -649,7 +649,7 @@ async def get_pages_endpoint(
             cursor=cursor,
             status=status_filter,
             monitored=monitored,
-            page_type=page_type,
+            page_kind=page_kind,
         )
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
@@ -801,7 +801,7 @@ async def get_issues_endpoint(
     dimension: Annotated[str | None, Query()] = None,
     rule: Annotated[str | None, Query()] = None,
     site_url_id: Annotated[uuid.UUID | None, Query()] = None,
-    page_type: Annotated[str | None, Query()] = None,
+    page_kind: Annotated[str | None, Query()] = None,
 ) -> SiteIssuesPage:
     try:
         page = await service.get_issues(
@@ -816,7 +816,7 @@ async def get_issues_endpoint(
             dimension=dimension,
             rule=rule,
             site_url_id=site_url_id,
-            page_type=page_type,
+            page_kind=page_kind,
         )
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
@@ -1036,16 +1036,16 @@ async def _export_items(
         if not cursor:
             break
     if view == "issues" and items:
-        # v2 P1: the issues export carries a page_type column listing the
+        # v2 P1: the issues export carries a page_kind column listing the
         # distinct classified types of each group's affected analyses (a
         # group can span types, so the JSON issue DTO has no single badge).
-        # Pages/inventory rows already carry their scalar page_type.
-        page_types_by_rule = await service.issue_group_page_types(
+        # Pages/inventory rows already carry their scalar page_kind.
+        page_kinds_by_rule = await service.issue_group_page_kinds(
             session, workspace_id=workspace_id, crawl_id=crawl_id
         )
         for item in items:
-            item["page_type"] = ", ".join(
-                page_types_by_rule.get(str(item.get("rule_id") or ""), [])
+            item["page_kind"] = ", ".join(
+                page_kinds_by_rule.get(str(item.get("rule_id") or ""), [])
             )
     return items, truncated
 

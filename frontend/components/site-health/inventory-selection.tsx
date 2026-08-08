@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/typography';
 import { InventoryTable } from '@/components/site-health/inventory-table';
-import { PageTypeSelect } from '@/components/site-health/page-type-select';
+import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import { QuickSelectBar } from '@/components/site-health/quick-select-bar';
 import { SelectionNotices } from '@/components/site-health/selection-notices';
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
@@ -185,9 +185,9 @@ export function InventorySelection({
           </Button>
           {/* Page-type filter (v2 P1): same server-backed wiring + cursor
               reset as the search filter via `applyFilters`. */}
-          <PageTypeSelect
-            value={filters.page_type}
-            onChange={(value) => applyFilters({ page_type: value })}
+          <PageKindSelect
+            value={filters.page_kind}
+            onChange={(value) => applyFilters({ page_kind: value })}
           />
           {effectiveSelection ? (
             <Button

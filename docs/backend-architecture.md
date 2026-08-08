@@ -75,18 +75,35 @@ approved-memory store and no promotion state machine.
 
 ## Site Intelligence migration
 
-- Keep `connectors/web_evidence` as the only site acquisition boundary.
-- Reuse Site Health crawl, URL, task, attempt, artifact, evaluation, issue, snapshot, and export
-  owners.
-- Separate corpus inventory admission from HTML analysis admission so supported documents such as
-  PDFs can be inventoried and selectively extracted.
-- Split `SitePageAnalysis.page_type` into generic `page_kind` and pack-specific `industry_role`.
-- Make `SitePageAnalysis` append-only on `(artifact_id, analyzer_version, pack_id, pack_version)`
-  with one `is_current` row per corpus item. It stays the single page-understanding owner;
+Shipped:
+
+- `connectors/web_evidence` remains the only site acquisition boundary. The ladder is
+  `secure_httpx -> curl_cffi -> patchright` (`browser_transport.py`); no paid vendor, no
+  real-Chrome escalation. The browser rung pins the validated IP via Chromium
+  `--host-resolver-rules` at launch, so it dials the same address the HTTP rungs validated.
+- Site Health crawl, URL, task, attempt, artifact, evaluation, issue, snapshot, and export owners
+  are reused unchanged — no parallel crawler, queue, parser, or store.
+- Corpus inventory admission is separate from HTML analysis admission: `UrlAdmission` carries
+  `accepted` (may we touch it) and `disposition` (what the corpus does with it), so a PDF is
+  inventoried as `item_kind=document` while staying out of the HTML analyzer.
+- `SitePageAnalysis.page_kind` (generic) and `industry_role_id` (pack-governed) are separate
+  columns with independent vocabularies.
+- `SitePageAnalysis` is append-only on
+  `(artifact_id, analyzer_version, industry_pack_id, industry_pack_version)` with a partial unique
+  index enforcing one `is_current` row per artifact. It stays the single page-understanding owner;
   `PageUnderstanding` is its DTO name, never a second table.
-- Freeze industry registry/version and classifier evidence on the crawl and derived rows.
-- Add typed knowledge only when cross-page query, contradiction, approval, or context selection
-  cannot be represented cleanly by current projections.
+- The exact pack manifest (catalog version, pack id/version, content hash, classifier version) is
+  frozen onto `SiteCrawl.configuration` at creation and stamped on every derived analysis row. A
+  frozen hash that no longer matches the catalog is an operational failure, never a silent
+  substitution.
+- The worker compiles the frozen pack once per process (`compiled_pack_for_manifest`, LRU-keyed by
+  id/version/hash). The per-page hot loop performs no file I/O, no hashing, no catalog lookup, and
+  no model call — measured at ~5k–6k pages/sec for Education and Commerce.
+
+Still deferred (next slices): typed knowledge entities/assertions/relations, contradiction groups,
+question coverage, journeys, dimension scores, and the Site Intelligence report/workspace. Add
+typed knowledge only when cross-page query, contradiction, approval, or context selection cannot be
+represented cleanly by current projections.
 
 ## Content Intelligence migration
 

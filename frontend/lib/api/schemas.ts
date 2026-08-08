@@ -892,8 +892,8 @@ export const pageAnalysisStatusSchema = z.enum([
 
 // Page-type classification vocabulary (site-health v2 P1). The deterministic
 // backend classifier stamps every page analysis with one of these types; the
-// page/inventory/detail DTOs project it as `page_type`.
-export const pageTypeSchema = z.enum([
+// page/inventory/detail DTOs project it as `page_kind`.
+export const pageKindSchema = z.enum([
   'homepage',
   'article',
   'product',
@@ -911,11 +911,11 @@ export const pageTypeSchema = z.enum([
   'other',
 ]);
 
-// One `score_summary.by_page_type` bucket (site-health v2 P1): the analyzed
+// One `score_summary.by_page_kind` bucket (site-health v2 P1): the analyzed
 // count + mean Technical/AEO/overall scores across the analyzed pages of one
 // page type. A mean is null when no analyzed page of the type produced that
 // score — never a fabricated zero.
-export const pageTypeScoreSummarySchema = responseObject({
+export const pageKindScoreSummarySchema = responseObject({
   analyzed_count: z.number().int(),
   technical_score: z.number().nullable(),
   aeo_score: z.number().nullable(),
@@ -923,7 +923,7 @@ export const pageTypeScoreSummarySchema = responseObject({
 });
 
 // Crawl score/coverage summary (nullable scores until analysis produces them).
-// `by_page_type` breaks the means down per classified page type (empty until
+// `by_page_kind` breaks the means down per classified page type (empty until
 // at least one analyzed page has been classified).
 export const siteScoreSummarySchema = responseObject({
   overall_score: z.number().nullable(),
@@ -933,7 +933,7 @@ export const siteScoreSummarySchema = responseObject({
   analyzed_count: z.number().int(),
   issue_count: z.number().int(),
   scoring_version: z.string(),
-  by_page_type: z.record(z.string(), pageTypeScoreSummarySchema),
+  by_page_kind: z.record(z.string(), pageKindScoreSummarySchema),
 });
 
 export const crawlCountersSchema = responseObject({
@@ -944,7 +944,7 @@ export const crawlCountersSchema = responseObject({
   analyzed: z.number().int(),
   errors: z.number().int(),
   blocked: z.number().int(),
-  by_page_type: z.record(z.string(), z.number().int()),
+  by_page_kind: z.record(z.string(), z.number().int()),
 });
 
 // Why a crawl failed (SH-2/SH-5 — B1): stable machine `code` + human
@@ -1048,8 +1048,39 @@ export const cursorPageSchema = <T extends z.ZodTypeAny>(item: T) =>
     next_cursor: z.string().nullable(),
   });
 
+// The exact frozen pack identity an understanding was produced under. Shown in
+// the "why this role?" disclosure so a result is always attributable to one
+// reviewed pack version rather than to "the classifier" in general.
+export const industryRoleManifestSchema = responseObject({
+  catalog_version: z.string(),
+  pack_id: z.string(),
+  pack_version: z.string(),
+  pack_content_hash: z.string(),
+  classifier_version: z.string(),
+});
+
+// Pack-governed industry role for one page. Role IDs are pack-defined strings
+// (`education.admissions_overview`), never a fixed frontend enum: a new pack
+// must not require a frontend release, and an unrecognized ID must render as
+// its raw ID rather than as an invented label.
+export const industryRoleSchema = responseObject({
+  role_id: z.string().nullable(),
+  score: z.number().nullable(),
+  winner_margin: z.number().nullable(),
+  confidence_band: z.string(),
+  secondary_role_ids: z.array(z.string()),
+  // Non-null only for an EXECUTED abstention (the classifier ran and declined).
+  abstention_reason: z.string().nullable(),
+  temporal_state: z.string(),
+  corpus_disposition: z.string(),
+  evidence: z.array(z.record(z.string(), z.unknown())),
+  alternatives: z.array(z.record(z.string(), z.unknown())),
+  conflicts: z.array(z.record(z.string(), z.unknown())),
+  manifest: industryRoleManifestSchema,
+});
+
 // Nullable analysis-summary fields shared by inventory rows and analyzed-page
-// summary rows (null until analysis completes for that URL). `page_type`
+// summary rows (null until analysis completes for that URL). `page_kind`
 // joins them: it is stamped by the analysis classifier, so an unanalyzed row
 // has no classification yet (null — the UI renders `—`, never a guessed type).
 const analysisSummaryFields = {
@@ -1058,7 +1089,15 @@ const analysisSummaryFields = {
   aeo_score: z.number().nullable(),
   overall_score: z.number().nullable(),
   last_audited: z.string().nullable(),
-  page_type: pageTypeSchema.nullable(),
+  page_kind: pageKindSchema.nullable(),
+  // Bounded industry-role fields on list rows. These are pack-defined IDs, not
+  // a fixed enum, so they stay plain strings — the UI must never title-case an
+  // unknown namespaced ID as though it were a reviewed label. Absent entirely
+  // when the pack classifier never ran for the row.
+  industry_role_id: z.string().nullable().optional(),
+  role_abstention_reason: z.string().nullable().optional(),
+  industry_role_confidence: z.string().optional(),
+  corpus_disposition: z.string().optional(),
 };
 
 // One lightweight inventory row. Ordering is URL-only. The analysis summary
@@ -1142,7 +1181,7 @@ export const pageFactsSchema = responseObject({
 export const issueSeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'info']);
 export const issueDimensionSchema = z.enum(['technical', 'aeo']);
 
-// A single affected-URL summary on an issue projection. `page_type` is the
+// A single affected-URL summary on an issue projection. `page_kind` is the
 // affected page's classification; it is OPTIONAL — the v1 backend DTO has no
 // such key, so the badge renders only when the projection carries it (same
 // absent-or-null treatment as the Free-redacted count fields).
@@ -1151,7 +1190,7 @@ export const affectedUrlSchema = responseObject({
   normalized_url: z.string(),
   display_url: z.string(),
   title: z.string().nullable(),
-  page_type: pageTypeSchema.nullable().optional(),
+  page_kind: pageKindSchema.nullable().optional(),
 });
 
 // One issue catalog row (failure projection with remediation snapshot).
@@ -1283,10 +1322,14 @@ export const pageDetailSchema = responseObject({
   overall_score: z.number().nullable(),
   issue_count: z.number().int().nullable(),
   last_audited: z.string().nullable(),
-  page_type: pageTypeSchema.nullable(),
-  // Bounded classifier evidence behind page_type ("why this type?"
+  page_kind: pageKindSchema.nullable(),
+  // Bounded classifier evidence behind page_kind ("why this kind?"
   // disclosure); null until the URL has an analysis.
-  page_type_evidence: z.record(z.string(), z.unknown()).nullable(),
+  page_kind_evidence: z.record(z.string(), z.unknown()).nullable(),
+  // Pack-governed industry role. `null` = the pack classifier never ran.
+  // A present object with `role_id: null` plus an `abstention_reason` is an
+  // EXECUTED abstention — a different fact, rendered differently.
+  industry_role: industryRoleSchema.nullable().optional(),
   facts: pageFactsSchema,
   delivery: deliveryFactsSchema,
   issues: z.array(siteIssueSchema),

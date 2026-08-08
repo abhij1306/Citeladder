@@ -35,7 +35,7 @@ function page(overrides: Partial<PageSummary> = {}): PageSummary {
     aeo_score: 64,
     overall_score: 55,
     last_audited: '2026-07-16T00:00:00Z',
-    page_type: 'article',
+    page_kind: 'article',
     ...overrides,
   };
 }
@@ -86,7 +86,7 @@ function crawl(overrides: Partial<SiteCrawl> = {}): SiteCrawl {
       analyzed: 1,
       errors: 0,
       blocked: 0,
-      by_page_type: {},
+      by_page_kind: {},
     },
     discovered_count: 3,
     total_url_count: 3,
@@ -99,7 +99,7 @@ function crawl(overrides: Partial<SiteCrawl> = {}): SiteCrawl {
       analyzed_count: 1,
       issue_count: 0,
       scoring_version: 's1',
-      by_page_type: {},
+      by_page_kind: {},
     },
     site_facts: siteFacts,
     extractor_version: 'e1',

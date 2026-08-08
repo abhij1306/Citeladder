@@ -81,7 +81,7 @@ const crawl = {
     analyzed: 0,
     errors: 0,
     blocked: 0,
-    by_page_type: {},
+    by_page_kind: {},
   },
   total_url_count: null,
   score_summary: null,
@@ -114,7 +114,7 @@ const inventoryRow = {
   aeo_score: null,
   overall_score: null,
   last_audited: null,
-  page_type: null,
+  page_kind: null,
 };
 
 describe('siteHealthEntitlementSchema (quota authority)', () => {
@@ -288,7 +288,7 @@ describe('siteCrawlSchema site_facts (v2 P2 contract)', () => {
   });
 });
 
-describe('siteScoreSummarySchema by_page_type (v2 P1)', () => {
+describe('siteScoreSummarySchema by_page_kind (v2 P1)', () => {
   const scoreSummary = {
     overall_score: 71,
     technical_score: 80,
@@ -297,41 +297,41 @@ describe('siteScoreSummarySchema by_page_type (v2 P1)', () => {
     analyzed_count: 4,
     issue_count: 3,
     scoring_version: 's1',
-    by_page_type: {
+    by_page_kind: {
       homepage: { analyzed_count: 1, technical_score: 90.5, aeo_score: 70, overall_score: 80.2 },
       article: { analyzed_count: 3, technical_score: null, aeo_score: null, overall_score: null },
     },
   };
 
-  it('accepts a score summary with a per-page-type breakdown', () => {
+  it('accepts a score summary with a per-page-kind breakdown', () => {
     const parsed = strictValidate(
       siteCrawlSchema,
       { ...crawl, score_summary: scoreSummary },
       'crawl',
     );
-    expect(parsed.score_summary?.by_page_type.homepage?.analyzed_count).toBe(1);
-    expect(parsed.score_summary?.by_page_type.article?.overall_score).toBeNull();
+    expect(parsed.score_summary?.by_page_kind.homepage?.analyzed_count).toBe(1);
+    expect(parsed.score_summary?.by_page_kind.article?.overall_score).toBeNull();
   });
 
-  it('accepts an empty by_page_type map (nothing classified yet)', () => {
+  it('accepts an empty by_page_kind map (nothing classified yet)', () => {
     const parsed = strictValidate(
       siteCrawlSchema,
-      { ...crawl, score_summary: { ...scoreSummary, by_page_type: {} } },
+      { ...crawl, score_summary: { ...scoreSummary, by_page_kind: {} } },
       'crawl',
     );
-    expect(parsed.score_summary?.by_page_type).toEqual({});
+    expect(parsed.score_summary?.by_page_kind).toEqual({});
   });
 
-  it('strips an additive key inside a by_page_type bucket (tolerant-on-unknown)', () => {
+  it('strips an additive key inside a by_page_kind bucket (tolerant-on-unknown)', () => {
     const bad = {
       ...scoreSummary,
-      by_page_type: {
-        homepage: { ...scoreSummary.by_page_type.homepage, discovered_total: 9999 },
+      by_page_kind: {
+        homepage: { ...scoreSummary.by_page_kind.homepage, discovered_total: 9999 },
       },
     };
     const parsed = strictValidate(siteCrawlSchema, { ...crawl, score_summary: bad }, 'crawl');
-    expect(parsed.score_summary?.by_page_type.homepage?.analyzed_count).toBe(1);
-    expect('discovered_total' in (parsed.score_summary?.by_page_type.homepage ?? {})).toBe(false);
+    expect(parsed.score_summary?.by_page_kind.homepage?.analyzed_count).toBe(1);
+    expect('discovered_total' in (parsed.score_summary?.by_page_kind.homepage ?? {})).toBe(false);
   });
 });
 
@@ -340,7 +340,7 @@ describe('inventoryRowSchema (nullable analysis summaries)', () => {
     const parsed = strictValidate(inventoryRowSchema, inventoryRow, 'row');
     expect(parsed.overall_score).toBeNull();
     expect(parsed.issue_count).toBeNull();
-    expect(parsed.page_type).toBeNull();
+    expect(parsed.page_kind).toBeNull();
   });
 
   it('accepts populated analysis summaries after analysis', () => {
@@ -351,25 +351,25 @@ describe('inventoryRowSchema (nullable analysis summaries)', () => {
       aeo_score: 72,
       overall_score: 80.2,
       last_audited: '2026-07-15T00:00:00Z',
-      page_type: 'article',
+      page_kind: 'article',
     };
     const parsed = strictValidate(inventoryRowSchema, analysed, 'row');
     expect(parsed.issue_count).toBe(3);
-    expect(parsed.page_type).toBe('article');
+    expect(parsed.page_kind).toBe('article');
   });
 
-  it('accepts the expanded page-type taxonomy emitted by the classifier', () => {
+  it('accepts the expanded page-kind taxonomy emitted by the classifier', () => {
     const parsed = strictValidate(
       inventoryRowSchema,
-      { ...inventoryRow, page_type: 'service' },
+      { ...inventoryRow, page_kind: 'service' },
       'row',
     );
-    expect(parsed.page_type).toBe('service');
+    expect(parsed.page_kind).toBe('service');
   });
 
-  it('rejects an unknown page_type vocabulary value', () => {
+  it('rejects an unknown page_kind vocabulary value', () => {
     expect(() =>
-      strictValidate(inventoryRowSchema, { ...inventoryRow, page_type: 'landing_page' }, 'row'),
+      strictValidate(inventoryRowSchema, { ...inventoryRow, page_kind: 'landing_page' }, 'row'),
     ).toThrow();
   });
 
@@ -475,10 +475,10 @@ describe('pageDetailSchema (field_cwv_available literal false)', () => {
     overall_score: 85,
     issue_count: 2,
     last_audited: '2026-07-15T00:00:00Z',
-    page_type: 'homepage',
+    page_kind: 'homepage',
     // T5 contract: the backend page-detail serializer always carries this key
     // (null until the URL has an analysis) — the fixture must include it.
-    page_type_evidence: null,
+    page_kind_evidence: null,
     facts: {
       title: 'Home',
       meta_description: null,

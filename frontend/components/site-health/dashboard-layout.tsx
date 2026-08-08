@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { InventorySection } from '@/components/site-health/inventory-section';
-import { PageTypeScores } from '@/components/site-health/page-type-scores';
+import { PageKindScores } from '@/components/site-health/page-kind-scores';
 import { PhaseControls } from '@/components/site-health/phase-controls';
 import { ScoreSection } from '@/components/site-health/score-section';
 import { SiteFactsPanel } from '@/components/site-health/site-facts-panel';
@@ -94,9 +94,9 @@ export function SiteHealthDashboardLayout({
         onMutationStart={setLastPhaseMutation}
       />
 
-      {/* Per-page-type score breakdown (v2 P1) — data-driven like the score
+      {/* Per-page-kind score breakdown (v2 P1) — data-driven like the score
           cards: renders once a score summary exists, hides itself before. */}
-      <PageTypeScores
+      <PageKindScores
         key={crawl?.id ?? 'no-crawl'}
         crawl={crawl}
         dashboard={dashboardQuery.data}

@@ -14,11 +14,11 @@ from app.core.config.site_health import (
     CATEGORY_CONTENT,
     CATEGORY_STRUCTURED_DATA,
     DIMENSION_AEO,
-    PAGE_TYPE_PRODUCT,
+    PAGE_KIND_PRODUCT,
     RULE_CATALOG_VERSION,
     SEVERITY_HIGH,
     SEVERITY_MEDIUM,
-    PageTypeSchemaExpectation,
+    PageKindSchemaExpectation,
     SiteHealthRule,
 )
 
@@ -59,8 +59,8 @@ PRODUCT_NESTED_VALUE_KEYS: Final[tuple[str, ...]] = ("name", "ratingValue")
 # Product pages keep the base Product requirement but complete the documented
 # Product/Offer contract with identity, offer, variant, trust, and delivery
 # properties.  The generic rules consume this effective expectation.
-PRODUCT_SCHEMA_EXPECTATION: Final = PageTypeSchemaExpectation(
-    page_type=PAGE_TYPE_PRODUCT,
+PRODUCT_SCHEMA_EXPECTATION: Final = PageKindSchemaExpectation(
+    page_kind=PAGE_KIND_PRODUCT,
     expected_types=("Product",),
     required_properties=("name", "offers"),
     recommended_properties=(
@@ -103,7 +103,7 @@ PRODUCT_ANALYSIS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_STRUCTURED_DATA,
         severity=SEVERITY_MEDIUM,
         weight=1.0,
-        applicability_key=f"page_type:{PAGE_TYPE_PRODUCT}",
+        applicability_key=f"page_kind:{PAGE_KIND_PRODUCT}",
         description="Product pages expose complete Product/Offer facts.",
         remediation=(
             "Add Product and Offer properties for the identifiers, price, "
@@ -119,7 +119,7 @@ PRODUCT_ANALYSIS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_HIGH,
         weight=1.5,
-        applicability_key=f"page_type:{PAGE_TYPE_PRODUCT}",
+        applicability_key=f"page_kind:{PAGE_KIND_PRODUCT}",
         description="Visible product claims agree with Product/Offer schema.",
         remediation=(
             "Make visible product identity, price, and availability claims "

@@ -41,10 +41,10 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
     overall_score: 58,
     issue_count: 2,
     last_audited: '2026-07-16T00:00:00Z',
-    page_type: 'product',
+    page_kind: 'product',
     // Persisted classifier evidence (v2 P1) — a schema-conflict scenario:
     // the path pattern chose Product while the markup declares Article.
-    page_type_evidence: {
+    page_kind_evidence: {
       classifier_version: 'sh-classifier-1',
       classified_by: 'path_pattern',
       schema_suggested_type: 'article',
@@ -53,13 +53,13 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
       signals: [
         {
           signal: 'path_pattern',
-          page_type: 'product',
+          page_kind: 'product',
           weight: 0.8,
           detail: '^/(products?|p|shop)(/|$)',
         },
         {
           signal: 'structured_data',
-          page_type: 'article',
+          page_kind: 'article',
           weight: 0.5,
           detail: 'Article',
         },
@@ -158,8 +158,8 @@ describe('UrlDetail', () => {
     expect(
       await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 }),
     ).toBeInTheDocument();
-    // The header carries the v2 P1 page-type badge.
-    expect(screen.getByText('Page Type')).toBeInTheDocument();
+    // The header carries the v2 P1 page-kind badge.
+    expect(screen.getByText('Page Kind')).toBeInTheDocument();
     expect(screen.getByText('Product')).toBeInTheDocument();
     // Delivery metric: TTFB rendered with ms suffix.
     expect(screen.getByText('840ms')).toBeInTheDocument();
@@ -183,7 +183,7 @@ describe('UrlDetail', () => {
     // Collapsed by default: the toggle advertises the schema conflict, the
     // panel is not rendered.
     const toggle = screen.getByRole('button', {
-      name: 'Why this page type? Schema markup disagrees.',
+      name: 'Why this page kind? Schema markup disagrees.',
     });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText('Classified by')).not.toBeInTheDocument();
@@ -214,14 +214,14 @@ describe('UrlDetail', () => {
   });
 
   it('hides the "why this type?" toggle when no classifier evidence was persisted', async () => {
-    mswServer.use(...handlers(detail({ page_type_evidence: null })));
+    mswServer.use(...handlers(detail({ page_kind_evidence: null })));
 
     renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
 
     await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
     // The badge still renders; only the disclosure is withheld.
     expect(screen.getByText('Product')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /why this page type/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /why this page kind/i })).not.toBeInTheDocument();
   });
 
   it('renders the "—" placeholder for a missing score, never a zero', async () => {

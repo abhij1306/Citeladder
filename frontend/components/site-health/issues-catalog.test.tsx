@@ -85,31 +85,31 @@ describe('IssuesCatalog', () => {
     await waitFor(() => expect(seen).toContain('medium'));
   });
 
-  it('wires the page-type filter as a server param, set and cleared', async () => {
+  it('wires the page-kind filter as a server param, set and cleared', async () => {
     const seen: Array<string | null> = [];
     mswServer.use(
       http.get(`/api/v1/site-crawls/${CRAWL}/issues`, ({ request }) => {
-        seen.push(new URL(request.url).searchParams.get('page_type'));
+        seen.push(new URL(request.url).searchParams.get('page_kind'));
         return HttpResponse.json({ items: [issue()], next_cursor: null, summary });
       }),
     );
 
     const user = userEvent.setup();
     renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
-    const select = await screen.findByLabelText('Filter by page type');
-    // The initial unfiltered request carries no page-type param.
+    const select = await screen.findByLabelText('Filter by page kind');
+    // The initial unfiltered request carries no page-kind param.
     await screen.findByText('WebSite schema is missing');
     expect(seen.at(-1)).toBeNull();
 
     await user.selectOptions(select, 'article');
     await waitFor(() => expect(seen.at(-1)).toBe('article'));
 
-    // Clearing back to "All page types" drops the param entirely. The
+    // Clearing back to "All page kinds" drops the param entirely. The
     // unfiltered combination is already cached (no new request), so force a
-    // fresh combination via a chip and assert THAT request omits page_type.
+    // fresh combination via a chip and assert THAT request omits page_kind.
     // (Select by the option's visible label — user-event does not fire a
     // change event for selectOptions(select, '').)
-    await user.selectOptions(select, 'All page types');
+    await user.selectOptions(select, 'All page kinds');
     expect(select).toHaveValue('');
     await user.click(screen.getByRole('button', { name: 'Medium (23)' }));
     await waitFor(() => expect(seen.at(-1)).toBeNull());
@@ -137,7 +137,7 @@ describe('IssuesCatalog', () => {
               normalized_url: 'https://acme.com/',
               display_url: 'https://acme.com/',
               title: 'Homepage',
-              page_type: 'article',
+              page_kind: 'article',
             },
           ],
           affected_url_count: 1,

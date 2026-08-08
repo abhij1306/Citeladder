@@ -55,7 +55,7 @@ class CreateCrawlRequest(_Model):
     requested_page_limit: int | None = Field(default=None, ge=1)
     discovery_count: int | None = Field(default=None, ge=1)
     seed_urls: list[str] | None = None
-    page_types: list[str] | None = None
+    page_kinds: list[str] | None = None
 
 
 class UrlPreviewRequest(_Model):
@@ -163,7 +163,7 @@ class SiteHealthEntitlementResponse(_Model):
 # Crawl
 # =========================================================================
 class ScoreSummaryByType(_Model):
-    """One page type's rollup inside ``score_summary.by_page_type`` (v2 P1)."""
+    """One page type's rollup inside ``score_summary.by_page_kind`` (v2 P1)."""
 
     analyzed_count: int
     technical_score: float | None
@@ -180,7 +180,7 @@ class ScoreSummary(_Model):
     issue_count: int
     scoring_version: str
     # Per-page-type breakdown (only types with >= 1 analyzed URL appear).
-    by_page_type: dict[str, ScoreSummaryByType] = {}
+    by_page_kind: dict[str, ScoreSummaryByType] = {}
 
 
 class CrawlFailureSummary(_Model):
@@ -203,7 +203,7 @@ class CrawlCounters(_Model):
     analyzed: int
     errors: int
     blocked: int
-    by_page_type: dict[str, int] = {}
+    by_page_kind: dict[str, int] = {}
 
 
 class PhaseRunResponse(_Model):
@@ -285,8 +285,15 @@ class InventoryRow(_Model):
     first_seen_at: str | None
     last_seen_at: str | None
     issue_count: int | None
-    # Classified page type (v2 P1); None until the URL has an analysis.
-    page_type: str | None
+    # Generic structural page kind; None until the URL has an analysis.
+    page_kind: str | None
+    # Same bounded role projection PageSummary carries. Inventory rows are
+    # built by the same row builder, so without these the extra keys would fail
+    # ``_Model`` validation for any packed analysis.
+    industry_role_id: str | None = None
+    role_abstention_reason: str | None = None
+    industry_role_confidence: str = ""
+    corpus_disposition: str = ""
     technical_score: float | None
     aeo_score: float | None
     overall_score: float | None
@@ -337,8 +344,15 @@ class PageSummary(_Model):
     analysis_status: PageAnalysisStatus
     error_code: str
     issue_count: int | None
-    # Classified page type (v2 P1); None until the URL has an analysis.
-    page_type: str | None
+    # Generic structural page kind; None until the URL has an analysis.
+    page_kind: str | None
+    # Bounded role projection for list rows: the id, why it abstained, and the
+    # corpus disposition. Full evidence/alternatives/conflicts stay on the
+    # detail projection so a page of rows never carries kilobytes of evidence.
+    industry_role_id: str | None = None
+    role_abstention_reason: str | None = None
+    industry_role_confidence: str = ""
+    corpus_disposition: str = ""
     technical_score: float | None
     aeo_score: float | None
     overall_score: float | None
@@ -438,6 +452,40 @@ class LinkReference(_Model):
     target_artifact_id: uuid.UUID | None
 
 
+class IndustryRoleManifest(_Model):
+    """The exact frozen pack identity an understanding was produced under."""
+
+    catalog_version: str = ""
+    pack_id: str = ""
+    pack_version: str = ""
+    pack_content_hash: str = ""
+    classifier_version: str = ""
+
+
+class IndustryRole(_Model):
+    """Pack-governed role projection, rendered from persisted state only.
+
+    ``role_id is None`` together with a non-null ``abstention_reason`` is an
+    EXECUTED abstention: the classifier ran on this page and declined to
+    commit. The whole object is null (see ``PageDetail.industry_role``) when the
+    pack classifier never ran. Those are different facts and the UI must be
+    able to tell them apart.
+    """
+
+    role_id: str | None = None
+    score: float | None = None
+    winner_margin: float | None = None
+    confidence_band: str = ""
+    secondary_role_ids: list[str] = []
+    abstention_reason: str | None = None
+    temporal_state: str = ""
+    corpus_disposition: str = ""
+    evidence: list[dict] = []
+    alternatives: list[dict] = []
+    conflicts: list[dict] = []
+    manifest: IndustryRoleManifest = IndustryRoleManifest()
+
+
 class PageDetail(_Model):
     site_url_id: uuid.UUID
     crawl_id: uuid.UUID
@@ -447,12 +495,15 @@ class PageDetail(_Model):
     analysis_status: PageAnalysisStatus
     error_code: str
     field_cwv_available: Literal[False] = False
-    # Classified page type (v2 P1); None until the URL has an analysis.
-    page_type: str | None
-    # Bounded classifier evidence behind ``page_type`` (ranked signals,
-    # confidence, schema suggestion) for the "why this type?" disclosure;
+    # Generic structural page kind; None until the URL has an analysis.
+    page_kind: str | None
+    # Bounded classifier evidence behind ``page_kind`` (ranked signals,
+    # confidence, schema suggestion) for the "why this kind?" disclosure;
     # None until the URL has an analysis.
-    page_type_evidence: dict | None = None
+    page_kind_evidence: dict | None = None
+    # Pack-governed industry role. None when the pack classifier never ran
+    # (unpacked project, or an analysis written before the pack was frozen).
+    industry_role: IndustryRole | None = None
     technical_score: float | None
     aeo_score: float | None
     overall_score: float | None
@@ -480,7 +531,7 @@ class AffectedUrl(_Model):
     title: str | None
     # Classified page type of the affected analysis (v2 P1; None when the
     # URL has no classified analysis).
-    page_type: str | None = None
+    page_kind: str | None = None
 
 
 class IssuesSummary(_Model):

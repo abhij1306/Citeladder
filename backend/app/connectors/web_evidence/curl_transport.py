@@ -8,7 +8,6 @@ validated before curl receives it.
 from __future__ import annotations
 
 import time
-from urllib.parse import urlsplit
 
 from curl_cffi import CurlOpt
 from curl_cffi.requests import AsyncSession
@@ -20,7 +19,9 @@ from app.connectors.web_evidence.contracts import (
     FetchResult,
     ResolvedTarget,
 )
-from app.connectors.web_evidence.url_policy import split_host_port
+from app.connectors.web_evidence.targets import (
+    validate_resolved_target as _validate_resolved_target,
+)
 from app.core.config.site_health import (
     ERROR_ACQUISITION_UNAVAILABLE,
     ERROR_CONNECTION_FAILED,
@@ -100,28 +101,6 @@ def _curl_resolve_entry(target: ResolvedTarget) -> str:
     return f"{target.host}:{target.port}:{address}"
 
 
-def _validate_resolved_target(target: ResolvedTarget) -> None:
-    """Fail closed unless the requested authority is exactly the pinned one."""
-
-    try:
-        requested_host, requested_port = split_host_port(target.url)
-    except (TypeError, ValueError) as exc:
-        raise FetchError(
-            "curl acquisition received an invalid resolved target",
-            error_code=ERROR_ACQUISITION_UNAVAILABLE,
-        ) from exc
-    requested_scheme = urlsplit(target.url).scheme.casefold()
-    if (
-        requested_host != target.host.casefold().rstrip(".")
-        or requested_port != target.port
-        or requested_scheme != target.scheme.casefold()
-    ):
-        raise FetchError(
-            "curl acquisition target did not match its validated authority",
-            error_code=ERROR_ACQUISITION_UNAVAILABLE,
-        )
-
-
 def _request_headers(request: FetchRequest, default_user_agent: str) -> dict[str, str]:
     headers = {name.lower(): value for name, value in request.headers.items()}
     headers.setdefault("user-agent", default_user_agent)
@@ -146,6 +125,14 @@ class CurlCffiTransport:
     ) -> None:
         self._impersonation_profile = impersonation_profile
         self._user_agent = user_agent
+
+    async def aclose(self) -> None:
+        """No-op: this rung holds only per-request state.
+
+        Required by ``AcquisitionTransport`` because a rung that DOES own
+        long-lived resources (the browser rung owns OS processes) must be
+        closable through the same interface.
+        """
 
     async def fetch(
         self,

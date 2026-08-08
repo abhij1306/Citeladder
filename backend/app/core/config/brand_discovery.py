@@ -158,9 +158,9 @@ DISCOVERY_RESEARCH_SYSTEM_PROMPT: Final = _discovery_research_system_prompt(
 )
 
 # Onboarding performs one plain, SSRF-safe homepage request. It never enters
-# the Site Health acquisition ladder or delegates the URL to a scraping vendor.
+# the Site Health acquisition ladder or launches a browser for the URL.
 ONBOARDING_DIRECT_FETCH_SETTINGS: Final = site_health_settings.model_copy(
-    update={"curl_cffi_enabled": False, "scraperapi_enabled": False}
+    update={"curl_cffi_enabled": False, "browser_enabled": False}
 )
 
 

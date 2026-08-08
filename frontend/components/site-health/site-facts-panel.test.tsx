@@ -100,7 +100,7 @@ function crawl(siteFacts: SiteCrawl['site_facts']): SiteCrawl {
       analyzed: 3,
       errors: 0,
       blocked: 0,
-      by_page_type: {},
+      by_page_kind: {},
     },
     discovered_count: 3,
     total_url_count: 3,

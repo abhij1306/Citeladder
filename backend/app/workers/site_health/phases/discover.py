@@ -854,7 +854,8 @@ class DiscoverPhaseMixin(PhaseSupport):
             # the root from ``free_sample`` monitoring/auto-analysis.
             root_url_hash = canonical_identity(output.requested_url)[1]
             candidates.append(
-                FrontierCandidate(
+                FrontierCandidate.from_admission(
+                    classify_url_admission(output.requested_url),
                     url=output.requested_url,
                     url_hash=root_url_hash,
                     depth=depth,
@@ -879,12 +880,12 @@ class DiscoverPhaseMixin(PhaseSupport):
             except UrlPolicyError:
                 continue
             candidates.append(
-                FrontierCandidate(
+                FrontierCandidate.from_admission(
+                    classify_url_admission(canonical),
                     url=canonical,
                     url_hash=url_hash_value,
                     depth=1,
                     source_kind=OBSERVATION_SOURCE_SITEMAP,
-                    value_priority=classify_url_admission(canonical).priority,
                     parent_position=0,
                     link_ordinal=ordinal,
                 )

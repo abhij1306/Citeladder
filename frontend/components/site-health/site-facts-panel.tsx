@@ -78,7 +78,7 @@ function StatusValue({ status }: Readonly<{ status: number | null }>) {
  * stance strip (one cell per known AI bot), a blocked/unknown-stance alert,
  * and the well-known file row (robots.txt + llms.txt status and the checked
  * URLs). Never Free-redacted, so no entitlement gating. Follows the same
- * dashboard-then-crawl fallback as the page-type scores; renders NOTHING
+ * dashboard-then-crawl fallback as the page-kind scores; renders NOTHING
  * while no completed crawl has persisted `site_facts` yet (the absent
  * mockup omits the panel entirely).
  */

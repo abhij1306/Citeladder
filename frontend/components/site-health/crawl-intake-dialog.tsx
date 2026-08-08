@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { siteHealthApi, type CreateCrawlInput } from '@/lib/api/site-health';
 import { SITE_HEALTH_DEFAULT_PHASE_BATCH_SIZE } from '@/lib/config/operational';
-import { PAGE_TYPES } from '@/lib/site-health/page-types';
+import { PAGE_KINDS, pageKindLabel } from '@/lib/site-health/page-kinds';
 
 /** Development-only guided admission flow. The preview endpoint owns validation. */
 export function CrawlIntakeDialog({
@@ -46,7 +46,7 @@ export function CrawlIntakeDialog({
               .split(/\r?\n/)
               .map((value) => value.trim())
               .filter(Boolean),
-            page_types: types,
+            page_kinds: types,
           }
         : {}),
     });
@@ -109,9 +109,9 @@ export function CrawlIntakeDialog({
               </label>
             </div>
             <fieldset className="grid gap-2">
-              <legend className="text-sm">Page types</legend>
+              <legend className="text-sm">Page kinds</legend>
               <div className="flex flex-wrap gap-2">
-                {PAGE_TYPES.map((type) => (
+                {PAGE_KINDS.map((type) => (
                   <label key={type} className="text-sm">
                     <input
                       type="checkbox"
@@ -124,7 +124,9 @@ export function CrawlIntakeDialog({
                         )
                       }
                     />{' '}
-                    <span className="ms-1">{type.replaceAll('_', ' ')}</span>
+                    {/* One shared label owner, so the checklist cannot drift
+                        from the badges/filters rendering the same values. */}
+                    <span className="ms-1">{pageKindLabel(type)}</span>
                   </label>
                 ))}
               </div>

@@ -57,7 +57,7 @@ from app.domain.site_health.service.presentation import (
     _link_reference_row,
     _matches_page_status,
     _page_facts,
-    _page_type_matches,
+    _page_kind_matches,
     presentation_status_for,
     project_crawl,
 )
@@ -247,13 +247,66 @@ async def _monitored_site_url_ids(
     return {row[0] for row in rows.all()}
 
 
+def _role_summary_fields(analysis) -> dict:
+    """Bounded role fields for a LIST row (never the full evidence payload)."""
+    if analysis is None or not analysis.industry_pack_id:
+        return {}
+    return {
+        "industry_role_id": analysis.industry_role_id,
+        "role_abstention_reason": analysis.role_abstention_reason or None,
+        "industry_role_confidence": analysis.industry_role_confidence or "",
+        "corpus_disposition": analysis.corpus_disposition or "",
+    }
+
+
+def _industry_role(analysis) -> dict | None:
+    """Project the persisted role columns, or ``None`` when never classified.
+
+    Reads persisted state only: it never loads a pack, re-resolves a project
+    setting, or reclassifies. The frozen manifest on the row is what a historical
+    analysis is rendered under, so a later catalog release cannot retroactively
+    change what an old crawl reported.
+    """
+    if analysis is None or not analysis.industry_pack_id:
+        return None
+    evidence = analysis.industry_role_evidence or {}
+    return {
+        "role_id": analysis.industry_role_id,
+        "score": analysis.industry_role_score,
+        "winner_margin": analysis.industry_role_margin,
+        "confidence_band": analysis.industry_role_confidence or "",
+        "secondary_role_ids": list(analysis.secondary_role_ids or []),
+        # "" on the row means the classifier committed to a role; the API
+        # exposes that as null so only a real abstention carries a reason.
+        "abstention_reason": analysis.role_abstention_reason or None,
+        "temporal_state": analysis.temporal_state or "",
+        "corpus_disposition": analysis.corpus_disposition or "",
+        "evidence": list(evidence.get("evidence") or []),
+        "alternatives": list(evidence.get("alternatives") or []),
+        "conflicts": list(evidence.get("conflicts") or []),
+        "manifest": {
+            "catalog_version": analysis.catalog_version or "",
+            "pack_id": analysis.industry_pack_id or "",
+            "pack_version": analysis.industry_pack_version or "",
+            "pack_content_hash": analysis.pack_content_hash or "",
+            "classifier_version": analysis.role_classifier_version or "",
+        },
+    }
+
+
 async def _latest_analysis_by_site_url(
     session: AsyncSession,
     *,
     crawl_id: uuid.UUID,
     site_url_ids: list[uuid.UUID],
 ) -> dict[uuid.UUID, SitePageAnalysis]:
-    """Latest ``SitePageAnalysis`` per site_url within a crawl (by created_at)."""
+    """Current ``SitePageAnalysis`` per site_url within a crawl.
+
+    ``SitePageAnalysis`` is append-only, so one artifact can hold several rows
+    (one per analyzer/pack version pair). Only the ``is_current`` row is the
+    live understanding; superseded rows stay queryable as history but must
+    never surface as a page's present state.
+    """
     if not site_url_ids:
         return {}
     rows = await session.execute(
@@ -261,6 +314,7 @@ async def _latest_analysis_by_site_url(
         .where(
             SitePageAnalysis.crawl_id == crawl_id,
             SitePageAnalysis.site_url_id.in_(site_url_ids),
+            SitePageAnalysis.is_current.is_(True),
         )
         .order_by(
             SitePageAnalysis.site_url_id,
@@ -336,14 +390,14 @@ async def get_inventory(
     query: str | None = None,
     status: str | None = None,
     monitored: bool | None = None,
-    page_type: str | None = None,
+    page_kind: str | None = None,
 ) -> dict:
     """Keyset inventory for a crawl's project, ordered ``(normalized_url, id)``.
 
     Filters by substring ``query`` (normalized/display url), a per-URL
-    presentation ``status``, the ``monitored`` flag, and a ``page_type``
+    presentation ``status``, the ``monitored`` flag, and a ``page_kind``
     exact match against the latest analysis's classified type (v2 P1 —
-    semantics in ``_page_type_matches``). The cursor is bound to the
+    semantics in ``_page_kind_matches``). The cursor is bound to the
     endpoint + filter fingerprint so a filter change invalidates it.
     Nullable latest-analysis summaries are attached per row.
     """
@@ -356,7 +410,7 @@ async def get_inventory(
         "query": (query or "").strip().lower() or None,
         "status": status or None,
         "monitored": (str(monitored) if monitored is not None else None),
-        "page_type": page_type or None,
+        "page_kind": page_kind or None,
     }
 
     search: list[Any] = []
@@ -369,9 +423,9 @@ async def get_inventory(
             )
         )
 
-    # A status/page_type filter is applied in Python from the derived
+    # A status/page_kind filter is applied in Python from the derived
     # presentation status, so the SQL window is widened to keep pages full.
-    over_fetch = status is not None or page_type is not None
+    over_fetch = status is not None or page_kind is not None
     fetch_size = _scan_window(limit, over_fetch=over_fetch)
 
     monitored_ids = await _monitored_site_url_ids(session, project_id=project_id)
@@ -419,7 +473,7 @@ async def get_inventory(
         # ``!=`` here silently matched nothing for it).
         if not _matches_page_status(pres_status, status):
             continue
-        if not _page_type_matches(analysis, page_type):
+        if not _page_kind_matches(analysis, page_kind):
             continue
         items.append(
             {
@@ -436,7 +490,8 @@ async def get_inventory(
                 "issue_count": (
                     issue_counts.get(row.id, 0) if analysis is not None else None
                 ),
-                "page_type": analysis.page_type if analysis is not None else None,
+                "page_kind": analysis.page_kind if analysis is not None else None,
+                **_role_summary_fields(analysis),
                 "technical_score": (
                     analysis.technical_score if analysis is not None else None
                 ),
@@ -465,11 +520,11 @@ async def get_inventory(
             ],
         )
     elif (
-        (status is not None or page_type is not None)
+        (status is not None or page_kind is not None)
         and last_scanned is not None
         and len(rows) >= fetch_size
     ):
-        # A sparse status/page_type filter can leave a partial (or even empty)
+        # A sparse status/page_kind filter can leave a partial (or even empty)
         # page while more matching rows exist beyond the scanned window. We
         # fetched a full window, so emit a cursor at the last SCANNED row (not
         # the last matched one) to guarantee forward progress even when a
@@ -513,7 +568,7 @@ def _site_url_page_stmt(
     duplication finding). Returns ``None`` when the filters select nothing, so
     callers short-circuit to an empty page.
 
-    ``over_fetch`` widens the fetch when a status/page_type filter is applied
+    ``over_fetch`` widens the fetch when a status/page_kind filter is applied
     in Python from the derived presentation status, so a filtered page can
     still come back full. ``extra_where`` carries caller-specific predicates
     (the inventory's substring search) so they are applied with the rest of
@@ -611,13 +666,13 @@ async def get_pages(
     cursor: str | None,
     status: str | None = None,
     monitored: bool | None = None,
-    page_type: str | None = None,
+    page_kind: str | None = None,
 ) -> dict:
     """Analyzed-page summaries for a crawl, ordered ``(normalized_url, id)``.
 
     Accepts an exact presentation ``status`` or the combined ``error_or_blocked``
-    filter, a ``monitored`` toggle, and a ``page_type`` filter (v2 P1 —
-    semantics in ``_page_type_matches``). Filters are part of the cursor
+    filter, a ``monitored`` toggle, and a ``page_kind`` filter (v2 P1 —
+    semantics in ``_page_kind_matches``). Filters are part of the cursor
     fingerprint. Rows are the crawl's project ``SiteUrl`` set, projected
     with the latest analysis and derived presentation status.
     """
@@ -633,10 +688,10 @@ async def get_pages(
         "crawl_id": str(crawl_id),
         "status": status or None,
         "monitored": (str(monitored) if monitored is not None else None),
-        "page_type": page_type or None,
+        "page_kind": page_kind or None,
     }
 
-    over_fetch = status is not None or page_type is not None
+    over_fetch = status is not None or page_kind is not None
     fetch_size = _scan_window(limit, over_fetch=over_fetch)
 
     monitored_ids = await _monitored_site_url_ids(session, project_id=project_id)
@@ -709,7 +764,7 @@ async def get_pages(
         last_scanned = row
         if not _matches_page_status(pres_status, status):
             continue
-        if not _page_type_matches(analysis, page_type):
+        if not _page_kind_matches(analysis, page_kind):
             continue
         items.append(
             {
@@ -728,7 +783,8 @@ async def get_pages(
                 "issue_count": (
                     issue_counts.get(row.id, 0) if analysis is not None else None
                 ),
-                "page_type": analysis.page_type if analysis is not None else None,
+                "page_kind": analysis.page_kind if analysis is not None else None,
+                **_role_summary_fields(analysis),
                 "technical_score": (
                     analysis.technical_score if analysis is not None else None
                 ),
@@ -757,11 +813,11 @@ async def get_pages(
             ],
         )
     elif (
-        (status is not None or page_type is not None)
+        (status is not None or page_kind is not None)
         and last_scanned is not None
         and len(rows) >= fetch_size
     ):
-        # Sparse status/page_type filter: a full window yielded a partial/empty
+        # Sparse status/page_kind filter: a full window yielded a partial/empty
         # page while more matching rows may exist. Advance the cursor to the
         # last SCANNED row so traversal keeps making progress across empty
         # windows.
@@ -888,12 +944,13 @@ async def get_page_detail(
         "analysis_status": pres_status,
         "error_code": error_code,
         "field_cwv_available": False,
-        "page_type": analysis.page_type if analysis is not None else None,
+        "page_kind": analysis.page_kind if analysis is not None else None,
         # Per-URL detail ONLY: the bounded classifier evidence powering the
         # "why this type?" disclosure (never projected onto list rows).
-        "page_type_evidence": (
-            analysis.page_type_evidence if analysis is not None else None
+        "page_kind_evidence": (
+            analysis.page_kind_evidence if analysis is not None else None
         ),
+        "industry_role": _industry_role(analysis),
         "technical_score": (analysis.technical_score if analysis is not None else None),
         "aeo_score": analysis.aeo_score if analysis is not None else None,
         "overall_score": (analysis.overall_score if analysis is not None else None),

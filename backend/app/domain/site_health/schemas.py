@@ -8,6 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.core.config.site_health import (
+    CORPUS_DISPOSITION_ANALYZE,
+    CORPUS_DISPOSITION_VERSION,
+    DISPOSITION_REASON_HTML_CONTENT,
+    ITEM_KIND_HTML_PAGE,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class FrontierCandidate:
@@ -26,6 +33,56 @@ class FrontierCandidate:
     value_priority: int = 0
     parent_position: int = 0
     link_ordinal: int = 0
+    # Corpus disposition decided at admission and carried to persistence, so a
+    # document is inventoried without ever being handed to the HTML analyzer.
+    disposition: str = CORPUS_DISPOSITION_ANALYZE
+    disposition_reason: str = DISPOSITION_REASON_HTML_CONTENT
+    disposition_version: str = CORPUS_DISPOSITION_VERSION
+    item_kind: str = ITEM_KIND_HTML_PAGE
+    # The admission verdict's value kind, carried rather than re-derived. The
+    # admission that produced this candidate was scoped (root domain, globs);
+    # a later bare ``classify_url_admission(url)`` is unscoped and can return a
+    # DIFFERENT verdict for the same URL, so re-deriving it downstream risked
+    # persisting a value kind that disagreed with the one used to admit.
+    value_kind: str = "other"
+
+    @property
+    def analyzable(self) -> bool:
+        """Whether this candidate may receive an ``analyze`` task."""
+        return self.disposition == CORPUS_DISPOSITION_ANALYZE
+
+    @classmethod
+    def from_admission(
+        cls,
+        admission,
+        *,
+        url: str,
+        url_hash: str,
+        depth: int,
+        source_kind: str,
+        parent_position: int = 0,
+        link_ordinal: int = 0,
+    ) -> FrontierCandidate:
+        """Build a candidate carrying one admission decision's full verdict.
+
+        Every builder routes through here so priority and disposition can never
+        drift apart — reading only ``.priority`` off an admission is what would
+        silently hand a PDF to the HTML analyzer.
+        """
+        return cls(
+            url=url,
+            url_hash=url_hash,
+            depth=depth,
+            source_kind=source_kind,
+            value_priority=admission.priority,
+            parent_position=parent_position,
+            link_ordinal=link_ordinal,
+            disposition=admission.disposition,
+            disposition_reason=admission.disposition_reason,
+            disposition_version=admission.disposition_version,
+            item_kind=admission.item_kind,
+            value_kind=admission.value_kind,
+        )
 
     @property
     def order_key(self) -> tuple[int, int, int, str]:

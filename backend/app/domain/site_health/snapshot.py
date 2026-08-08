@@ -32,8 +32,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.site_health.scoring import (
     AnalysisScoreInput,
-    PageTypeScoreInput,
-    aggregate_by_page_type,
+    PageKindScoreInput,
+    aggregate_by_page_kind,
     aggregate_scores,
 )
 from app.core.config.site_health import (
@@ -92,7 +92,7 @@ async def persist_crawl_snapshot(
             SitePageAnalysis.technical_score.label("technical_score"),
             SitePageAnalysis.aeo_score.label("aeo_score"),
             SitePageAnalysis.overall_score.label("overall_score"),
-            SitePageAnalysis.page_type.label("page_type"),
+            SitePageAnalysis.page_kind.label("page_kind"),
             func.row_number()
             .over(
                 partition_by=SitePageAnalysis.site_url_id,
@@ -124,7 +124,7 @@ async def persist_crawl_snapshot(
                 ranked.c.technical_score,
                 ranked.c.aeo_score,
                 ranked.c.overall_score,
-                ranked.c.page_type,
+                ranked.c.page_kind,
             ).where(ranked.c.latest_rank == 1)
         )
     ).all()
@@ -137,7 +137,7 @@ async def persist_crawl_snapshot(
         return False
 
     inputs: list[AnalysisScoreInput] = []
-    page_type_inputs: list[PageTypeScoreInput] = []
+    page_kind_inputs: list[PageKindScoreInput] = []
     analysis_ids: list[uuid.UUID] = []
     artifact_ids: list[uuid.UUID] = []
     for row in rows:
@@ -152,16 +152,16 @@ async def persist_crawl_snapshot(
                 overall_score=row.overall_score,
             )
         )
-        page_type_inputs.append(
-            PageTypeScoreInput(
-                page_type=row.page_type,
+        page_kind_inputs.append(
+            PageKindScoreInput(
+                page_kind=row.page_kind,
                 technical_score=row.technical_score,
                 aeo_score=row.aeo_score,
                 overall_score=row.overall_score,
             )
         )
     aggregate = aggregate_scores(inputs)
-    by_page_type = aggregate_by_page_type(page_type_inputs)
+    by_page_kind = aggregate_by_page_kind(page_kind_inputs)
 
     # Issue severity/category rollups for this crawl.
     severity_counts: dict[str, int] = {}
@@ -235,6 +235,6 @@ async def persist_crawl_snapshot(
         "scoring_version": aggregate.scoring_version,
         # v2 P1: per-page-type breakdown (type -> analyzed count + mean
         # technical/aeo/overall). Missing/errored URLs never appear here.
-        "by_page_type": by_page_type,
+        "by_page_kind": by_page_kind,
     }
     return True

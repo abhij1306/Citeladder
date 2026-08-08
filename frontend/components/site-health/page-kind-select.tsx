@@ -3,31 +3,31 @@
 import { ChevronDown } from 'lucide-react';
 
 import { inputClasses } from '@/components/ui/input';
-import { PAGE_TYPES, pageTypeLabel } from '@/lib/site-health/page-types';
+import { PAGE_KINDS, pageKindLabel } from '@/lib/site-health/page-kinds';
 import { cn } from '@/lib/utils';
 
 /**
- * The page-type filter control (site-health v2 P1) shared by the pages,
+ * The page-kind filter control (site-health v2 P1) shared by the pages,
  * inventory, and issues list screens. A native `<select>` on the shared
  * `inputClasses` control treatment (the same pattern as the Topics narrow
- * selector) — the empty option clears the filter (all page types).
+ * selector) — the empty option clears the filter (all page kinds).
  */
-export function PageTypeSelect({
+export function PageKindSelect({
   value,
   onChange,
 }: Readonly<{ value: string; onChange: (value: string) => void }>) {
   return (
     <div className="relative w-44">
       <select
-        aria-label="Filter by page type"
+        aria-label="Filter by page kind"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className={cn(inputClasses, 'appearance-none pe-8')}
       >
-        <option value="">All page types</option>
-        {PAGE_TYPES.map((pageType) => (
-          <option key={pageType} value={pageType}>
-            {pageTypeLabel(pageType)}
+        <option value="">All page kinds</option>
+        {PAGE_KINDS.map((pageKind) => (
+          <option key={pageKind} value={pageKind}>
+            {pageKindLabel(pageKind)}
           </option>
         ))}
       </select>

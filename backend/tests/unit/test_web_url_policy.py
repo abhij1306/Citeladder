@@ -179,7 +179,7 @@ def test_is_admissible_combines_scope_and_narrowing():
     [
         ("https://example.com/login", "hard_excluded_path"),
         ("https://example.com/checkout/confirm", "hard_excluded_path"),
-        ("https://example.com/products/widget.pdf", "hard_excluded_asset"),
+        ("https://example.com/assets/logo.png", "hard_excluded_asset"),
         ("https://example.com/products/widget?filter=blue", "hard_excluded_query"),
         ("https://example.com/products/widget?utm_source=mail", "tracking_url"),
     ],
@@ -193,6 +193,33 @@ def test_value_aware_admission_hard_exclusions_are_not_overridable(url, reason):
     )
     assert not decision.accepted
     assert decision.reason_code == reason
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/downloads/prospectus.pdf",
+        "https://example.com/policies/fees.docx",
+    ],
+)
+def test_supported_documents_are_inventoried_not_hard_excluded(url):
+    """A document belongs in corpus coverage even though HTML analysis skips it.
+
+    Hard-excluding a prospectus dropped exactly the evidence an industry pack
+    needs to answer fee, policy, and curriculum questions, so the extension is
+    an inventory disposition rather than an admission refusal.
+    """
+    decision = classify_url_admission(
+        url,
+        root_registrable_domain="example.com",
+        include_globs=["*"],
+        exclude_globs=[],
+    )
+    assert decision.accepted
+    assert decision.reason_code is None
+    assert decision.disposition == "inventory_only"
+    assert decision.disposition_reason == "document"
+    assert decision.item_kind == "document"
 
 
 def test_value_aware_admission_returns_safe_scope_and_priority_details():

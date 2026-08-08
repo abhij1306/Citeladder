@@ -17,14 +17,21 @@ import { Label, displayHeadingLgClasses } from '@/components/ui/typography';
 import { ApiError } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/query-keys';
 import { siteHealthMutations, siteHealthQueries } from '@/lib/api/site-health';
-import type { DeliveryFacts, PageDetail, RerunPageResponse, SiteIssue } from '@/lib/api/types';
-import { PageTypeBadge } from '@/components/site-health/page-type-badge';
+import type {
+  DeliveryFacts,
+  IndustryRole,
+  PageDetail,
+  RerunPageResponse,
+  SiteIssue,
+} from '@/lib/api/types';
+import { IndustryRoleBadge, abstentionLabel } from '@/components/site-health/industry-role-badge';
+import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { ICONS } from '@/lib/icons';
 import {
-  pageTypeLabel,
-  readPageTypeEvidence,
-  type PageTypeEvidenceView,
-} from '@/lib/site-health/page-types';
+  pageKindLabel,
+  readPageKindEvidence,
+  type PageKindEvidenceView,
+} from '@/lib/site-health/page-kinds';
 import {
   dimensionLabel,
   issueTitle,
@@ -215,11 +222,15 @@ function HeaderCard({
 }>) {
   const queryClient = useQueryClient();
   const [reaudited, setReaudited] = useState(false);
-  // The persisted classifier evidence behind `page_type` ("why this type?"
+  // The persisted classifier evidence behind `page_kind` ("why this type?"
   // disclosure); null for pages analyzed before evidence persistence or not
   // yet analyzed, in which case the toggle is not offered at all.
-  const pageTypeEvidence = readPageTypeEvidence(detail.page_type_evidence, detail.page_type);
+  const pageKindEvidence = readPageKindEvidence(detail.page_kind_evidence, detail.page_kind);
   const [evidenceOpen, setEvidenceOpen] = useState(false);
+  // Null when the pack classifier never ran for this page: the whole Industry
+  // Role row is then absent rather than showing an empty one.
+  const industryRole = detail.industry_role ?? null;
+  const [roleOpen, setRoleOpen] = useState(false);
   const rerun = useMutation({
     ...siteHealthMutations.rerunPage(),
     onSuccess: async (result) => {
@@ -273,17 +284,17 @@ function HeaderCard({
             </a>
           </span>
           <span className="flex items-center gap-1.5">
-            <Label>Page Type</Label>
-            <PageTypeBadge pageType={detail.page_type} />
-            {pageTypeEvidence ? (
+            <Label>Page Kind</Label>
+            <PageKindBadge pageKind={detail.page_kind} />
+            {pageKindEvidence ? (
               <button
                 type="button"
                 aria-expanded={evidenceOpen}
-                aria-controls="page-type-evidence"
+                aria-controls="page-kind-evidence"
                 aria-label={
-                  pageTypeEvidence.schemaConflict
-                    ? 'Why this page type? Schema markup disagrees.'
-                    : 'Why this page type?'
+                  pageKindEvidence.schemaConflict
+                    ? 'Why this page kind? Schema markup disagrees.'
+                    : 'Why this page kind?'
                 }
                 onClick={() => setEvidenceOpen((open) => !open)}
                 className="text-accent-text inline-flex items-center gap-1 text-xs font-medium"
@@ -293,8 +304,8 @@ function HeaderCard({
                 ) : (
                   <ChevronRight className="size-3" aria-hidden />
                 )}
-                Why this type?
-                {pageTypeEvidence.schemaConflict ? (
+                Why this page kind?
+                {pageKindEvidence.schemaConflict ? (
                   <span
                     className="bg-warning ms-0.5 inline-block size-1.25 rounded-full"
                     aria-hidden
@@ -303,6 +314,36 @@ function HeaderCard({
               </button>
             ) : null}
           </span>
+          {industryRole ? (
+            <span className="flex items-center gap-1.5">
+              <Label>Industry Role</Label>
+              <IndustryRoleBadge
+                roleId={industryRole.role_id}
+                abstentionReason={industryRole.abstention_reason}
+              />
+              <button
+                type="button"
+                aria-expanded={roleOpen}
+                aria-controls="industry-role-evidence"
+                aria-label="Why this role?"
+                onClick={() => setRoleOpen((open) => !open)}
+                className="text-accent-text inline-flex items-center gap-1 text-xs font-medium"
+              >
+                {roleOpen ? (
+                  <ChevronDown className="size-3" aria-hidden />
+                ) : (
+                  <ChevronRight className="size-3" aria-hidden />
+                )}
+                Why this role?
+                {industryRole.conflicts.length > 0 ? (
+                  <span
+                    className="bg-warning ms-0.5 inline-block size-1.25 rounded-full"
+                    aria-hidden
+                  />
+                ) : null}
+              </button>
+            </span>
+          ) : null}
           <span className="flex items-center gap-1.5">
             <Label>Last Audit</Label>
             <span>{formatAudited(detail.last_audited)}</span>
@@ -314,9 +355,10 @@ function HeaderCard({
             </Badge>
           </span>
         </div>
-        {pageTypeEvidence && evidenceOpen ? (
-          <PageTypeEvidencePanel evidence={pageTypeEvidence} finalPageType={detail.page_type} />
+        {pageKindEvidence && evidenceOpen ? (
+          <PageKindEvidencePanel evidence={pageKindEvidence} finalPageKind={detail.page_kind} />
         ) : null}
+        {industryRole && roleOpen ? <IndustryRolePanel role={industryRole} /> : null}
       </CardContent>
     </Card>
   );
@@ -327,15 +369,15 @@ function HeaderCard({
  * why-this-type-expanded): the classifier verdict facts, a highlighted
  * warning when the schema-suggested type conflicts with the final type, and
  * the ranked matched signals with their weights. Purely presentational —
- * all parsing/shaping lives in `readPageTypeEvidence`.
+ * all parsing/shaping lives in `readPageKindEvidence`.
  */
-function PageTypeEvidencePanel({
+function PageKindEvidencePanel({
   evidence,
-  finalPageType,
-}: Readonly<{ evidence: PageTypeEvidenceView; finalPageType: string | null }>) {
+  finalPageKind,
+}: Readonly<{ evidence: PageKindEvidenceView; finalPageKind: string | null }>) {
   const WarningIcon = ICONS.warning;
   return (
-    <div id="page-type-evidence">
+    <div id="page-kind-evidence">
       <div className="border-border-subtle bg-background-alt grid gap-3 rounded-lg border p-3">
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
           <span className="grid gap-0.5">
@@ -363,7 +405,7 @@ function PageTypeEvidencePanel({
             >
               {evidence.schemaSuggestedType === null
                 ? PLACEHOLDER
-                : pageTypeLabel(evidence.schemaSuggestedType)}
+                : pageKindLabel(evidence.schemaSuggestedType)}
             </span>
           </span>
           <span className="grid gap-0.5">
@@ -374,6 +416,49 @@ function PageTypeEvidencePanel({
           </span>
         </div>
 
+        {evidence.otherReason !== null ? (
+          <div
+            role="note"
+            className="border-border-subtle text-secondary rounded-sm border px-3 py-2 text-sm"
+          >
+            {evidence.otherReason === 'below_threshold'
+              ? 'Signals matched but scored below the confidence threshold, so the page stayed unclassified.'
+              : 'No classification signals matched this page.'}
+          </div>
+        ) : null}
+
+        {evidence.alternatives.length > 0 ? (
+          <div className="grid gap-1">
+            <Label>Other candidates</Label>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {evidence.alternatives.map((candidate) => (
+                <span key={candidate.pageKind} className="flex items-center gap-1">
+                  <Badge>{pageKindLabel(candidate.pageKind)}</Badge>
+                  <span className="mono text-2xs text-muted tabular-nums">
+                    {candidate.confidence.toFixed(2)}
+                  </span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {evidence.conflicts.length > 0 ? (
+          <div className="grid gap-1">
+            <Label>Disagreeing signals</Label>
+            {evidence.conflicts.map((conflict) => (
+              <span
+                key={`${conflict.signal}:${conflict.conflictingPageKind}`}
+                className="text-secondary text-sm"
+              >
+                <span className="mono">{conflict.signal}</span> suggested{' '}
+                <span className="mono">{pageKindLabel(conflict.conflictingPageKind)}</span>
+                {conflict.detail ? <span className="text-muted"> ({conflict.detail})</span> : null}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
         {evidence.schemaConflict && evidence.schemaSuggestedType !== null ? (
           <div
             role="note"
@@ -382,9 +467,9 @@ function PageTypeEvidencePanel({
             <WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
             <div>
               Schema markup on this page declares{' '}
-              <span className="mono">{pageTypeLabel(evidence.schemaSuggestedType)}</span>, which
+              <span className="mono">{pageKindLabel(evidence.schemaSuggestedType)}</span>, which
               disagrees with the chosen type. URL and content signals outrank schema, so the page is
-              treated as {finalPageType === null ? PLACEHOLDER : pageTypeLabel(finalPageType)} —
+              treated as {finalPageKind === null ? PLACEHOLDER : pageKindLabel(finalPageKind)} —
               check whether the markup belongs here.
             </div>
           </div>
@@ -409,7 +494,7 @@ function PageTypeEvidencePanel({
                     ) : null}
                   </span>
                   <span className="shrink-0">
-                    <Badge>{pageTypeLabel(signal.pageType)}</Badge>
+                    <Badge>{pageKindLabel(signal.pageKind)}</Badge>
                   </span>
                   <span
                     className={cn(
@@ -444,6 +529,87 @@ function PageTypeEvidencePanel({
             type.
           </span>
           <span className="mono ms-auto">{evidence.classifierVersion}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The expanded "why this role?" disclosure. Shows the pack verdict, the
+ * abstention reason when the classifier declined, competing candidates, and
+ * the exact frozen pack version the result came from — so a role is always
+ * attributable to one reviewed pack rather than to "the classifier".
+ */
+function IndustryRolePanel({ role }: Readonly<{ role: IndustryRole }>) {
+  const WarningIcon = ICONS.warning;
+  return (
+    <div id="industry-role-evidence">
+      <div className="border-border-subtle bg-background-alt grid gap-3 rounded-lg border p-3">
+        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+          <span className="grid gap-0.5">
+            <Label>Role</Label>
+            <span className="mono text-foreground text-sm font-medium">
+              {role.role_id ?? PLACEHOLDER}
+            </span>
+          </span>
+          <span className="grid gap-0.5">
+            <Label>Score</Label>
+            <span className="mono text-foreground text-sm font-medium">
+              {role.score === null ? PLACEHOLDER : role.score.toFixed(2)}
+              {role.winner_margin === null ? null : (
+                <span className="text-muted font-medium">
+                  {' '}
+                  / {role.winner_margin.toFixed(2)} margin
+                </span>
+              )}
+            </span>
+          </span>
+          <span className="grid gap-0.5">
+            <Label>Confidence</Label>
+            <span className="mono text-foreground text-sm font-medium">
+              {role.confidence_band || PLACEHOLDER}
+            </span>
+          </span>
+          <span className="grid gap-0.5">
+            <Label>Temporal state</Label>
+            <span className="mono text-foreground text-sm font-medium">
+              {role.temporal_state || PLACEHOLDER}
+            </span>
+          </span>
+        </div>
+
+        {role.abstention_reason ? (
+          <div
+            role="note"
+            className="border-warning-border bg-warning-bg text-warning-text flex items-start gap-2 rounded-sm border px-3 py-2 text-sm"
+          >
+            <WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <div>{abstentionLabel(role.abstention_reason)}</div>
+          </div>
+        ) : null}
+
+        {role.alternatives.length > 0 ? (
+          <div className="grid gap-1">
+            <Label>Other candidates</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {role.alternatives.map((alternative, index) => (
+                <Badge key={String(alternative.role_id ?? index)}>
+                  {String(alternative.role_id ?? PLACEHOLDER)}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="text-2xs text-muted flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span>
+            Roles come from the industry pack frozen onto this crawl; a later pack release never
+            changes an existing result.
+          </span>
+          <span className="mono ms-auto">
+            {role.manifest.pack_id}@{role.manifest.pack_version}
+          </span>
         </div>
       </div>
     </div>

@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
  *
  * What does **not** come back is the mono face — mono stays reserved for
  * values, so a call site must never re-add `font-mono` here (see the
- * carry-forward note on page-type-scores.tsx).
+ * carry-forward note on page-kind-scores.tsx).
  *
  * `eyebrowClasses` is the muted form, shared by page eyebrows, table headers,
  * panel labels, sidebar group labels and <CardEyebrow>; apply it to whatever

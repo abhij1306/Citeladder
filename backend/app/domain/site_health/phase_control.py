@@ -20,6 +20,7 @@ from app.core.config.site_health import (
     CODE_DISCOVERY_LIMIT_EXCEEDED,
     CODE_PHASE_ALREADY_RUNNING,
     CODE_PHASE_NOT_RESUMABLE,
+    CORPUS_DISPOSITION_ANALYZE,
     CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_QUEUED,
     CRAWL_STATUS_RUNNING,
@@ -310,6 +311,15 @@ async def _stop_phase_tasks(
 
 
 async def _pause_if_idle(session: AsyncSession, crawl: SiteCrawl) -> None:
+    """Settle crawl + phase state once no non-terminal task remains.
+
+    A stop with no RUNNING phase-run row (the phase already drained, or a
+    second Stop click) still has to leave truthful state behind: a RUNNING
+    discovery/analysis sub-state that no non-terminal task backs renders as a
+    live phase the user cannot stop. Deriving both sub-states from the
+    outstanding-task count here makes Stop idempotent for every caller instead
+    of depending on which rows a particular stop path happened to find.
+    """
     outstanding = await session.scalar(
         select(func.count())
         .select_from(SiteCrawlTask)
@@ -318,7 +328,13 @@ async def _pause_if_idle(session: AsyncSession, crawl: SiteCrawl) -> None:
             SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)),
         )
     )
-    if int(outstanding or 0) == 0 and crawl.status == CRAWL_STATUS_RUNNING:
+    if int(outstanding or 0) != 0:
+        return
+    if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
+        apply_discovery_status(crawl, DISCOVERY_STATUS_STOPPED)
+    if crawl.analysis_status == ANALYSIS_STATUS_RUNNING:
+        apply_analysis_status(crawl, ANALYSIS_STATUS_STOPPED)
+    if crawl.status == CRAWL_STATUS_RUNNING:
         apply_crawl_status(crawl, CRAWL_STATUS_PAUSED)
 
 
@@ -400,6 +416,12 @@ async def _analysis_candidates(
     ranked_where = [
         SiteUrlObservation.crawl_id == crawl.id,
         SiteUrl.id.not_in(explicit_ids),
+        # Automatic selection only ever proposes analyzable items. A document or
+        # an excluded URL stays in the inventory for coverage, but spending an
+        # analysis budget slot on one would fetch evidence the HTML analyzer
+        # cannot read. An explicit user selection is deliberately not filtered
+        # here — that path validates admission separately.
+        SiteUrl.corpus_disposition == CORPUS_DISPOSITION_ANALYZE,
     ]
     if not include_completed:
         ranked_where.append(SiteUrl.id.not_in(select(completed.c.site_url_id)))

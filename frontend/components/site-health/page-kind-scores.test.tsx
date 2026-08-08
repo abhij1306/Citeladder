@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-import { PageTypeScores } from './page-type-scores';
+import { PageKindScores } from './page-kind-scores';
 import type { SiteCrawl, SiteHealthDashboard, SiteScoreSummary } from '@/lib/api/types';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
@@ -16,7 +16,7 @@ function summary(overrides: Partial<SiteScoreSummary> = {}): SiteScoreSummary {
     analyzed_count: 4,
     issue_count: 3,
     scoring_version: 's1',
-    by_page_type: {},
+    by_page_kind: {},
     ...overrides,
   };
 }
@@ -77,7 +77,7 @@ function crawl(scoreSummary: SiteScoreSummary | null): SiteCrawl {
       analyzed: 3,
       errors: 0,
       blocked: 0,
-      by_page_type: {},
+      by_page_kind: {},
     },
     discovered_count: 3,
     total_url_count: 3,
@@ -97,28 +97,28 @@ function crawl(scoreSummary: SiteScoreSummary | null): SiteCrawl {
   };
 }
 
-describe('PageTypeScores', () => {
+describe('PageKindScores', () => {
   it('renders nothing before any score summary exists', () => {
-    const { container } = render(<PageTypeScores crawl={null} dashboard={undefined} />);
+    const { container } = render(<PageKindScores crawl={null} dashboard={undefined} />);
     expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByTestId('page-type-scores')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('page-kind-scores')).not.toBeInTheDocument();
   });
 
   it('renders the empty state when no page has been classified yet', () => {
-    render(<PageTypeScores crawl={null} dashboard={dashboard(summary())} />);
-    expect(screen.getByTestId('page-type-scores')).toBeInTheDocument();
+    render(<PageKindScores crawl={null} dashboard={dashboard(summary())} />);
+    expect(screen.getByTestId('page-kind-scores')).toBeInTheDocument();
     expect(
-      screen.getByText('Per-page-type scores appear once the analysis classifies your pages.'),
+      screen.getByText('Per-page-kind scores appear once the analysis classifies your pages.'),
     ).toBeInTheDocument();
   });
 
   it('renders one row per classified type with analyzed count + mean scores', () => {
     render(
-      <PageTypeScores
+      <PageKindScores
         crawl={null}
         dashboard={dashboard(
           summary({
-            by_page_type: {
+            by_page_kind: {
               article: { analyzed_count: 3, technical_score: 80, aeo_score: 62, overall_score: 71 },
               homepage: {
                 analyzed_count: 1,
@@ -140,7 +140,7 @@ describe('PageTypeScores', () => {
     // Mean scores formatted like every other score cell.
     expect(screen.getByText('71')).toBeInTheDocument();
     expect(screen.getByText('90.5')).toBeInTheDocument();
-    // PAGE_TYPES display order: Homepage row precedes the Article row.
+    // PAGE_KINDS display order: Homepage row precedes the Article row.
     const homepage = screen.getByText('Homepage');
     const article = screen.getByText('Article');
     expect(
@@ -150,11 +150,11 @@ describe('PageTypeScores', () => {
 
   it('renders — for a missing mean score, never a fabricated zero', () => {
     render(
-      <PageTypeScores
+      <PageKindScores
         crawl={null}
         dashboard={dashboard(
           summary({
-            by_page_type: {
+            by_page_kind: {
               docs: {
                 analyzed_count: 2,
                 technical_score: null,
@@ -173,10 +173,10 @@ describe('PageTypeScores', () => {
 
   it('falls back to the crawl score summary when the dashboard has none', () => {
     render(
-      <PageTypeScores
+      <PageKindScores
         crawl={crawl(
           summary({
-            by_page_type: {
+            by_page_kind: {
               about_contact: {
                 analyzed_count: 1,
                 technical_score: 55,
@@ -189,7 +189,7 @@ describe('PageTypeScores', () => {
         dashboard={dashboard(null)}
       />,
     );
-    expect(screen.getByTestId('page-type-scores')).toBeInTheDocument();
+    expect(screen.getByTestId('page-kind-scores')).toBeInTheDocument();
     expect(screen.getByText('About / Contact')).toBeInTheDocument();
   });
 });

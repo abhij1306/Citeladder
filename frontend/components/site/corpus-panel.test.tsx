@@ -33,7 +33,7 @@ function row(overrides: Record<string, unknown> = {}) {
     aeo_score: null,
     overall_score: null,
     last_audited: null,
-    page_type: null,
+    page_kind: null,
     ...overrides,
   };
 }

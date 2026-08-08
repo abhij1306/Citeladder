@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 import { Label } from '@/components/ui/typography';
 import { InventorySelection } from '@/components/site-health/inventory-selection';
-import { PageTypeSelect } from '@/components/site-health/page-type-select';
+import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import { PagesTable } from '@/components/site-health/pages-table';
 import { RootErrorsBlock } from '@/components/site-health/root-errors-block';
 import { siteHealthQueries, type PagesParams } from '@/lib/api/site-health';
@@ -248,9 +248,9 @@ function ScoredInventory({
 }>) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>('monitored');
-  // Shared page-type filter (v2 P1): one server-backed value that composes
+  // Shared page-kind filter (v2 P1): one server-backed value that composes
   // with whichever tab is active — never a client filter over the page window.
-  const [pageType, setPageType] = useState('');
+  const [pageKind, setPageKind] = useState('');
   // Per-tab cursor stack so Prev/Next walk keyset pages without offsets.
   const monitoredPager = useCursorStack();
   const allPager = useCursorStack();
@@ -261,8 +261,8 @@ function ScoredInventory({
 
   // A filter edit restarts EVERY tab from its first page — cursors are
   // filter-bound server-side, so a stale cursor under a new page type 400s.
-  const selectPageType = (next: string) => {
-    setPageType(next);
+  const selectPageKind = (next: string) => {
+    setPageKind(next);
     monitoredPager.reset();
     allPager.reset();
     errorsPager.reset();
@@ -275,7 +275,7 @@ function ScoredInventory({
   const pagesQuery = useQuery(
     siteHealthQueries.pages(crawl.id, {
       ...activeTab.params,
-      page_type: pageType || undefined,
+      page_kind: pageKind || undefined,
       cursor: pager.cursor,
       limit: PAGE_LIMIT,
     }),
@@ -292,7 +292,7 @@ function ScoredInventory({
     void queryClient.prefetchQuery(
       siteHealthQueries.pages(crawl.id, {
         ...nextTab.params,
-        page_type: pageType || undefined,
+        page_kind: pageKind || undefined,
         limit: PAGE_LIMIT,
       }),
     );
@@ -356,7 +356,7 @@ function ScoredInventory({
             ))}
           </div>
           <div className="mb-1 ml-auto flex items-center gap-2">
-            <PageTypeSelect value={pageType} onChange={selectPageType} />
+            <PageKindSelect value={pageKind} onChange={selectPageKind} />
             {active ? (
               <Button variant="destructive" size="sm" onClick={onCancel} disabled={cancelPending}>
                 {cancelPending ? 'Cancelling…' : 'Cancel'}

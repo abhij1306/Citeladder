@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.connectors.web_evidence.contracts import (
     AcquisitionProvenance,
+    AcquisitionTransport,
     DnsResolver,
     FetchError,
     FetchRequest,
@@ -397,8 +398,7 @@ def _safe_provenance(provenance: AcquisitionProvenance | None) -> dict[str, Any]
         "rung": provenance.rung,
         "trigger": provenance.trigger,
         "impersonation_profile": provenance.impersonation_profile,
-        "scraperapi_options": dict(provenance.scraperapi_options),
-        "scraperapi_request_id": provenance.scraperapi_request_id,
+        "options": dict(provenance.options),
         "policy_version": provenance.policy_version,
     }
 
@@ -437,7 +437,7 @@ class CommerceDiscoveryWorker(DrainableWorkerMixin):
         owner: str | None = None,
         resolver: DnsResolver | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
-        scraperapi_transport: httpx.AsyncBaseTransport | None = None,
+        browser_transport: AcquisitionTransport | None = None,
     ) -> None:
         self._session_factory = session_factory or SessionLocal
         self._queue = PostgresTaskQueue(
@@ -446,13 +446,13 @@ class CommerceDiscoveryWorker(DrainableWorkerMixin):
         self.owner = owner or f"commerce-discovery-{uuid.uuid4().hex[:12]}"
         self._resolver = resolver or SystemDnsResolver()
         self._transport = transport
-        self._scraperapi_transport = scraperapi_transport
+        self._browser_transport = browser_transport
 
     def _new_fetcher(self) -> SecureFetcher:
         return SecureFetcher(
             resolver=self._resolver,
             transport=self._transport,
-            scraperapi_transport=self._scraperapi_transport,
+            browser_transport=self._browser_transport,
         )
 
     async def run_once(self) -> int:

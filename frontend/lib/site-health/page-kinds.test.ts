@@ -1,0 +1,213 @@
+import { describe, expect, it } from 'vitest';
+
+import type { PageKindScoreSummary } from '@/lib/api/types';
+import { PAGE_KINDS, byPageKindRows, pageKindLabel, readPageKindEvidence } from './page-kinds';
+
+describe('pageKindLabel (the single shared mapping)', () => {
+  it('has a humanized label for every page kind in the vocabulary', () => {
+    for (const pageKind of PAGE_KINDS) {
+      expect(pageKindLabel(pageKind)).not.toBe(pageKind);
+      expect(pageKindLabel(pageKind).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('maps the multi-word and acronym types exactly', () => {
+    expect(pageKindLabel('about_contact')).toBe('About / Contact');
+    expect(pageKindLabel('faq')).toBe('FAQ');
+    expect(pageKindLabel('homepage')).toBe('Homepage');
+    expect(pageKindLabel('other')).toBe('Other');
+  });
+
+  it('falls back to title-casing an unknown type instead of rendering blank', () => {
+    expect(pageKindLabel('landing_page')).toBe('Landing Page');
+  });
+});
+
+describe('byPageKindRows (dashboard breakdown ordering)', () => {
+  const bucket = (analyzed_count: number): PageKindScoreSummary => ({
+    analyzed_count,
+    technical_score: 80,
+    aeo_score: 62,
+    overall_score: 71,
+  });
+
+  it('returns [] for an empty breakdown', () => {
+    expect(byPageKindRows({})).toEqual([]);
+  });
+
+  it('orders rows by the PAGE_KINDS display order, not insertion order', () => {
+    const rows = byPageKindRows({
+      pricing: bucket(1),
+      homepage: bucket(2),
+      article: bucket(3),
+    });
+    expect(rows.map((row) => row.page_kind)).toEqual(['homepage', 'article', 'pricing']);
+  });
+
+  it('spreads the analyzed count + mean scores onto each row', () => {
+    const [row] = byPageKindRows({ docs: bucket(7) });
+    expect(row).toEqual({
+      page_kind: 'docs',
+      analyzed_count: 7,
+      technical_score: 80,
+      aeo_score: 62,
+      overall_score: 71,
+    });
+  });
+
+  it('appends unknown types alphabetically after the known vocabulary', () => {
+    const rows = byPageKindRows({
+      zebra_page: bucket(1),
+      article: bucket(2),
+      landing_page: bucket(3),
+    });
+    expect(rows.map((row) => row.page_kind)).toEqual(['article', 'landing_page', 'zebra_page']);
+  });
+});
+
+describe('readPageKindEvidence (why-this-type disclosure reader)', () => {
+  // The exact shape `PageKindAssessment.to_evidence()` persists (snake_case).
+  const persisted = {
+    classifier_version: 'sh-classifier-1',
+    classified_by: 'path_pattern',
+    schema_suggested_type: 'product',
+    confidence: 1.3,
+    confidence_threshold: 0.5,
+    signals: [
+      {
+        signal: 'path_pattern',
+        page_kind: 'article',
+        weight: 0.8,
+        detail: '^/(blog|news|guides)(/|$)',
+      },
+      { signal: 'structured_data', page_kind: 'product', weight: 0.5, detail: 'Product' },
+    ],
+  };
+
+  it('parses a full evidence record into the display view', () => {
+    const view = readPageKindEvidence(persisted, 'article');
+    expect(view).toEqual({
+      classifierVersion: 'sh-classifier-1',
+      classifiedBy: 'path_pattern',
+      schemaSuggestedType: 'product',
+      confidence: 1.3,
+      confidenceThreshold: 0.5,
+      signals: [
+        {
+          signal: 'path_pattern',
+          pageKind: 'article',
+          weight: 0.8,
+          detail: '^/(blog|news|guides)(/|$)',
+        },
+        { signal: 'structured_data', pageKind: 'product', weight: 0.5, detail: 'Product' },
+      ],
+      schemaConflict: true,
+      // Absent in this fixture; the parser still surfaces the fields so the
+      // disclosure can distinguish "no alternatives" from "not parsed".
+      alternatives: [],
+      conflicts: [],
+      otherReason: null,
+    });
+  });
+
+  it('flags no conflict when the schema suggestion matches the final type', () => {
+    const view = readPageKindEvidence(persisted, 'product');
+    expect(view?.schemaConflict).toBe(false);
+  });
+
+  it('flags no conflict when there is no schema suggestion', () => {
+    const view = readPageKindEvidence({ ...persisted, schema_suggested_type: null }, 'article');
+    expect(view?.schemaSuggestedType).toBeNull();
+    expect(view?.schemaConflict).toBe(false);
+  });
+
+  it('returns null for absent or malformed evidence', () => {
+    expect(readPageKindEvidence(null, 'article')).toBeNull();
+    expect(readPageKindEvidence(undefined, 'article')).toBeNull();
+    expect(readPageKindEvidence('article', 'article')).toBeNull();
+    expect(readPageKindEvidence(42, 'article')).toBeNull();
+    expect(readPageKindEvidence([], 'article')).toBeNull();
+    expect(readPageKindEvidence({}, 'article')).toBeNull();
+    // A required field of the wrong type sinks the whole record.
+    expect(readPageKindEvidence({ ...persisted, confidence: 'high' }, 'article')).toBeNull();
+    expect(readPageKindEvidence({ ...persisted, classified_by: 7 }, 'article')).toBeNull();
+  });
+
+  it('skips malformed signal entries and defaults a missing detail', () => {
+    const view = readPageKindEvidence(
+      {
+        ...persisted,
+        signals: [
+          'not-an-object',
+          { signal: 'path_pattern', page_kind: 'article' }, // no weight
+          { signal: 'structured_data', page_kind: 'product', weight: 0.5 }, // no detail
+        ],
+      },
+      'article',
+    );
+    expect(view?.signals).toEqual([
+      { signal: 'structured_data', pageKind: 'product', weight: 0.5, detail: '' },
+    ]);
+  });
+});
+
+describe('readPageKindEvidence — alternatives, conflicts, other_reason', () => {
+  const base = {
+    classifier_version: 'sh-classifier-2',
+    classified_by: 'path_pattern',
+    confidence: 0.4,
+    confidence_threshold: 0.5,
+    signals: [],
+  };
+
+  it('preserves alternatives, conflicts, and other_reason', () => {
+    const view = readPageKindEvidence(
+      {
+        ...base,
+        other_reason: 'below_threshold',
+        alternatives: [{ page_kind: 'article', confidence: 0.3, signals: ['path_pattern'] }],
+        conflicts: [
+          {
+            winner_page_kind: 'faq',
+            conflicting_page_kind: 'article',
+            signal: 'structured_data',
+            detail: 'BlogPosting',
+          },
+        ],
+      },
+      'other',
+    );
+    expect(view?.otherReason).toBe('below_threshold');
+    expect(view?.alternatives).toEqual([
+      { pageKind: 'article', confidence: 0.3, signals: ['path_pattern'] },
+    ]);
+    expect(view?.conflicts).toHaveLength(1);
+    expect(view?.conflicts[0].conflictingPageKind).toBe('article');
+  });
+
+  it('skips malformed entries instead of sinking the whole panel', () => {
+    const view = readPageKindEvidence(
+      {
+        ...base,
+        // Wrong types, wrong shapes, and a valid entry mixed together.
+        other_reason: 42,
+        alternatives: ['nope', null, { page_kind: 'faq' }, { page_kind: 'docs', confidence: 0.2 }],
+        conflicts: [{ signal: 'only_a_signal' }, 7],
+      },
+      'other',
+    );
+    expect(view).not.toBeNull();
+    // A non-string other_reason is not a reason.
+    expect(view?.otherReason).toBeNull();
+    // Only the fully-shaped alternative survives.
+    expect(view?.alternatives).toEqual([{ pageKind: 'docs', confidence: 0.2, signals: [] }]);
+    expect(view?.conflicts).toEqual([]);
+  });
+
+  it('defaults to empty collections when the fields are absent', () => {
+    const view = readPageKindEvidence(base, 'faq');
+    expect(view?.alternatives).toEqual([]);
+    expect(view?.conflicts).toEqual([]);
+    expect(view?.otherReason).toBeNull();
+  });
+});

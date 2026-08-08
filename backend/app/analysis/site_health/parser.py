@@ -15,13 +15,14 @@ from __future__ import annotations
 
 import codecs
 import logging
+import re
 from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 from lxml import etree
 from lxml import html as lxml_html
 
-from app.analysis.site_health.page_types import is_question_heading
+from app.analysis.site_health.page_kinds import is_question_heading
 from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
     product_facts,
@@ -48,6 +49,13 @@ _MAX_HEADING_CHARS = site_health_config.SITE_HEALTH_MAX_HEADING_CHARS
 _MAX_HEADINGS_KEPT = site_health_config.SITE_HEALTH_MAX_HEADINGS_KEPT
 _MAX_URL_CHARS = site_health_config.SITE_HEALTH_MAX_URL_CHARS
 _MAX_ANCHOR_TEXT_CHARS = site_health_config.SITE_HEALTH_MAX_ANCHOR_TEXT_CHARS
+_MAX_CTA_TEXTS = site_health_config.SITE_HEALTH_MAX_CTA_TEXTS
+_MAX_CTA_TEXT_CHARS = site_health_config.SITE_HEALTH_MAX_CTA_TEXT_CHARS
+_MAX_FORM_FIELDS = site_health_config.SITE_HEALTH_MAX_FORM_FIELDS
+_MAX_FORM_FIELD_CHARS = site_health_config.SITE_HEALTH_MAX_FORM_FIELD_CHARS
+_MAX_LINK_CONTEXT = site_health_config.SITE_HEALTH_MAX_LINK_CONTEXT
+_MAX_LINK_CONTEXT_CHARS = site_health_config.SITE_HEALTH_MAX_LINK_CONTEXT_CHARS
+CTA_BUTTON_ROLE_TOKENS = site_health_config.CTA_BUTTON_ROLE_TOKENS
 _MAX_AUTHOR_CHARS = site_health_config.SITE_HEALTH_MAX_AUTHOR_CHARS
 _MAX_DATE_CHARS = site_health_config.SITE_HEALTH_MAX_DATE_CHARS
 _MAX_OUTBOUND_DOMAINS = site_health_config.SITE_HEALTH_MAX_OUTBOUND_DOMAINS
@@ -204,6 +212,137 @@ def _headings(root: Any) -> dict[str, Any]:
         "h2_texts": h2_texts,
         "h3_texts": h3_texts,
     }
+
+
+def _is_cta_anchor(node: Any) -> bool:
+    """Whether an anchor presents as a call to action rather than navigation.
+
+    Every anchor would swamp the CTA signal, so an anchor qualifies only on an
+    explicit button affordance: ``role="button"`` or a button/CTA token in its
+    class list. That keeps "Apply now" and "Enquire" while dropping the footer
+    sitemap.
+    """
+    role = str(node.get("role") or "").strip().casefold()
+    if role == "button":
+        return True
+    classes = str(node.get("class") or "").casefold()
+    if not classes:
+        return False
+    tokens = set(re.split(r"[\s_-]+", classes))
+    return bool(tokens & CTA_BUTTON_ROLE_TOKENS)
+
+
+def _cta_texts(root: Any) -> list[str]:
+    """Bounded visible call-to-action wording in document order.
+
+    Buttons, submit inputs, and button-like anchors. The pack classifier scores
+    conversion roles from this wording, so a missing extractor here makes an
+    enquiry page indistinguishable from an informational one.
+    """
+    texts: list[str] = []
+    seen: set[str] = set()
+
+    def _add(value: str) -> None:
+        cleaned = " ".join(str(value or "").split())[:_MAX_CTA_TEXT_CHARS]
+        if not cleaned:
+            return
+        key = cleaned.casefold()
+        if key in seen:
+            return
+        seen.add(key)
+        texts.append(cleaned)
+
+    try:
+        for node in root.iter("button", "a", "input"):
+            if len(texts) >= _MAX_CTA_TEXTS:
+                break
+            tag = str(node.tag).lower()
+            if tag == "button":
+                _add(_text(node))
+            elif tag == "input":
+                if str(node.get("type") or "").strip().casefold() in {
+                    "submit",
+                    "button",
+                }:
+                    _add(node.get("value") or "")
+            elif _is_cta_anchor(node):
+                _add(_text(node))
+    # Malformed markup must degrade to fewer facts, never fail the analysis.
+    except Exception:
+        pass
+    return texts[:_MAX_CTA_TEXTS]
+
+
+def _form_fields(root: Any) -> list[str]:
+    """Bounded form-field labels: what a page ASKS a visitor for.
+
+    Field labels separate an admissions enquiry form from a newsletter signup
+    far more reliably than the surrounding prose does. Prefers the visible
+    label, falling back to the accessible name, placeholder, or field name —
+    never a value, so nothing a user typed can be captured.
+    """
+    fields: list[str] = []
+    seen: set[str] = set()
+    try:
+        labels_by_for: dict[str, str] = {}
+        for label in root.iter("label"):
+            target = str(label.get("for") or "").strip()
+            if target and target not in labels_by_for:
+                labels_by_for[target] = _text(label)
+        for node in root.iter("input", "select", "textarea"):
+            if len(fields) >= _MAX_FORM_FIELDS:
+                break
+            if str(node.get("type") or "").strip().casefold() in {
+                "hidden",
+                "submit",
+                "button",
+            }:
+                continue
+            candidate = (
+                labels_by_for.get(str(node.get("id") or "").strip(), "")
+                or node.get("aria-label")
+                or node.get("placeholder")
+                or node.get("name")
+                or ""
+            )
+            cleaned = " ".join(str(candidate).split())[:_MAX_FORM_FIELD_CHARS]
+            if not cleaned:
+                continue
+            key = cleaned.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            fields.append(cleaned)
+    except Exception:
+        pass
+    return fields[:_MAX_FORM_FIELDS]
+
+
+def _link_context(anchors: list[dict]) -> list[str]:
+    """Bounded internal anchor text — what this page says its neighbours are.
+
+    Derived from the already-extracted anchors rather than a second DOM pass:
+    internal anchor text is how a hub page advertises the pages it links to,
+    which is what lets the classifier tell a listing from a detail page.
+    """
+    context: list[str] = []
+    seen: set[str] = set()
+    for anchor in anchors:
+        if len(context) >= _MAX_LINK_CONTEXT:
+            break
+        if not anchor.get("is_internal"):
+            continue
+        cleaned = " ".join(str(anchor.get("anchor_text") or "").split())[
+            :_MAX_LINK_CONTEXT_CHARS
+        ]
+        if not cleaned:
+            continue
+        key = cleaned.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        context.append(cleaned)
+    return context
 
 
 def _images(root: Any) -> dict[str, int]:
@@ -692,6 +831,10 @@ def _empty_facts() -> dict[str, Any]:
         },
         "images": {"count": 0, "missing_alt": 0},
         "body": {"text": "", "word_count": 0},
+        # Industry-role classifier facts (see the extractors above).
+        "cta_text": [],
+        "form_fields": [],
+        "link_context": [],
         "structured_data": {
             "blocks": [],
             "count": 0,
@@ -807,6 +950,11 @@ def extract_page_facts(
     facts["links"] = _links_and_assets(
         root, base_host=base_host, max_links=settings.max_links_per_page
     )
+    # Industry-role classifier facts. ``link_context`` reuses the anchors just
+    # extracted rather than walking the DOM again.
+    facts["cta_text"] = _cta_texts(root)
+    facts["form_fields"] = _form_fields(root)
+    facts["link_context"] = _link_context(facts["links"].get("anchors") or [])
 
     # v2 P2 (sh-extractor-2) fields: citability + extractability + hreflang.
     facts["author"], facts["dates"] = _author_and_dates(

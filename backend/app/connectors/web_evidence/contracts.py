@@ -63,16 +63,16 @@ class AcquisitionProvenance:
     """Safe, frozen acquisition details for a fetch result or call trace.
 
     This is deliberately metadata-only: it contains neither raw response
-    content nor server credentials. ``scraperapi_options`` has only the small
-    allowlisted option set used to reproduce the request shape.
+    content nor server credentials. ``options`` has only the small allowlisted,
+    transport-neutral option set used to reproduce the request shape (for the
+    browser rung: the readiness/capture bounds it ran under).
     """
 
     transport: str
     rung: int
     trigger: str = "initial"
     impersonation_profile: str = ""
-    scraperapi_options: dict[str, str | bool] = field(default_factory=dict)
-    scraperapi_request_id: str = ""
+    options: dict[str, str | bool | int] = field(default_factory=dict)
     policy_version: str = ""
 
 
@@ -219,3 +219,11 @@ class AcquisitionTransport(Protocol):
         max_decoded_bytes: int,
         timeout_seconds: float,
     ) -> FetchResult: ...
+
+    async def aclose(self) -> None:
+        """Release any transport-owned resources.
+
+        A rung backed only by per-request state has nothing to release; a rung
+        that owns OS processes or long-lived contexts must shut them down here,
+        because the fetcher closes every rung it constructed.
+        """

@@ -347,10 +347,72 @@ _V2_PAGE = b"""
 """
 
 
-def test_extractor_version_is_sh_extractor_2():
-    # Pin the P2 provenance stamp (config-derived everywhere else).
-    assert EXTRACTOR_VERSION == "sh-extractor-2"
-    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-2"
+def test_extractor_version_is_sh_extractor_3():
+    # Pin the provenance stamp (config-derived everywhere else). sh-extractor-3
+    # adds the industry-role classifier facts.
+    assert EXTRACTOR_VERSION == "sh-extractor-3"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-3"
+
+
+# --- sh-extractor-3: industry-role classifier facts -------------------------
+
+_ROLE_FACTS_PAGE = b"""
+<html><body>
+  <h1>Admissions</h1>
+  <a href="/apply" class="btn btn-primary">Apply Now</a>
+  <a href="/prospectus" role="button">Download prospectus</a>
+  <a href="/about">About the school</a>
+  <a href="https://other.test/x">External partner</a>
+  <button>Enquire</button>
+  <form>
+    <label for="pn">Parent Name</label><input id="pn" name="parent_name">
+    <input name="grade" placeholder="Grade applying for">
+    <textarea aria-label="Questions for us"></textarea>
+    <input type="hidden" name="csrf" value="secret-token">
+    <input type="submit" value="Submit Enquiry">
+  </form>
+</body></html>
+"""
+
+
+def test_cta_text_keeps_button_affordances_and_drops_navigation():
+    facts = _facts(_ROLE_FACTS_PAGE, final_url="https://school.test/admissions")
+    # Buttons, submit inputs, and button-like anchors qualify; a plain
+    # navigation anchor does not, or the real CTAs would be drowned out.
+    assert facts["cta_text"] == [
+        "Apply Now",
+        "Download prospectus",
+        "Enquire",
+        "Submit Enquiry",
+    ]
+
+
+def test_form_fields_capture_labels_never_values():
+    facts = _facts(_ROLE_FACTS_PAGE, final_url="https://school.test/admissions")
+    assert facts["form_fields"] == [
+        "Parent Name",
+        "Grade applying for",
+        "Questions for us",
+    ]
+    # Hidden fields and any typed value stay out of the evidence entirely.
+    assert "secret-token" not in str(facts)
+
+
+def test_link_context_is_internal_anchor_text_only():
+    facts = _facts(_ROLE_FACTS_PAGE, final_url="https://school.test/admissions")
+    assert facts["link_context"] == [
+        "Apply Now",
+        "Download prospectus",
+        "About the school",
+    ]
+    assert "External partner" not in facts["link_context"]
+
+
+def test_role_facts_are_empty_for_a_page_without_them():
+    facts = _facts(b"<html><body><p>Just prose.</p></body></html>")
+    assert facts["cta_text"] == []
+    assert facts["form_fields"] == []
+    assert facts["link_context"] == []
 
 
 def test_h3_texts_and_question_heading_ratio():

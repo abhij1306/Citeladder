@@ -1,7 +1,7 @@
 # Deterministic page-type classification (v2 P1 — spec §5.1).
 #
 # ``classify(final_url, facts)`` assigns every analyzed page a config-owned
-# ``page_type`` (homepage / article / product / category / pricing / docs /
+# ``page_kind`` (homepage / article / product / category / pricing / docs /
 # faq / about_contact / other) with a confidence score and bounded,
 # explainable signal evidence. PURE: no I/O, no ORM, no LLM — the same
 # inputs always yield the same type (invariant 9), and every pattern table,
@@ -12,10 +12,10 @@
 #   1. root path            -> homepage (deterministic special case;
 #                              HOMEPAGE_PATH_EQUIVALENTS covers locale roots /
 #                              index variants; unlisted paths fall through)
-#   2. URL path patterns    -> PAGE_TYPE_PATH_PATTERNS, ordered, first match
+#   2. URL path patterns    -> PAGE_KIND_PATH_PATTERNS, ordered, first match
 #   3. content heuristics   -> question-heading ratio (faq) / price + cart
 #                              markers (product) / byline + date (article)
-#   4. structured-data types -> PAGE_TYPE_SCHEMA_TYPE_MAP
+#   4. structured-data types -> PAGE_KIND_SCHEMA_TYPE_MAP
 #
 # DELIBERATE SEMANTICS: signals 1-3 OUTRANK signal 4 on conflict. The schema
 # markup is the page's *claim* about itself; letting the claim decide the
@@ -44,19 +44,19 @@ _MAX_SIGNAL_DETAIL_CHARS = _config.SITE_HEALTH_MAX_SIGNAL_DETAIL_CHARS
 # Compiled once from the config tables (deterministic; the tables are frozen
 # config, so compilation at import is exact).
 _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
-    (page_type, re.compile(pattern))
-    for page_type, pattern in _config.PAGE_TYPE_PATH_PATTERNS
+    (page_kind, re.compile(pattern))
+    for page_kind, pattern in _config.PAGE_KIND_PATH_PATTERNS
 )
-_PRICE_RE = re.compile(_config.PAGE_TYPE_PRICE_PATTERN, re.IGNORECASE)
-_BYLINE_RE = re.compile(_config.PAGE_TYPE_BYLINE_PATTERN)
-_DATE_RE = re.compile(_config.PAGE_TYPE_DATE_PATTERN, re.IGNORECASE)
+_PRICE_RE = re.compile(_config.PAGE_KIND_PRICE_PATTERN, re.IGNORECASE)
+_BYLINE_RE = re.compile(_config.PAGE_KIND_BYLINE_PATTERN)
+_DATE_RE = re.compile(_config.PAGE_KIND_DATE_PATTERN, re.IGNORECASE)
 
 
 @dataclass(frozen=True)
-class PageTypeAssessment:
+class PageKindAssessment:
     """The bounded, deterministic result of classifying one page.
 
-    ``page_type`` is a config ``PAGE_TYPES`` member (falling back to
+    ``page_kind`` is a config ``PAGE_KINDS`` member (falling back to
     ``other``); ``confidence`` is the sum of the matched signal weights;
     ``signals`` is the bounded matched-signal evidence (at most one entry
     per signal source, priority order); ``classified_by`` is the winning
@@ -66,7 +66,7 @@ class PageTypeAssessment:
     URL/content-vs-schema conflict is explainable in the UI.
     """
 
-    page_type: str
+    page_kind: str
     confidence: float
     signals: tuple[dict[str, Any], ...]
     classifier_version: str
@@ -83,7 +83,7 @@ class PageTypeAssessment:
             "classified_by": self.classified_by,
             "schema_suggested_type": self.schema_suggested_type,
             "confidence": self.confidence,
-            "confidence_threshold": _config.PAGE_TYPE_CONFIDENCE_THRESHOLD,
+            "confidence_threshold": _config.PAGE_KIND_CONFIDENCE_THRESHOLD,
             "signals": [dict(signal) for signal in self.signals],
             "alternatives": [dict(item) for item in self.alternatives],
             "conflicts": [dict(item) for item in self.conflicts],
@@ -107,12 +107,26 @@ def _normalized_path(final_url: str) -> str:
     return path
 
 
-def _signal(signal: str, page_type: str, detail: str) -> dict[str, Any]:
+def _is_absolute_http_url(final_url: str) -> bool:
+    """Whether a URL is an absolute http(s) URL with a real host.
+
+    Classification reasons about a page's PATH, which only means something
+    once we know which document the path belongs to. Anything else contributes
+    no signals rather than defaulting to the root.
+    """
+    try:
+        parts = urlsplit(str(final_url or ""))
+    except ValueError:
+        return False
+    return parts.scheme.lower() in {"http", "https"} and bool(parts.netloc)
+
+
+def _signal(signal: str, page_kind: str, detail: str) -> dict[str, Any]:
     """One bounded matched-signal record (weight from the config table)."""
     return {
         "signal": signal,
-        "page_type": page_type,
-        "weight": float(_config.PAGE_TYPE_SIGNAL_WEIGHTS[signal]),
+        "page_kind": page_kind,
+        "weight": float(_config.PAGE_KIND_SIGNAL_WEIGHTS[signal]),
         "detail": detail[:_MAX_SIGNAL_DETAIL_CHARS],
     }
 
@@ -129,7 +143,29 @@ def is_question_heading(text: str) -> bool:
     if normalized.endswith("?"):
         return True
     first_word = normalized.split(" ", 1)[0].strip("¿?¡!.,:;\"'")
-    return first_word in _config.PAGE_TYPE_QUESTION_WORDS
+    return first_word in _config.PAGE_KIND_QUESTION_WORDS
+
+
+def _mapping(value: Any) -> dict[str, Any]:
+    """A nested fact as a mapping, or ``{}`` when it is the wrong shape.
+
+    The facts dict normally comes from our own extractor, but it is also read
+    back from persisted JSON written by an older extractor version. A field
+    that is not a mapping must contribute NO signals rather than raise: the
+    classifier's contract is that partial facts simply match fewer signals.
+    """
+    return value if isinstance(value, dict) else {}
+
+
+def _str_sequence(value: Any) -> list[str]:
+    """A nested fact as a list of strings, or ``[]`` when wrongly shaped.
+
+    A bare string is deliberately NOT treated as a one-item sequence: iterating
+    it would yield characters and fabricate signals from nothing.
+    """
+    if isinstance(value, list | tuple):
+        return [str(item) for item in value]
+    return []
 
 
 def _content_heuristic(facts: dict) -> dict[str, Any] | None:
@@ -138,56 +174,57 @@ def _content_heuristic(facts: dict) -> dict[str, Any] | None:
     # FAQ: question-form heading ratio over the bounded h2 + h3 texts (spec
     # §5.1; h3 texts are extracted since sh-extractor-2 — absent h3s simply
     # contribute nothing, preserving P1 outcomes for h2-only pages).
-    headings = facts.get("headings") or {}
-    heading_texts = [str(t) for t in (headings.get("h2_texts") or [])]
-    heading_texts += [str(t) for t in (headings.get("h3_texts") or [])]
-    if len(heading_texts) >= _config.PAGE_TYPE_FAQ_MIN_HEADINGS:
+    headings = _mapping(facts.get("headings"))
+    heading_texts = _str_sequence(headings.get("h2_texts"))
+    heading_texts += _str_sequence(headings.get("h3_texts"))
+    if len(heading_texts) >= _config.PAGE_KIND_FAQ_MIN_HEADINGS:
         question_count = sum(1 for text in heading_texts if is_question_heading(text))
         ratio = question_count / len(heading_texts)
-        if ratio >= _config.PAGE_TYPE_FAQ_QUESTION_RATIO:
+        if ratio >= _config.PAGE_KIND_FAQ_QUESTION_RATIO:
             return _signal(
-                _config.PAGE_TYPE_SIGNAL_CONTENT_HEURISTIC,
-                _config.PAGE_TYPE_FAQ,
+                _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
+                _config.PAGE_KIND_FAQ,
                 f"question_headings:{question_count}/{len(heading_texts)}",
             )
 
-    body = facts.get("body") or {}
-    body_text = str(body.get("text") or "")
+    body = _mapping(facts.get("body"))
+    raw_body_text = body.get("text")
+    body_text = raw_body_text if isinstance(raw_body_text, str) else ""
 
     # Product: a price token AND a cart marker in the bounded body text.
     if body_text and _PRICE_RE.search(body_text):
         lowered = body_text.lower()
-        if any(marker in lowered for marker in _config.PAGE_TYPE_CART_MARKERS):
+        if any(marker in lowered for marker in _config.PAGE_KIND_CART_MARKERS):
             return _signal(
-                _config.PAGE_TYPE_SIGNAL_CONTENT_HEURISTIC,
-                _config.PAGE_TYPE_PRODUCT,
+                _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
+                _config.PAGE_KIND_PRODUCT,
                 "price_and_cart_markers",
             )
 
     # Article: author byline + date within a bounded prefix of the body.
     if body_text:
-        prefix = body_text[: _config.PAGE_TYPE_ARTICLE_SCAN_CHARS]
+        prefix = body_text[: _config.PAGE_KIND_ARTICLE_SCAN_CHARS]
         if _BYLINE_RE.search(prefix) and _DATE_RE.search(prefix):
             return _signal(
-                _config.PAGE_TYPE_SIGNAL_CONTENT_HEURISTIC,
-                _config.PAGE_TYPE_ARTICLE,
+                _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
+                _config.PAGE_KIND_ARTICLE,
                 "byline_and_date",
             )
     return None
 
 
 def _schema_suggestion(facts: dict) -> tuple[str | None, str | None]:
-    """Signal 4: (suggested page_type, matched schema type) or (None, None).
+    """Signal 4: (suggested page_kind, matched schema type) or (None, None).
 
     Iterates the (sorted) structured-data type names so the first mapped
     type is deterministic.
     """
-    structured = facts.get("structured_data") or {}
-    types = sorted(str(t) for t in (structured.get("types") or []))
+    structured = _mapping(facts.get("structured_data"))
+    types = sorted(_str_sequence(structured.get("types")))
     for schema_type in types:
-        page_type = _config.PAGE_TYPE_SCHEMA_TYPE_MAP.get(schema_type)
-        if page_type is not None:
-            return page_type, schema_type
+        page_kind = _config.PAGE_KIND_SCHEMA_TYPE_MAP.get(schema_type)
+        if page_kind is not None:
+            return page_kind, schema_type
     return None, None
 
 
@@ -202,21 +239,21 @@ def _alternatives(
     """
     candidates: dict[str, dict[str, Any]] = {}
     for signal in matched:
-        page_type = str(signal["page_type"])
-        if page_type == winner_type:
+        page_kind = str(signal["page_kind"])
+        if page_kind == winner_type:
             continue
         entry = candidates.setdefault(
-            page_type,
-            {"page_type": page_type, "confidence": 0.0, "signals": []},
+            page_kind,
+            {"page_kind": page_kind, "confidence": 0.0, "signals": []},
         )
         entry["confidence"] += float(signal["weight"])
         entry["signals"].append(str(signal["signal"]))
     ordered = sorted(
-        candidates.values(), key=lambda item: (-item["confidence"], item["page_type"])
+        candidates.values(), key=lambda item: (-item["confidence"], item["page_kind"])
     )[:CLASSIFICATION_MAX_ALTERNATIVES]
     return tuple(
         {
-            "page_type": item["page_type"],
+            "page_kind": item["page_kind"],
             "confidence": round(float(item["confidence"]), 4),
             "signals": item["signals"],
         }
@@ -232,18 +269,18 @@ def _conflicts(
         return ()
     conflicts = [
         {
-            "winner_page_type": winner_type,
-            "conflicting_page_type": str(signal["page_type"]),
+            "winner_page_kind": winner_type,
+            "conflicting_page_kind": str(signal["page_kind"]),
             "signal": str(signal["signal"]),
             "detail": str(signal["detail"]),
         }
         for signal in matched
-        if str(signal["page_type"]) != winner_type
+        if str(signal["page_kind"]) != winner_type
     ]
     return tuple(conflicts[:CLASSIFICATION_MAX_ALTERNATIVES])
 
 
-def classify(final_url: str, facts: dict) -> PageTypeAssessment:
+def classify(final_url: str, facts: dict) -> PageKindAssessment:
     """Classify one page into the config taxonomy (pure, deterministic).
 
     Evaluates all four signal sources in the fixed priority order, takes the
@@ -252,19 +289,19 @@ def classify(final_url: str, facts: dict) -> PageTypeAssessment:
     falls back to ``other``. Never raises on malformed facts (partial facts
     simply match fewer signals).
     """
-    matched, schema_page_type = _classification_signals(final_url, facts or {})
-    confidence, winner, page_type, other_reason = _classification_outcome(matched)
-    winner_type = str(winner["page_type"]) if winner is not None else None
+    matched, schema_page_kind = _classification_signals(final_url, _mapping(facts))
+    confidence, winner, page_kind, other_reason = _classification_outcome(matched)
+    winner_type = str(winner["page_kind"]) if winner is not None else None
     classified_by = (
-        winner["signal"] if winner is not None else _config.PAGE_TYPE_SIGNAL_NONE
+        winner["signal"] if winner is not None else _config.PAGE_KIND_SIGNAL_NONE
     )
-    return PageTypeAssessment(
-        page_type=page_type,
+    return PageKindAssessment(
+        page_kind=page_kind,
         confidence=confidence,
         signals=tuple(matched),
         classifier_version=_config.CLASSIFIER_VERSION,
         classified_by=classified_by,
-        schema_suggested_type=schema_page_type,
+        schema_suggested_type=schema_page_kind,
         alternatives=_alternatives(matched, winner_type=winner_type),
         conflicts=_conflicts(matched, winner_type=winner_type),
         other_reason=other_reason,
@@ -274,26 +311,32 @@ def classify(final_url: str, facts: dict) -> PageTypeAssessment:
 def _classification_signals(
     final_url: str, facts: dict
 ) -> tuple[list[dict[str, Any]], str | None]:
-    path = _normalized_path(final_url)
     matched: list[dict[str, Any]] = []
+    # A missing or malformed URL has no path to reason about. Falling through
+    # to ``_normalized_path`` yields "" for all of them, which IS a homepage
+    # equivalent — so ``classify("", {})`` and ``classify("http://", {})`` both
+    # used to report a confident homepage for a page we never located.
+    if not _is_absolute_http_url(final_url):
+        return matched, None
+    path = _normalized_path(final_url)
 
     # Signal 1 — root path → homepage (deterministic special case).
     if path in _config.HOMEPAGE_PATH_EQUIVALENTS:
         matched.append(
             _signal(
-                _config.PAGE_TYPE_SIGNAL_ROOT_PATH,
-                _config.PAGE_TYPE_HOMEPAGE,
+                _config.PAGE_KIND_SIGNAL_ROOT_PATH,
+                _config.PAGE_KIND_HOMEPAGE,
                 path or "/",
             )
         )
 
     # Signal 2 — ordered path patterns, first match wins.
-    for page_type, pattern in _PATH_PATTERNS:
+    for page_kind, pattern in _PATH_PATTERNS:
         if pattern.match(path):
             matched.append(
                 _signal(
-                    _config.PAGE_TYPE_SIGNAL_PATH_PATTERN,
-                    page_type,
+                    _config.PAGE_KIND_SIGNAL_PATH_PATTERN,
+                    page_kind,
                     pattern.pattern,
                 )
             )
@@ -306,16 +349,16 @@ def _classification_signals(
 
     # Signal 4 — structured-data types (evaluated always, so the suggested
     # type is recorded in the evidence even when outranked).
-    schema_page_type, schema_type = _schema_suggestion(facts)
-    if schema_page_type is not None:
+    schema_page_kind, schema_type = _schema_suggestion(facts)
+    if schema_page_kind is not None:
         matched.append(
             _signal(
-                _config.PAGE_TYPE_SIGNAL_STRUCTURED_DATA,
-                schema_page_type,
+                _config.PAGE_KIND_SIGNAL_STRUCTURED_DATA,
+                schema_page_kind,
                 schema_type or "",
             )
         )
-    return matched, schema_page_type
+    return matched, schema_page_kind
 
 
 def _classification_outcome(
@@ -325,17 +368,17 @@ def _classification_outcome(
     # the winner is the first matched signal (signals 1-3 outrank 4).
     confidence = round(sum(signal["weight"] for signal in matched), 4)
     winner = matched[0] if matched else None
-    below_threshold = confidence < _config.PAGE_TYPE_CONFIDENCE_THRESHOLD
-    page_type = (
-        winner["page_type"]
+    below_threshold = confidence < _config.PAGE_KIND_CONFIDENCE_THRESHOLD
+    page_kind = (
+        winner["page_kind"]
         if winner is not None and not below_threshold
-        else _config.PAGE_TYPE_OTHER
+        else _config.PAGE_KIND_OTHER
     )
     other_reason = None
-    if page_type == _config.PAGE_TYPE_OTHER:
+    if page_kind == _config.PAGE_KIND_OTHER:
         other_reason = (
             CLASSIFICATION_OTHER_REASON_NO_SIGNALS
             if winner is None
             else CLASSIFICATION_OTHER_REASON_BELOW_THRESHOLD
         )
-    return confidence, winner, page_type, other_reason
+    return confidence, winner, page_kind, other_reason

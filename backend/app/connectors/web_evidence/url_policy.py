@@ -47,10 +47,18 @@ from app.connectors.web_evidence.contracts import (
 from app.core.config.site_health import (
     ALLOWED_URL_PORTS,
     ALLOWED_URL_SCHEMES,
+    CORPUS_DISPOSITION_ANALYZE,
+    CORPUS_DISPOSITION_INVENTORY_ONLY,
+    CORPUS_DISPOSITION_VERSION,
+    DISPOSITION_REASON_DOCUMENT,
+    DISPOSITION_REASON_HTML_CONTENT,
     ERROR_DNS_RESOLUTION_FAILED,
     ERROR_SSRF_BLOCKED,
     INFRASTRUCTURE_FETCH_EXACT_PATHS,
     INFRASTRUCTURE_FETCH_PATH_SUFFIXES,
+    INVENTORY_DOCUMENT_EXTENSIONS,
+    ITEM_KIND_DOCUMENT,
+    ITEM_KIND_HTML_PAGE,
     TRACKING_QUERY_PARAMS,
     URL_EXCLUSION_HARD_ASSET,
     URL_EXCLUSION_HARD_PATH,
@@ -94,13 +102,29 @@ class UrlPolicyError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class UrlAdmission:
-    """Pure, safe URL-admission result used before queueing or fetching."""
+    """Pure, safe URL-admission result used before queueing or fetching.
+
+    ``accepted`` answers "may the crawler touch this URL at all"; ``disposition``
+    answers "what should the corpus do with it". They are deliberately separate:
+    a prospectus PDF is accepted (it belongs in the inventory and in coverage)
+    while its disposition keeps it out of the HTML analyzer.
+    """
 
     accepted: bool
     canonical_url: str | None
     reason_code: str | None
     value_kind: str
     priority: int
+    disposition: str = CORPUS_DISPOSITION_ANALYZE
+    disposition_reason: str = DISPOSITION_REASON_HTML_CONTENT
+    item_kind: str = ITEM_KIND_HTML_PAGE
+    disposition_version: str = CORPUS_DISPOSITION_VERSION
+
+
+def _is_inventory_document(path: str) -> bool:
+    return any(
+        path.lower().endswith(extension) for extension in INVENTORY_DOCUMENT_EXTENSIONS
+    )
 
 
 def _path_is_hard_excluded(path: str) -> bool:
@@ -214,6 +238,22 @@ def classify_url_admission(
         canonical, include_globs=include_globs, exclude_globs=exclude_globs
     ):
         return UrlAdmission(False, canonical, URL_EXCLUSION_NARROWED, kind, priority)
+    # A supported document is admitted so it stays visible in corpus coverage,
+    # but its disposition keeps the HTML analyzer away from it. Classified from
+    # the CANONICAL path, so the disposition and the returned canonical URL
+    # always describe the same normalized path (a percent-encoded or
+    # otherwise unnormalized ``.pdf`` must not slip through as an HTML page).
+    if _is_inventory_document(urlsplit(canonical).path):
+        return UrlAdmission(
+            True,
+            canonical,
+            None,
+            kind,
+            priority,
+            disposition=CORPUS_DISPOSITION_INVENTORY_ONLY,
+            disposition_reason=DISPOSITION_REASON_DOCUMENT,
+            item_kind=ITEM_KIND_DOCUMENT,
+        )
     return UrlAdmission(True, canonical, None, kind, priority)
 
 

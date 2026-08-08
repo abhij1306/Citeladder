@@ -55,14 +55,14 @@ Inspect before editing:
 
 | Concern | Current owner |
 |---|---|
-| Generic page classifier | [`page_types.py`](../../backend/app/analysis/site_health/page_types.py) |
+| Generic page classifier | [`page_kinds.py`](../../backend/app/analysis/site_health/page_kinds.py) |
 | Site Health classifier vocabulary/config | [`site_health.py`](../../backend/app/core/config/site_health.py) |
 | Analyze-phase invocation and persistence | [`analyze.py`](../../backend/app/workers/site_health/phases/analyze.py) |
 | Crawl creation/config freeze | Site Health services/routes/workers that currently own `SiteCrawl.configuration` |
 | Durable models | Existing Site Health and project models under `backend/app/models/`; search before adding |
 | Canonical pre-launch migration | [`0001_initial.py`](../../migrations/versions/0001_initial.py) |
 | API schemas/routes | Existing Site Health schemas and `/api/v1/site-crawls` routes |
-| Frontend type vocabulary/evidence | [`page-types.ts`](../../frontend/lib/site-health/page-types.ts) |
+| Frontend type vocabulary/evidence | [`page-kinds.ts`](../../frontend/lib/site-health/page-kinds.ts) |
 | Frontend page display | Site Health badge, filter, score, and URL-detail components |
 
 Extend these owners. Do not create a parallel crawler, queue, fetcher, parser, report store,

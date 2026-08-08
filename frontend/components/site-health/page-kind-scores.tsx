@@ -18,10 +18,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Label } from '@/components/ui/typography';
-import { PageTypeBadge } from '@/components/site-health/page-type-badge';
+import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { siteHealthQueries } from '@/lib/api/site-health';
-import type { PageType, SiteCrawl, SiteHealthDashboard } from '@/lib/api/types';
-import { byPageTypeRows } from '@/lib/site-health/page-types';
+import type { PageKind, SiteCrawl, SiteHealthDashboard } from '@/lib/api/types';
+import { byPageKindRows } from '@/lib/site-health/page-kinds';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
 import {
   formatScore,
@@ -33,9 +33,9 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 /**
- * Dashboard per-page-type score breakdown (site-health v2 P1).
+ * Dashboard per-page-kind score breakdown (site-health v2 P1).
  *
- * Renders `score_summary.by_page_type` — one row per classified page type
+ * Renders `score_summary.by_page_kind` — one row per classified page kind
  * with its analyzed count and mean Technical/AEO/overall scores. Like the
  * score cards, the panel is data-driven: it appears once a score summary
  * exists (a mid-run projection included) and follows the same
@@ -43,7 +43,7 @@ import { cn } from '@/lib/utils';
  * classified any page yet; missing mean scores render `—`, never a
  * fabricated zero.
  */
-export function PageTypeScores({
+export function PageKindScores({
   crawl,
   dashboard,
   selectedUrlIds = new Set<string>(),
@@ -58,30 +58,30 @@ export function PageTypeScores({
   onReanalyze?: (siteUrlIds: string[]) => void;
   reanalyzePending?: boolean;
 }>) {
-  const [expanded, setExpanded] = useState<PageType | null>(null);
+  const [expanded, setExpanded] = useState<PageKind | null>(null);
   const summary = dashboard?.score_summary ?? crawl?.score_summary ?? null;
   if (summary === null) return null;
 
-  const rows = byPageTypeRows(summary.by_page_type);
+  const rows = byPageKindRows(summary.by_page_kind);
 
   return (
-    <Card data-testid="page-type-scores">
+    <Card data-testid="page-kind-scores">
       <CardContent className="grid gap-3">
         <div className="grid gap-0.5">
-          <Label>Scores by Page Type</Label>
+          <Label>Scores by Page Kind</Label>
           <span className="text-secondary text-sm">
             Mean scores across the analyzed pages of each type.
           </span>
         </div>
         {rows.length === 0 ? (
           <p className="text-secondary text-sm">
-            Per-page-type scores appear once the analysis classifies your pages.
+            Per-page-kind scores appear once the analysis classifies your pages.
           </p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Page Type</TableHead>
+                <TableHead>Page Kind</TableHead>
                 <TableHead numeric>Analyzed</TableHead>
                 <TableHead numeric>Web Fundamentals</TableHead>
                 <TableHead numeric>AEO</TableHead>
@@ -90,14 +90,14 @@ export function PageTypeScores({
             </TableHeader>
             <TableBody>
               {rows.map((row) => {
-                const open = expanded === row.page_type;
+                const open = expanded === row.page_kind;
                 return (
-                  <PageTypeAccordionRow
-                    key={row.page_type}
+                  <PageKindAccordionRow
+                    key={row.page_kind}
                     crawlId={crawl?.id ?? ''}
                     row={row}
                     open={open}
-                    onToggle={() => setExpanded(open ? null : (row.page_type as PageType))}
+                    onToggle={() => setExpanded(open ? null : (row.page_kind as PageKind))}
                     selectedUrlIds={selectedUrlIds}
                     onSelectionChange={onSelectionChange}
                     onReanalyze={onReanalyze}
@@ -113,9 +113,9 @@ export function PageTypeScores({
   );
 }
 
-type ScoreRow = ReturnType<typeof byPageTypeRows>[number];
+type ScoreRow = ReturnType<typeof byPageKindRows>[number];
 
-function PageTypeAccordionRow({
+function PageKindAccordionRow({
   crawlId,
   row,
   open,
@@ -149,7 +149,7 @@ function PageTypeAccordionRow({
               aria-hidden="true"
               className={cn('size-4 transition-transform', open && 'rotate-180')}
             />
-            <PageTypeBadge pageType={row.page_type} />
+            <PageKindBadge pageKind={row.page_kind} />
           </button>
         </TableCell>
         <TableCell numeric className="mono text-secondary">
@@ -168,9 +168,9 @@ function PageTypeAccordionRow({
       {open ? (
         <TableRow>
           <TableCell colSpan={5} className="bg-subtle p-0">
-            <PageTypeDetails
+            <PageKindDetails
               crawlId={crawlId}
-              pageType={row.page_type}
+              pageKind={row.page_kind}
               selectedUrlIds={selectedUrlIds}
               onSelectionChange={onSelectionChange}
               onReanalyze={onReanalyze}
@@ -183,16 +183,16 @@ function PageTypeAccordionRow({
   );
 }
 
-function PageTypeDetails({
+function PageKindDetails({
   crawlId,
-  pageType,
+  pageKind,
   selectedUrlIds,
   onSelectionChange,
   onReanalyze,
   reanalyzePending,
 }: Readonly<{
   crawlId: string;
-  pageType: string;
+  pageKind: string;
   selectedUrlIds: ReadonlySet<string>;
   onSelectionChange?: (ids: Set<string>) => void;
   onReanalyze?: (siteUrlIds: string[]) => void;
@@ -201,7 +201,7 @@ function PageTypeDetails({
   const pager = useCursorStack();
   const pagesQuery = useQuery(
     siteHealthQueries.pages(crawlId, {
-      page_type: pageType,
+      page_kind: pageKind,
       cursor: pager.cursor,
       limit: PAGE_LIMIT,
     }),
@@ -218,13 +218,13 @@ function PageTypeDetails({
   return (
     <div className="min-h-40 p-4">
       {pagesQuery.isLoading ? (
-        <div className="grid gap-2" aria-label="Loading page type URLs">
+        <div className="grid gap-2" aria-label="Loading page kind URLs">
           <Skeleton className="h-9 w-full" />
           <Skeleton className="h-9 w-full" />
           <Skeleton className="h-9 w-full" />
         </div>
       ) : pagesQuery.isError ? (
-        <p className="text-danger-text text-sm">Could not load URLs for this page type.</p>
+        <p className="text-danger-text text-sm">Could not load URLs for this page kind.</p>
       ) : (
         <div className="grid gap-3">
           {pages.map((page) => (

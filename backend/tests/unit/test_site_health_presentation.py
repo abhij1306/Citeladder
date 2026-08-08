@@ -26,7 +26,7 @@ from app.domain.site_health.service.presentation import (
     _link_reference_row,
     _matches_page_status,
     _page_facts,
-    _page_type_matches,
+    _page_kind_matches,
     display_label_for,
     project_crawl,
 )
@@ -347,13 +347,13 @@ def test_issue_row_carries_the_affected_count_passed_by_the_caller() -> None:
 
 
 def test_page_type_filter_requires_a_classified_analysis() -> None:
-    analysis = cast(SitePageAnalysis, SimpleNamespace(page_type="product"))
-    assert _page_type_matches(analysis, None) is True  # unfiltered
-    assert _page_type_matches(analysis, "product") is True
-    assert _page_type_matches(analysis, "article") is False
+    analysis = cast(SitePageAnalysis, SimpleNamespace(page_kind="product"))
+    assert _page_kind_matches(analysis, None) is True  # unfiltered
+    assert _page_kind_matches(analysis, "product") is True
+    assert _page_kind_matches(analysis, "article") is False
     # An unanalyzed URL has no type, so it never matches a filtered request.
-    assert _page_type_matches(None, "product") is False
-    assert _page_type_matches(None, None) is True
+    assert _page_kind_matches(None, "product") is False
+    assert _page_kind_matches(None, None) is True
 
 
 def test_error_or_blocked_is_one_combined_status_filter() -> None:

@@ -17,10 +17,10 @@ from __future__ import annotations
 import time
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analysis.site_health.page_types import classify
+from app.analysis.site_health.page_kinds import classify
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import RuleEvaluation, evaluate_all
 from app.analysis.site_health.scoring import score_analysis
@@ -39,6 +39,7 @@ from app.core.config.site_health import (
     TASK_KIND_LINK_CHECK,
 )
 from app.domain.site_health.discovery import _enqueue_task as _enqueue_discovery_task
+from app.domain.site_health.industry_pack import classify_industry_role
 from app.domain.site_health.selection import evaluate_task_guard, lease_is_owned
 from app.domain.site_health.state_events import record_crawl_event
 from app.models.site_health import (
@@ -469,7 +470,7 @@ class AnalyzePhaseMixin(PhaseSupport):
         # having already serialized the pre-injection value.
         eval_facts = dict(facts)
         # v2 P1: classify the page type and inject it into the facts dict
-        # BEFORE rule evaluation, so page_type applicability tokens, per-type
+        # BEFORE rule evaluation, so page_kind applicability tokens, per-type
         # thin-content minimums, and weight overrides resolve against it
         # (spec §5.1 pipeline slot; evaluate_all keeps its pure (facts)
         # signature). The type + classifier version persist on the analysis
@@ -477,13 +478,13 @@ class AnalyzePhaseMixin(PhaseSupport):
         assessment = classify(
             str((facts.get("delivery") or {}).get("final_url") or ""), facts
         )
-        eval_facts["page_type"] = assessment.page_type
-        eval_facts["page_type_evidence"] = assessment.to_evidence()
+        eval_facts["page_kind"] = assessment.page_kind
+        eval_facts["page_kind_evidence"] = assessment.to_evidence()
         # v2 P2 (spec §5.3): inside the crawl ROOT's own analysis only, inject
         # the crawl's site_facts so site_root-scoped rules (AI-crawler access,
         # llms.txt) evaluate exactly once per crawl, anchored on this analysis.
         # Injected into the copy only, so the persisted normalized_facts
-        # deliberately do NOT carry it (same as page_type).
+        # deliberately do NOT carry it (same as page_kind).
         if crawl.site_facts:
             _root_canonical, root_hash = crawl_root_identity(crawl)
             if root_hash and root_hash == task.url_hash:
@@ -530,6 +531,15 @@ class AnalyzePhaseMixin(PhaseSupport):
             observation.content_type = str(facts.get("content_type") or "")[:128]
             observation.title = str(facts.get("title") or "")[:1024]
             observation.source_artifact_id = artifact_id
+        # Pack-governed industry role, classified from the SAME bounded facts.
+        # The pack is compiled once per worker process from the crawl's frozen
+        # manifest, so this call performs no I/O, no hashing, and no model call.
+        role = classify_industry_role(
+            crawl=crawl,
+            facts=facts,
+            page_kind=assessment.page_kind,
+            site_url=site_url,
+        )
         analysis = SitePageAnalysis(
             workspace_id=crawl.workspace_id,
             project_id=crawl.project_id,
@@ -542,13 +552,25 @@ class AnalyzePhaseMixin(PhaseSupport):
             overall_score=scores.overall_score,
             analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
             scoring_version=crawl.scoring_version or SCORING_VERSION,
-            page_type=assessment.page_type,
+            page_kind=assessment.page_kind,
             classifier_version=assessment.classifier_version,
             # Persist the bounded classifier evidence with the row (the
             # evaluation-time copy above is never persisted, by design).
-            page_type_evidence=assessment.to_evidence(),
+            page_kind_evidence=assessment.to_evidence(),
             source_artifact_ids=[artifact_id],
             finalized_at=_utcnow(),
+            **role,
+        )
+        # Append-only: supersede any earlier current understanding for this
+        # artifact before inserting the new one, so the partial unique index
+        # never sees two live rows.
+        await session.execute(
+            update(SitePageAnalysis)
+            .where(
+                SitePageAnalysis.artifact_id == artifact_id,
+                SitePageAnalysis.is_current.is_(True),
+            )
+            .values(is_current=False)
         )
         session.add(analysis)
         await session.flush()

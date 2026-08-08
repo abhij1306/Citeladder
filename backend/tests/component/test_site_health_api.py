@@ -317,7 +317,7 @@ async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:
     # url_a + url_b get analyzed (classified article / product — v2 P1);
     # url_b gets a failing rule -> issue.
     canonical_issue_id: uuid.UUID | None = None
-    for su, with_issue, page_type in (
+    for su, with_issue, page_kind in (
         (url_a, False, "article"),
         (url_b, True, "product"),
     ):
@@ -379,11 +379,11 @@ async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:
             overall_score=85.0,
             analyzer_version="v1",
             scoring_version="v1",
-            page_type=page_type,
+            page_kind=page_kind,
             classifier_version="sh-classifier-1",
             # The bounded classifier evidence the analyze writer persists
             # alongside the classification (shape = to_evidence()).
-            page_type_evidence={
+            page_kind_evidence={
                 "classifier_version": "sh-classifier-1",
                 "classified_by": "path_pattern",
                 "schema_suggested_type": None,
@@ -392,7 +392,7 @@ async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:
                 "signals": [
                     {
                         "signal": "path_pattern",
-                        "page_type": page_type,
+                        "page_kind": page_kind,
                         "weight": 0.8,
                         "detail": "^/(blog|news|guides)(/|$)",
                     }
@@ -665,49 +665,49 @@ async def test_page_type_projection_filters_and_exports(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """v2 P1: page rows/detail carry page_type, the pages/inventory/issues
+    """v2 P1: page rows/detail carry page_kind, the pages/inventory/issues
     lists filter by it, and all three export views gain the column."""
     await _register(client, "pagetype@example.com")
     async with session_factory() as session:
         scn = await _seed_scenario(session, email="pagetype@example.com")
     headers = {"X-Workspace-Id": str(scn.workspace_id)}
 
-    # Page rows project the persisted page_type (None for the unanalyzed URL).
+    # Page rows project the persisted page_kind (None for the unanalyzed URL).
     pages = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/pages", headers=headers
     )
     assert pages.status_code == 200
-    types = {row["site_url_id"]: row["page_type"] for row in pages.json()["items"]}
+    types = {row["site_url_id"]: row["page_kind"] for row in pages.json()["items"]}
     assert types[str(scn.monitored_url_id)] == "article"
     assert types[str(scn.issue_url_id)] == "product"
     assert None in types.values()  # the third, unanalyzed URL
 
-    # Pages page_type filter: exact match; unknown values match nothing.
+    # Pages page_kind filter: exact match; unknown values match nothing.
     filtered = await client.get(
-        f"/api/v1/site-crawls/{scn.crawl_id}/pages?page_type=article",
+        f"/api/v1/site-crawls/{scn.crawl_id}/pages?page_kind=article",
         headers=headers,
     )
     assert filtered.status_code == 200
     f_items = filtered.json()["items"]
     assert [row["site_url_id"] for row in f_items] == [str(scn.monitored_url_id)]
     unknown = await client.get(
-        f"/api/v1/site-crawls/{scn.crawl_id}/pages?page_type=not_a_type",
+        f"/api/v1/site-crawls/{scn.crawl_id}/pages?page_kind=not_a_type",
         headers=headers,
     )
     assert unknown.status_code == 200
     assert unknown.json()["items"] == []
 
-    # Inventory rows carry page_type and filter by it too.
+    # Inventory rows carry page_kind and filter by it too.
     inventory = await client.get(
-        f"/api/v1/site-crawls/{scn.crawl_id}/inventory?page_type=product",
+        f"/api/v1/site-crawls/{scn.crawl_id}/inventory?page_kind=product",
         headers=headers,
     )
     assert inventory.status_code == 200
     i_items = inventory.json()["items"]
     assert [row["site_url_id"] for row in i_items] == [str(scn.issue_url_id)]
-    assert i_items[0]["page_type"] == "product"
+    assert i_items[0]["page_kind"] == "product"
 
-    # Per-URL detail carries page_type AND its persisted classifier evidence
+    # Per-URL detail carries page_kind AND its persisted classifier evidence
     # (the "why this type?" disclosure payload); the lightweight list rows
     # above never project the evidence.
     detail = await client.get(
@@ -715,32 +715,32 @@ async def test_page_type_projection_filters_and_exports(
         headers=headers,
     )
     assert detail.status_code == 200
-    assert detail.json()["page_type"] == "product"
-    detail_evidence = detail.json()["page_type_evidence"]
+    assert detail.json()["page_kind"] == "product"
+    detail_evidence = detail.json()["page_kind_evidence"]
     assert detail_evidence is not None
     assert detail_evidence["classifier_version"] == "sh-classifier-1"
     assert detail_evidence["classified_by"] == "path_pattern"
-    assert detail_evidence["signals"][0]["page_type"] == "product"
-    assert "page_type_evidence" not in pages.json()["items"][0]
-    assert "page_type_evidence" not in i_items[0]
+    assert detail_evidence["signals"][0]["page_kind"] == "product"
+    assert "page_kind_evidence" not in pages.json()["items"][0]
+    assert "page_kind_evidence" not in i_items[0]
 
-    # Issues filter by the affected analysis's page_type.
+    # Issues filter by the affected analysis's page_kind.
     product_issues = await client.get(
-        f"/api/v1/site-crawls/{scn.crawl_id}/issues?page_type=product",
+        f"/api/v1/site-crawls/{scn.crawl_id}/issues?page_kind=product",
         headers=headers,
     )
     assert product_issues.status_code == 200
     assert len(product_issues.json()["items"]) == 1
     assert product_issues.json()["summary"]["issue_count"] == 1
     article_issues = await client.get(
-        f"/api/v1/site-crawls/{scn.crawl_id}/issues?page_type=article",
+        f"/api/v1/site-crawls/{scn.crawl_id}/issues?page_kind=article",
         headers=headers,
     )
     assert article_issues.status_code == 200
     assert article_issues.json()["items"] == []
     assert article_issues.json()["summary"]["issue_count"] == 0
 
-    # Issue detail: affected URLs carry their analysis's page_type.
+    # Issue detail: affected URLs carry their analysis's page_kind.
     issue_detail = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/issues/{scn.canonical_issue_id}",
         headers=headers,
@@ -748,16 +748,16 @@ async def test_page_type_projection_filters_and_exports(
     assert issue_detail.status_code == 200
     affected = issue_detail.json()["affected_urls"]
     assert len(affected) == 1
-    assert affected[0]["page_type"] == "product"
+    assert affected[0]["page_kind"] == "product"
 
-    # All three export views carry the page_type column.
+    # All three export views carry the page_kind column.
     pages_csv = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/export.csv?view=pages",
         headers=headers,
     )
     assert pages_csv.status_code == 200
     header = pages_csv.text.splitlines()[0].split(",")
-    assert "page_type" in header
+    assert "page_kind" in header
     assert "article" in pages_csv.text
     assert "product" in pages_csv.text
 
@@ -767,17 +767,17 @@ async def test_page_type_projection_filters_and_exports(
     )
     assert issues_csv.status_code == 200
     i_header = issues_csv.text.splitlines()[0].split(",")
-    assert "page_type" in i_header
+    assert "page_kind" in i_header
     # The single issue group affected a product page.
     row = issues_csv.text.splitlines()[1].split(",")
-    assert row[i_header.index("page_type")] == "product"
+    assert row[i_header.index("page_kind")] == "product"
 
     inventory_md = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/export.md?view=inventory",
         headers=headers,
     )
     assert inventory_md.status_code == 200
-    assert "| page_type |" in inventory_md.text
+    assert "| page_kind |" in inventory_md.text
 
 
 async def test_page_detail_and_history(

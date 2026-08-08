@@ -79,7 +79,7 @@ def _issue_filter_clause(
     dimension: str | None,
     rule: str | None,
     site_url_id: uuid.UUID | None,
-    page_type: str | None = None,
+    page_kind: str | None = None,
 ):
     clauses = [SiteIssue.crawl_id == crawl_id]
     if severity:
@@ -98,13 +98,13 @@ def _issue_filter_clause(
         clauses.append(SiteIssue.rule_id == rule)
     if site_url_id is not None:
         clauses.append(SiteIssue.site_url_id == site_url_id)
-    if page_type:
+    if page_kind:
         # v2 P1: narrow to issues whose analysis classified as this page
         # type (ignore-unknown: an unrecognized value simply matches nothing).
         clauses.append(
             SiteIssue.analysis_id.in_(
                 select(SitePageAnalysis.id).where(
-                    SitePageAnalysis.page_type == page_type
+                    SitePageAnalysis.page_kind == page_kind
                 )
             )
         )
@@ -264,14 +264,14 @@ async def get_issues(
     dimension: str | None = None,
     rule: str | None = None,
     site_url_id: uuid.UUID | None = None,
-    page_type: str | None = None,
+    page_kind: str | None = None,
 ) -> dict:
     """Grouped issue catalog (``{items, next_cursor, summary}``) for mockup 710.
 
     Groups by ``(crawl_id, rule_id)`` after filters, keysets by
     ``(severity_rank, rule_id, canonical_id)`` and applies ``limit + 1`` so a
     rule group is never split across pages. ``id`` is the canonical (earliest)
-    issue UUID; ``title`` reads the CURRENT display label. The ``page_type``
+    issue UUID; ``title`` reads the CURRENT display label. The ``page_kind``
     filter (v2 P1) narrows to issues whose analysis classified as that type.
     """
     await _load_crawl(session, workspace_id=workspace_id, crawl_id=crawl_id)
@@ -285,7 +285,7 @@ async def get_issues(
         "dimension": dimension or None,
         "rule": rule or None,
         "site_url_id": str(site_url_id) if site_url_id else None,
-        "page_type": page_type or None,
+        "page_kind": page_kind or None,
     }
     clauses = _issue_filter_clause(
         crawl_id=crawl_id,
@@ -295,7 +295,7 @@ async def get_issues(
         dimension=dimension,
         rule=rule,
         site_url_id=site_url_id,
-        page_type=page_type,
+        page_kind=page_kind,
     )
     groups = await _load_issue_groups(session, crawl_id=crawl_id, clauses=clauses)
 
@@ -366,13 +366,13 @@ async def get_issues(
         dimension=None,
         rule=rule,
         site_url_id=site_url_id,
-        page_type=page_type,
+        page_kind=page_kind,
     )
     summary = await _issues_summary(session, clauses=summary_clauses)
     return {"items": items, "next_cursor": next_cursor, "summary": summary}
 
 
-async def issue_group_page_types(
+async def issue_group_page_kinds(
     session: AsyncSession,
     *,
     workspace_id: uuid.UUID,
@@ -390,7 +390,7 @@ async def issue_group_page_types(
     rows = await session.execute(
         select(
             SiteIssue.rule_id,
-            func.array_agg(func.distinct(SitePageAnalysis.page_type)),
+            func.array_agg(func.distinct(SitePageAnalysis.page_kind)),
         )
         .join(SitePageAnalysis, SitePageAnalysis.id == SiteIssue.analysis_id)
         .where(SiteIssue.crawl_id == crawl_id)
@@ -500,10 +500,10 @@ async def get_issue_detail(
     # wins when a URL has several). Optional on the wire — the badge simply
     # does not render for rows without a classification.
     affected_ids = [row[0] for row in aff_rows]
-    page_type_by_url: dict[uuid.UUID, str] = {}
+    page_kind_by_url: dict[uuid.UUID, str] = {}
     if affected_ids:
         type_rows = await session.execute(
-            select(SiteIssue.site_url_id, SitePageAnalysis.page_type)
+            select(SiteIssue.site_url_id, SitePageAnalysis.page_kind)
             .join(SitePageAnalysis, SitePageAnalysis.id == SiteIssue.analysis_id)
             .where(
                 SiteIssue.crawl_id == crawl_id,
@@ -512,8 +512,8 @@ async def get_issue_detail(
             )
             .order_by(SiteIssue.created_at.desc(), SiteIssue.id.desc())
         )
-        for site_url_id_value, page_type_value in type_rows.all():
-            page_type_by_url.setdefault(site_url_id_value, page_type_value)
+        for site_url_id_value, page_kind_value in type_rows.all():
+            page_kind_by_url.setdefault(site_url_id_value, page_kind_value)
 
     affected_urls = [
         {
@@ -521,7 +521,7 @@ async def get_issue_detail(
             "normalized_url": row[1],
             "display_url": row[2] or row[1],
             "title": row[3] or None,
-            "page_type": page_type_by_url.get(row[0]),
+            "page_kind": page_kind_by_url.get(row[0]),
         }
         for row in aff_rows
     ]

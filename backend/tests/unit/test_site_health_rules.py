@@ -2,7 +2,7 @@
 
 Verifies each rule maps to the right check and each outcome (pass / fail /
 not_applicable / error) is produced with exact evidence + provenance, plus
-the v2 P1 page-type behavior (``page_type:<type>`` applicability tokens,
+the v2 P1 page-type behavior (``page_kind:<type>`` applicability tokens,
 per-type thin-content minimums, weight overrides) and the v2 P2 sh-rules-2
 catalog (site_root scope, per-type schema validity, citability,
 extractability, hygiene, and the crawl_finalize scope's per-page exclusion).
@@ -25,8 +25,8 @@ from app.core.config.site_health import (
     DIMENSION_TECHNICAL,
     EXPAND_GATED_MAX_RATIO,
     META_DESCRIPTION_LENGTH_BAND,
-    PAGE_TYPE_OTHER,
-    PAGE_TYPE_PROFILES,
+    PAGE_KIND_OTHER,
+    PAGE_KIND_PROFILES,
     QUESTION_HEADINGS_MIN_RATIO,
     RENDER_BLOCKING_MAX_RESOURCES,
     RULE_OUTCOME_ERROR,
@@ -42,7 +42,7 @@ from app.core.config.site_health import (
 
 # The v1 global thin-content minimum now lives in the config-owned ``other``
 # profile (identical value, so unclassified pages score exactly as before).
-MIN_SUFFICIENT_WORDS = PAGE_TYPE_PROFILES[PAGE_TYPE_OTHER].min_sufficient_words
+MIN_SUFFICIENT_WORDS = PAGE_KIND_PROFILES[PAGE_KIND_OTHER].min_sufficient_words
 
 # The rules whose rows the finalize-writer owns: never applicable per-page.
 _CRAWL_FINALIZE_RULE_IDS = {
@@ -56,14 +56,14 @@ def test_other_profile_minimum_preserves_v1_parity():
     # Pin the v1 contract: the ``other`` profile minimum must stay 100 words
     # so unclassified pages score exactly as v1 did (spec §5.2). The alias
     # above intentionally derives from config; this assertion does not.
-    assert PAGE_TYPE_PROFILES[PAGE_TYPE_OTHER].min_sufficient_words == 100
+    assert PAGE_KIND_PROFILES[PAGE_KIND_OTHER].min_sufficient_words == 100
 
 
 def _html_facts(**overrides):
     """A fully healthy homepage (+ healthy site) so every per-page rule passes."""
     facts = {
         "has_html": True,
-        "page_type": "homepage",
+        "page_kind": "homepage",
         "title": "Acme Widgets — everything you need to know",
         "meta_description": (
             "Acme Widgets helps teams ship reliable widgets faster with "
@@ -235,7 +235,7 @@ def test_open_graph_incomplete_fails():
 
 def test_thin_content_fails():
     ev = _outcome(
-        _html_facts(page_type=None, body={"word_count": MIN_SUFFICIENT_WORDS - 1}),
+        _html_facts(page_kind=None, body={"word_count": MIN_SUFFICIENT_WORDS - 1}),
         "technical.thin_content",
     )
     assert ev.outcome == RULE_OUTCOME_FAIL
@@ -372,7 +372,7 @@ def test_unknown_applicability_key_is_not_applicable():
 # --- v2 P1: page-type applicability / minimums / weight overrides ---------
 
 
-def _page_type_rule(rule_id: str, page_type: str, weight: float = 1.0):
+def _page_type_rule(rule_id: str, page_kind: str, weight: float = 1.0):
     """A catalog-shaped rule scoped to one page type via the token syntax."""
     return SiteHealthRule(
         rule_id=rule_id,
@@ -381,7 +381,7 @@ def _page_type_rule(rule_id: str, page_type: str, weight: float = 1.0):
         category="content",
         severity="low",
         weight=weight,
-        applicability_key=f"page_type:{page_type}",
+        applicability_key=f"page_kind:{page_kind}",
         description="",
         remediation="",
     )
@@ -389,53 +389,53 @@ def _page_type_rule(rule_id: str, page_type: str, weight: float = 1.0):
 
 def test_page_type_token_applicable_on_matching_type():
     rule = _page_type_rule("technical.title_present", "article")
-    ev = evaluate_rule(rule, _html_facts(page_type="article"))
+    ev = evaluate_rule(rule, _html_facts(page_kind="article"))
     # Applicable -> the real check runs (title present -> pass).
     assert ev.outcome == RULE_OUTCOME_PASS
 
 
 def test_page_type_token_not_applicable_on_other_type():
     rule = _page_type_rule("technical.title_present", "article")
-    ev = evaluate_rule(rule, _html_facts(page_type="product"))
+    ev = evaluate_rule(rule, _html_facts(page_kind="product"))
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
 
 
 def test_page_type_token_not_applicable_without_page_type_fact():
-    # No facts["page_type"] (e.g. pre-classification) -> fail-closed.
-    # ``_html_facts()`` DEFAULTS page_type to "homepage", so the key has to be
+    # No facts["page_kind"] (e.g. pre-classification) -> fail-closed.
+    # ``_html_facts()`` DEFAULTS page_kind to "homepage", so the key has to be
     # removed — otherwise this only re-tested the mismatched-type case above.
     rule = _page_type_rule("technical.title_present", "article")
     facts = _html_facts()
-    del facts["page_type"]
+    del facts["page_kind"]
     ev = evaluate_rule(rule, facts)
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
 
 
 def test_page_type_token_unknown_type_in_facts_fail_closed():
-    # A page_type outside the config taxonomy has no profile -> fail-closed.
+    # A page_kind outside the config taxonomy has no profile -> fail-closed.
     rule = _page_type_rule("technical.title_present", "article")
-    ev = evaluate_rule(rule, _html_facts(page_type="not_a_real_type"))
+    ev = evaluate_rule(rule, _html_facts(page_kind="not_a_real_type"))
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
 
 
 def test_page_type_token_for_unconfigured_type_fail_closed():
     # The token itself names a type with no profile entry -> fail-closed.
     rule = _page_type_rule("technical.title_present", "not_a_real_type")
-    ev = evaluate_rule(rule, _html_facts(page_type="article"))
+    ev = evaluate_rule(rule, _html_facts(page_kind="article"))
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
 
 
 def test_thin_content_uses_per_type_minimum():
-    article_min = PAGE_TYPE_PROFILES["article"].min_sufficient_words
-    other_min = PAGE_TYPE_PROFILES[PAGE_TYPE_OTHER].min_sufficient_words
+    article_min = PAGE_KIND_PROFILES["article"].min_sufficient_words
+    other_min = PAGE_KIND_PROFILES[PAGE_KIND_OTHER].min_sufficient_words
     assert article_min > other_min  # the config actually differentiates
     # Between the two minimums: an article fails while `other` passes.
-    facts_article = _html_facts(page_type="article", body={"word_count": other_min})
+    facts_article = _html_facts(page_kind="article", body={"word_count": other_min})
     ev = _outcome(facts_article, "technical.thin_content")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["minimum"] == article_min
-    assert ev.evidence["page_type"] == "article"
-    facts_other = _html_facts(page_type="other", body={"word_count": other_min})
+    assert ev.evidence["page_kind"] == "article"
+    facts_other = _html_facts(page_kind="other", body={"word_count": other_min})
     ev_other = _outcome(facts_other, "technical.thin_content")
     assert ev_other.outcome == RULE_OUTCOME_PASS
     assert ev_other.evidence["minimum"] == other_min
@@ -443,19 +443,19 @@ def test_thin_content_uses_per_type_minimum():
 
 def test_thin_content_without_page_type_falls_back_to_other_minimum():
     ev = _outcome(
-        _html_facts(page_type=None, body={"word_count": MIN_SUFFICIENT_WORDS}),
+        _html_facts(page_kind=None, body={"word_count": MIN_SUFFICIENT_WORDS}),
         "technical.thin_content",
     )
     assert ev.outcome == RULE_OUTCOME_PASS
     assert ev.evidence["minimum"] == MIN_SUFFICIENT_WORDS
-    assert ev.evidence["page_type"] == "other"
+    assert ev.evidence["page_kind"] == "other"
 
 
 def test_thin_content_homepage_minimum_is_lower():
-    homepage_min = PAGE_TYPE_PROFILES["homepage"].min_sufficient_words
+    homepage_min = PAGE_KIND_PROFILES["homepage"].min_sufficient_words
     assert homepage_min < MIN_SUFFICIENT_WORDS
     ev = _outcome(
-        _html_facts(page_type="homepage", body={"word_count": homepage_min}),
+        _html_facts(page_kind="homepage", body={"word_count": homepage_min}),
         "technical.thin_content",
     )
     assert ev.outcome == RULE_OUTCOME_PASS
@@ -463,18 +463,18 @@ def test_thin_content_homepage_minimum_is_lower():
 
 
 def test_weight_override_applies_for_configured_page_type():
-    override = PAGE_TYPE_PROFILES["homepage"].rule_weight_overrides[
+    override = PAGE_KIND_PROFILES["homepage"].rule_weight_overrides[
         "technical.thin_content"
     ]
     base_weight = rule_for("technical.thin_content").weight
     assert override != base_weight  # the sparse config override is real
-    ev = _outcome(_html_facts(page_type="homepage"), "technical.thin_content")
+    ev = _outcome(_html_facts(page_kind="homepage"), "technical.thin_content")
     assert ev.weight == override
     # Every other page type keeps the catalog weight.
-    ev_other = _outcome(_html_facts(page_type="other"), "technical.thin_content")
+    ev_other = _outcome(_html_facts(page_kind="other"), "technical.thin_content")
     assert ev_other.weight == base_weight
-    # And a page with no page_type fact keeps the catalog weight.
-    ev_plain = _outcome(_html_facts(page_type=None), "technical.thin_content")
+    # And a page with no page_kind fact keeps the catalog weight.
+    ev_plain = _outcome(_html_facts(page_kind=None), "technical.thin_content")
     assert ev_plain.weight == base_weight
 
 
@@ -706,12 +706,12 @@ def test_schema_expected_for_type_passes_with_expected_block():
     # The healthy homepage carries an Organization block (an expected type).
     ev = _outcome(_html_facts(), "aeo.schema_expected_for_type")
     assert ev.outcome == RULE_OUTCOME_PASS
-    assert ev.evidence["page_type"] == "homepage"
+    assert ev.evidence["page_kind"] == "homepage"
 
 
 def test_schema_expected_for_type_fails_without_expected_block():
     facts = _html_facts(
-        page_type="product",
+        page_kind="product",
         structured_data=_sd(
             [
                 {
@@ -725,7 +725,7 @@ def test_schema_expected_for_type_fails_without_expected_block():
     )
     ev = _outcome(facts, "aeo.schema_expected_for_type")
     assert ev.outcome == RULE_OUTCOME_FAIL
-    assert ev.evidence["page_type"] == "product"
+    assert ev.evidence["page_kind"] == "product"
     assert ev.evidence["expected_types"] == ["Product"]
     assert ev.evidence["found_types"] == ["Article"]
 
@@ -734,9 +734,9 @@ def test_schema_outranked_type_rules_are_not_circular():
     """A product page (classified from URL/content signals) mis-marked with
     Article markup: ``schema_expected_for_type`` owns the failure while the
     dependent validity rules are all N/A — they never double-report, and the
-    expectation came from facts["page_type"], never from the schema itself."""
+    expectation came from facts["page_kind"], never from the schema itself."""
     facts = _html_facts(
-        page_type="product",
+        page_kind="product",
         structured_data=_sd(
             [
                 {
@@ -822,7 +822,7 @@ def test_schema_property_rules_record_microdata_shallow_extraction():
         "same_as": [],
         "props_present": [],
     }
-    facts = _html_facts(page_type="product", structured_data=_sd([microdata_block]))
+    facts = _html_facts(page_kind="product", structured_data=_sd([microdata_block]))
     ev = _outcome(facts, "aeo.schema_required_valid")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["extraction"] == "microdata_shallow"
@@ -833,7 +833,7 @@ def test_schema_property_rules_record_microdata_shallow_extraction():
         "name": "Widget",
         "props_present": ["name"],
     }
-    facts = _html_facts(page_type="product", structured_data=_sd([jsonld_block]))
+    facts = _html_facts(page_kind="product", structured_data=_sd([jsonld_block]))
     ev = _outcome(facts, "aeo.schema_required_valid")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert "extraction" not in ev.evidence
@@ -847,7 +847,7 @@ def test_schema_recommended_present_not_applicable_when_none_recommended():
         "name": "Acme Widgets",
         "props_present": ["name"],
     }
-    facts = _html_facts(page_type="other", structured_data=_sd([block]))
+    facts = _html_facts(page_kind="other", structured_data=_sd([block]))
     ev = _outcome(facts, "aeo.schema_recommended_present")
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
     assert ev.evidence["reason"] == "no_recommended_properties"
@@ -877,14 +877,14 @@ def test_schema_matches_content_not_applicable_without_names():
 
 
 def test_schema_rules_fall_back_to_other_expectation_without_page_type():
-    # No page_type fact: the ``other`` expectation (WebPage, required name).
+    # No page_kind fact: the ``other`` expectation (WebPage, required name).
     block = {
         "type": "WebPage",
         "syntax": "json-ld",
         "name": "Acme Widgets",
         "props_present": ["name"],
     }
-    facts = _html_facts(page_type=None, structured_data=_sd([block]))
+    facts = _html_facts(page_kind=None, structured_data=_sd([block]))
     assert _outcome(facts, "aeo.schema_expected_for_type").outcome == (
         RULE_OUTCOME_PASS
     )
@@ -946,7 +946,7 @@ def test_outbound_citations():
 
 
 def test_organization_identity():
-    # Applicable on the homepage (page_type:homepage scope).
+    # Applicable on the homepage (page_kind:homepage scope).
     ev = _outcome(_html_facts(), "aeo.organization_identity")
     assert ev.outcome == RULE_OUTCOME_PASS
     assert ev.evidence["has_organization"] is True
@@ -971,7 +971,7 @@ def test_organization_identity():
     assert ev.evidence["has_organization"] is False
     # Not applicable off the homepage.
     assert (
-        _outcome(_html_facts(page_type="article"), "aeo.organization_identity").outcome
+        _outcome(_html_facts(page_kind="article"), "aeo.organization_identity").outcome
         == RULE_OUTCOME_NOT_APPLICABLE
     )
 

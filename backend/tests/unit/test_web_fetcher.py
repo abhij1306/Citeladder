@@ -11,7 +11,6 @@ the decoded-byte (gzip compression bomb) cap.
 from __future__ import annotations
 
 import gzip
-import logging
 import zlib
 from dataclasses import replace
 
@@ -131,20 +130,44 @@ def _fetcher(
     resolver,
     *,
     settings: SiteHealthSettings | None = None,
-    scraperapi_handler=None,
+    browser_transport: AcquisitionTransport | None = None,
     curl_transport: AcquisitionTransport | None = None,
     curl_pinned_resolution_supported: bool | None = None,
 ) -> SecureFetcher:
     return SecureFetcher(
         resolver=resolver,
         transport=httpx.MockTransport(handler),
-        scraperapi_transport=(
-            httpx.MockTransport(scraperapi_handler) if scraperapi_handler else None
-        ),
+        browser_transport=browser_transport,
         curl_transport=curl_transport,
         curl_pinned_resolution_supported=curl_pinned_resolution_supported,
         settings=settings or SiteHealthSettings(),
     )
+
+
+class _StubBrowserTransport:
+    """Records calls and returns a canned rendered result (no real browser)."""
+
+    def __init__(self, result: FetchResult | Exception) -> None:
+        self._result = result
+        self.calls: list[str] = []
+        self.closed = False
+
+    async def fetch(
+        self,
+        request: FetchRequest,
+        target: ResolvedTarget,
+        *,
+        max_wire_bytes: int,
+        max_decoded_bytes: int,
+        timeout_seconds: float,
+    ) -> FetchResult:
+        self.calls.append(target.url)
+        if isinstance(self._result, Exception):
+            raise self._result
+        return self._result
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 # --- redact_headers -------------------------------------------------------
@@ -650,26 +673,19 @@ async def test_fetch_missing_charset_is_empty():
 
 
 async def test_hard_excluded_url_never_calls_any_acquisition_rung():
-    calls = {"httpx": 0, "scraperapi": 0}
+    calls = {"httpx": 0}
 
     def direct_handler(request: httpx.Request) -> httpx.Response:
         calls["httpx"] += 1
         return _html_response()
 
-    def scraper_handler(request: httpx.Request) -> httpx.Response:
-        calls["scraperapi"] += 1
-        return _html_response()
-
-    settings = SiteHealthSettings(
-        curl_cffi_enabled=True,
-        scraperapi_enabled=True,
-        scraperapi_api_key="server-only-secret",
-    )
+    browser = _StubBrowserTransport(_acquisition_result())
+    settings = SiteHealthSettings(curl_cffi_enabled=True, browser_enabled=True)
     async with _fetcher(
         direct_handler,
         _FakeResolver({}),
         settings=settings,
-        scraperapi_handler=scraper_handler,
+        browser_transport=browser,
         curl_pinned_resolution_supported=False,
     ) as fetcher:
         with pytest.raises(FetchError) as exc:
@@ -678,41 +694,25 @@ async def test_hard_excluded_url_never_calls_any_acquisition_rung():
             )
     assert exc.value.error_code == "url_admission_rejected"
     assert exc.value.attempts == ()
-    assert calls == {"httpx": 0, "scraperapi": 0}
+    assert calls == {"httpx": 0}
+    assert browser.calls == []
 
 
-async def test_challenge_uses_scraperapi_after_explicit_curl_unavailable(caplog):
+async def test_challenge_uses_browser_after_explicit_curl_unavailable():
     def direct_handler(request: httpx.Request) -> httpx.Response:
         return _html_response(403, body=b"<title>Just a moment...</title>")
 
-    seen: dict[str, str] = {}
-
-    def scraper_handler(request: httpx.Request) -> httpx.Response:
-        seen["api_key"] = request.headers["x-sapi-api_key"]
-        seen["target"] = request.url.params["url"]
-        seen["render"] = request.headers["x-sapi-render"]
-        seen["premium"] = request.headers["x-sapi-premium"]
-        seen["country_code"] = request.headers["x-sapi-country_code"]
-        assert "api_key" not in request.url.params
-        return _html_response(
-            body=b"<html><title>actual page</title><body>content</body></html>",
-            content_type="text/html; charset=utf-8",
-        )
-
-    settings = SiteHealthSettings(
-        curl_cffi_enabled=True,
-        scraperapi_enabled=True,
-        scraperapi_api_key="server-only-secret",
-        scraperapi_render=True,
-        scraperapi_premium=True,
-        scraperapi_country_code="us",
+    rendered = replace(
+        _acquisition_result(),
+        body=b"<html><title>actual page</title><body>content</body></html>",
     )
-    caplog.set_level(logging.INFO, logger="httpx")
+    browser = _StubBrowserTransport(rendered)
+    settings = SiteHealthSettings(curl_cffi_enabled=True, browser_enabled=True)
     async with _fetcher(
         direct_handler,
         _FakeResolver({}),
         settings=settings,
-        scraperapi_handler=scraper_handler,
+        browser_transport=browser,
         curl_pinned_resolution_supported=False,
     ) as fetcher:
         result = await fetcher.fetch(
@@ -725,29 +725,15 @@ async def test_challenge_uses_scraperapi_after_explicit_curl_unavailable(caplog)
 
     assert result.status_code == 200
     assert result.acquisition is not None
-    assert result.acquisition.transport == "scraperapi"
+    assert result.acquisition.transport == "patchright"
     assert result.acquisition.rung == 3
     assert result.acquisition.trigger == "challenge"
-    assert result.acquisition.scraperapi_options == {
-        "render": True,
-        "premium": True,
-        "follow_redirects": False,
-        "country_code": "us",
-    }
     assert [entry.acquisition.transport for entry in result.attempts] == [
         "httpx",
-        "scraperapi",
+        "patchright",
     ]
-    assert all("server-only-secret" not in entry.url for entry in result.attempts)
-    assert "server-only-secret" not in repr(result)
-    assert seen == {
-        "api_key": "server-only-secret",
-        "target": "https://example.com/",
-        "render": "true",
-        "premium": "true",
-        "country_code": "us",
-    }
-    assert "server-only-secret" not in caplog.text
+    # The browser only ever sees the already-validated target.
+    assert browser.calls == ["https://example.com/"]
 
 
 async def test_challenge_uses_pinned_curl_rung_when_available():
@@ -824,7 +810,7 @@ async def test_curl_redirect_uses_transient_location_and_revalidates_next_hop():
         (200, b"tiny", 512, "low_content"),
     ],
 )
-async def test_scraperapi_keeps_evidence_trigger_when_curl_is_unavailable(
+async def test_browser_keeps_evidence_trigger_when_curl_is_unavailable(
     direct_status: int,
     direct_body: bytes,
     low_content_bytes: int,
@@ -833,20 +819,17 @@ async def test_scraperapi_keeps_evidence_trigger_when_curl_is_unavailable(
     def direct_handler(request: httpx.Request) -> httpx.Response:
         return _html_response(direct_status, body=direct_body)
 
-    def scraper_handler(request: httpx.Request) -> httpx.Response:
-        return _html_response(body=b"<html>provider result</html>")
-
+    browser = _StubBrowserTransport(_acquisition_result())
     settings = SiteHealthSettings(
         curl_cffi_enabled=True,
         curl_cffi_low_content_bytes=low_content_bytes,
-        scraperapi_enabled=True,
-        scraperapi_api_key="server-only-secret",
+        browser_enabled=True,
     )
     async with _fetcher(
         direct_handler,
         _FakeResolver({}),
         settings=settings,
-        scraperapi_handler=scraper_handler,
+        browser_transport=browser,
         curl_pinned_resolution_supported=False,
     ) as fetcher:
         result = await fetcher.fetch(
@@ -854,69 +837,89 @@ async def test_scraperapi_keeps_evidence_trigger_when_curl_is_unavailable(
         )
 
     assert result.acquisition is not None
-    assert result.acquisition.transport == "scraperapi"
+    assert result.acquisition.transport == "patchright"
     assert result.acquisition.trigger == expected_trigger
 
 
-async def test_scraperapi_rung_keeps_decoded_byte_cap():
+async def test_browser_rung_failure_keeps_prior_server_evidence():
+    """An unusable last rung must not turn thin evidence into a hard failure."""
+
     def direct_handler(request: httpx.Request) -> httpx.Response:
         return _html_response(403, body=b"cf-chl")
 
-    def scraper_handler(request: httpx.Request) -> httpx.Response:
-        return _html_response(body=b"x" * 5000)
-
-    settings = SiteHealthSettings(
-        curl_cffi_enabled=True,
-        scraperapi_enabled=True,
-        scraperapi_api_key="server-only-secret",
+    browser = _StubBrowserTransport(
+        FetchError("render failed", error_code="connection_failed", retryable=True)
     )
+    settings = SiteHealthSettings(curl_cffi_enabled=True, browser_enabled=True)
     async with _fetcher(
         direct_handler,
         _FakeResolver({}),
         settings=settings,
-        scraperapi_handler=scraper_handler,
+        browser_transport=browser,
         curl_pinned_resolution_supported=False,
     ) as fetcher:
-        with pytest.raises(FetchError) as exc:
-            await fetcher.fetch(
-                FetchRequest(
-                    url="https://example.com/",
-                    purpose="discover",
-                    max_decoded_bytes=1000,
-                )
-            )
-    assert exc.value.error_code == "response_too_large"
-    assert [entry.acquisition.transport for entry in exc.value.attempts] == [
+        result = await fetcher.fetch(
+            FetchRequest(url="https://example.com/", purpose="discover")
+        )
+
+    # The 403 challenge response survives as the crawl's answer, and the failed
+    # browser call is still recorded as a real attempt.
+    assert result.status_code == 403
+    assert [entry.acquisition.transport for entry in result.attempts] == [
         "httpx",
-        "scraperapi",
+        "patchright",
     ]
 
 
-async def test_scraperapi_redirect_reuses_hard_admission_before_next_rung():
+async def test_injected_browser_transport_is_not_closed_by_the_fetcher():
+    """An injected transport belongs to the caller, who may share it.
+
+    ``CommerceDiscoveryWorker`` builds one fetcher per task around a single
+    shared browser transport; closing it on the first fetcher's exit would
+    leave every later task with a dead rung.
+    """
+
+    # A challenge response, so the ladder actually REACHES the browser rung —
+    # asserting "not closed" after a fetch that never used it would pass even
+    # if the close path were broken.
     def direct_handler(request: httpx.Request) -> httpx.Response:
-        return _html_response(403, body=b"cf-chl")
+        return _html_response(403, body=b"<title>Just a moment...</title>")
 
-    def scraper_handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(302, headers={"location": "/checkout"})
-
-    settings = SiteHealthSettings(
-        curl_cffi_enabled=True,
-        scraperapi_enabled=True,
-        scraperapi_api_key="server-only-secret",
-    )
+    browser = _StubBrowserTransport(_acquisition_result())
+    settings = SiteHealthSettings(browser_enabled=True)
     async with _fetcher(
         direct_handler,
         _FakeResolver({}),
         settings=settings,
-        scraperapi_handler=scraper_handler,
+        browser_transport=browser,
         curl_pinned_resolution_supported=False,
     ) as fetcher:
-        with pytest.raises(FetchError) as exc:
-            await fetcher.fetch(
-                FetchRequest(url="https://example.com/", purpose="discover")
-            )
-    assert exc.value.error_code == "url_admission_rejected"
-    assert [entry.acquisition.transport for entry in exc.value.attempts] == [
-        "httpx",
-        "scraperapi",
-    ]
+        result = await fetcher.fetch(
+            FetchRequest(url="https://example.com/", purpose="discover")
+        )
+
+    assert browser.calls == ["https://example.com/"]
+    assert result.acquisition is not None
+    assert result.acquisition.transport == "patchright"
+    assert browser.closed is False
+
+
+async def test_browser_rung_is_skipped_when_disabled():
+    def direct_handler(request: httpx.Request) -> httpx.Response:
+        return _html_response(403, body=b"cf-chl")
+
+    browser = _StubBrowserTransport(_acquisition_result())
+    settings = SiteHealthSettings(curl_cffi_enabled=True, browser_enabled=False)
+    async with _fetcher(
+        direct_handler,
+        _FakeResolver({}),
+        settings=settings,
+        browser_transport=browser,
+        curl_pinned_resolution_supported=False,
+    ) as fetcher:
+        result = await fetcher.fetch(
+            FetchRequest(url="https://example.com/", purpose="discover")
+        )
+
+    assert result.status_code == 403
+    assert browser.calls == []

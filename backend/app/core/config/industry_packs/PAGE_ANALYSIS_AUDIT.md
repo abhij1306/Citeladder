@@ -21,12 +21,12 @@ fetch artifact
 
 The principal owners are:
 
-- [`../../../analysis/site_health/page_types.py`](../../../analysis/site_health/page_types.py) — pure generic classifier and evidence record;
+- [`../../../analysis/site_health/page_kinds.py`](../../../analysis/site_health/page_kinds.py) — pure generic classifier and evidence record;
 - [`../site_health.py`](../site_health.py) — vocabulary, path patterns, heuristics, weights, and per-page-type profiles;
 - [`../../../workers/site_health/phases/analyze.py`](../../../workers/site_health/phases/analyze.py) — invocation, rule-context injection, persistence, evaluations, issues, and scores;
-- [`../../../../tests/unit/test_site_health_page_types.py`](../../../../tests/unit/test_site_health_page_types.py) — current classifier regression tests;
-- [`../../../../../frontend/lib/site-health/page-types.ts`](../../../../../frontend/lib/site-health/page-types.ts) — frontend labels and evidence shaping;
-- [`../../../../../frontend/components/site-health/page-type-badge.tsx`](../../../../../frontend/components/site-health/page-type-badge.tsx), [`../../../../../frontend/components/site-health/page-type-select.tsx`](../../../../../frontend/components/site-health/page-type-select.tsx), [`../../../../../frontend/components/site-health/page-type-scores.tsx`](../../../../../frontend/components/site-health/page-type-scores.tsx), and [`../../../../../frontend/components/site-health/url-detail.tsx`](../../../../../frontend/components/site-health/url-detail.tsx) — presentation and filtering.
+- [`../../../../tests/unit/test_site_health_page_kinds.py`](../../../../tests/unit/test_site_health_page_kinds.py) — current classifier regression tests;
+- [`../../../../../frontend/lib/site-health/page-kinds.ts`](../../../../../frontend/lib/site-health/page-kinds.ts) — frontend labels and evidence shaping;
+- [`../../../../../frontend/components/site-health/page-kind-badge.tsx`](../../../../../frontend/components/site-health/page-kind-badge.tsx), [`../../../../../frontend/components/site-health/page-kind-select.tsx`](../../../../../frontend/components/site-health/page-kind-select.tsx), [`../../../../../frontend/components/site-health/page-kind-scores.tsx`](../../../../../frontend/components/site-health/page-kind-scores.tsx), and [`../../../../../frontend/components/site-health/url-detail.tsx`](../../../../../frontend/components/site-health/url-detail.tsx) — presentation and filtering.
 
 The vocabulary is `homepage`, `article`, `product`, `category`, `pricing`, `docs`, `faq`,
 `about_contact`, `service`, `local`, `guide`, `comparison`, `case_study_review`, `trust_policy`, and

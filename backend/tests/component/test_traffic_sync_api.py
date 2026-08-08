@@ -530,6 +530,12 @@ async def test_sync_409_names_already_enqueued_connections(
         ga4 = await _seed_connection(
             session, workspace_id=ws, grant=grant, provider=INTEGRATION_PROVIDER_GA4
         )
+        # The fan-out is ordered by ``(created_at, id)``. Both rows are seeded
+        # in one transaction, so they share ``created_at`` and the random UUID
+        # broke the tie — making this test pass or fail on a coin flip. Pin GSC
+        # earlier so "the first connection committed, THEN the second
+        # conflicted" is actually the scenario under test.
+        gsc.created_at = ga4.created_at - timedelta(seconds=1)
         await _seed_mapping(
             session,
             workspace_id=ws,

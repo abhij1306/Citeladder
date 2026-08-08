@@ -32,16 +32,16 @@ def test_production_controls_keep_the_automatic_page_limit(monkeypatch):
         "app.domain.site_health.planner.site_health_settings.advanced_controls_enabled",
         False,
     )
-    mode, limit, seeds, page_types = _controls_for_request(
+    mode, limit, seeds, page_kinds = _controls_for_request(
         input_mode=None,
         requested_page_limit=None,
         seed_urls=None,
-        page_types=None,
+        page_kinds=None,
     )
     assert mode == "auto"
     assert limit == 10
     assert seeds == []
-    assert page_types == []
+    assert page_kinds == []
 
 
 def test_phase_request_counts_must_be_positive_and_bounded():
@@ -70,7 +70,7 @@ def test_production_rejects_development_only_exact_mode(monkeypatch):
             input_mode="exact_urls",
             requested_page_limit=None,
             seed_urls=["https://example.com/products/widget"],
-            page_types=None,
+            page_kinds=None,
         )
 
 
@@ -79,13 +79,13 @@ def test_development_allows_exact_mode_with_frozen_requested_limit(monkeypatch):
         "app.domain.site_health.planner.site_health_settings.advanced_controls_enabled",
         True,
     )
-    mode, limit, seeds, page_types = _controls_for_request(
+    mode, limit, seeds, page_kinds = _controls_for_request(
         input_mode="exact_urls",
         requested_page_limit=3,
         seed_urls=["https://example.com/products/widget"],
-        page_types=["product"],
+        page_kinds=["product"],
     )
-    assert (mode, limit, seeds, page_types) == (
+    assert (mode, limit, seeds, page_kinds) == (
         "exact_urls",
         3,
         ["https://example.com/products/widget"],

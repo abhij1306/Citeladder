@@ -187,12 +187,12 @@ def build_frontier_candidates(
     frontier admission order reproducible under the crawl seed (invariant 9).
     """
     return [
-        FrontierCandidate(
+        FrontierCandidate.from_admission(
+            classify_url_admission(link.url),
             url=link.url,
             url_hash=link.url_hash,
             depth=depth + 1,
             source_kind=OBSERVATION_SOURCE_LINK,
-            value_priority=classify_url_admission(link.url).priority,
             parent_position=parent_position,
             link_ordinal=link.ordinal,
         )
@@ -249,6 +249,10 @@ async def _upsert_site_url(
             display_url=candidate.url,
             host=host[:255],
             depth=candidate.depth,
+            corpus_disposition=candidate.disposition,
+            disposition_reason=candidate.disposition_reason,
+            disposition_version=candidate.disposition_version,
+            item_kind=candidate.item_kind,
             discovery_status=DISCOVERY_STATUS_RUNNING,
             latest_source_kind=candidate.source_kind,
             first_seen_crawl_id=crawl.id,
@@ -601,11 +605,15 @@ def _candidate_allowed(
     )
     if not decision.accepted or candidate.depth > site_health_settings.max_crawl_depth:
         return False
-    selected_page_types = set(configuration.get("page_types") or [])
-    return not selected_page_types or decision.value_kind in {
+    # The re-admission above is scoped (root domain + globs) and is what decides
+    # ADMISSIBILITY here. The value kind, though, comes from the candidate's own
+    # admission verdict so the filter, the frontier row, and the observation row
+    # all agree on one classification of the URL.
+    selected_page_kinds = set(configuration.get("page_kinds") or [])
+    return not selected_page_kinds or candidate.value_kind in {
         "root",
         "other",
-        *selected_page_types,
+        *selected_page_kinds,
     }
 
 
@@ -645,7 +653,15 @@ async def _record_sample_admission(
     progress: _AdmissionProgress,
     phase_run_id: uuid.UUID | None,
 ) -> None:
-    analyze = progress.remaining is not None and progress.remaining > 0
+    # A non-analyzable candidate (a document) is still inventoried and observed
+    # so it stays in coverage, but the HTML analyzer never receives it: the
+    # extractors differ, and handing a PDF to the HTML parser would produce
+    # empty facts that read as a thin, failing page rather than a document.
+    analyze = (
+        candidate.analyzable
+        and progress.remaining is not None
+        and progress.remaining > 0
+    )
     automatic_limit = int(
         (crawl.configuration or {}).get(AUTOMATIC_MONITOR_LIMIT_KEY) or 0
     )
@@ -665,7 +681,7 @@ async def _record_sample_admission(
         analyze=analyze,
         selection_source=selection_source,
         phase_run_id=phase_run_id,
-        value_kind=classify_url_admission(candidate.url).value_kind,
+        value_kind=candidate.value_kind,
         value_priority=candidate.value_priority,
     )
     if newly_activated and progress.remaining is not None:
@@ -711,7 +727,7 @@ async def _record_admission(
             source_kind=candidate.source_kind,
             selection_source=SELECTION_SOURCE_BOOTSTRAP,
             phase_run_id=phase_run_id,
-            value_kind=classify_url_admission(candidate.url).value_kind,
+            value_kind=candidate.value_kind,
             value_priority=candidate.value_priority,
         )
         if newly_activated:
@@ -790,7 +806,7 @@ async def _store_frontier_candidates(
                     "url_hash": candidate.url_hash,
                     "depth": candidate.depth,
                     "source_kind": candidate.source_kind,
-                    "value_kind": classify_url_admission(candidate.url).value_kind,
+                    "value_kind": candidate.value_kind,
                     "value_priority": candidate.value_priority,
                     "parent_position": candidate.parent_position,
                     "link_ordinal": candidate.link_ordinal,
@@ -828,21 +844,37 @@ async def _pending_frontier(
             )
         ).all()
     )
-    return [
-        (
-            row,
-            FrontierCandidate(
-                url=row.normalized_url,
-                url_hash=row.url_hash,
-                depth=row.depth,
-                source_kind=row.source_kind,
-                value_priority=row.value_priority,
-                parent_position=row.parent_position,
-                link_ordinal=row.link_ordinal,
-            ),
-        )
-        for row in rows
-    ]
+    return [(row, _candidate_from_frontier_row(row)) for row in rows]
+
+
+def _candidate_from_frontier_row(row: SiteDiscoveryFrontier) -> FrontierCandidate:
+    """Rebuild a candidate from its persisted frontier row.
+
+    The frontier persists the ordering key and the admitted ``value_kind``, but
+    not the corpus disposition. Rebuilding with the dataclass defaults would
+    silently relabel every deferred candidate as an analyzable HTML page — so a
+    PDF admitted into the frontier came back as a page for the HTML analyzer.
+
+    Disposition is a pure function of the URL path (the extension), so it is
+    re-derived exactly here rather than widening the frontier table.
+    ``value_kind`` is read back from the row because THAT verdict was made
+    under the crawl's scope, which a bare re-classification here would not have.
+    """
+    admission = classify_url_admission(row.normalized_url)
+    return FrontierCandidate(
+        url=row.normalized_url,
+        url_hash=row.url_hash,
+        depth=row.depth,
+        source_kind=row.source_kind,
+        value_priority=row.value_priority,
+        parent_position=row.parent_position,
+        link_ordinal=row.link_ordinal,
+        value_kind=row.value_kind,
+        disposition=admission.disposition,
+        disposition_reason=admission.disposition_reason,
+        disposition_version=admission.disposition_version,
+        item_kind=admission.item_kind,
+    )
 
 
 async def _admission_batch(

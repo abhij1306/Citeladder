@@ -40,6 +40,24 @@ SITE_HEALTH_MAX_OUTBOUND_DOMAINS: Final = 100
 SITE_HEALTH_MAX_DOMAIN_CHARS: Final = 255
 SITE_HEALTH_MAX_HREFLANG_ALTERNATES: Final = 50
 SITE_HEALTH_MAX_HREFLANG_CHARS: Final = 35
+# Industry-role classifier facts (reference.py ``_COLLECTION_LIMITS``). The
+# pack classifier scores conversion and journey roles from call-to-action
+# wording, form-field labels, and internal-link context; without these an
+# admissions-enquiry page and a prospectus page look identical on path and
+# headings alone. Bounds match the classifier's own caps so the extractor
+# never produces more than it can consume.
+SITE_HEALTH_MAX_CTA_TEXTS: Final = 32
+SITE_HEALTH_MAX_CTA_TEXT_CHARS: Final = 256
+SITE_HEALTH_MAX_FORM_FIELDS: Final = 32
+SITE_HEALTH_MAX_FORM_FIELD_CHARS: Final = 128
+SITE_HEALTH_MAX_LINK_CONTEXT: Final = 64
+SITE_HEALTH_MAX_LINK_CONTEXT_CHARS: Final = 512
+# Elements whose visible text is a call to action. Buttons and submit inputs
+# are unambiguous; an anchor only counts when it carries a button-ish role or
+# class, so ordinary navigation links do not drown the real CTAs.
+CTA_BUTTON_ROLE_TOKENS: Final[frozenset[str]] = frozenset(
+    {"button", "btn", "cta", "apply", "enquire", "enquiry", "submit"}
+)
 SITE_HEALTH_MAX_FIRST_ANSWER_CHARS: Final = 512
 SITE_HEALTH_MAX_INLINE_SCRIPT_CHARS: Final = 500_000
 SITE_HEALTH_MAX_PATH_CHARS: Final = 512
@@ -127,8 +145,56 @@ URL_EXCLUSION_OUT_OF_SCOPE: Final = "out_of_scope"
 URL_EXCLUSION_NARROWED: Final = "narrowed"
 URL_EXCLUSION_INVALID: Final = "invalid_url"
 URL_EXCLUSION_DUPLICATE: Final = "duplicate"
-URL_EXCLUSION_PAGE_TYPE: Final = "page_type_filtered"
+URL_EXCLUSION_PAGE_KIND: Final = "page_kind_filtered"
 URL_EXCLUSION_TRACKING: Final = "tracking_url"
+
+# --- Corpus disposition (Site Intelligence §4) ---------------------------
+# Every discovered URL gets a versioned disposition. These are DISTINCT
+# states, not a confidence gradient: ``inventory_only`` means "known and
+# counted, deliberately not deep-analyzed", which is what keeps a document or
+# a utility page visible in coverage without paying analysis cost for it.
+# ``exclude`` means confidently irrelevant/unsafe. An UNCERTAIN URL is never
+# silently discarded — it stays ``inventory_only``.
+CORPUS_DISPOSITION_ANALYZE: Final = "analyze"
+CORPUS_DISPOSITION_INVENTORY_ONLY: Final = "inventory_only"
+CORPUS_DISPOSITION_EXCLUDE: Final = "exclude"
+CORPUS_DISPOSITIONS: Final[frozenset[str]] = frozenset(
+    {
+        CORPUS_DISPOSITION_ANALYZE,
+        CORPUS_DISPOSITION_INVENTORY_ONLY,
+        CORPUS_DISPOSITION_EXCLUDE,
+    }
+)
+DISPOSITION_REASON_HTML_CONTENT: Final = "html_content"
+DISPOSITION_REASON_DOCUMENT: Final = "document"
+DISPOSITION_REASON_UNSUPPORTED_MEDIA: Final = "unsupported_media"
+CORPUS_DISPOSITION_VERSION: Final = "sh-disposition-1"
+
+# Crawl-configuration key holding the exact frozen industry-pack manifest
+# (catalog version, pack id/version, content hash, classifier version). Frozen
+# once at crawl creation and never re-resolved from live project settings.
+INDUSTRY_PACK_MANIFEST_KEY: Final = "industry_pack_manifest"
+
+# Corpus item kinds (kernel spec ``CorpusItem.item_kind``).
+ITEM_KIND_HTML_PAGE: Final = "html_page"
+ITEM_KIND_DOCUMENT: Final = "document"
+ITEM_KIND_OTHER: Final = "other"
+
+# Temporal state of an item's evidence. ``unknown`` is a real state, never a
+# stand-in for ``current``: historical evidence must not silently overwrite a
+# current assertion just because it carries a value.
+TEMPORAL_STATE_CURRENT: Final = "current"
+TEMPORAL_STATE_HISTORICAL: Final = "historical"
+TEMPORAL_STATE_FUTURE: Final = "future"
+TEMPORAL_STATE_UNKNOWN: Final = "unknown"
+TEMPORAL_STATES: Final[frozenset[str]] = frozenset(
+    {
+        TEMPORAL_STATE_CURRENT,
+        TEMPORAL_STATE_HISTORICAL,
+        TEMPORAL_STATE_FUTURE,
+        TEMPORAL_STATE_UNKNOWN,
+    }
+)
 URL_HARD_EXCLUSION_PATH_PATTERNS: Final[tuple[str, ...]] = (
     r"(?:^|/)(?:login|log-in|signin|sign-in|register|signup|sign-up)(?:/|$)",
     r"(?:^|/)(?:account|profile|admin|wp-admin|dashboard)(?:/|$)",
@@ -151,9 +217,39 @@ URL_HARD_EXCLUSION_QUERY_KEYS: Final[frozenset[str]] = frozenset(
         "preview",
     }
 )
-URL_HARD_EXCLUSION_EXTENSIONS: Final[frozenset[str]] = frozenset(
+# Documents that carry real business knowledge (prospectuses, fee schedules,
+# policies, disclosures). These are NOT hard exclusions: they are admitted to
+# the corpus INVENTORY as ``item_kind=document`` so coverage and history stay
+# truthful, even though the HTML analyzer never runs on them. Extraction is a
+# separate, bounded decision — see ``DOCUMENT_MEDIA_TYPES``.
+INVENTORY_DOCUMENT_EXTENSIONS: Final[frozenset[str]] = frozenset(
     {
         ".pdf",
+        ".doc",
+        ".docx",
+        ".ppt",
+        ".pptx",
+        ".xls",
+        ".xlsx",
+    }
+)
+DOCUMENT_MEDIA_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }
+)
+# Genuinely unsafe or contentless assets. A document extension deliberately
+# does NOT appear here: excluding a prospectus from the inventory would drop
+# the very evidence an education/commerce pack needs to answer fee, policy,
+# and curriculum questions.
+URL_HARD_EXCLUSION_EXTENSIONS: Final[frozenset[str]] = frozenset(
+    {
         ".zip",
         ".gz",
         ".jpg",
@@ -505,7 +601,7 @@ CATEGORY_CITABILITY: Final = "citability"
 # =========================================================================
 # Rule applicability scope tokens (v2 P2 — spec §5.2/§5.3)
 # =========================================================================
-# ``always`` / ``has_html`` / ``page_type:<type>`` stay per-page. ``site_root``
+# ``always`` / ``has_html`` / ``page_kind:<type>`` stay per-page. ``site_root``
 # rules evaluate exactly once per crawl inside the ROOT URL's own analysis
 # (applicable only when the worker injected ``facts["site"]`` from the crawl's
 # ``site_facts``). ``crawl_finalize`` rules are never applicable in the
@@ -565,7 +661,7 @@ ROBOTS_FETCH_STATUS_FETCH_FAILED: Final = "fetch_failed"
 # =========================================================================
 ACQUISITION_TRANSPORT_HTTPX: Final = "httpx"
 ACQUISITION_TRANSPORT_CURL_CFFI: Final = "curl_cffi"
-ACQUISITION_TRANSPORT_SCRAPERAPI: Final = "scraperapi"
+ACQUISITION_TRANSPORT_BROWSER: Final = "patchright"
 ACQUISITION_TRIGGER_INITIAL: Final = "initial"
 ACQUISITION_TRIGGER_CHALLENGE: Final = "challenge"
 ACQUISITION_TRIGGER_BLOCK_STATUS: Final = "block_status"
@@ -722,7 +818,11 @@ EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 # recognition) and RULE_CATALOG (the expanded 33-rule sh-rules-2 catalog);
 # SCORING stays sh-scoring-2 (formula unchanged; weight-0 rules score through
 # the existing formula) and CLASSIFIER stays sh-classifier-1.
-EXTRACTOR_VERSION: Final = "sh-extractor-2"
+# sh-extractor-3 adds the industry-role classifier facts (cta_text /
+# form_fields / link_context) to the bounded page facts. Existing fields are
+# unchanged, so an sh-extractor-2 artifact stays readable; only pages parsed at
+# 3+ can produce a conversion/journey role from CTA or form evidence.
+EXTRACTOR_VERSION: Final = "sh-extractor-3"
 ANALYZER_VERSION: Final = "sh-analyzer-2"
 RULE_CATALOG_VERSION: Final = "sh-rules-2"
 SCORING_VERSION: Final = "sh-scoring-2"
@@ -732,40 +832,40 @@ CLASSIFIER_VERSION: Final = "sh-classifier-2"
 # Page-type classification (v2 P1 — spec §5.1)
 # =========================================================================
 # The standard taxonomy every analyzed page is classified into by the pure
-# ``analysis/site_health/page_types.py`` classifier (no I/O, no ORM, no LLM —
+# ``analysis/site_health/page_kinds.py`` classifier (no I/O, no ORM, no LLM —
 # invariant 9). Every pattern table, threshold, and weight below is
 # config-owned (invariant 1); the classifier only reads them.
-PAGE_TYPE_HOMEPAGE: Final = "homepage"
-PAGE_TYPE_ARTICLE: Final = "article"
-PAGE_TYPE_PRODUCT: Final = "product"
-PAGE_TYPE_CATEGORY: Final = "category"
-PAGE_TYPE_PRICING: Final = "pricing"
-PAGE_TYPE_DOCS: Final = "docs"
-PAGE_TYPE_FAQ: Final = "faq"
-PAGE_TYPE_ABOUT_CONTACT: Final = "about_contact"
-PAGE_TYPE_OTHER: Final = "other"
-PAGE_TYPE_SERVICE: Final = "service"
-PAGE_TYPE_LOCAL: Final = "local"
-PAGE_TYPE_GUIDE: Final = "guide"
-PAGE_TYPE_COMPARISON: Final = "comparison"
-PAGE_TYPE_CASE_STUDY_REVIEW: Final = "case_study_review"
-PAGE_TYPE_TRUST_POLICY: Final = "trust_policy"
-PAGE_TYPES: Final[tuple[str, ...]] = (
-    PAGE_TYPE_HOMEPAGE,
-    PAGE_TYPE_ARTICLE,
-    PAGE_TYPE_PRODUCT,
-    PAGE_TYPE_CATEGORY,
-    PAGE_TYPE_PRICING,
-    PAGE_TYPE_DOCS,
-    PAGE_TYPE_FAQ,
-    PAGE_TYPE_ABOUT_CONTACT,
-    PAGE_TYPE_SERVICE,
-    PAGE_TYPE_LOCAL,
-    PAGE_TYPE_GUIDE,
-    PAGE_TYPE_COMPARISON,
-    PAGE_TYPE_CASE_STUDY_REVIEW,
-    PAGE_TYPE_TRUST_POLICY,
-    PAGE_TYPE_OTHER,
+PAGE_KIND_HOMEPAGE: Final = "homepage"
+PAGE_KIND_ARTICLE: Final = "article"
+PAGE_KIND_PRODUCT: Final = "product"
+PAGE_KIND_CATEGORY: Final = "category"
+PAGE_KIND_PRICING: Final = "pricing"
+PAGE_KIND_DOCS: Final = "docs"
+PAGE_KIND_FAQ: Final = "faq"
+PAGE_KIND_ABOUT_CONTACT: Final = "about_contact"
+PAGE_KIND_OTHER: Final = "other"
+PAGE_KIND_SERVICE: Final = "service"
+PAGE_KIND_LOCAL: Final = "local"
+PAGE_KIND_GUIDE: Final = "guide"
+PAGE_KIND_COMPARISON: Final = "comparison"
+PAGE_KIND_CASE_STUDY_REVIEW: Final = "case_study_review"
+PAGE_KIND_TRUST_POLICY: Final = "trust_policy"
+PAGE_KINDS: Final[tuple[str, ...]] = (
+    PAGE_KIND_HOMEPAGE,
+    PAGE_KIND_ARTICLE,
+    PAGE_KIND_PRODUCT,
+    PAGE_KIND_CATEGORY,
+    PAGE_KIND_PRICING,
+    PAGE_KIND_DOCS,
+    PAGE_KIND_FAQ,
+    PAGE_KIND_ABOUT_CONTACT,
+    PAGE_KIND_SERVICE,
+    PAGE_KIND_LOCAL,
+    PAGE_KIND_GUIDE,
+    PAGE_KIND_COMPARISON,
+    PAGE_KIND_CASE_STUDY_REVIEW,
+    PAGE_KIND_TRUST_POLICY,
+    PAGE_KIND_OTHER,
 )
 
 # Signal 1 (highest priority): the root path is a deterministic homepage
@@ -830,22 +930,22 @@ HOMEPAGE_PATH_EQUIVALENTS: Final[frozenset[str]] = frozenset(
 )
 
 # Signal 2: ordered URL path patterns — FIRST MATCH WINS. Each entry is
-# (page_type, regex) matched with re.match against the normalized path
+# (page_kind, regex) matched with re.match against the normalized path
 # (lowercase, trailing slashes stripped). Initial table per spec §5.1.
-PAGE_TYPE_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
-    (PAGE_TYPE_ARTICLE, r"^/(blog|news|guides)(/|$)"),
-    (PAGE_TYPE_PRODUCT, r"^/(products?|p|shop)(/|$)"),
-    (PAGE_TYPE_CATEGORY, r"^/(category|collections)(/|$)"),
-    (PAGE_TYPE_SERVICE, r"^/(services?|solutions?)(/|$)"),
-    (PAGE_TYPE_LOCAL, r"^/(locations?|stores?|offices?)(/|$)"),
-    (PAGE_TYPE_GUIDE, r"^/(guides?|how-to)(/|$)"),
-    (PAGE_TYPE_COMPARISON, r"^/(compare|comparison|vs)(/|$)"),
-    (PAGE_TYPE_PRICING, r"^/pricing(/|$)"),
-    (PAGE_TYPE_DOCS, r"^/(docs|reference)(/|$)"),
-    (PAGE_TYPE_FAQ, r"^/(faq|help)(/|$)"),
-    (PAGE_TYPE_ABOUT_CONTACT, r"^/(about|contact)(/|$)"),
-    (PAGE_TYPE_CASE_STUDY_REVIEW, r"^/(case-studies|reviews?|testimonials?)(/|$)"),
-    (PAGE_TYPE_TRUST_POLICY, r"^/(privacy|terms|security|trust|policies?)(/|$)"),
+PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
+    (PAGE_KIND_ARTICLE, r"^/(blog|news|guides)(/|$)"),
+    (PAGE_KIND_PRODUCT, r"^/(products?|p|shop)(/|$)"),
+    (PAGE_KIND_CATEGORY, r"^/(category|collections)(/|$)"),
+    (PAGE_KIND_SERVICE, r"^/(services?|solutions?)(/|$)"),
+    (PAGE_KIND_LOCAL, r"^/(locations?|stores?|offices?)(/|$)"),
+    (PAGE_KIND_GUIDE, r"^/(guides?|how-to)(/|$)"),
+    (PAGE_KIND_COMPARISON, r"^/(compare|comparison|vs)(/|$)"),
+    (PAGE_KIND_PRICING, r"^/pricing(/|$)"),
+    (PAGE_KIND_DOCS, r"^/(docs|reference)(/|$)"),
+    (PAGE_KIND_FAQ, r"^/(faq|help)(/|$)"),
+    (PAGE_KIND_ABOUT_CONTACT, r"^/(about|contact)(/|$)"),
+    (PAGE_KIND_CASE_STUDY_REVIEW, r"^/(case-studies|reviews?|testimonials?)(/|$)"),
+    (PAGE_KIND_TRUST_POLICY, r"^/(privacy|terms|security|trust|policies?)(/|$)"),
 )
 
 # Signal 3: content/heading heuristics. Evaluated in a fixed sub-order
@@ -855,7 +955,7 @@ PAGE_TYPE_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
 # FAQ: question-form heading ratio over the bounded h2 + h3 texts (spec
 # §5.1; h3 texts are extracted since sh-extractor-2). A heading is
 # question-form when it ends with "?" or starts with a question word.
-PAGE_TYPE_QUESTION_WORDS: Final[frozenset[str]] = frozenset(
+PAGE_KIND_QUESTION_WORDS: Final[frozenset[str]] = frozenset(
     {
         "who",
         "what",
@@ -880,14 +980,14 @@ PAGE_TYPE_QUESTION_WORDS: Final[frozenset[str]] = frozenset(
 )
 # Minimum headings required before a ratio is meaningful (a single question
 # heading out of one is not a FAQ page) and the required question ratio.
-PAGE_TYPE_FAQ_MIN_HEADINGS: Final = 3
-PAGE_TYPE_FAQ_QUESTION_RATIO: Final = 0.6
+PAGE_KIND_FAQ_MIN_HEADINGS: Final = 3
+PAGE_KIND_FAQ_QUESTION_RATIO: Final = 0.6
 # Product: a price token AND a cart marker in the bounded body text.
-PAGE_TYPE_PRICE_PATTERN: Final = (
+PAGE_KIND_PRICE_PATTERN: Final = (
     r"(?:[$€£¥]\s?\d+(?:[.,]\d{1,2})?"
     r"|\b(?:USD|EUR|GBP|AUD|CAD|JPY|INR)\s?\d+(?:[.,]\d{1,2})?)"
 )
-PAGE_TYPE_CART_MARKERS: Final[frozenset[str]] = frozenset(
+PAGE_KIND_CART_MARKERS: Final[frozenset[str]] = frozenset(
     {
         "add to cart",
         "add-to-cart",
@@ -901,9 +1001,9 @@ PAGE_TYPE_CART_MARKERS: Final[frozenset[str]] = frozenset(
 # Article: author byline + date within a bounded prefix of the body text
 # (the sh-extractor-2 author/date facts exist too, but this heuristic keeps
 # reading the visible body text — byline+date co-location is the signal).
-PAGE_TYPE_ARTICLE_SCAN_CHARS: Final = 2000
-PAGE_TYPE_BYLINE_PATTERN: Final = r"\b[Bb]y\s+[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){1,2}\b"
-PAGE_TYPE_DATE_PATTERN: Final = (
+PAGE_KIND_ARTICLE_SCAN_CHARS: Final = 2000
+PAGE_KIND_BYLINE_PATTERN: Final = r"\b[Bb]y\s+[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){1,2}\b"
+PAGE_KIND_DATE_PATTERN: Final = (
     r"(?:\b\d{4}-\d{2}-\d{2}\b"
     r"|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)"
     r"[a-z]*\.?\s+\d{1,2},?\s+\d{4}\b)"
@@ -918,48 +1018,48 @@ PAGE_TYPE_DATE_PATTERN: Final = (
 # NOTE: the sh-extractor-2 parser recognizes the full
 # STRUCTURED_DATA_RECOGNIZED_TYPES set into
 # facts["structured_data"]["types"], so every type below can fire.
-PAGE_TYPE_SCHEMA_TYPE_MAP: Final[dict[str, str]] = {
-    "Article": PAGE_TYPE_ARTICLE,
-    "BlogPosting": PAGE_TYPE_ARTICLE,
-    "NewsArticle": PAGE_TYPE_ARTICLE,
-    "Product": PAGE_TYPE_PRODUCT,
-    "FAQPage": PAGE_TYPE_FAQ,
-    "TechArticle": PAGE_TYPE_DOCS,
-    "Service": PAGE_TYPE_SERVICE,
-    "LocalBusiness": PAGE_TYPE_LOCAL,
-    "HowTo": PAGE_TYPE_GUIDE,
-    "Review": PAGE_TYPE_CASE_STUDY_REVIEW,
+PAGE_KIND_SCHEMA_TYPE_MAP: Final[dict[str, str]] = {
+    "Article": PAGE_KIND_ARTICLE,
+    "BlogPosting": PAGE_KIND_ARTICLE,
+    "NewsArticle": PAGE_KIND_ARTICLE,
+    "Product": PAGE_KIND_PRODUCT,
+    "FAQPage": PAGE_KIND_FAQ,
+    "TechArticle": PAGE_KIND_DOCS,
+    "Service": PAGE_KIND_SERVICE,
+    "LocalBusiness": PAGE_KIND_LOCAL,
+    "HowTo": PAGE_KIND_GUIDE,
+    "Review": PAGE_KIND_CASE_STUDY_REVIEW,
 }
 
 # Signal names (recorded as bounded evidence: classified_by + signals).
-PAGE_TYPE_SIGNAL_ROOT_PATH: Final = "root_path"
-PAGE_TYPE_SIGNAL_PATH_PATTERN: Final = "path_pattern"
-PAGE_TYPE_SIGNAL_CONTENT_HEURISTIC: Final = "content_heuristic"
-PAGE_TYPE_SIGNAL_STRUCTURED_DATA: Final = "structured_data"
-PAGE_TYPE_SIGNAL_NONE: Final = "none"
+PAGE_KIND_SIGNAL_ROOT_PATH: Final = "root_path"
+PAGE_KIND_SIGNAL_PATH_PATTERN: Final = "path_pattern"
+PAGE_KIND_SIGNAL_CONTENT_HEURISTIC: Final = "content_heuristic"
+PAGE_KIND_SIGNAL_STRUCTURED_DATA: Final = "structured_data"
+PAGE_KIND_SIGNAL_NONE: Final = "none"
 
 # Each matched signal contributes its weight once; confidence is the SUM.
 # Below the threshold the page classifies as "other". With these weights any
 # single matched signal classifies; the threshold guards future weight
 # retunes and keeps "no evidence" (0.0) firmly at "other".
-PAGE_TYPE_SIGNAL_WEIGHTS: Final[dict[str, float]] = {
-    PAGE_TYPE_SIGNAL_ROOT_PATH: 1.0,
-    PAGE_TYPE_SIGNAL_PATH_PATTERN: 0.8,
-    PAGE_TYPE_SIGNAL_CONTENT_HEURISTIC: 0.6,
-    PAGE_TYPE_SIGNAL_STRUCTURED_DATA: 0.5,
+PAGE_KIND_SIGNAL_WEIGHTS: Final[dict[str, float]] = {
+    PAGE_KIND_SIGNAL_ROOT_PATH: 1.0,
+    PAGE_KIND_SIGNAL_PATH_PATTERN: 0.8,
+    PAGE_KIND_SIGNAL_CONTENT_HEURISTIC: 0.6,
+    PAGE_KIND_SIGNAL_STRUCTURED_DATA: 0.5,
 }
-PAGE_TYPE_CONFIDENCE_THRESHOLD: Final = 0.5
+PAGE_KIND_CONFIDENCE_THRESHOLD: Final = 0.5
 
 # Applicability token prefix for page-type-scoped rules (spec §5.2):
-# ``page_type:<type>`` resolves against ``facts["page_type"]``.
-PAGE_TYPE_APPLICABILITY_PREFIX: Final = "page_type:"
+# ``page_kind:<type>`` resolves against ``facts["page_kind"]``.
+PAGE_KIND_APPLICABILITY_PREFIX: Final = "page_kind:"
 
 
-class PageTypeProfile:
+class PageKindProfile:
     """Per-page-type rule-tuning profile (frozen, config-owned).
 
     The profile key doubles as the rule ``applicability_key`` token this
-    page type answers to (``page_type:<type>`` — unknown tokens stay
+    page type answers to (``page_kind:<type>`` — unknown tokens stay
     fail-closed in the evaluator). ``min_sufficient_words`` is the per-type
     thin-content minimum read by ``technical.thin_content`` (the v1 global
     ``MIN_SUFFICIENT_WORDS`` analysis constant moved here in v2 — invariant
@@ -970,7 +1070,7 @@ class PageTypeProfile:
     """
 
     __slots__ = (
-        "page_type",
+        "page_kind",
         "min_sufficient_words",
         "rule_weight_overrides",
     )
@@ -978,11 +1078,11 @@ class PageTypeProfile:
     def __init__(
         self,
         *,
-        page_type: str,
+        page_kind: str,
         min_sufficient_words: int,
         rule_weight_overrides: dict[str, float] | None = None,
     ) -> None:
-        self.page_type = page_type
+        self.page_kind = page_kind
         self.min_sufficient_words = min_sufficient_words
         self.rule_weight_overrides = dict(rule_weight_overrides or {})
 
@@ -991,56 +1091,56 @@ class PageTypeProfile:
 # global default (100 words) so unclassified pages score exactly as before;
 # classified pages get type-appropriate thin-content minimums. Weight
 # overrides start sparse (the mechanism is exercised at evaluation time).
-PAGE_TYPE_PROFILES: Final[dict[str, PageTypeProfile]] = {
+PAGE_KIND_PROFILES: Final[dict[str, PageKindProfile]] = {
     # Homepages are naturally link-heavy/thin; a lower minimum and a
     # reduced thin-content weight keep them from reading as thin.
-    PAGE_TYPE_HOMEPAGE: PageTypeProfile(
-        page_type=PAGE_TYPE_HOMEPAGE,
+    PAGE_KIND_HOMEPAGE: PageKindProfile(
+        page_kind=PAGE_KIND_HOMEPAGE,
         min_sufficient_words=40,
         rule_weight_overrides={"technical.thin_content": 1.0},
     ),
-    PAGE_TYPE_ARTICLE: PageTypeProfile(
-        page_type=PAGE_TYPE_ARTICLE, min_sufficient_words=300
+    PAGE_KIND_ARTICLE: PageKindProfile(
+        page_kind=PAGE_KIND_ARTICLE, min_sufficient_words=300
     ),
-    PAGE_TYPE_PRODUCT: PageTypeProfile(
-        page_type=PAGE_TYPE_PRODUCT, min_sufficient_words=80
+    PAGE_KIND_PRODUCT: PageKindProfile(
+        page_kind=PAGE_KIND_PRODUCT, min_sufficient_words=80
     ),
-    PAGE_TYPE_CATEGORY: PageTypeProfile(
-        page_type=PAGE_TYPE_CATEGORY, min_sufficient_words=60
+    PAGE_KIND_CATEGORY: PageKindProfile(
+        page_kind=PAGE_KIND_CATEGORY, min_sufficient_words=60
     ),
-    PAGE_TYPE_PRICING: PageTypeProfile(
-        page_type=PAGE_TYPE_PRICING, min_sufficient_words=80
+    PAGE_KIND_PRICING: PageKindProfile(
+        page_kind=PAGE_KIND_PRICING, min_sufficient_words=80
     ),
-    PAGE_TYPE_DOCS: PageTypeProfile(page_type=PAGE_TYPE_DOCS, min_sufficient_words=150),
-    PAGE_TYPE_FAQ: PageTypeProfile(page_type=PAGE_TYPE_FAQ, min_sufficient_words=120),
-    PAGE_TYPE_ABOUT_CONTACT: PageTypeProfile(
-        page_type=PAGE_TYPE_ABOUT_CONTACT, min_sufficient_words=60
+    PAGE_KIND_DOCS: PageKindProfile(page_kind=PAGE_KIND_DOCS, min_sufficient_words=150),
+    PAGE_KIND_FAQ: PageKindProfile(page_kind=PAGE_KIND_FAQ, min_sufficient_words=120),
+    PAGE_KIND_ABOUT_CONTACT: PageKindProfile(
+        page_kind=PAGE_KIND_ABOUT_CONTACT, min_sufficient_words=60
     ),
-    PAGE_TYPE_SERVICE: PageTypeProfile(
-        page_type=PAGE_TYPE_SERVICE, min_sufficient_words=100
+    PAGE_KIND_SERVICE: PageKindProfile(
+        page_kind=PAGE_KIND_SERVICE, min_sufficient_words=100
     ),
-    PAGE_TYPE_LOCAL: PageTypeProfile(
-        page_type=PAGE_TYPE_LOCAL, min_sufficient_words=80
+    PAGE_KIND_LOCAL: PageKindProfile(
+        page_kind=PAGE_KIND_LOCAL, min_sufficient_words=80
     ),
-    PAGE_TYPE_GUIDE: PageTypeProfile(
-        page_type=PAGE_TYPE_GUIDE, min_sufficient_words=200
+    PAGE_KIND_GUIDE: PageKindProfile(
+        page_kind=PAGE_KIND_GUIDE, min_sufficient_words=200
     ),
-    PAGE_TYPE_COMPARISON: PageTypeProfile(
-        page_type=PAGE_TYPE_COMPARISON, min_sufficient_words=150
+    PAGE_KIND_COMPARISON: PageKindProfile(
+        page_kind=PAGE_KIND_COMPARISON, min_sufficient_words=150
     ),
-    PAGE_TYPE_CASE_STUDY_REVIEW: PageTypeProfile(
-        page_type=PAGE_TYPE_CASE_STUDY_REVIEW, min_sufficient_words=150
+    PAGE_KIND_CASE_STUDY_REVIEW: PageKindProfile(
+        page_kind=PAGE_KIND_CASE_STUDY_REVIEW, min_sufficient_words=150
     ),
-    PAGE_TYPE_TRUST_POLICY: PageTypeProfile(
-        page_type=PAGE_TYPE_TRUST_POLICY, min_sufficient_words=80
+    PAGE_KIND_TRUST_POLICY: PageKindProfile(
+        page_kind=PAGE_KIND_TRUST_POLICY, min_sufficient_words=80
     ),
-    PAGE_TYPE_OTHER: PageTypeProfile(
-        page_type=PAGE_TYPE_OTHER, min_sufficient_words=100
+    PAGE_KIND_OTHER: PageKindProfile(
+        page_kind=PAGE_KIND_OTHER, min_sufficient_words=100
     ),
 }
 
 
-class PageTypeSchemaExpectation:
+class PageKindSchemaExpectation:
     """Per-page-type expected structured-data contract (frozen, config-owned).
 
     ``expected_types`` are the schema.org types a page of this type should
@@ -1053,7 +1153,7 @@ class PageTypeSchemaExpectation:
     """
 
     __slots__ = (
-        "page_type",
+        "page_kind",
         "expected_types",
         "required_properties",
         "recommended_properties",
@@ -1062,12 +1162,12 @@ class PageTypeSchemaExpectation:
     def __init__(
         self,
         *,
-        page_type: str,
+        page_kind: str,
         expected_types: tuple[str, ...],
         required_properties: tuple[str, ...],
         recommended_properties: tuple[str, ...],
     ) -> None:
-        self.page_type = page_type
+        self.page_kind = page_kind
         self.expected_types = expected_types
         self.required_properties = required_properties
         self.recommended_properties = recommended_properties
@@ -1076,21 +1176,21 @@ class PageTypeSchemaExpectation:
 # Per-type expected schema.org types + required/recommended property splits
 # (spec §5.2 table, verbatim). Extends — never replaces — the v1
 # presence-only ``STRUCTURED_DATA_REQUIRED_PROPERTIES`` map below.
-PAGE_TYPE_EXPECTED_SCHEMA: Final[dict[str, PageTypeSchemaExpectation]] = {
-    PAGE_TYPE_HOMEPAGE: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_HOMEPAGE,
+PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
+    PAGE_KIND_HOMEPAGE: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_HOMEPAGE,
         expected_types=("Organization", "WebSite"),
         required_properties=("name", "url"),
         recommended_properties=("sameAs", "logo"),
     ),
-    PAGE_TYPE_ARTICLE: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_ARTICLE,
+    PAGE_KIND_ARTICLE: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_ARTICLE,
         expected_types=("Article", "BlogPosting", "NewsArticle"),
         required_properties=("headline", "author", "datePublished"),
         recommended_properties=("image", "dateModified"),
     ),
-    PAGE_TYPE_PRODUCT: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_PRODUCT,
+    PAGE_KIND_PRODUCT: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_PRODUCT,
         expected_types=("Product",),
         required_properties=("name", "offers"),
         recommended_properties=(
@@ -1099,74 +1199,74 @@ PAGE_TYPE_EXPECTED_SCHEMA: Final[dict[str, PageTypeSchemaExpectation]] = {
             "aggregateRating",
         ),
     ),
-    PAGE_TYPE_CATEGORY: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_CATEGORY,
+    PAGE_KIND_CATEGORY: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_CATEGORY,
         expected_types=("BreadcrumbList", "CollectionPage", "ItemList"),
         required_properties=("itemListElement",),
         recommended_properties=(),
     ),
-    PAGE_TYPE_PRICING: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_PRICING,
+    PAGE_KIND_PRICING: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_PRICING,
         expected_types=("Product", "Service"),
         required_properties=("offers",),
         recommended_properties=("price", "priceCurrency"),
     ),
-    PAGE_TYPE_DOCS: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_DOCS,
+    PAGE_KIND_DOCS: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_DOCS,
         expected_types=("TechArticle",),
         required_properties=("headline",),
         recommended_properties=("author", "dateModified"),
     ),
-    PAGE_TYPE_FAQ: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_FAQ,
+    PAGE_KIND_FAQ: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_FAQ,
         expected_types=("FAQPage",),
         required_properties=("mainEntity",),
         recommended_properties=(),
     ),
-    PAGE_TYPE_ABOUT_CONTACT: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_ABOUT_CONTACT,
+    PAGE_KIND_ABOUT_CONTACT: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_ABOUT_CONTACT,
         expected_types=("Organization", "LocalBusiness", "ContactPage"),
         required_properties=("name",),
         recommended_properties=("contactPoint", "address"),
     ),
-    PAGE_TYPE_SERVICE: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_SERVICE,
+    PAGE_KIND_SERVICE: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_SERVICE,
         expected_types=("Service",),
         required_properties=("name",),
         recommended_properties=("provider", "areaServed"),
     ),
-    PAGE_TYPE_LOCAL: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_LOCAL,
+    PAGE_KIND_LOCAL: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_LOCAL,
         expected_types=("LocalBusiness",),
         required_properties=("name", "address"),
         recommended_properties=("telephone", "geo"),
     ),
-    PAGE_TYPE_GUIDE: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_GUIDE,
+    PAGE_KIND_GUIDE: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_GUIDE,
         expected_types=("HowTo", "Article"),
         required_properties=("name",),
         recommended_properties=("step", "image"),
     ),
-    PAGE_TYPE_COMPARISON: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_COMPARISON,
+    PAGE_KIND_COMPARISON: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_COMPARISON,
         expected_types=("Article", "ItemList"),
         required_properties=("name",),
         recommended_properties=("itemListElement",),
     ),
-    PAGE_TYPE_CASE_STUDY_REVIEW: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_CASE_STUDY_REVIEW,
+    PAGE_KIND_CASE_STUDY_REVIEW: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_CASE_STUDY_REVIEW,
         expected_types=("Article", "Review"),
         required_properties=("name",),
         recommended_properties=("author", "datePublished"),
     ),
-    PAGE_TYPE_TRUST_POLICY: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_TRUST_POLICY,
+    PAGE_KIND_TRUST_POLICY: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_TRUST_POLICY,
         expected_types=("WebPage",),
         required_properties=("name",),
         recommended_properties=("dateModified",),
     ),
-    PAGE_TYPE_OTHER: PageTypeSchemaExpectation(
-        page_type=PAGE_TYPE_OTHER,
+    PAGE_KIND_OTHER: PageKindSchemaExpectation(
+        page_kind=PAGE_KIND_OTHER,
         expected_types=("WebPage",),
         required_properties=("name",),
         recommended_properties=(),
@@ -1179,7 +1279,7 @@ PAGE_TYPE_EXPECTED_SCHEMA: Final[dict[str, PageTypeSchemaExpectation]] = {
 # re-walk raw JSON-LD at evaluation time.
 SCHEMA_PROPERTY_PATHS: Final[frozenset[str]] = frozenset(
     path
-    for expectation in PAGE_TYPE_EXPECTED_SCHEMA.values()
+    for expectation in PAGE_KIND_EXPECTED_SCHEMA.values()
     for path in (expectation.required_properties + expectation.recommended_properties)
 )
 
@@ -1376,7 +1476,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         weight=2.0,
         applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description=(
-            "Word count is below the per-page-type minimum (PAGE_TYPE_PROFILES)."
+            "Word count is below the per-page-type minimum (PAGE_KIND_PROFILES)."
         ),
         remediation="Add substantive, answer-oriented body content to the page.",
         display_label="Thin content",
@@ -1524,7 +1624,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         remediation=(
             "Add the expected schema.org type for this page type "
-            "(PAGE_TYPE_EXPECTED_SCHEMA)."
+            "(PAGE_KIND_EXPECTED_SCHEMA)."
         ),
         display_label="Missing expected schema type for page type",
     ),
@@ -1622,7 +1722,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_MEDIUM,
         weight=1.0,
-        applicability_key=f"{PAGE_TYPE_APPLICABILITY_PREFIX}{PAGE_TYPE_HOMEPAGE}",
+        applicability_key=f"{PAGE_KIND_APPLICABILITY_PREFIX}{PAGE_KIND_HOMEPAGE}",
         description="Homepage Organization markup carries sameAs identity links.",
         remediation=(
             "Add sameAs links (official profiles) to the homepage Organization schema."
@@ -1769,7 +1869,7 @@ STRUCTURED_DATA_RECOGNIZED_TYPES: Final[frozenset[str]] = frozenset(
     STRUCTURED_DATA_REQUIRED_PROPERTIES
 ) | frozenset(
     schema_type
-    for expectation in PAGE_TYPE_EXPECTED_SCHEMA.values()
+    for expectation in PAGE_KIND_EXPECTED_SCHEMA.values()
     for schema_type in expectation.expected_types
 )
 
@@ -1982,23 +2082,34 @@ class SiteHealthSettings(BaseSettings):
     # explicit challenge/status evidence.
     curl_cffi_low_content_bytes: int = 512
     curl_cffi_trigger_statuses: tuple[int, ...] = (403, 429, 503)
-    # Only these curl-rung failure tokens may advance to the server-side
-    # provider. Policy/cap/redirect failures must never be bypassed.
-    scraperapi_continue_error_codes: tuple[str, ...] = (
+    # Only these curl-rung failure tokens may advance to the browser rung.
+    # Policy/cap/redirect failures must never be bypassed.
+    browser_continue_error_codes: tuple[str, ...] = (
         ERROR_CONNECTION_FAILED,
         ERROR_TIMEOUT,
         ERROR_ACQUISITION_UNAVAILABLE,
     )
-    scraperapi_enabled: bool = False
-    scraperapi_api_key: str = ""
-    scraperapi_endpoint: str = "https://api.scraperapi.com/"
-    scraperapi_render: bool = False
-    scraperapi_premium: bool = False
-    scraperapi_country_code: str = ""
-    scraperapi_request_id_header: str = "x-sapi-request-id"
-    # ScraperAPI must not follow target redirects invisibly: each target URL
-    # is separately canonicalized and resolved by this process.
-    scraperapi_follow_redirects: bool = False
+    # --- Rung 3: bundled headless browser (patchright) ---
+    # The last rung of the frozen ladder. It renders a JS shell locally; there
+    # is deliberately no paid acquisition vendor and no real-Chrome escalation.
+    browser_enabled: bool = False
+    browser_navigation_timeout_seconds: float = 20.0
+    # How long readiness may wait for the DOM to settle after navigation.
+    browser_readiness_timeout_seconds: float = 8.0
+    # A rendered document below this size is still treated as a challenge/JS
+    # shell rather than usable evidence.
+    browser_low_content_bytes: int = 512
+    # Bounded same-site JSON/XHR capture (0 disables capture entirely).
+    browser_max_captured_responses: int = 16
+    browser_max_captured_bytes: int = 2_000_000
+    # Each pooled entry is a live browser process pinned to one resolved
+    # address, so the pool is bounded and evicts least-recently-used. Contexts
+    # are deliberately NOT pooled — one fresh context per fetch is what keeps
+    # cookies and storage from leaking between crawled pages.
+    browser_pool_max_browsers: int = 4
+    # Chromium's sandbox contains code fetched from crawled sites. Disable it
+    # ONLY on a platform that cannot grant the required kernel capability.
+    browser_disable_sandbox: bool = False
 
     # --- Sitemap limits ---
     max_sitemap_index_depth: int = 3
@@ -2119,12 +2230,14 @@ class SiteHealthSettings(BaseSettings):
             status < 100 or status > 599 for status in self.curl_cffi_trigger_statuses
         ):
             raise ValueError("curl_cffi_trigger_statuses must be HTTP status codes")
-        if self.scraperapi_enabled and not self.scraperapi_api_key.strip():
-            raise ValueError("scraperapi_api_key is required when scraperapi_enabled")
-        if self.scraperapi_enabled and not self.scraperapi_endpoint.startswith(
-            "https://"
-        ):
-            raise ValueError("scraperapi_endpoint must use https")
+        if self.browser_low_content_bytes < 0:
+            raise ValueError("browser_low_content_bytes must not be negative")
+        if self.browser_navigation_timeout_seconds <= 0:
+            raise ValueError("browser_navigation_timeout_seconds must be positive")
+        if self.browser_readiness_timeout_seconds <= 0:
+            raise ValueError("browser_readiness_timeout_seconds must be positive")
+        if self.browser_pool_max_browsers < 1:
+            raise ValueError("browser_pool_max_browsers must be at least 1")
         return self
 
     @model_validator(mode="after")

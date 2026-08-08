@@ -66,14 +66,13 @@ def _result(*, url: str, content_type: str = "text/html") -> FetchResult:
                 ttfb_ms=5,
                 latency_ms=9,
                 acquisition=AcquisitionProvenance(
-                    transport="scraperapi",
+                    transport="patchright",
                     rung=3,
-                    scraperapi_options={"render": False},
-                    scraperapi_request_id="request-id",
+                    options={"max_captured_responses": 16},
                 ),
             ),
         ),
-        acquisition=AcquisitionProvenance(transport="scraperapi", rung=3),
+        acquisition=AcquisitionProvenance(transport="patchright", rung=3),
     )
 
 
@@ -132,7 +131,7 @@ def test_safe_acquisition_is_bounded_and_excludes_raw_html_and_secrets() -> None
     assert "raw-html-contains-super-secret" not in serialized
     assert "authorization" not in serialized
     assert "body" not in persisted
-    assert persisted["provenance"]["transport"] == "scraperapi"
+    assert persisted["provenance"]["transport"] == "patchright"
 
 
 def test_extract_product_preserves_late_node_from_final_schema_document() -> None:

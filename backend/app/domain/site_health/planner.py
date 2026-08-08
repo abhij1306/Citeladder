@@ -58,12 +58,13 @@ from app.core.config.site_health import (
     EVENT_CRAWL_CREATED,
     EVENT_CRAWL_QUEUED,
     EXTRACTOR_VERSION,
+    INDUSTRY_PACK_MANIFEST_KEY,
     INPUT_MODE_AUTO,
     INPUT_MODE_EXACT_URLS,
     INPUT_MODES,
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
     OBSERVATION_SOURCE_ROOT,
-    PAGE_TYPES,
+    PAGE_KINDS,
     PHASE_DISCOVERY,
     PHASE_RUN_RUNNING,
     RULE_CATALOG_VERSION,
@@ -81,6 +82,10 @@ from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,
 )
 from app.domain.site_health.entitlements import lock_runtime
+from app.domain.site_health.industry_pack import (
+    freeze_pack_manifest,
+    resolve_project_pack_id,
+)
 from app.domain.site_health.inventory_scope import freeze_inventory_lineage
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.selection import seed_monitored_targets
@@ -258,7 +263,7 @@ def _frozen_configuration(
     input_mode: str = INPUT_MODE_AUTO,
     requested_page_limit: int | None = None,
     seed_urls: list[str] | None = None,
-    page_types: list[str] | None = None,
+    page_kinds: list[str] | None = None,
     advanced_controls_enabled: bool = False,
 ) -> dict:
     """Freeze the operational settings + runtime projection (invariant 9).
@@ -284,7 +289,7 @@ def _frozen_configuration(
         "include_globs": include_globs,
         "exclude_globs": exclude_globs,
         "url_admission_policy_version": URL_ADMISSION_POLICY_VERSION,
-        "page_type_classifier_version": CLASSIFIER_VERSION,
+        "page_kind_classifier_version": CLASSIFIER_VERSION,
         "page_profile_rule_version": PAGE_PROFILE_RULE_VERSION,
         "input_mode": input_mode,
         "requested_page_limit": requested_page_limit,
@@ -292,7 +297,7 @@ def _frozen_configuration(
         "max_discovery_urls": s.max_discovery_urls,
         "max_analysis_urls": s.max_analysis_urls,
         "seed_urls": list(seed_urls or []),
-        "page_types": list(page_types or []),
+        "page_kinds": list(page_kinds or []),
         "max_frontier_urls": s.max_frontier_urls,
         "max_crawl_depth": s.max_crawl_depth,
         "admission_batch_size": s.admission_batch_size,
@@ -317,12 +322,12 @@ def _controls_for_request(
     input_mode: str | None,
     requested_page_limit: int | None,
     seed_urls: list[str] | None,
-    page_types: list[str] | None,
+    page_kinds: list[str] | None,
 ) -> tuple[str, int, list[str], list[str]]:
     """Validate development-only crawl controls and return frozen values."""
     mode = input_mode or INPUT_MODE_AUTO
     raw_seeds = list(seed_urls or [])
-    selected_types = list(page_types or [])
+    selected_types = list(page_kinds or [])
     _validate_control_values(mode, raw_seeds, selected_types)
     if (
         _advanced_controls_requested(
@@ -349,8 +354,8 @@ def _validate_control_values(
         raise CrawlPlanError("unknown input_mode", code="invalid_crawl_request")
     if len(raw_seeds) > site_health_settings.max_seed_urls:
         raise CrawlPlanError("too many seed_urls", code="invalid_crawl_request")
-    if any(value not in PAGE_TYPES for value in selected_types):
-        raise CrawlPlanError("unknown page type", code="invalid_crawl_request")
+    if any(value not in PAGE_KINDS for value in selected_types):
+        raise CrawlPlanError("unknown page kind", code="invalid_crawl_request")
 
 
 def _advanced_controls_requested(
@@ -534,7 +539,7 @@ async def create_crawl(
     input_mode: str | None = None,
     requested_page_limit: int | None = None,
     seed_urls: list[str] | None = None,
-    page_types: list[str] | None = None,
+    page_kinds: list[str] | None = None,
     commit: bool = True,
 ) -> SiteCrawl:
     """Create + queue a Site Health crawl (freeze scope, seed the root task).
@@ -587,7 +592,7 @@ async def create_crawl(
         input_mode=input_mode,
         requested_page_limit=requested_page_limit,
         seed_urls=seed_urls,
-        page_types=page_types,
+        page_kinds=page_kinds,
     )
     accepted_seeds = _admit_seed_urls(
         raw_seeds,
@@ -632,9 +637,16 @@ async def create_crawl(
         input_mode=mode,
         requested_page_limit=page_limit,
         seed_urls=accepted_seeds,
-        page_types=selected_types,
+        page_kinds=selected_types,
         advanced_controls_enabled=site_health_settings.advanced_controls_enabled,
     )
+
+    # Freeze the EXACT industry pack once, here. Resolving it per page (or at
+    # read time) would let a later project-settings change silently reinterpret
+    # this crawl's analyses under a different pack.
+    pack_manifest_snapshot = freeze_pack_manifest(resolve_project_pack_id(project))
+    if pack_manifest_snapshot is not None:
+        configuration[INDUSTRY_PACK_MANIFEST_KEY] = pack_manifest_snapshot
 
     # Keep a full-inventory project's earlier discovered URLs visible while
     # a new analysis crawl re-discovers the site. The lineage references

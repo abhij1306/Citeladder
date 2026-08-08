@@ -24,8 +24,9 @@ from app.core.config.site_health import (
     CRAWL_STATUS_PARTIALLY_COMPLETED,
     CRAWL_STATUS_RUNNING,
     ERROR_ROBOTS_DENIED,
+    EXTRACTOR_VERSION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    PAGE_TYPE_PROFILES,
+    PAGE_KIND_PROFILES,
     RULE_CATALOG_VERSION,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
@@ -398,7 +399,7 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
 async def test_analyze_persists_page_type_classifier_and_v2_versions(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """v2 P1: the analyze task classifies the page, injects page_type into
+    """v2 P1: the analyze task classifies the page, injects page_kind into
     the facts before rule evaluation, and stamps the P1 versions on the
     persisted rows (sh-analyzer-2 / sh-scoring-2 / sh-classifier-2)."""
     from app.core.config.site_health import (
@@ -427,7 +428,7 @@ async def test_analyze_persists_page_type_classifier_and_v2_versions(
             )
         ).scalar_one()
         # The /blog/ path pattern classified the page as an article.
-        assert analysis.page_type == "article"
+        assert analysis.page_kind == "article"
         assert analysis.classifier_version == "sh-classifier-2"
         assert analysis.analyzer_version == "sh-analyzer-2"
         assert analysis.scoring_version == "sh-scoring-2"
@@ -435,15 +436,15 @@ async def test_analyze_persists_page_type_classifier_and_v2_versions(
         # The bounded classifier evidence persisted WITH the row (it used to
         # be computed, injected into the facts dict after the artifact flush,
         # and dropped). Its classifier_version matches the row's stamp.
-        evidence = analysis.page_type_evidence
+        evidence = analysis.page_kind_evidence
         assert evidence is not None
         assert evidence["classifier_version"] == analysis.classifier_version
         assert evidence["classified_by"] == "path_pattern"
         assert evidence["confidence"] >= evidence["confidence_threshold"]
         assert evidence["signals"][0]["signal"] == "path_pattern"
-        assert evidence["signals"][0]["page_type"] == "article"
+        assert evidence["signals"][0]["page_kind"] == "article"
 
-        # facts["page_type"] reached rule evaluation: the thin-content check
+        # facts["page_kind"] reached rule evaluation: the thin-content check
         # read the per-type (article) minimum, not the v1 global.
         thin = (
             await session.execute(
@@ -453,8 +454,8 @@ async def test_analyze_persists_page_type_classifier_and_v2_versions(
                 )
             )
         ).scalar_one()
-        article_min = PAGE_TYPE_PROFILES["article"].min_sufficient_words
-        assert thin.evidence["page_type"] == "article"
+        article_min = PAGE_KIND_PROFILES["article"].min_sufficient_words
+        assert thin.evidence["page_kind"] == "article"
         assert thin.evidence["minimum"] == article_min
         # The rich page (140 words) is thin FOR AN ARTICLE (>= 300 words).
         assert thin.outcome == RULE_OUTCOME_FAIL
@@ -464,10 +465,10 @@ async def test_analyze_persists_page_type_classifier_and_v2_versions(
         assert crawl is not None
         summary = crawl.score_summary or {}
         assert summary.get("scoring_version") == "sh-scoring-2"
-        by_page_type = summary.get("by_page_type") or {}
-        assert set(by_page_type) == {"article"}
-        assert by_page_type["article"]["analyzed_count"] == 1
-        assert by_page_type["article"]["overall_score"] is not None
+        by_page_kind = summary.get("by_page_kind") or {}
+        assert set(by_page_kind) == {"article"}
+        assert by_page_kind["article"]["analyzed_count"] == 1
+        assert by_page_kind["article"]["overall_score"] is not None
 
 
 @pytest.mark.asyncio
@@ -606,12 +607,15 @@ async def test_analyze_injects_site_facts_on_root_analysis_only(
         assert other_llms.outcome == RULE_OUTCOME_NOT_APPLICABLE
 
         # The injected site copy never lands in the immutable artifact facts,
-        # which DO carry the sh-extractor-2 stamp + the new P2 fields.
+        # which DO carry the current extractor stamp + the P2 fields. Compared
+        # against the config constant rather than a literal: this assertion is
+        # about the artifact carrying the version that produced it, not about
+        # any particular version number.
         artifact = await session.get(SiteFetchArtifact, root_analysis.artifact_id)
         assert artifact is not None
         facts = artifact.normalized_facts or {}
         assert "site" not in facts
-        assert facts.get("extractor_version") == "sh-extractor-2"
+        assert facts.get("extractor_version") == EXTRACTOR_VERSION
         for key in (
             "author",
             "dates",

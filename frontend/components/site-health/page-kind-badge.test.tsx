@@ -1,26 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-import { PageTypeBadge } from './page-type-badge';
+import { PageKindBadge } from './page-kind-badge';
 
-describe('PageTypeBadge', () => {
-  it('renders the humanized page-type label as a badge', () => {
-    render(<PageTypeBadge pageType="about_contact" />);
+describe('PageKindBadge', () => {
+  it('renders the humanized page-kind label as a badge', () => {
+    render(<PageKindBadge pageKind="about_contact" />);
     expect(screen.getByText('About / Contact')).toBeInTheDocument();
   });
 
   it('renders the acronym label untouched (FAQ, not Faq)', () => {
-    render(<PageTypeBadge pageType="faq" />);
+    render(<PageKindBadge pageKind="faq" />);
     expect(screen.getByText('FAQ')).toBeInTheDocument();
   });
 
   it('renders the — placeholder for an unclassified page (null) — never a guessed type', () => {
-    render(<PageTypeBadge pageType={null} />);
+    render(<PageKindBadge pageKind={null} />);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
 
   it('renders the — placeholder when the projection does not carry the field', () => {
-    render(<PageTypeBadge pageType={undefined} />);
+    render(<PageKindBadge pageKind={undefined} />);
     expect(screen.getByText('—')).toBeInTheDocument();
   });
 });

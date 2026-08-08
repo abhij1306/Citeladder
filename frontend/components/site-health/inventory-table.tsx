@@ -9,7 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { InventoryRow } from '@/lib/api/types';
-import { PageTypeBadge } from '@/components/site-health/page-type-badge';
+import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 
 /** The cursor-paginated inventory rows with per-row monitored checkboxes. */
 export function InventoryTable({
@@ -29,7 +29,7 @@ export function InventoryTable({
         <TableRow>
           <TableHead className="w-10" />
           <TableHead>Page URL</TableHead>
-          <TableHead>Page Type</TableHead>
+          <TableHead>Page Kind</TableHead>
           <TableHead>Content Type</TableHead>
         </TableRow>
       </TableHeader>
@@ -53,7 +53,7 @@ export function InventoryTable({
               </span>
             </TableCell>
             <TableCell>
-              <PageTypeBadge pageType={row.page_type} />
+              <PageKindBadge pageKind={row.page_kind} />
             </TableCell>
             <TableCell className="text-secondary text-xs">{row.content_type ?? '—'}</TableCell>
           </TableRow>

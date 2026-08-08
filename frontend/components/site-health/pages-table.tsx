@@ -15,7 +15,8 @@ import {
 import { scoreTextClass } from '@/components/ui/score-band';
 import { cn } from '@/lib/utils';
 import type { PageSummary } from '@/lib/api/types';
-import { PageTypeBadge } from '@/components/site-health/page-type-badge';
+import { IndustryRoleBadge } from '@/components/site-health/industry-role-badge';
+import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import {
   formatAudited,
   formatIssueCount,
@@ -27,7 +28,7 @@ import {
 /**
  * Analyzed-pages table (Slice 7, mockups 712 + 713).
  *
- * Renders one row per analyzed page: URL (+ path), the page-type badge (v2
+ * Renders one row per analyzed page: URL (+ path), the page-kind badge (v2
  * P1), a per-page analysis status badge (queued/running/completed/error/
  * blocked), issue count, Web Fundamentals / AEO scores, last audited, and a View
  * action. Missing / not-yet-analysed scores render the `—` placeholder —
@@ -94,7 +95,15 @@ export function PagesTable({
               </span>
             </TableCell>
             <TableCell>
-              <PageTypeBadge pageType={page.page_type} />
+              {/* Generic kind and pack role are separate vocabularies, so they
+                  stack rather than replacing one another. */}
+              <span className="flex flex-col items-start gap-1">
+                <PageKindBadge pageKind={page.page_kind} />
+                <IndustryRoleBadge
+                  roleId={page.industry_role_id}
+                  abstentionReason={page.role_abstention_reason}
+                />
+              </span>
             </TableCell>
             <TableCell>
               <Badge variant="status" value={pageStatusBadgeValue(page.analysis_status)}>

@@ -194,6 +194,7 @@ def upgrade() -> None:
         sa.Column("language_code", sa.String(length=16), nullable=False),
         sa.Column("industry", sa.String(length=255), nullable=False),
         sa.Column("subindustry", sa.String(length=255), nullable=False),
+        sa.Column("industry_pack_id", sa.String(length=64), nullable=False),
         sa.Column("primary_market", sa.String(length=8), nullable=False),
         sa.Column("benchmark_mode", sa.String(length=32), nullable=False),
         sa.Column("default_repetitions", sa.Integer(), nullable=False),
@@ -2408,6 +2409,10 @@ def upgrade() -> None:
         sa.Column("display_url", sa.String(length=2048), nullable=False),
         sa.Column("host", sa.String(length=255), nullable=False),
         sa.Column("depth", sa.Integer(), nullable=False),
+        sa.Column("corpus_disposition", sa.String(length=16), nullable=False),
+        sa.Column("disposition_reason", sa.String(length=32), nullable=False),
+        sa.Column("disposition_version", sa.String(length=32), nullable=False),
+        sa.Column("item_kind", sa.String(length=16), nullable=False),
         sa.Column("discovery_status", sa.String(length=24), nullable=False),
         sa.Column("latest_source_kind", sa.String(length=16), nullable=False),
         sa.Column("latest_title", sa.String(length=1024), nullable=False),
@@ -3362,9 +3367,8 @@ def upgrade() -> None:
         sa.Column("acquisition_trigger", sa.String(length=32), nullable=False),
         sa.Column("impersonation_profile", sa.String(length=64), nullable=False),
         sa.Column(
-            "scraperapi_options", postgresql.JSONB(astext_type=Text()), nullable=True
+            "acquisition_options", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
-        sa.Column("scraperapi_request_id", sa.String(length=255), nullable=False),
         sa.Column("acquisition_policy_version", sa.String(length=32), nullable=False),
         sa.Column("extractor_version", sa.String(length=32), nullable=False),
         sa.Column(
@@ -3618,9 +3622,8 @@ def upgrade() -> None:
         sa.Column("acquisition_trigger", sa.String(length=32), nullable=False),
         sa.Column("impersonation_profile", sa.String(length=64), nullable=False),
         sa.Column(
-            "scraperapi_options", postgresql.JSONB(astext_type=Text()), nullable=True
+            "acquisition_options", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
-        sa.Column("scraperapi_request_id", sa.String(length=255), nullable=False),
         sa.Column("acquisition_policy_version", sa.String(length=32), nullable=False),
         sa.Column("artifact_id", sa.UUID(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -3674,11 +3677,32 @@ def upgrade() -> None:
         sa.Column("overall_score", sa.Float(), nullable=True),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("scoring_version", sa.String(length=32), nullable=False),
-        sa.Column("page_type", sa.String(length=24), nullable=False),
+        sa.Column("page_kind", sa.String(length=24), nullable=False),
         sa.Column("classifier_version", sa.String(length=32), nullable=False),
         sa.Column(
-            "page_type_evidence", postgresql.JSONB(astext_type=Text()), nullable=True
+            "page_kind_evidence", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
+        sa.Column("industry_role_id", sa.String(length=64), nullable=True),
+        sa.Column("industry_role_score", sa.Float(), nullable=True),
+        sa.Column("industry_role_margin", sa.Float(), nullable=True),
+        sa.Column("industry_role_confidence", sa.String(length=16), nullable=False),
+        sa.Column("role_abstention_reason", sa.String(length=32), nullable=False),
+        sa.Column(
+            "industry_role_evidence",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=True,
+        ),
+        sa.Column(
+            "secondary_role_ids", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column("industry_pack_id", sa.String(length=64), nullable=False),
+        sa.Column("industry_pack_version", sa.String(length=32), nullable=False),
+        sa.Column("pack_content_hash", sa.String(length=64), nullable=False),
+        sa.Column("catalog_version", sa.String(length=32), nullable=False),
+        sa.Column("role_classifier_version", sa.String(length=64), nullable=False),
+        sa.Column("corpus_disposition", sa.String(length=16), nullable=False),
+        sa.Column("temporal_state", sa.String(length=16), nullable=False),
+        sa.Column("is_current", sa.Boolean(), nullable=False),
         sa.Column("source_evaluation_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("source_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("finalized_at", sa.DateTime(timezone=True), nullable=True),
@@ -3693,7 +3717,22 @@ def upgrade() -> None:
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("artifact_id", name="uq_site_page_analysis_artifact"),
+        sa.UniqueConstraint(
+            "artifact_id",
+            "analyzer_version",
+            "industry_pack_id",
+            "industry_pack_version",
+            name="uq_site_page_analysis_version",
+        ),
+    )
+    # One live understanding per artifact, enforced by the database so a failed
+    # supersede cannot leave two current rows behind.
+    op.create_index(
+        "uq_site_page_analysis_current",
+        "site_page_analyses",
+        ["artifact_id"],
+        unique=True,
+        postgresql_where=sa.text("is_current"),
     )
     op.create_index(
         op.f("ix_site_page_analyses_artifact_id"),

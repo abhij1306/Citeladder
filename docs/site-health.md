@@ -23,16 +23,26 @@ parallel page-analysis pipeline.
 - grouped issues, per-URL evidence/history, snapshots, and authenticated exports;
 - explicit null/unavailable states rather than fabricated scores.
 
-## Required corrections before Site Intelligence
+## Required corrections before Site Intelligence — shipped
 
-1. Terminal crawl/discovery/analysis state must agree with drained task state.
-2. Stop/continue controls must be idempotent and cannot imply work without a non-terminal task.
-3. A URL failure must not be counted twice across discovery and analysis.
-4. Acquisition documentation/config must match the actual active transport ladder.
-5. Irrelevant, utility, historical, and document content needs first-class corpus disposition.
-6. `page_type` must split into generic `page_kind` and pack-specific `industry_role`.
-7. Supported documents, especially PDFs, must be admitted to corpus inventory without entering the
-   HTML analyzer.
+All seven are implemented:
+
+1. Terminal crawl/discovery/analysis state agrees with drained task state. A drained crawl with no
+   RUNNING phase-run row now terminalizes its phase sub-states instead of parking PAUSED while
+   `analysis_status` stayed `running`.
+2. Stop/continue controls are idempotent. `_pause_if_idle` settles both sub-states from the
+   outstanding-task count, so a second Stop (or a stop after the phase already drained) cannot
+   leave a RUNNING phase no task backs.
+3. A URL failure is counted once: `failed_url_count` counts DISTINCT failed `url_hash` across
+   discover+analyze rather than summing per-kind task failures.
+4. The acquisition ladder is `secure_httpx -> curl_cffi -> patchright`. ScraperAPI is fully
+   removed — rung, settings, and columns.
+5. Corpus disposition (`analyze` | `inventory_only` | `exclude`) is first-class on `SiteUrl` with
+   its reason, version, and `item_kind`.
+6. `page_type` is split: `page_kind` (generic structural) and `industry_role` (pack-governed) are
+   separate columns with independent vocabularies and evidence.
+7. Supported documents (PDF/Office) are admitted to corpus inventory as `item_kind=document` with
+   `inventory_only` disposition, so they count toward coverage without entering the HTML analyzer.
 
 ## Target evidence flow
 
@@ -58,10 +68,28 @@ Classification uses configured URL, title, headings, visible content, forms/CTAs
 context, media type, and structured-data signals. Structured data is optional evidence; missing
 schema is itself a possible gap after role classification.
 
-Existing historical `page_type` values retain their classifier version. New implementation stores
-`page_kind`, `industry_role`, active profile/version, confidence, alternatives, conflicts, and
-bounded signal evidence. A user override creates a versioned reviewed projection; it does not
-rewrite the source artifact.
+`SitePageAnalysis` stores `page_kind`, `industry_role`, the exact frozen pack manifest (catalog
+version, pack id/version, content hash, classifier version), confidence, winner margin,
+alternatives, conflicts, and bounded signal evidence.
+
+The row is append-only, keyed by `(artifact_id, analyzer_version, industry_pack_id,
+industry_pack_version)` with a partial unique index enforcing one `is_current` row per artifact.
+Recomputing under a new pack version writes a NEW row; it never mutates the old one, which is what
+recrawl comparison needs and what stops a pack upgrade from reinterpreting history.
+
+Three role states stay distinct and must not be collapsed:
+
+- **selected** — a role id with score, margin, and confidence band;
+- **executed abstention** — `industry_role_id IS NULL` WITH `role_abstention_reason` (the
+  classifier ran and declined: `schema_only`, `ambiguous_margin`, `below_minimum_score`, …);
+- **never ran** — no pack frozen on the crawl, so the API returns `industry_role: null` entirely.
+
+"We did not look" and "we looked and could not tell" are different facts, and only the second is
+evidence about the page.
+
+Pack resolution happens ONCE at crawl creation and freezes into `SiteCrawl.configuration`. Read
+endpoints render the frozen manifest and never re-resolve a pack. An unknown or ambiguous industry
+label leaves the project unpacked rather than falling back to `general_business`.
 
 ## Documents
 
