@@ -3147,6 +3147,245 @@ export const auditEventSchema = z.discriminatedUnion('event_type', [
 export const auditEventListSchema = z.array(auditEventSchema);
 
 // ---------------------------------------------------------------------------
+// Site Intelligence (S2/S3)
+// ---------------------------------------------------------------------------
+//
+// Every nullable number below is load-bearing. `null` means NOT MEASURABLE and
+// `0` means measured-and-zero; a UI that renders one as the other turns an
+// incomplete crawl into a failing site. Components must branch on `null`, never
+// coalesce it.
+
+export const coverageStateSchema = z.enum([
+  'answered_strong',
+  'answered_weak',
+  'missing',
+  'conflicting',
+  'unsupported',
+  'historical_only',
+  'unavailable_evidence',
+  'not_applicable',
+]);
+
+export const questionCoverageItemSchema = responseObject({
+  question_id: z.string(),
+  label: z.string(),
+  state: coverageStateSchema,
+  journey_stage_id: z.string(),
+  reason: z.string(),
+  satisfied_predicate_ids: z.array(z.string()),
+  missing_predicate_ids: z.array(z.string()),
+  answering_role_ids: z.array(z.string()),
+});
+
+export const questionCoverageBlockSchema = responseObject({
+  answered_ratio: z.number().nullable(),
+  denominator: z.number().int(),
+  counts: z.record(z.string(), z.number().int()),
+  questions: z.array(questionCoverageItemSchema),
+});
+
+export const journeyStageBlockSchema = responseObject({
+  stage_id: z.string(),
+  label: z.string(),
+  order: z.number().int(),
+  role_coverage: z.number(),
+  question_coverage: z.number().nullable(),
+  present_role_ids: z.array(z.string()),
+  missing_role_ids: z.array(z.string()),
+  answered_question_ids: z.array(z.string()),
+  gap_question_ids: z.array(z.string()),
+  // Outcome id -> measurement state. `unavailable` until Demand Intelligence
+  // supplies events; it is never a zero.
+  outcomes: z.record(z.string(), z.string()),
+});
+
+export const journeyBlockSchema = responseObject({
+  journey_id: z.string(),
+  label: z.string(),
+  stages: z.array(journeyStageBlockSchema),
+  role_coverage: z.number(),
+  question_coverage: z.number().nullable(),
+  version: z.string(),
+});
+
+export const dimensionComponentSchema = responseObject({
+  component_id: z.string(),
+  label: z.string(),
+  score: z.number().nullable(),
+});
+
+export const dimensionBlockSchema = responseObject({
+  dimension_id: z.string(),
+  label: z.string(),
+  score: z.number(),
+  coverage: z.number(),
+  components: z.array(dimensionComponentSchema),
+});
+
+export const dimensionsBlockSchema = responseObject({
+  composite_score: z.number().nullable(),
+  composite_coverage: z.number().nullable(),
+  dimensions: z.array(dimensionBlockSchema),
+});
+
+export const knowledgeSummaryBlockSchema = responseObject({
+  entity_count: z.number().int(),
+  assertion_count: z.number().int(),
+  relation_count: z.number().int(),
+  contradiction_count: z.number().int(),
+  pages_considered: z.number().int(),
+  pages_contributing: z.number().int(),
+  entity_type_ids: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+
+export const corpusBlockSchema = responseObject({
+  by_disposition: z.record(z.string(), z.number().int()),
+  by_item_kind: z.record(z.string(), z.number().int()),
+  discovered: z.number().int(),
+  analyzable: z.number().int(),
+  inventory_only: z.number().int(),
+  documents: z.number().int(),
+});
+
+export const intelligenceOverviewSchema = responseObject({
+  // `available` false = no snapshot yet. Distinct from `packed` false, which
+  // means a snapshot exists and no industry pack applied.
+  available: z.boolean(),
+  reason: z.string().nullable(),
+  packed: z.boolean(),
+  manifest: z.record(z.string(), z.string()).nullable(),
+  crawl: responseObject({
+    id: z.string(),
+    status: z.string(),
+    root_url: z.string(),
+    created_at: z.string().nullable(),
+  }),
+  snapshot_id: z.string().nullable(),
+  corpus: corpusBlockSchema,
+  knowledge: knowledgeSummaryBlockSchema,
+  coverage: questionCoverageBlockSchema,
+  journeys: z.array(journeyBlockSchema),
+  dimensions: dimensionsBlockSchema,
+  versions: z.record(z.string(), z.string()),
+});
+
+export const evidenceRefSchema = responseObject({
+  source_kind: z.string(),
+  source_id: z.string(),
+  locator: z.record(z.string(), z.unknown()),
+});
+
+export const knowledgeEntityItemSchema = responseObject({
+  id: z.string(),
+  entity_type_id: z.string(),
+  identity_key: z.string(),
+  canonical_name: z.string(),
+  aliases: z.array(z.string()),
+  identifiers: z.record(z.string(), z.string()),
+  review_state: z.string(),
+  evidence_page_count: z.number().int(),
+  evidence_refs: z.array(evidenceRefSchema),
+  manifest: responseObject({
+    pack_id: z.string(),
+    pack_version: z.string(),
+    extractor_version: z.string(),
+  }),
+});
+
+export const knowledgeEntityPageSchema = responseObject({
+  crawl_id: z.string(),
+  total: z.number().int(),
+  items: z.array(knowledgeEntityItemSchema),
+});
+
+export const assertionSubjectSchema = responseObject({
+  id: z.string(),
+  entity_type_id: z.string(),
+  canonical_name: z.string(),
+});
+
+export const knowledgeAssertionItemSchema = responseObject({
+  id: z.string(),
+  predicate_id: z.string(),
+  value_type: z.string(),
+  raw_value: z.string(),
+  normalized_value: z.string(),
+  numeric_value: z.number().nullable(),
+  unit: z.string(),
+  currency: z.string(),
+  scope: z.record(z.string(), z.string()),
+  temporal_state: z.string(),
+  effective_from: z.string().nullable(),
+  effective_to: z.string().nullable(),
+  derivation_method: z.string(),
+  confidence: z.number().nullable(),
+  review_state: z.string(),
+  // null = nothing disputes this claim. NOT "a dispute was resolved".
+  contradiction_group_id: z.string().nullable(),
+  evidence_refs: z.array(evidenceRefSchema),
+  subject: assertionSubjectSchema,
+});
+
+export const knowledgeAssertionPageSchema = responseObject({
+  crawl_id: z.string(),
+  total: z.number().int(),
+  items: z.array(knowledgeAssertionItemSchema),
+});
+
+export const contradictionGroupSchema = responseObject({
+  contradiction_group_id: z.string(),
+  predicate_id: z.string(),
+  scope: z.record(z.string(), z.string()),
+  subject: assertionSubjectSchema,
+  resolution_state: z.string(),
+  sides: z.array(knowledgeAssertionItemSchema),
+});
+
+export const contradictionPageSchema = responseObject({
+  crawl_id: z.string(),
+  total: z.number().int(),
+  items: z.array(contradictionGroupSchema),
+});
+
+export const knowledgeRelationItemSchema = responseObject({
+  id: z.string(),
+  relation_type_id: z.string(),
+  temporal_state: z.string(),
+  source: responseObject({ name: z.string(), entity_type_id: z.string() }),
+  target: responseObject({ name: z.string(), entity_type_id: z.string() }),
+  evidence_refs: z.array(evidenceRefSchema),
+});
+
+export const knowledgeRelationPageSchema = responseObject({
+  crawl_id: z.string(),
+  total: z.number().int(),
+  items: z.array(knowledgeRelationItemSchema),
+});
+
+export const schemaGraphResponseSchema = responseObject({
+  crawl_id: z.string(),
+  analyzed_pages: z.number().int(),
+  pages_with_schema: z.number().int(),
+  types: z.array(
+    responseObject({
+      type: z.string(),
+      pages: z.number().int(),
+      valid: z.number().int(),
+      invalid: z.number().int(),
+    }),
+  ),
+  invalid: z.array(
+    responseObject({
+      site_url_id: z.string(),
+      url: z.string(),
+      type: z.string(),
+      missing: z.array(z.string()),
+    }),
+  ),
+});
+
+// ---------------------------------------------------------------------------
 // strictValidate — fail loud on declared-field drift (drift policy §6)
 // ---------------------------------------------------------------------------
 

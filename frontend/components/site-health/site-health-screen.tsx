@@ -9,6 +9,7 @@ import { mutationNoticeForError } from '@/lib/api/mutation-notice';
 import { useProjectContext } from '@/lib/project/project-context';
 import { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
 import { CrawlIntakeDialog } from '@/components/site-health/crawl-intake-dialog';
+import { SiteIntelligenceWorkspace } from '@/components/site-intelligence/workspace';
 import { useState } from 'react';
 
 /**
@@ -175,10 +176,19 @@ export function SiteHealthScreen() {
         onStart={startCrawl}
       />
 
-      <SiteHealthDashboardLayout
-        screen={screen}
-        entitlement={entitlementQuery.data!}
+      {/* The workspace owns panel selection; the existing dashboard IS the
+          Pages panel, so the inventory/score screen a user already knows stays
+          exactly where it was rather than being rebuilt beside it. */}
+      <SiteIntelligenceWorkspace
         projectId={projectId}
+        crawlId={screen.crawl?.id}
+        pagesPanel={
+          <SiteHealthDashboardLayout
+            screen={screen}
+            entitlement={entitlementQuery.data!}
+            projectId={projectId}
+          />
+        }
       />
     </div>
   );

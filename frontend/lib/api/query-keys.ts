@@ -34,7 +34,7 @@ import { integrationKeys } from './query-keys/integrations';
 import { opportunityKeys } from './query-keys/opportunities';
 import { productKeys } from './query-keys/products';
 import { runKeys, visibilityKeys } from './query-keys/runs';
-import { siteHealthKeys } from './query-keys/site-health';
+import { siteHealthKeys, siteIntelligenceKeys } from './query-keys/site-health';
 import { trafficKeys } from './query-keys/traffic';
 
 export const queryKeys = {
@@ -48,6 +48,7 @@ export const queryKeys = {
   runs: runKeys,
   visibility: visibilityKeys,
   siteHealth: siteHealthKeys,
+  siteIntelligence: siteIntelligenceKeys,
   content: contentKeys,
   integrations: integrationKeys,
   traffic: trafficKeys,

@@ -8,10 +8,13 @@ import { renderWithProviders } from '@/test/render';
 import { ProjectProvider } from '@/lib/project/project-context';
 import { SiteHealthScreen } from './site-health-screen';
 
-// The analyzing/scored inventory modes render PagesTable, which calls
-// useRouter for clickable rows; stub next/navigation (unavailable in jsdom).
+// The analyzing/scored inventory modes render PagesTable (clickable rows) and
+// the Site Intelligence workspace (panel state mirrored to the URL); stub
+// next/navigation, which is unavailable in jsdom.
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/site-health',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const WORKSPACE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';

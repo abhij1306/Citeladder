@@ -35,3 +35,36 @@ export const siteHealthKeys = {
     ['site-health', 'issue', crawlId, issueId, filters] as const,
   events: (crawlId: string) => ['site-health', 'events', crawlId] as const,
 };
+
+/**
+ * Site Intelligence keys — scoped by project AND crawl so switching the shared
+ * crawl selector re-fetches every panel instead of showing another crawl's
+ * frozen snapshot under the new selection.
+ */
+export const siteIntelligenceKeys = {
+  all: ['site-intelligence'] as const,
+  overview: (projectId: string, crawlId?: string) =>
+    ['site-intelligence', 'overview', projectId, crawlId ?? 'latest'] as const,
+  entities: (projectId: string, crawlId?: string, entityTypeId?: string) =>
+    [
+      'site-intelligence',
+      'entities',
+      projectId,
+      crawlId ?? 'latest',
+      entityTypeId ?? 'all',
+    ] as const,
+  assertions: (projectId: string, crawlId?: string, predicateId?: string) =>
+    [
+      'site-intelligence',
+      'assertions',
+      projectId,
+      crawlId ?? 'latest',
+      predicateId ?? 'all',
+    ] as const,
+  contradictions: (projectId: string, crawlId?: string) =>
+    ['site-intelligence', 'contradictions', projectId, crawlId ?? 'latest'] as const,
+  relations: (projectId: string, crawlId?: string) =>
+    ['site-intelligence', 'relations', projectId, crawlId ?? 'latest'] as const,
+  schemaGraph: (projectId: string, crawlId?: string) =>
+    ['site-intelligence', 'schema', projectId, crawlId ?? 'latest'] as const,
+};
