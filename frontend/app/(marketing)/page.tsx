@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { EvidenceChain } from '@/components/marketing/landing/evidence-chain';
 import { FinalCta } from '@/components/marketing/landing/final-cta';
 import { Hero } from '@/components/marketing/landing/hero';
 import { Packs } from '@/components/marketing/landing/packs';
@@ -41,11 +42,17 @@ export const metadata: Metadata = {
  * forwards signed-in visitors to their dashboard (`/projects`) or to
  * first-run `/onboarding` — the contract `/` had before this page existed.
  *
- * Eight beats, in order: the hook (Hero), why growth changed (Shift), the four
- * intelligence layers (Platform), the product itself (SeeIt), how the loop runs
- * (Workflow), who it is shaped for (Packs), the data promise (Trust), and the
- * close (FinalCta). Shared chrome (nav + footer) lives in the (marketing)
- * route-group layout.
+ * Nine beats, in order: the hook (Hero), why growth changed (Shift), how the
+ * loop runs (Workflow), the four intelligence layers (Platform), the product
+ * itself (SeeIt), the evidence chain and a real insight (EvidenceChain), who it
+ * is shaped for (Packs), the data promise (Trust), and the close (FinalCta).
+ * Shared chrome (nav + footer) lives in the (marketing) route-group layout.
+ *
+ * Workflow leads Platform deliberately: the differentiator is the loop
+ * evidence → improvement → verification, and the module breakdown is HOW
+ * rather than WHY (frontend-growth-intelligence.md §8.2). Bands alternate
+ * paper/sunken with no two adjacent sections sharing a tone, which is why
+ * EvidenceChain is sunken.
  *
  * Must stay a SYNC component (no async / headers() / cookies()) so the page
  * test can render it directly under Testing Library.
@@ -56,9 +63,10 @@ export default function LandingPage() {
       <main id="main">
         <Hero />
         <Shift />
+        <Workflow />
         <Platform />
         <SeeIt />
-        <Workflow />
+        <EvidenceChain />
         <Packs />
         <Trust />
         <FinalCta />

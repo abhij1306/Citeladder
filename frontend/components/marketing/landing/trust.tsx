@@ -13,7 +13,7 @@ import { LANDING_ICONS } from './landing-icons';
 export function Trust() {
   const { trust } = LANDING_CONTENT;
   return (
-    <Section id="trust" tone="sunken" rhythm="base" aria-labelledby="trust-title">
+    <Section id="trust" tone="paper" rhythm="base" aria-labelledby="trust-title">
       <div className="grid items-start gap-x-12 gap-y-10 lg:grid-cols-2">
         <Reveal>
           <Eyebrow>{trust.kicker}</Eyebrow>

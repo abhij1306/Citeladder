@@ -15,7 +15,7 @@ import { Reveal } from '../primitives/reveal';
 export function FinalCta() {
   const { cta } = LANDING_CONTENT;
   return (
-    <Section id="get-started" tone="paper" rhythm="base" aria-label="Get started">
+    <Section id="get-started" tone="sunken" rhythm="base" aria-label="Get started">
       <Reveal className="bg-panel border-border shadow-elevated mx-auto flex max-w-4xl flex-col items-center rounded-2xl border p-8 text-center md:p-12">
         <div className="bg-accent-subtle/80 text-accent-text border-accent-border/80 inline-flex items-center gap-2 rounded-full border px-3.5 py-1 text-xs font-medium shadow-xs">
           <span className="bg-accent size-1.5 animate-pulse rounded-full" aria-hidden />

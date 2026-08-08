@@ -76,10 +76,64 @@ describe('Landing page (public marketing `/`)', () => {
     const { container } = renderWithProviders(<Page />);
 
     // The nav/footer (rendered by the layout) target these ids — pin them.
-    // `#platform` / `#evidence` are gone with the sections that owned them;
-    // the page is now hook → shift → product → proof → close.
-    for (const hash of ['#why', '#see-it', '#how-it-works', '#get-started']) {
+    // `#platform` and `#evidence` are back: the platform section returned with
+    // the four-layer architecture, and `#evidence` is the provenance chain
+    // added by frontend-growth-intelligence.md §8.2.
+    for (const hash of [
+      '#why',
+      '#how-it-works',
+      '#platform',
+      '#see-it',
+      '#evidence',
+      '#industry-packs',
+      '#get-started',
+    ]) {
       expect(container.querySelector(hash)).not.toBeNull();
+    }
+  });
+
+  it('leads with the loop before the module breakdown', () => {
+    stubAnonymous();
+    const { container } = renderWithProviders(<Page />);
+
+    // §8.2: the differentiator is evidence → improvement → verification; the
+    // module breakdown is HOW, not WHY. If Platform ever drifts back above
+    // Workflow, the page argues the wrong thing first.
+    const sections = Array.from(container.querySelectorAll('main > section[id]')).map(
+      (section) => section.id,
+    );
+
+    expect(sections.indexOf('how-it-works')).toBeLessThan(sections.indexOf('platform'));
+  });
+
+  it('shows the evidence chain and a real insight object', () => {
+    stubAnonymous();
+    const { container } = renderWithProviders(<Page />);
+
+    const evidence = container.querySelector('#evidence');
+    expect(evidence).not.toBeNull();
+    // The chain is the claim competitors cannot copy; the insight object is
+    // the product's most recognisable artifact.
+    expect(evidence).toHaveTextContent(/Artifact/);
+    expect(evidence).toHaveTextContent(/Verification/);
+    expect(evidence).toHaveTextContent(/Why this matters/);
+  });
+
+  it('alternates section bands so no two neighbours share a tone', () => {
+    stubAnonymous();
+    const { container } = renderWithProviders(<Page />);
+
+    // Section.tsx: "NO TWO ADJACENT BANDS SHARE A TONE". Reordering the page
+    // is exactly when that invariant breaks, so it is asserted rather than
+    // eyeballed.
+    const tones = Array.from(container.querySelectorAll('main > section')).map((section) =>
+      section.getAttribute('data-citeladder-section'),
+    );
+
+    for (let index = 1; index < tones.length; index += 1) {
+      expect(tones[index], `sections ${index - 1} and ${index} share a tone`).not.toBe(
+        tones[index - 1],
+      );
     }
   });
 
