@@ -46,6 +46,7 @@ export const NAV_GROUPS: NavGroup[] = [
       // Commerce keeps its own view (§3): it is a distinct workspace, not a
       // tab inside Demand.
       { label: 'Commerce', href: '/products', icon: ICONS.products },
+      { label: 'Growth Agent', href: '/agent', icon: ICONS.agent },
       { label: 'Reports', href: '/reports', icon: ICONS.reports },
     ],
   },

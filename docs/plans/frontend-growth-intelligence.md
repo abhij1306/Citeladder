@@ -253,10 +253,10 @@ Fix the drift across docs, app, and site once:
 | 2 | Shared components (§5) and the coverage rule (§6) | none | **Done** |
 | 3 | Landing structure (§8.2) | none | **Done** |
 | 4 | Sidebar regrouping (§4) | first `/site` route | **Done** |
-| 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 | Pages tab + Overview insight list shipped; rest pending |
-| 6 | Content workspace (§7.3) | stage 4 | Not started |
-| 7 | Demand workspace (§7.4) | stage 3 | Visibility/Traffic regrouped; signals pending |
-| 8 | Agent workspace (§7.5) | stage 5 | Not started |
+| 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 | Pages, Corpus, Overview insights shipped; Facts/Schema/Journeys/Evidence pending |
+| 6 | Content workspace (§7.3) | stage 4 | Generate + Facts tabs shipped; briefs/validation/verification pending |
+| 7 | Demand workspace (§7.4) | stage 3 | Visibility/Traffic regrouped, related surfaces linked; signals pending |
+| 8 | Agent workspace (§7.5) | stage 5 | Route declares the five surfaces; no backend exists |
 | 9 | Contextual agent actions, Reports, schedules | stage 6 | `/reports` stub only |
 
 Steps 1–3 have no backend dependency and are the correct first commits after this branch merges.
@@ -310,6 +310,16 @@ not landed. Revisit before the first real user, not before.
   to `DashboardScreen` that runs its own query will receive the command-center fixture
   instead of its own response shape. `TopInsights` is stubbed there for that reason — do
   the same for the next such child rather than teaching that fixture two shapes.
+- **`analysis_status` is on `pageSummarySchema`, NOT `inventoryRowSchema`.** Inventory rows
+  carry no status field, so they cannot answer "why was this not analyzed". Corpus (§7.2)
+  is therefore built on the `/pages` projection, not `/inventory`, even though "corpus"
+  sounds like the inventory surface.
+- **Mocking `@tanstack/react-query` needs `queryOptions` too.** Every `*Queries` builder in
+  `lib/api` calls it, so a mock that returns only `useQuery` fails at import with a
+  confusing "No queryOptions export" error.
+- **Nav labels are regex-matched in `sidebar-nav.test.tsx`.** "Site" matches "Site health"
+  and "Content" matches other labels, so anchor those assertions (`/^site$/i`) when adding
+  a destination whose name is a prefix of another.
 
 ### Not yet done
 

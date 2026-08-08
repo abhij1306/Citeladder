@@ -4,8 +4,12 @@ import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import { LayerTabs, type LayerTab } from '@/components/layout/layer-tabs';
+import { CorpusPanel } from '@/components/site/corpus-panel';
 import { SiteHealthScreen } from '@/components/site-health/site-health-screen';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { useActiveProject } from '@/lib/project/project-context';
+import { siteHealthQueries } from '@/lib/api/site-health';
+import { useQuery } from '@tanstack/react-query';
 
 /**
  * Site Intelligence (§7.2) — the layer route.
@@ -29,17 +33,32 @@ const TABS: readonly LayerTab[] = [
 ];
 
 const PENDING_COPY: Record<string, string> = {
-  corpus: 'Disposition per document — analyzed, inventory-only, or excluded, each with its reason.',
   facts: 'Entities, assertions and relations with effective dates and contradiction groups.',
   schema: 'Observed JSON-LD beside pack expectations, as a comparison rather than a score.',
   journeys: 'Stage coverage against the pack template.',
   evidence: 'Crawl attempts, artifacts and fetch failures.',
 };
 
+/** Corpus needs the latest crawl; the pages projection is keyed by crawl. */
+function Corpus() {
+  const project = useActiveProject();
+  const crawlsQuery = useQuery({
+    ...siteHealthQueries.crawls({ project_id: project?.id ?? '', limit: 1 }),
+    enabled: Boolean(project?.id),
+  });
+
+  const crawlId = crawlsQuery.data?.items[0]?.id;
+  if (!crawlId) {
+    return <p className="text-muted text-sm">No crawl has run for this project yet.</p>;
+  }
+  return <CorpusPanel crawlId={crawlId} />;
+}
+
 function SiteTabPanel() {
   const tab = useSearchParams().get('tab') ?? 'pages';
 
   if (tab === 'pages') return <SiteHealthScreen />;
+  if (tab === 'corpus') return <Corpus />;
 
   return (
     <div className="border-border-subtle bg-panel rounded-lg border p-8">

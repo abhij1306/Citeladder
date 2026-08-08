@@ -26,7 +26,15 @@ describe('SidebarNav', () => {
   it('names the four layers plus Commerce and Reports', () => {
     renderNav();
     const labels = NAV_GROUPS.flatMap((group) => group.items.map((item) => item.label));
-    expect(labels).toEqual(['Overview', 'Site', 'Content', 'Demand', 'Commerce', 'Reports']);
+    expect(labels).toEqual([
+      'Overview',
+      'Site',
+      'Content',
+      'Demand',
+      'Commerce',
+      'Growth Agent',
+      'Reports',
+    ]);
     for (const label of labels) {
       expect(screen.getByRole('link', { name: new RegExp(label, 'i') })).toBeInTheDocument();
     }
@@ -63,7 +71,7 @@ describe('SidebarNav', () => {
   it('renders every item as a link — no disabled state or "soon" badge', () => {
     renderNav();
     const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(6);
+    expect(links).toHaveLength(7);
     for (const link of links) {
       expect(link).not.toHaveAttribute('aria-disabled');
     }
