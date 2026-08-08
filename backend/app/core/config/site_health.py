@@ -666,6 +666,12 @@ ACQUISITION_TRIGGER_INITIAL: Final = "initial"
 ACQUISITION_TRIGGER_CHALLENGE: Final = "challenge"
 ACQUISITION_TRIGGER_BLOCK_STATUS: Final = "block_status"
 ACQUISITION_TRIGGER_LOW_CONTENT: Final = "low_content"
+# A 2xx HTML response whose BYTES are ample but whose readable TEXT is not: a
+# client-rendered shell. Deliberately distinct from ``low_content`` — one says
+# the server sent almost nothing, the other says the server sent a page whose
+# content is not in the response. Collapsing them would hide which of the two
+# an operator is looking at.
+ACQUISITION_TRIGGER_JS_SHELL: Final = "js_shell"
 ACQUISITION_TRIGGER_CURL_UNAVAILABLE: Final = "curl_unavailable"
 ACQUISITION_TRIGGER_CURL_UNUSABLE: Final = "curl_unusable"
 # The initial crawler request is an honestly-identified HTTP request. A frozen,
@@ -2082,6 +2088,28 @@ class SiteHealthSettings(BaseSettings):
     # explicit challenge/status evidence.
     curl_cffi_low_content_bytes: int = 512
     curl_cffi_trigger_statuses: tuple[int, ...] = (403, 429, 503)
+    # Client-rendered-shell detection. ``curl_cffi_low_content_bytes`` measures
+    # the whole RESPONSE, which is the wrong ruler for the case the browser rung
+    # exists to fix: a real JS shell ships a full nav, footer, and bundle
+    # reference, so its byte count is ample while its readable text is nearly
+    # empty. Measured live against a public JS-shell page, the served document
+    # was well over the low-content floor and never escalated — rung 3 was
+    # unreachable for exactly the input it was built for.
+    #
+    # A response escalates as a shell only when ALL THREE hold, so an ordinary
+    # short page (a brief contact page) never pays for a render:
+    #   - readable text below ``js_shell_min_text_chars``;
+    #   - total decoded bytes at/above ``curl_cffi_low_content_bytes`` (below
+    #     that it is plain ``low_content``, a different fact);
+    #   - the document actually loads script (``<script src>`` or a substantial
+    #     inline script), i.e. content plausibly arrives client-side.
+    # 0 disables the signal.
+    js_shell_min_text_chars: int = 600
+    js_shell_min_inline_script_chars: int = 1024
+    # Bounded prefix of the decoded body the detector scans. Text-bearing markup
+    # is front-loaded; scanning a whole multi-megabyte document to answer "is
+    # this empty?" would be per-response work for no added signal.
+    js_shell_scan_bytes: int = 262_144
     # Only these curl-rung failure tokens may advance to the browser rung.
     # Policy/cap/redirect failures must never be bypassed.
     browser_continue_error_codes: tuple[str, ...] = (

@@ -27,10 +27,19 @@ ARG BUILD_REVISION=unknown
 LABEL org.opencontainers.image.title="citeladder-backend" \
       org.opencontainers.image.revision="${BUILD_REVISION}"
 
+# Acquisition rung 3 (Patchright) needs a Chromium build plus its shared
+# libraries — roughly 400 MB the default image should not carry, because
+# ``browser_enabled`` defaults to False and most deployments never render a
+# page. Build with ``--build-arg INSTALL_BROWSER_RUNG=true`` for a deployment
+# that turns rung 3 on. Without it the transport fails closed with
+# ``acquisition_unavailable`` and the crawl keeps its server evidence.
+ARG INSTALL_BROWSER_RUNG=false
+
 ENV PATH="/app/backend/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 
 WORKDIR /app/backend
 
@@ -40,6 +49,14 @@ RUN groupadd --gid 10001 appuser \
 
 # Dependencies and source remain root-owned/read-only to the runtime identity.
 COPY --from=dependencies --chown=0:0 /app/backend/.venv ./.venv
+
+# Installed as root into a shared path (the runtime user has no home
+# directory), and left read-only to that user: the crawler executes the browser
+# but must never be able to replace the binary it executes.
+RUN if [ "${INSTALL_BROWSER_RUNG}" = "true" ]; then \
+      patchright install --with-deps chromium \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
 COPY --chown=0:0 backend/app ./app
 COPY --chown=0:0 backend/alembic.ini ./alembic.ini
 COPY --chown=0:0 migrations /app/migrations

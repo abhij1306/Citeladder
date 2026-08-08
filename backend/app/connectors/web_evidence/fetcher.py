@@ -467,12 +467,7 @@ class SecureFetcher:
                 exc.attempts = tuple(attempts)
             raise
         result = replace(result, attempts=tuple(attempts), acquisition=initial)
-        trigger = curl_trigger_for_result(
-            result,
-            has_challenge_marker=is_bot_block_result(result),
-            trigger_statuses=self._settings.curl_cffi_trigger_statuses,
-            low_content_bytes=self._settings.curl_cffi_low_content_bytes,
-        )
+        trigger = self._ladder_trigger(result)
         # Continue while ANY later rung is enabled. Gating the whole ladder on
         # ``curl_cffi_enabled`` alone made rung 3 unreachable for a deployment
         # that runs the browser without curl — the evidence said "retry" and
@@ -492,6 +487,32 @@ class SecureFetcher:
             attempts=attempts,
             trigger=trigger,
             prior=result,
+        )
+
+    def _ladder_trigger(self, result: FetchResult) -> str | None:
+        """The config-owned reason (if any) that this result needs a later rung.
+
+        The JS-shell signal is offered ONLY when the browser rung is enabled.
+        curl-cffi replays the same request with a different TLS fingerprint, so
+        it returns the identical shell — escalating a shell to rung 2 would buy
+        a second fetch and no new evidence. Zeroing the thresholds here (rather
+        than branching inside the pure helper) keeps rung selection a matter of
+        configuration.
+        """
+
+        browser = self._settings.browser_enabled
+        return curl_trigger_for_result(
+            result,
+            has_challenge_marker=is_bot_block_result(result),
+            trigger_statuses=self._settings.curl_cffi_trigger_statuses,
+            low_content_bytes=self._settings.curl_cffi_low_content_bytes,
+            js_shell_min_text_chars=(
+                self._settings.js_shell_min_text_chars if browser else 0
+            ),
+            js_shell_min_inline_script_chars=(
+                self._settings.js_shell_min_inline_script_chars
+            ),
+            js_shell_scan_bytes=self._settings.js_shell_scan_bytes,
         )
 
     async def _continue_acquisition_ladder(
@@ -529,12 +550,7 @@ class SecureFetcher:
                         exc.attempts = tuple(attempts)
                     raise
             else:
-                curl_still_blocked = curl_trigger_for_result(
-                    curl_result,
-                    has_challenge_marker=is_bot_block_result(curl_result),
-                    trigger_statuses=self._settings.curl_cffi_trigger_statuses,
-                    low_content_bytes=self._settings.curl_cffi_low_content_bytes,
-                )
+                curl_still_blocked = self._ladder_trigger(curl_result)
                 if curl_still_blocked is None:
                     return curl_result
                 trigger_for_browser = curl_still_blocked

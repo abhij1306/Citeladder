@@ -7,13 +7,32 @@ transport can silently broaden the crawler's security policy.
 
 from __future__ import annotations
 
+import re
 import sys
 
 from app.connectors.web_evidence.contracts import FetchResult
 from app.core.config.site_health import (
     ACQUISITION_TRIGGER_BLOCK_STATUS,
     ACQUISITION_TRIGGER_CHALLENGE,
+    ACQUISITION_TRIGGER_JS_SHELL,
     ACQUISITION_TRIGGER_LOW_CONTENT,
+)
+
+# Subtrees whose contents are never readable page text. Removed whole (open tag
+# through close tag) before the remaining markup is stripped, so a 200 KB
+# inline bundle cannot read as 200 KB of content.
+_NON_TEXT_SUBTREES = re.compile(
+    r"<(script|style|template|noscript)\b[^>]*>.*?</\1\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_UNCLOSED_NON_TEXT = re.compile(
+    r"<(script|style|template|noscript)\b[^>]*>.*", re.IGNORECASE | re.DOTALL
+)
+_COMMENTS = re.compile(r"<!--.*?-->", re.DOTALL)
+_TAGS = re.compile(r"<[^>]*>", re.DOTALL)
+_SCRIPT_SRC = re.compile(r"<script\b[^>]*\bsrc\s*=", re.IGNORECASE)
+_INLINE_SCRIPT = re.compile(
+    r"<script\b(?![^>]*\bsrc\s*=)[^>]*>(.*?)</script\s*>", re.IGNORECASE | re.DOTALL
 )
 
 
@@ -46,25 +65,88 @@ def curl_cffi_pinned_resolution_supported() -> bool:
     return True
 
 
+def readable_text_length(body: bytes, *, scan_bytes: int) -> int:
+    """Non-whitespace characters of readable text in a bounded body prefix.
+
+    PURE and deliberately regex-based rather than a real parse: this answers
+    only "did the server send readable content", runs on every 2xx HTML
+    response, and must not pull an HTML parser into the acquisition ladder. It
+    strips script/style/template/noscript subtrees first (so an inline bundle
+    never counts as prose), then comments, then the remaining tags.
+
+    A prefix cut can leave an unterminated ``<script>`` open; the second pattern
+    drops that tail rather than letting the raw JavaScript inside it count as
+    text — the failure that would otherwise make every shell look content-rich.
+    """
+
+    if not body:
+        return 0
+    text = body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
+    text = _NON_TEXT_SUBTREES.sub(" ", text)
+    text = _UNCLOSED_NON_TEXT.sub(" ", text)
+    text = _COMMENTS.sub(" ", text)
+    text = _TAGS.sub(" ", text)
+    return len("".join(text.split()))
+
+
+def loads_script(body: bytes, *, scan_bytes: int, min_inline_chars: int) -> bool:
+    """Whether the document plausibly builds its content client-side.
+
+    True for an external ``<script src>`` or an inline script large enough to
+    be application code. Requiring this alongside a low text count is what keeps
+    a genuinely short server-rendered page (a two-line contact page) from paying
+    for a browser render it would gain nothing from.
+    """
+
+    if not body:
+        return False
+    text = body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
+    if _SCRIPT_SRC.search(text):
+        return True
+    return any(
+        len(match.group(1).strip()) >= min_inline_chars
+        for match in _INLINE_SCRIPT.finditer(text)
+    )
+
+
 def curl_trigger_for_result(
     result: FetchResult,
     *,
     has_challenge_marker: bool,
     trigger_statuses: tuple[int, ...],
     low_content_bytes: int,
+    js_shell_min_text_chars: int = 0,
+    js_shell_min_inline_script_chars: int = 0,
+    js_shell_scan_bytes: int = 0,
 ) -> str | None:
-    """Return the sole configured reason that permits a curl rung.
+    """Return the sole configured reason that permits a later rung.
 
     Priority is deterministic and evidence-based. A regular timeout, policy
     rejection, redirect issue, or oversized response does not get retried by a
     different transport.
+
+    ``js_shell`` is checked last and only for an ample-sized 2xx response, so a
+    tiny body still reports the more specific ``low_content``.
     """
 
     if has_challenge_marker:
         return ACQUISITION_TRIGGER_CHALLENGE
     if result.status_code in trigger_statuses:
         return ACQUISITION_TRIGGER_BLOCK_STATUS
-    if low_content_bytes and 200 <= result.status_code < 300:
-        if result.decoded_bytes < low_content_bytes:
-            return ACQUISITION_TRIGGER_LOW_CONTENT
-    return None
+    if not 200 <= result.status_code < 300:
+        return None
+    if low_content_bytes and result.decoded_bytes < low_content_bytes:
+        return ACQUISITION_TRIGGER_LOW_CONTENT
+    if not js_shell_min_text_chars or not js_shell_scan_bytes:
+        return None
+    if readable_text_length(result.body, scan_bytes=js_shell_scan_bytes) >= (
+        js_shell_min_text_chars
+    ):
+        return None
+    if not loads_script(
+        result.body,
+        scan_bytes=js_shell_scan_bytes,
+        min_inline_chars=js_shell_min_inline_script_chars,
+    ):
+        return None
+    return ACQUISITION_TRIGGER_JS_SHELL
