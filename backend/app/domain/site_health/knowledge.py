@@ -258,23 +258,23 @@ def _site_identity_key(crawl: SiteCrawl, pages: Sequence[_PageInput]) -> str:
     different business and orphan every prior assertion.
     """
     domain = str((crawl.configuration or {}).get("root_registrable_domain") or "")
-    if not domain:
-        # A HOST, never a full URL. ``pages[0]`` is merely the first row by
-        # ``created_at``, so keying on its path and query made two crawls that
-        # analyzed the same site in a different order produce different
-        # organization identities and orphan every prior assertion. The crawl's
-        # own root URL comes first; the marked root page is the last resort.
-        fallback = str(getattr(crawl, "root_url", "") or "") or next(
-            (page.final_url for page in pages if page.is_crawl_root), ""
-        )
-        domain = _host_of(fallback)
-    return identity_key_for(domain)
+    return identity_key_for(domain or _fallback_domain(crawl, pages))
 
 
-def _host_of(url: str) -> str:
-    """The bare host of ``url``, or ``""`` when it names none."""
+def _fallback_domain(crawl: SiteCrawl, pages: Sequence[_PageInput]) -> str:
+    """The host to key on when the crawl recorded no registrable domain.
+
+    A HOST, never a full URL. Keying on a page's ``final_url`` carried its path
+    and query, so two crawls that analyzed the same site in a different order
+    produced different organization identities and orphaned every prior
+    assertion. The crawl's own root URL is preferred; the page MARKED as the
+    crawl root is the last resort — never merely the first row by ``created_at``.
+    """
+    root = str(getattr(crawl, "root_url", "") or "")
+    if not root:
+        root = next((page.final_url for page in pages if page.is_crawl_root), "")
     try:
-        return (urlsplit(str(url or "")).hostname or "").casefold().rstrip(".")
+        return (urlsplit(root).hostname or "").casefold().rstrip(".")
     except ValueError:
         return ""
 

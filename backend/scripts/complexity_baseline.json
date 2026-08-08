@@ -337,7 +337,7 @@
       "classify": 3,
       "is_question_heading": 4
     },
-    "loc": 387,
+    "loc": 390,
     "max_cc": 13
   },
   "app/analysis/site_health/parser.py": {
@@ -371,7 +371,7 @@
       "_text": 3,
       "extract_page_facts": 18
     },
-    "loc": 1124,
+    "loc": 1129,
     "max_cc": 28
   },
   "app/analysis/site_health/rules.py": {
@@ -1236,7 +1236,7 @@
       "readable_text_length": 2,
       "strip_comments": 5
     },
-    "loc": 184,
+    "loc": 189,
     "max_cc": 10
   },
   "app/connectors/web_evidence/brand_evidence.py": {
@@ -3677,7 +3677,7 @@
   },
   "app/domain/site_health/api_schemas.py": {
     "functions": {},
-    "loc": 911,
+    "loc": 914,
     "max_cc": 0
   },
   "app/domain/site_health/discovery.py": {
@@ -3773,7 +3773,7 @@
       "_versions": 1,
       "build_intelligence_projection": 4
     },
-    "loc": 520,
+    "loc": 516,
     "max_cc": 12
   },
   "app/domain/site_health/inventory_scope.py": {
@@ -3790,21 +3790,23 @@
     "functions": {
       "_evidence_ref": 1,
       "_extract_all": 2,
+      "_fallback_domain": 7,
       "_group_contradictions": 10,
+      "_insert_chunked": 3,
       "_load_pages": 6,
       "_mark_root": 6,
       "_merge": 7,
       "_merge_assertions": 4,
       "_merge_entities": 6,
       "_merge_relations": 4,
-      "_persist": 9,
-      "_site_identity_key": 5,
+      "_persist": 6,
+      "_site_identity_key": 4,
       "build_crawl_knowledge": 7,
       "conflict_policy_permits_multiple": 2,
       "current_assertion": 1,
       "historical_assertion": 1
     },
-    "loc": 691,
+    "loc": 740,
     "max_cc": 10
   },
   "app/domain/site_health/normalization.py": {
@@ -3821,7 +3823,7 @@
   "app/domain/site_health/phase_control.py": {
     "functions": {
       "PhaseControlError.__init__": 1,
-      "_analysis_candidates": 6,
+      "_analysis_candidates": 5,
       "_analysis_target_crawl": 6,
       "_clone_cancelled_discovery_tasks": 3,
       "_ensure_monitoring_capacity": 5,
@@ -3833,6 +3835,7 @@
       "_now": 1,
       "_pause_if_idle": 6,
       "_record_analysis_inventory": 3,
+      "_reject_unusable_selection": 3,
       "_resume_crawl": 2,
       "_running_phase": 1,
       "_schedule_analysis_tasks": 4,
@@ -3842,7 +3845,7 @@
       "stop_analysis": 3,
       "stop_discovery": 3
     },
-    "loc": 802,
+    "loc": 838,
     "max_cc": 8
   },
   "app/domain/site_health/planner.py": {
@@ -3948,7 +3951,7 @@
       "get_knowledge_relations": 4,
       "get_schema_graph": 12
     },
-    "loc": 588,
+    "loc": 600,
     "max_cc": 12
   },
   "app/domain/site_health/service/issues.py": {
@@ -3992,15 +3995,16 @@
       "_link_reference_row": 3,
       "_matches_page_status": 3,
       "_page_facts": 24,
+      "_page_kind_buckets": 3,
       "_page_kind_matches": 3,
-      "_score_summary": 12,
+      "_score_summary": 11,
       "_single_h1_variant": 4,
       "display_label_for": 6,
       "presentation_status_for": 12,
       "project_crawl": 9,
       "project_phase_run": 1
     },
-    "loc": 486,
+    "loc": 500,
     "max_cc": 24
   },
   "app/domain/site_health/service/queries.py": {
@@ -4309,7 +4313,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 1318,
+    "loc": 1325,
     "max_cc": 1
   },
   "app/models/traffic.py": {

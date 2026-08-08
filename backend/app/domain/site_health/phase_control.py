@@ -364,6 +364,54 @@ async def stop_discovery(
     return PhaseMutationResult(crawl=crawl, phase_run=run)
 
 
+async def _reject_unusable_selection(
+    session: AsyncSession,
+    *,
+    explicit_ids: list[uuid.UUID],
+    admitted,
+) -> None:
+    """Fail an explicit selection that this crawl cannot analyze.
+
+    Two separate reasons, reported separately because they are separate user
+    errors. Admission alone is not enough: a document or an excluded URL sits in
+    the inventory for coverage but carries no HTML the analyzer can read, so
+    scheduling one spends a budget slot to produce a guaranteed failure. Both are
+    REJECTED rather than silently dropped — a caller that named these specific
+    URLs needs to be told which ones it cannot have.
+    """
+    wanted = set(explicit_ids)
+    admitted_ids = set(
+        (
+            await session.scalars(
+                select(SiteUrl.id).where(
+                    SiteUrl.id.in_(explicit_ids),
+                    SiteUrl.id.in_(select(admitted.c.site_url_id)),
+                )
+            )
+        ).all()
+    )
+    if admitted_ids != wanted:
+        raise PhaseControlError(
+            "One or more selected URLs are not in this crawl",
+            code="invalid_selection",
+        )
+    analyzable = set(
+        (
+            await session.scalars(
+                select(SiteUrl.id).where(
+                    SiteUrl.id.in_(explicit_ids),
+                    SiteUrl.corpus_disposition == CORPUS_DISPOSITION_ANALYZE,
+                )
+            )
+        ).all()
+    )
+    if analyzable != wanted:
+        raise PhaseControlError(
+            "One or more selected URLs cannot be analyzed as HTML",
+            code="invalid_selection",
+        )
+
+
 async def _analysis_candidates(
     session: AsyncSession,
     *,
@@ -378,41 +426,9 @@ async def _analysis_candidates(
         .subquery()
     )
     if explicit_ids:
-        admitted_ids = set(
-            (
-                await session.scalars(
-                    select(SiteUrl.id).where(
-                        SiteUrl.id.in_(explicit_ids),
-                        SiteUrl.id.in_(select(admitted.c.site_url_id)),
-                    )
-                )
-            ).all()
+        await _reject_unusable_selection(
+            session, explicit_ids=explicit_ids, admitted=admitted
         )
-        if admitted_ids != set(explicit_ids):
-            raise PhaseControlError(
-                "One or more selected URLs are not in this crawl",
-                code="invalid_selection",
-            )
-        # Admission is not enough. A document or an excluded URL is in the
-        # inventory for coverage but carries no HTML the analyzer can read, so
-        # scheduling one spends a budget slot to produce a guaranteed failure.
-        # Rejected rather than silently dropped: a caller that asked for these
-        # specific URLs needs to be told which ones it cannot have.
-        analyzable = set(
-            (
-                await session.scalars(
-                    select(SiteUrl.id).where(
-                        SiteUrl.id.in_(explicit_ids),
-                        SiteUrl.corpus_disposition == CORPUS_DISPOSITION_ANALYZE,
-                    )
-                )
-            ).all()
-        )
-        if analyzable != set(explicit_ids):
-            raise PhaseControlError(
-                "One or more selected URLs cannot be analyzed as HTML",
-                code="invalid_selection",
-            )
     completed = (
         select(SitePageAnalysis.site_url_id)
         .where(
