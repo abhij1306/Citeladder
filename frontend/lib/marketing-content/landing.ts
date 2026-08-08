@@ -218,7 +218,10 @@ export const LANDING_CONTENT = {
         step: 'Insight',
         detail: 'A gap or contradiction found by pack rules, ranked by a deterministic formula.',
       },
-      { step: 'Brief', detail: 'An immutable instruction set built from the insight and its facts.' },
+      {
+        step: 'Brief',
+        detail: 'An immutable instruction set built from the insight and its facts.',
+      },
       {
         step: 'Verification',
         detail: 'A recrawl describing what changed. It reports observation, never causation.',
@@ -337,8 +340,12 @@ export const LANDING_CONTENT = {
       },
       {
         icon: 'correction' as IconKey,
-        title: 'Durable corrections',
-        sub: 'Correct any derived fact in place; it survives recompute',
+        // NOT "durable corrections": EditableFact has no production caller and
+        // no persistence path yet, and the site does not advertise capability
+        // the product cannot keep (§9.1). Restore the stronger claim when
+        // corrections are wired to a durable mutation.
+        title: 'No silent rewrites',
+        sub: 'A later observation never overwrites earlier evidence',
       },
       {
         icon: 'versioned' as IconKey,
@@ -350,8 +357,8 @@ export const LANDING_CONTENT = {
       { label: 'Customer data isolation', value: 'Project-scoped, never shared across workspaces' },
       { label: 'Agent provenance', value: 'Every recommendation includes a typed evidence chain' },
       {
-        label: 'Corrections',
-        value: 'Any derived fact is editable in place, attributable, and withdrawable',
+        label: 'Immutable evidence',
+        value: 'A later observation never rewrites the record an earlier one produced',
       },
       {
         label: 'Industry pack versioning',

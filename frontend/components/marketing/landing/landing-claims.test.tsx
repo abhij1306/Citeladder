@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import Page from '@/app/(marketing)/page';
+import { LANDING_CONTENT } from '@/lib/marketing-content/landing';
 
 // The landing page's only client island forwards signed-in visitors away;
 // it needs a session provider it does not have under a plain render.
@@ -96,12 +97,30 @@ describe('Landing claims', () => {
    * an authoritative production finding, which is precisely what a validated
    * candidate is not.
    */
-  it('labels every industry pack with a current maturity term', () => {
+  it('labels every industry pack with one of the two maturity terms', () => {
     const { container } = render(<Page />);
     const text = container.textContent ?? '';
 
-    expect(text).not.toMatch(/pack · Reviewed|· Reviewed\b/i);
-    expect(text).toMatch(/Validated candidate/i);
-    expect(text).toMatch(/Foundation draft/i);
+    // Every pack is checked, not just a sample: a third pack carrying an
+    // unsupported maturity word is exactly the drift this guards.
+    for (const pack of LANDING_CONTENT.packs.items) {
+      expect(pack.status).toMatch(/· (Validated candidate|Foundation draft)$/);
+      expect(text).toContain(pack.status);
+    }
+    expect(text).not.toMatch(/· Reviewed\b/i);
+  });
+
+  /**
+   * `EditableFact` exists as a component but has no production caller and no
+   * persistence path, so the site must not advertise durable corrections as a
+   * shipped capability. Restore the claim — and delete this guard — when
+   * corrections are wired to a durable mutation.
+   */
+  it('does not advertise corrections the product cannot yet keep', () => {
+    const { container } = render(<Page />);
+    const text = container.textContent ?? '';
+
+    expect(text).not.toMatch(/durable correction|survives recompute|editable in place/i);
+    expect(text).not.toMatch(/withdrawable/i);
   });
 });

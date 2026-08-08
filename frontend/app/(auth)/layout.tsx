@@ -34,7 +34,10 @@ export default function AuthLayout({ children }: Readonly<{ children: ReactNode 
 
       <AuthBrandPanel />
 
-      <main id="main" className="relative flex min-h-dvh flex-col justify-between px-6 py-8 min-[900px]:col-span-7 sm:px-10 lg:px-16">
+      <main
+        id="main"
+        className="relative flex min-h-dvh flex-col justify-between px-6 py-8 min-[900px]:col-span-7 sm:px-10 lg:px-16"
+      >
         {/* Header band — mobile wordmark */}
         <header className="flex items-center justify-between gap-3">
           <div className="min-[900px]:invisible">

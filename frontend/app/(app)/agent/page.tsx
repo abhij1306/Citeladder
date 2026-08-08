@@ -50,10 +50,7 @@ export default function AgentPage() {
 
       <ul className="grid gap-3 md:grid-cols-2">
         {SURFACES.map((surface) => (
-          <li
-            key={surface.title}
-            className="border-border-subtle bg-panel rounded-lg border p-4"
-          >
+          <li key={surface.title} className="border-border-subtle bg-panel rounded-lg border p-4">
             <p className="text-foreground text-sm font-medium">{surface.title}</p>
             <p className="text-muted mt-1 text-sm leading-relaxed">{surface.detail}</p>
           </li>

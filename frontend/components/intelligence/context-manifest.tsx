@@ -79,17 +79,9 @@ export function ContextManifest({ manifest, className }: Readonly<ContextManifes
         entries={included}
         emptyText="No artifacts were included in this task's context."
       />
-      <ManifestSection
-        title="Omitted"
-        entries={omitted}
-        emptyText="Nothing was omitted."
-      />
+      <ManifestSection title="Omitted" entries={omitted} emptyText="Nothing was omitted." />
       {truncated.length > 0 ? (
-        <ManifestSection
-          title="Truncated"
-          entries={truncated}
-          emptyText="Nothing was truncated."
-        />
+        <ManifestSection title="Truncated" entries={truncated} emptyText="Nothing was truncated." />
       ) : null}
       {contradictions.length > 0 ? (
         <ManifestSection

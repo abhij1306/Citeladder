@@ -50,9 +50,13 @@ export const metadata: Metadata = {
  *
  * Workflow leads Platform deliberately: the differentiator is the loop
  * evidence → improvement → verification, and the module breakdown is HOW
- * rather than WHY (frontend-growth-intelligence.md §8.2). Bands alternate
- * paper/sunken with no two adjacent sections sharing a tone, which is why
- * EvidenceChain is sunken.
+ * rather than WHY (frontend-growth-intelligence.md §8.2).
+ *
+ * Bands alternate strictly paper/sunken with no two adjacent sections sharing
+ * a tone: shift, workflow, platform, see-it, evidence, packs, trust, get-started
+ * run paper, sunken, paper, sunken, paper, sunken, paper, sunken. Moving a
+ * section means re-checking the whole run, not just its neighbours — the
+ * alternation test in page.test.tsx is the guard.
  *
  * Must stay a SYNC component (no async / headers() / cookies()) so the page
  * test can render it directly under Testing Library.

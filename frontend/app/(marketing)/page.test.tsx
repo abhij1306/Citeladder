@@ -103,6 +103,10 @@ describe('Landing page (public marketing `/`)', () => {
       (section) => section.id,
     );
 
+    // Assert both exist first: a missing section yields -1, which would
+    // satisfy the ordering comparison for the wrong reason.
+    expect(sections).toContain('how-it-works');
+    expect(sections).toContain('platform');
     expect(sections.indexOf('how-it-works')).toBeLessThan(sections.indexOf('platform'));
   });
 

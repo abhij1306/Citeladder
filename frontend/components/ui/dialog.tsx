@@ -57,7 +57,9 @@ export function Dialog({
               </Button>
             </DialogPrimitive.Close>
           </header>
-          <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-6 py-1">{children}</div>
+          <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-6 py-1">
+            {children}
+          </div>
           {footer ? (
             <footer className="border-border-subtle flex items-center justify-end gap-2 border-t px-6 pt-4 pb-6">
               {footer}

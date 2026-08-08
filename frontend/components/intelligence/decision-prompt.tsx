@@ -18,6 +18,9 @@ import { Dialog } from '@/components/ui/dialog';
  */
 export type DecisionKind = 'save-content' | 'run-audit';
 
+/** Static: only one DecisionPrompt is open at a time (it is a modal). */
+const BLOCKERS_ID = 'decision-prompt-blockers';
+
 const DECISION_COPY: Record<DecisionKind, { title: string; confirmLabel: string }> = {
   'save-content': { title: 'Save this content?', confirmLabel: 'Save' },
   'run-audit': { title: 'Run this audit?', confirmLabel: 'Run audit' },
@@ -65,7 +68,13 @@ export function DecisionPrompt({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={onConfirm} disabled={isBlocked || pending}>
+          <Button
+            onClick={onConfirm}
+            disabled={isBlocked || pending}
+            // A disabled button leaves the tab order, so without this the
+            // reason it is disabled is only discoverable by browsing the body.
+            aria-describedby={isBlocked ? BLOCKERS_ID : undefined}
+          >
             {pending ? 'Working…' : confirmLabel}
           </Button>
         </>
@@ -73,14 +82,15 @@ export function DecisionPrompt({
     >
       <div className="flex flex-col gap-4 py-3">
         <div className="flex flex-col gap-1">
-          <p className="text-subtle text-2xs font-medium tracking-wide uppercase">
-            What this does
-          </p>
+          <p className="text-subtle text-2xs font-medium tracking-wide uppercase">What this does</p>
           <p className="text-foreground text-sm leading-relaxed">{consequence}</p>
         </div>
 
         {isBlocked ? (
-          <div className="border-danger bg-danger-bg flex flex-col gap-2 rounded-md border p-3">
+          <div
+            id={BLOCKERS_ID}
+            className="border-danger bg-danger-bg flex flex-col gap-2 rounded-md border p-3"
+          >
             <p className="text-danger-text text-xs font-semibold">
               {blockers.length === 1
                 ? 'One issue blocks this'

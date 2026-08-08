@@ -76,7 +76,11 @@ export function AuthPasswordField({
             className="text-muted hover:text-muted absolute top-1/2 right-3 -translate-y-1/2 p-1 transition-colors"
             aria-label={`${visible ? 'Hide' : 'Show'} ${visibilityLabel}`}
           >
-            {visible ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+            {visible ? (
+              <EyeOff className="size-4" aria-hidden />
+            ) : (
+              <Eye className="size-4" aria-hidden />
+            )}
           </button>
         </div>
       )}

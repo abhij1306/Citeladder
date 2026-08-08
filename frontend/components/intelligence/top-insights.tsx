@@ -15,7 +15,10 @@ import { insightFromOpportunity } from './opportunity-insight';
  * count is taken, because `Insight` declines to render them (§5) and a count
  * that disagrees with the visible rows is worse than no count.
  */
-export function TopInsights({ projectId, limit = 5 }: Readonly<{ projectId: string; limit?: number }>) {
+export function TopInsights({
+  projectId,
+  limit = 5,
+}: Readonly<{ projectId: string; limit?: number }>) {
   const query = useQuery({
     ...opportunitiesQueries.list(projectId, { limit }),
     enabled: Boolean(projectId),

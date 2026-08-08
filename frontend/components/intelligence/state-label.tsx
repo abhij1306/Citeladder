@@ -109,7 +109,7 @@ export function StateLabel({ state, children, className, ...rest }: Readonly<Sta
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-sm px-1 py-0.5 text-2xs font-medium whitespace-nowrap',
+        'text-2xs inline-flex items-center gap-1 rounded-sm px-1 py-0.5 font-medium whitespace-nowrap',
         STATE_TONE[state],
         className,
       )}

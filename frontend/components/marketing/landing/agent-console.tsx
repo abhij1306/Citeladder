@@ -21,8 +21,7 @@ const SCRIPT = [
     name: 'Site Intelligence',
     role: 'Crawls and classifies every page, then re-verifies after changes.',
     prompt: 'Recrawl complete — gap rules flagged uncovered questions on the service pages.',
-    reply:
-      'Queuing an evidence-grounded brief for each gap. Saving a draft stays your decision.',
+    reply: 'Queuing an evidence-grounded brief for each gap. Saving a draft stays your decision.',
   },
   {
     icon: 'content' as const,

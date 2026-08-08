@@ -140,12 +140,7 @@ describe('CoverageMeter', () => {
 describe('EditableFact', () => {
   it('shows the derived value when no correction exists', () => {
     render(
-      <EditableFact
-        label="Founded"
-        derivedValue="2019"
-        onCorrect={vi.fn()}
-        onWithdraw={vi.fn()}
-      />,
+      <EditableFact label="Founded" derivedValue="2019" onCorrect={vi.fn()} onWithdraw={vi.fn()} />,
     );
 
     expect(screen.getByText('2019')).toBeInTheDocument();
@@ -190,7 +185,72 @@ describe('EditableFact', () => {
 
   it('treats an unchanged edit as no correction at all', () => {
     const onCorrect = vi.fn();
+    const onWithdraw = vi.fn();
     render(
+      <EditableFact
+        label="Founded"
+        derivedValue="2019"
+        onCorrect={onCorrect}
+        onWithdraw={onWithdraw}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Correct Founded' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction to Founded' }));
+
+    // Nothing to correct and nothing to withdraw.
+    expect(onCorrect).not.toHaveBeenCalled();
+    expect(onWithdraw).not.toHaveBeenCalled();
+  });
+
+  it('withdraws when an active correction is cleared', () => {
+    // Clearing the field is a withdrawal, not a correction to "". Previously
+    // this closed the editor and silently kept the correction.
+    const onWithdraw = vi.fn();
+    render(
+      <EditableFact
+        label="Founded"
+        derivedValue="2019"
+        correction={{ value: '2017', author: 'Dana', correctedAt: '2 Jun' }}
+        onCorrect={vi.fn()}
+        onWithdraw={onWithdraw}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Correct Founded' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction to Founded' }));
+
+    expect(onWithdraw).toHaveBeenCalled();
+  });
+
+  it('withdraws when an active correction is retyped as the derived value', () => {
+    const onWithdraw = vi.fn();
+    const onCorrect = vi.fn();
+    render(
+      <EditableFact
+        label="Founded"
+        derivedValue="2019"
+        correction={{ value: '2017', author: 'Dana', correctedAt: '2 Jun' }}
+        onCorrect={onCorrect}
+        onWithdraw={onWithdraw}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Correct Founded' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '2019' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction to Founded' }));
+
+    expect(onWithdraw).toHaveBeenCalled();
+    expect(onCorrect).not.toHaveBeenCalled();
+  });
+
+  it('keeps the editor open across the save so a rejection keeps the draft', () => {
+    // The caller reports the in-flight save via `disabled`. Closing on submit
+    // would discard the typed draft if the save were then rejected, because
+    // the draft is only re-seeded from the (stale) displayed value.
+    const onCorrect = vi.fn();
+    const { rerender } = render(
       <EditableFact
         label="Founded"
         derivedValue="2019"
@@ -200,9 +260,54 @@ describe('EditableFact', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Correct Founded' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '2017' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction to Founded' }));
+    expect(onCorrect).toHaveBeenCalledTimes(1);
+
+    // Save in flight: the editor is still open, holding the draft.
+    rerender(
+      <EditableFact
+        label="Founded"
+        derivedValue="2019"
+        disabled
+        onCorrect={onCorrect}
+        onWithdraw={vi.fn()}
+      />,
+    );
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveValue('2017');
+
+    // A second Enter during the request must not fire a second mutation.
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onCorrect).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the editor once the correction lands', () => {
+    const { rerender } = render(
+      <EditableFact
+        label="Founded"
+        derivedValue="2019"
+        onCorrect={vi.fn()}
+        onWithdraw={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Correct Founded' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '2017' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save correction to Founded' }));
 
-    expect(onCorrect).not.toHaveBeenCalled();
+    rerender(
+      <EditableFact
+        label="Founded"
+        derivedValue="2019"
+        correction={{ value: '2017', author: 'Dana', correctedAt: '2 Jun' }}
+        onCorrect={vi.fn()}
+        onWithdraw={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByText('Corrected')).toBeInTheDocument();
   });
 
   it('withdraws a correction to restore the derived value', () => {
@@ -240,12 +345,7 @@ describe('EditableFact', () => {
     // There is no surface for blessing facts that are already right. If an
     // "Approve" control ever appears here, the old model has come back.
     render(
-      <EditableFact
-        label="Founded"
-        derivedValue="2019"
-        onCorrect={vi.fn()}
-        onWithdraw={vi.fn()}
-      />,
+      <EditableFact label="Founded" derivedValue="2019" onCorrect={vi.fn()} onWithdraw={vi.fn()} />,
     );
 
     expect(screen.queryByRole('button', { name: /approve/i })).toBeNull();
@@ -261,7 +361,6 @@ describe('DecisionPrompt', () => {
         onOpenChange={vi.fn()}
         onConfirm={vi.fn()}
         consequence="Runs 12 prompts across 3 engines on your OpenAI key."
-
       />,
     );
 
@@ -340,6 +439,8 @@ describe('ContextManifest', () => {
   it('renders an empty context honestly', () => {
     render(<ContextManifest manifest={{ included: [], omitted: [] }} />);
 
-    expect(screen.getByText("No artifacts were included in this task's context.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No artifacts were included in this task's context."),
+    ).toBeInTheDocument();
   });
 });

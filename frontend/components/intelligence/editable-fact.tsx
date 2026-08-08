@@ -42,7 +42,13 @@ export type EditableFactProps = {
   onCorrect: (value: string) => void;
   /** Withdraw the correction, restoring the derived value. */
   onWithdraw: () => void;
-  /** Disables both affordances (e.g. insufficient permission, in-flight save). */
+  /**
+   * Disables every affordance — insufficient permission, or a save in flight.
+   *
+   * Set this while `onCorrect` is pending: the editor deliberately stays open
+   * across the mutation so a rejected save keeps the user's draft, and this is
+   * what stops a second submit landing during the first.
+   */
   disabled?: boolean;
   className?: string;
 };
@@ -59,30 +65,69 @@ export function EditableFact({
 }: Readonly<EditableFactProps>) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  /** The value handed to `onCorrect`, pending confirmation from the caller. */
+  const [submitted, setSubmitted] = useState<string | null>(null);
   const inputId = useId();
 
   const displayValue = correction ? correction.value : derivedValue;
 
+  // A submitted value that shows up as the active correction is the signal the
+  // mutation landed, so the editor closes. Derived during render rather than in
+  // an effect: this is a function of props, not a side effect. Keyed on the
+  // SUBMITTED value, not the draft — the draft is seeded from the current
+  // correction when the editor opens, which would close it immediately. A
+  // rejected save leaves `correction` unchanged, so the editor stays open with
+  // the draft intact.
+  const landed = submitted !== null && correction?.value === submitted;
+  const editorOpen = isEditing && !landed;
+
   const startEditing = () => {
     setDraft(displayValue);
+    setSubmitted(null);
     setIsEditing(true);
   };
 
-  const submit = () => {
-    const trimmed = draft.trim();
-    // An empty correction is a withdrawal, not a correction to "".
-    if (trimmed.length === 0 || trimmed === derivedValue) {
-      setIsEditing(false);
-      return;
-    }
-    onCorrect(trimmed);
+  const cancel = () => {
+    setSubmitted(null);
     setIsEditing(false);
   };
 
-  if (isEditing) {
+  const submit = () => {
+    if (disabled) return;
+
+    const trimmed = draft.trim();
+
+    // Clearing the field, or retyping the derived value, both mean "remove the
+    // override" — so when a correction is active they withdraw it rather than
+    // discarding the edit silently.
+    if (trimmed.length === 0 || trimmed === derivedValue) {
+      setIsEditing(false);
+      if (correction) onWithdraw();
+      return;
+    }
+
+    // Re-submitting the value already stored is a no-op, not a mutation.
+    if (trimmed === correction?.value) {
+      setIsEditing(false);
+      return;
+    }
+
+    // The editor stays OPEN across the mutation. `disabled` is how the caller
+    // reports an in-flight save, and closing here would discard the user's
+    // draft if that save is then rejected — `draft` is only re-seeded from
+    // `displayValue`, which still holds the pre-save value. The caller closes
+    // the editor by clearing `disabled` once the correction has landed.
+    setSubmitted(trimmed);
+    onCorrect(trimmed);
+  };
+
+  if (editorOpen) {
     return (
       <div className={cn('flex flex-col gap-2', className)}>
-        <label htmlFor={inputId} className="text-subtle text-2xs font-medium tracking-wide uppercase">
+        <label
+          htmlFor={inputId}
+          className="text-subtle text-2xs font-medium tracking-wide uppercase"
+        >
           {label}
         </label>
         <div className="flex items-center gap-2">
@@ -90,20 +135,32 @@ export function EditableFact({
             id={inputId}
             value={draft}
             autoFocus
+            // `disabled` can flip to true while the editor is already open (an
+            // in-flight save), so the editing branch honours it too — otherwise
+            // Enter fires a second mutation during the first.
+            disabled={disabled}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
+              if (disabled) return;
               if (event.key === 'Enter') submit();
-              if (event.key === 'Escape') setIsEditing(false);
+              if (event.key === 'Escape') cancel();
             }}
           />
-          <Button type="button" size="sm" onClick={submit} aria-label={`Save correction to ${label}`}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={disabled}
+            onClick={submit}
+            aria-label={`Save correction to ${label}`}
+          >
             <Check aria-hidden className="size-4" />
           </Button>
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            onClick={() => setIsEditing(false)}
+            disabled={disabled}
+            onClick={cancel}
             aria-label="Cancel"
           >
             <X aria-hidden className="size-4" />
@@ -124,7 +181,7 @@ export function EditableFact({
         <span className="text-foreground text-sm">{displayValue}</span>
 
         {correction ? (
-          <span className="bg-info-bg text-info-text rounded-sm px-1 py-0.5 text-2xs font-medium">
+          <span className="bg-info-bg text-info-text text-2xs rounded-sm px-1 py-0.5 font-medium">
             Corrected
           </span>
         ) : null}

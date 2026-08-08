@@ -52,10 +52,10 @@ export function CoverageMeter({
   // A zero denominator is not a zero score — nothing was measurable at all.
   if (total <= 0) {
     return (
-      <div className={cn('flex flex-col gap-1', className)}>
-        <p className="text-muted text-xs font-medium">{label}</p>
+      <figure className={cn('m-0 flex flex-col gap-1', className)}>
+        <figcaption className="text-muted text-xs font-medium">{label}</figcaption>
         <StateLabel state="unavailable" />
-      </div>
+      </figure>
     );
   }
 
@@ -63,8 +63,11 @@ export function CoverageMeter({
   const isLowCoverage = coverage < LOW_COVERAGE_THRESHOLD;
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <p className="text-muted text-xs font-medium">{label}</p>
+    // <figure> + <figcaption> gives the score an accessible name natively; a
+    // bare percentage in a sibling <p> has none, and role="group" would trip
+    // the "prefer a native element" lint.
+    <figure className={cn('m-0 flex flex-col gap-1.5', className)}>
+      <figcaption className="text-muted text-xs font-medium">{label}</figcaption>
 
       {/* Score and coverage are two numbers read together — never one number
           with the other hidden in a tooltip. */}
@@ -83,6 +86,6 @@ export function CoverageMeter({
           count against this score rather than being excluded from it.
         </p>
       ) : null}
-    </div>
+    </figure>
   );
 }

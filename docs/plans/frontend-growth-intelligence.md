@@ -317,6 +317,22 @@ not landed. Revisit before the first real user, not before.
 - **Mocking `@tanstack/react-query` needs `queryOptions` too.** Every `*Queries` builder in
   `lib/api` calls it, so a mock that returns only `useQuery` fails at import with a
   confusing "No queryOptions export" error.
+- **`EditableFact` keeps its editor open across the mutation.** The first caller must pass
+  `disabled` while `onCorrect` is pending, and let the returned `correction` close the
+  editor. Closing on submit instead would discard the user's draft whenever a save is
+  rejected, since the draft is only re-seeded from the (stale) displayed value. Clearing
+  the field or retyping the derived value both withdraw an active correction rather than
+  discarding the edit silently.
+- **`EditableFact` has no production caller yet.** It is a built contract, not a shipped
+  capability, so the landing page must NOT claim durable corrections — a guard in
+  `landing-claims.test.tsx` pins that. Wire it to a durable mutation (stage 1–2 facts), then
+  restore the claim and delete the guard.
+- **The decision-count test is a type-level guard, not integration coverage.** A reviewer
+  flagged that a third blocking prompt could be added elsewhere without touching
+  `DecisionKind`. True, and accepted: `DecisionPrompt` is the only blocking UI by
+  construction, and a runtime registry would add indirection to enforce what the closed
+  union already enforces at the one place it can be violated. If a second blocking surface
+  ever appears, that is the moment to add the registry.
 - **Nav labels are regex-matched in `sidebar-nav.test.tsx`.** "Site" matches "Site health"
   and "Content" matches other labels, so anchor those assertions (`/^site$/i`) when adding
   a destination whose name is a prefix of another.

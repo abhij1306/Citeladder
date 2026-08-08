@@ -97,7 +97,7 @@ export function Insight({ insight, action, className }: Readonly<InsightProps>) 
       <div className="flex items-center justify-between gap-3">
         <span
           className={cn(
-            'inline-flex items-center rounded-sm px-1.5 py-0.5 text-2xs font-medium tracking-wide uppercase',
+            'text-2xs inline-flex items-center rounded-sm px-1.5 py-0.5 font-medium tracking-wide uppercase',
             PRIORITY_TONE[insight.priority],
           )}
         >
