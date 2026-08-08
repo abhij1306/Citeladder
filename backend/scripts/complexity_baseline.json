@@ -277,12 +277,13 @@
       "_resolve_stage": 10,
       "_share": 1,
       "_trust": 2,
-      "_unsupported_reason": 5,
+      "_unsupported_reason": 4,
+      "is_extractable_predicate": 3,
       "resolve_journeys": 2,
       "resolve_question_coverage": 8,
       "score_dimensions": 10
     },
-    "loc": 682,
+    "loc": 700,
     "max_cc": 14
   },
   "app/analysis/site_health/knowledge.py": {
@@ -306,6 +307,7 @@
       "_parse_date": 6,
       "_path_scope": 3,
       "_recognized_blocks": 5,
+      "_scope_is_complete": 3,
       "_strip_title_suffix": 4,
       "_tuple_of_str": 5,
       "compile_vocabulary": 12,
@@ -315,7 +317,7 @@
       "resolve_temporal_state": 4,
       "scope_key_for": 4
     },
-    "loc": 1169,
+    "loc": 1183,
     "max_cc": 15
   },
   "app/analysis/site_health/page_kinds.py": {
@@ -335,7 +337,7 @@
       "classify": 3,
       "is_question_heading": 4
     },
-    "loc": 387,
+    "loc": 390,
     "max_cc": 13
   },
   "app/analysis/site_health/parser.py": {
@@ -369,7 +371,7 @@
       "_text": 3,
       "extract_page_facts": 18
     },
-    "loc": 1124,
+    "loc": 1129,
     "max_cc": 28
   },
   "app/analysis/site_health/rules.py": {
@@ -839,7 +841,7 @@
       "stop_analysis_endpoint": 2,
       "stop_discovery_endpoint": 2
     },
-    "loc": 1285,
+    "loc": 1289,
     "max_cc": 10
   },
   "app/api/traffic.py": {
@@ -1231,9 +1233,10 @@
       "curl_cffi_pinned_resolution_supported": 4,
       "curl_trigger_for_result": 10,
       "loads_script": 4,
-      "readable_text_length": 2
+      "readable_text_length": 2,
+      "strip_comments": 5
     },
-    "loc": 157,
+    "loc": 189,
     "max_cc": 10
   },
   "app/connectors/web_evidence/brand_evidence.py": {
@@ -1281,7 +1284,7 @@
       "_same_authority": 3,
       "_timeout_error_type": 2
     },
-    "loc": 549,
+    "loc": 556,
     "max_cc": 8
   },
   "app/connectors/web_evidence/contracts.py": {
@@ -1353,7 +1356,7 @@
       "is_bot_block_result": 3,
       "redact_headers": 4
     },
-    "loc": 1271,
+    "loc": 1268,
     "max_cc": 18
   },
   "app/connectors/web_evidence/resolver.py": {
@@ -1857,7 +1860,7 @@
       "PageKindSchemaExpectation.__init__": 1,
       "SiteHealthRule.__init__": 3,
       "SiteHealthRuntimePolicy.__init__": 1,
-      "SiteHealthSettings._validate_acquisition_ladder": 13,
+      "SiteHealthSettings._validate_acquisition_ladder": 14,
       "SiteHealthSettings._validate_discovery_cap": 2,
       "SiteHealthSettings._validate_lease_and_heartbeat": 12,
       "SiteHealthSettings._validate_sample_limits": 6,
@@ -1866,8 +1869,8 @@
       "_site_task_claim_order": 1,
       "runtime_policy_for_allowance": 2
     },
-    "loc": 2440,
-    "max_cc": 13
+    "loc": 2442,
+    "max_cc": 14
   },
   "app/core/config/site_health_page_profiles.py": {
     "functions": {},
@@ -1876,7 +1879,7 @@
   },
   "app/core/config/site_intelligence.py": {
     "functions": {},
-    "loc": 374,
+    "loc": 379,
     "max_cc": 0
   },
   "app/core/config/suggestions.py": {
@@ -3674,7 +3677,7 @@
   },
   "app/domain/site_health/api_schemas.py": {
     "functions": {},
-    "loc": 908,
+    "loc": 914,
     "max_cc": 0
   },
   "app/domain/site_health/discovery.py": {
@@ -3760,7 +3763,7 @@
       "_PageTally.add": 2,
       "_PageTally.to_signals": 4,
       "_corpus_counts": 6,
-      "_corpus_signals": 9,
+      "_corpus_signals": 10,
       "_coverage_payload": 2,
       "_dimensions_payload": 2,
       "_journeys_payload": 2,
@@ -3770,7 +3773,7 @@
       "_versions": 1,
       "build_intelligence_projection": 4
     },
-    "loc": 510,
+    "loc": 516,
     "max_cc": 12
   },
   "app/domain/site_health/inventory_scope.py": {
@@ -3787,22 +3790,24 @@
     "functions": {
       "_evidence_ref": 1,
       "_extract_all": 2,
-      "_group_contradictions": 8,
+      "_fallback_domain": 7,
+      "_group_contradictions": 10,
+      "_insert_chunked": 3,
       "_load_pages": 6,
       "_mark_root": 6,
       "_merge": 7,
       "_merge_assertions": 4,
       "_merge_entities": 6,
       "_merge_relations": 4,
-      "_persist": 9,
-      "_site_identity_key": 5,
+      "_persist": 6,
+      "_site_identity_key": 4,
       "build_crawl_knowledge": 7,
       "conflict_policy_permits_multiple": 2,
       "current_assertion": 1,
       "historical_assertion": 1
     },
-    "loc": 680,
-    "max_cc": 9
+    "loc": 740,
+    "max_cc": 10
   },
   "app/domain/site_health/normalization.py": {
     "functions": {
@@ -3818,7 +3823,7 @@
   "app/domain/site_health/phase_control.py": {
     "functions": {
       "PhaseControlError.__init__": 1,
-      "_analysis_candidates": 6,
+      "_analysis_candidates": 5,
       "_analysis_target_crawl": 6,
       "_clone_cancelled_discovery_tasks": 3,
       "_ensure_monitoring_capacity": 5,
@@ -3830,6 +3835,7 @@
       "_now": 1,
       "_pause_if_idle": 6,
       "_record_analysis_inventory": 3,
+      "_reject_unusable_selection": 3,
       "_resume_crawl": 2,
       "_running_phase": 1,
       "_schedule_analysis_tasks": 4,
@@ -3839,7 +3845,7 @@
       "stop_analysis": 3,
       "stop_discovery": 3
     },
-    "loc": 802,
+    "loc": 838,
     "max_cc": 8
   },
   "app/domain/site_health/planner.py": {
@@ -3932,6 +3938,7 @@
     "functions": {
       "_assertion_payload": 10,
       "_blocks": 6,
+      "_bounded": 1,
       "_empty_projection": 1,
       "_entity_payload": 9,
       "_load_crawl": 4,
@@ -3939,13 +3946,13 @@
       "dimension_order": 2,
       "get_intelligence_overview": 6,
       "get_knowledge_assertions": 5,
-      "get_knowledge_contradictions": 3,
+      "get_knowledge_contradictions": 5,
       "get_knowledge_entities": 4,
-      "get_knowledge_relations": 3,
-      "get_schema_graph": 11
+      "get_knowledge_relations": 4,
+      "get_schema_graph": 12
     },
-    "loc": 521,
-    "max_cc": 11
+    "loc": 600,
+    "max_cc": 12
   },
   "app/domain/site_health/service/issues.py": {
     "functions": {
@@ -3988,15 +3995,16 @@
       "_link_reference_row": 3,
       "_matches_page_status": 3,
       "_page_facts": 24,
+      "_page_kind_buckets": 3,
       "_page_kind_matches": 3,
-      "_score_summary": 12,
+      "_score_summary": 11,
       "_single_h1_variant": 4,
       "display_label_for": 6,
       "presentation_status_for": 12,
       "project_crawl": 9,
       "project_phase_run": 1
     },
-    "loc": 486,
+    "loc": 500,
     "max_cc": 24
   },
   "app/domain/site_health/service/queries.py": {
@@ -4269,7 +4277,7 @@
       "entity_id": 1,
       "relation_id": 1
     },
-    "loc": 355,
+    "loc": 361,
     "max_cc": 1
   },
   "app/models/opportunity.py": {
@@ -4305,7 +4313,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 1318,
+    "loc": 1325,
     "max_cc": 1
   },
   "app/models/traffic.py": {
@@ -4836,7 +4844,7 @@
       "_acquisition_values": 3,
       "main": 1
     },
-    "loc": 887,
+    "loc": 885,
     "max_cc": 10
   }
 }

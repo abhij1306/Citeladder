@@ -231,6 +231,11 @@ class _BrowserPool:
             existing = self._browsers.get(rule)
             if existing is not None:
                 self._browsers.move_to_end(rule)
+                # The cache hit takes a lease too. Counting only new launches
+                # left every reused browser at zero, so it was immediately
+                # evictable — the exact case the lease exists to prevent, and
+                # the common one on a single-host crawl.
+                self._leases[rule] = self._leases.get(rule, 0) + 1
                 return existing
             api = _load_patchright()
             try:
@@ -426,11 +431,13 @@ class PatchrightTransport:
         characters and then checking the encoded length rejected any page whose
         multibyte content encoded above the cap while its character count was
         well under it — which on a Hindi or Chinese site is an ordinary page,
-        refused for being written in a non-Latin script. One extra byte is
-        requested so an exactly-at-cap document stays distinguishable from an
-        oversized one, and an oversized one is still REFUSED rather than
-        silently truncated: partial evidence analyzed as if complete is worse
-        than no evidence at all.
+        refused for being written in a non-Latin script.
+
+        The page measures the encoded size and returns the document only when
+        it fits, so an oversized one costs one integer across the CDP boundary
+        rather than the whole string. It is then REFUSED rather than silently
+        truncated: partial evidence analyzed as if complete is worse than no
+        evidence at all.
         """
 
         script = """

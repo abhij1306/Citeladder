@@ -118,7 +118,10 @@ def _is_absolute_http_url(final_url: str) -> bool:
         parts = urlsplit(str(final_url or ""))
     except ValueError:
         return False
-    return parts.scheme.lower() in {"http", "https"} and bool(parts.netloc)
+    # ``hostname``, not ``netloc``: ``http://user@/products`` carries a non-empty
+    # netloc with no host at all, and deriving path signals from it would attach
+    # findings to a URL that names no document.
+    return parts.scheme.lower() in {"http", "https"} and bool(parts.hostname)
 
 
 def _signal(signal: str, page_kind: str, detail: str) -> dict[str, Any]:

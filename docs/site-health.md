@@ -39,8 +39,8 @@ All seven are implemented:
    removed — rung, settings, and columns.
 5. Corpus disposition (`analyze` | `inventory_only` | `exclude`) is first-class on `SiteUrl` with
    its reason, version, and `item_kind`.
-6. `page_type` is split: `page_kind` (generic structural) and `industry_role` (pack-governed) are
-   separate columns with independent vocabularies and evidence.
+6. `page_type` is split: `page_kind` (generic structural) and `industry_role_id` (pack-governed)
+   are separate columns with independent vocabularies and evidence.
 7. Supported documents (PDF/Office) are admitted to corpus inventory as `item_kind=document` with
    `inventory_only` disposition, so they count toward coverage without entering the HTML analyzer.
 
@@ -83,8 +83,17 @@ Three role states stay distinct and must not be collapsed:
 - **executed abstention** — `industry_role_id IS NULL` WITH `role_abstention_reason` (the
   classifier ran and declined: `schema_only`, `ambiguous_margin`, `below_minimum_score`, …);
 - **never ran** — no pack frozen on the crawl, so the API returns `industry_role: null` entirely.
+
 "We did not look" and "we looked and could not tell" are different facts, and only the second is
 evidence about the page.
+
+Column and field names differ deliberately and are not interchangeable. The stored column is
+`SitePageAnalysis.industry_role_id`. The page-detail API exposes an `industry_role` OBJECT (role id,
+score, margin, confidence band, secondary roles, abstention reason, evidence, and the frozen
+manifest) whose `role_id` field carries that column; list projections carry the bare
+`industry_role_id` instead, so a page of rows never ships kilobytes of evidence. The object being
+`null` is the "never ran" state; `role_id` being null inside a present object is an executed
+abstention.
 
 Pack resolution happens ONCE at crawl creation and freezes into `SiteCrawl.configuration`. Read
 endpoints render the frozen manifest and never re-resolve a pack. An unknown or ambiguous industry

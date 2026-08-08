@@ -231,9 +231,7 @@ class SiteHealthWorker(
         if not site_health_settings.browser_enabled:
             return None
         if self._browser_transport is None:
-            self._browser_transport = PatchrightTransport(
-                settings=site_health_settings
-            )
+            self._browser_transport = PatchrightTransport(settings=site_health_settings)
         return self._browser_transport
 
     async def aclose(self) -> None:

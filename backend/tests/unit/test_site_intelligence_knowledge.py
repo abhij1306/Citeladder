@@ -87,8 +87,8 @@ def test_malformed_pack_entries_are_skipped_not_fatal():
 # Identity
 # =========================================================================
 def test_identity_key_folds_case_and_punctuation():
-    assert identity_key_for("The Asian School") == identity_key_for(
-        "THE ASIAN  SCHOOL."
+    assert identity_key_for("Riverside Academy") == identity_key_for(
+        "RIVERSIDE  ACADEMY."
     )
 
 
@@ -115,20 +115,23 @@ def test_normalize_text_collapses_whitespace_and_bounds_length():
 # =========================================================================
 # Organization identity — the no-structured-data path
 # =========================================================================
-_HOME = """<html><head><title>The Asian School | Dehradun</title>
+_HOME = """<html><head><title>Riverside Academy | Hill Town</title>
 <meta name="description" content="A residential school"></head>
-<body><h1>The Asian School</h1>
-<a href="mailto:info@asian.test?subject=Hello">Email</a>
+<body><h1>Riverside Academy</h1>
+<a href="mailto:info@riverside.test?subject=Hello">Email</a>
 <a href="tel:+91-135-000">Call</a></body></html>"""
 
 
 def test_organization_is_established_without_any_structured_data(education):
     result = knowledge(
-        education, _HOME, role="education.institution_home", url="https://a.test/",
+        education,
+        _HOME,
+        role="education.institution_home",
+        url="https://a.test/",
         root=True,
     )
     assert entity_types(result) == {"education.organization"}
-    assert result.entities[0].canonical_name == "The Asian School"
+    assert result.entities[0].canonical_name == "Riverside Academy"
     assert "education.legal_name" in predicates(result)
 
 
@@ -151,7 +154,10 @@ def test_the_root_does_not_mint_a_campus_named_after_the_school(education):
     every later address and fee attaches to it instead of the organization.
     """
     result = knowledge(
-        education, _HOME, role="education.institution_home", url="https://a.test/",
+        education,
+        _HOME,
+        role="education.institution_home",
+        url="https://a.test/",
         root=True,
     )
     assert "education.campus" not in entity_types(result)
@@ -187,7 +193,10 @@ def test_percent_escaped_mailto_yields_one_usable_address():
 
 def test_contact_points_are_scoped_by_channel_and_deduplicated(education):
     result = knowledge(
-        education, _HOME, role="education.institution_home", url="https://a.test/",
+        education,
+        _HOME,
+        role="education.institution_home",
+        url="https://a.test/",
         root=True,
     )
     contacts = [

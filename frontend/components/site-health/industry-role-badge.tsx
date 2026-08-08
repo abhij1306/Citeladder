@@ -17,9 +17,9 @@ import { PLACEHOLDER } from '@/lib/site-health/status';
  *     finding, not missing data;
  *   - a selected role -> the role label.
  *
- * Role IDs are pack-defined and namespaced (`education.admissions_overview`).
- * An unrecognized ID renders its own last segment humanized rather than a
- * fabricated label, so a new pack never needs a frontend release to display.
+ * Role IDs are pack-defined and namespaced (`education.admissions_overview`)
+ * and render verbatim — see `industryRoleLabel` for why the raw ID is the
+ * honest choice — so a new pack never needs a frontend release to display.
  */
 
 const ABSTENTION_LABELS: Readonly<Record<string, string>> = {

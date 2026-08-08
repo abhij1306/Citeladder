@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -788,7 +788,10 @@ class IntelligenceOverviewResponse(_Model):
 class EvidenceRef(_Model):
     source_kind: str
     source_id: str
-    locator: dict[str, object] = {}
+    # Source-type-specific and deliberately open (url, content hash, page,
+    # offsets). ``Any`` rather than ``object`` so pydantic serializes the
+    # payload as-is instead of warning its way through an opaque type.
+    locator: dict[str, Any] = {}
 
 
 class KnowledgeManifest(_Model):
@@ -832,6 +835,9 @@ class KnowledgeAssertionItem(_Model):
     unit: str = ""
     currency: str = ""
     scope: dict[str, str] = {}
+    # False = a pack-required qualifier was never evidenced. Such a claim must
+    # not be read as scoped, so the reader is told rather than left to guess.
+    scope_complete: bool = True
     temporal_state: str
     effective_from: str | None = None
     effective_to: str | None = None

@@ -1528,7 +1528,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         weight=2.0,
         applicability_key=APPLICABILITY_OBSERVED_CONTENT,
         description=(
-            "Word count is below the per-page-type minimum (PAGE_KIND_PROFILES)."
+            "Word count is below the per-page-kind minimum (PAGE_KIND_PROFILES)."
         ),
         remediation="Add substantive, answer-oriented body content to the page.",
         display_label="Thin content",
@@ -2314,14 +2314,16 @@ class SiteHealthSettings(BaseSettings):
             raise ValueError("browser_pool_max_browsers must be at least 1")
         # Negative bounds do not disable a signal, they invert it: a negative
         # scan window makes every body read as empty, and a negative text floor
-        # makes every 2xx page a shell. Zero is the documented "off" value.
-        for name in (
-            "js_shell_min_text_chars",
-            "js_shell_min_inline_script_chars",
-            "js_shell_scan_bytes",
-        ):
+        # makes every 2xx page a shell. Zero is the documented "off" value for
+        # the two that gate the signal.
+        for name in ("js_shell_min_text_chars", "js_shell_scan_bytes"):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must not be negative")
+        # This one has no "off" meaning: zero would make every empty inline
+        # <script> count as application code, so an ordinary analytics stub
+        # would escalate a static page to a browser render.
+        if self.js_shell_min_inline_script_chars < 1:
+            raise ValueError("js_shell_min_inline_script_chars must be positive")
         return self
 
     @model_validator(mode="after")

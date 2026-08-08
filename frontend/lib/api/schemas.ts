@@ -3155,6 +3155,12 @@ export const auditEventListSchema = z.array(auditEventSchema);
 // incomplete crawl into a failing site. Components must branch on `null`, never
 // coalesce it.
 
+// Counts and ratios the backend computes are never negative and never above
+// one. Declaring that here turns an impossible value into a loud validation
+// failure instead of a UI that renders "-3 entities" or a 140% bar.
+const count = () => z.number().int().min(0);
+const unitInterval = () => z.number().min(0).max(1);
+
 export const coverageStateSchema = z.enum([
   'answered_strong',
   'answered_weak',
@@ -3178,9 +3184,9 @@ export const questionCoverageItemSchema = responseObject({
 });
 
 export const questionCoverageBlockSchema = responseObject({
-  answered_ratio: z.number().nullable(),
-  denominator: z.number().int(),
-  counts: z.record(z.string(), z.number().int()),
+  answered_ratio: unitInterval().nullable(),
+  denominator: count(),
+  counts: z.record(z.string(), count()),
   questions: z.array(questionCoverageItemSchema),
 });
 
@@ -3188,8 +3194,8 @@ export const journeyStageBlockSchema = responseObject({
   stage_id: z.string(),
   label: z.string(),
   order: z.number().int(),
-  role_coverage: z.number(),
-  question_coverage: z.number().nullable(),
+  role_coverage: unitInterval(),
+  question_coverage: unitInterval().nullable(),
   present_role_ids: z.array(z.string()),
   missing_role_ids: z.array(z.string()),
   answered_question_ids: z.array(z.string()),
@@ -3203,49 +3209,49 @@ export const journeyBlockSchema = responseObject({
   journey_id: z.string(),
   label: z.string(),
   stages: z.array(journeyStageBlockSchema),
-  role_coverage: z.number(),
-  question_coverage: z.number().nullable(),
+  role_coverage: unitInterval(),
+  question_coverage: unitInterval().nullable(),
   version: z.string(),
 });
 
 export const dimensionComponentSchema = responseObject({
   component_id: z.string(),
   label: z.string(),
-  score: z.number().nullable(),
+  score: unitInterval().nullable(),
 });
 
 export const dimensionBlockSchema = responseObject({
   dimension_id: z.string(),
   label: z.string(),
-  score: z.number(),
-  coverage: z.number(),
+  score: unitInterval(),
+  coverage: unitInterval(),
   components: z.array(dimensionComponentSchema),
 });
 
 export const dimensionsBlockSchema = responseObject({
-  composite_score: z.number().nullable(),
-  composite_coverage: z.number().nullable(),
+  composite_score: unitInterval().nullable(),
+  composite_coverage: unitInterval().nullable(),
   dimensions: z.array(dimensionBlockSchema),
 });
 
 export const knowledgeSummaryBlockSchema = responseObject({
-  entity_count: z.number().int(),
-  assertion_count: z.number().int(),
-  relation_count: z.number().int(),
-  contradiction_count: z.number().int(),
-  pages_considered: z.number().int(),
-  pages_contributing: z.number().int(),
+  entity_count: count(),
+  assertion_count: count(),
+  relation_count: count(),
+  contradiction_count: count(),
+  pages_considered: count(),
+  pages_contributing: count(),
   entity_type_ids: z.array(z.string()),
   warnings: z.array(z.string()),
 });
 
 export const corpusBlockSchema = responseObject({
-  by_disposition: z.record(z.string(), z.number().int()),
-  by_item_kind: z.record(z.string(), z.number().int()),
-  discovered: z.number().int(),
-  analyzable: z.number().int(),
-  inventory_only: z.number().int(),
-  documents: z.number().int(),
+  by_disposition: z.record(z.string(), count()),
+  by_item_kind: z.record(z.string(), count()),
+  discovered: count(),
+  analyzable: count(),
+  inventory_only: count(),
+  documents: count(),
 });
 
 export const intelligenceOverviewSchema = responseObject({
@@ -3284,7 +3290,7 @@ export const knowledgeEntityItemSchema = responseObject({
   aliases: z.array(z.string()),
   identifiers: z.record(z.string(), z.string()),
   review_state: z.string(),
-  evidence_page_count: z.number().int(),
+  evidence_page_count: count(),
   evidence_refs: z.array(evidenceRefSchema),
   manifest: responseObject({
     pack_id: z.string(),
@@ -3295,7 +3301,7 @@ export const knowledgeEntityItemSchema = responseObject({
 
 export const knowledgeEntityPageSchema = responseObject({
   crawl_id: z.string(),
-  total: z.number().int(),
+  total: count(),
   items: z.array(knowledgeEntityItemSchema),
 });
 
@@ -3315,6 +3321,9 @@ export const knowledgeAssertionItemSchema = responseObject({
   unit: z.string(),
   currency: z.string(),
   scope: z.record(z.string(), z.string()),
+  // false = a pack-required qualifier was never evidenced. Render such a claim
+  // as unscoped; it must never read as fully qualified.
+  scope_complete: z.boolean(),
   temporal_state: z.string(),
   effective_from: z.string().nullable(),
   effective_to: z.string().nullable(),
@@ -3329,7 +3338,7 @@ export const knowledgeAssertionItemSchema = responseObject({
 
 export const knowledgeAssertionPageSchema = responseObject({
   crawl_id: z.string(),
-  total: z.number().int(),
+  total: count(),
   items: z.array(knowledgeAssertionItemSchema),
 });
 
@@ -3344,7 +3353,7 @@ export const contradictionGroupSchema = responseObject({
 
 export const contradictionPageSchema = responseObject({
   crawl_id: z.string(),
-  total: z.number().int(),
+  total: count(),
   items: z.array(contradictionGroupSchema),
 });
 
@@ -3359,20 +3368,20 @@ export const knowledgeRelationItemSchema = responseObject({
 
 export const knowledgeRelationPageSchema = responseObject({
   crawl_id: z.string(),
-  total: z.number().int(),
+  total: count(),
   items: z.array(knowledgeRelationItemSchema),
 });
 
 export const schemaGraphResponseSchema = responseObject({
   crawl_id: z.string(),
-  analyzed_pages: z.number().int(),
-  pages_with_schema: z.number().int(),
+  analyzed_pages: count(),
+  pages_with_schema: count(),
   types: z.array(
     responseObject({
       type: z.string(),
-      pages: z.number().int(),
-      valid: z.number().int(),
-      invalid: z.number().int(),
+      pages: count(),
+      valid: count(),
+      invalid: count(),
     }),
   ),
   invalid: z.array(

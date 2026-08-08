@@ -5173,6 +5173,12 @@ def upgrade() -> None:
         sa.Column("currency", sa.String(length=8), nullable=False),
         sa.Column("scope", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("scope_key", sa.String(length=256), nullable=False),
+        sa.Column(
+            "scope_complete",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("true"),
+        ),
         sa.Column("effective_from", sa.DateTime(timezone=True), nullable=True),
         sa.Column("effective_to", sa.DateTime(timezone=True), nullable=True),
         sa.Column("temporal_state", sa.String(length=16), nullable=False),

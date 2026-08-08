@@ -115,8 +115,9 @@ question coverage (eight distinct states), journey stage coverage, and the six d
 computed at crawl finalization and frozen whole onto `SiteHealthSnapshot.intelligence`; every read
 endpoint renders that stored projection and never re-resolves a pack or re-scores.
 
-Composites report over the FULL denominator with coverage beside them. Only a reviewer's explicit
-`not_applicable` declaration — frozen onto the crawl like the pack manifest — leaves a denominator.
+Composites report over the FULL denominator with coverage beside them. A declared item that went
+unevidenced STAYS in the denominator and lowers the score; only a reviewer's explicit
+`not_applicable` declaration — frozen onto the crawl like the pack manifest — removes it.
 
 Still deferred (next slices): approved-memory transitions, project-authored journey definitions,
 task context packages, content briefs, and recrawl comparison.

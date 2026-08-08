@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.connectors.web_evidence import acquisition
 from app.connectors.web_evidence.contracts import FetchResult
 
@@ -148,6 +150,38 @@ def test_unterminated_script_at_the_scan_boundary_is_not_read_as_text() -> None:
     assert acquisition.readable_text_length(body, scan_bytes=200) == 0
 
 
+@pytest.mark.parametrize(
+    "close",
+    [b"</script>", b"</script >", b"</script\t\n bar>", b"</script/>", b"</SCRIPT>"],
+)
+def test_every_html_script_end_tag_form_closes_the_subtree(close: bytes) -> None:
+    """HTML ends a script at ``</script`` plus whitespace, ``/``, or ``>``.
+
+    Accepting only ``</script\\s*>`` let a page write ``</script bar>``, leave
+    the subtree looking unterminated, and have the tail-drop discard the real
+    prose after it — reporting a content-rich page as a near-empty shell.
+    """
+    prose = "Readable prose that must still be counted."
+    body = (
+        b"<html><body><script>var x=1;"
+        + close
+        + b"<p>"
+        + prose.encode()
+        + b"</p></body></html>"
+    )
+    assert acquisition.readable_text_length(body, scan_bytes=262_144) == len(
+        "".join(prose.split())
+    )
+
+
+def test_a_longer_tag_name_does_not_close_a_script() -> None:
+    """``</scripting>`` is not a ``script`` end tag; the word boundary holds."""
+    body = (
+        b"<html><body><script>var x=1;</scripting>still script</script>ok</body></html>"
+    )
+    assert acquisition.readable_text_length(body, scan_bytes=262_144) == 2
+
+
 def test_commented_out_script_is_not_evidence_of_client_rendering() -> None:
     """Inert markup must not escalate a static page to a browser render."""
     body = (
@@ -155,6 +189,4 @@ def test_commented_out_script_is_not_evidence_of_client_rendering() -> None:
         + b"<!-- <script src='/bundle.js'></script> -->"
         + b"</body></html>"
     )
-    assert not acquisition.loads_script(
-        body, scan_bytes=262_144, min_inline_chars=1024
-    )
+    assert not acquisition.loads_script(body, scan_bytes=262_144, min_inline_chars=1024)

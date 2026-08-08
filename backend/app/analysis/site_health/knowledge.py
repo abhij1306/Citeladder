@@ -369,6 +369,13 @@ class AssertionCandidate:
     effective_from: datetime | None = None
     effective_to: datetime | None = None
     confidence: float = 1.0
+    # Whether every qualifier the pack REQUIRES for this predicate was actually
+    # evidenced. False means the claim is real but we do not know what it
+    # applies to — a fee whose academic year, grade, and fee type the page never
+    # stated. Two such claims are NOT a contradiction: they may simply be two
+    # different grades' fees, and reporting a conflict would be a guess. The
+    # honest finding is that neither is scoped.
+    scope_complete: bool = True
 
 
 @dataclass(frozen=True)
@@ -411,8 +418,8 @@ def normalize_text(value: object, *, limit: int = MAX_VALUE_CHARS) -> str:
 def identity_key_for(*parts: object) -> str:
     """The deterministic cross-page identity key for a set of identity fields.
 
-    Case-folded and punctuation-stripped so "The Asian School", "THE ASIAN
-    SCHOOL" and "The Asian School." are one entity. Empty parts are kept as
+    Case-folded and punctuation-stripped so "Riverside Academy", "RIVERSIDE
+    ACADEMY" and "Riverside Academy." are one entity. Empty parts are kept as
     empty segments rather than dropped, so ``(name, domain)`` and
     ``(domain, name)`` can never collide.
     """
@@ -594,9 +601,9 @@ def _dedupe_entities(candidates: Sequence[EntityCandidate]) -> list[EntityCandid
         if existing is None:
             merged[candidate.ref] = candidate
             continue
-        aliases = tuple(
-            dict.fromkeys((*existing.aliases, *candidate.aliases))
-        )[:MAX_ENTITY_ALIASES]
+        aliases = tuple(dict.fromkeys((*existing.aliases, *candidate.aliases)))[
+            :MAX_ENTITY_ALIASES
+        ]
         merged[candidate.ref] = EntityCandidate(
             ref=candidate.ref,
             canonical_name=existing.canonical_name or candidate.canonical_name,
@@ -637,6 +644,7 @@ def _add_assertion(
     resolved_scope = dict(scope or {})
     assertions.append(
         AssertionCandidate(
+            scope_complete=_scope_is_complete(spec, resolved_scope),
             subject=subject,
             predicate_id=spec.predicate_id,
             value_type=value_type or spec.value_type,
@@ -673,6 +681,11 @@ def _organization_schema_evidence(
     return names, [entry for entry in same_as if entry]
 
 
+def _scope_is_complete(spec: PredicateSpec, scope: Mapping[str, str]) -> bool:
+    """Whether every pack-required qualifier was evidenced, not defaulted."""
+    return all(str(scope.get(key) or "").strip() for key in spec.required_scope)
+
+
 def _extract_organization(
     facts: Mapping,
     *,
@@ -707,9 +720,7 @@ def _extract_organization(
                 # is "" on every non-root page, and an empty alias would be
                 # persisted as a real observed spelling.
                 aliases=tuple(
-                    dict.fromkeys(
-                        name for name in (*schema_names, title_name) if name
-                    )
+                    dict.fromkeys(name for name in (*schema_names, title_name) if name)
                 )[:MAX_ENTITY_ALIASES],
                 identifiers=(
                     {"same_as": ",".join(dict.fromkeys(same_as))[:MAX_VALUE_CHARS]}
@@ -1093,6 +1104,9 @@ def _extract_money(
                 scope={"currency": currency, "offering": _path_scope(final_url)},
                 scope_key=scope_key_for(
                     {"currency": currency, "offering": _path_scope(final_url)}
+                ),
+                scope_complete=_scope_is_complete(
+                    spec, {"currency": currency, "offering": _path_scope(final_url)}
                 ),
                 derivation_method=DERIVATION_VISIBLE_TEXT,
                 numeric_value=float(amount),

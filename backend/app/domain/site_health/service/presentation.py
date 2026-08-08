@@ -135,14 +135,28 @@ def _crawl_count_disclosure(crawl: SiteCrawl) -> bool:
     return bool(config.get("count_disclosure", False))
 
 
+def _page_kind_buckets(summary: dict) -> dict:
+    """The per-page-kind rollup, reading the pre-rename key as a fallback.
+
+    ``score_summary`` is persisted JSON. Rows scored before this release wrote
+    the same breakdown under ``by_page_type``, so reading only the new key
+    would render every historical crawl's breakdown as an empty map — the
+    scores stay right while the per-kind detail silently disappears.
+    """
+    buckets = summary.get("by_page_kind")
+    if buckets is None:
+        buckets = summary.get("by_page_type")
+    return buckets or {}
+
+
 def _score_summary(crawl: SiteCrawl) -> dict | None:
     """Project the worker-written ``score_summary`` into the strict shape."""
     summary = crawl.score_summary or None
     if not summary:
         return None
-    # v2 P1 per-page-type breakdown; absent on pre-P1 summaries (empty map).
+    # v2 P1 per-page-kind breakdown; absent on pre-P1 summaries (empty map).
     by_page_kind: dict[str, dict] = {}
-    for page_kind, values in (summary.get("by_page_kind") or {}).items():
+    for page_kind, values in _page_kind_buckets(summary).items():
         values = values or {}
         by_page_kind[str(page_kind)] = {
             "analyzed_count": int(values.get("analyzed_count", 0) or 0),
@@ -187,8 +201,8 @@ def _default_crawl_counters(
         "errors": int(crawl.failed_url_count or 0),
         "blocked": 0,
         "by_page_kind": {
-            page_kind: int(values.get("analyzed_count", 0))
-            for page_kind, values in ((summary or {}).get("by_page_kind") or {}).items()
+            page_kind: int((values or {}).get("analyzed_count", 0))
+            for page_kind, values in _page_kind_buckets(summary or {}).items()
         },
     }
 

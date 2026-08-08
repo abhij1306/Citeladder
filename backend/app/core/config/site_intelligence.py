@@ -122,9 +122,16 @@ CORE_PREDICATE_SUFFIXES: Final[tuple[str, ...]] = (
     PREDICATE_EFFECTIVE_DATE,
     PREDICATE_SERVICE_AREA,
 )
-# Suffixes this slice's DETERMINISTIC extractor can evidence today. The rest
-# stay declared-but-unextracted, and a question needing one of them resolves to
-# ``unsupported`` — a visible gap with a named cause, never a silent zero.
+# Core suffixes this slice's DETERMINISTIC extractor can evidence today. The
+# rest stay declared-but-unextracted, and a question needing one of them
+# resolves to ``unsupported`` — a visible gap with a NAMED cause, never a silent
+# zero.
+#
+# This is not the whole extractable set: money is reached through the pack's own
+# money-typed predicate (``education.fee_amount``, ``commerce.price``) rather
+# than a fixed name, so ``is_extractable_predicate`` below is the authority.
+# Treating this list as the whole answer told users that fees were "not machine
+# extractable" on a page where the fee had in fact just been extracted.
 EXTRACTED_PREDICATE_SUFFIXES: Final[frozenset[str]] = frozenset(
     {
         PREDICATE_LEGAL_NAME,
@@ -175,8 +182,8 @@ SCHEMA_TYPE_CATEGORIES: Final[dict[str, str]] = {
 }
 
 # Suffixes that commonly trail an organization's name in a <title>. Trimmed
-# before the identity key is computed so "The Asian School | Fees" and "The
-# Asian School" are one entity rather than two.
+# before the identity key is computed so "Riverside Academy | Fees" and
+# "Riverside Academy" are one entity rather than two.
 TITLE_SEPARATORS: Final[tuple[str, ...]] = ("|", "–", "—", " - ", "::", "»", "•")
 
 # =========================================================================
@@ -196,9 +203,7 @@ NON_CONFLICTING_POLICIES: Final[frozenset[str]] = frozenset(
 # Cardinalities that permit several simultaneous values. A predicate declaring
 # one of these is multi-valued by definition — a school publishes several phone
 # numbers and several campuses — so multiplicity alone is never a contradiction.
-MULTI_VALUE_CARDINALITIES: Final[frozenset[str]] = frozenset(
-    {"many", "scoped_many"}
-)
+MULTI_VALUE_CARDINALITIES: Final[frozenset[str]] = frozenset({"many", "scoped_many"})
 
 # =========================================================================
 # Question coverage states

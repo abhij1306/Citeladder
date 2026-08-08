@@ -198,11 +198,52 @@ describe('SiteIntelligenceWorkspace', () => {
     );
   });
 
+  it('never states a knowledge finding when the query failed', async () => {
+    // "No entities were established" is a claim ABOUT THE SITE. Rendering it
+    // after a failed request states that finding on no evidence at all.
+    searchParams = new URLSearchParams('panel=knowledge');
+    getEntities.mockRejectedValue(new Error('boom'));
+    renderWorkspace();
+
+    await waitFor(() =>
+      expect(screen.getByText(/Could not load this section/)).toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByText("No entities were established from this crawl's evidence."),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows a count only once the query has answered', async () => {
+    // A pending query must not render "Entities (0)" — that is a claim the
+    // crawl found nothing, made before the answer arrived.
+    searchParams = new URLSearchParams('panel=knowledge');
+    getEntities.mockImplementation(() => new Promise(() => {}));
+    renderWorkspace();
+
+    await waitFor(() => expect(screen.getByText('Entities')).toBeInTheDocument());
+    expect(screen.queryByText('Entities (0)')).not.toBeInTheDocument();
+  });
+
+  it('moves between tabs with the arrow keys', async () => {
+    renderWorkspace();
+    const pages = screen.getByRole('tab', { name: 'Pages' });
+    pages.focus();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(replace).toHaveBeenCalledWith('/site-health?panel=knowledge', { scroll: false });
+  });
+
+  it('only the selected tab controls a panel, because only one is rendered', async () => {
+    renderWorkspace();
+    expect(screen.getByRole('tab', { name: 'Pages' })).toHaveAttribute(
+      'aria-controls',
+      'si-panel-pages',
+    );
+    expect(screen.getByRole('tab', { name: 'Knowledge' })).not.toHaveAttribute('aria-controls');
+  });
+
   it('labels unavailable evidence as evidence, not as a site failure', async () => {
     searchParams = new URLSearchParams('panel=evidence');
     renderWorkspace();
-    await waitFor(() =>
-      expect(screen.getByText('Evidence unavailable')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText('Evidence unavailable')).toBeInTheDocument());
   });
 });
