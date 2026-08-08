@@ -26,6 +26,19 @@ const DECISION_COPY: Record<DecisionKind, { title: string; confirmLabel: string 
   'run-audit': { title: 'Run this audit?', confirmLabel: 'Run audit' },
 };
 
+/**
+ * One blocking validation failure. Carries its own ID because two rules can
+ * produce the same message — keying the list by message text would collide and
+ * silently drop a row, and keying by index would reorder wrongly when the
+ * validation set changes between renders.
+ */
+export type DecisionBlocker = {
+  /** Stable identity, e.g. the failing rule or claim ID. */
+  id: string;
+  /** What is wrong, in the user's terms. */
+  message: string;
+};
+
 export type DecisionPromptProps = {
   kind: DecisionKind;
   open: boolean;
@@ -41,7 +54,7 @@ export type DecisionPromptProps = {
    * Blocking validation failures. When present, confirmation is disabled —
    * §7.3 requires blocking flags to disable save at the UI *and* the API.
    */
-  blockers?: readonly string[];
+  blockers?: readonly DecisionBlocker[];
   /** In-flight state for the confirm action. */
   pending?: boolean;
 };
@@ -98,8 +111,8 @@ export function DecisionPrompt({
             </p>
             <ul className="flex flex-col gap-1">
               {blockers.map((blocker) => (
-                <li key={blocker} className="text-danger-text text-xs leading-relaxed">
-                  {blocker}
+                <li key={blocker.id} className="text-danger-text text-xs leading-relaxed">
+                  {blocker.message}
                 </li>
               ))}
             </ul>

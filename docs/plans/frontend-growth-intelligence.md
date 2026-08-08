@@ -199,8 +199,10 @@ Copy lives in [`landing.ts`](../../frontend/lib/marketing-content/landing.ts).
 product — it is only not a fourth *database*. The site, the sidebar, and
 [`../architecture.md`](../architecture.md) now agree on this.
 
-The shipped `AgentConsole` section needs no copy change: its transcript derives from
-`platform.modules` and asserts no metric.
+`AgentConsole`'s transcript is **hardcoded**, not derived from `platform.modules`, and it
+carried three approval claims that contradicted §1. Those are corrected; the claim guard in
+`landing-claims.test.tsx` pins them. Any future edit to that transcript is a copy change and
+must be re-checked against §1.
 
 ### 8.2 Structure
 
@@ -253,7 +255,7 @@ Fix the drift across docs, app, and site once:
 | 2 | Shared components (§5) and the coverage rule (§6) | none | **Done** |
 | 3 | Landing structure (§8.2) | none | **Withdrawn** — built, then reverted (see §8.2) |
 | 4 | Sidebar regrouping (§4) | first `/site` route | **Done** |
-| 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 | Pages, Corpus, Overview insights shipped; Facts/Schema/Journeys/Evidence pending |
+| 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 | Pages and Corpus shipped; Overview ships the ranked-insights projection only, the full route is pending; Facts/Schema/Journeys/Evidence pending |
 | 6 | Content workspace (§7.3) | stage 4 | Generate + Facts tabs shipped; briefs/validation/verification pending |
 | 7 | Demand workspace (§7.4) | stage 3 | Visibility/Traffic regrouped, related surfaces linked; signals pending |
 | 8 | Agent workspace (§7.5) | stage 5 | Route declares the five surfaces; no backend exists |
@@ -285,10 +287,10 @@ not landed. Revisit before the first real user, not before.
   share a tone", and the page has only two sunken sections in an eight-section run — so
   moving one beat forced four sections to flip when §8.2's reorder was attempted. Both the
   reorder and the tone flips were reverted; the lesson stands for any future reordering.
-- **§8.1 was wrong about `AgentConsole`.** It claimed the section needs no copy change
+- **§8.1 was wrong about `AgentConsole`.** It claimed the section needed no copy change
   because its transcript derives from `platform.modules`. The transcript is hardcoded,
-  and it carried three approval claims. The claim guard caught them; the plan text
-  above has not been edited, so treat that sentence as stale.
+  and it carried three approval claims. The claim guard caught them, and §8.1 has since
+  been corrected — recorded here so the original assumption is not made again.
 - **`Insight` returns `null` without evidence.** Deliberate (§5). Consumers rendering
   lists must filter before computing counts, or a count will disagree with the rows.
 - **`DecisionKind` is a closed union of two members.** Adding a third fails
@@ -339,10 +341,21 @@ not landed. Revisit before the first real user, not before.
 
 ### Not yet done
 
-Everything gated on a backend stage that does not exist: Facts/Corpus/Schema/Journeys/
-Evidence tabs (§7.2), Overview (§7.1), the Content workspace (§7.3), demand signals and
-the coverage panel (§7.4), and the entire Agent workspace (§7.5). The §11 UI-debt items
-remain open and deliberately deferred. A live accessibility pass (§11) has still not run.
+Everything gated on a backend stage that does not exist. Stated precisely, because the
+delivery table above and this list previously disagreed about Corpus and Overview:
+
+- **Site (§7.2)** — Pages and **Corpus have shipped** (Corpus on the `/pages` projection,
+  see the gotcha above). Facts, Schema, Journeys and Evidence are pending.
+- **Overview (§7.1)** — the **ranked insights projection has shipped** (`TopInsights` over
+  the opportunities catalog). The complete route — project state and what-changed-since-
+  last-snapshot — is **pending**, so Overview is partial, not done.
+- **Content (§7.3)** — Generate and Facts tabs shipped; briefs, validation and
+  verification pending.
+- **Demand (§7.4)** — regrouping shipped; demand signals and the coverage panel pending.
+- **Growth Agent (§7.5)** — the entire workspace; no backend exists.
+
+The §11 UI-debt items remain open and deliberately deferred. A live accessibility pass
+(§11) has still not run.
 
 ## 11. UI debt
 

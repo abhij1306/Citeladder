@@ -14,9 +14,7 @@ from .reference import classify_page, compile_pack
 
 
 def _registered_version(pack_id: str) -> str:
-    matches = [
-        entry for entry in registry()["packs"] if entry["pack_id"] == pack_id
-    ]
+    matches = [entry for entry in registry()["packs"] if entry["pack_id"] == pack_id]
     if len(matches) != 1:
         raise ValueError(f"unknown or multiply registered pack: {pack_id}")
     return str(matches[0]["version"])

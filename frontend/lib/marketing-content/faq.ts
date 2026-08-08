@@ -48,7 +48,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
       },
       {
         q: 'What do I actually have to do?',
-        a: `You are asked to decide exactly twice: save a piece of content, and run or schedule an audit. There is no approval queue and no review inbox. Where something derived is wrong you correct it in place, wherever it is shown — the correction is attributed, reversible, and survives the next recompute.`,
+        a: `You are asked to decide exactly twice: save a piece of content, and run or schedule an audit. There is no approval queue and no review inbox. Everything in between runs without asking, and the result is shown with the evidence behind it.`,
       },
       {
         q: 'What does "evidence-grounded" mean concretely?',

@@ -35,7 +35,14 @@ const PENDING_COPY: Record<string, string> = {
 
 function ContentTabPanel() {
   const searchParams = useSearchParams();
-  const tab = searchParams.get('tab') ?? 'generate';
+  const requested = searchParams.get('tab');
+  // `LayerTabs` falls back to the first tab for an unrecognised `?tab=`, so the
+  // panel has to agree — otherwise `/content?tab=nope` highlights Generate and
+  // renders a pending card whose copy is `undefined`.
+  const tab =
+    requested !== null && TABS.some((candidate) => candidate.id === requested)
+      ? requested
+      : 'generate';
 
   if (tab === 'generate') {
     return <ContentScreen opportunityId={searchParams.get('opportunity_id')} />;
@@ -45,7 +52,9 @@ function ContentTabPanel() {
   return (
     <div className="bg-panel shadow-card rounded-lg p-8">
       <p className="text-foreground text-sm font-medium">Not yet available</p>
-      <p className="text-muted mt-2 max-w-[60ch] text-sm leading-relaxed">{PENDING_COPY[tab]}</p>
+      <p className="text-muted mt-2 max-w-[60ch] text-sm leading-relaxed">
+        {PENDING_COPY[tab] ?? 'This surface is not available yet.'}
+      </p>
     </div>
   );
 }

@@ -4,6 +4,11 @@ import type { Opportunity } from '@/lib/api/types';
 
 import { insightFromOpportunity } from './opportunity-insight';
 
+/**
+ * No `as Opportunity` here on purpose: the object has to satisfy the contract
+ * structurally, so a renamed or newly-required backend field breaks this
+ * fixture at compile time instead of passing a silently-wrong shape through.
+ */
 function opportunity(overrides: Partial<Opportunity> = {}): Opportunity {
   return {
     id: 'opp-1',
@@ -27,7 +32,7 @@ function opportunity(overrides: Partial<Opportunity> = {}): Opportunity {
     created_at: '2026-08-01T00:00:00Z',
     updated_at: '2026-08-01T00:00:00Z',
     ...overrides,
-  } as Opportunity;
+  };
 }
 
 describe('insightFromOpportunity', () => {
@@ -66,5 +71,30 @@ describe('insightFromOpportunity', () => {
   it('falls back to counts when no target label exists', () => {
     const insight = insightFromOpportunity(opportunity({ target_label: null }));
     expect(insight.evidence?.label).toBe('47 items · crawl');
+  });
+
+  it('singularizes a single evidence row', () => {
+    const insight = insightFromOpportunity(
+      opportunity({ target_label: null, evidence_summary: { count: 1, kinds: ['crawl'] } }),
+    );
+    expect(insight.evidence?.label).toBe('1 item · crawl');
+  });
+
+  it('omits the kind suffix when no kinds are recorded', () => {
+    const insight = insightFromOpportunity(
+      opportunity({ target_label: null, evidence_summary: { count: 47, kinds: [] } }),
+    );
+    expect(insight.evidence?.label).toBe('47 items');
+  });
+
+  it('explains the finding without exposing internal identifiers', () => {
+    // `rule_id` and `opportunity_type` are internal handles, not a reason a
+    // user can act on. Leaking them into the anatomy would make the "why this
+    // matters" slot read like a log line.
+    const insight = insightFromOpportunity(opportunity({ rule_id: 'aeo.structured_data_present' }));
+
+    expect(insight.whyThisMatters).not.toContain('aeo.structured_data_present');
+    expect(insight.whyThisMatters).not.toContain('site surface');
+    expect(insight.whyThisMatters.length).toBeGreaterThan(0);
   });
 });

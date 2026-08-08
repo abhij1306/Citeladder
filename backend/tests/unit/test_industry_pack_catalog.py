@@ -69,9 +69,7 @@ def _compiled(pack_id: str) -> Any:
 
 def _case(pack_id: str, case_class: str) -> dict[str, Any]:
     matches = [
-        case
-        for case in _fixture(pack_id)["cases"]
-        if case["case_class"] == case_class
+        case for case in _fixture(pack_id)["cases"] if case["case_class"] == case_class
     ]
     assert matches, f"no {case_class!r} fixture for {pack_id}"
     return matches[0]
@@ -100,9 +98,7 @@ def test_exact_loader_verifies_registry_identity_hash_and_manifest() -> None:
             "pack_id": pack_id,
             "pack_version": version,
             "pack_content_hash": entry["content_hash"],
-            "classifier_version": pack["classification_policy"][
-                "classifier_version"
-            ],
+            "classifier_version": pack["classification_policy"]["classifier_version"],
         }
 
 
@@ -172,8 +168,7 @@ def test_every_role_fixture_replays_exactly_and_with_bounded_output() -> None:
                 ]
             if "expected_abstention_reason" in case:
                 assert (
-                    result["abstention_reason"]
-                    == case["expected_abstention_reason"]
+                    result["abstention_reason"] == case["expected_abstention_reason"]
                 ), case["case_id"]
             if case.get("expected_conflict_disclosure"):
                 assert result["conflicts"], case["case_id"]

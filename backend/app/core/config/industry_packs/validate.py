@@ -330,9 +330,7 @@ def _collect_pack_ids(
     """Every declared ID is namespaced by its pack and unique within its section."""
 
     def ids(label: str, id_key: str) -> set[str]:
-        return _require_namespaced_ids(
-            sections[label], id_key, pack_id, label, errors
-        )
+        return _require_namespaced_ids(sections[label], id_key, pack_id, label, errors)
 
     for label, id_key in (
         ("relation_types", "relation_type_id"),
@@ -828,9 +826,7 @@ def _validate_special_fixtures(
             errors.append(f"commerce scenarios missing {missing!r}")
         count += len(scenarios)
 
-    education_path = (
-        CATALOG_ROOT / "fixtures/education/asian-school-public-labels.json"
-    )
+    education_path = CATALOG_ROOT / "fixtures/education/asian-school-public-labels.json"
     education = _read_json(education_path, errors)
     if isinstance(education, dict):
         if education.get("pack_id") != "education":
@@ -838,9 +834,7 @@ def _validate_special_fixtures(
         boundary = education.get("source_boundary", {})
         if boundary.get("customer_facts_are_not_shared_pack_knowledge") is not True:
             errors.append("education public-label fixture lacks customer-fact boundary")
-        education_roles = {
-            item["role_id"] for item in packs["education"]["page_roles"]
-        }
+        education_roles = {item["role_id"] for item in packs["education"]["page_roles"]}
         _require_refs(
             education.get("required_role_families", ()),
             education_roles,

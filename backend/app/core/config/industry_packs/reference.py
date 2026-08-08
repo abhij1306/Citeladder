@@ -221,9 +221,7 @@ def compile_pack(
             CompiledRole(
                 role_id=str(item["role_id"]),
                 page_kinds=tuple(str(value) for value in item["page_kinds"]),
-                minimum_score=float(
-                    item.get("minimum_score", policy["minimum_score"])
-                ),
+                minimum_score=float(item.get("minimum_score", policy["minimum_score"])),
                 minimum_margin=float(item.get("minimum_margin", default_margin)),
                 allow_secondary=bool(item.get("allow_secondary", True)),
                 signals=tuple(_compile_signal(value) for value in item["signals"]),

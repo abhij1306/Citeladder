@@ -6,6 +6,7 @@ import { CoverageMeter, LOW_COVERAGE_THRESHOLD } from './coverage-meter';
 import { DecisionPrompt } from './decision-prompt';
 import { EditableFact } from './editable-fact';
 import { Insight, type InsightModel } from './insight';
+import { ProvenanceChip } from './provenance-chip';
 import { DERIVED_STATES, StateLabel, stateLabel } from './state-label';
 
 /**
@@ -305,6 +306,47 @@ describe('EditableFact', () => {
     expect(screen.getByText('Corrected')).toBeInTheDocument();
   });
 
+  it('stays closed when the correction is withdrawn after landing', () => {
+    // Withdrawing clears the submitted value too. Without that, `correction`
+    // going away is indistinguishable from a save that never landed, and the
+    // editor reopens holding the value the user just withdrew.
+    const onWithdraw = vi.fn();
+    const correction = { value: '2017', author: 'Dana', correctedAt: '2 Jun' };
+    const { rerender } = render(
+      <EditableFact label="Founded" derivedValue="2019" onCorrect={vi.fn()} onWithdraw={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Correct Founded' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '2017' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction to Founded' }));
+
+    rerender(
+      <EditableFact
+        label="Founded"
+        derivedValue="2019"
+        correction={correction}
+        onCorrect={vi.fn()}
+        onWithdraw={onWithdraw}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw correction to Founded' }));
+    expect(onWithdraw).toHaveBeenCalled();
+
+    // The caller drops the correction; the editor must not spring back open.
+    rerender(
+      <EditableFact
+        label="Founded"
+        derivedValue="2019"
+        correction={null}
+        onCorrect={vi.fn()}
+        onWithdraw={onWithdraw}
+      />,
+    );
+
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByText('2019')).toBeInTheDocument();
+  });
+
   it('withdraws a correction to restore the derived value', () => {
     const onWithdraw = vi.fn();
     render(
@@ -390,12 +432,72 @@ describe('DecisionPrompt', () => {
         onOpenChange={vi.fn()}
         onConfirm={vi.fn()}
         consequence="Writes revision 4 of /pricing."
-        blockers={['"Founded 2017" conflicts with project fact "Founded 2019"']}
+        blockers={[
+          {
+            id: 'claim-3',
+            message: '"Founded 2017" conflicts with project fact "Founded 2019"',
+          },
+        ]}
       />,
     );
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(screen.getByText(/conflicts with project fact/)).toBeInTheDocument();
+  });
+
+  it('lists every blocker even when two share the same message', () => {
+    // Two rules can flag the same text. Keying the list by message would
+    // collide and silently render one row, understating what blocks the save.
+    render(
+      <DecisionPrompt
+        kind="save-content"
+        open
+        onOpenChange={vi.fn()}
+        onConfirm={vi.fn()}
+        consequence="Writes revision 4 of /pricing."
+        blockers={[
+          { id: 'claim-3', message: 'Unsupported claim' },
+          { id: 'claim-9', message: 'Unsupported claim' },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText('Unsupported claim')).toHaveLength(2);
+    expect(screen.getByText('2 issues block this')).toBeInTheDocument();
+  });
+});
+
+describe('ProvenanceChip', () => {
+  it('renders pack id and version together', () => {
+    render(<ProvenanceChip provenance={{ packId: 'commerce', packVersion: 'v1.2.0' }} />);
+
+    expect(screen.getByText('commerce v1.2.0')).toBeInTheDocument();
+  });
+
+  it('joins only the parts that exist', () => {
+    render(
+      <ProvenanceChip
+        provenance={{ packId: 'education', analyzerVersion: '3', snapshotId: 'run-7' }}
+      />,
+    );
+
+    expect(screen.getByText('education · analyzer 3 · snapshot run-7')).toBeInTheDocument();
+  });
+
+  it('omits a version with no pack to attach it to', () => {
+    // A bare version identifies nothing, so it is dropped rather than shown
+    // as provenance the projection does not actually have.
+    render(<ProvenanceChip provenance={{ packVersion: 'v1.2.0', snapshotId: 'run-7' }} />);
+
+    expect(screen.queryByText(/v1\.2\.0/)).toBeNull();
+    expect(screen.getByText('snapshot run-7')).toBeInTheDocument();
+  });
+
+  it('renders nothing when there is no provenance at all', () => {
+    // An empty chip would assert provenance the projection does not have.
+    const { container } = render(<ProvenanceChip provenance={{}} />);
+
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

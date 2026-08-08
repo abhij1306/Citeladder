@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import Page from '@/app/(marketing)/page';
+import { FAQ_GROUPS } from '@/lib/marketing-content/faq';
 import { LANDING_CONTENT } from '@/lib/marketing-content/landing';
 
 // The landing page's only client island forwards signed-in visitors away;
@@ -122,5 +123,21 @@ describe('Landing claims', () => {
 
     expect(text).not.toMatch(/durable correction|survives recompute|editable in place/i);
     expect(text).not.toMatch(/withdrawable/i);
+  });
+
+  /**
+   * The same guard over the FAQ. `/faq` answered "what do I actually have to
+   * do" by promising corrections that are attributed, reversible, and survive
+   * the next recompute — the durable-correction claim the landing page is
+   * already barred from making, in the one place it had leaked back in.
+   * Delete this with the guard above once corrections are wired.
+   */
+  it('does not advertise durable corrections in the FAQ either', () => {
+    const answers = FAQ_GROUPS.flatMap((group) => group.items.map((item) => item.a)).join(' ');
+
+    expect(answers).not.toMatch(/durable correction|survives recompute|editable in place/i);
+    expect(answers).not.toMatch(/withdrawable/i);
+    expect(answers).not.toMatch(/survives the next recompute/i);
+    expect(answers).not.toMatch(/the correction is attributed/i);
   });
 });

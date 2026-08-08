@@ -92,6 +92,16 @@ export function EditableFact({
     setIsEditing(false);
   };
 
+  // Withdrawing clears the submitted value as well as closing the editor.
+  // Without that reset, `correction` going away is indistinguishable from a
+  // save that never landed: `landed` flips back to false and the editor
+  // reopens holding the value the user just withdrew.
+  const withdraw = () => {
+    setSubmitted(null);
+    setIsEditing(false);
+    onWithdraw();
+  };
+
   const submit = () => {
     if (disabled) return;
 
@@ -101,14 +111,17 @@ export function EditableFact({
     // override" — so when a correction is active they withdraw it rather than
     // discarding the edit silently.
     if (trimmed.length === 0 || trimmed === derivedValue) {
-      setIsEditing(false);
-      if (correction) onWithdraw();
+      if (correction) {
+        withdraw();
+      } else {
+        cancel();
+      }
       return;
     }
 
     // Re-submitting the value already stored is a no-op, not a mutation.
     if (trimmed === correction?.value) {
-      setIsEditing(false);
+      cancel();
       return;
     }
 
@@ -203,7 +216,7 @@ export function EditableFact({
             size="sm"
             variant="ghost"
             disabled={disabled}
-            onClick={onWithdraw}
+            onClick={withdraw}
             aria-label={`Withdraw correction to ${label}`}
           >
             <Undo2 aria-hidden className="size-3.5" />

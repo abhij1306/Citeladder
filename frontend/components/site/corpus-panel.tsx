@@ -64,8 +64,17 @@ const STATUS_PRESENTATION: Record<
   },
 };
 
+/**
+ * One page of rows. The corpus is a coverage surface (§6), so a silently
+ * truncated list is the exact failure it exists to prevent — a blocked or
+ * failed document past the cut would simply not exist as far as the user can
+ * tell. Until this pages through `next_cursor`, the truncation is stated in
+ * the UI rather than hidden.
+ */
+const PAGE_SIZE = 50;
+
 export function CorpusPanel({ crawlId }: Readonly<{ crawlId: string }>) {
-  const query = useQuery({ ...siteHealthQueries.pages(crawlId, { limit: 50 }) });
+  const query = useQuery({ ...siteHealthQueries.pages(crawlId, { limit: PAGE_SIZE }) });
 
   if (query.isLoading) return <p className="text-muted text-sm">Loading corpus…</p>;
   if (query.isError || !query.data) {
@@ -78,34 +87,45 @@ export function CorpusPanel({ crawlId }: Readonly<{ crawlId: string }>) {
   }
 
   return (
-    <div className="border-border-subtle bg-panel overflow-x-auto rounded-lg border">
-      <table className="w-full text-sm">
-        <thead className="border-border-subtle bg-well border-b">
-          <tr>
-            <th className="text-subtle px-4 py-2 text-left text-xs font-medium">URL</th>
-            <th className="text-subtle px-4 py-2 text-left text-xs font-medium">Disposition</th>
-            <th className="text-subtle px-4 py-2 text-left text-xs font-medium">State</th>
-            <th className="text-subtle px-4 py-2 text-left text-xs font-medium">Reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const { state, disposition, reason } = STATUS_PRESENTATION[row.analysis_status];
-            return (
-              <tr key={row.site_url_id} className="border-border-subtle border-b last:border-0">
-                <td className="text-foreground max-w-0 truncate px-4 py-2" title={row.display_url}>
-                  {row.display_url}
-                </td>
-                <td className="text-muted px-4 py-2 whitespace-nowrap">{disposition}</td>
-                <td className="px-4 py-2">
-                  <StateLabel state={state} />
-                </td>
-                <td className="text-muted px-4 py-2 text-xs">{reason}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="flex flex-col gap-2">
+      {query.data.next_cursor ? (
+        <p className="text-muted text-xs">
+          Showing the first {rows.length} documents. More were discovered — this surface does not
+          page through them yet, so documents past this point are not listed here.
+        </p>
+      ) : null}
+      <div className="border-border-subtle bg-panel overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="border-border-subtle bg-well border-b">
+            <tr>
+              <th className="text-subtle px-4 py-2 text-left text-xs font-medium">URL</th>
+              <th className="text-subtle px-4 py-2 text-left text-xs font-medium">Disposition</th>
+              <th className="text-subtle px-4 py-2 text-left text-xs font-medium">State</th>
+              <th className="text-subtle px-4 py-2 text-left text-xs font-medium">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const { state, disposition, reason } = STATUS_PRESENTATION[row.analysis_status];
+              return (
+                <tr key={row.site_url_id} className="border-border-subtle border-b last:border-0">
+                  <td
+                    className="text-foreground max-w-0 truncate px-4 py-2"
+                    title={row.display_url}
+                  >
+                    {row.display_url}
+                  </td>
+                  <td className="text-muted px-4 py-2 whitespace-nowrap">{disposition}</td>
+                  <td className="px-4 py-2">
+                    <StateLabel state={state} />
+                  </td>
+                  <td className="text-muted px-4 py-2 text-xs">{reason}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -47,6 +47,19 @@ function Corpus() {
     enabled: Boolean(project?.id),
   });
 
+  if (!project?.id) {
+    return <p className="text-muted text-sm">Select a project to see its corpus.</p>;
+  }
+  // Request status comes first: an in-flight or failed crawl lookup is not the
+  // same fact as "no crawl has run", and collapsing the three into the empty
+  // message is exactly the state-conflation §7.4 calls out. `isLoading` rather
+  // than `isPending` — a disabled query is pending forever, and the guard above
+  // is what actually covers that case.
+  if (crawlsQuery.isLoading) return <p className="text-muted text-sm">Loading corpus…</p>;
+  if (crawlsQuery.isError) {
+    return <p className="text-muted text-sm">The corpus could not be loaded.</p>;
+  }
+
   const crawlId = crawlsQuery.data?.items[0]?.id;
   if (!crawlId) {
     return <p className="text-muted text-sm">No crawl has run for this project yet.</p>;

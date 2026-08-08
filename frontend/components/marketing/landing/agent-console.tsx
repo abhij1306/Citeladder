@@ -40,7 +40,22 @@ const SCRIPT = [
 ];
 
 type Phase = 'prompt' | 'thinking' | 'reply' | 'hold';
-type Entry = { id: number; layer: number; from: 'layer' | 'agent'; text: string };
+type Entry = {
+  id: number;
+  layer: number;
+  from: 'layer' | 'agent';
+  text: string;
+  /**
+   * Set on the agent entry that was just committed from the live `reply`
+   * bubble. The live bubble is suppressed against THIS flag rather than by
+   * comparing the log tail to `SCRIPT[active].reply`: `push` and `setActive`
+   * land in the same batch, so by the time that comparison ran `active` had
+   * already advanced and it never matched — leaving the committed entry and
+   * the live bubble both on screen for a frame. That double-render was the
+   * flicker at the end of every exchange.
+   */
+  justCommitted?: boolean;
+};
 
 const PROMPT_MS = 22;
 const REPLY_MS = 15;
@@ -68,11 +83,21 @@ export function AgentConsole() {
    */
   const cursor = useRef(0);
 
-  const push = useCallback((layer: number, from: Entry['from'], text: string) => {
-    nextId.current += 1;
-    const entry = { id: nextId.current, layer, from, text };
-    setLog((current) => [...current, entry].slice(-LOG_LIMIT));
-  }, []);
+  const push = useCallback(
+    (layer: number, from: Entry['from'], text: string, justCommitted = false) => {
+      nextId.current += 1;
+      const entry = { id: nextId.current, layer, from, text, justCommitted };
+      setLog((current) =>
+        // The previous commit flag is cleared as the next entry lands, so only
+        // ever one entry carries it.
+        [
+          ...current.map((item) => (item.justCommitted ? { ...item, justCommitted: false } : item)),
+          entry,
+        ].slice(-LOG_LIMIT),
+      );
+    },
+    [],
+  );
 
   /**
    * A new sentence starts at character zero. Keyed on layer and phase only —
@@ -139,7 +164,7 @@ export function AgentConsole() {
       // Commit and clear in one batch. `push` appends the finished reply while
       // `setReply('')` retires the live bubble; the render below suppresses the
       // live bubble on this tick so the text never renders twice or blinks out.
-      push(active, 'agent', step.reply);
+      push(active, 'agent', step.reply, true);
       setReply('');
       setActive((current) => (current + 1) % SCRIPT.length);
       setPhase('prompt');
@@ -381,8 +406,17 @@ function ChatWindow({
    * renders as two bubbles under different keys, so React unmounts one and
    * mounts the other — the text visibly blinks at the end of every exchange.
    */
-  const replyCommitted =
-    !reduce && log.at(-1)?.from === 'agent' && log.at(-1)?.text === SCRIPT[active]?.reply;
+  const replyCommitted = !reduce && (log.at(-1)?.justCommitted ?? false);
+
+  /**
+   * The pending agent message is on screen from the moment thinking starts
+   * until the finished reply is committed to the log — one continuous mount,
+   * with no frame in between where it is absent. `hold` is included: the reply
+   * has finished typing but has not been pushed yet, so dropping the bubble
+   * there would blank it for the whole 2.2s hold.
+   */
+  const liveBubble =
+    !reduce && phase !== 'prompt' && !replyCommitted && !(phase === 'hold' && reply.length === 0);
 
   return (
     <div
@@ -410,7 +444,15 @@ function ChatWindow({
       </div>
 
       {/* Newest exchange sits at the bottom; the mask fades whatever scrolls off
-          the top instead of slicing a bubble in half. */}
+          the top instead of slicing a bubble in half.
+
+          `content-visibility` is deliberately not used and the column is not
+          re-keyed: the transcript is bottom-anchored, so when `LOG_LIMIT`
+          evicts the oldest entry every surviving bubble shifts up one slot in
+          the same commit that mounts the new one. Keying each bubble by its
+          stable entry id (never by index) is what keeps those survivors as
+          moves rather than unmount/remount pairs — the latter is what read as
+          a flicker on every message. */}
       <div
         aria-live="polite"
         className="flex min-h-0 flex-1 flex-col justify-end gap-3 overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_14%)] px-5 py-4"
@@ -419,11 +461,20 @@ function ChatWindow({
           <Bubble key={entry.id} entry={entry} />
         ))}
 
-        {!reduce && phase === 'thinking' && (
-          <Bubble entry={{ id: -1, layer: active, from: 'agent', text: '' }} thinking />
-        )}
-        {!reduce && phase !== 'thinking' && reply && !replyCommitted && (
-          <Bubble entry={{ id: -2, layer: active, from: 'agent', text: reply }} caret />
+        {/* ONE live bubble across both phases, rendered from a single condition.
+            Thinking and replying are two states of the same pending agent
+            message, so splitting them into two conditions left a gap: `phase`
+            flips to 'reply' but `reply` is still '' until the first interval
+            tick, so for that frame neither branch matched and the bubble
+            unmounted entirely — the dots disappeared, one blank frame passed,
+            then the text mounted. That gap was the "Analyzing → content" blink.
+            Keeping it mounted and swapping only its contents removes it. */}
+        {liveBubble && (
+          <Bubble
+            entry={{ id: -1, layer: active, from: 'agent', text: reply }}
+            thinking={phase === 'thinking' || reply.length === 0}
+            caret={reply.length > 0}
+          />
         )}
       </div>
 
