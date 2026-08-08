@@ -14,6 +14,7 @@ from app.core.config.site_health import (
     CATEGORY_CONTENT,
     CATEGORY_STRUCTURED_DATA,
     DIMENSION_AEO,
+    PAGE_KIND_APPLICABILITY_PREFIX,
     PAGE_KIND_PRODUCT,
     RULE_CATALOG_VERSION,
     SEVERITY_HIGH,
@@ -103,7 +104,7 @@ PRODUCT_ANALYSIS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_STRUCTURED_DATA,
         severity=SEVERITY_MEDIUM,
         weight=1.0,
-        applicability_key=f"page_kind:{PAGE_KIND_PRODUCT}",
+        applicability_key=f"{PAGE_KIND_APPLICABILITY_PREFIX}{PAGE_KIND_PRODUCT}",
         description="Product pages expose complete Product/Offer facts.",
         remediation=(
             "Add Product and Offer properties for the identifiers, price, "
@@ -119,7 +120,7 @@ PRODUCT_ANALYSIS_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_HIGH,
         weight=1.5,
-        applicability_key=f"page_kind:{PAGE_KIND_PRODUCT}",
+        applicability_key=f"{PAGE_KIND_APPLICABILITY_PREFIX}{PAGE_KIND_PRODUCT}",
         description="Visible product claims agree with Product/Offer schema.",
         remediation=(
             "Make visible product identity, price, and availability claims "

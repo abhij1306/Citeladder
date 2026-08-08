@@ -15,9 +15,8 @@ score, re-resolving a pack, or touching the network.
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,7 +107,15 @@ async def build_intelligence_projection(
         vocabulary=vocabulary,
         knowledge=knowledge,
         observed_role_ids=observed_roles,
-        acquisition_failed=signals.failed_pages > 0,
+        # ONLY when the crawl acquired nothing at all. A crawl-wide "some URL
+        # failed" flag turned every unanswered question into
+        # ``unavailable_evidence``, which says "we could not look" about pages
+        # that were fetched perfectly well and simply do not answer. We cannot
+        # know the role of a page that never analyzed, so the honest boundary is
+        # total acquisition failure: then nothing about the site is being judged.
+        acquisition_failed=(
+            signals.analyzed_pages == 0 and signals.failed_pages > 0
+        ),
         not_applicable_question_ids=_overlay_not_applicable(crawl),
     )
     journeys = resolve_journeys(
@@ -299,12 +306,13 @@ async def _corpus_signals(
     for row in rows:
         raw = row.normalized_facts
         facts = raw if isinstance(raw, Mapping) else {}
-        tally.add(facts, final_url=str(row.final_url or ""))
+        tally.add(
+            facts,
+            final_url=str(row.final_url or ""),
+            role_id=str(row.industry_role_id or ""),
+        )
         if row.industry_role_id:
             observed_roles.add(str(row.industry_role_id))
-            tally.role_pages[str(row.industry_role_id)] = (
-                tally.role_pages.get(str(row.industry_role_id), 0) + 1
-            )
         for secondary in row.secondary_role_ids or ():
             observed_roles.add(str(secondary))
 
@@ -335,19 +343,20 @@ class _PageTally:
     with_answer_first: int = 0
     with_usable_headings: int = 0
     with_conversion_action: int = 0
-    with_internal_links: int = 0
+    role_pages: dict[str, int] = field(default_factory=dict)
+    # role_id -> pages carrying that role that also link onward internally.
+    role_continuity: dict[str, int] = field(default_factory=dict)
 
-    def __post_init__(self) -> None:
-        self.role_pages: dict[str, int] = {}
-
-    def add(self, facts: Mapping, *, final_url: str) -> None:
+    def add(self, facts: Mapping, *, final_url: str, role_id: str) -> None:
         self.analyzed += 1
-        self._add_delivery(facts, final_url=final_url)
+        if role_id:
+            self.role_pages[role_id] = self.role_pages.get(role_id, 0) + 1
+        self._add_delivery(facts, final_url=final_url, role_id=role_id)
         self._add_schema(facts)
         self._add_trust(facts)
         self._add_answerability(facts)
 
-    def _add_delivery(self, facts: Mapping, *, final_url: str) -> None:
+    def _add_delivery(self, facts: Mapping, *, final_url: str, role_id: str) -> None:
         if not (facts.get("robots") or {}).get("noindex"):
             self.indexable += 1
         canonical = str(facts.get("canonical_url") or "")
@@ -361,7 +370,13 @@ class _PageTally:
             for anchor in anchors
         ):
             self.linked += 1
-            self.with_internal_links += 1
+            # Continuity is counted on THIS page's own anchors. Deriving it from
+            # a crawl-wide total was a fabricated number: it reported that every
+            # role linked onward whenever any page did.
+            if role_id:
+                self.role_continuity[role_id] = (
+                    self.role_continuity.get(role_id, 0) + 1
+                )
 
     def _add_schema(self, facts: Mapping) -> None:
         structured = facts.get("structured_data") or {}
@@ -437,15 +452,17 @@ class _PageTally:
             pages_with_usable_headings=self.with_usable_headings,
             conversion_action_pages=self.with_conversion_action,
             role_page_counts=dict(self.role_pages),
-            # Continuity is measured from internal linking on role pages: a
-            # stage page that links nowhere onward is where a journey stops.
-            role_continuity_counts={
-                role_id: min(count, self.with_internal_links)
-                for role_id, count in self.role_pages.items()
-            },
+            # A stage page that links nowhere onward is where a journey stops.
+            role_continuity_counts=dict(self.role_continuity),
             declared_role_count=declared_role_count,
-            pages_with_entity_names=self.with_schema,
-            entity_name_conflicts=max(0, self.with_schema - self.with_schema_parity),
+            # Entity consistency compares a page's schema-declared names against
+            # the canonical entity, which this crawl-wide pass does not have in
+            # scope. Reported as UNAVAILABLE rather than derived from schema
+            # parity: parity answers "does the schema match the visible page",
+            # a different question, and reusing it would publish a number
+            # measuring something other than what its label claims.
+            pages_with_entity_names=0,
+            entity_name_conflicts=0,
             policy_role_pages=sum(
                 count
                 for role_id, count in self.role_pages.items()
@@ -491,11 +508,3 @@ def _dimensions_payload(report: DimensionReport) -> dict:
         "composite_coverage": report.composite_coverage,
         "dimensions": [asdict(dimension) for dimension in report.dimensions],
     }
-
-
-def project_url_id(value: object) -> uuid.UUID | None:
-    """Coerce a persisted identifier, or ``None`` when it is not one."""
-    try:
-        return uuid.UUID(str(value))
-    except (TypeError, ValueError):
-        return None

@@ -47,19 +47,25 @@ from app.core.errors import ApiException
 from app.domain.site_health import service
 from app.domain.site_health.api_schemas import (
     BulkSelectMonitoredRequest,
+    ContradictionPage,
     CrawlListPage,
     CrawlResponse,
     CreateCrawlRequest,
     DashboardResponse,
     GroupedIssueHistoryPage,
+    IntelligenceOverviewResponse,
     InventoryPage,
     IssueHistoryPage,
+    KnowledgeAssertionPage,
+    KnowledgeEntityPage,
+    KnowledgeRelationPage,
     MonitoredUrlsResponse,
     PageDetail,
     PagesPage,
     PhaseMutationResponse,
     ReplaceMonitoredRequest,
     RerunPageResponse,
+    SchemaGraphResponse,
     SiteHealthEntitlementResponse,
     SiteIssueDetail,
     SiteIssuesPage,
@@ -1116,3 +1122,164 @@ async def export_markdown_endpoint(
         media_type="text/markdown",
         headers=headers,
     )
+
+
+# =========================================================================
+# Site Intelligence
+# =========================================================================
+# The URL family stays under ``/site-health`` while the navigation label becomes
+# Site Intelligence (plan §11), so existing links and bookmarks keep working.
+#
+# Every handler below renders the projection FROZEN onto the crawl's snapshot.
+# None of them resolves a pack, fetches a URL, reclassifies a page, or
+# recomputes a score: a read that recomputed could disagree with the report a
+# user already exported, and a historical crawl must keep reporting what it
+# reported under the pack it froze.
+@router.get(
+    "/projects/{project_id}/site-intelligence",
+    response_model=IntelligenceOverviewResponse,
+)
+async def get_site_intelligence_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> IntelligenceOverviewResponse:
+    """The one projection that drives every workspace panel."""
+    try:
+        result = await service.get_intelligence_overview(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return IntelligenceOverviewResponse.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/knowledge/entities",
+    response_model=KnowledgeEntityPage,
+)
+async def get_knowledge_entities_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+    entity_type_id: Annotated[str | None, Query(max_length=64)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> KnowledgeEntityPage:
+    try:
+        result = await service.get_knowledge_entities(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+            entity_type_id=entity_type_id,
+            limit=limit,
+            offset=offset,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return KnowledgeEntityPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/knowledge/assertions",
+    response_model=KnowledgeAssertionPage,
+)
+async def get_knowledge_assertions_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+    predicate_id: Annotated[str | None, Query(max_length=64)] = None,
+    subject_entity_id: Annotated[uuid.UUID | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> KnowledgeAssertionPage:
+    try:
+        result = await service.get_knowledge_assertions(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+            predicate_id=predicate_id,
+            subject_entity_id=subject_entity_id,
+            limit=limit,
+            offset=offset,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return KnowledgeAssertionPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/knowledge/contradictions",
+    response_model=ContradictionPage,
+)
+async def get_knowledge_contradictions_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> ContradictionPage:
+    """Disputed claims as GROUPS, every side included and none pre-selected."""
+    try:
+        result = await service.get_knowledge_contradictions(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return ContradictionPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/knowledge/relations",
+    response_model=KnowledgeRelationPage,
+)
+async def get_knowledge_relations_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+) -> KnowledgeRelationPage:
+    try:
+        result = await service.get_knowledge_relations(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+            limit=limit,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return KnowledgeRelationPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-intelligence/schema",
+    response_model=SchemaGraphResponse,
+)
+async def get_schema_graph_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> SchemaGraphResponse:
+    try:
+        result = await service.get_schema_graph(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return SchemaGraphResponse.model_validate(result)

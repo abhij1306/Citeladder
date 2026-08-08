@@ -72,7 +72,10 @@ class AcquisitionProvenance:
     rung: int
     trigger: str = "initial"
     impersonation_profile: str = ""
-    options: dict[str, str | bool | int] = field(default_factory=dict)
+    # ``float`` is included because timeout/budget options are seconds, and
+    # serializing them to strings would make a numeric policy value
+    # unusable to any reader that wants to compare it.
+    options: dict[str, str | bool | int | float] = field(default_factory=dict)
     policy_version: str = ""
 
 

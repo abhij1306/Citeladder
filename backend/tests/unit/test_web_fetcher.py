@@ -869,6 +869,16 @@ async def test_browser_rung_failure_keeps_prior_server_evidence():
         "httpx",
         "patchright",
     ]
+    # Provenance names the rung that actually produced this evidence. Carrying
+    # the failed browser attempt here would attribute a server response to a
+    # render that never happened.
+    assert result.acquisition is not None
+    assert result.acquisition.transport == "httpx"
+    assert result.acquisition.rung == 1
+    # The failed rung keeps its own classified reason on its own attempt row.
+    browser_attempt = result.attempts[-1]
+    assert browser_attempt.error_code == "connection_failed"
+    assert browser_attempt.acquisition.rung == 3
 
 
 async def test_injected_browser_transport_is_not_closed_by_the_fetcher():

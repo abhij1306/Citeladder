@@ -24,7 +24,6 @@ from app.analysis.site_health.knowledge import (
     StageSpec,
 )
 from app.core.config.site_health import (
-    TEMPORAL_STATE_CURRENT,
     TEMPORAL_STATE_HISTORICAL,
 )
 from app.core.config.site_intelligence import (
@@ -94,8 +93,20 @@ class KnowledgeIndex:
     def has_any(self, predicate_id: str) -> bool:
         return bool(self.predicate_states.get(predicate_id))
 
-    def has_current(self, predicate_id: str) -> bool:
-        return TEMPORAL_STATE_CURRENT in (self.predicate_states.get(predicate_id) or ())
+    def has_usable(self, predicate_id: str) -> bool:
+        """Whether a claim exists that may be presented as current.
+
+        ``unknown`` counts, ``historical`` does not. Most pages carry no
+        publication date at all, so their facts are extracted as ``unknown`` —
+        that is the normal case on a live site, not a defect. Requiring an
+        explicit ``current`` stamp reported every fact on every undated page as
+        unanswered: measured on the first acceptance corpus, a school with its
+        name, description, and nine contact points extracted still scored 0.0
+        question coverage. What we must never do is let a fact we KNOW is stale
+        answer a question, and ``historical`` is excluded for exactly that.
+        """
+        states = self.predicate_states.get(predicate_id) or frozenset()
+        return bool(states - {TEMPORAL_STATE_HISTORICAL})
 
     def only_historical(self, predicate_id: str) -> bool:
         states = self.predicate_states.get(predicate_id) or frozenset()
@@ -256,7 +267,7 @@ def _resolve_one(
 ) -> QuestionCoverage:
     answering = tuple(sorted(question.applicable_role_ids & observed_role_ids))
     required = tuple(question.required_predicate_ids)
-    satisfied = tuple(p for p in required if knowledge.has_current(p))
+    satisfied = tuple(p for p in required if knowledge.has_usable(p))
     present = tuple(p for p in required if knowledge.has_any(p))
     state, reason = _coverage_state(
         required=required,
@@ -306,7 +317,7 @@ def _coverage_state(
         # The facts exist but not where the pack expects them. A reader looking
         # for this answer where it belongs will not find it.
         return COVERAGE_ANSWERED_WEAK, "facts present but not on a page for this role"
-    if present and knowledge.only_historical(present[0]):
+    if present and all(knowledge.only_historical(p) for p in present):
         return COVERAGE_HISTORICAL_ONLY, "only historical evidence exists"
     if satisfied:
         return COVERAGE_ANSWERED_WEAK, "some required facts are present"
@@ -452,8 +463,6 @@ class ComponentScore:
     label: str
     # ``None`` == unavailable: the crawl could not observe this at all.
     score: float | None
-    observed: int = 0
-    total: int = 0
 
 
 @dataclass(frozen=True)
@@ -571,7 +580,10 @@ def _knowledge(
         "offering_entities": _share(
             len(knowledge.entity_type_ids), declared_entity_types
         ),
-        "audience_entities": None if not knowledge.entity_count else 0.0,
+        # Unavailable, always: no deterministic signal identifies an audience
+        # today. Scoring it 0.0 would blame a site for a gap in this analyzer,
+        # which is the one thing the coverage rule exists to prevent.
+        "audience_entities": None,
         "predicate_coverage": _share(asserted, len(extractable)),
         "relation_coverage": (
             None if not knowledge.entity_count else _bounded(knowledge.relation_count)

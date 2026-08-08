@@ -814,6 +814,16 @@ async def create_page_rerun_crawl(
         runtime=runtime,
         requested_page_limit=site_health_settings.automatic_page_limit,
     )
+    # A rerun freezes its pack exactly as a full crawl does. Without this the
+    # reanalyzed page came back UNPACKED — no industry role, no knowledge, no
+    # provenance — so rerunning a page to check a fix silently discarded the
+    # very classification the fix was meant to change.
+    project = await _load_project(
+        session, workspace_id=workspace_id, project_id=project_id
+    )
+    rerun_pack_manifest = freeze_pack_manifest(resolve_project_pack_id(project))
+    if rerun_pack_manifest is not None:
+        configuration[INDUSTRY_PACK_MANIFEST_KEY] = rerun_pack_manifest
     seed = _normalize_seed(random_seed)
 
     crawl = SiteCrawl(

@@ -40,6 +40,14 @@ from app.domain.site_health.service.common import (
     InvalidCursorError,
     SiteHealthNotFoundError,
 )
+from app.domain.site_health.service.intelligence import (
+    get_intelligence_overview,
+    get_knowledge_assertions,
+    get_knowledge_contradictions,
+    get_knowledge_entities,
+    get_knowledge_relations,
+    get_schema_graph,
+)
 from app.domain.site_health.service.issues import (
     get_grouped_issue_history,
     get_issue_detail,
@@ -88,6 +96,12 @@ __all__ = [
     "get_issue_history",
     "get_grouped_issue_history",
     "get_dashboard",
+    "get_intelligence_overview",
+    "get_knowledge_entities",
+    "get_knowledge_assertions",
+    "get_knowledge_contradictions",
+    "get_knowledge_relations",
+    "get_schema_graph",
     "load_events",
     "load_crawl_for_stream",
     "presentation_status_for",

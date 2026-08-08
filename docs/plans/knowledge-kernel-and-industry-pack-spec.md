@@ -399,16 +399,26 @@ What did **not** move: raw bodies stay in `SiteFetchArtifact` (kernel rows hold 
 excerpted truth), and `SitePageAnalysis` remains the sole page-understanding owner. The new tables
 hold only what is irreducibly cross-page — identity, claims, and edges.
 
-Added:
+**Shipped** — exactly three tables, folded into `0001_initial`:
 
 - `knowledge_entities`;
 - `knowledge_assertions`;
-- `knowledge_relations`;
-- `approved_memory_items`;
-- `approved_memory_transitions`;
-- `journey_definitions` and `journey_definition_versions`;
+- `knowledge_relations`.
+
+There is deliberately **no** contradiction-group table. A contradiction group is a deterministic
+UUID derived from `(crawl, subject, predicate, scope)` and written onto every side's
+`contradiction_group_id`, so a group needs no row of its own and cannot drift out of sync with its
+members. Question coverage, journey coverage, and dimension scores are likewise not tables: they are
+a bounded JSONB projection on `SiteHealthSnapshot`, which is the existing crawl-projection owner.
+
+**Still planned** — none of these exist yet:
+
+- `approved_memory_items` and `approved_memory_transitions`;
+- `journey_definitions` and `journey_definition_versions` (journeys are read from the frozen pack
+  today; project-authored journeys will need them);
 - `task_context_packages`;
-- `content_briefs` and `intelligence_snapshots` only if their lifecycle differs from existing owners.
+- `content_briefs` and `intelligence_snapshots`, and only if their lifecycle turns out to differ
+  from the existing owners.
 
 Every project-owned table has direct `workspace_id` and `project_id`, source IDs, versions, and timestamps. Use partial unique indexes only for live/current identities; preserve superseded history.
 

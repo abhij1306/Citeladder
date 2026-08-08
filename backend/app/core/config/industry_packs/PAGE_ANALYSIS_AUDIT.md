@@ -22,7 +22,7 @@ fetch artifact
 The principal owners are:
 
 - [`../../../analysis/site_health/page_kinds.py`](../../../analysis/site_health/page_kinds.py) — pure generic classifier and evidence record;
-- [`../site_health.py`](../site_health.py) — vocabulary, path patterns, heuristics, weights, and per-page-type profiles;
+- [`../site_health.py`](../site_health.py) — vocabulary, path patterns, heuristics, weights, and per-page-kind profiles;
 - [`../../../workers/site_health/phases/analyze.py`](../../../workers/site_health/phases/analyze.py) — invocation, rule-context injection, persistence, evaluations, issues, and scores;
 - [`../../../../tests/unit/test_site_health_page_kinds.py`](../../../../tests/unit/test_site_health_page_kinds.py) — current classifier regression tests;
 - [`../../../../../frontend/lib/site-health/page-kinds.ts`](../../../../../frontend/lib/site-health/page-kinds.ts) — frontend labels and evidence shaping;

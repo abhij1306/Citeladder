@@ -55,7 +55,20 @@ COPY --from=dependencies --chown=0:0 /app/backend/.venv ./.venv
 # but must never be able to replace the binary it executes.
 RUN if [ "${INSTALL_BROWSER_RUNG}" = "true" ]; then \
       patchright install --with-deps chromium \
-      && rm -rf /var/lib/apt/lists/*; \
+      && rm -rf /var/lib/apt/lists/* \
+      # Prove the browser actually launches at BUILD time. A missing shared
+      # library surfaces only on first use otherwise — as an
+      # ``acquisition_unavailable`` on a live crawl, which the ladder treats as
+      # "keep the prior evidence" and therefore never reports as broken. The
+      # sandbox is disabled for this probe only (docker build has no user
+      # namespace); the runtime keeps it on unless explicitly opted out.
+      && python -c "\
+from patchright.sync_api import sync_playwright;\
+p = sync_playwright().start();\
+b = p.chromium.launch(headless=True, args=['--no-sandbox']);\
+b.close();\
+p.stop();\
+print('chromium launch OK')"; \
     fi
 COPY --chown=0:0 backend/app ./app
 COPY --chown=0:0 backend/alembic.ini ./alembic.ini

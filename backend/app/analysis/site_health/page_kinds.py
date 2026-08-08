@@ -126,7 +126,10 @@ def _signal(signal: str, page_kind: str, detail: str) -> dict[str, Any]:
     return {
         "signal": signal,
         "page_kind": page_kind,
-        "weight": float(_config.PAGE_KIND_SIGNAL_WEIGHTS[signal]),
+        # ``.get`` with a 0.0 default: a signal constant added without a weight
+        # should contribute nothing, not raise KeyError and fail the whole
+        # classification of an otherwise analyzable page.
+        "weight": float(_config.PAGE_KIND_SIGNAL_WEIGHTS.get(signal, 0.0)),
         "detail": detail[:_MAX_SIGNAL_DETAIL_CHARS],
     }
 

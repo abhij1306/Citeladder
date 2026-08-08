@@ -99,9 +99,17 @@ def test_inline_bundle_is_not_counted_as_readable_text() -> None:
 
 def test_short_server_rendered_page_without_script_is_not_a_shell() -> None:
     """Thin but honestly server-rendered: rendering it would add nothing."""
-    body = b"<!doctype html><html><body><h1>Contact</h1><p>Call us.</p>" + (
-        b"<p>Reception is open on weekdays.</p>" * 12 + b"</body></html>"
+    # Padded with TEXT-FREE markup so the response is comfortably above the
+    # 512-byte low-content floor while its readable text stays under the shell
+    # floor — otherwise this would silently be testing ``low_content`` instead
+    # of the signal it names.
+    body = b"<!doctype html><html><head><title>Contact us today</title></head>" + (
+        b'<body class="' + b"page-contact-layout-wide " * 40 + b'">'
+        b"<h1>Contact</h1>"
+        + b"<p>Reception is open weekdays.</p>" * 8
+        + b"</body></html>"
     )
+    assert len(body) > 512 * 2
     assert acquisition.readable_text_length(body, scan_bytes=262_144) < 600
     assert _trigger(body) is None
 
@@ -138,3 +146,15 @@ def test_unterminated_script_at_the_scan_boundary_is_not_read_as_text() -> None:
     """A prefix cut mid-``<script>`` must not turn JavaScript into prose."""
     body = b"<html><body><div id=root></div><script>" + b"x=1;" * 500
     assert acquisition.readable_text_length(body, scan_bytes=200) == 0
+
+
+def test_commented_out_script_is_not_evidence_of_client_rendering() -> None:
+    """Inert markup must not escalate a static page to a browser render."""
+    body = (
+        b"<!doctype html><html><body><div id='root'></div>"
+        + b"<!-- <script src='/bundle.js'></script> -->"
+        + b"</body></html>"
+    )
+    assert not acquisition.loads_script(
+        body, scan_bytes=262_144, min_inline_chars=1024
+    )

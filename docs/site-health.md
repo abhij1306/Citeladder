@@ -68,7 +68,7 @@ Classification uses configured URL, title, headings, visible content, forms/CTAs
 context, media type, and structured-data signals. Structured data is optional evidence; missing
 schema is itself a possible gap after role classification.
 
-`SitePageAnalysis` stores `page_kind`, `industry_role`, the exact frozen pack manifest (catalog
+`SitePageAnalysis` stores `page_kind`, `industry_role_id`, the exact frozen pack manifest (catalog
 version, pack id/version, content hash, classifier version), confidence, winner margin,
 alternatives, conflicts, and bounded signal evidence.
 
@@ -83,7 +83,6 @@ Three role states stay distinct and must not be collapsed:
 - **executed abstention** — `industry_role_id IS NULL` WITH `role_abstention_reason` (the
   classifier ran and declined: `schema_only`, `ambiguous_margin`, `below_minimum_score`, …);
 - **never ran** — no pack frozen on the crawl, so the API returns `industry_role: null` entirely.
-
 "We did not look" and "we looked and could not tell" are different facts, and only the second is
 evidence about the page.
 

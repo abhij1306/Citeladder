@@ -670,6 +670,10 @@ class CrawlLifecycle:
                     SiteCrawlTask.task_kind.in_(
                         [TASK_KIND_DISCOVER, TASK_KIND_ANALYZE]
                     ),
+                    # A blank hash is not a URL. Counting it would report one
+                    # phantom failed page for every task that failed before its
+                    # URL was canonicalized.
+                    SiteCrawlTask.url_hash != "",
                 )
             )
             or 0

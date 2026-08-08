@@ -88,6 +88,7 @@ from app.core.config.site_health import (
     FETCH_PURPOSE_DISCOVER,
     FETCH_PURPOSE_LINK_CHECK,
     PERSISTED_RESPONSE_HEADERS,
+    POLICY_BLOCKING_ERROR_CODES,
     SITE_HEALTH_USER_AGENT,
     URL_EXCLUSION_HARD_ASSET,
     URL_EXCLUSION_HARD_PATH,
@@ -312,6 +313,7 @@ class SecureFetcher:
             else curl_pinned_resolution_supported
         )
         self._curl_transport = curl_transport
+        self._owns_curl_transport = False
         if (
             self._curl_transport is None
             and settings.curl_cffi_enabled
@@ -321,6 +323,7 @@ class SecureFetcher:
                 impersonation_profile=settings.curl_cffi_impersonation_profile,
                 user_agent=user_agent,
             )
+            self._owns_curl_transport = True
         # Only a transport WE created may be closed on exit. An injected one is
         # owned by the caller and is commonly shared across fetchers (see
         # ``CommerceDiscoveryWorker``, which builds one fetcher per task);
@@ -351,12 +354,26 @@ class SecureFetcher:
         await self.aclose()
 
     async def aclose(self) -> None:
-        await self._client.aclose()
-        # The browser rung owns OS processes, not just sockets: leaving one we
-        # created to garbage collection strands a headless browser per fetcher.
-        # An injected transport belongs to the caller and is left running.
-        if self._owns_browser_transport and self._browser_transport is not None:
-            await self._browser_transport.aclose()
+        """Close every rung this fetcher constructed.
+
+        Each teardown runs in a ``finally`` so an earlier failure cannot strand
+        a later one — the browser rung owns OS PROCESSES, not just sockets, and
+        leaving one to garbage collection strands a headless browser per
+        fetcher. An INJECTED transport belongs to the caller (it is commonly
+        shared across fetchers) and is deliberately left running.
+        """
+        try:
+            await self._client.aclose()
+        finally:
+            try:
+                if self._owns_curl_transport and self._curl_transport is not None:
+                    await self._curl_transport.aclose()
+            finally:
+                if (
+                    self._owns_browser_transport
+                    and self._browser_transport is not None
+                ):
+                    await self._browser_transport.aclose()
 
     def _limits(self, request: FetchRequest) -> tuple[int, int, float, int]:
         s = self._settings
@@ -733,11 +750,11 @@ class SecureFetcher:
             rung=3,
             trigger=trigger,
             options={
-                "readiness_timeout_seconds": (
+                "readiness_timeout_seconds": float(
                     self._settings.browser_readiness_timeout_seconds
                 ),
-                "max_captured_responses": (
-                    self._settings.browser_max_captured_responses
+                "navigation_timeout_seconds": float(
+                    self._settings.browser_navigation_timeout_seconds
                 ),
             },
             policy_version=self._settings.acquisition_policy_version,
@@ -754,7 +771,28 @@ class SecureFetcher:
             )
         except FetchError as exc:
             exc.attempts = tuple(attempts)
-            raise
+            # A POLICY denial must surface: robots, admission, and scope apply
+            # to rung 3 exactly as they do to rung 1, and swallowing one here
+            # would let a render reach a URL the crawler is not allowed to
+            # fetch. Anything else — a transient DNS or resolver failure — is
+            # this rung being unavailable, and the prior server evidence stays
+            # the crawl's answer rather than a page that already fetched
+            # successfully being turned into a hard failure.
+            if exc.error_code in POLICY_BLOCKING_ERROR_CODES:
+                raise
+            self._trace(
+                attempts,
+                url=request.url,
+                method=request.method,
+                status_code=exc.status_code,
+                error_code=exc.error_code,
+                wire_bytes=None,
+                decoded_bytes=None,
+                ttfb_ms=None,
+                started=started,
+                acquisition=acquisition,
+            )
+            return replace(prior, attempts=tuple(attempts))
 
         try:
             result = await transport.fetch(

@@ -13,12 +13,13 @@ capability only:
 |-------------------------------|--------------------------------------------|
 | ``browser_pool.py``           | ``_BrowserPool`` launch/context lifecycle   |
 | ``browser_readiness.py``      | ``_wait_for_readiness`` DOM-settle wait     |
-| ``browser_capture.py``        | ``_CaptureBuffer`` bounded same-site JSON   |
 | ``browser_block_detection.py``| challenge diagnostics via the shared config |
 
 Its extraction API, persistence, Celery/Redis wiring, UI, semantic extraction,
-and real-Chrome code are deliberately NOT ported. Raw HTML and captured network
-payloads stay worker-memory inputs: this returns a bounded ``FetchResult`` and
+and real-Chrome code are deliberately NOT ported. Neither is its network-response
+capture: it recorded same-site JSON descriptors that nothing downstream ever
+read, so it paid for downloading and buffering payloads that were discarded.
+Raw HTML stays a worker-memory input; this returns a bounded ``FetchResult`` and
 nothing here reaches PostgreSQL except normalized facts and hashes.
 
 ``SecureFetcher`` still owns canonicalization, scope, admission, and DNS
@@ -57,7 +58,10 @@ from app.core.config.site_health import (
 # a latency and politeness measure, not a stealth one: a crawl that renders a
 # page does not need its fonts, images, or media.
 _BLOCKED_RESOURCE_TYPES = frozenset({"image", "media", "font"})
-_JSON_CONTENT_TYPES = ("application/json", "+json")
+# Floor for the navigation timeout. Playwright treats 0 as "no timeout", so an
+# already-exhausted budget must still be a short deadline, never an unbounded
+# wait that holds a crawl slot forever.
+_MIN_NAVIGATION_TIMEOUT_MS = 1_000
 
 
 def _load_patchright() -> ModuleType:
@@ -93,15 +97,6 @@ def _content_type(headers: dict[str, str]) -> str:
     return ""
 
 
-def _content_length(headers) -> int | None:
-    """The declared body size, or ``None`` when absent/unparseable."""
-
-    try:
-        return int(str(headers.get("content-length", "")).strip())
-    except (AttributeError, TypeError, ValueError):
-        return None
-
-
 def _timeout_error_type() -> type[BaseException]:
     """Patchright's navigation-timeout class, or a never-matching fallback.
 
@@ -122,104 +117,44 @@ class _NeverRaised(Exception):
     """Sentinel exception type that is never raised."""
 
 
-def _same_site(url: str, host: str) -> bool:
-    try:
-        candidate = (urlsplit(url).hostname or "").casefold().rstrip(".")
-    except ValueError:
-        return False
-    return bool(candidate) and candidate == host.casefold().rstrip(".")
+def _normalize_host(host: str) -> str:
+    """Casefolded, trailing-dot-free host — the one comparison form."""
+    return str(host or "").casefold().rstrip(".")
 
 
-class _CaptureBuffer:
-    """Bounded same-site JSON/XHR capture with redaction.
+def _authority(url: str) -> tuple[str, str, int] | None:
+    """``(scheme, host, port)`` with the default port made explicit, or ``None``.
 
-    A rendered page often carries its real content in an XHR payload rather
-    than the served HTML. Recording a bounded, same-site, JSON-only slice of
-    that traffic makes the evidence explainable without turning the crawler
-    into a general traffic recorder: cross-origin responses, non-JSON bodies,
-    and anything past the configured caps are dropped, and only URL + status +
-    size are retained — never the payload itself, never a request header.
+    The port is resolved because the resolver validated exactly ONE authority:
+    ``https://host:8443/`` is a different service from ``https://host/`` and was
+    never admitted, so comparing hostnames alone would let a page reach it.
     """
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        return None
+    scheme = (parts.scheme or "").casefold()
+    host = _normalize_host(parts.hostname or "")
+    if not host or scheme not in {"http", "https"}:
+        return None
+    return scheme, host, port or (443 if scheme == "https" else 80)
 
-    def __init__(
-        self,
-        *,
-        host: str,
-        max_responses: int,
-        max_bytes: int,
-        max_wire_bytes: int,
-    ) -> None:
-        self._host = host
-        self._max_responses = max_responses
-        self._max_bytes = max_bytes
-        self._max_wire_bytes = max_wire_bytes
-        self._total_bytes = 0
-        self._tasks: set[asyncio.Task] = set()
-        self.records: list[dict[str, str | int]] = []
 
-    @property
-    def full(self) -> bool:
-        return (
-            len(self.records) >= self._max_responses
-            or self._total_bytes >= self._max_bytes
-        )
+def _same_authority(url: str, target: ResolvedTarget) -> bool:
+    """Whether ``url`` is on the exact authority the fetcher validated.
 
-    def schedule(self, response) -> None:
-        """Observe a response without blocking Patchright's event dispatch.
-
-        The task handle is retained so ``drain`` can settle it before the
-        context closes; an unreferenced task can also be garbage-collected
-        mid-flight, which silently drops captures.
-        """
-
-        if self.full:
-            return
-        task = asyncio.ensure_future(self.observe(response))
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.discard)
-
-    async def drain(self) -> None:
-        """Settle every in-flight capture before the context is torn down."""
-
-        pending = list(self._tasks)
-        if not pending:
-            return
-        for task in pending:
-            task.cancel()
-        await asyncio.gather(*pending, return_exceptions=True)
-
-    async def observe(self, response) -> None:
-        """Record one bounded same-site JSON response descriptor."""
-
-        if self.full or not _same_site(response.url, self._host):
-            return
-        headers = response.headers
-        content_type = str(headers.get("content-type", "")).lower()
-        if not any(token in content_type for token in _JSON_CONTENT_TYPES):
-            return
-        # Check the declared size BEFORE reading: reading first would already
-        # have pulled an oversized payload into this process, which is exactly
-        # what the wire cap exists to prevent.
-        declared = _content_length(headers)
-        if declared is not None and declared > self._max_wire_bytes:
-            return
-        try:
-            body = await response.body()
-        # A body can be gone by the time it is read (navigation, abort), and a
-        # drain cancels in-flight reads. Neither is worth failing a fetch over.
-        except (asyncio.CancelledError, Exception):  # noqa: BLE001
-            return
-        size = len(body or b"")
-        if size > self._max_wire_bytes or self._total_bytes + size > self._max_bytes:
-            return
-        self._total_bytes += size
-        self.records.append(
-            {
-                "url": str(response.url)[:2048],
-                "status": int(response.status),
-                "bytes": size,
-            }
-        )
+    Scheme, host, AND port must match. Hostname-only matching would admit an
+    HTTPS-to-HTTP downgrade and any other port on the same machine — neither of
+    which passed admission or the SSRF checks.
+    """
+    observed = _authority(url)
+    if observed is None:
+        return False
+    validated = _authority(target.url)
+    if validated is None:
+        return False
+    return observed == validated
 
 
 def _host_resolver_rule(target: ResolvedTarget) -> str:
@@ -238,7 +173,10 @@ def _host_resolver_rule(target: ResolvedTarget) -> str:
     address = (
         f"[{target.connect_ip}]" if ":" in target.connect_ip else target.connect_ip
     )
-    return f"MAP {target.host} {address},MAP * ~NOTFOUND"
+    # Normalized to the same form the request guard compares against. A host
+    # carrying a trailing dot would otherwise produce a MAP rule the browser
+    # never matches, and every request would fall through to ``~NOTFOUND``.
+    return f"MAP {_normalize_host(target.host)} {address},MAP * ~NOTFOUND"
 
 
 async def _close_quietly(browser) -> None:
@@ -271,6 +209,11 @@ class _BrowserPool:
         # Insertion-ordered, so the first key is the least recently used once
         # every hit moves its key to the end.
         self._browsers: OrderedDict[str, Any] = OrderedDict()
+        # In-flight fetches per pinned rule. A browser with a live lease is
+        # never evicted: closing it would kill the context of a fetch already
+        # navigating, turning an unrelated multi-host crawl into a stream of
+        # spurious connection failures.
+        self._leases: dict[str, int] = {}
         self._lock = asyncio.Lock()
 
     def _launch_args(self, rule: str) -> list[str]:
@@ -306,31 +249,71 @@ class _BrowserPool:
                 ) from exc
             # Each entry is a live browser PROCESS, so an unbounded pool leaks
             # one per distinct resolved address across a multi-host crawl.
-            # Evict the least recently used before storing the new one.
-            while (
-                self._browsers
-                and len(self._browsers) >= self._settings.browser_pool_max_browsers
-            ):
-                _evicted_rule, evicted = self._browsers.popitem(last=False)
-                await _close_quietly(evicted)
+            # Evict the least recently used IDLE browser before storing the new
+            # one; a leased browser is skipped rather than closed under a fetch
+            # that is still using it.
+            await self._evict_idle()
             self._browsers[rule] = browser
+            self._leases[rule] = self._leases.get(rule, 0) + 1
             return browser
 
-    async def new_context(self, *, target: ResolvedTarget):
-        """A fresh context on a browser pinned to this target's address."""
+    async def _evict_idle(self) -> None:
+        """Close least-recently-used browsers with no live lease.
 
-        browser = await self._browser_for(_host_resolver_rule(target))
-        return await browser.new_context(
-            user_agent=self._user_agent,
-            ignore_https_errors=False,
-            service_workers="block",
-        )
+        The caller holds the pool lock.
+        """
+        limit = self._settings.browser_pool_max_browsers
+        while len(self._browsers) >= limit:
+            idle = next(
+                (key for key in self._browsers if not self._leases.get(key)), None
+            )
+            if idle is None:
+                # Every pooled browser is in use. Exceeding the soft cap is the
+                # right call: refusing to launch would fail a fetch that already
+                # passed admission, and the excess is released on completion.
+                return
+            evicted = self._browsers.pop(idle)
+            self._leases.pop(idle, None)
+            await _close_quietly(evicted)
+
+    async def new_context(self, *, target: ResolvedTarget):
+        """A fresh context on a browser pinned to this target's address.
+
+        Takes a lease on that browser; the caller MUST ``release`` it.
+        """
+
+        rule = _host_resolver_rule(target)
+        browser = await self._browser_for(rule)
+        try:
+            return await browser.new_context(
+                user_agent=self._user_agent,
+                ignore_https_errors=False,
+                service_workers="block",
+            )
+        except Exception as exc:  # noqa: BLE001
+            await self.release(target=target)
+            raise FetchError(
+                "browser context could not be opened",
+                error_code=ERROR_ACQUISITION_UNAVAILABLE,
+            ) from exc
+
+    async def release(self, *, target: ResolvedTarget) -> None:
+        """Drop one lease so an idle browser becomes evictable again."""
+
+        rule = _host_resolver_rule(target)
+        async with self._lock:
+            remaining = self._leases.get(rule, 0) - 1
+            if remaining > 0:
+                self._leases[rule] = remaining
+            else:
+                self._leases.pop(rule, None)
 
     async def aclose(self) -> None:
         async with self._lock:
             browsers = list(self._browsers.values())
             playwright, self._playwright = self._playwright, None
             self._browsers.clear()
+            self._leases.clear()
             for browser in browsers:
                 await _close_quietly(browser)
             if playwright is not None:
@@ -370,19 +353,25 @@ class PatchrightTransport:
         """Navigate, wait for readiness, and return the rendered document."""
 
         validate_resolved_target(target)
+        del max_wire_bytes  # the rendered DOM is bounded by the decoded cap only
         started = time.monotonic()
-        host = target.host.casefold().rstrip(".")
-        capture = _CaptureBuffer(
-            host=host,
-            max_responses=self._settings.browser_max_captured_responses,
-            max_bytes=self._settings.browser_max_captured_bytes,
-            max_wire_bytes=max_wire_bytes,
-        )
 
+        # Session setup runs INSIDE the guarded flow. A driver that cannot open
+        # a context or install the route guard must surface as a ``FetchError``
+        # like every other rung failure, because the caller treats an
+        # unavailable last rung as "keep the prior server evidence" and catches
+        # only ``FetchError`` — a raw driver exception would instead fail the
+        # whole page that rung 1 had already fetched successfully.
         context = await self._pool.new_context(target=target)
         try:
-            page = await context.new_page()
-            await self._guard_requests(page, host=host, capture=capture)
+            try:
+                page = await context.new_page()
+                await self._guard_requests(page, target=target)
+            except Exception as exc:  # noqa: BLE001
+                raise FetchError(
+                    "browser session could not be prepared",
+                    error_code=ERROR_ACQUISITION_UNAVAILABLE,
+                ) from exc
             # Navigation gets the tighter of the caller's budget and the
             # configured navigation ceiling: a generous per-request timeout
             # must not let one render hold a crawl slot indefinitely.
@@ -415,32 +404,48 @@ class PatchrightTransport:
                 charset="utf-8",
             )
         finally:
-            # Settle capture tasks BEFORE closing the context: a pending
-            # ``response.body()`` against a closing context raises into a
-            # detached task and logs a spurious "task exception was never
-            # retrieved". The context owns the page, the listeners, and its
-            # share of browser memory, so closing it is what keeps a long
-            # crawl bounded.
-            await capture.drain()
+            # The context owns the page, its listeners, and its share of
+            # browser memory, so closing it is what keeps a long crawl bounded.
+            # Releasing the pool lease last is what lets an idle browser be
+            # evicted again — and what stopped this fetch's browser from being
+            # closed underneath it.
             try:
                 await context.close()
             except Exception:  # noqa: BLE001
                 pass
+            await self._pool.release(target=target)
 
     async def _rendered_body(self, page, max_decoded_bytes: int) -> bytes:
-        """Serialize the rendered DOM, bounded in the page before transfer.
+        """Serialize the rendered DOM, bounded IN BYTES inside the page.
 
-        The cap is applied by the browser (``+1`` byte so an exactly-at-cap
-        document is distinguishable from an oversized one) rather than after
-        materializing the whole document in this process, so a hostile page
-        cannot force an unbounded string across the CDP boundary first.
+        The cap is applied by the browser rather than after materializing the
+        whole document in this process, so a hostile page cannot force an
+        unbounded string across the CDP boundary first.
+
+        The bound is measured in UTF-8 BYTES, not characters. Slicing by
+        characters and then checking the encoded length rejected any page whose
+        multibyte content encoded above the cap while its character count was
+        well under it — which on a Hindi or Chinese site is an ordinary page,
+        refused for being written in a non-Latin script. One extra byte is
+        requested so an exactly-at-cap document stays distinguishable from an
+        oversized one, and an oversized one is still REFUSED rather than
+        silently truncated: partial evidence analyzed as if complete is worse
+        than no evidence at all.
         """
 
+        script = """
+            limit => {
+                const encoder = new TextEncoder();
+                const html = document.documentElement.outerHTML;
+                const bytes = encoder.encode(html);
+                return {
+                    size: bytes.length,
+                    html: bytes.length > limit ? '' : html,
+                };
+            }
+        """
         try:
-            html = await page.evaluate(
-                "limit => document.documentElement.outerHTML.slice(0, limit)",
-                max_decoded_bytes + 1,
-            )
+            result = await page.evaluate(script, max_decoded_bytes)
         # A page that cannot be serialized (navigated away, closed) has no
         # rendered evidence to offer.
         except Exception as exc:  # noqa: BLE001
@@ -449,22 +454,35 @@ class PatchrightTransport:
                 error_code=ERROR_CONNECTION_FAILED,
                 retryable=True,
             ) from exc
-        body = str(html or "").encode("utf-8", errors="replace")
-        if len(body) > max_decoded_bytes:
+        payload = result if isinstance(result, dict) else {}
+        if int(payload.get("size") or 0) > max_decoded_bytes:
             raise FetchError(
                 "rendered document exceeded the decoded cap",
                 error_code=ERROR_RESPONSE_TOO_LARGE,
             )
-        return body
+        return str(payload.get("html") or "").encode("utf-8", errors="replace")
 
-    async def _guard_requests(self, page, *, host: str, capture: _CaptureBuffer):
-        """Confine every request to the validated host and record JSON traffic.
+    async def _guard_requests(self, page, *, target: ResolvedTarget) -> None:
+        """Confine every request to the exact authority the fetcher validated.
 
         The fetcher validated exactly ONE authority. Guarding only main-frame
         navigation would still let subresources, XHR, and iframes reach any
         host the page names — addresses that never passed admission or the SSRF
-        checks. So every request whose host is not the validated one is
-        aborted, whatever its resource type.
+        checks. So every request outside that authority is aborted, whatever its
+        resource type, and the comparison includes the scheme and port: another
+        port on the same machine is a different service, and an HTTPS-to-HTTP
+        downgrade is a different guarantee.
+        """
+
+        await page.route("**/*", self.route_handler(target))
+
+    @staticmethod
+    def route_handler(target: ResolvedTarget):
+        """The production route guard, as an installable handler.
+
+        Exposed so a live test can exercise the SHIPPED guard rather than a
+        re-implementation of it — a duplicated handler in a test proves only
+        that the duplicate works.
         """
 
         async def _route(route, request):
@@ -472,7 +490,7 @@ class PatchrightTransport:
                 if request.resource_type in _BLOCKED_RESOURCE_TYPES:
                     await route.abort()
                     return
-                if not _same_site(request.url, host):
+                if not _same_authority(request.url, target):
                     await route.abort()
                     return
                 await route.continue_()
@@ -481,15 +499,19 @@ class PatchrightTransport:
             except Exception:  # noqa: BLE001
                 pass
 
-        await page.route("**/*", _route)
-        page.on("response", capture.schedule)
+        return _route
 
     async def _navigate(self, page, target: ResolvedTarget, timeout_seconds: float):
         timeout_error = _timeout_error_type()
+        # Playwright reads ``timeout=0`` as "no timeout at all", so a budget
+        # that has already been consumed would remove the deadline instead of
+        # tripping it immediately — the opposite of what an exhausted budget
+        # means. Clamped to a floor, matching the readiness wait's own guard.
+        budget_ms = max(_MIN_NAVIGATION_TIMEOUT_MS, int(timeout_seconds * 1000))
         try:
             return await page.goto(
                 target.url,
-                timeout=timeout_seconds * 1000,
+                timeout=budget_ms,
                 wait_until="domcontentloaded",
             )
         except timeout_error as exc:

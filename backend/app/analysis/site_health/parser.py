@@ -17,7 +17,7 @@ import codecs
 import logging
 import re
 from typing import Any
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 from lxml import etree
 from lxml import html as lxml_html
@@ -68,6 +68,7 @@ _MAX_CONTACT_POINTS = site_health_config.SITE_HEALTH_MAX_CONTACT_POINTS
 _MAX_CONTACT_VALUE_CHARS = site_health_config.SITE_HEALTH_MAX_CONTACT_VALUE_CHARS
 _MAX_MONEY_MENTIONS = site_health_config.SITE_HEALTH_MAX_MONEY_MENTIONS
 _MAX_MONEY_CONTEXT_CHARS = site_health_config.SITE_HEALTH_MAX_MONEY_CONTEXT_CHARS
+_MAX_MONEY_RAW_CHARS = site_health_config.SITE_HEALTH_MAX_MONEY_RAW_CHARS
 MONEY_CURRENCY_SYMBOLS = site_health_config.MONEY_CURRENCY_SYMBOLS
 # A currency token (symbol or ISO code) immediately preceding an amount.
 # Currency-FIRST only: a trailing token is ambiguous ("50 lakh", "20 000 sq ft")
@@ -362,8 +363,11 @@ def _contact_points(root: Any) -> list[dict[str, str]]:
                 continue
             # Drop any mailto query (?subject=/&body=): it is template text,
             # not an address, and would make two links to one inbox look like
-            # two different contact points.
-            value = raw.split("?", 1)[0].strip()[:_MAX_CONTACT_VALUE_CHARS]
+            # two different contact points. Percent-decode first — an authored
+            # ``mailto:%20info@x.test`` is one inbox, and leaving the escape in
+            # persists an unusable address AND a duplicate of the real one
+            # (observed live on the first acceptance corpus).
+            value = unquote(raw.split("?", 1)[0]).strip()[:_MAX_CONTACT_VALUE_CHARS]
             if not value:
                 continue
             key = f"{channel}|{value.casefold()}"
@@ -401,21 +405,25 @@ def _money_mentions(text: str) -> list[dict[str, Any]]:
             amount = float(digits)
         except ValueError:
             continue
-        key = f"{currency}|{amount}"
+        start = max(0, match.start() - _MAX_MONEY_CONTEXT_CHARS // 2)
+        # Surrounding words are what later tells an annual tuition fee from a
+        # one-time registration fee. Bounded and text-only.
+        context = " ".join(
+            text[start : match.end() + _MAX_MONEY_CONTEXT_CHARS // 2].split()
+        )[:_MAX_MONEY_CONTEXT_CHARS]
+        # The CONTEXT is part of the identity. Keying on currency+amount alone
+        # collapsed "Grade 8: INR 250000" and "Grade 9: INR 250000" into one
+        # mention and silently discarded the second grade's fee.
+        key = f"{currency}|{amount}|{context}"
         if key in seen:
             continue
         seen.add(key)
-        start = max(0, match.start() - _MAX_MONEY_CONTEXT_CHARS // 2)
         mentions.append(
             {
                 "currency": currency,
                 "amount": amount,
-                "raw": match.group(0).strip()[:_MAX_CONTACT_VALUE_CHARS],
-                # Surrounding words are what later tells an annual tuition fee
-                # from a one-time registration fee. Bounded and text-only.
-                "context": " ".join(
-                    text[start : match.end() + _MAX_MONEY_CONTEXT_CHARS // 2].split()
-                )[:_MAX_MONEY_CONTEXT_CHARS],
+                "raw": match.group(0).strip()[:_MAX_MONEY_RAW_CHARS],
+                "context": context,
             }
         )
     return mentions

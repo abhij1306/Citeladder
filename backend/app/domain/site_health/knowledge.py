@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -50,6 +50,7 @@ from app.core.config.site_intelligence import (
     MAX_ENTITIES_PER_CRAWL,
     MAX_EVIDENCE_REFS_PER_ROW,
     MAX_RELATIONS_PER_CRAWL,
+    MULTI_VALUE_CARDINALITIES,
     NON_CONFLICTING_POLICIES,
     REVIEW_STATE_OBSERVED,
 )
@@ -123,9 +124,18 @@ async def build_crawl_knowledge(
     if not pages:
         return KnowledgeBuildResult(packed=True, warnings=("no_analyzed_pages",))
 
+    if vocabulary.unusable_predicate_ids:
+        logger.warning(
+            "industry pack declares predicates with no subject entity type",
+            extra={
+                "pack_id": vocabulary.pack_id,
+                "pack_version": vocabulary.pack_version,
+                "predicate_ids": list(vocabulary.unusable_predicate_ids)[:20],
+            },
+        )
     site_key = _site_identity_key(crawl, pages)
     per_page = _extract_all(pages, vocabulary=vocabulary, site_identity_key=site_key)
-    merged = _merge(per_page, now=now or datetime.now(UTC))
+    merged = _merge(per_page, vocabulary=vocabulary, now=now or datetime.now(UTC))
 
     await _persist(
         session,
@@ -134,13 +144,26 @@ async def build_crawl_knowledge(
         merged=merged,
     )
     return KnowledgeBuildResult(
+        # A pack defect is reported beside the site's own gaps so a reader can
+        # tell "we could not ask this" from "the site does not say".
         entity_count=len(merged.entities),
         assertion_count=len(merged.assertions),
         relation_count=len(merged.relations),
         contradiction_count=merged.contradiction_count,
         pages_considered=len(pages),
         pages_contributing=merged.pages_contributing,
-        warnings=merged.warnings,
+        warnings=tuple(
+            dict.fromkeys(
+                (
+                    *merged.warnings,
+                    *(
+                        ("pack_predicates_without_a_subject_entity_type",)
+                        if vocabulary.unusable_predicate_ids
+                        else ()
+                    ),
+                )
+            )
+        ),
         packed=True,
     )
 
@@ -309,7 +332,10 @@ def _extract_all(
 
 
 def _merge(
-    per_page: Sequence[tuple[_PageInput, PageKnowledge]], *, now: datetime
+    per_page: Sequence[tuple[_PageInput, PageKnowledge]],
+    *,
+    vocabulary: KnowledgeVocabulary,
+    now: datetime,
 ) -> _Merged:
     """Fold per-page candidates into one knowledge model and group conflicts."""
 
@@ -328,19 +354,23 @@ def _merge(
         _merge_assertions(assertions, knowledge.assertions, ref=ref, now=now)
         _merge_relations(relations, knowledge.relations, ref=ref)
 
-    # Drop edges whose endpoints were never established. An edge to an entity
-    # that does not exist is not a weak relationship, it is a dangling FK.
-    relations = {
+    # Truncate entities FIRST, then drop edges whose endpoints did not survive.
+    # Filtering before truncation left edges pointing at entities the cap had
+    # since removed — a dangling foreign key at insert time, not a weak
+    # relationship.
+    kept_entities = dict(list(entities.items())[:MAX_ENTITIES_PER_CRAWL])
+    kept_relations = {
         key: value
         for key, value in relations.items()
-        if value.candidate.source in entities and value.candidate.target in entities
+        if value.candidate.source in kept_entities
+        and value.candidate.target in kept_entities
     }
-    disputes = _group_contradictions(assertions)
+    disputes = _group_contradictions(assertions, vocabulary=vocabulary)
 
     return _Merged(
-        entities=dict(list(entities.items())[:MAX_ENTITIES_PER_CRAWL]),
+        entities=kept_entities,
         assertions=dict(list(assertions.items())[:MAX_ASSERTIONS_PER_CRAWL]),
-        relations=dict(list(relations.items())[:MAX_RELATIONS_PER_CRAWL]),
+        relations=dict(list(kept_relations.items())[:MAX_RELATIONS_PER_CRAWL]),
         contradiction_count=disputes,
         warnings=tuple(dict.fromkeys(warnings)),
         pages_contributing=contributing,
@@ -383,9 +413,7 @@ def _merge_assertions(
             effective_to=candidate.effective_to,
             now=now,
         )
-        candidate = AssertionCandidate(
-            **{**candidate.__dict__, "temporal_state": resolved}
-        )
+        candidate = replace(candidate, temporal_state=resolved)
         key = (
             candidate.subject,
             candidate.predicate_id,
@@ -416,12 +444,24 @@ def _merge_relations(
             existing.evidence.append(ref)
 
 
-def _group_contradictions(assertions: dict[tuple, _MergedAssertion]) -> int:
+def _group_contradictions(
+    assertions: dict[tuple, _MergedAssertion],
+    *,
+    vocabulary: KnowledgeVocabulary,
+) -> int:
     """Flag every side of each disputed fact; return how many disputes exist.
 
     A contradiction is two or more DIFFERENT normalized values for the same
-    subject, predicate, and scope. Nothing is deleted, reconciled, or ranked:
-    all sides keep their evidence and stay ``observed`` so a reviewer decides.
+    subject, predicate, and scope, WHERE THE PACK SAYS ONLY ONE MAY HOLD.
+    Multiplicity alone is not a conflict: a school publishes several phone
+    numbers and several campuses, and the pack marks those predicates
+    ``multiple_compatible`` / ``scoped_many`` for exactly that reason. Observed
+    live on the first acceptance corpus, ignoring the policy reported six
+    published phone numbers as a contradiction and flipped two questions to
+    ``conflicting`` — a fabricated finding on a correct site.
+
+    For a genuinely disputed fact nothing is deleted, reconciled, or ranked: all
+    sides keep their evidence and stay ``observed`` so a reviewer decides.
     Historical values participate — a stale fee that still contradicts the
     current one is exactly what a reader needs to see — and no side is promoted
     to current truth by winning a count.
@@ -439,7 +479,12 @@ def _group_contradictions(assertions: dict[tuple, _MergedAssertion]) -> int:
         ).append(merged)
 
     disputes = 0
-    for members in by_claim.values():
+    for (_subject, predicate_id, _scope), members in by_claim.items():
+        spec = vocabulary.predicates.get(predicate_id)
+        if spec is not None and conflict_policy_permits_multiple(
+            spec.conflict_policy, spec.cardinality
+        ):
+            continue
         if len({member.candidate.normalized_value for member in members}) < 2:
             continue
         disputes += 1
@@ -448,9 +493,20 @@ def _group_contradictions(assertions: dict[tuple, _MergedAssertion]) -> int:
     return disputes
 
 
-def conflict_policy_permits_multiple(policy: str) -> bool:
-    """Whether a predicate legitimately holds several simultaneous values."""
-    return policy in NON_CONFLICTING_POLICIES
+def conflict_policy_permits_multiple(policy: str, cardinality: str) -> bool:
+    """Whether a predicate legitimately holds several simultaneous values.
+
+    Both signals are read. ``conflict_policy`` states how a clash is resolved;
+    ``cardinality`` states whether several values may coexist at all. A
+    predicate that is ``scoped_many`` or ``many`` is multi-valued by definition,
+    whatever its policy says about resolving a genuine clash within one scope.
+    An unrecognized policy falls through to "single value", the strict reading:
+    a false contradiction is visible and reviewable, a missed one is not.
+    """
+    return (
+        policy in NON_CONFLICTING_POLICIES
+        or cardinality in MULTI_VALUE_CARDINALITIES
+    )
 
 
 # =========================================================================

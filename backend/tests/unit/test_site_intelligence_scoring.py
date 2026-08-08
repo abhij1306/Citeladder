@@ -28,6 +28,7 @@ from app.core.config.site_intelligence import (
     COVERAGE_UNAVAILABLE_EVIDENCE,
     COVERAGE_UNSUPPORTED,
     DIMENSION_IDS,
+    OUTCOME_STATE_UNAVAILABLE,
 )
 
 FEES_QUESTION = "education.fees"
@@ -277,7 +278,7 @@ def test_journey_outcomes_are_unavailable_never_zero(education):
         for state in stage.outcomes.values()
     ]
     assert outcomes
-    assert set(outcomes) == {"unavailable"}
+    assert set(outcomes) == {OUTCOME_STATE_UNAVAILABLE}
 
 
 def test_journey_stage_reports_the_roles_it_is_missing(education):
@@ -328,7 +329,7 @@ def test_composite_always_divides_by_all_six_dimensions(education):
     report = _report(education, CorpusSignals(), index())
     assert len(report.dimensions) == len(DIMENSION_IDS)
     assert report.composite_score == round(
-        sum(d.score for d in report.dimensions) / 6, 4
+        sum(d.score for d in report.dimensions) / len(DIMENSION_IDS), 4
     )
 
 

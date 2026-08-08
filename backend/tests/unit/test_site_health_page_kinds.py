@@ -102,7 +102,11 @@ def test_homepage_outranks_conflicting_schema_and_records_suggestion() -> None:
     [
         ("https://example.com/blog/my-post", "article"),
         ("https://example.com/news/story", "article"),
-        ("https://example.com/guides/how-to", "article"),
+        # Both spellings reach PAGE_KIND_GUIDE. Listing "guides" under the
+        # earlier article pattern made the plural an article and left the guide
+        # entry unreachable for it, so /guide and /guides classified differently.
+        ("https://example.com/guide/how-to", "guide"),
+        ("https://example.com/guides/how-to", "guide"),
         ("https://example.com/product/123", "product"),
         ("https://example.com/products/123", "product"),
         ("https://example.com/p/abc", "product"),

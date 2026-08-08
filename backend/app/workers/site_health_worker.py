@@ -38,6 +38,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.connectors.web_evidence.browser_transport import PatchrightTransport
 from app.connectors.web_evidence.contracts import (
     AcquisitionProvenance,
     DnsResolver,
@@ -203,17 +204,43 @@ class SiteHealthWorker(
         self._robots_cache: dict[str, tuple[RobotsPolicy, str | None, int | None]] = {}
         self._robots_cache_ts: dict[str, float] = {}
         self._robots_locks: dict[str, asyncio.Lock] = {}
+        # One browser process per WORKER, not per task (see ``_new_fetcher``).
+        self._browser_transport: PatchrightTransport | None = None
 
     def _new_fetcher(self) -> SecureFetcher:
         """Build a fetcher with the worker's injected transport seams.
 
         The resolver and httpx transport are injected together so offline
         tests never touch the network.
+
+        The browser rung is created ONCE per worker and injected, never left to
+        the fetcher. ``_new_fetcher`` runs per task, and a fetcher-owned
+        transport would launch and tear down a Chromium PROCESS for every page —
+        seconds of startup per URL, and a leaked process for any fetcher whose
+        close path did not run. Injected transports are not closed by the
+        fetcher (see ``SecureFetcher.aclose``), so ``aclose`` below owns it.
         """
         return SecureFetcher(
             resolver=self._resolver,
             transport=self._transport,
+            browser_transport=self._shared_browser_transport(),
         )
+
+    def _shared_browser_transport(self) -> PatchrightTransport | None:
+        """The worker's one browser transport, created on first use."""
+        if not site_health_settings.browser_enabled:
+            return None
+        if self._browser_transport is None:
+            self._browser_transport = PatchrightTransport(
+                settings=site_health_settings
+            )
+        return self._browser_transport
+
+    async def aclose(self) -> None:
+        """Release the worker's shared OS-level resources."""
+        transport, self._browser_transport = self._browser_transport, None
+        if transport is not None:
+            await transport.aclose()
 
     async def run_once(self) -> int:
         """Sweep expired leases, claim a batch of all task kinds, execute it.
@@ -292,16 +319,21 @@ class SiteHealthWorker(
 
     async def run_forever(self) -> None:  # pragma: no cover - long-running loop
         logger.info("site health worker started", extra={"owner": self.owner})
-        while True:
-            try:
-                ran = await self.run_once()
-            except Exception:  # defensive: a bad task must not kill the loop
-                logger.exception("site health worker loop iteration failed")
-                ran = 0
-            if ran == 0:
-                await asyncio.sleep(
-                    max(0.05, site_health_settings.poll_interval_seconds)
-                )
+        try:
+            while True:
+                try:
+                    ran = await self.run_once()
+                except Exception:  # defensive: a bad task must not kill the loop
+                    logger.exception("site health worker loop iteration failed")
+                    ran = 0
+                if ran == 0:
+                    await asyncio.sleep(
+                        max(0.05, site_health_settings.poll_interval_seconds)
+                    )
+        finally:
+            # A cancelled worker still owns a browser process; leaving it to the
+            # interpreter strands it for the container's lifetime.
+            await self.aclose()
 
     # --- per-task execution ------------------------------------------------
 

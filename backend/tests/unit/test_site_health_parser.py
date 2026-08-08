@@ -347,11 +347,12 @@ _V2_PAGE = b"""
 """
 
 
-def test_extractor_version_is_sh_extractor_3():
-    # Pin the provenance stamp (config-derived everywhere else). sh-extractor-3
-    # adds the industry-role classifier facts.
-    assert EXTRACTOR_VERSION == "sh-extractor-3"
-    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-3"
+def test_extractor_version_is_sh_extractor_4():
+    # Pin the provenance stamp (config-derived everywhere else). sh-extractor-4
+    # adds the knowledge-layer facts (contact_points / money_mentions) on top of
+    # sh-extractor-3's industry-role classifier facts.
+    assert EXTRACTOR_VERSION == "sh-extractor-4"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-4"
 
 
 # --- sh-extractor-3: industry-role classifier facts -------------------------

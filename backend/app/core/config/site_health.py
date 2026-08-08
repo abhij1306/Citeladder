@@ -71,6 +71,10 @@ SITE_HEALTH_MAX_CONTACT_VALUE_CHARS: Final = 256
 # than one that reports the fact as missing.
 SITE_HEALTH_MAX_MONEY_MENTIONS: Final = 24
 SITE_HEALTH_MAX_MONEY_CONTEXT_CHARS: Final = 160
+# Money evidence is sized independently of the contact-point bound: the two are
+# unrelated fields, and sharing a constant would silently retune one when the
+# other is adjusted.
+SITE_HEALTH_MAX_MONEY_RAW_CHARS: Final = 64
 # ISO codes and symbols recognized in visible copy. Deliberately a short,
 # explicit list: an unrecognized currency yields no assertion rather than a
 # guessed one.
@@ -975,7 +979,10 @@ HOMEPAGE_PATH_EQUIVALENTS: Final[frozenset[str]] = frozenset(
 # (page_kind, regex) matched with re.match against the normalized path
 # (lowercase, trailing slashes stripped). Initial table per spec §5.1.
 PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
-    (PAGE_KIND_ARTICLE, r"^/(blog|news|guides)(/|$)"),
+    # ``guides`` is deliberately NOT here: first match wins, so listing it made
+    # /guides an article and left PAGE_KIND_GUIDE's own pattern unreachable for
+    # the plural form while /guide classified correctly.
+    (PAGE_KIND_ARTICLE, r"^/(blog|news)(/|$)"),
     (PAGE_KIND_PRODUCT, r"^/(products?|p|shop)(/|$)"),
     (PAGE_KIND_CATEGORY, r"^/(category|collections)(/|$)"),
     (PAGE_KIND_SERVICE, r"^/(services?|solutions?)(/|$)"),
@@ -1251,7 +1258,10 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
         page_kind=PAGE_KIND_PRICING,
         expected_types=("Product", "Service"),
         required_properties=("offers",),
-        recommended_properties=("price", "priceCurrency"),
+        # Nested paths: price and currency live on the Offer, not on the
+        # Product/Service itself. Bare names never matched, so a correctly
+        # marked-up pricing page was reported as missing both.
+        recommended_properties=("offers.price", "offers.priceCurrency"),
     ),
     PAGE_KIND_DOCS: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_DOCS,
@@ -2302,6 +2312,16 @@ class SiteHealthSettings(BaseSettings):
             raise ValueError("browser_readiness_timeout_seconds must be positive")
         if self.browser_pool_max_browsers < 1:
             raise ValueError("browser_pool_max_browsers must be at least 1")
+        # Negative bounds do not disable a signal, they invert it: a negative
+        # scan window makes every body read as empty, and a negative text floor
+        # makes every 2xx page a shell. Zero is the documented "off" value.
+        for name in (
+            "js_shell_min_text_chars",
+            "js_shell_min_inline_script_chars",
+            "js_shell_scan_bytes",
+        ):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} must not be negative")
         return self
 
     @model_validator(mode="after")

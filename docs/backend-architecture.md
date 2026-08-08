@@ -100,10 +100,26 @@ Shipped:
   id/version/hash). The per-page hot loop performs no file I/O, no hashing, no catalog lookup, and
   no model call — measured at ~5k–6k pages/sec for Education and Commerce.
 
-Still deferred (next slices): typed knowledge entities/assertions/relations, contradiction groups,
-question coverage, journeys, dimension scores, and the Site Intelligence report/workspace. Add
-typed knowledge only when cross-page query, contradiction, approval, or context selection cannot be
-represented cleanly by current projections.
+### Typed knowledge and the Site Intelligence projection
+
+`knowledge_entities` / `knowledge_assertions` / `knowledge_relations` are crawl-scoped derived
+projections with deterministic (uuid5) primary keys, so replaying the same artifacts under the same
+versions reproduces byte-identical knowledge and a re-run of finalization is a no-op. They were
+added only after proving the existing owners cannot carry them; the proof is recorded in
+[`plans/knowledge-kernel-and-industry-pack-spec.md`](plans/knowledge-kernel-and-industry-pack-spec.md)
+under "Phase B".
+
+Extraction is pure and pack-driven (`analysis/site_health/knowledge.py`), targeting the vocabulary
+all sixteen catalog packs share, so Education and Commerce run one code path. Contradiction grouping,
+question coverage (eight distinct states), journey stage coverage, and the six dimension scores are
+computed at crawl finalization and frozen whole onto `SiteHealthSnapshot.intelligence`; every read
+endpoint renders that stored projection and never re-resolves a pack or re-scores.
+
+Composites report over the FULL denominator with coverage beside them. Only a reviewer's explicit
+`not_applicable` declaration — frozen onto the crawl like the pack manifest — leaves a denominator.
+
+Still deferred (next slices): approved-memory transitions, project-authored journey definitions,
+task context packages, content briefs, and recrawl comparison.
 
 ## Content Intelligence migration
 

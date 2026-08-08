@@ -268,7 +268,9 @@ def classify_industry_role(
         "catalog_version": str(manifest.get("catalog_version", ""))[:32],
         "role_classifier_version": str(manifest.get("classifier_version", ""))[:64],
         "corpus_disposition": disposition,
-        "temporal_state": str(result.get("temporal_state") or TEMPORAL_STATE_UNKNOWN),
+        "temporal_state": str(
+            result.get("temporal_state") or TEMPORAL_STATE_UNKNOWN
+        )[:16],
     }
 
 

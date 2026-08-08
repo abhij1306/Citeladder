@@ -22,14 +22,18 @@ from app.core.config.site_health import ERROR_ACQUISITION_UNAVAILABLE
 def validate_resolved_target(target: ResolvedTarget) -> None:
     """Fail closed unless the requested authority is exactly the pinned one."""
 
+    # ``urlsplit`` is inside the guard because it raises on a malformed
+    # authority of its own (an unbracketed or otherwise invalid IPv6 literal),
+    # and a target this function cannot parse must fail closed like any other
+    # unusable one rather than escaping as a raw ValueError.
     try:
         requested_host, requested_port = split_host_port(target.url)
+        requested_scheme = urlsplit(target.url).scheme.casefold()
     except (TypeError, ValueError) as exc:
         raise FetchError(
             "acquisition received an invalid resolved target",
             error_code=ERROR_ACQUISITION_UNAVAILABLE,
         ) from exc
-    requested_scheme = urlsplit(target.url).scheme.casefold()
     if (
         requested_host != target.host.casefold().rstrip(".")
         or requested_port != target.port

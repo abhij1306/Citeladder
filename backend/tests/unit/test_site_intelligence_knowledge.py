@@ -59,7 +59,10 @@ def entity_types(result) -> set[str]:
 def test_education_vocabulary_compiles_from_the_shipped_pack(education):
     assert education.pack_id == "education"
     assert education.primary_type_for("organization") == "education.organization"
-    assert len(education.questions) == 29
+    # The exact catalog count belongs to the pack-contract tests; what this
+    # compile must guarantee is that questions arrive fully formed.
+    assert education.questions
+    assert all(q.question_id and q.required_predicate_ids for q in education.questions)
     assert len(education.journeys) == 1
     assert education.journeys[0].stages[0].order == 0
 
@@ -212,11 +215,18 @@ def test_role_entity_identity_is_the_page_not_its_heading(education):
         role="education.admissions_overview",
         url="https://a.test/admissions",
     )
+    same_heading_other_url = knowledge(
+        education,
+        "<html><body><h1>Admissions</h1></body></html>",
+        role="education.admissions_overview",
+        url="https://a.test/apply",
+    )
     entity = result.entities[0]
 
+    # Same heading, different page: two entities, because the URL is identity.
+    assert entity.ref != same_heading_other_url.entities[0].ref
     assert "admissions" in entity.ref.identity_key
-    assert "Admissions" not in entity.ref.identity_key
-    # The heading survives as a human label and an alias, not as identity.
+    # The heading survives as a human label, not as identity.
     assert entity.canonical_name == "Admissions"
 
 
@@ -283,18 +293,21 @@ def test_fee_binds_to_the_pack_declared_subject_and_predicate(education):
     assert fees[0].numeric_value == 250000.0
 
 
-def test_indian_and_western_grouping_both_parse_in_full():
-    """``250000`` once parsed as 250 — a 250-rupee annual school fee."""
-    for markup, expected in (
+@pytest.mark.parametrize(
+    ("markup", "expected"),
+    [
         ("INR 2,50,000", 250000.0),
         ("INR 250,000", 250000.0),
         ("INR 250000", 250000.0),
-    ):
-        facts = extract_page_facts(
-            f"<html><body><p>Fee {markup} yearly</p></body></html>".encode(),
-            final_url="https://a.test/",
-        )
-        assert [m["amount"] for m in facts["money_mentions"]] == [expected], markup
+    ],
+)
+def test_indian_and_western_grouping_both_parse_in_full(markup, expected):
+    """``250000`` once parsed as 250 — a 250-rupee annual school fee."""
+    facts = extract_page_facts(
+        f"<html><body><p>Fee {markup} yearly</p></body></html>".encode(),
+        final_url="https://a.test/",
+    )
+    assert [m["amount"] for m in facts["money_mentions"]] == [expected]
 
 
 def test_an_amount_without_a_currency_is_not_money():
@@ -368,8 +381,8 @@ def test_the_offer_shares_the_products_identity_not_a_second_page(commerce):
         role="commerce.product_detail",
         url="https://s.test/p/herbal",
     )
-    keys = {entity.ref.identity_key for entity in result.entities}
-    assert len(keys) == 1
+    assert len(result.entities) == 2
+    assert len({entity.ref.identity_key for entity in result.entities}) == 1
 
 
 # =========================================================================

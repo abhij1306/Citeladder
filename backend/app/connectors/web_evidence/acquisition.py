@@ -100,7 +100,12 @@ def loads_script(body: bytes, *, scan_bytes: int, min_inline_chars: int) -> bool
 
     if not body:
         return False
-    text = body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
+    # Comments are stripped first: a commented-out ``<script src=...>`` is
+    # inert markup, and treating it as evidence that the page builds itself
+    # client-side would escalate a plain static page to a browser render.
+    text = _COMMENTS.sub(
+        " ", body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
+    )
     if _SCRIPT_SRC.search(text):
         return True
     return any(

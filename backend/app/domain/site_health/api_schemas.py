@@ -652,3 +652,257 @@ class SiteHealthError(_Model):
     currently_used: int | None = None
     expected_selection_version: int | None = None
     current_selection_version: int | None = Field(default=None)
+
+
+# =========================================================================
+# Site Intelligence (S2/S3 projection)
+# =========================================================================
+# Every model below renders the projection FROZEN onto the snapshot at crawl
+# finalization. Nullable numbers are load-bearing: ``None`` means "not
+# measurable", which is a different fact from ``0.0`` ("measured, and it is
+# zero"). A DTO that coerced one into the other would turn an incomplete crawl
+# into a failing site.
+CoverageState = Literal[
+    "answered_strong",
+    "answered_weak",
+    "missing",
+    "conflicting",
+    "unsupported",
+    "historical_only",
+    "unavailable_evidence",
+    "not_applicable",
+]
+
+
+class QuestionCoverageItem(_Model):
+    question_id: str
+    label: str
+    state: CoverageState
+    journey_stage_id: str
+    reason: str
+    satisfied_predicate_ids: list[str] = []
+    missing_predicate_ids: list[str] = []
+    answering_role_ids: list[str] = []
+
+
+class QuestionCoverageBlock(_Model):
+    # ``None`` when the pack declares no applicable question — never 0.0, which
+    # would read as total failure.
+    answered_ratio: float | None = None
+    denominator: int = 0
+    counts: dict[str, int] = {}
+    questions: list[QuestionCoverageItem] = []
+
+
+class JourneyStageBlock(_Model):
+    stage_id: str
+    label: str
+    order: int
+    role_coverage: float
+    question_coverage: float | None = None
+    present_role_ids: list[str] = []
+    missing_role_ids: list[str] = []
+    answered_question_ids: list[str] = []
+    gap_question_ids: list[str] = []
+    # Outcome -> ``unavailable`` until Demand Intelligence supplies events.
+    outcomes: dict[str, str] = {}
+
+
+class JourneyBlock(_Model):
+    journey_id: str
+    label: str
+    stages: list[JourneyStageBlock] = []
+    role_coverage: float = 0.0
+    question_coverage: float | None = None
+    version: str = ""
+
+
+class DimensionComponentBlock(_Model):
+    component_id: str
+    label: str
+    # ``None`` == the crawl could not observe this component at all.
+    score: float | None = None
+
+
+class DimensionBlock(_Model):
+    dimension_id: str
+    label: str
+    score: float
+    coverage: float
+    components: list[DimensionComponentBlock] = []
+
+
+class DimensionsBlock(_Model):
+    # ``None`` only when no projection exists; a real projection always reports
+    # over all six dimensions.
+    composite_score: float | None = None
+    composite_coverage: float | None = None
+    dimensions: list[DimensionBlock] = []
+
+
+class KnowledgeSummaryBlock(_Model):
+    entity_count: int = 0
+    assertion_count: int = 0
+    relation_count: int = 0
+    contradiction_count: int = 0
+    pages_considered: int = 0
+    pages_contributing: int = 0
+    entity_type_ids: list[str] = []
+    # Named reasons a fact could not be produced — report copy, not log noise.
+    warnings: list[str] = []
+
+
+class CorpusBlock(_Model):
+    by_disposition: dict[str, int] = {}
+    by_item_kind: dict[str, int] = {}
+    discovered: int = 0
+    analyzable: int = 0
+    inventory_only: int = 0
+    documents: int = 0
+
+
+class IntelligenceCrawlRef(_Model):
+    id: str
+    status: str
+    root_url: str
+    created_at: str | None = None
+
+
+class IntelligenceOverviewResponse(_Model):
+    # ``False`` when the crawl has produced no snapshot yet. Distinct from
+    # ``packed=False``, which means a snapshot exists and no pack applied.
+    available: bool
+    reason: str | None = None
+    packed: bool = False
+    manifest: dict[str, str] | None = None
+    crawl: IntelligenceCrawlRef
+    snapshot_id: str | None = None
+    corpus: CorpusBlock = CorpusBlock()
+    knowledge: KnowledgeSummaryBlock = KnowledgeSummaryBlock()
+    coverage: QuestionCoverageBlock = QuestionCoverageBlock()
+    journeys: list[JourneyBlock] = []
+    dimensions: DimensionsBlock = DimensionsBlock()
+    versions: dict[str, str] = {}
+
+
+class EvidenceRef(_Model):
+    source_kind: str
+    source_id: str
+    locator: dict[str, object] = {}
+
+
+class KnowledgeManifest(_Model):
+    pack_id: str
+    pack_version: str
+    extractor_version: str
+
+
+class KnowledgeEntityItem(_Model):
+    id: str
+    entity_type_id: str
+    identity_key: str
+    canonical_name: str
+    aliases: list[str] = []
+    identifiers: dict[str, str] = {}
+    review_state: str
+    evidence_page_count: int = 0
+    evidence_refs: list[EvidenceRef] = []
+    manifest: KnowledgeManifest
+
+
+class KnowledgeEntityPage(_Model):
+    crawl_id: str
+    total: int
+    items: list[KnowledgeEntityItem] = []
+
+
+class AssertionSubject(_Model):
+    id: str
+    entity_type_id: str
+    canonical_name: str
+
+
+class KnowledgeAssertionItem(_Model):
+    id: str
+    predicate_id: str
+    value_type: str
+    raw_value: str
+    normalized_value: str
+    numeric_value: float | None = None
+    unit: str = ""
+    currency: str = ""
+    scope: dict[str, str] = {}
+    temporal_state: str
+    effective_from: str | None = None
+    effective_to: str | None = None
+    derivation_method: str = ""
+    confidence: float | None = None
+    review_state: str
+    # Null means nothing disputes this claim — NOT that a dispute was resolved.
+    contradiction_group_id: str | None = None
+    evidence_refs: list[EvidenceRef] = []
+    subject: AssertionSubject
+
+
+class KnowledgeAssertionPage(_Model):
+    crawl_id: str
+    total: int
+    items: list[KnowledgeAssertionItem] = []
+
+
+class ContradictionGroup(_Model):
+    contradiction_group_id: str
+    predicate_id: str
+    scope: dict[str, str] = {}
+    subject: AssertionSubject
+    resolution_state: str
+    # ALL sides. A reader who sees one cannot tell what the dispute is.
+    sides: list[KnowledgeAssertionItem] = []
+
+
+class ContradictionPage(_Model):
+    crawl_id: str
+    total: int
+    items: list[ContradictionGroup] = []
+
+
+class RelationEndpoint(_Model):
+    name: str
+    entity_type_id: str
+
+
+class KnowledgeRelationItem(_Model):
+    id: str
+    relation_type_id: str
+    temporal_state: str
+    source: RelationEndpoint
+    target: RelationEndpoint
+    evidence_refs: list[EvidenceRef] = []
+
+
+class KnowledgeRelationPage(_Model):
+    crawl_id: str
+    total: int
+    items: list[KnowledgeRelationItem] = []
+
+
+class SchemaTypeSummary(_Model):
+    type: str
+    pages: int
+    valid: int
+    invalid: int
+
+
+class SchemaInvalidPage(_Model):
+    site_url_id: str
+    url: str
+    type: str
+    missing: list[str] = []
+
+
+class SchemaGraphResponse(_Model):
+    crawl_id: str
+    analyzed_pages: int
+    pages_with_schema: int
+    types: list[SchemaTypeSummary] = []
+    invalid: list[SchemaInvalidPage] = []

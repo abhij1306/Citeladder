@@ -84,11 +84,6 @@ VALUE_TYPE_URL: Final = "url"
 VALUE_TYPE_ENTITY_REF: Final = "entity_ref"
 VALUE_TYPE_OBJECT: Final = "object"
 
-# A money assertion without a currency is not a weaker fact — it is not a fact.
-# "Fees are 250000" is unusable and dangerous to publish, so extraction drops it
-# rather than persisting a number a report could render beside a wrong symbol.
-MONEY_REQUIRES_CURRENCY: Final = True
-
 # =========================================================================
 # The shared cross-pack vocabulary the extractor is written against
 # =========================================================================
@@ -196,7 +191,13 @@ CONFLICT_POLICY_MULTI_VALUE: Final = "multi_value"
 # Predicates that legitimately hold many simultaneous values (several campuses,
 # several contact points) never raise a contradiction on multiplicity alone.
 NON_CONFLICTING_POLICIES: Final[frozenset[str]] = frozenset(
-    {CONFLICT_POLICY_MULTI_VALUE}
+    {CONFLICT_POLICY_MULTI_VALUE, "multiple_compatible"}
+)
+# Cardinalities that permit several simultaneous values. A predicate declaring
+# one of these is multi-valued by definition — a school publishes several phone
+# numbers and several campuses — so multiplicity alone is never a contradiction.
+MULTI_VALUE_CARDINALITIES: Final[frozenset[str]] = frozenset(
+    {"many", "scoped_many"}
 )
 
 # =========================================================================
@@ -356,11 +357,6 @@ COMPONENT_LABELS: Final[dict[str, str]] = {
     "schema_visible_parity": "Schema matches visible content",
     "entity_consistency": "Entity naming is consistent",
 }
-
-# A component reporting a ratio over fewer than this many observations is not
-# reported as a score — the sample cannot distinguish a real weakness from
-# noise, and a confident 0.0 from one page is a worse answer than "unavailable".
-MIN_COMPONENT_OBSERVATIONS: Final = 1
 
 # =========================================================================
 # Bounds (nothing derived from a crawl may grow without limit)

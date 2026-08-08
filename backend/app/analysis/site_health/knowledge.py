@@ -167,6 +167,12 @@ class KnowledgeVocabulary:
     roles: Mapping[str, RoleSpec]
     questions: tuple[QuestionSpec, ...]
     journeys: tuple[JourneySpec, ...]
+    # Predicates the pack declared without any subject entity type. The catalog
+    # schema does not require the field, so such a predicate would silently
+    # reject every subject and produce nothing. Surfaced as a named build
+    # warning instead: a pack-authoring defect must be visible, not read as a
+    # customer site with no facts.
+    unusable_predicate_ids: tuple[str, ...] = ()
 
     def primary_type_for(self, category: str) -> str:
         """The pack's canonical entity type for a shared category, or ``""``.
@@ -219,9 +225,10 @@ def _compile_entity_types(
 
 def _compile_predicates(
     pack: Mapping,
-) -> tuple[dict[str, PredicateSpec], dict[str, PredicateSpec]]:
+) -> tuple[dict[str, PredicateSpec], dict[str, PredicateSpec], tuple[str, ...]]:
     predicates: dict[str, PredicateSpec] = {}
     by_suffix: dict[str, PredicateSpec] = {}
+    unusable: list[str] = []
     for raw in _mappings(pack, "assertion_predicates", "predicate_id"):
         predicate_id = str(raw["predicate_id"])
         spec = PredicateSpec(
@@ -237,10 +244,12 @@ def _compile_predicates(
             temporal=bool(raw.get("temporal")),
         )
         predicates[predicate_id] = spec
+        if not spec.subject_entity_type_ids:
+            unusable.append(predicate_id)
         # First declaration wins, so a pack that adds a private predicate whose
         # suffix collides with a core one cannot capture the core meaning.
         by_suffix.setdefault(spec.suffix, spec)
-    return predicates, by_suffix
+    return predicates, by_suffix, tuple(unusable)
 
 
 def _compile_journey(raw: Mapping) -> JourneySpec:
@@ -271,7 +280,7 @@ def compile_vocabulary(pack: Mapping) -> KnowledgeVocabulary:
     """Compile one pack mapping into the extractor's vocabulary. PURE."""
 
     entity_types, category_types = _compile_entity_types(pack)
-    predicates, predicate_by_suffix = _compile_predicates(pack)
+    predicates, predicate_by_suffix, unusable_predicates = _compile_predicates(pack)
     return KnowledgeVocabulary(
         pack_id=str(pack.get("pack_id") or ""),
         pack_version=str(pack.get("version") or ""),
@@ -320,6 +329,7 @@ def compile_vocabulary(pack: Mapping) -> KnowledgeVocabulary:
         journeys=tuple(
             _compile_journey(raw) for raw in _mappings(pack, "journeys", "journey_id")
         ),
+        unusable_predicate_ids=unusable_predicates,
     )
 
 
@@ -693,9 +703,14 @@ def _extract_organization(
             EntityCandidate(
                 ref=org_ref,
                 canonical_name=canonical,
-                aliases=tuple(dict.fromkeys([*schema_names, title_name]))[
-                    :MAX_ENTITY_ALIASES
-                ],
+                # Empty entries are dropped BEFORE deduplication: ``title_name``
+                # is "" on every non-root page, and an empty alias would be
+                # persisted as a real observed spelling.
+                aliases=tuple(
+                    dict.fromkeys(
+                        name for name in (*schema_names, title_name) if name
+                    )
+                )[:MAX_ENTITY_ALIASES],
                 identifiers=(
                     {"same_as": ",".join(dict.fromkeys(same_as))[:MAX_VALUE_CHARS]}
                     if same_as
@@ -824,42 +839,49 @@ def _extract_role_entity(
     )
     if not name:
         return
-    identity = identity_key_for(_path_scope(final_url), org_ref.identity_key)
-    for entity_type_id in role.entity_type_ids:
-        spec = vocabulary.entity_types.get(entity_type_id)
-        if spec is None or spec.category not in _PAGE_IS_ENTITY_CATEGORIES:
-            continue
-        ref = EntityRef(entity_type_id=entity_type_id, identity_key=identity)
-        entities.append(
-            EntityCandidate(
-                ref=ref,
-                canonical_name=name,
-                aliases=(name,),
-                identifiers={"page_url": final_url[:MAX_VALUE_CHARS]},
-            )
-        )
-        _link_entities(
-            vocabulary=vocabulary,
-            source=ref,
-            target=org_ref,
-            temporal_state=temporal_state,
-            relations=relations,
-        )
-        if spec.category == CATEGORY_POLICY:
-            summary = normalize_text(facts.get("first_answer_text"))
-            _add_assertion(
-                assertions,
-                vocabulary=vocabulary,
-                suffix=PREDICATE_POLICY_SUMMARY,
-                subject=ref,
-                raw_value=summary,
-                normalized=summary.casefold(),
-                derivation=DERIVATION_VISIBLE_TEXT,
-                temporal_state=temporal_state,
-            )
-        # One entity per page. A role declaring several compatible types would
-        # otherwise mint the same H1 as an offering AND a program AND a service.
+    # ONLY the role's first declared type. Packs list a role's primary subject
+    # first and the rest as types the page may MENTION, so falling through to a
+    # later one invents an entity of a type the page has nothing to do with.
+    # Observed live: five pages classified ``institution_home`` (whose primary
+    # type is the organization, already established) fell through to its second
+    # type and became five campuses named "Our History", "Vision & Mission",
+    # "Category Press Release"... and an FAQ page became a program. A page whose
+    # primary subject IS the organization contributes nothing new here.
+    primary_type_id = role.entity_type_ids[0] if role.entity_type_ids else ""
+    spec = vocabulary.entity_types.get(primary_type_id)
+    if spec is None or spec.category not in _PAGE_IS_ENTITY_CATEGORIES:
         return
+    ref = EntityRef(
+        entity_type_id=primary_type_id,
+        identity_key=identity_key_for(_path_scope(final_url), org_ref.identity_key),
+    )
+    entities.append(
+        EntityCandidate(
+            ref=ref,
+            canonical_name=name,
+            aliases=(name,),
+            identifiers={"page_url": final_url[:MAX_VALUE_CHARS]},
+        )
+    )
+    _link_entities(
+        vocabulary=vocabulary,
+        source=ref,
+        target=org_ref,
+        temporal_state=temporal_state,
+        relations=relations,
+    )
+    if spec.category == CATEGORY_POLICY:
+        summary = normalize_text(facts.get("first_answer_text"))
+        _add_assertion(
+            assertions,
+            vocabulary=vocabulary,
+            suffix=PREDICATE_POLICY_SUMMARY,
+            subject=ref,
+            raw_value=summary,
+            normalized=summary.casefold(),
+            derivation=DERIVATION_VISIBLE_TEXT,
+            temporal_state=temporal_state,
+        )
 
 
 # Categories where "this page IS this thing" holds. Deliberately narrow: an
@@ -985,9 +1007,20 @@ def _money_binding(
         for spec in money_predicates:
             if candidate.ref.entity_type_id in spec.subject_entity_type_ids:
                 return spec, candidate.ref
-    if not entities:
+    primary = next(
+        (
+            candidate
+            for candidate in entities
+            if candidate.ref.entity_type_id == (role.entity_type_ids or ("",))[0]
+        ),
+        None,
+    )
+    # Only the page's OWN entity may carry its money. ``entities[0]`` is the
+    # organization on a root page and a schema-declared place or person
+    # elsewhere, so anchoring on it would attach a price to whatever the page
+    # happened to mention first.
+    if primary is None:
         return None
-    primary = entities[0]
     for entity_type_id in role.entity_type_ids:
         for spec in money_predicates:
             if entity_type_id not in spec.subject_entity_type_ids:
