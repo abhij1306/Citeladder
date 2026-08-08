@@ -50,18 +50,23 @@ describe('CorpusPanel', () => {
     expect(screen.getByText('Inventory only — not in the analyzed set.')).toBeInTheDocument();
   });
 
-  it('keeps blocked and failed visibly different', () => {
+  it('keeps blocked, failed and cancelled visibly different', () => {
     queryResult.data = {
       items: [
         row({ site_url_id: 'u1', analysis_status: 'blocked' }),
         row({ site_url_id: 'u2', analysis_status: 'error' }),
+        row({ site_url_id: 'u3', analysis_status: 'cancelled' }),
       ],
       next_cursor: null,
     };
-    render(<CorpusPanel crawlId="c1" />);
+    const { container } = render(<CorpusPanel crawlId="c1" />);
 
-    expect(screen.getByText('Unavailable')).toBeInTheDocument();
-    expect(screen.getByText('Failed')).toBeInTheDocument();
+    // Read the state chips specifically: "Failed" is also a disposition, so a
+    // bare text query is ambiguous.
+    const states = Array.from(container.querySelectorAll('[data-state]')).map(
+      (node) => node.textContent,
+    );
+    expect(states).toEqual(['Unavailable', 'Failed', 'Excluded']);
   });
 
   it('reports an empty corpus without implying zero coverage', () => {

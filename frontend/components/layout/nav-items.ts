@@ -33,6 +33,14 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+/**
+ * The five destinations the mobile bar shows, by href. Derived from
+ * `NAV_GROUPS` below rather than hand-listed in `app-shell.tsx`, which is how
+ * the mobile bar kept the verb grouping (Analyze / Resolve / Improve) for a
+ * full migration after the sidebar had moved on.
+ */
+const MOBILE_NAV_HREFS = ['/projects', '/site', '/content', '/demand', '/agent'] as const;
+
 export const NAV_GROUPS: NavGroup[] = [
   {
     // One flat group: a titled group per item would re-introduce the second
@@ -51,3 +59,15 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+const NAV_ITEMS = NAV_GROUPS.flatMap((group) => group.items);
+
+/**
+ * The mobile bar's five slots, in `MOBILE_NAV_HREFS` order. One source of
+ * truth with the sidebar: a label or icon change lands in both.
+ */
+export const MOBILE_NAV_ITEMS: NavItem[] = MOBILE_NAV_HREFS.map((href) => {
+  const item = NAV_ITEMS.find((candidate) => candidate.href === href);
+  if (!item) throw new Error(`MOBILE_NAV_HREFS references a missing destination: ${href}`);
+  return item;
+});

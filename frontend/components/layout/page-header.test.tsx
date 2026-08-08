@@ -23,8 +23,14 @@ describe('PageHeader', () => {
     ['/prompts', 'Prompts'],
     ['/opportunities', 'Opportunities'],
     ['/site-health', 'Site health'],
-    ['/knowledge-base', 'Brand knowledge'],
+    // §9.3: the route persists, the label is "Facts".
+    ['/knowledge-base', 'Facts'],
     ['/prompt-research', 'Prompt research'],
+    // The layer routes. `/site` must not be swallowed by `/site-health`.
+    ['/site', 'Site'],
+    ['/demand', 'Demand'],
+    ['/agent', 'Growth Agent'],
+    ['/reports', 'Reports'],
   ])('resolves %s to the page title %s', (route, title) => {
     expect(renderTitle(route)).toBe(title);
   });

@@ -1,13 +1,13 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { ChartNoAxesCombined, Home, ListChecks, Settings, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 
 import { CommandPalette } from '@/components/ui/command-palette';
 import { LogoMark } from '@/components/ui/logo-mark';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
+import { MOBILE_NAV_ITEMS } from './nav-items';
 import { PageHeader } from './page-header';
 import { ProjectSwitcher } from './project-switcher';
 import { SidebarNav } from './sidebar-nav';
@@ -94,13 +94,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             className="border-border bg-panel safe-bottom fixed inset-x-0 bottom-0 z-30 grid h-16 grid-cols-5 border-t md:hidden"
             aria-label="Primary mobile navigation"
           >
-            {[
-              { href: '/projects', label: 'Home', icon: Home },
-              { href: '/visibility', label: 'Analyze', icon: ChartNoAxesCombined },
-              { href: '/opportunities', label: 'Resolve', icon: ListChecks },
-              { href: '/content', label: 'Improve', icon: Sparkles },
-              { href: '/settings', label: 'Manage', icon: Settings },
-            ].map((item) => {
+            {MOBILE_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               return (
                 <Link

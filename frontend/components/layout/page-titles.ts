@@ -19,9 +19,17 @@ const PAGE_TITLES: ReadonlyArray<readonly [prefix: string, title: string]> = [
   ['/products', 'Products'],
   ['/runs', 'Runs'],
   ['/content', 'Content'],
-  ['/projects', 'Command center'],
-  ['/knowledge-base', 'Brand knowledge'],
+  ['/projects', 'Overview'],
+  // §9.3: the route persists, the label is "Facts" — never "brand memory",
+  // "brand knowledge", or "knowledge base".
+  ['/knowledge-base', 'Facts'],
+  // The four layer routes. `/site-health` MUST precede `/site`: these are
+  // prefix matches, so the shorter one would otherwise swallow it.
   ['/site-health', 'Site health'],
+  ['/site', 'Site'],
+  ['/demand', 'Demand'],
+  ['/agent', 'Growth Agent'],
+  ['/reports', 'Reports'],
   ['/issues', 'Issues'],
   ['/settings', 'Settings'],
   ['/providers', 'Settings'],

@@ -21,7 +21,7 @@ import { Section } from '../primitives/section';
 export function SeeIt() {
   const { seeIt } = LANDING_CONTENT;
   return (
-    <Section id="see-it" tone="sunken" rhythm="base" aria-labelledby="see-it-title">
+    <Section id="see-it" tone="paper" rhythm="base" aria-labelledby="see-it-title">
       <Reveal className="mx-auto mb-8 max-w-5xl text-center md:mb-10">
         <p className="text-accent-text font-mono text-xs uppercase">{seeIt.kicker}</p>
         {/* Heading weight and tracking come from the base rule in globals.css;

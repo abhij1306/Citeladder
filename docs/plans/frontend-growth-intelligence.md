@@ -204,13 +204,13 @@ The shipped `AgentConsole` section needs no copy change: its transcript derives 
 
 ### 8.2 Structure
 
-- **Lead with the loop, not the layers.** The differentiator is
-  evidence → improvement → verification; the module breakdown is *how*, not *why*. Move `workflow`
-  above `platform`.
-- **Add an evidence/provenance section** showing the real chain: artifact → fact → insight → brief
-  → verification. This is the claim competitors cannot copy and it is currently only implied.
-- **Show the insight object.** It is the product's most recognisable artifact; a real one on the
-  landing page is stronger proof than a feature list.
+**Withdrawn — do not implement.** This section previously called for moving `workflow` above
+`platform` and adding an evidence/provenance section with a sample insight object. Both were
+built and then reverted at the product owner's direction: the landing page keeps its existing
+beat order, and "How it works" occupies the slot the provenance section briefly held. Section
+tones went back to their original values with it.
+
+The §8.1 copy corrections below stand — only the structural changes are withdrawn.
 
 ## 9. Website content
 
@@ -251,7 +251,7 @@ Fix the drift across docs, app, and site once:
 |---|---|---|---|
 | 1 | Website content corrections (§8.1, §9) | none | **Done** |
 | 2 | Shared components (§5) and the coverage rule (§6) | none | **Done** |
-| 3 | Landing structure (§8.2) | none | **Done** |
+| 3 | Landing structure (§8.2) | none | **Withdrawn** — built, then reverted (see §8.2) |
 | 4 | Sidebar regrouping (§4) | first `/site` route | **Done** |
 | 5 | Site workspace (§7.2) and Overview (§7.1) | stages 1–2 | Pages, Corpus, Overview insights shipped; Facts/Schema/Journeys/Evidence pending |
 | 6 | Content workspace (§7.3) | stage 4 | Generate + Facts tabs shipped; briefs/validation/verification pending |
@@ -282,9 +282,9 @@ not landed. Revisit before the first real user, not before.
   embedded as a tab under `/demand` — the two would collide. §11 already schedules the
   prompts URL-contract change; do the move there, not here.
 - **Band tones on the landing page cascade.** `Section` enforces "no two adjacent bands
-  share a tone". The page had only two sunken sections in an eight-section run, so
-  moving `Workflow` above `Platform` forced four sections to flip. `page.test.tsx`
-  asserts alternation — trust it over eyeballing.
+  share a tone", and the page has only two sunken sections in an eight-section run — so
+  moving one beat forced four sections to flip when §8.2's reorder was attempted. Both the
+  reorder and the tone flips were reverted; the lesson stands for any future reordering.
 - **§8.1 was wrong about `AgentConsole`.** It claimed the section needs no copy change
   because its transcript derives from `platform.modules`. The transcript is hardcoded,
   and it carried three approval claims. The claim guard caught them; the plan text
@@ -299,10 +299,10 @@ not landed. Revisit before the first real user, not before.
   only be set in the SonarCloud UI. `faq.ts` tripped the 3% new-code duplication gate
   because Sonar's tokenizer counts the repeated `'...' +` concatenation shape across
   every answer; answers are now single template literals. Keep them that way.
-- **Marketing cannot import `Insight`.** The landing page's insight card in
-  `evidence-chain.tsx` mirrors the anatomy rather than importing the component: `Insight`
-  requires a resolvable evidence href and refuses to render without one, and marketing is
-  monochrome-plus-blue so it cannot use the app's danger fill for the priority chip.
+- **Marketing cannot import `Insight`.** Recorded for whenever a marketing surface wants to
+  show one: `Insight` requires a resolvable evidence href and refuses to render without one,
+  and marketing is monochrome-plus-blue so it cannot use the app's danger fill for the
+  priority chip. Mirror the anatomy rather than importing the component.
 - **`opportunity_type` is a closed enum**: `visibility | site | traffic | topic`. It is NOT
   free-form, and it does not carry `content_*` or `prompt_*` members. `opportunity-insight.ts`
   maps it exhaustively to the four layers; extend that map when the backend enum grows.

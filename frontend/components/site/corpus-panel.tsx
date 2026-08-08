@@ -19,33 +19,50 @@ import type { PageSummary } from '@/lib/api/types';
  * selected", "blocked" and "failed" stay three visibly different things rather
  * than collapsing into one empty cell.
  */
-const STATUS_STATE: Record<string, DerivedState> = {
-  not_selected: 'excluded',
-  pending: 'unknown',
-  running: 'unknown',
-  completed: 'observed_zero',
-  partially_completed: 'conflicting',
-  failed: 'failed',
-  error: 'failed',
-  blocked: 'unavailable',
+/**
+ * One entry per `PageAnalysisStatus`. Keyed by the closed enum rather than
+ * `string`, so a new backend status is a compile error instead of a row that
+ * silently renders "Unknown" — the exact collapse `StateLabel` exists to
+ * prevent. (`cancelled` was missed while these were `Record<string, …>`.)
+ */
+const STATUS_PRESENTATION: Record<
+  PageSummary['analysis_status'],
+  { state: DerivedState; disposition: string; reason: string }
+> = {
+  not_selected: {
+    state: 'excluded',
+    disposition: 'Inventory only',
+    reason: 'Inventory only — not in the analyzed set.',
+  },
+  pending: { state: 'unknown', disposition: 'Queued', reason: 'Queued for analysis.' },
+  running: { state: 'unknown', disposition: 'Analyzing', reason: 'Analysis in progress.' },
+  completed: { state: 'observed_zero', disposition: 'Analyzed', reason: 'Analyzed.' },
+  partially_completed: {
+    state: 'conflicting',
+    disposition: 'Partial',
+    reason: 'Some dimensions could not be analyzed.',
+  },
+  failed: {
+    state: 'failed',
+    disposition: 'Failed',
+    reason: 'Analysis ran and did not complete.',
+  },
+  error: {
+    state: 'failed',
+    disposition: 'Failed',
+    reason: 'Analysis ran and did not complete.',
+  },
+  blocked: {
+    state: 'unavailable',
+    disposition: 'Blocked',
+    reason: 'Blocked by a robots or SSRF policy.',
+  },
+  cancelled: {
+    state: 'excluded',
+    disposition: 'Cancelled',
+    reason: 'The analysis was cancelled before it ran.',
+  },
 };
-
-const STATUS_REASON: Record<string, string> = {
-  not_selected: 'Inventory only — not in the analyzed set.',
-  pending: 'Queued for analysis.',
-  running: 'Analysis in progress.',
-  completed: 'Analyzed.',
-  partially_completed: 'Some dimensions could not be analyzed.',
-  failed: 'Analysis ran and did not complete.',
-  error: 'Analysis ran and did not complete.',
-  blocked: 'Blocked by a robots or SSRF policy.',
-};
-
-function dispositionOf(row: PageSummary): string {
-  if (row.analysis_status === 'completed') return 'Analyzed';
-  if (row.analysis_status === 'not_selected') return 'Inventory only';
-  return 'Excluded';
-}
 
 export function CorpusPanel({ crawlId }: Readonly<{ crawlId: string }>) {
   const query = useQuery({ ...siteHealthQueries.pages(crawlId, { limit: 50 }) });
@@ -72,20 +89,21 @@ export function CorpusPanel({ crawlId }: Readonly<{ crawlId: string }>) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.site_url_id} className="border-border-subtle border-b last:border-0">
-              <td className="text-foreground max-w-0 truncate px-4 py-2" title={row.display_url}>
-                {row.display_url}
-              </td>
-              <td className="text-muted px-4 py-2 whitespace-nowrap">{dispositionOf(row)}</td>
-              <td className="px-4 py-2">
-                <StateLabel state={STATUS_STATE[row.analysis_status] ?? 'unknown'} />
-              </td>
-              <td className="text-muted px-4 py-2 text-xs">
-                {STATUS_REASON[row.analysis_status] ?? '—'}
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const { state, disposition, reason } = STATUS_PRESENTATION[row.analysis_status];
+            return (
+              <tr key={row.site_url_id} className="border-border-subtle border-b last:border-0">
+                <td className="text-foreground max-w-0 truncate px-4 py-2" title={row.display_url}>
+                  {row.display_url}
+                </td>
+                <td className="text-muted px-4 py-2 whitespace-nowrap">{disposition}</td>
+                <td className="px-4 py-2">
+                  <StateLabel state={state} />
+                </td>
+                <td className="text-muted px-4 py-2 text-xs">{reason}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

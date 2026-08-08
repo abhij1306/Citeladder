@@ -14,7 +14,7 @@ import { LANDING_ICONS } from './landing-icons';
 export function Packs() {
   const { packs } = LANDING_CONTENT;
   return (
-    <Section id="industry-packs" tone="sunken" rhythm="base" aria-labelledby="packs-title">
+    <Section id="industry-packs" tone="paper" rhythm="base" aria-labelledby="packs-title">
       <SectionHeader
         eyebrow={packs.kicker}
         title={packs.title}

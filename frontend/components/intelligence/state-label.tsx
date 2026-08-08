@@ -93,10 +93,6 @@ export function stateLabel(state: DerivedState): string {
   return STATE_COPY[state].label;
 }
 
-export function stateDescription(state: DerivedState): string {
-  return STATE_COPY[state].description;
-}
-
 export type StateLabelProps = {
   state: DerivedState;
   /** Overrides the default label. Use only when a surface has a truer word. */

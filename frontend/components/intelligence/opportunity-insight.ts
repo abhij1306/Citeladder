@@ -47,7 +47,7 @@ export function insightFromOpportunity(opportunity: Opportunity): InsightModel {
 
   return {
     id: opportunity.id,
-    layer: TYPE_LAYER[opportunity.opportunity_type] ?? 'site',
+    layer: TYPE_LAYER[opportunity.opportunity_type],
     priority,
     claim: opportunity.title,
     // §5: no insight renders without resolvable evidence. An opportunity with

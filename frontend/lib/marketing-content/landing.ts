@@ -196,55 +196,6 @@ export const LANDING_CONTENT = {
     ],
   },
 
-  /**
-   * The evidence chain (§8.2). This is the claim competitors cannot copy and
-   * it was previously only implied. Each link names a real persisted object,
-   * in the order the product actually produces them.
-   */
-  evidence: {
-    kicker: 'Provenance',
-    title: 'Every conclusion opens the thing it came from.',
-    lead: 'Nothing here is a dashboard number you have to trust. Each step persists an artifact, and each one resolves back to the step before it.',
-    chain: [
-      {
-        step: 'Artifact',
-        detail: 'The crawled page, the imported row, the engine answer — stored as observed.',
-      },
-      {
-        step: 'Fact',
-        detail: 'Entities, assertions, and relations extracted from artifacts, with source spans.',
-      },
-      {
-        step: 'Insight',
-        detail: 'A gap or contradiction found by pack rules, ranked by a deterministic formula.',
-      },
-      {
-        step: 'Brief',
-        detail: 'An immutable instruction set built from the insight and its facts.',
-      },
-      {
-        step: 'Verification',
-        detail: 'A recrawl describing what changed. It reports observation, never causation.',
-      },
-    ],
-    /**
-     * A real insight object, matching the anatomy in docs/design.md and the
-     * shared Insight component. It is the product's most recognisable
-     * artifact, and showing one is stronger proof than a feature list.
-     * Every value here is illustrative of SHAPE — it asserts no measured
-     * result about any real site.
-     */
-    sample: {
-      priority: 'High priority',
-      layer: 'Site',
-      claim: '47 product pages have weak buying-intent coverage',
-      evidenceLabel: '47 pages · /products/* · observed 2h ago',
-      why: 'The commerce pack expects purchase questions on product detail roles. These pages answer none of them.',
-      impact: 'High',
-      provenance: 'commerce v1.2 · analyzer 4.1',
-    },
-  },
-
   packs: {
     kicker: 'Use cases',
     // Fourteen foundation drafts do not support "every growth team"; the claim
