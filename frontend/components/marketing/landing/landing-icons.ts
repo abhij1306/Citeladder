@@ -43,7 +43,7 @@ export const LANDING_ICONS: Record<IconKey, LucideIcon> = {
   finance: Landmark,
   isolation: Lock,
   provenance: ShieldCheck,
-  approval: Check,
+  correction: Check,
   versioned: GitBranch,
   ask: Search,
   prove: FileText,

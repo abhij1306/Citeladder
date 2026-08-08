@@ -22,13 +22,13 @@ const SCRIPT = [
     role: 'Crawls and classifies every page, then re-verifies after changes.',
     prompt: 'Recrawl complete — gap rules flagged uncovered questions on the service pages.',
     reply:
-      'Queuing an evidence-grounded brief for each gap. Nothing publishes without your approval.',
+      'Queuing an evidence-grounded brief for each gap. Saving a draft stays your decision.',
   },
   {
     icon: 'content' as const,
     name: 'Content Intelligence',
     role: 'Turns detected gaps into briefs, schema, and verified drafts.',
-    prompt: 'Brief approved with full provenance. The draft is ready for schema.',
+    prompt: 'Draft checked against project facts — no unsupported claims. Ready for schema.',
     reply: 'Generating FAQPage JSON-LD, then scheduling a post-publication verification pass.',
   },
   {
@@ -344,7 +344,7 @@ function ChatWindow({
         <div className="min-w-0 flex-1">
           <p className="font-display text-foreground text-sm font-semibold">Growth Agent</p>
           <p className="text-subtle text-2xs mt-0.5">
-            Bounded orchestration · human approval gates
+            Bounded orchestration · inspectable evidence
           </p>
         </div>
         <span className="text-success-text text-2xs inline-flex items-center gap-1.5 font-semibold">

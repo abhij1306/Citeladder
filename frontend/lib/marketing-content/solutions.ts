@@ -9,6 +9,18 @@
  */
 export type SolutionScene = 'share' | 'health' | 'sample' | 'commerce' | 'citations';
 
+/**
+ * Pack maturity, using the same two terms as the landing page and the FAQ.
+ * A segment backed by a foundation draft must not read like a shipped
+ * vertical, so the label travels with the segment rather than being implied.
+ */
+export type PackMaturity = 'validated-candidate' | 'foundation-draft';
+
+export const PACK_MATURITY_LABEL: Record<PackMaturity, string> = {
+  'validated-candidate': 'Validated candidate',
+  'foundation-draft': 'Foundation draft',
+};
+
 export type SolutionSegment = {
   id: string;
   label: string;
@@ -18,6 +30,12 @@ export type SolutionSegment = {
   mappings: readonly string[];
   cta: string;
   scene: SolutionScene;
+  /**
+   * The industry pack behind this segment, when one exists. Audience segments
+   * that cut across industries (agencies, in-house, founders, PR) are not
+   * pack-backed and carry no maturity label.
+   */
+  pack?: { name: string; maturity: PackMaturity };
 };
 
 export const SOLUTIONS_HERO = {
@@ -32,7 +50,7 @@ export const SOLUTION_SEGMENTS: readonly SolutionSegment[] = [
     id: 'agencies',
     label: 'Agencies',
     eyebrow: 'For agencies',
-    title: 'Show retainer ROI with evidence clients can independently verify.',
+    title: 'Show retainer work with evidence clients can independently verify.',
     pains: [
       'Screenshots fail to prove retainer value to demanding clients.',
       'AI visibility is missing from standard reporting dashboards.',
@@ -103,6 +121,7 @@ export const SOLUTION_SEGMENTS: readonly SolutionSegment[] = [
     ],
     cta: 'See commerce workflow',
     scene: 'commerce',
+    pack: { name: 'Commerce pack', maturity: 'validated-candidate' },
   },
   {
     id: 'pr',

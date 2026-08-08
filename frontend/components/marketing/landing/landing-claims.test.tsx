@@ -54,4 +54,54 @@ describe('Landing claims', () => {
     expect(container.querySelectorAll('[data-coming-soon]')).toHaveLength(0);
     expect(screen.queryByText('Coming soon')).toBeNull();
   });
+
+  /**
+   * docs/architecture.md §8: CiteLadder does not claim causality from aggregate
+   * correlations, and verification is descriptive — it reports what was
+   * observed after a recrawl, never that the change produced the observation.
+   * Causal phrasing is the easiest claim to reintroduce by accident because it
+   * reads as ordinary marketing energy, so it is pinned here.
+   */
+  it('claims no causal link between a change and a business outcome', () => {
+    const { container } = render(<Page />);
+    const text = container.textContent ?? '';
+
+    // Verb forms asserting the product moved a metric.
+    expect(text).not.toMatch(
+      /\b(boosts?|lifts?|increases?|improves?|drives?|grows?|doubles?)\s+(your\s+)?(rankings?|traffic|visibility|conversions?|revenue|sales)/i,
+    );
+    // Explicit cause language tying an action to an outcome.
+    expect(text).not.toMatch(/\b(causes?d?|results? in|leads? to|translates? into)\b/i);
+    // Quantified outcome deltas — no attributable figure exists.
+    expect(text).not.toMatch(/\b\d+(\.\d+)?%\s*(more|higher|increase|lift|uplift|growth|gain)/i);
+    expect(text).not.toMatch(/\b(\d+x|\d+×)\s*(more|better|faster|higher)/i);
+  });
+
+  /**
+   * §1 of the frontend plan: the user is asked exactly twice — save content,
+   * and run or schedule an audit. The approval-queue model it replaced left
+   * "approval gates" and "human sign-off" promises across this page; they must
+   * not come back, because they describe a product that no longer exists.
+   */
+  it('promises no approval gate or review step', () => {
+    const { container } = render(<Page />);
+    const text = container.textContent ?? '';
+
+    expect(text).not.toMatch(/approval gate|human sign-off|sign-off|review queue|review inbox/i);
+    expect(text).not.toMatch(/human[- ]approved|awaiting approval|pending approval/i);
+  });
+
+  /**
+   * §8.1 and §9.3: packs carry exactly two maturity terms. "Reviewed" read as
+   * an authoritative production finding, which is precisely what a validated
+   * candidate is not.
+   */
+  it('labels every industry pack with a current maturity term', () => {
+    const { container } = render(<Page />);
+    const text = container.textContent ?? '';
+
+    expect(text).not.toMatch(/pack · Reviewed|· Reviewed\b/i);
+    expect(text).toMatch(/Validated candidate/i);
+    expect(text).toMatch(/Foundation draft/i);
+  });
 });

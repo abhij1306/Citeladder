@@ -28,7 +28,7 @@ export type IconKey =
   | 'finance'
   | 'isolation'
   | 'provenance'
-  | 'approval'
+  | 'correction'
   | 'versioned'
   | 'ask'
   | 'prove'
@@ -98,7 +98,7 @@ export const LANDING_CONTENT = {
       {
         icon: 'agent' as IconKey,
         name: 'Growth Agent',
-        desc: 'Bounded orchestration with explicit approvals.',
+        desc: 'Bounded orchestration you can inspect and correct.',
       },
     ],
     // The detailed module cards.
@@ -121,11 +121,11 @@ export const LANDING_CONTENT = {
         icon: 'content' as IconKey,
         title: 'Content Intelligence',
         description:
-          'Turns detected gaps into strategies, briefs, FAQs, drafts, and post-publication verification. Every piece is evidence-grounded and human-approved.',
+          'Turns detected gaps into strategies, briefs, FAQs, drafts, and post-publication verification. Every claim is checked against your project facts before you save.',
         features: [
           'Evidence-grounded brief generation',
           'FAQPage JSON-LD schema automation',
-          'Human approval with full provenance',
+          'Unsupported claims flagged against your facts',
           'Post-publication verification pass',
         ],
       },
@@ -149,10 +149,10 @@ export const LANDING_CONTENT = {
         description:
           'An orchestrator that explains every recommendation. Bounded tasks, typed tools, selective context, and reproducible provenance throughout.',
         features: [
-          'Explicit human approval gates',
+          'Two decisions: save content, and run an audit',
           'Typed tool calls with an audit log',
-          'Versioned industry knowledge packs',
-          'Project-scoped memory, never shared',
+          'Versioned industry packs',
+          'Project-scoped facts, never shared',
         ],
       },
     ],
@@ -185,7 +185,7 @@ export const LANDING_CONTENT = {
         num: '03',
         icon: 'improve' as IconKey,
         label: 'Improve content',
-        desc: 'Generate briefs, drafts, schema, and FAQs. Human approval before any change is published or applied.',
+        desc: 'Generate briefs, drafts, schema, and FAQs. Unsupported claims are flagged against your facts, and you decide what to save.',
       },
       {
         num: '04',
@@ -198,13 +198,17 @@ export const LANDING_CONTENT = {
 
   packs: {
     kicker: 'Use cases',
-    title: 'Built for every growth team.',
-    lead: 'Pre-built industry packs cover the page roles, gap rules, and schema expectations specific to your business model.',
+    // Fourteen foundation drafts do not support "every growth team"; the claim
+    // is scoped to the composition model that actually ships.
+    title: 'Built around how your industry actually works.',
+    lead: 'Each project runs one primary industry pack plus the reviewed capabilities it needs — page roles, gap rules, and schema expectations, versioned together.',
     items: [
       {
         icon: 'education' as IconKey,
         name: 'Education',
-        status: 'Education pack · Reviewed',
+        // "Reviewed" read as an authoritative production finding. These packs
+        // are ready for controlled shadow evaluation, not for citing as fact.
+        status: 'Education pack · Validated candidate',
         points: [
           'Program and course page optimization',
           'Accreditation entity coverage',
@@ -215,7 +219,7 @@ export const LANDING_CONTENT = {
       {
         icon: 'commerce' as IconKey,
         name: 'Commerce',
-        status: 'Commerce pack · Reviewed',
+        status: 'Commerce pack · Validated candidate',
         points: [
           'Product detail page completeness',
           'Category page gap analysis',
@@ -226,7 +230,7 @@ export const LANDING_CONTENT = {
       {
         icon: 'services' as IconKey,
         name: 'Professional services',
-        status: 'Services foundation · Draft',
+        status: 'Services pack · Foundation draft',
         points: [
           'Service page role classification',
           'Case study and proof coverage',
@@ -237,7 +241,7 @@ export const LANDING_CONTENT = {
       {
         icon: 'saas' as IconKey,
         name: 'Enterprise SaaS',
-        status: 'SaaS foundation · Draft',
+        status: 'SaaS pack · Foundation draft',
         points: [
           'Landing and pricing intelligence',
           'Technical documentation coverage',
@@ -248,7 +252,7 @@ export const LANDING_CONTENT = {
       {
         icon: 'media' as IconKey,
         name: 'Media & publishing',
-        status: 'Foundation draft',
+        status: 'Media pack · Foundation draft',
         points: [
           'Article and author schema coverage',
           'Editorial FAQ and explainer gaps',
@@ -259,7 +263,7 @@ export const LANDING_CONTENT = {
       {
         icon: 'finance' as IconKey,
         name: 'Financial services',
-        status: 'Foundation draft',
+        status: 'Finance pack · Foundation draft',
         points: [
           'Regulatory disclosure completeness',
           'Advisor profile and credential gaps',
@@ -286,9 +290,9 @@ export const LANDING_CONTENT = {
         sub: 'Every recommendation carries its evidence chain',
       },
       {
-        icon: 'approval' as IconKey,
-        title: 'Approval gates',
-        sub: 'Nothing publishes without human sign-off',
+        icon: 'correction' as IconKey,
+        title: 'Durable corrections',
+        sub: 'Correct any derived fact in place; it survives recompute',
       },
       {
         icon: 'versioned' as IconKey,
@@ -299,7 +303,10 @@ export const LANDING_CONTENT = {
     ledger: [
       { label: 'Customer data isolation', value: 'Project-scoped, never shared across workspaces' },
       { label: 'Agent provenance', value: 'Every recommendation includes a typed evidence chain' },
-      { label: 'Approval gates', value: 'No content is published without explicit human sign-off' },
+      {
+        label: 'Corrections',
+        value: 'Any derived fact is editable in place, attributable, and withdrawable',
+      },
       {
         label: 'Industry pack versioning',
         value: 'Shared knowledge is versioned and release-managed',

@@ -35,7 +35,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
           'Site Intelligence crawls and understands your pages and documents. Content ' +
           'Intelligence turns detected gaps into briefs, drafts, and schema. Demand Intelligence ' +
           'unifies Search Console, GA4, and AI visibility. The Growth Agent orchestrates all ' +
-          'three, explaining every recommendation and pausing for approval.',
+          'three, explaining every recommendation and showing the evidence it used.',
       },
       {
         q: 'How does the growth loop work?',
@@ -55,8 +55,8 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
         q: 'Can CiteLadder create content?',
         a:
           'Content Intelligence turns a detected gap into an evidence-grounded brief, draft, and ' +
-          'schema. Nothing is published automatically — every piece carries its provenance and ' +
-          'waits for explicit human approval.',
+          'schema. Nothing is published automatically. Claims the draft cannot support from your ' +
+          'project facts are flagged before you save, and saving is your decision.',
       },
       {
         q: 'Which analytics sources can I connect?',
@@ -64,6 +64,32 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
           'Demand Intelligence connects Google Search Console and GA4 so query and behavioral ' +
           'evidence sit beside your owned-page knowledge, and the work is prioritized by the ' +
           'demand that actually exists.',
+      },
+      {
+        q: 'What do I actually have to do?',
+        a:
+          'You are asked to decide exactly twice: save a piece of content, and run or schedule ' +
+          'an audit. There is no approval queue and no review inbox. Where something derived is ' +
+          'wrong you correct it in place, wherever it is shown — the correction is attributed, ' +
+          'reversible, and survives the next recompute.',
+      },
+      {
+        q: 'What does "evidence-grounded" mean concretely?',
+        a:
+          'Every derived number opens the artifact it came from — the crawl, the imported row, ' +
+          'or the engine answer, stored as it was observed. A claim with no resolvable source ' +
+          'does not render as a conclusion. Scores show their coverage beside them rather than ' +
+          'being rescaled over whatever happened to be measurable, because missing evidence ' +
+          'usually marks a weakness rather than a neutral gap.',
+      },
+      {
+        q: 'What does CiteLadder not claim?',
+        a:
+          'It does not claim that a change caused a ranking, traffic, or revenue outcome. ' +
+          'Verification is descriptive: it recrawls and reports what is observed afterwards. ' +
+          'Aggregate correlations are not presented as causal, and where a signal is ' +
+          'unavailable, not configured, or genuinely zero, those three are shown as different ' +
+          'states rather than one empty chart.',
       },
     ],
   },
@@ -75,13 +101,18 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
         a:
           'A versioned pack encodes the page roles, gap-detection rules, and schema expectations ' +
           'of a specific business model, so classification and gap-finding are judged the way ' +
-          'your industry actually works rather than by one generic rule.',
+          'your industry actually works rather than by one generic rule. A project runs one ' +
+          'primary pack plus the reviewed capabilities it needs, and every finding records the ' +
+          'pack ID and version that produced it.',
       },
       {
-        q: 'Which industries are covered?',
+        q: 'Which industries are covered, and how mature is each?',
         a:
-          'Education and Commerce packs are reviewed. Professional services and enterprise SaaS ' +
-          'are in draft, with media and financial-services foundations underway.',
+          'Packs carry one of two maturity labels. Education and Commerce are validated ' +
+          'candidates — ready for controlled shadow evaluation, not yet authoritative production ' +
+          'findings. Professional services, enterprise SaaS, media, and financial services are ' +
+          'foundation drafts. We label these plainly because acting on a draft as though it were ' +
+          'validated is the mistake the labels exist to prevent.',
       },
       {
         q: 'Do packs share my data with other customers?',
@@ -110,8 +141,10 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
       {
         q: 'Does anything publish or change automatically?',
         a:
-          'No. The Growth Agent pauses at server-enforced approval boundaries. No content is ' +
-          'published and no change is applied without explicit human sign-off.',
+          'No. Saving content and running or scheduling an audit are your decisions, and both ' +
+          'are enforced at the API, not just in the interface. Everything in between — crawling, ' +
+          'classification, gap detection, prioritization — runs without asking, and the result ' +
+          'is shown with the evidence behind it.',
       },
       {
         q: 'Do I need my own API keys?',
