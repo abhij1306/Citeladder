@@ -137,9 +137,7 @@ def test_a_disputed_fact_outranks_every_answered_state(education, fees_question)
     )
 
 
-def test_historical_evidence_never_answers_a_current_question(
-    education, fees_question
-):
+def test_historical_evidence_never_answers_a_current_question(education, fees_question):
     assert (
         state_of(
             education,
@@ -294,9 +292,7 @@ def test_journey_stage_reports_the_roles_it_is_missing(education):
         coverage=coverage,
     )
     evaluate = next(
-        stage
-        for stage in journeys[0].stages
-        if stage.stage_id == "education.evaluate"
+        stage for stage in journeys[0].stages if stage.stage_id == "education.evaluate"
     )
     assert "education.fees" in evaluate.present_role_ids
     assert "education.curriculum" in evaluate.missing_role_ids
@@ -352,9 +348,7 @@ def test_publishing_nothing_never_scores_better_than_publishing_it_badly(educati
     absent = _report(education, published_nothing, index())
 
     def machine(report):
-        return next(
-            d for d in report.dimensions if d.dimension_id == "machine_clarity"
-        )
+        return next(d for d in report.dimensions if d.dimension_id == "machine_clarity")
 
     assert machine(absent).score <= machine(bad).score
     assert machine(absent).coverage < machine(bad).coverage
@@ -387,9 +381,8 @@ def test_an_unmeasurable_component_is_unavailable_not_zero(education):
     presence, validity, and parity — for one missing thing.
     """
     report = _report(education, CorpusSignals(analyzed_pages=5), index())
-    machine = next(
-        d for d in report.dimensions if d.dimension_id == "machine_clarity"
-    )
+    machine = next(d for d in report.dimensions if d.dimension_id == "machine_clarity")
+
     def component(name):
         return next(c for c in machine.components if c.component_id == name)
 

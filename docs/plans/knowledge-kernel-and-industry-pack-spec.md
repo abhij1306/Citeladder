@@ -411,6 +411,12 @@ UUID derived from `(crawl, subject, predicate, scope)` and written onto every si
 members. Question coverage, journey coverage, and dimension scores are likewise not tables: they are
 a bounded JSONB projection on `SiteHealthSnapshot`, which is the existing crawl-projection owner.
 
+Only clauses 1–2 of the [Contradiction policy](#contradiction-policy) are shipped: disputes are
+detected, every side is preserved, and a shared group is assigned. **Clauses 3–6 — blocking
+publication as current truth, and the reviewer flow to approve one side, narrow its scope, mark it
+historical, or reject both — are not implemented.** Every assertion stays `observed`; there is no
+review state a person can move it to yet.
+
 **Still planned** — none of these exist yet:
 
 - `approved_memory_items` and `approved_memory_transitions`;

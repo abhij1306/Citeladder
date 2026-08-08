@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
@@ -28,14 +28,7 @@ import { siteIntelligenceQueries } from '@/lib/api/site-intelligence';
  * screen, passed in as `pagesPanel`, because a second pages table would be a
  * second answer to the same question.
  */
-const PANELS = [
-  'overview',
-  'pages',
-  'knowledge',
-  'schema',
-  'journeys',
-  'evidence',
-] as const;
+const PANELS = ['overview', 'pages', 'knowledge', 'schema', 'journeys', 'evidence'] as const;
 
 export type IntelligencePanel = (typeof PANELS)[number];
 
@@ -61,10 +54,18 @@ const PANEL_LABELS: Record<IntelligencePanel, string> = {
 
 const PANEL_PARAM = 'panel';
 
+/** Arrow/Home/End movement within the tablist (ARIA tabs pattern). */
+const TAB_KEY_STEPS: Record<string, number | 'first' | 'last'> = {
+  ArrowRight: 1,
+  ArrowDown: 1,
+  ArrowLeft: -1,
+  ArrowUp: -1,
+  Home: 'first',
+  End: 'last',
+};
+
 function resolvePanel(value: string | null): IntelligencePanel {
-  return PANELS.includes(value as IntelligencePanel)
-    ? (value as IntelligencePanel)
-    : DEFAULT_PANEL;
+  return PANELS.includes(value as IntelligencePanel) ? (value as IntelligencePanel) : DEFAULT_PANEL;
 }
 
 export function SiteIntelligenceWorkspace({
@@ -92,13 +93,31 @@ export function SiteIntelligenceWorkspace({
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step = TAB_KEY_STEPS[event.key];
+    if (step === undefined) {
+      return;
+    }
+    event.preventDefault();
+    const next =
+      step === 'first'
+        ? 0
+        : step === 'last'
+          ? PANELS.length - 1
+          : (index + step + PANELS.length) % PANELS.length;
+    selectPanel(PANELS[next]);
+    // Focus follows selection so the keyboard user lands on the tab they just
+    // activated rather than on a control that no longer has focus.
+    document.getElementById(`si-tab-${PANELS[next]}`)?.focus();
+  };
+
   const tabs = (
     <div
       role="tablist"
       aria-label="Site Intelligence panels"
       className="border-border-subtle flex flex-wrap gap-1 border-b"
     >
-      {PANELS.map((id) => {
+      {PANELS.map((id, index) => {
         const selected = id === panel;
         return (
           <button
@@ -107,10 +126,17 @@ export function SiteIntelligenceWorkspace({
             role="tab"
             id={`si-tab-${id}`}
             aria-selected={selected}
-            aria-controls={`si-panel-${id}`}
+            // Only the SELECTED tab names a panel, because only one panel is
+            // rendered. Pointing five tabs at elements that do not exist tells
+            // a screen reader about panels it can never reach.
+            aria-controls={selected ? `si-panel-${id}` : undefined}
+            // Roving tabindex: Tab moves past the whole tablist, arrows move
+            // within it — the ARIA tabs pattern.
+            tabIndex={selected ? 0 : -1}
             onClick={() => selectPanel(id)}
+            onKeyDown={(event) => onTabKeyDown(event, index)}
             className={cn(
-              'text-sm -mb-px border-b-2 px-3 py-2 transition-colors',
+              '-mb-px border-b-2 px-3 py-2 text-sm transition-colors',
               selected
                 ? 'border-accent text-foreground'
                 : 'text-muted hover:text-foreground border-transparent',

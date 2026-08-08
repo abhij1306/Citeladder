@@ -113,9 +113,7 @@ async def build_intelligence_projection(
         # that were fetched perfectly well and simply do not answer. We cannot
         # know the role of a page that never analyzed, so the honest boundary is
         # total acquisition failure: then nothing about the site is being judged.
-        acquisition_failed=(
-            signals.analyzed_pages == 0 and signals.failed_pages > 0
-        ),
+        acquisition_failed=(signals.analyzed_pages == 0 and signals.failed_pages > 0),
         not_applicable_question_ids=_overlay_not_applicable(crawl),
     )
     journeys = resolve_journeys(
@@ -306,15 +304,23 @@ async def _corpus_signals(
     for row in rows:
         raw = row.normalized_facts
         facts = raw if isinstance(raw, Mapping) else {}
-        tally.add(
-            facts,
-            final_url=str(row.final_url or ""),
-            role_id=str(row.industry_role_id or ""),
+        # Every role the page carries, primary AND secondary. ``role_coverage``
+        # and ``policy_role_pages`` are documented as primary-or-secondary, so
+        # counting only the primary under-reported a page that legitimately
+        # serves two roles — a fees page that is also a policy page stopped
+        # counting toward policy evidence.
+        page_roles = tuple(
+            dict.fromkeys(
+                role
+                for role in (
+                    str(row.industry_role_id or ""),
+                    *(str(secondary) for secondary in row.secondary_role_ids or ()),
+                )
+                if role
+            )
         )
-        if row.industry_role_id:
-            observed_roles.add(str(row.industry_role_id))
-        for secondary in row.secondary_role_ids or ():
-            observed_roles.add(str(secondary))
+        tally.add(facts, final_url=str(row.final_url or ""), role_ids=page_roles)
+        observed_roles.update(page_roles)
 
     return (
         tally.to_signals(
@@ -347,16 +353,20 @@ class _PageTally:
     # role_id -> pages carrying that role that also link onward internally.
     role_continuity: dict[str, int] = field(default_factory=dict)
 
-    def add(self, facts: Mapping, *, final_url: str, role_id: str) -> None:
+    def add(
+        self, facts: Mapping, *, final_url: str, role_ids: Sequence[str]
+    ) -> None:
         self.analyzed += 1
-        if role_id:
+        for role_id in role_ids:
             self.role_pages[role_id] = self.role_pages.get(role_id, 0) + 1
-        self._add_delivery(facts, final_url=final_url, role_id=role_id)
+        self._add_delivery(facts, final_url=final_url, role_ids=role_ids)
         self._add_schema(facts)
         self._add_trust(facts)
         self._add_answerability(facts)
 
-    def _add_delivery(self, facts: Mapping, *, final_url: str, role_id: str) -> None:
+    def _add_delivery(
+        self, facts: Mapping, *, final_url: str, role_ids: Sequence[str]
+    ) -> None:
         if not (facts.get("robots") or {}).get("noindex"):
             self.indexable += 1
         canonical = str(facts.get("canonical_url") or "")
@@ -373,7 +383,7 @@ class _PageTally:
             # Continuity is counted on THIS page's own anchors. Deriving it from
             # a crawl-wide total was a fabricated number: it reported that every
             # role linked onward whenever any page did.
-            if role_id:
+            for role_id in role_ids:
                 self.role_continuity[role_id] = (
                     self.role_continuity.get(role_id, 0) + 1
                 )
@@ -421,8 +431,10 @@ class _PageTally:
         visible = " ".join(
             [
                 str(facts.get("title") or ""),
-                *(str(text) for text in (facts.get("headings") or {}).get("h1_texts")
-                  or ()),
+                *(
+                    str(text)
+                    for text in (facts.get("headings") or {}).get("h1_texts") or ()
+                ),
             ]
         ).casefold()
         named = [str(block.get("name") or "").casefold() for block in blocks]
@@ -474,9 +486,7 @@ class _PageTally:
 # =========================================================================
 # Payload shaping
 # =========================================================================
-def _knowledge_summary(
-    result: KnowledgeBuildResult, index: KnowledgeIndex
-) -> dict:
+def _knowledge_summary(result: KnowledgeBuildResult, index: KnowledgeIndex) -> dict:
     return {
         "entity_count": result.entity_count,
         "assertion_count": index.assertion_count,

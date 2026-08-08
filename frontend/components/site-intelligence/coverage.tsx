@@ -30,8 +30,24 @@ const COVERAGE_PRESENTATION: Record<
   not_applicable: { label: 'Not applicable', tone: 'neutral' },
 };
 
+/**
+ * A state this build does not know about still renders — as itself, neutrally.
+ *
+ * The schema strips unknown keys but a NEW coverage state is a valid enum value
+ * the backend may ship first. Indexing blind would throw and take the whole
+ * panel down; showing the raw token is honest and keeps the rest readable.
+ */
+function presentationFor(state: CoverageState) {
+  return (
+    COVERAGE_PRESENTATION[state] ?? {
+      label: String(state).replaceAll('_', ' '),
+      tone: 'neutral' as const,
+    }
+  );
+}
+
 export function CoverageBadge({ state }: Readonly<{ state: CoverageState }>) {
-  const presentation = COVERAGE_PRESENTATION[state];
+  const presentation = presentationFor(state);
   if (presentation.tone === 'neutral') {
     return <Badge>{presentation.label}</Badge>;
   }
@@ -43,7 +59,7 @@ export function CoverageBadge({ state }: Readonly<{ state: CoverageState }>) {
 }
 
 export function coverageLabel(state: CoverageState): string {
-  return COVERAGE_PRESENTATION[state].label;
+  return presentationFor(state).label;
 }
 
 /**
@@ -78,7 +94,7 @@ export function ScoreWithCoverage({
 }: Readonly<{ score: number | null; coverage: number | null; label: string }>) {
   return (
     <div className="grid gap-0.5">
-      <span className="text-muted text-2xs uppercase tracking-wide">{label}</span>
+      <span className="text-muted text-2xs tracking-wide uppercase">{label}</span>
       <span className="text-heading-sm text-foreground tabular-nums">
         <Ratio value={score} unavailableLabel="—" />
       </span>

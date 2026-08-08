@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +27,32 @@ function NothingToShow({ reason }: Readonly<{ reason: string }>) {
   return <p className="text-muted p-[var(--card-padding)] text-sm">{reason}</p>;
 }
 
+/**
+ * The body of a card driven by one query, with its three states kept apart.
+ *
+ * Pending and failed must never render the empty-result copy. "No entities were
+ * established from this crawl's evidence" is a FINDING about the site; showing
+ * it while the request is still in flight, or after it failed, states that
+ * finding on no evidence at all.
+ */
+function QueryBody({
+  query,
+  empty,
+  children,
+}: Readonly<{
+  query: { isPending: boolean; isError: boolean };
+  empty: string;
+  children: ReactNode;
+}>) {
+  if (query.isPending) {
+    return <NothingToShow reason="Loading…" />;
+  }
+  if (query.isError) {
+    return <NothingToShow reason="Could not load this section. Please refresh." />;
+  }
+  return children ?? <NothingToShow reason={empty} />;
+}
+
 // ---------------------------------------------------------------------------
 // Overview
 // ---------------------------------------------------------------------------
@@ -44,16 +71,14 @@ export function OverviewPanel({ overview }: PanelProps) {
             coverage={dimensions.composite_coverage}
           />
           <div className="grid gap-0.5">
-            <span className="text-muted text-2xs uppercase tracking-wide">Questions answered</span>
+            <span className="text-muted text-2xs tracking-wide uppercase">Questions answered</span>
             <span className="text-heading-sm text-foreground tabular-nums">
               <Ratio value={coverage.answered_ratio} unavailableLabel="—" />
             </span>
-            <span className="text-muted text-2xs">
-              of {coverage.denominator} the pack requires
-            </span>
+            <span className="text-muted text-2xs">of {coverage.denominator} the pack requires</span>
           </div>
           <div className="grid gap-0.5">
-            <span className="text-muted text-2xs uppercase tracking-wide">Knowledge</span>
+            <span className="text-muted text-2xs tracking-wide uppercase">Knowledge</span>
             <span className="text-heading-sm text-foreground tabular-nums">
               {knowledge.entity_count}
             </span>
@@ -62,7 +87,7 @@ export function OverviewPanel({ overview }: PanelProps) {
             </span>
           </div>
           <div className="grid gap-0.5">
-            <span className="text-muted text-2xs uppercase tracking-wide">Corpus</span>
+            <span className="text-muted text-2xs tracking-wide uppercase">Corpus</span>
             <span className="text-heading-sm text-foreground tabular-nums">
               {corpus.discovered}
             </span>
@@ -123,6 +148,16 @@ export function OverviewPanel({ overview }: PanelProps) {
 // ---------------------------------------------------------------------------
 // Knowledge
 // ---------------------------------------------------------------------------
+/**
+ * A count in a card title, only once it is known.
+ *
+ * `?? 0` on a pending query renders "Entities (0)" — a claim the crawl found
+ * nothing, made before the answer arrived.
+ */
+function countLabel(query: Readonly<{ data?: { total: number } }>): string {
+  return query.data ? ` (${query.data.total})` : '';
+}
+
 export function KnowledgePanel({ projectId, crawlId }: PanelProps) {
   const entities = useQuery(siteIntelligenceQueries.entities(projectId, crawlId));
   const assertions = useQuery(siteIntelligenceQueries.assertions(projectId, crawlId));
@@ -165,47 +200,50 @@ export function KnowledgePanel({ projectId, crawlId }: PanelProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Entities ({entities.data?.total ?? 0})</CardTitle>
+          <CardTitle>Entities{countLabel(entities)}</CardTitle>
         </CardHeader>
-        {entities.data?.items.length ? (
-          <CardContent className="grid gap-2">
-            {entities.data.items.map((entity) => (
-              <div key={entity.id} className="flex flex-wrap items-baseline gap-2">
-                <span className="text-foreground text-sm">{entity.canonical_name || '—'}</span>
-                <code className="text-muted text-2xs">{entity.entity_type_id}</code>
-                <span className="text-muted text-2xs">
-                  evidenced on {entity.evidence_page_count} page(s)
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        ) : (
-          <NothingToShow reason="No entities were established from this crawl's evidence." />
-        )}
+        <QueryBody
+          query={entities}
+          empty="No entities were established from this crawl's evidence."
+        >
+          {entities.data?.items.length ? (
+            <CardContent className="grid gap-2">
+              {entities.data.items.map((entity) => (
+                <div key={entity.id} className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-foreground text-sm">{entity.canonical_name || '—'}</span>
+                  <code className="text-muted text-2xs">{entity.entity_type_id}</code>
+                  <span className="text-muted text-2xs">
+                    evidenced on {entity.evidence_page_count} page(s)
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          ) : null}
+        </QueryBody>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Facts ({assertions.data?.total ?? 0})</CardTitle>
+          <CardTitle>Facts{countLabel(assertions)}</CardTitle>
         </CardHeader>
-        {assertions.data?.items.length ? (
-          <CardContent className="grid gap-2">
-            {assertions.data.items.map((assertion) => (
-              <div key={assertion.id} className="flex flex-wrap items-baseline gap-2">
-                <code className="text-muted text-2xs">{assertion.predicate_id}</code>
-                <span className="text-foreground text-sm">{assertion.normalized_value}</span>
-                <Badge>{assertion.temporal_state}</Badge>
-                {assertion.contradiction_group_id ? (
-                  <Badge variant="status" value="danger">
-                    conflicting
-                  </Badge>
-                ) : null}
-              </div>
-            ))}
-          </CardContent>
-        ) : (
-          <NothingToShow reason="No facts could be evidenced from this crawl's pages." />
-        )}
+        <QueryBody query={assertions} empty="No facts could be evidenced from this crawl's pages.">
+          {assertions.data?.items.length ? (
+            <CardContent className="grid gap-2">
+              {assertions.data.items.map((assertion) => (
+                <div key={assertion.id} className="flex flex-wrap items-baseline gap-2">
+                  <code className="text-muted text-2xs">{assertion.predicate_id}</code>
+                  <span className="text-foreground text-sm">{assertion.normalized_value}</span>
+                  <Badge>{assertion.temporal_state}</Badge>
+                  {assertion.contradiction_group_id ? (
+                    <Badge variant="status" value="danger">
+                      conflicting
+                    </Badge>
+                  ) : null}
+                </div>
+              ))}
+            </CardContent>
+          ) : null}
+        </QueryBody>
       </Card>
     </div>
   );
@@ -223,7 +261,9 @@ export function SchemaPanel({ projectId, crawlId }: PanelProps) {
       <CardHeader>
         <CardTitle>Structured data</CardTitle>
       </CardHeader>
-      {data ? (
+      {graph.isError ? (
+        <NothingToShow reason="Could not load the schema graph. Please refresh." />
+      ) : data ? (
         <CardContent className="grid gap-4">
           <p className="text-muted text-sm">
             {data.pages_with_schema} of {data.analyzed_pages} analyzed pages publish structured
@@ -291,17 +331,30 @@ export function JourneysPanel({ overview }: PanelProps) {
                   </p>
                 ) : null}
                 {/* Outcomes are `unavailable`, never zero: no conversions and no
-                    way to measure conversions are opposite findings. */}
-                <p className="text-muted text-2xs">
-                  Outcomes: {Object.keys(stage.outcomes).length} defined, none measurable until
-                  analytics events are connected.
-                </p>
+                    way to measure conversions are opposite findings. The count
+                    is derived rather than asserted, so this copy stays true once
+                    events start arriving. */}
+                <StageOutcomes outcomes={stage.outcomes} />
               </div>
             ))}
           </CardContent>
         </Card>
       ))}
     </div>
+  );
+}
+
+function StageOutcomes({ outcomes }: Readonly<{ outcomes: Record<string, string> }>) {
+  const values = Object.values(outcomes);
+  const unavailable = values.filter((state) => state === 'unavailable').length;
+  return (
+    <p className="text-muted text-2xs">
+      Outcomes: {values.length} defined
+      {unavailable > 0
+        ? `, ${unavailable} not measurable until analytics events are connected`
+        : ''}
+      .
+    </p>
   );
 }
 
@@ -332,21 +385,24 @@ export function EvidencePanel({ projectId, crawlId, overview }: PanelProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Relationships ({relations.data?.total ?? 0})</CardTitle>
+          <CardTitle>Relationships{countLabel(relations)}</CardTitle>
         </CardHeader>
-        {relations.data?.items.length ? (
-          <CardContent className="grid gap-1">
-            {relations.data.items.map((relation) => (
-              <div key={relation.id} className="flex flex-wrap items-baseline gap-2 text-sm">
-                <span className="text-foreground">{relation.source.name || '—'}</span>
-                <code className="text-muted text-2xs">{relation.relation_type_id}</code>
-                <span className="text-foreground">{relation.target.name || '—'}</span>
-              </div>
-            ))}
-          </CardContent>
-        ) : (
-          <NothingToShow reason="No relationships were evidenced between this crawl's entities." />
-        )}
+        <QueryBody
+          query={relations}
+          empty="No relationships were evidenced between this crawl's entities."
+        >
+          {relations.data?.items.length ? (
+            <CardContent className="grid gap-1">
+              {relations.data.items.map((relation) => (
+                <div key={relation.id} className="flex flex-wrap items-baseline gap-2 text-sm">
+                  <span className="text-foreground">{relation.source.name || '—'}</span>
+                  <code className="text-muted text-2xs">{relation.relation_type_id}</code>
+                  <span className="text-foreground">{relation.target.name || '—'}</span>
+                </div>
+              ))}
+            </CardContent>
+          ) : null}
+        </QueryBody>
       </Card>
 
       <Card>

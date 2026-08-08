@@ -34,6 +34,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -167,9 +168,7 @@ class KnowledgeEntity(Base):
     # numbers). Review aids: the identity KEY is the authority.
     aliases: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     identifiers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    review_state: Mapped[str] = mapped_column(
-        String(16), default=REVIEW_STATE_OBSERVED
-    )
+    review_state: Mapped[str] = mapped_column(String(16), default=REVIEW_STATE_OBSERVED)
     # ``KnowledgeSourceRef`` list: source kind + source ID + bounded locator.
     # Never an excerpt presented as the authority.
     evidence_refs: Mapped[list | None] = mapped_column(JSONB, nullable=True)
@@ -256,6 +255,17 @@ class KnowledgeAssertion(Base):
     # contradiction group — differently-scoped values are not in conflict.
     scope: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     scope_key: Mapped[str] = mapped_column(String(256), default="")
+    # Whether every qualifier the pack REQUIRES was evidenced rather than
+    # defaulted. ``False`` marks a real claim whose applicability is unknown —
+    # a fee with no stated academic year, grade, or fee type. Such claims never
+    # contradict each other (two unscoped fees may be two different grades) and
+    # must never be published as if scoped.
+    # ``server_default`` as well as the ORM default: ``_persist`` writes these
+    # rows through a Core insert, which does not apply Python-side column
+    # defaults, so a NOT NULL column without one would reject every write.
+    scope_complete: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true")
+    )
     effective_from: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -269,9 +279,7 @@ class KnowledgeAssertion(Base):
     derivation_method: Mapped[str] = mapped_column(String(24), default="")
     extractor_version: Mapped[str] = mapped_column(String(32), default="")
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    review_state: Mapped[str] = mapped_column(
-        String(16), default=REVIEW_STATE_OBSERVED
-    )
+    review_state: Mapped[str] = mapped_column(String(16), default=REVIEW_STATE_OBSERVED)
     # NULL when nothing disputes this claim. Set on EVERY side of a conflict.
     contradiction_group_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
@@ -344,9 +352,7 @@ class KnowledgeRelation(Base):
     derivation_method: Mapped[str] = mapped_column(String(24), default="")
     extractor_version: Mapped[str] = mapped_column(String(32), default="")
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    review_state: Mapped[str] = mapped_column(
-        String(16), default=REVIEW_STATE_OBSERVED
-    )
+    review_state: Mapped[str] = mapped_column(String(16), default=REVIEW_STATE_OBSERVED)
     industry_pack_id: Mapped[str] = mapped_column(String(64), default="")
     industry_pack_version: Mapped[str] = mapped_column(String(32), default="")
     is_current: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -171,9 +171,7 @@ async def build_crawl_knowledge(
 # =========================================================================
 # Load
 # =========================================================================
-async def _load_pages(
-    session: AsyncSession, *, crawl: SiteCrawl
-) -> list[_PageInput]:
+async def _load_pages(session: AsyncSession, *, crawl: SiteCrawl) -> list[_PageInput]:
     """The crawl's CURRENT completed analyses joined to their artifacts.
 
     Reads ``is_current`` rows only: a superseded analysis describes the same
@@ -485,10 +483,23 @@ def _group_contradictions(
             spec.conflict_policy, spec.cardinality
         ):
             continue
-        if len({member.candidate.normalized_value for member in members}) < 2:
+        # An UNSCOPED claim cannot contradict anything: two fee figures whose
+        # academic year, grade, and fee type the site never stated may simply
+        # be two different grades' fees, and calling that a conflict is a guess.
+        # A fabricated conflict on a correct site is worse than a missed one —
+        # it blocks publication of a fact that is fine. The real finding, that
+        # the claim is unscoped, travels on the row via ``scope_complete``.
+        #
+        # Unscoped members are EXCLUDED rather than disqualifying the whole
+        # claim: two fully-scoped values still contradict each other even when a
+        # third, unscoped one sits beside them.
+        scoped = [
+            member for member in members if member.candidate.scope_complete
+        ]
+        if len({member.candidate.normalized_value for member in scoped}) < 2:
             continue
         disputes += 1
-        for member in members:
+        for member in scoped:
             member.disputed = True
     return disputes
 
@@ -504,8 +515,7 @@ def conflict_policy_permits_multiple(policy: str, cardinality: str) -> bool:
     a false contradiction is visible and reviewable, a missed one is not.
     """
     return (
-        policy in NON_CONFLICTING_POLICIES
-        or cardinality in MULTI_VALUE_CARDINALITIES
+        policy in NON_CONFLICTING_POLICIES or cardinality in MULTI_VALUE_CARDINALITIES
     )
 
 
@@ -604,6 +614,7 @@ async def _persist(
                 "effective_from": candidate.effective_from,
                 "effective_to": candidate.effective_to,
                 "temporal_state": candidate.temporal_state[:16],
+                "scope_complete": candidate.scope_complete,
                 "evidence_refs": merged_assertion.evidence,
                 "derivation_method": candidate.derivation_method[:24],
                 "extractor_version": KNOWLEDGE_EXTRACTOR_VERSION,

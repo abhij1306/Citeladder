@@ -1225,6 +1225,7 @@ async def get_knowledge_contradictions_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
     crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ) -> ContradictionPage:
     """Disputed claims as GROUPS, every side included and none pre-selected."""
     try:
@@ -1233,6 +1234,7 @@ async def get_knowledge_contradictions_endpoint(
             workspace_id=ctx.workspace_id,
             project_id=project_id,
             crawl_id=crawl_id,
+            limit=limit,
         )
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
@@ -1272,6 +1274,7 @@ async def get_schema_graph_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
     crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ) -> SchemaGraphResponse:
     try:
         result = await service.get_schema_graph(
@@ -1279,6 +1282,7 @@ async def get_schema_graph_endpoint(
             workspace_id=ctx.workspace_id,
             project_id=project_id,
             crawl_id=crawl_id,
+            limit=limit,
         )
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -788,7 +788,10 @@ class IntelligenceOverviewResponse(_Model):
 class EvidenceRef(_Model):
     source_kind: str
     source_id: str
-    locator: dict[str, object] = {}
+    # Source-type-specific and deliberately open (url, content hash, page,
+    # offsets). ``Any`` rather than ``object`` so pydantic serializes the
+    # payload as-is instead of warning its way through an opaque type.
+    locator: dict[str, Any] = {}
 
 
 class KnowledgeManifest(_Model):

@@ -18,6 +18,7 @@ from collections.abc import Mapping, Sequence
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.site_health import PAGE_ANALYSIS_STATUS_COMPLETED
 from app.core.config.site_intelligence import (
     COVERAGE_STATES,
     DIMENSION_IDS,
@@ -38,15 +39,22 @@ from app.models.site_health import (
 )
 
 __all__ = [
+    "dimension_order",
     "get_intelligence_overview",
     "get_knowledge_assertions",
     "get_knowledge_contradictions",
     "get_knowledge_entities",
+    "get_knowledge_relations",
     "get_schema_graph",
 ]
 
 _CRAWL_NOT_FOUND = "crawl not found"
 _MAX_PAGE_SIZE = 200
+
+
+def _bounded(limit: int) -> int:
+    """Clamp a caller-supplied page size into the server's own range."""
+    return min(max(1, limit), _MAX_PAGE_SIZE)
 
 
 async def _load_crawl(
@@ -129,7 +137,10 @@ async def get_intelligence_overview(
             "this crawl has not produced an intelligence snapshot yet"
         )
     else:
-        payload = {"available": True, **dict(snapshot.intelligence)}
+        # ``available`` is computed HERE and placed last: a stored payload that
+        # happened to carry the key must not be able to declare itself
+        # available (or not) on the reader's behalf.
+        payload = {**dict(snapshot.intelligence), "available": True}
     payload["crawl"] = {
         "id": str(crawl.id),
         "status": crawl.status,
@@ -179,7 +190,7 @@ async def get_knowledge_entities(
                     KnowledgeEntity.id,
                 )
                 .offset(max(0, offset))
-                .limit(min(max(1, limit), _MAX_PAGE_SIZE))
+                .limit(_bounded(limit))
             )
         )
         .scalars()
@@ -256,7 +267,7 @@ async def get_knowledge_assertions(
                 KnowledgeAssertion.id,
             )
             .offset(max(0, offset))
-            .limit(min(max(1, limit), _MAX_PAGE_SIZE))
+            .limit(_bounded(limit))
         )
     ).all()
     return {
@@ -266,9 +277,7 @@ async def get_knowledge_assertions(
     }
 
 
-def _assertion_payload(
-    assertion: KnowledgeAssertion, subject: KnowledgeEntity
-) -> dict:
+def _assertion_payload(assertion: KnowledgeAssertion, subject: KnowledgeEntity) -> dict:
     return {
         "id": str(assertion.id),
         "predicate_id": assertion.predicate_id,
@@ -310,35 +319,71 @@ async def get_knowledge_contradictions(
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     crawl_id: uuid.UUID | None = None,
+    limit: int = _MAX_PAGE_SIZE,
 ) -> dict:
     """Every disputed claim, with ALL of its sides.
 
     Contradictions are returned as GROUPS rather than as flagged rows: a reader
     who sees only one side cannot tell what the dispute is, and the whole point
     of preserving every side is that no side was silently chosen.
+
+    Bounded like every other list here. A crawl with pathological conflict is
+    precisely the one whose response would be largest, so the endpoint that
+    reports it must not be the one that can be made unbounded.
     """
 
     crawl = await _load_crawl(
         session, workspace_id=workspace_id, project_id=project_id, crawl_id=crawl_id
     )
-    rows = (
-        await session.execute(
-            select(KnowledgeAssertion, KnowledgeEntity)
-            .join(
-                KnowledgeEntity,
-                KnowledgeEntity.id == KnowledgeAssertion.subject_entity_id,
+    where = (
+        KnowledgeAssertion.crawl_id == crawl.id,
+        KnowledgeAssertion.workspace_id == workspace_id,
+        KnowledgeAssertion.contradiction_group_id.is_not(None),
+    )
+    total = int(
+        await session.scalar(
+            select(
+                func.count(func.distinct(KnowledgeAssertion.contradiction_group_id))
             )
-            .where(
-                KnowledgeAssertion.crawl_id == crawl.id,
-                KnowledgeAssertion.workspace_id == workspace_id,
-                KnowledgeAssertion.contradiction_group_id.is_not(None),
-            )
-            .order_by(
-                KnowledgeAssertion.contradiction_group_id,
-                KnowledgeAssertion.normalized_value,
+            .select_from(KnowledgeAssertion)
+            .where(*where)
+        )
+        or 0
+    )
+    # Bounded by GROUP, then every side of the kept groups is fetched.
+    # Truncating rows instead would show a dispute with one of its sides
+    # missing, which reads as an uncontested fact.
+    kept = (
+        (
+            await session.execute(
+                select(KnowledgeAssertion.contradiction_group_id)
+                .where(*where)
+                .distinct()
+                .order_by(KnowledgeAssertion.contradiction_group_id)
+                .limit(_bounded(limit))
             )
         )
-    ).all()
+        .scalars()
+        .all()
+    )
+    rows = (
+        (
+            await session.execute(
+                select(KnowledgeAssertion, KnowledgeEntity)
+                .join(
+                    KnowledgeEntity,
+                    KnowledgeEntity.id == KnowledgeAssertion.subject_entity_id,
+                )
+                .where(*where, KnowledgeAssertion.contradiction_group_id.in_(kept))
+                .order_by(
+                    KnowledgeAssertion.contradiction_group_id,
+                    KnowledgeAssertion.normalized_value,
+                )
+            )
+        ).all()
+        if kept
+        else []
+    )
 
     groups: dict[str, dict] = {}
     for assertion, subject in rows:
@@ -363,8 +408,9 @@ async def get_knowledge_contradictions(
         group["sides"].append(_assertion_payload(assertion, subject))
 
     return {
+        # Every disputed claim in the crawl, not the size of this page of them.
         "crawl_id": str(crawl.id),
-        "total": len(groups),
+        "total": total,
         "items": list(groups.values()),
     }
 
@@ -375,6 +421,7 @@ async def get_schema_graph(
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     crawl_id: uuid.UUID | None = None,
+    limit: int = _MAX_PAGE_SIZE,
 ) -> dict:
     """Structured-data types observed across the crawl, and where they came from.
 
@@ -400,6 +447,7 @@ async def get_schema_graph(
             .join(SiteUrl, SiteUrl.id == SitePageAnalysis.site_url_id)
             .where(
                 SitePageAnalysis.crawl_id == crawl.id,
+                SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
                 SitePageAnalysis.is_current.is_(True),
             )
         )
@@ -408,11 +456,16 @@ async def get_schema_graph(
     types: dict[str, dict] = {}
     pages_with_schema = 0
     invalid_pages: list[dict] = []
+    bound = _bounded(limit)
     for site_url_id, url, facts in rows:
         blocks = _blocks(facts)
         if not blocks:
             continue
         pages_with_schema += 1
+        # A page publishing three Product blocks is ONE page with Product
+        # markup. Counting blocks in the ``pages`` column made one page look
+        # like a whole section of the site.
+        counted: set[str] = set()
         for block in blocks:
             schema_type = str(block.get("type") or "")
             if not schema_type:
@@ -421,9 +474,11 @@ async def get_schema_graph(
                 schema_type,
                 {"type": schema_type, "pages": 0, "valid": 0, "invalid": 0},
             )
-            entry["pages"] += 1
+            if schema_type not in counted:
+                entry["pages"] += 1
+                counted.add(schema_type)
             entry["valid" if block.get("valid") else "invalid"] += 1
-            if not block.get("valid") and len(invalid_pages) < _MAX_PAGE_SIZE:
+            if not block.get("valid") and len(invalid_pages) < bound:
                 invalid_pages.append(
                     {
                         "site_url_id": str(site_url_id),
@@ -474,6 +529,17 @@ async def get_knowledge_relations(
     crawl = await _load_crawl(
         session, workspace_id=workspace_id, project_id=project_id, crawl_id=crawl_id
     )
+    total = int(
+        await session.scalar(
+            select(func.count())
+            .select_from(KnowledgeRelation)
+            .where(
+                KnowledgeRelation.crawl_id == crawl.id,
+                KnowledgeRelation.workspace_id == workspace_id,
+            )
+        )
+        or 0
+    )
     source = KnowledgeEntity.__table__.alias("source_entity")
     target = KnowledgeEntity.__table__.alias("target_entity")
     rows = (
@@ -495,12 +561,13 @@ async def get_knowledge_relations(
                 KnowledgeRelation.workspace_id == workspace_id,
             )
             .order_by(KnowledgeRelation.relation_type_id, KnowledgeRelation.id)
-            .limit(min(max(1, limit), _MAX_PAGE_SIZE))
+            .limit(_bounded(limit))
         )
     ).all()
     return {
+        # The crawl's real edge count, not the size of this page of it.
         "crawl_id": str(crawl.id),
-        "total": len(rows),
+        "total": total,
         "items": [
             {
                 "id": str(row.id),

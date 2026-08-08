@@ -369,10 +369,7 @@ class SecureFetcher:
                 if self._owns_curl_transport and self._curl_transport is not None:
                     await self._curl_transport.aclose()
             finally:
-                if (
-                    self._owns_browser_transport
-                    and self._browser_transport is not None
-                ):
+                if self._owns_browser_transport and self._browser_transport is not None:
                     await self._browser_transport.aclose()
 
     def _limits(self, request: FetchRequest) -> tuple[int, int, float, int]:

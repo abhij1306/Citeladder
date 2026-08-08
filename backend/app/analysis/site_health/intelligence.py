@@ -23,9 +23,7 @@ from app.analysis.site_health.knowledge import (
     QuestionSpec,
     StageSpec,
 )
-from app.core.config.site_health import (
-    TEMPORAL_STATE_HISTORICAL,
-)
+from app.core.config.site_health import TEMPORAL_STATE_HISTORICAL
 from app.core.config.site_intelligence import (
     COMPONENT_LABELS,
     COVERAGE_ANSWERED_CREDIT,
@@ -53,6 +51,7 @@ from app.core.config.site_intelligence import (
     JOURNEY_COVERAGE_VERSION,
     OUTCOME_STATE_UNAVAILABLE,
     QUESTION_COVERAGE_VERSION,
+    VALUE_TYPE_MONEY,
 )
 
 __all__ = [
@@ -233,6 +232,7 @@ def resolve_question_coverage(
                 observed_role_ids=observed_role_ids,
                 acquisition_failed=acquisition_failed,
                 not_applicable=question.question_id in not_applicable_question_ids,
+                vocabulary=vocabulary,
             )
         )
 
@@ -264,6 +264,7 @@ def _resolve_one(
     observed_role_ids: frozenset[str],
     acquisition_failed: bool,
     not_applicable: bool,
+    vocabulary: KnowledgeVocabulary,
 ) -> QuestionCoverage:
     answering = tuple(sorted(question.applicable_role_ids & observed_role_ids))
     required = tuple(question.required_predicate_ids)
@@ -277,6 +278,7 @@ def _resolve_one(
         knowledge=knowledge,
         acquisition_failed=acquisition_failed,
         not_applicable=not_applicable,
+        vocabulary=vocabulary,
     )
     return QuestionCoverage(
         question_id=question.question_id,
@@ -299,6 +301,7 @@ def _coverage_state(
     knowledge: KnowledgeIndex,
     acquisition_failed: bool,
     not_applicable: bool,
+    vocabulary: KnowledgeVocabulary,
 ) -> tuple[str, str]:
     """The single state one question resolves to, in strict precedence order."""
 
@@ -322,11 +325,30 @@ def _coverage_state(
     if satisfied:
         return COVERAGE_ANSWERED_WEAK, "some required facts are present"
     if answering:
-        return COVERAGE_UNSUPPORTED, _unsupported_reason(required)
+        return COVERAGE_UNSUPPORTED, _unsupported_reason(required, vocabulary)
     return COVERAGE_MISSING, "no page for this role and no supporting facts"
 
 
-def _unsupported_reason(required_predicate_ids: Sequence[str]) -> str:
+def is_extractable_predicate(
+    predicate_id: str, vocabulary: KnowledgeVocabulary
+) -> bool:
+    """Whether this analyzer has ANY deterministic path to evidence a predicate.
+
+    Two paths exist: the shared core suffixes, and any MONEY-typed predicate —
+    money is bound through whatever predicate the active pack declares for it
+    (``education.fee_amount``, ``commerce.price``) rather than a fixed name.
+    Checking only the suffix list reported fees as "not machine extractable" on
+    a page whose fee had just been extracted.
+    """
+    if predicate_id.split(".", 1)[-1] in EXTRACTED_PREDICATE_SUFFIXES:
+        return True
+    spec = vocabulary.predicates.get(predicate_id)
+    return spec is not None and spec.value_type == VALUE_TYPE_MONEY
+
+
+def _unsupported_reason(
+    required_predicate_ids: Sequence[str], vocabulary: KnowledgeVocabulary
+) -> str:
     """Why an existing page still does not answer its question.
 
     Distinguishes "the site does not state this" from "this slice's extractor
@@ -334,12 +356,10 @@ def _unsupported_reason(required_predicate_ids: Sequence[str]) -> str:
     is a finding about the site, and reporting the second as one would send a
     user to fix a page that is already correct.
     """
-    unextractable = [
-        predicate_id
+    if required_predicate_ids and not any(
+        is_extractable_predicate(predicate_id, vocabulary)
         for predicate_id in required_predicate_ids
-        if predicate_id.split(".", 1)[-1] not in EXTRACTED_PREDICATE_SUFFIXES
-    ]
-    if unextractable and len(unextractable) == len(required_predicate_ids):
+    ):
         return "the required facts are not yet machine-extractable by this analyzer"
     return "the page exists but states none of the required facts"
 
@@ -532,9 +552,7 @@ def score_dimensions(
     return DimensionReport(
         dimensions=tuple(dimensions),
         # Full six-dimension denominator, always.
-        composite_score=round(
-            sum(d.score for d in dimensions) / len(DIMENSION_IDS), 4
-        ),
+        composite_score=round(sum(d.score for d in dimensions) / len(DIMENSION_IDS), 4),
         composite_coverage=round(
             sum(d.coverage for d in dimensions) / len(DIMENSION_IDS), 4
         ),
@@ -571,7 +589,7 @@ def _knowledge(
     extractable = [
         predicate_id
         for predicate_id in vocabulary.predicates
-        if predicate_id.split(".", 1)[-1] in EXTRACTED_PREDICATE_SUFFIXES
+        if is_extractable_predicate(predicate_id, vocabulary)
     ]
     asserted = sum(1 for predicate_id in extractable if knowledge.has_any(predicate_id))
     declared_entity_types = len(vocabulary.entity_types) or 1

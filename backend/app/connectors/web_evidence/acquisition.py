@@ -28,7 +28,8 @@ _NON_TEXT_SUBTREES = re.compile(
 _UNCLOSED_NON_TEXT = re.compile(
     r"<(script|style|template|noscript)\b[^>]*>.*", re.IGNORECASE | re.DOTALL
 )
-_COMMENTS = re.compile(r"<!--.*?-->", re.DOTALL)
+_COMMENT_OPEN = "<!--"
+_COMMENT_CLOSE = "-->"
 _TAGS = re.compile(r"<[^>]*>", re.DOTALL)
 _SCRIPT_SRC = re.compile(r"<script\b[^>]*\bsrc\s*=", re.IGNORECASE)
 _INLINE_SCRIPT = re.compile(
@@ -84,9 +85,35 @@ def readable_text_length(body: bytes, *, scan_bytes: int) -> int:
     text = body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
     text = _NON_TEXT_SUBTREES.sub(" ", text)
     text = _UNCLOSED_NON_TEXT.sub(" ", text)
-    text = _COMMENTS.sub(" ", text)
+    text = strip_comments(text)
     text = _TAGS.sub(" ", text)
     return len("".join(text.split()))
+
+
+def strip_comments(text: str) -> str:
+    """Remove HTML comments in ONE linear pass.
+
+    A backtracking regex over a 256 KB window of hostile markup is a denial-of-
+    service surface for a check that runs on every 2xx response; scanning for
+    the delimiters directly is linear whatever the input looks like. An
+    unterminated comment inside the truncated window discards the remainder,
+    matching how a browser treats it.
+    """
+    if _COMMENT_OPEN not in text:
+        return text
+    out: list[str] = []
+    index = 0
+    while True:
+        start = text.find(_COMMENT_OPEN, index)
+        if start < 0:
+            out.append(text[index:])
+            return "".join(out)
+        out.append(text[index:start])
+        end = text.find(_COMMENT_CLOSE, start + len(_COMMENT_OPEN))
+        if end < 0:
+            return "".join(out)
+        out.append(" ")
+        index = end + len(_COMMENT_CLOSE)
 
 
 def loads_script(body: bytes, *, scan_bytes: int, min_inline_chars: int) -> bool:
@@ -103,8 +130,8 @@ def loads_script(body: bytes, *, scan_bytes: int, min_inline_chars: int) -> bool
     # Comments are stripped first: a commented-out ``<script src=...>`` is
     # inert markup, and treating it as evidence that the page builds itself
     # client-side would escalate a plain static page to a browser render.
-    text = _COMMENTS.sub(
-        " ", body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
+    text = strip_comments(
+        body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
     )
     if _SCRIPT_SRC.search(text):
         return True

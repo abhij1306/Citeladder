@@ -155,6 +155,4 @@ def test_commented_out_script_is_not_evidence_of_client_rendering() -> None:
         + b"<!-- <script src='/bundle.js'></script> -->"
         + b"</body></html>"
     )
-    assert not acquisition.loads_script(
-        body, scan_bytes=262_144, min_inline_chars=1024
-    )
+    assert not acquisition.loads_script(body, scan_bytes=262_144, min_inline_chars=1024)
