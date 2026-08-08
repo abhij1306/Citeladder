@@ -27,7 +27,17 @@ export function LayerTabs({
   const active = searchParams.get('tab') ?? tabs[0]?.id;
 
   return (
-    <div role="tablist" className={cn('border-border-subtle flex gap-1 border-b', className)}>
+    /* The tab row is chrome, not content: with the redundant page title gone it
+       leads the page, so it bleeds to the content gutter on both sides and its
+       rule spans the full column — the Peec/Searchable reading, where the
+       boundary separates chrome from content rather than boxing a strip. */
+    <div
+      role="tablist"
+      className={cn(
+        'border-border -mx-[var(--content-gutter)] -mt-[var(--content-gutter)] mb-1 flex gap-1 overflow-x-auto border-b px-[var(--content-gutter)]',
+        className,
+      )}
+    >
       {tabs.map((tab) => {
         const isActive = tab.id === active;
         return (
@@ -37,10 +47,10 @@ export function LayerTabs({
             role="tab"
             aria-selected={isActive}
             className={cn(
-              'focus-ring -mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+              'focus-ring -mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors',
               isActive
                 ? 'border-accent text-foreground'
-                : 'text-muted hover:text-foreground border-transparent',
+                : 'text-muted hover:text-foreground hover:border-border-strong border-transparent',
             )}
           >
             {tab.label}

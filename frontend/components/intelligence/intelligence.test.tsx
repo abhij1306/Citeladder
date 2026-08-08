@@ -284,12 +284,7 @@ describe('EditableFact', () => {
 
   it('closes the editor once the correction lands', () => {
     const { rerender } = render(
-      <EditableFact
-        label="Founded"
-        derivedValue="2019"
-        onCorrect={vi.fn()}
-        onWithdraw={vi.fn()}
-      />,
+      <EditableFact label="Founded" derivedValue="2019" onCorrect={vi.fn()} onWithdraw={vi.fn()} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Correct Founded' }));

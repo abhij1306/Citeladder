@@ -46,7 +46,7 @@ function DemandTabPanel() {
   if (tab === 'traffic') return <TrafficScreen />;
 
   return (
-    <div className="border-border-subtle bg-panel rounded-lg border p-8">
+    <div className="bg-panel shadow-card rounded-lg p-8">
       <p className="text-foreground text-sm font-medium">Not yet available</p>
       <p className="text-muted mt-2 max-w-[60ch] text-sm leading-relaxed">
         Demand signals with their time window, source coverage, and the join that produced them.

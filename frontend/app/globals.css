@@ -180,11 +180,17 @@
   --radius-2xl: 20px;
   --radius-full: 9999px;
 
-  /* Elevation — Untitled UI crisp micro-shadows layered with hairline borders. */
+  /* Elevation — Untitled UI crisp micro-shadows layered with hairline borders.
+     Each card rung is a hairline ring PLUS a real ambient drop: the ring draws
+     the edge, the drop separates the panel from the Gray-50 canvas. The ring
+     alone (what `--shadow-card` used to be) is a 2% tonal step that reads as a
+     single flat blob once a page stacks several panels. */
   --shadow-xs: 0 1px 2px 0 rgb(16 24 40 / 0.05);
   --shadow-sm: 0 1px 3px 0 rgb(16 24 40 / 0.1), 0 1px 2px -1px rgb(16 24 40 / 0.1);
-  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.04), 0 0 0 1px #e4e7ec;
-  --shadow-card-hover: 0 4px 12px -2px rgb(16 24 40 / 0.08), 0 2px 4px -2px rgb(16 24 40 / 0.04);
+  --shadow-card:
+    0 0 0 1px #e4e7ec, 0 1px 2px 0 rgb(16 24 40 / 0.06), 0 2px 6px -1px rgb(16 24 40 / 0.05);
+  --shadow-card-hover:
+    0 0 0 1px #d0d5dd, 0 2px 4px -1px rgb(16 24 40 / 0.06), 0 8px 16px -4px rgb(16 24 40 / 0.1);
   --shadow-elevated: 0 4px 6px -2px rgb(16 24 40 / 0.03), 0 12px 16px -4px rgb(16 24 40 / 0.08);
   --shadow-lg: 0 12px 16px -4px rgb(16 24 40 / 0.08), 0 4px 6px -2px rgb(16 24 40 / 0.03);
   --shadow-modal-value: 0 20px 24px -4px rgb(16 24 40 / 0.1), 0 8px 8px -4px rgb(16 24 40 / 0.04);

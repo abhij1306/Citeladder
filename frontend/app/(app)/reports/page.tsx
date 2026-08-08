@@ -8,11 +8,11 @@
  */
 export default function ReportsPage() {
   return (
-    <div className="border-border-subtle bg-panel rounded-lg border p-8">
-      <h1 className="text-foreground text-base font-semibold">Reports</h1>
-      <p className="text-muted mt-2 max-w-[60ch] text-sm leading-relaxed">
-        Snapshots and exports. Not yet available.
-      </p>
+    <div className="bg-panel shadow-card rounded-lg p-8">
+      {/* No heading here: the shell's sr-only <h1> already names the route and
+          the sidebar shows it, so a visible "Reports" would say it a third time. */}
+      <p className="text-foreground text-sm font-medium">Not yet available</p>
+      <p className="text-muted mt-2 max-w-[60ch] text-sm leading-relaxed">Snapshots and exports.</p>
     </div>
   );
 }

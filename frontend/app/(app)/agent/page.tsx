@@ -40,17 +40,18 @@ const SURFACES = [
 export default function AgentPage() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="border-border-subtle bg-panel rounded-lg border p-8">
-        <h1 className="text-foreground text-base font-semibold">Growth Agent</h1>
+      {/* No heading here: the shell's sr-only <h1> already names the route and
+          the sidebar shows it, so a visible "Growth Agent" would repeat it. */}
+      <div className="bg-panel shadow-card rounded-lg p-8">
+        <p className="text-foreground text-sm font-medium">Not yet available</p>
         <p className="text-muted mt-2 max-w-[65ch] text-sm leading-relaxed">
-          Not yet available. The agent orchestrates the other three layers; these are the surfaces
-          it will own.
+          The agent orchestrates the other three layers; these are the surfaces it will own.
         </p>
       </div>
 
       <ul className="grid gap-3 md:grid-cols-2">
         {SURFACES.map((surface) => (
-          <li key={surface.title} className="border-border-subtle bg-panel rounded-lg border p-4">
+          <li key={surface.title} className="bg-panel shadow-card rounded-lg p-4">
             <p className="text-foreground text-sm font-medium">{surface.title}</p>
             <p className="text-muted mt-1 text-sm leading-relaxed">{surface.detail}</p>
           </li>
