@@ -60,6 +60,36 @@ CTA_BUTTON_ROLE_TOKENS: Final[frozenset[str]] = frozenset(
 )
 SITE_HEALTH_MAX_FIRST_ANSWER_CHARS: Final = 512
 SITE_HEALTH_MAX_INLINE_SCRIPT_CHARS: Final = 500_000
+# Visible knowledge evidence (sh-extractor-4). Contact points come from
+# ``mailto:``/``tel:`` hrefs rather than a text scan: an href is an explicit
+# authored declaration, where a regex over body text also matches an email in a
+# testimonial, a sample form value, or another organization's address.
+SITE_HEALTH_MAX_CONTACT_POINTS: Final = 16
+SITE_HEALTH_MAX_CONTACT_VALUE_CHARS: Final = 256
+# Money mentions carry their currency or they are not recorded: a bare number
+# is not a price, and a report that renders one beside the wrong symbol is worse
+# than one that reports the fact as missing.
+SITE_HEALTH_MAX_MONEY_MENTIONS: Final = 24
+SITE_HEALTH_MAX_MONEY_CONTEXT_CHARS: Final = 160
+# ISO codes and symbols recognized in visible copy. Deliberately a short,
+# explicit list: an unrecognized currency yields no assertion rather than a
+# guessed one.
+MONEY_CURRENCY_SYMBOLS: Final[dict[str, str]] = {
+    "₹": "INR",
+    "$": "USD",
+    "£": "GBP",
+    "€": "EUR",
+    "¥": "JPY",
+    "₦": "NGN",
+    "₨": "PKR",
+    "AED": "AED",
+    "INR": "INR",
+    "USD": "USD",
+    "GBP": "GBP",
+    "EUR": "EUR",
+    "RS": "INR",
+    "RS.": "INR",
+}
 SITE_HEALTH_MAX_PATH_CHARS: Final = 512
 SITE_HEALTH_MAX_SIGNAL_DETAIL_CHARS: Final = 256
 SITE_HEALTH_MAX_EVIDENCE_URLS: Final = 10
@@ -828,7 +858,13 @@ EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 # form_fields / link_context) to the bounded page facts. Existing fields are
 # unchanged, so an sh-extractor-2 artifact stays readable; only pages parsed at
 # 3+ can produce a conversion/journey role from CTA or form evidence.
-EXTRACTOR_VERSION: Final = "sh-extractor-3"
+# sh-extractor-4 adds ``contact_points`` and ``money_mentions`` — the visible
+# evidence the knowledge layer needs for the ``contact_point`` and
+# ``price_or_fee`` core predicates. Both are read from VISIBLE content on
+# purpose: the first acceptance corpus publishes zero structured data, so a
+# knowledge layer that could only read JSON-LD would find nothing on a real
+# site and report an empty knowledge model as if it were an empty business.
+EXTRACTOR_VERSION: Final = "sh-extractor-4"
 ANALYZER_VERSION: Final = "sh-analyzer-2"
 RULE_CATALOG_VERSION: Final = "sh-rules-2"
 SCORING_VERSION: Final = "sh-scoring-2"

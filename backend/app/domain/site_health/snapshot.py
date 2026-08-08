@@ -41,6 +41,9 @@ from app.core.config.site_health import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     SCORING_VERSION,
 )
+from app.core.config.site_intelligence import DIMENSION_FORMULA_VERSION
+from app.domain.site_health.intelligence import build_intelligence_projection
+from app.domain.site_health.knowledge import build_crawl_knowledge
 from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,
@@ -197,6 +200,17 @@ async def persist_crawl_snapshot(
         or 0
     )
 
+    # Derive this crawl's typed knowledge, then score coverage/journeys/
+    # dimensions from it — both BEFORE the snapshot insert, so the immutable row
+    # carries the complete projection rather than being backfilled later. Both
+    # steps are idempotent (deterministic row IDs + ``ON CONFLICT DO NOTHING``),
+    # which matters because terminalization is reachable from the worker and
+    # from a cooperative cancel.
+    knowledge_result = await build_crawl_knowledge(session, crawl=crawl)
+    projection = await build_intelligence_projection(
+        session, crawl=crawl, knowledge_result=knowledge_result
+    )
+
     # One immutable snapshot per crawl. ``ON CONFLICT DO NOTHING`` makes this
     # safe if the worker and a cancel both reach terminalization (the earliest
     # writer wins; the crawl ``score_summary`` projection below is still
@@ -204,6 +218,8 @@ async def persist_crawl_snapshot(
     await session.execute(
         pg_insert(SiteHealthSnapshot)
         .values(
+            intelligence=projection.payload,
+            intelligence_version=DIMENSION_FORMULA_VERSION,
             workspace_id=crawl.workspace_id,
             project_id=crawl.project_id,
             crawl_id=crawl.id,
@@ -236,5 +252,27 @@ async def persist_crawl_snapshot(
         # v2 P1: per-page-type breakdown (type -> analyzed count + mean
         # technical/aeo/overall). Missing/errored URLs never appear here.
         "by_page_kind": by_page_kind,
+        # The composite is deliberately carried WITH its coverage. A caller that
+        # renders one without the other is reporting a number whose denominator
+        # it cannot see, which is the exact failure the full-denominator rule
+        # exists to prevent.
+        "intelligence": _intelligence_summary(projection.payload),
     }
     return True
+
+
+def _intelligence_summary(payload: dict) -> dict:
+    """The headline numbers for the crawl list, always paired with coverage."""
+    dimensions = payload.get("dimensions") or {}
+    coverage = payload.get("coverage") or {}
+    knowledge = payload.get("knowledge") or {}
+    return {
+        "packed": bool(payload.get("packed")),
+        "composite_score": dimensions.get("composite_score"),
+        "composite_coverage": dimensions.get("composite_coverage"),
+        "question_answered_ratio": coverage.get("answered_ratio"),
+        "question_denominator": coverage.get("denominator", 0),
+        "entity_count": knowledge.get("entity_count", 0),
+        "assertion_count": knowledge.get("assertion_count", 0),
+        "contradiction_count": knowledge.get("contradiction_count", 0),
+    }

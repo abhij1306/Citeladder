@@ -16,6 +16,10 @@ import logging
 from collections.abc import Mapping
 from functools import lru_cache
 
+from app.analysis.site_health.knowledge import (
+    KnowledgeVocabulary,
+    compile_vocabulary,
+)
 from app.core.config.industry_packs.catalog import (
     CatalogError,
     load_pack,
@@ -266,6 +270,49 @@ def classify_industry_role(
         "corpus_disposition": disposition,
         "temporal_state": str(result.get("temporal_state") or TEMPORAL_STATE_UNKNOWN),
     }
+
+
+@lru_cache(maxsize=16)
+def _vocabulary(pack_id: str, version: str, content_hash: str) -> KnowledgeVocabulary:
+    """Compile one exact pack's knowledge vocabulary (same freeze guarantees).
+
+    Cached on the same key as the role classifier's compile, so a catalog edit
+    can never be served from a stale vocabulary and a crawl's knowledge is
+    always built against the pack it froze.
+    """
+
+    pack = load_pack(pack_id, version)
+    observed = dict(pack_manifest(pack_id, version))
+    if content_hash and observed.get("pack_content_hash") != content_hash:
+        raise IndustryPackError(
+            f"frozen pack hash no longer matches the catalog: {pack_id}@{version}"
+        )
+    return compile_vocabulary(pack)
+
+
+def knowledge_vocabulary_for_manifest(
+    manifest: Mapping[str, str] | None,
+) -> KnowledgeVocabulary | None:
+    """The crawl's frozen knowledge vocabulary, or ``None`` when unpacked.
+
+    ``None`` is the "no pack ever applied" state, and callers must keep it
+    distinct from an empty vocabulary: a crawl with no pack produces no
+    knowledge because nothing defined what knowledge would mean, which is not
+    the same finding as a site that published none.
+    """
+
+    if not manifest:
+        return None
+    pack_id = str(manifest.get("pack_id") or "")
+    version = str(manifest.get("pack_version") or "")
+    if not pack_id or not version:
+        return None
+    try:
+        return _vocabulary(
+            pack_id, version, str(manifest.get("pack_content_hash") or "")
+        )
+    except CatalogError as exc:
+        raise IndustryPackError(str(exc)) from exc
 
 
 def compiled_pack_for_manifest(

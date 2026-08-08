@@ -364,7 +364,42 @@ Create separate config for hard-excluded assets, inventory-supported document ex
 
 ### Phase B — normalize query-critical knowledge
 
-When cross-page review/contradiction/approval/selective retrieval requires it, add:
+**Status: the trigger condition is met and the three tables are shipped.** Phase B was
+deliberately gated on proving the current owners cannot carry this cleanly. The proof, recorded
+here because the gate is the reason the tables exist:
+
+1. **A contradiction group has no row to live on.** A contradiction is by definition two or more
+   assertions sharing subject, predicate, and overlapping scope with incompatible values — and in
+   practice the two sides live on *different pages*: a current fees page and a superseded fee PDF.
+   Each side fits inside a per-artifact `knowledge_summary` blob, but the group identity — the fact
+   that says "these are the same disputed claim" — belongs to neither page. Materialising it would
+   mean writing one group id into N analysis rows and keeping them consistent on every recompute:
+   a join table, implemented badly, without a uniqueness guarantee.
+
+2. **Question coverage needs a predicate-indexed lookup over the whole corpus.** Resolving
+   `education.fees` to `answered_strong` asks whether *any* current assertion exists for
+   `education.fee_amount` scoped to a grade. Against JSONB that is a scan of every analysis row in
+   the crawl, re-parsed once per question — 29 questions × N pages, per read. Against a table it is
+   one indexed query on `(crawl_id, predicate_id)`.
+
+3. **Entity identity and relations are cross-page by construction.** The organization asserted on
+   `/about`, on `/contact`, and in every page's JSON-LD is ONE entity; deduplicating it is the
+   whole point of an identity key. A relation (`campus part_of institution`) is an edge between
+   entities discovered on different pages, and an edge cannot be stored on either endpoint's page
+   row without electing an arbitrary owner and duplicating the other half.
+
+4. **Review state must outlive recomputation.** `SitePageAnalysis` is append-only on
+   `(artifact, analyzer, pack)`: recomputing under a new pack writes a *new* row. Assertions stored
+   inside that row would take every review decision attached to them out of scope on the next pack
+   upgrade — precisely the silent reinterpretation of history the append-only key exists to
+   prevent. Separately-keyed assertion rows carry their own review state and supersede on their own
+   terms.
+
+What did **not** move: raw bodies stay in `SiteFetchArtifact` (kernel rows hold evidence refs, never
+excerpted truth), and `SitePageAnalysis` remains the sole page-understanding owner. The new tables
+hold only what is irreducibly cross-page — identity, claims, and edges.
+
+Added:
 
 - `knowledge_entities`;
 - `knowledge_assertions`;

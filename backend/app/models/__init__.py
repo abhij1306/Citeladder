@@ -84,6 +84,11 @@ from app.models.integrations import (
     IntegrationPropertyMapping,
     IntegrationSyncRun,
 )
+from app.models.knowledge import (
+    KnowledgeAssertion,
+    KnowledgeEntity,
+    KnowledgeRelation,
+)
 from app.models.opportunity import (
     Opportunity,
     OpportunityGuidance,
@@ -178,6 +183,9 @@ __all__ = [
     "IntegrationImportArtifact",
     "IntegrationMetricRow",
     "IntegrationOAuthGrant",
+    "KnowledgeAssertion",
+    "KnowledgeEntity",
+    "KnowledgeRelation",
     "IntegrationOAuthState",
     "IntegrationPropertyMapping",
     "IntegrationSyncRun",

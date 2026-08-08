@@ -1274,6 +1274,16 @@ class SiteHealthSnapshot(Base):
     )
     analyzer_version: Mapped[str] = mapped_column(String(32), default="")
     scoring_version: Mapped[str] = mapped_column(String(32), default="")
+    # The versioned Site Intelligence projection (plan §10): frozen pack
+    # manifest, corpus/disposition counts, knowledge counts, per-question
+    # coverage, journey stage coverage, and the six dimension scores with their
+    # coverage. Bounded (a few KB) and stored WHOLE, which is what lets every
+    # read endpoint render persisted state without re-resolving a pack,
+    # re-scoring, or refetching. ``None`` on a snapshot written before this
+    # projection existed — distinct from a projection that ran and found
+    # nothing.
+    intelligence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    intelligence_version: Mapped[str] = mapped_column(String(32), default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

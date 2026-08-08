@@ -64,6 +64,23 @@ _MAX_HREFLANG_ALTERNATES = site_health_config.SITE_HEALTH_MAX_HREFLANG_ALTERNATE
 _MAX_HREFLANG_CHARS = site_health_config.SITE_HEALTH_MAX_HREFLANG_CHARS
 _MAX_FIRST_ANSWER_CHARS = site_health_config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS
 _MAX_INLINE_SCRIPT_CHARS = site_health_config.SITE_HEALTH_MAX_INLINE_SCRIPT_CHARS
+_MAX_CONTACT_POINTS = site_health_config.SITE_HEALTH_MAX_CONTACT_POINTS
+_MAX_CONTACT_VALUE_CHARS = site_health_config.SITE_HEALTH_MAX_CONTACT_VALUE_CHARS
+_MAX_MONEY_MENTIONS = site_health_config.SITE_HEALTH_MAX_MONEY_MENTIONS
+_MAX_MONEY_CONTEXT_CHARS = site_health_config.SITE_HEALTH_MAX_MONEY_CONTEXT_CHARS
+MONEY_CURRENCY_SYMBOLS = site_health_config.MONEY_CURRENCY_SYMBOLS
+# A currency token (symbol or ISO code) immediately preceding an amount.
+# Currency-FIRST only: a trailing token is ambiguous ("50 lakh", "20 000 sq ft")
+# and the ordering that matters for fees is universally symbol-first.
+# The grouped branch requires at least ONE separator so it cannot claim a
+# prefix of an ungrouped run: with ``*`` it matched "250" out of "250000" and
+# reported a 250-rupee annual fee. Both Western (250,000) and Indian
+# (2,50,000) grouping are accepted, hence the 2-or-3 digit group.
+_MONEY_PATTERN = re.compile(
+    r"(?P<currency>₹|\$|£|€|¥|₦|₨|INR|USD|GBP|EUR|AED|Rs\.?)\s*"
+    r"(?P<amount>\d{1,3}(?:[,\s]\d{2,3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)",
+    re.IGNORECASE,
+)
 # The security response headers whose mere presence the delivery facts record.
 _SECURITY_HEADERS = (
     "strict-transport-security",
@@ -316,6 +333,92 @@ def _form_fields(root: Any) -> list[str]:
     except Exception:
         pass
     return fields[:_MAX_FORM_FIELDS]
+
+
+def _contact_points(root: Any) -> list[dict[str, str]]:
+    """Bounded declared contact points, read from ``mailto:``/``tel:`` hrefs.
+
+    An href is an AUTHORED declaration — the site saying "reach us here". A
+    regex over body text is not: it also matches an address in a testimonial, a
+    placeholder in a sample form, and a partner organization's details, all of
+    which would then be asserted as this project's contact information.
+
+    Nothing here is treated as personal data to retain: these are the public
+    contact points a site publishes for exactly this purpose.
+    """
+    points: list[dict[str, str]] = []
+    seen: set[str] = set()
+    try:
+        for node in root.iter("a"):
+            if len(points) >= _MAX_CONTACT_POINTS:
+                break
+            href = str(node.get("href") or "").strip()
+            lowered = href.casefold()
+            if lowered.startswith("mailto:"):
+                channel, raw = "email", href[7:]
+            elif lowered.startswith("tel:"):
+                channel, raw = "phone", href[4:]
+            else:
+                continue
+            # Drop any mailto query (?subject=/&body=): it is template text,
+            # not an address, and would make two links to one inbox look like
+            # two different contact points.
+            value = raw.split("?", 1)[0].strip()[:_MAX_CONTACT_VALUE_CHARS]
+            if not value:
+                continue
+            key = f"{channel}|{value.casefold()}"
+            if key in seen:
+                continue
+            seen.add(key)
+            points.append({"channel": channel, "value": value})
+    except Exception:
+        pass
+    return points
+
+
+def _money_mentions(text: str) -> list[dict[str, Any]]:
+    """Bounded currency-qualified amounts in visible copy.
+
+    Only amounts carrying a recognized currency are returned. A bare number is
+    never promoted to money: "250000" on a fees page could be an amount, a
+    student count, or a phone extension, and a report that renders it beside a
+    currency symbol it invented is worse than one that reports the fee as
+    missing.
+    """
+    mentions: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for match in _MONEY_PATTERN.finditer(text or ""):
+        if len(mentions) >= _MAX_MONEY_MENTIONS:
+            break
+        token = (match.group("currency") or "").strip().upper()
+        currency = MONEY_CURRENCY_SYMBOLS.get(token) or MONEY_CURRENCY_SYMBOLS.get(
+            match.group("currency") or ""
+        )
+        if not currency:
+            continue
+        digits = (match.group("amount") or "").replace(",", "").replace(" ", "")
+        try:
+            amount = float(digits)
+        except ValueError:
+            continue
+        key = f"{currency}|{amount}"
+        if key in seen:
+            continue
+        seen.add(key)
+        start = max(0, match.start() - _MAX_MONEY_CONTEXT_CHARS // 2)
+        mentions.append(
+            {
+                "currency": currency,
+                "amount": amount,
+                "raw": match.group(0).strip()[:_MAX_CONTACT_VALUE_CHARS],
+                # Surrounding words are what later tells an annual tuition fee
+                # from a one-time registration fee. Bounded and text-only.
+                "context": " ".join(
+                    text[start : match.end() + _MAX_MONEY_CONTEXT_CHARS // 2].split()
+                )[:_MAX_MONEY_CONTEXT_CHARS],
+            }
+        )
+    return mentions
 
 
 def _link_context(anchors: list[dict]) -> list[str]:
@@ -860,6 +963,9 @@ def _empty_facts() -> dict[str, Any]:
         "hreflang_alternates": [],
         "first_answer_text": "",
         "inline_script_chars": 0,
+        # v2 S2 (sh-extractor-4) knowledge evidence.
+        "contact_points": [],
+        "money_mentions": [],
     }
 
 
@@ -955,6 +1061,9 @@ def extract_page_facts(
     facts["cta_text"] = _cta_texts(root)
     facts["form_fields"] = _form_fields(root)
     facts["link_context"] = _link_context(facts["links"].get("anchors") or [])
+    # Knowledge evidence (sh-extractor-4). Contact points read hrefs, so they
+    # must run before ``_body_text`` mutates the tree.
+    facts["contact_points"] = _contact_points(root)
 
     # v2 P2 (sh-extractor-2) fields: citability + extractability + hreflang.
     facts["author"], facts["dates"] = _author_and_dates(
@@ -992,6 +1101,9 @@ def extract_page_facts(
 
     # Body text last (it mutates the tree by removing script/style subtrees).
     facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
+    # Money is scanned over the already-bounded VISIBLE text, so an amount
+    # inside a script literal or a style block can never become a published fee.
+    facts["money_mentions"] = _money_mentions(facts["body"].get("text", ""))
 
     # Click-to-expand gating: gated words as a fraction of the visible body
     # word count (details/aria-expanded subtrees survive _body_text's junk
