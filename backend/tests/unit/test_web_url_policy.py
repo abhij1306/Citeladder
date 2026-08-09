@@ -228,6 +228,13 @@ def test_supported_documents_are_inventoried_not_hard_excluded(url):
         "https://example.com/downloads/bundle.zip",
         "https://example.com/downloads/installer.exe",
         "https://example.com/downloads/archive.tar",
+        # One per remaining family in the policy list, so a package format
+        # dropped from it fails here rather than silently costing an analysis
+        # slot on a binary the HTML analyzer can never read.
+        "https://example.com/downloads/agent.deb",
+        "https://example.com/downloads/agent.rpm",
+        "https://example.com/downloads/app.apk",
+        "https://example.com/downloads/app.dmg",
     ],
 )
 def test_unsupported_binaries_are_refused_not_inventoried(url):

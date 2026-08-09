@@ -85,16 +85,17 @@ MONEY_CURRENCY_SYMBOLS: Final[dict[str, str]] = {
     "€": "EUR",
     "¥": "JPY",
     "₦": "NGN",
-    "₨": "PKR",
     "AED": "AED",
     "INR": "INR",
     "USD": "USD",
     "GBP": "GBP",
     "EUR": "EUR",
-    # "Rs"/"Rs." are deliberately ABSENT. The abbreviation is used for the
-    # Indian, Pakistani, Sri Lankan, and Nepalese rupee alike, so resolving it
-    # to INR publishes a guess as an observed fact — exactly what the note above
-    # forbids. "₨" stays because it is unambiguous.
+    # "Rs"/"Rs." and "₨" are deliberately ABSENT. Both are generic rupee
+    # notation used for the Indian, Pakistani, Sri Lankan, and Nepalese rupee
+    # alike — U+20A8 is literally named RUPEE SIGN and was the Indian rupee's
+    # own mark before ₹ (U+20B9) was assigned — so resolving either to one
+    # country's currency publishes a guess as an observed fact, exactly what
+    # the note above forbids. ₹ stays because it is country-specific.
 }
 SITE_HEALTH_MAX_PATH_CHARS: Final = 512
 SITE_HEALTH_MAX_SIGNAL_DETAIL_CHARS: Final = 256

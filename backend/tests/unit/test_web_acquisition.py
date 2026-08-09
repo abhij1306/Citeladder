@@ -200,6 +200,26 @@ def test_commented_out_script_does_not_erase_the_page_text() -> None:
     )
 
 
+def test_a_comment_opener_inside_a_script_does_not_erase_the_page_text() -> None:
+    """``<!--`` in a JS string literal is code, not the start of a comment.
+
+    The mirror of the case above, and the reason closed subtrees are removed
+    BEFORE comments are scanned. Stripping comments first found the ``<!--``
+    inside the (properly closed) script, found no ``-->`` after it, and
+    discarded the entire remainder of the document — so a content-rich page
+    counted zero readable characters and escalated to a browser render.
+    """
+    prose = "Real prose that should count. "
+    body = (
+        b'<html><body><script>var t = "<!--";</script><p>'
+        + (prose * 20).encode()
+        + b"</p></body></html>"
+    )
+    assert acquisition.readable_text_length(body, scan_bytes=262_144) == len(
+        "".join((prose * 20).split())
+    )
+
+
 def test_commented_out_script_is_not_evidence_of_client_rendering() -> None:
     """Inert markup must not escalate a static page to a browser render."""
     body = (

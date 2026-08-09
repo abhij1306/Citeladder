@@ -77,11 +77,12 @@ MONEY_CURRENCY_SYMBOLS = site_health_config.MONEY_CURRENCY_SYMBOLS
 # prefix of an ungrouped run: with ``*`` it matched "250" out of "250000" and
 # reported a 250-rupee annual fee. Both Western (250,000) and Indian
 # (2,50,000) grouping are accepted, hence the 2-or-3 digit group.
-# ``Rs``/``Rs.`` is deliberately not a token here: the abbreviation is shared by
-# four different rupees, and MONEY_CURRENCY_SYMBOLS refuses to guess between
-# them, so matching it would only produce a match this loop then discards.
+# ``Rs``/``Rs.`` and ``₨`` are deliberately not tokens here: both are generic
+# rupee notation shared by four different rupees, and MONEY_CURRENCY_SYMBOLS
+# refuses to guess between them, so matching either would only produce a match
+# this loop then discards. ``₹`` stays because it is country-specific.
 _MONEY_PATTERN = re.compile(
-    r"(?P<currency>₹|\$|£|€|¥|₦|₨|INR|USD|GBP|EUR|AED)\s*"
+    r"(?P<currency>₹|\$|£|€|¥|₦|INR|USD|GBP|EUR|AED)\s*"
     r"(?P<amount>\d{1,3}(?:[,\s]\d{2,3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)",
     re.IGNORECASE,
 )

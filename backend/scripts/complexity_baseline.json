@@ -299,15 +299,18 @@
       "_extract_dates": 6,
       "_extract_money": 9,
       "_extract_organization": 14,
-      "_extract_role_entity": 11,
+      "_extract_role_entity": 10,
       "_extract_schema_entities": 7,
+      "_finite_float": 3,
+      "_first_of_type": 3,
       "_link_entities": 5,
       "_mappings": 6,
-      "_money_binding": 13,
+      "_money_binding": 10,
       "_organization_schema_evidence": 9,
-      "_own_money_subject": 5,
+      "_own_money_subject": 4,
       "_parse_date": 6,
       "_path_scope": 3,
+      "_primary_type_id": 2,
       "_recognized_blocks": 5,
       "_scope_is_complete": 3,
       "_strip_title_suffix": 4,
@@ -320,7 +323,7 @@
       "resolve_temporal_state": 4,
       "scope_key_for": 4
     },
-    "loc": 1216,
+    "loc": 1259,
     "max_cc": 14
   },
   "app/analysis/site_health/page_kinds.py": {
@@ -374,7 +377,7 @@
       "_text": 3,
       "extract_page_facts": 18
     },
-    "loc": 1138,
+    "loc": 1139,
     "max_cc": 28
   },
   "app/analysis/site_health/rules.py": {
@@ -1239,7 +1242,7 @@
       "readable_text_length": 2,
       "strip_comments": 5
     },
-    "loc": 194,
+    "loc": 203,
     "max_cc": 10
   },
   "app/connectors/web_evidence/brand_evidence.py": {
@@ -1361,7 +1364,7 @@
       "is_bot_block_result": 3,
       "redact_headers": 4
     },
-    "loc": 1297,
+    "loc": 1299,
     "max_cc": 18
   },
   "app/connectors/web_evidence/resolver.py": {
@@ -1874,7 +1877,7 @@
       "_site_task_claim_order": 1,
       "runtime_policy_for_allowance": 2
     },
-    "loc": 2459,
+    "loc": 2460,
     "max_cc": 14
   },
   "app/core/config/site_health_page_profiles.py": {
@@ -4825,6 +4828,7 @@
     "functions": {
       "SiteHealthWorker.__init__": 4,
       "SiteHealthWorker._attempt_host": 2,
+      "SiteHealthWorker._close_transport": 2,
       "SiteHealthWorker._diagnostic_attempt": 5,
       "SiteHealthWorker._ensure_running": 3,
       "SiteHealthWorker._execute_claimed": 3,
@@ -4851,7 +4855,7 @@
       "_acquisition_values": 3,
       "main": 1
     },
-    "loc": 896,
+    "loc": 912,
     "max_cc": 10
   }
 }

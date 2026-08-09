@@ -330,7 +330,9 @@ def test_fee_binds_to_the_pack_declared_subject_and_predicate(education):
         # A non-breaking space is ordinary grouping on Indian and European
         # sites. The amount pattern accepts it, so the cleanup must strip it —
         # it used to reach ``float`` intact and drop the fee on ValueError.
-        ("INR 2,50,000 ", 250000.0),
+        # The separator sits BETWEEN digits: a trailing one proves nothing,
+        # because ``float`` strips surrounding Unicode whitespace by itself.
+        ("INR 2,50 000", 250000.0),
         ("INR 250 000", 250000.0),
     ],
 )

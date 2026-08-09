@@ -23,6 +23,7 @@
 # code path with different vocabularies bound in.
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from collections.abc import Mapping, Sequence
@@ -613,6 +614,31 @@ def _dedupe_entities(candidates: Sequence[EntityCandidate]) -> list[EntityCandid
     return list(merged.values())
 
 
+def _primary_type_id(role: RoleSpec) -> str:
+    """The role's PRIMARY subject type, or ``""`` when it declares none.
+
+    Packs list a role's primary subject first and the rest as types the page may
+    merely MENTION. Three readers depend on that convention, so it is stated
+    once here rather than re-derived — a role that acquires a second type must
+    not silently change what any of them binds to.
+    """
+    return role.entity_type_ids[0] if role.entity_type_ids else ""
+
+
+def _first_of_type(
+    entities: Sequence[EntityCandidate], entity_type_id: str
+) -> EntityCandidate | None:
+    """The first extracted candidate of ``entity_type_id``, or ``None``.
+
+    An empty ``entity_type_id`` matches nothing, which is what lets callers pass
+    ``_primary_type_id`` straight through without a separate emptiness guard.
+    """
+    for candidate in entities:
+        if candidate.ref.entity_type_id == entity_type_id:
+            return candidate
+    return None
+
+
 def _add_assertion(
     assertions: list[AssertionCandidate],
     *,
@@ -858,7 +884,7 @@ def _extract_role_entity(
     # type and became five campuses named "Our History", "Vision & Mission",
     # "Category Press Release"... and an FAQ page became a program. A page whose
     # primary subject IS the organization contributes nothing new here.
-    primary_type_id = role.entity_type_ids[0] if role.entity_type_ids else ""
+    primary_type_id = _primary_type_id(role)
     spec = vocabulary.entity_types.get(primary_type_id)
     if spec is None or spec.category not in _PAGE_IS_ENTITY_CATEGORIES:
         return
@@ -978,15 +1004,34 @@ def _extract_contact_points(
 
 
 def _usable_amount(value: object) -> float | None:
-    """A real numeric amount, or ``None``.
+    """A real, finite numeric amount, or ``None``.
 
     ``bool`` is a subclass of ``int``, so a JSON ``true`` arriving in a
     persisted money fact passed a bare ``isinstance(value, (int, float))`` and
     published itself as a fee of 1.00.
+
+    ``NaN`` and the infinities are rejected for the same reason: Python's JSON
+    decoder accepts all three by default, and each formats straight through
+    ``f"{amount:.2f}"`` into a published fee reading "INR nan". An integer too
+    large for a float raises ``OverflowError`` rather than returning one, which
+    would take the whole page's extraction down over one absurd number.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    return _finite_float(value)
+
+
+def _finite_float(value: int | float) -> float | None:
+    """``value`` as a real finite float, or ``None``.
+
+    Separate from the type guard above so each stays a single question: is this
+    the right KIND of value, and is it a number a fee can actually be.
+    """
+    try:
+        amount = float(value)
+    except OverflowError:
+        return None
+    return amount if math.isfinite(amount) else None
 
 
 def _own_money_subject(
@@ -1006,28 +1051,14 @@ def _own_money_subject(
     entity shape is not lost: it falls through to that resolution, which mints
     the money subject under the PRIMARY entity's identity key.
     """
-    primary_type_id = role.entity_type_ids[0] if role.entity_type_ids else ""
-    if not primary_type_id:
+    primary_type_id = _primary_type_id(role)
+    subject = _first_of_type(entities, primary_type_id)
+    if subject is None:
         return None
-    spec = next(
-        (
-            candidate_spec
-            for candidate_spec in money_predicates
-            if primary_type_id in candidate_spec.subject_entity_type_ids
-        ),
-        None,
-    )
-    if spec is None:
-        return None
-    subject = next(
-        (
-            candidate
-            for candidate in entities
-            if candidate.ref.entity_type_id == primary_type_id
-        ),
-        None,
-    )
-    return None if subject is None else (spec, subject.ref)
+    for spec in money_predicates:
+        if primary_type_id in spec.subject_entity_type_ids:
+            return spec, subject.ref
+    return None
 
 
 def _money_binding(
@@ -1070,14 +1101,7 @@ def _money_binding(
     own = _own_money_subject(role, entities, money_predicates)
     if own is not None:
         return own
-    primary = next(
-        (
-            candidate
-            for candidate in entities
-            if candidate.ref.entity_type_id == (role.entity_type_ids or ("",))[0]
-        ),
-        None,
-    )
+    primary = _first_of_type(entities, _primary_type_id(role))
     # Only the page's OWN entity may carry its money. ``entities[0]`` is the
     # organization on a root page and a schema-declared place or person
     # elsewhere, so anchoring on it would attach a price to whatever the page
@@ -1147,7 +1171,7 @@ def _extract_money(
                 predicate_id=spec.predicate_id,
                 value_type=VALUE_TYPE_MONEY,
                 raw_value=normalize_text(mention.get("raw")),
-                normalized_value=f"{currency} {float(amount):.2f}",
+                normalized_value=f"{currency} {amount:.2f}",
                 # Every other required qualifier (academic year, grade, fee
                 # type, timing) is left OUT rather than filled with a plausible
                 # default. An amount whose period we invented is exactly the
@@ -1161,7 +1185,7 @@ def _extract_money(
                     spec, {"currency": currency, "offering": _path_scope(final_url)}
                 ),
                 derivation_method=DERIVATION_VISIBLE_TEXT,
-                numeric_value=float(amount),
+                numeric_value=amount,
                 currency=currency,
                 temporal_state=temporal_state,
                 # Visible copy near an amount is suggestive, not authoritative:

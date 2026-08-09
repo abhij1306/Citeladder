@@ -90,13 +90,22 @@ def readable_text_length(body: bytes, *, scan_bytes: int) -> int:
     if not body:
         return 0
     text = body[: max(0, scan_bytes)].decode("utf-8", errors="replace")
-    # Comments go FIRST, the same order ``loads_script`` uses. A commented-out
-    # ``<script src=...>`` is inert markup, but the unterminated-script sweep
-    # below cannot tell that: it saw the opening tag, dropped the whole rest of
-    # the document, and reported a content-rich page as having zero readable
-    # text — which then escalated it to a browser render as a "JS shell".
-    text = strip_comments(text)
+    # CLOSED subtrees, then comments, then the unterminated sweep. Each step
+    # exists to protect the one after it, and BOTH orderings below have been
+    # observed erasing a real page:
+    #
+    # - A closed ``<script>`` may hold a bare ``<!--`` in a string literal.
+    #   Stripping comments first read that as an unterminated comment and
+    #   discarded everything after it, so a content-rich page counted zero
+    #   readable characters.
+    # - A commented-out ``<script src=...>`` is inert markup, but the
+    #   unterminated sweep cannot tell that: it sees the opening tag and drops
+    #   the tail. Comments must therefore be gone before that sweep runs.
+    #
+    # Removing closed subtrees first satisfies both: the script's contents —
+    # including any ``<!--`` inside it — are gone before comments are scanned.
     text = _NON_TEXT_SUBTREES.sub(" ", text)
+    text = strip_comments(text)
     text = _UNCLOSED_NON_TEXT.sub(" ", text)
     text = _TAGS.sub(" ", text)
     return len("".join(text.split()))
