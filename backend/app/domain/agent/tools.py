@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from collections.abc import Awaitable, Callable
@@ -523,6 +524,7 @@ async def _prompt_candidates(
 async def _correction_proposal(
     _context: ToolExecutionContext, payload: dict[str, Any]
 ) -> dict[str, Any]:
+    await asyncio.sleep(0)
     target_ref = payload.get("target_ref")
     if not isinstance(target_ref, dict):
         raise ValueError("target_ref is required")

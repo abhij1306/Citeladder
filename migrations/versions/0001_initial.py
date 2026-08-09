@@ -25,6 +25,7 @@ depends_on = None
 _CONTENT_GENERATION_FK = "content_generations.id"
 _SITE_SNAPSHOT_FK = "site_health_snapshots.id"
 _DEMAND_SNAPSHOT_FK = "demand_snapshots.id"
+_AGENT_TASK_RUN_FK = "agent_task_runs.id"
 
 
 def _create_indexes(table: str, columns: tuple[str, ...]) -> None:
@@ -5832,9 +5833,13 @@ def upgrade() -> None:
         sa.Column("created_by_user_id", sa.UUID(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["created_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     _create_indexes("agent_conversations", ("workspace_id", "project_id"))
@@ -5857,10 +5862,16 @@ def upgrade() -> None:
         sa.Column("request_fingerprint", sa.String(length=64), nullable=False),
         sa.Column("task_type", sa.String(length=64), nullable=False),
         sa.Column("objective", sa.Text(), nullable=False),
-        sa.Column("requested_outputs", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "requested_outputs", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("task_policy_version", sa.String(length=32), nullable=False),
-        sa.Column("allowed_tools", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("resource_scope", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "allowed_tools", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "resource_scope", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("industry_pack_id", sa.String(length=64), nullable=False),
         sa.Column("industry_pack_version", sa.String(length=32), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False),
@@ -5871,7 +5882,9 @@ def upgrade() -> None:
         sa.Column("provider_adapter", sa.String(length=64), nullable=False),
         sa.Column("endpoint_host", sa.String(length=255), nullable=False),
         sa.Column("model", sa.String(length=255), nullable=False),
-        sa.Column("capability_snapshot", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "capability_snapshot", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("instruction_version", sa.String(length=64), nullable=False),
         sa.Column("skill_version", sa.String(length=64), nullable=False),
         sa.Column("usage", postgresql.JSONB(astext_type=Text()), nullable=True),
@@ -5883,17 +5896,29 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(
-            "status IN ('draft','validating','queued','planning','running','awaiting_user','awaiting_task','completed','partially_completed','failed','cancelled')",
+            "status IN ('draft','validating','queued','planning','running',"
+            "'awaiting_user','awaiting_task','completed','partially_completed',"
+            "'failed','cancelled')",
             name="ck_agent_task_run_status",
         ),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["conversation_id"], ["agent_conversations.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["parent_run_id"], ["agent_task_runs.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["context_package_id"], ["task_context_packages.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["conversation_id"], ["agent_conversations.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["parent_run_id"], [_AGENT_TASK_RUN_FK], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["context_package_id"], ["task_context_packages.id"], ondelete="SET NULL"
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("workspace_id", "idempotency_key", name="uq_agent_run_ws_idempotency"),
+        sa.UniqueConstraint(
+            "workspace_id", "idempotency_key", name="uq_agent_run_ws_idempotency"
+        ),
     )
     _create_indexes(
         "agent_task_runs",
@@ -5933,12 +5958,17 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(
-            "status IN ('pending','running','awaiting_user','awaiting_task','completed','failed','cancelled','skipped')",
+            "status IN ('pending','running','awaiting_user','awaiting_task',"
+            "'completed','failed','cancelled','skipped')",
             name="ck_agent_task_step_status",
         ),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["task_run_id"], ["agent_task_runs.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["task_run_id"], [_AGENT_TASK_RUN_FK], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("task_run_id", "ordinal", name="uq_agent_step_run_ordinal"),
     )
@@ -5965,14 +5995,24 @@ def upgrade() -> None:
         sa.Column("retryable", sa.Boolean(), nullable=False),
         sa.Column("latency_ms", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["task_run_id"], ["agent_task_runs.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["step_id"], ["agent_task_steps.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["task_run_id"], [_AGENT_TASK_RUN_FK], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["step_id"], ["agent_task_steps.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("step_id", "attempt_number", name="uq_agent_tool_attempt_number"),
+        sa.UniqueConstraint(
+            "step_id", "attempt_number", name="uq_agent_tool_attempt_number"
+        ),
     )
-    _create_indexes("agent_tool_attempts", ("workspace_id", "project_id", "task_run_id", "step_id"))
+    _create_indexes(
+        "agent_tool_attempts", ("workspace_id", "project_id", "task_run_id", "step_id")
+    )
 
     op.create_table(
         "agent_messages",
@@ -5986,12 +6026,22 @@ def upgrade() -> None:
         sa.Column("citations", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("created_by_user_id", sa.UUID(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint("role IN ('user','assistant')", name="ck_agent_message_role"),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.CheckConstraint(
+            "role IN ('user','assistant')", name="ck_agent_message_role"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["conversation_id"], ["agent_conversations.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["task_run_id"], ["agent_task_runs.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["conversation_id"], ["agent_conversations.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["task_run_id"], [_AGENT_TASK_RUN_FK], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["created_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     _create_indexes("agent_messages", ("workspace_id", "project_id", "conversation_id"))
@@ -6007,22 +6057,38 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("task_run_id", sa.UUID(), nullable=False),
-        sa.Column("deterministic_order", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("proposed_order", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "deterministic_order", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "proposed_order", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("reasoning", sa.Text(), nullable=False),
-        sa.Column("evidence_refs", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "evidence_refs", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("status", sa.String(length=16), nullable=False),
         sa.Column("created_by_user_id", sa.UUID(), nullable=True),
         sa.Column("withdrawn_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint("status IN ('active','withdrawn')", name="ck_priority_override_status"),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.CheckConstraint(
+            "status IN ('active','withdrawn')", name="ck_priority_override_status"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["task_run_id"], ["agent_task_runs.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["task_run_id"], [_AGENT_TASK_RUN_FK], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["created_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
-    _create_indexes("priority_override_proposals", ("workspace_id", "project_id", "task_run_id"))
+    _create_indexes(
+        "priority_override_proposals", ("workspace_id", "project_id", "task_run_id")
+    )
     op.create_index(
         "ix_priority_override_project_created",
         "priority_override_proposals",

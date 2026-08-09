@@ -73,7 +73,7 @@ def _error(exc: Exception) -> ApiException:
     return ApiException(status.HTTP_409_CONFLICT, "agent_task_conflict", str(exc))
 
 
-@router.get("/capabilities", response_model=AgentCapabilities)
+@router.get("/capabilities")
 async def agent_capabilities_endpoint(_ctx: _WorkspaceDep) -> AgentCapabilities:
     configured = default_agent_settings.configured
     client = create_model_gateway() if configured else None
@@ -105,7 +105,6 @@ async def agent_capabilities_endpoint(_ctx: _WorkspaceDep) -> AgentCapabilities:
 
 @router.post(
     "/conversations",
-    response_model=ConversationItem,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_conversation_endpoint(
@@ -124,7 +123,7 @@ async def create_conversation_endpoint(
     return ConversationItem.model_validate(row)
 
 
-@router.get("/conversations", response_model=list[ConversationItem])
+@router.get("/conversations")
 async def list_conversations_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
@@ -145,7 +144,7 @@ async def list_conversations_endpoint(
     return [ConversationItem.model_validate(row) for row in rows]
 
 
-@router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
+@router.get("/conversations/{conversation_id}")
 async def get_conversation_endpoint(
     conversation_id: uuid.UUID,
     ctx: _WorkspaceDep,
@@ -166,9 +165,7 @@ async def get_conversation_endpoint(
     )
 
 
-@router.post(
-    "/tasks", response_model=AgentTaskRunItem, status_code=status.HTTP_201_CREATED
-)
+@router.post("/tasks", status_code=status.HTTP_201_CREATED)
 async def submit_task_endpoint(
     payload: AgentTaskSubmit,
     ctx: _WorkspaceDep,
@@ -201,7 +198,7 @@ async def submit_task_endpoint(
         raise _error(exc) from exc
 
 
-@router.get("/tasks", response_model=list[AgentTaskRunItem])
+@router.get("/tasks")
 async def list_tasks_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
@@ -223,7 +220,7 @@ async def list_tasks_endpoint(
         raise _error(exc) from exc
 
 
-@router.get("/tasks/{run_id}", response_model=AgentTaskRunItem)
+@router.get("/tasks/{run_id}")
 async def get_task_endpoint(
     run_id: uuid.UUID,
     ctx: _WorkspaceDep,
@@ -242,7 +239,7 @@ async def get_task_endpoint(
         raise _error(exc) from exc
 
 
-@router.post("/tasks/{run_id}/decision", response_model=AgentTaskRunItem)
+@router.post("/tasks/{run_id}/decision")
 async def confirm_task_decision_endpoint(
     run_id: uuid.UUID,
     payload: AgentDecisionConfirm,
@@ -266,7 +263,7 @@ async def confirm_task_decision_endpoint(
         raise _error(exc) from exc
 
 
-@router.post("/tasks/{run_id}/cancel", response_model=AgentTaskRunItem)
+@router.post("/tasks/{run_id}/cancel")
 async def cancel_task_endpoint(
     run_id: uuid.UUID,
     ctx: _WorkspaceDep,
@@ -287,7 +284,6 @@ async def cancel_task_endpoint(
 
 @router.post(
     "/tasks/{run_id}/correction",
-    response_model=CorrectionItem,
     status_code=status.HTTP_201_CREATED,
 )
 async def accept_correction_proposal_endpoint(

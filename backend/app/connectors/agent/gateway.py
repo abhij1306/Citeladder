@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -121,6 +122,7 @@ class FakeModelGateway:
         )
 
     async def complete_text(self, *, system: str, user: str) -> ModelResult:
+        await asyncio.sleep(0)
         self.calls.append({"kind": "text", "system": system, "user": user})
         return self._result()
 
@@ -132,6 +134,7 @@ class FakeModelGateway:
         schema_name: str,
         schema: dict[str, Any],
     ) -> ModelResult:
+        await asyncio.sleep(0)
         self.calls.append(
             {
                 "kind": "structured",

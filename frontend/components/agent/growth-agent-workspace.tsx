@@ -28,6 +28,15 @@ function readable(value: string) {
   return value.replaceAll('_', ' ');
 }
 
+function unknownText(value: unknown, fallback = '') {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : fallback;
+}
+
+function providerSummary(configured: boolean | undefined, adapter?: string, model?: string) {
+  if (configured) return `${adapter ?? ''} · ${model ?? ''}`;
+  return 'Deterministic mode · model narration unavailable';
+}
+
 function artifactHref(kind: string, id: string) {
   if (kind === 'opportunity') return `/opportunities?selected=${encodeURIComponent(id)}`;
   if (kind === 'prompt') return '/prompts';
@@ -90,25 +99,28 @@ function ResultPanel({ run }: Readonly<{ run: AgentTaskRun }>) {
                   <li key={`${String(item.name)}-${index}`} className="py-4">
                     <div className="flex items-baseline justify-between gap-4">
                       <h3 className="text-foreground text-sm font-semibold capitalize">
-                        {readable(String(item.name ?? 'Other'))}
+                        {readable(unknownText(item.name, 'Other'))}
                       </h3>
                       <span className="text-subtle text-xs tabular-nums">
                         {groupItems.length} {groupItems.length === 1 ? 'action' : 'actions'}
                       </span>
                     </div>
                     <p className="text-muted mt-1 text-xs leading-relaxed">
-                      {String(item.rationale ?? '')}
+                      {unknownText(item.rationale)}
                     </p>
                     <ul className="mt-3 grid gap-2">
                       {groupItems.map((entry, entryIndex) => {
                         const action = entry as Record<string, unknown>;
                         return (
-                          <li key={String(action.id ?? entryIndex)} className="flex gap-3 text-sm">
+                          <li
+                            key={unknownText(action.id, String(entryIndex))}
+                            className="flex gap-3 text-sm"
+                          >
                             <span className="text-subtle tabular-nums">
-                              {String(action.rank ?? entryIndex + 1)}
+                              {unknownText(action.rank, String(entryIndex + 1))}
                             </span>
                             <span className="text-foreground">
-                              {String(action.title ?? 'Action')}
+                              {unknownText(action.title, 'Action')}
                             </span>
                           </li>
                         );
@@ -168,8 +180,8 @@ function ResultPanel({ run }: Readonly<{ run: AgentTaskRun }>) {
               <ul className="mt-2 grid gap-1.5 text-xs">
                 {artifacts.map((value, index) => {
                   const artifact = value as Record<string, unknown>;
-                  const kind = String(artifact.kind ?? 'artifact');
-                  const id = String(artifact.id ?? '');
+                  const kind = unknownText(artifact.kind, 'artifact');
+                  const id = unknownText(artifact.id);
                   const href = artifactHref(kind, id);
                   return (
                     <li key={`${kind}-${id}-${index}`} className="min-w-0">
@@ -247,6 +259,7 @@ function RunTimeline({ run }: Readonly<{ run: AgentTaskRun }>) {
 }
 
 export function GrowthAgentWorkspace() {
+  // NOSONAR -- composition remains explicit for screen-level state
   const search = useSearchParams();
   const queryClient = useQueryClient();
   const { activeProject, isLoading: projectLoading } = useProjectContext();
@@ -349,6 +362,12 @@ export function GrowthAgentWorkspace() {
           0,
         )
       : 0;
+  let providerStatus = providerSummary(
+    capabilities.data?.configured,
+    capabilities.data?.provider_adapter,
+    capabilities.data?.model,
+  );
+  if (capabilities.isError) providerStatus = 'Provider status unavailable';
 
   if (projectLoading) return <p className="text-muted text-sm">Loading project…</p>;
   if (!projectId)
@@ -370,13 +389,7 @@ export function GrowthAgentWorkspace() {
         </div>
         <div className="border-border bg-panel flex items-center gap-3 rounded-md border px-3 py-2 text-xs">
           <ShieldCheck aria-hidden className="text-accent-text size-4" />
-          <span className="text-secondary">
-            {capabilities.isError
-              ? 'Provider status unavailable'
-              : capabilities.data?.configured
-                ? `${capabilities.data.provider_adapter} · ${capabilities.data.model}`
-                : 'Deterministic mode · model narration unavailable'}
-          </span>
+          <span className="text-secondary">{providerStatus}</span>
         </div>
       </header>
 
@@ -400,7 +413,7 @@ export function GrowthAgentWorkspace() {
             </select>
           </label>
           <label className="text-secondary grid gap-1.5 text-xs font-medium">
-            Objective
+            <span>Objective</span>
             <input
               value={objective}
               onChange={(event) => setObjective(event.target.value)}
@@ -548,8 +561,8 @@ export function GrowthAgentWorkspace() {
                       const item = value as Record<string, unknown>;
                       return (
                         <li key={`${String(item.section)}-${index}`}>
-                          {readable(String(item.section ?? 'context'))}:{' '}
-                          {readable(String(item.reason ?? 'omitted'))}
+                          {readable(unknownText(item.section, 'context'))}:{' '}
+                          {readable(unknownText(item.reason, 'omitted'))}
                           {typeof item.count === 'number' ? ` · ${item.count}` : ''}
                         </li>
                       );

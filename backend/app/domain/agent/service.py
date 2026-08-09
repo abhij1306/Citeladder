@@ -46,6 +46,7 @@ from app.models.content import ContentGeneration, TaskContextPackage
 from app.models.project import Project
 
 logger = logging.getLogger(__name__)
+_INVALID_CORRECTION_TARGET = "correction proposal target is invalid"
 
 
 class AgentNotFoundError(LookupError):
@@ -332,7 +333,7 @@ async def accept_correction_proposal(
         raise AgentConflictError("correction proposal was already accepted")
     target_ref = proposal.get("target_ref")
     if not isinstance(target_ref, dict):
-        raise AgentValidationError("correction proposal target is invalid")
+        raise AgentValidationError(_INVALID_CORRECTION_TARGET)
     target_kind, target_id = _correction_target(target_ref)
     correction = await _create_site_correction(
         session,
@@ -1386,10 +1387,8 @@ def _correction_target(target_ref: dict[str, Any]) -> tuple[str, uuid.UUID]:
     target_kind = str(target_ref.get("kind") or target_ref.get("target_kind") or "")
     target_id = target_ref.get("id") or target_ref.get("target_id")
     if target_kind not in {"entity", "assertion", "relation"} or target_id is None:
-        raise AgentValidationError("correction proposal target is invalid")
-    return target_kind, _parse_correction_uuid(
-        target_id, "correction proposal target is invalid"
-    )
+        raise AgentValidationError(_INVALID_CORRECTION_TARGET)
+    return target_kind, _parse_correction_uuid(target_id, _INVALID_CORRECTION_TARGET)
 
 
 def _parse_correction_uuid(value: object, message: str) -> uuid.UUID:

@@ -51,6 +51,8 @@ AGENT_LIST_DEFAULT_LIMIT: Final = 25
 AGENT_LIST_MAX_LIMIT: Final = 100
 AGENT_OBJECTIVE_MAX_CHARS: Final = 2_000
 AGENT_IDEMPOTENCY_KEY_MAX_CHARS: Final = 128
+SITE_READ_SNAPSHOT_TOOL: Final = "site.read_snapshot"
+DEMAND_READ_SNAPSHOT_TOOL: Final = "demand.read_snapshot"
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +76,11 @@ AGENT_TASK_POLICIES: Final[dict[str, AgentTaskPolicy]] = {
             "explain",
             "Explain evidence",
             "Explain a selected persisted artifact and its limitations.",
-            ("site.read_snapshot", "content.read_strategy", "demand.read_snapshot"),
+            (
+                SITE_READ_SNAPSHOT_TOOL,
+                "content.read_strategy",
+                DEMAND_READ_SNAPSHOT_TOOL,
+            ),
         ),
         AgentTaskPolicy(
             "compare_snapshots",
@@ -90,9 +96,9 @@ AGENT_TASK_POLICIES: Final[dict[str, AgentTaskPolicy]] = {
                 "and rationale."
             ),
             (
-                "site.read_snapshot",
+                SITE_READ_SNAPSHOT_TOOL,
                 "content.read_strategy",
-                "demand.read_snapshot",
+                DEMAND_READ_SNAPSHOT_TOOL,
                 "opportunities.read_ranked",
             ),
             requested_outputs=("roadmap", "answer"),
@@ -117,7 +123,7 @@ AGENT_TASK_POLICIES: Final[dict[str, AgentTaskPolicy]] = {
             "demand_analysis",
             "Analyze demand",
             "Explain current persisted Demand signals and coverage.",
-            ("demand.read_snapshot",),
+            (DEMAND_READ_SNAPSHOT_TOOL,),
         ),
         AgentTaskPolicy(
             "create_prompt_candidates",
@@ -143,8 +149,8 @@ AGENT_TASK_POLICIES: Final[dict[str, AgentTaskPolicy]] = {
                 "unavailable states."
             ),
             (
-                "site.read_snapshot",
-                "demand.read_snapshot",
+                SITE_READ_SNAPSHOT_TOOL,
+                DEMAND_READ_SNAPSHOT_TOOL,
                 "audits.read_schedules",
             ),
         ),

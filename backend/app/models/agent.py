@@ -26,6 +26,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
+_WORKSPACE_FK = "workspaces.id"
+_PROJECT_FK = "projects.id"
+_USER_FK = "users.id"
+_TASK_RUN_FK = "agent_task_runs.id"
+_SET_NULL = "SET NULL"
+
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
@@ -46,15 +52,15 @@ class AgentConversation(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     title: Mapped[str] = mapped_column(String(255), default="New conversation")
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey(_USER_FK, ondelete=_SET_NULL), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
@@ -83,11 +89,11 @@ class AgentMessage(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -96,14 +102,14 @@ class AgentMessage(Base):
     )
     task_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("agent_task_runs.id", ondelete="SET NULL", use_alter=True),
+        ForeignKey(_TASK_RUN_FK, ondelete=_SET_NULL, use_alter=True),
         nullable=True,
     )
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)
     citations: Mapped[list] = mapped_column(JSONB, default=list)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey(_USER_FK, ondelete=_SET_NULL), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
@@ -133,29 +139,29 @@ class AgentTaskRun(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey(_USER_FK, ondelete=_SET_NULL), nullable=True
     )
     conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("agent_conversations.id", ondelete="SET NULL"),
+        ForeignKey("agent_conversations.id", ondelete=_SET_NULL),
         nullable=True,
         index=True,
     )
     parent_run_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("agent_task_runs.id", ondelete="SET NULL"),
+        ForeignKey(_TASK_RUN_FK, ondelete=_SET_NULL),
         nullable=True,
     )
     context_package_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("task_context_packages.id", ondelete="SET NULL", use_alter=True),
+        ForeignKey("task_context_packages.id", ondelete=_SET_NULL, use_alter=True),
         nullable=True,
     )
     idempotency_key: Mapped[str] = mapped_column(String(128))
@@ -216,15 +222,15 @@ class AgentTaskStep(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     task_run_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("agent_task_runs.id", ondelete="CASCADE"),
+        ForeignKey(_TASK_RUN_FK, ondelete="CASCADE"),
         index=True,
     )
     ordinal: Mapped[int] = mapped_column(Integer)
@@ -268,15 +274,15 @@ class AgentToolAttempt(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     task_run_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("agent_task_runs.id", ondelete="CASCADE"),
+        ForeignKey(_TASK_RUN_FK, ondelete="CASCADE"),
         index=True,
     )
     step_id: Mapped[uuid.UUID] = mapped_column(
@@ -313,15 +319,15 @@ class PriorityOverrideProposal(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     task_run_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("agent_task_runs.id", ondelete="CASCADE"),
+        ForeignKey(_TASK_RUN_FK, ondelete="CASCADE"),
         index=True,
     )
     deterministic_order: Mapped[list] = mapped_column(JSONB)
@@ -330,7 +336,7 @@ class PriorityOverrideProposal(Base):
     evidence_refs: Mapped[list] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(16), default="active")
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey(_USER_FK, ondelete=_SET_NULL), nullable=True
     )
     withdrawn_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

@@ -124,6 +124,12 @@ class NativeOpenAIClient:
         }
         if text_format is not None:
             payload["text"] = {"format": dict(text_format)}
+        response, started = await self._request(payload)
+        return self._result_from_response(response, started)
+
+    async def _request(
+        self, payload: Mapping[str, Any]
+    ) -> tuple[httpx.Response, float]:
         started = time.monotonic()
         try:
             async with httpx.AsyncClient(
@@ -159,6 +165,11 @@ class NativeOpenAIClient:
                     response.headers.get("retry-after")
                 ),
             )
+        return response, started
+
+    def _result_from_response(
+        self, response: httpx.Response, started: float
+    ) -> ModelResult:
         try:
             body = response.json()
             content = _first_output_text(body)
