@@ -206,8 +206,9 @@ fact promotion, score mutation, or autonomous publishing.
   16-pack catalog validate; `pip-audit` reports no known vulnerabilities and the committed-baseline
   secrets scan passes. The verified disposable database passes downgrade, a from-zero
   `0001_initial.py` upgrade, and zero Alembic drift. All Compose images rebuild, the migration
-  container exits 0, every long-running service remains up, and `/health` returns 200. CI and Sonar
-  results are recorded after the pull request opens.
+  container exits 0, every long-running service remains up, and `/health` returns 200. Pull request
+  [#59](https://github.com/abhij1306/Citeladder/pull/59) passed all nine CI checks at `7faf09bc`;
+  SonarCloud passed its quality gate and reported zero open pull-request issues.
 - Gotchas and conflict resolutions: a generation validation is immutable; an edited revision gets
   its own validation snapshot so a corrected blocked draft can pass without rewriting history.
   Verification rejects a snapshot at or before the publication claim and reports associations as
@@ -216,8 +217,11 @@ fact promotion, score mutation, or autonomous publishing.
   Concurrent context/revision creates converge on their unique winner; inventory persistence is a
   single PostgreSQL upsert. Validation compares claims only with canonical allowed fact values,
   never metadata. Authenticated revision exports carry active-workspace context. `/content`
-  defaults to Strategy, while custom generation remains the Drafts panel and deep-linked revisions
-  select the requested revision without refetches discarding unsaved edits.
+  defaults to Strategy except that an opportunity handoff opens Drafts; custom generation remains
+  in Drafts, and deep-linked revisions select the requested revision without refetches discarding
+  unsaved edits. Revision edits preserve structured data, malformed FAQ schema fails closed,
+  publication URLs are canonicalized, and verification cannot fall back to a pre-publication
+  strategy snapshot when a later recrawl is unavailable.
 - Deliberate deferrals: raw-artifact/downstream composite workspace foreign keys require the owning
   raw-artifact `workspace_id` redesign. The fourteen non-Education/Commerce packs remain explicitly
   uncalibrated. There is no autonomous publishing, approved-memory store, or generated-fact path.
