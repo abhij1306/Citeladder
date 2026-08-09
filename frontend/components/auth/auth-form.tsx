@@ -1,40 +1,60 @@
 'use client';
 
-import { Eye, EyeOff, Lock, Mail, type LucideIcon } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { type ComponentProps, type ReactNode, useState } from 'react';
 
-import { Button } from '@/components/marketing/primitives/button';
 import { Alert as MktAlert } from '@/components/ui/alert';
-import { Field as MktField } from '@/components/ui/field';
-import { Input as MktInput } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { authApi } from '@/lib/api/auth';
+import { ApiError } from '@/lib/api/errors';
+import { assignLocation } from '@/lib/navigate';
 
-type InputProps = ComponentProps<typeof MktInput>;
+type InputProps = ComponentProps<typeof Input>;
+
+export function GoogleIcon({ className = 'size-4 shrink-0' }: Readonly<{ className?: string }>) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <path
+        fill="var(--color-brand-google-blue)"
+        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3h3.86c2.26-2.09 3.68-5.17 3.68-9.12z"
+      />
+      <path
+        fill="var(--color-brand-google-green)"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z"
+      />
+      <path
+        fill="var(--color-brand-google-yellow)"
+        d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z"
+      />
+      <path
+        fill="var(--color-brand-google-red)"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"
+      />
+    </svg>
+  );
+}
 
 export function AuthEmailField({
   error,
   inputProps,
 }: Readonly<{ error?: string; inputProps: InputProps }>) {
   return (
-    <MktField label="Email" required error={error}>
+    <Field label="Email address" required error={error}>
       {(props) => (
-        <div className="relative">
-          <MktInput
-            {...props}
-            {...inputProps}
-            type="email"
-            autoComplete="email"
-            spellCheck={false}
-            placeholder="you@company.com"
-            className="border-border-subtle bg-background-alt text-foreground placeholder:text-muted focus:border-accent focus:ring-accent-border focus:bg-panel pl-10"
-          />
-          <Mail
-            aria-hidden
-            className="text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-          />
-        </div>
+        <Input
+          {...props}
+          {...inputProps}
+          type="email"
+          autoComplete="email"
+          spellCheck={false}
+          placeholder="hello@app.com"
+          size="lg"
+        />
       )}
-    </MktField>
+    </Field>
   );
 }
 
@@ -55,25 +75,23 @@ export function AuthPasswordField({
 }>) {
   const [visible, setVisible] = useState(false);
   return (
-    <MktField label={label} required error={error}>
+    <Field label={label} required error={error}>
       {(props) => (
         <div className="relative">
-          <MktInput
+          <Input
             {...props}
             {...inputProps}
             type={visible ? 'text' : 'password'}
             autoComplete={autoComplete}
             placeholder={placeholder}
-            className="border-border-subtle bg-background-alt text-foreground placeholder:text-muted focus:border-accent focus:ring-accent-border focus:bg-panel pr-10 pl-10"
-          />
-          <Lock
-            aria-hidden
-            className="text-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+            size="lg"
+            // Room for the visibility toggle that sits inside the field.
+            className="pr-9"
           />
           <button
             type="button"
             onClick={() => setVisible((current) => !current)}
-            className="text-muted hover:text-muted absolute top-1/2 right-3 -translate-y-1/2 p-1 transition-colors"
+            className="text-muted hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 p-1 transition-colors"
             aria-label={`${visible ? 'Hide' : 'Show'} ${visibilityLabel}`}
           >
             {visible ? (
@@ -84,12 +102,11 @@ export function AuthPasswordField({
           </button>
         </div>
       )}
-    </MktField>
+    </Field>
   );
 }
 
 export function AuthFormShell({
-  icon: Icon,
   title,
   description,
   error,
@@ -100,9 +117,9 @@ export function AuthFormShell({
   footerPrompt,
   footerHref,
   footerLabel,
+  showOAuth = true,
   children,
 }: Readonly<{
-  icon: LucideIcon;
   title: string;
   description: string;
   error?: string;
@@ -113,34 +130,87 @@ export function AuthFormShell({
   footerPrompt: string;
   footerHref: string;
   footerLabel: string;
+  showOAuth?: boolean;
   children: ReactNode;
 }>) {
+  const [oauthNotice, setOauthNotice] = useState<string | null>(null);
+  const [oauthPending, setOauthPending] = useState(false);
+
+  async function handleGoogleSignIn() {
+    // The button stays live for the whole round trip otherwise, and a second
+    // click starts a second authorization before the first can redirect.
+    if (oauthPending) return;
+    setOauthPending(true);
+    setOauthNotice(null);
+    try {
+      const { authorize_url } = await authApi.oauthStart('google');
+      assignLocation(authorize_url);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 503) {
+        setOauthNotice('Google sign-in is coming soon — please use email below.');
+      } else {
+        setOauthNotice('Unable to start Google sign-in. Please try email below.');
+      }
+    } finally {
+      // Cleared even on the success path: `assignLocation` may be a no-op in a
+      // test, and a permanently disabled button would strand the user.
+      setOauthPending(false);
+    }
+  }
+
   return (
-    <div className="relative">
-      <div className="bg-panel shadow-card relative rounded-2xl p-8 sm:p-10">
-        <div className="mb-8 space-y-2 text-center sm:text-left">
-          <div className="border-accent-border bg-background-alt text-accent-text mb-2 inline-flex size-10 items-center justify-center rounded-xl border">
-            <Icon className="size-5" aria-hidden />
-          </div>
-          <h1 className="font-display text-foreground text-2xl font-medium sm:text-3xl">{title}</h1>
-          <p className="text-muted text-sm">{description}</p>
-        </div>
-        {error ? (
-          <div className="mb-6">
-            <MktAlert>{error}</MktAlert>
-          </div>
-        ) : null}
-        <form noValidate onSubmit={onSubmit} className="grid gap-5">
+    <div className="w-full">
+      <div className="text-center">
+        <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
+          {title}
+        </h1>
+        <p className="text-muted mt-1 text-xs sm:text-sm">{description}</p>
+      </div>
+
+      <div className="mt-6 space-y-4">
+        {showOAuth && (
+          <>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="w-full gap-2 text-sm font-medium"
+              disabled={oauthPending}
+              onClick={() => void handleGoogleSignIn()}
+            >
+              <GoogleIcon />
+              <span>{oauthPending ? 'Starting Google sign-in…' : 'Continue with Google'}</span>
+            </Button>
+
+            {oauthNotice ? <MktAlert>{oauthNotice}</MktAlert> : null}
+
+            <div className="my-4 flex items-center gap-3">
+              <span className="bg-border h-px flex-1" aria-hidden="true" />
+              <span className="text-muted text-xs font-normal">or</span>
+              <span className="bg-border h-px flex-1" aria-hidden="true" />
+            </div>
+          </>
+        )}
+
+        {error ? <MktAlert>{error}</MktAlert> : null}
+
+        <form noValidate onSubmit={onSubmit} className="space-y-3">
           {children}
-          <Button type="submit" className="mt-2 w-full font-medium" disabled={pending}>
+
+          <Button
+            type="submit"
+            size="lg"
+            className="mt-2 w-full text-sm font-medium"
+            disabled={pending}
+          >
             {pending ? pendingLabel : submitLabel}
           </Button>
         </form>
-        <p className="text-muted mt-8 text-center text-sm font-medium">
+
+        <p className="text-muted pt-1 text-center text-sm">
           {footerPrompt}{' '}
           <Link
             href={footerHref}
-            className="text-accent-text hover:text-accent-text font-medium transition-colors"
+            className="text-foreground hover:text-accent font-semibold transition-colors"
           >
             {footerLabel}
           </Link>

@@ -32,13 +32,11 @@ afterEach(() => {
 afterAll(() => mswServer.close());
 
 describe('RegisterPage', () => {
-  it('renders email as the only sign-up path (no OAuth buttons or divider)', () => {
+  it('renders sign-up options including Google and email fields', () => {
     renderWithProviders(<RegisterPage />);
 
-    expect(screen.queryByRole('button', { name: /continue with google/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /continue with github/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /continue with apple/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/or continue with email/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /continue with google/i })).toBeInTheDocument();
+    expect(screen.getByText(/^or$/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create account/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show Password' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Show Confirm password' })).toBeInTheDocument();

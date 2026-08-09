@@ -1,7 +1,6 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { UserPlus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
 import { AuthEmailField, AuthFormShell, AuthPasswordField } from '@/components/auth/auth-form';
@@ -24,7 +23,6 @@ export default function RegisterPage() {
 
   return (
     <AuthFormShell
-      icon={UserPlus}
       title="Create your account"
       description="Start measuring how AI answers describe your brand."
       error={mutation.isError ? authErrorMessage(mutation.error) : undefined}

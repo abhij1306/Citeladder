@@ -8,12 +8,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
 import { Check } from 'lucide-react';
 
+import { AuthWordmark, BrandCanvas } from '@/components/auth/brand-panel';
 import { Alert } from '@/components/ui/alert';
 import { ActivityProgress } from '@/components/ui/activity-progress';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { LogoMark } from '@/components/ui/logo-mark';
 import { MarketSelect } from '@/components/ui/market-select';
 import { queryKeys } from '@/lib/api/query-keys';
 import { projectsApi } from '@/lib/api/projects';
@@ -52,19 +52,18 @@ import { ReviewStep } from './review-step';
  * the welcome framing, and Cancel returns to `/projects` instead of leaving the
  * user nowhere.
  */
-const STEPS = ['Brand', 'Discovery', 'Review'] as const;
-type StepIndex = 0 | 1 | 2;
-
 /**
- * Per-step stage geometry. The short form/progress/congrats steps are narrow
- * cards centered both ways; the data-dense review step is wide, top-aligned,
- * and flex-height so its internal columns fill the stage rather than scroll it.
+ * The three stages, as DATA. The stepper needs a title and a description per
+ * step; deriving them from a bare label with nested ternaries at the render
+ * site meant three separate chains had to be kept in the same order as the
+ * array, and adding a step meant editing each one.
  */
-const STEP_STAGE: Record<StepIndex, { maxWidth: string; centerY: string; stageAlign: string }> = {
-  0: { maxWidth: 'max-w-3xl', centerY: 'justify-center', stageAlign: 'sm:justify-center' },
-  1: { maxWidth: 'max-w-3xl', centerY: 'justify-center', stageAlign: 'sm:justify-center' },
-  2: { maxWidth: 'max-w-4xl', centerY: 'justify-center', stageAlign: 'sm:justify-center' },
-};
+const STEPS = [
+  { id: 'brand', title: 'Basic information', description: 'Name & domain details' },
+  { id: 'discovery', title: 'AI Research', description: 'Auto-finding competitors' },
+  { id: 'review', title: 'Review & Confirm', description: 'Finalize tracking scope' },
+] as const;
+type StepIndex = 0 | 1 | 2;
 
 function stepQueryValue(step: StepIndex): 'brand' | 'discovery' | 'review' {
   if (step === 2) return 'review';
@@ -308,104 +307,143 @@ export function OnboardingScreen() {
   );
 
   return (
-    // The viewport-height flex chain (min-h-dvh col → flex-1 overflow-y stage →
-    // h-full step) keeps short steps floating on the ambient background with
-    // centered tight cards instead of a tall white slab; the review step fills
-    // the stage with a two-column grid instead of one long scroll.
-    <div className="bg-background text-foreground selection:bg-accent selection:text-accent-fg relative flex min-h-dvh flex-col antialiased">
-      {/* Opaque surface, no blur: the elevation guard (design.md §4a) keeps
-          gradients and blur to display art, never a control container. */}
-      <header className="border-border-subtle/80 bg-panel border-b py-3">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 sm:gap-6 sm:px-6 lg:px-8">
-          <span className="flex shrink-0 items-center gap-2">
-            <LogoMark size={24} />
-            <span className="font-display text-foreground text-base font-medium">CiteLadder</span>
-          </span>
+    <div className="bg-panel text-foreground selection:bg-accent selection:text-accent-fg relative h-screen max-h-screen w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
+      {/* Left Brand Panel — Vertical Stepper (Desktop ≥900px) */}
+      <BrandCanvas className="col-span-5 h-screen max-h-screen justify-between p-6 lg:col-span-4 xl:p-10">
+        <div className="relative z-10 flex flex-col gap-8">
+          <AuthWordmark light />
 
-          {/* Compact inline stepper — replaces the old dedicated stepper card. */}
-          <ol className="mx-auto flex min-w-0 list-none items-center p-0 sm:gap-1">
-            {STEPS.map((label, index) => {
-              const state = index < step ? 'done' : index === step ? 'current' : 'upcoming';
-              return (
-                <li key={label} className="flex items-center">
-                  {index > 0 ? (
-                    <span
-                      className={cn(
-                        'mx-2 h-px w-4 transition-colors sm:w-8',
-                        index <= step ? 'bg-accent-border' : 'bg-well',
-                      )}
-                      aria-hidden
-                    />
-                  ) : null}
-                  <span
-                    aria-current={state === 'current' ? 'step' : undefined}
-                    className="flex items-center gap-1.5"
+          <div className="space-y-1.5">
+            <h2 className="font-display text-brand-canvas-foreground text-xl font-bold tracking-tight sm:text-2xl">
+              Set up your project
+            </h2>
+            <p className="text-brand-canvas-secondary text-sm">
+              Create your workspace in a few clicks.
+            </p>
+          </div>
+
+          {/* Vertical Stepper Flow. The connector is a SIBLING of the list:
+              `ol` permits only `li` (plus script/template) as content, and a
+              bare decorative `div` inside it is invalid markup. */}
+          <div className="relative my-auto">
+            <div
+              className="bg-brand-canvas-border absolute top-4 bottom-4 left-4.5 w-0.5"
+              aria-hidden="true"
+            />
+            <ol className="relative list-none space-y-10 p-0 pl-1 sm:space-y-12">
+              {STEPS.map((stage, index) => {
+                const isDone = index < step;
+                const isCurrent = index === step;
+                return (
+                  <li
+                    key={stage.id}
+                    aria-current={isCurrent ? 'step' : undefined}
+                    className="relative flex items-center gap-4"
                   >
                     <span
                       className={cn(
-                        'text-2xs flex size-5 items-center justify-center rounded-full font-medium transition-colors',
-                        state === 'current'
-                          ? 'bg-accent text-accent-fg'
-                          : state === 'done'
-                            ? 'bg-success text-accent-fg'
-                            : 'border-border-subtle bg-panel text-muted border',
+                        'relative z-10 flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-all sm:size-10',
+                        isDone && 'bg-accent text-accent-fg shadow-accent/30 shadow-md',
+                        isCurrent && 'bg-accent text-accent-fg ring-accent/20 ring-4',
+                        !isDone &&
+                          !isCurrent &&
+                          'border-brand-canvas-border bg-brand-canvas-raised text-brand-canvas-muted border',
                       )}
                     >
-                      {state === 'done' ? (
-                        <Check className="size-3" strokeWidth={3} aria-hidden />
+                      {isDone ? (
+                        <>
+                          <Check className="size-4.5" strokeWidth={2.5} aria-hidden="true" />
+                          <span className="sr-only">Completed:</span>
+                        </>
                       ) : (
                         index + 1
                       )}
                     </span>
+                    <div className="space-y-1">
+                      <p
+                        className={cn(
+                          'text-base font-semibold transition-colors sm:text-lg',
+                          isCurrent && 'text-brand-canvas-foreground',
+                          isDone && 'text-brand-canvas-secondary',
+                          !isDone && !isCurrent && 'text-brand-canvas-muted',
+                        )}
+                      >
+                        {stage.title}
+                      </p>
+                      <p className="text-brand-canvas-muted text-xs sm:text-sm">
+                        {stage.description}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </div>
+
+        <div className="border-brand-canvas-border/80 text-brand-canvas-muted relative z-10 border-t pt-4 text-xs">
+          <span>© {new Date().getFullYear()} CiteLadder · Onboarding</span>
+        </div>
+      </BrandCanvas>
+
+      {/* Right Canvas — Form & Details */}
+      <div className="bg-panel relative col-span-12 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 min-[900px]:col-span-7 sm:p-8 lg:col-span-8 lg:p-10">
+        {/* Mobile Header (<900px) */}
+        <header className="border-border-subtle border-b pb-3 min-[900px]:hidden">
+          <div className="flex items-center justify-between gap-4">
+            <AuthWordmark compact />
+            <ol className="flex list-none items-center gap-2 p-0">
+              {STEPS.map((stage, index) => {
+                const state = index < step ? 'done' : index === step ? 'current' : 'upcoming';
+                return (
+                  <li key={stage.id} className="flex items-center">
                     <span
+                      aria-current={state === 'current' ? 'step' : undefined}
                       className={cn(
-                        'text-2xs hidden font-medium uppercase sm:inline',
+                        'flex size-6 items-center justify-center rounded-full text-xs font-semibold',
                         state === 'current'
-                          ? 'text-accent-text'
+                          ? 'bg-accent text-accent-fg'
                           : state === 'done'
-                            ? 'text-success-text'
-                            : 'text-muted',
+                            ? 'bg-success text-accent-fg'
+                            : 'border-border-subtle bg-well text-muted border',
                       )}
                     >
-                      {label}
+                      {state === 'done' ? (
+                        <Check className="size-3" strokeWidth={3} aria-hidden="true" />
+                      ) : (
+                        index + 1
+                      )}
+                      {/* The dot alone is not a label: a screen reader would
+                          otherwise announce a bare number, or nothing at all
+                          once the check replaces it. */}
+                      <span className="sr-only">{stage.title}</span>
                     </span>
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </header>
 
-          <span className="text-3xs border-border-subtle/60 bg-well text-muted ml-auto shrink-0 rounded-full border px-2 py-1 font-medium sm:ml-0">
-            Step {step + 1} of {STEPS.length}
-          </span>
-        </div>
-      </header>
-
-      {/* Step stage: cards center within the viewport leftover instead of
-          stretching against it; review trades centering for fill width. */}
-      <main
-        className={cn(
-          'flex flex-1 flex-col px-4 py-6 sm:justify-center sm:px-6 sm:py-8 lg:px-8',
-          STEP_STAGE[step].stageAlign,
-        )}
-      >
-        <div
+        {/* Step Stage Content — Top aligned across all steps so headers start at the same vertical offset */}
+        {/* The stage OWNS the vertical scroll. Its ancestors are
+            `h-screen overflow-hidden`, so without this a review step taller
+            than the viewport — or any step on a short laptop — clipped its
+            own action row with nothing able to scroll to it. `min-h-0` is
+            what lets a flex child shrink below its content and actually
+            scroll instead of stretching the column. */}
+        <main
           className={cn(
-            'mx-auto flex w-full flex-col',
-            STEP_STAGE[step].maxWidth,
-            STEP_STAGE[step].centerY,
+            'mx-auto flex min-h-0 w-full flex-1 flex-col justify-start overflow-y-auto py-2 sm:py-4',
+            step === 2 ? 'max-w-3xl lg:max-w-4xl' : 'max-w-xl',
           )}
         >
-          {step === 0 ? (
-            <form
-              noValidate
-              onSubmit={submitBrand}
-              className="bg-panel shadow-card rounded-2xl p-6 sm:p-8"
-            >
-              <div className="grid gap-6">
-                <div className="grid gap-1.5">
-                  <h1 className="font-display text-foreground text-2xl font-medium sm:text-3xl">
-                    {isAdditional ? 'Add a project' : 'What brand are we tracking?'}
+          <div className="p-1 sm:p-2">
+            {step === 0 ? (
+              <form noValidate onSubmit={submitBrand} className="space-y-6">
+                <div className="space-y-1">
+                  <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
+                    {isAdditional ? 'Add a project' : "Let's get started"}
                   </h1>
                   <p className="text-muted text-sm">
                     We&apos;ll review your website, suggest comparable brands, and prepare balanced
@@ -413,14 +451,19 @@ export function OnboardingScreen() {
                   </p>
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
+                <div className="grid items-start gap-x-6 gap-y-5 sm:grid-cols-2">
                   <Field
                     label="Brand name"
                     required
                     error={form.formState.errors.brand_name?.message}
                   >
                     {(props) => (
-                      <Input {...props} {...form.register('brand_name')} placeholder="Acme" />
+                      <Input
+                        {...props}
+                        {...form.register('brand_name')}
+                        placeholder="Acme"
+                        size="lg"
+                      />
                     )}
                   </Field>
                   <Field
@@ -434,14 +477,12 @@ export function OnboardingScreen() {
                         {...form.register('website_url')}
                         placeholder="acme.com"
                         inputMode="url"
+                        size="lg"
                       />
                     )}
                   </Field>
-                  <Field
-                    label="Industry"
-                    hint="Choose General when no category fits"
-                    error={form.formState.errors.industry?.message}
-                  >
+                  {/* Row 2: Industry on left, Subindustry on RIGHT */}
+                  <Field label="Industry" error={form.formState.errors.industry?.message}>
                     {(props) => (
                       <Controller
                         control={form.control}
@@ -462,12 +503,9 @@ export function OnboardingScreen() {
                       />
                     )}
                   </Field>
+
                   {selectedIndustry !== 'General' && subindustryOptions.length > 0 ? (
-                    <Field
-                      label="Subindustry"
-                      hint="Optional"
-                      error={form.formState.errors.subindustry?.message}
-                    >
+                    <Field label="Subindustry" error={form.formState.errors.subindustry?.message}>
                       {(props) => (
                         <Controller
                           control={form.control}
@@ -486,10 +524,13 @@ export function OnboardingScreen() {
                         />
                       )}
                     </Field>
-                  ) : null}
+                  ) : (
+                    <div className="hidden sm:block" aria-hidden="true" />
+                  )}
+
+                  {/* Row 3: Primary market on left, Language on right */}
                   <Field
                     label="Primary market"
-                    hint="Competitors and prompts are localized to this market"
                     error={form.formState.errors.primary_market?.message}
                   >
                     {(props) => (
@@ -509,6 +550,7 @@ export function OnboardingScreen() {
                       />
                     )}
                   </Field>
+
                   <Field label="Language" error={form.formState.errors.language_code?.message}>
                     {(props) => (
                       <Controller
@@ -529,214 +571,238 @@ export function OnboardingScreen() {
                   </Field>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <Button type="submit" className="font-medium">
+                <div className="flex items-center gap-3 pt-2">
+                  <Button type="submit" size="lg" className="text-sm font-medium">
                     Continue
                   </Button>
                   {isAdditional ? (
-                    <Button asChild variant="ghost">
+                    <Button asChild variant="ghost" size="lg">
                       <Link href="/projects">Cancel</Link>
                     </Button>
                   ) : null}
                 </div>
-              </div>
-            </form>
-          ) : null}
+              </form>
+            ) : null}
 
-          {step === 1 ? (
-            <div className="bg-panel shadow-card grid gap-6 rounded-2xl p-6 sm:p-8">
-              <div className="grid gap-1.5">
-                <h1 className="font-display text-foreground text-2xl font-medium sm:text-3xl">
-                  Finding what to track
-                </h1>
-                <p className="text-muted text-sm">
-                  We&apos;re learning about {brand?.brand_name || 'your brand'} and preparing useful
-                  questions. You can review everything before the project is created.
-                </p>
-              </div>
-
-              <div className="border-border-subtle bg-background/80 rounded-xl border p-5">
-                <ActivityProgress
-                  label="Discovering your brand"
-                  steps={discoveryActivity(discovery.discovery)}
-                />
-              </div>
-
-              {(discovery.discovery?.warnings ?? []).map((warning) => (
-                <Alert key={warning} tone="warning">
-                  {warningMessage(warning)}
-                </Alert>
-              ))}
-              {discovery.discovery?.status === 'failed' ? (
-                <Alert tone="danger">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>
-                      {discovery.discovery.error_code === 'invalid_url'
-                        ? 'The website address is invalid. Go back and correct it.'
-                        : 'We could not confirm that this website exists. Check the address and try again.'}
-                    </span>
-                    <Button size="sm" variant="ghost" onClick={() => setStep(0)}>
-                      Edit website
-                    </Button>
-                  </div>
-                </Alert>
-              ) : null}
-              {discovery.error ? (
-                <Alert tone="danger">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>{onboardingErrorMessage(discovery.error)}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={discovery.retry}
-                      disabled={discovery.isRunning}
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                </Alert>
-              ) : null}
-
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={() => setStep(2)}
-                  disabled={
-                    discovery.isRunning ||
-                    !discovery.discovery ||
-                    discovery.discovery.prompt_suggestions.length === 0
-                  }
-                  className="font-medium"
-                >
-                  {discovery.isRunning ? 'Searching…' : 'Review'}
-                </Button>
-                <Button variant="ghost" onClick={() => setStep(0)}>
-                  Back
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          {step === 2 ? (
-            <div className="bg-panel shadow-card flex h-full flex-col gap-6 rounded-2xl p-6 sm:p-8">
-              <div className="grid gap-1.5">
-                <h1 className="font-display text-foreground text-2xl font-medium sm:text-3xl">
-                  Does this look right?
-                </h1>
-                <p className="text-muted text-sm">
-                  Deselect anything you don&apos;t want — you can change all of it after setup.
-                </p>
-              </div>
-
-              <ReviewStep
-                domains={domains}
-                competitors={competitors}
-                prompts={prompts}
-                onToggleDomain={toggle(setDomains)}
-                onToggleCompetitor={(index) =>
-                  setCompetitors((previous) => {
-                    const selectedCount = previous.filter((item) => item.selected).length;
-                    return previous.map((item, itemIndex) => {
-                      if (itemIndex !== index) return item;
-                      if (
-                        !item.selected &&
-                        (maximumCompetitors === undefined || selectedCount >= maximumCompetitors)
-                      ) {
-                        return item;
-                      }
-                      return { ...item, selected: !item.selected };
-                    });
-                  })
-                }
-                onTogglePrompt={toggle(setPrompts)}
-                onEditPrompt={(index, text) =>
-                  setPrompts((previous) =>
-                    previous.map((item, itemIndex) =>
-                      itemIndex === index ? { ...item, text } : item,
-                    ),
-                  )
-                }
-                onRenameCompetitor={(index, name) =>
-                  setCompetitors((prev) =>
-                    prev.map((item, i) => (i === index ? { ...item, name } : item)),
-                  )
-                }
-                onAddCompetitor={() =>
-                  setCompetitors((prev) => {
-                    const selectedCount = prev.filter((item) => item.selected).length;
-                    if (maximumCompetitors === undefined || selectedCount >= maximumCompetitors) {
-                      return prev;
-                    }
-                    return [
-                      ...prev,
-                      {
-                        id: `competitor:manual:${manualCompetitorId()}`,
-                        name: '',
-                        aliases: [],
-                        domains: [],
-                        selected: true,
-                      },
-                    ];
-                  })
-                }
-                maximumCompetitors={maximumCompetitors}
-              />
-
-              {discoveryCatalog.isError ? (
-                <Alert tone="warning">
-                  <div className="flex items-center justify-between gap-3">
-                    <span>We could not load the competitor limit.</span>
-                    <Button size="sm" variant="ghost" onClick={() => discoveryCatalog.refetch()}>
-                      Try again
-                    </Button>
-                  </div>
-                </Alert>
-              ) : null}
-
-              {discovery.discovery?.profile.description ? (
-                <div className="border-border-subtle bg-background/70 rounded-xl border p-4">
-                  <p className="text-2xs text-muted font-medium uppercase">Discovered profile</p>
-                  <p className="text-secondary mt-2 text-sm leading-relaxed">
-                    {discovery.discovery.profile.description}
+            {step === 1 ? (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
+                    Finding what to track
+                  </h1>
+                  <p className="text-muted text-sm">
+                    We&apos;re learning about {brand?.brand_name || 'your brand'} and preparing
+                    useful questions. You can review everything before the project is created.
                   </p>
                 </div>
-              ) : null}
 
-              {complete.isError ? (
-                <Alert tone="danger">{onboardingErrorMessage(complete.error)}</Alert>
-              ) : null}
-              {!hasSelectedDomain || !hasSelectedPrompt ? (
-                <Alert tone="warning">
-                  Keep at least one website address and one starting question selected.
-                </Alert>
-              ) : null}
-              {hasSelectedPrompt && !hasCompletePromptPortfolio ? (
-                <Alert tone="warning">
-                  Keep all ten questions selected with non-empty text: five neutral market questions
-                  and five unbranded, brand-relevant questions.
-                </Alert>
-              ) : null}
+                <div className="border-border-subtle bg-well/40 rounded-xl border p-3.5">
+                  <ActivityProgress
+                    label="Discovering your brand"
+                    steps={discoveryActivity(discovery.discovery)}
+                  />
+                </div>
 
-              <div className="flex items-center gap-3 pt-2">
-                <Button
-                  onClick={() => complete.mutate()}
-                  disabled={
-                    complete.isPending ||
-                    !hasSelectedDomain ||
-                    !hasSelectedPrompt ||
-                    !hasCompletePromptPortfolio
-                  }
-                  className="font-medium"
-                >
-                  {complete.isPending ? 'Creating…' : 'Create project'}
-                </Button>
-                <Button variant="ghost" onClick={() => setStep(1)} disabled={complete.isPending}>
-                  Back
-                </Button>
+                {(discovery.discovery?.warnings ?? []).map((warning) => (
+                  <Alert key={warning} tone="warning" className="px-3 py-2.5 text-xs">
+                    {warningMessage(warning)}
+                  </Alert>
+                ))}
+
+                {discovery.discovery?.status === 'failed' ? (
+                  <Alert tone="danger">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>
+                        {discovery.discovery.error_code === 'invalid_url'
+                          ? 'The website address is invalid. Go back and correct it.'
+                          : 'We could not confirm that this website exists. Check the address and try again.'}
+                      </span>
+                      <Button size="sm" variant="ghost" onClick={() => setStep(0)}>
+                        Edit website
+                      </Button>
+                    </div>
+                  </Alert>
+                ) : null}
+                {discovery.error ? (
+                  <Alert tone="danger">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{onboardingErrorMessage(discovery.error)}</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={discovery.retry}
+                        disabled={discovery.isRunning}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  </Alert>
+                ) : null}
+
+                <div className="flex items-center gap-3 pt-2">
+                  <Button
+                    size="lg"
+                    onClick={() => setStep(2)}
+                    disabled={
+                      discovery.isRunning ||
+                      !discovery.discovery ||
+                      discovery.discovery.prompt_suggestions.length === 0
+                    }
+                    className="text-sm font-medium"
+                  >
+                    {discovery.isRunning ? 'Searching…' : 'Review'}
+                  </Button>
+                  <Button variant="ghost" size="lg" onClick={() => setStep(0)}>
+                    Back
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : null}
-        </div>
-      </main>
+            ) : null}
+
+            {step === 2 ? (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
+                    Does this look right?
+                  </h1>
+                  <p className="text-muted text-sm">
+                    Deselect anything you don&apos;t want — you can change all of it after setup.
+                  </p>
+                </div>
+
+                {/* Discovered Profile at TOP */}
+                {discovery.discovery?.profile.description ? (
+                  <div className="border-border-subtle bg-well/40 rounded-lg border px-3.5 py-2.5">
+                    <p className="text-3xs text-muted font-semibold tracking-wider uppercase">
+                      Discovered Profile
+                    </p>
+                    <p className="text-foreground mt-0.5 text-xs leading-relaxed">
+                      {discovery.discovery.profile.description}
+                    </p>
+                  </div>
+                ) : null}
+
+                <ReviewStep
+                  domains={domains}
+                  competitors={competitors}
+                  prompts={prompts}
+                  onToggleDomain={toggle(setDomains)}
+                  onToggleCompetitor={(index) =>
+                    setCompetitors((previous) => {
+                      const selectedCount = previous.filter((item) => item.selected).length;
+                      return previous.map((item, itemIndex) => {
+                        if (itemIndex !== index) return item;
+                        if (
+                          !item.selected &&
+                          (maximumCompetitors === undefined || selectedCount >= maximumCompetitors)
+                        ) {
+                          return item;
+                        }
+                        return { ...item, selected: !item.selected };
+                      });
+                    })
+                  }
+                  onTogglePrompt={toggle(setPrompts)}
+                  onEditPrompt={(index, text) =>
+                    setPrompts((previous) =>
+                      previous.map((item, itemIndex) =>
+                        itemIndex === index ? { ...item, text } : item,
+                      ),
+                    )
+                  }
+                  onEditCompetitorDomain={(index, domain) =>
+                    setCompetitors((prev) =>
+                      prev.map((item, i) =>
+                        i === index
+                          ? {
+                              ...item,
+                              domains: [domain],
+                              // A manually added competitor has no name yet, and
+                              // the submit payload drops any competitor whose
+                              // name is blank — so the domain doubles as the
+                              // name until the user gives it one. A discovered
+                              // competitor keeps the name it came with.
+                              name: item.name || domain,
+                            }
+                          : item,
+                      ),
+                    )
+                  }
+                  onAddCompetitor={() =>
+                    setCompetitors((prev) => {
+                      const selectedCount = prev.filter((item) => item.selected).length;
+                      if (maximumCompetitors === undefined || selectedCount >= maximumCompetitors) {
+                        return prev;
+                      }
+                      return [
+                        ...prev,
+                        {
+                          id: `competitor:manual:${manualCompetitorId()}`,
+                          name: '',
+                          aliases: [],
+                          domains: [],
+                          selected: true,
+                        },
+                      ];
+                    })
+                  }
+                  maximumCompetitors={maximumCompetitors}
+                />
+
+                {discoveryCatalog.isError ? (
+                  <Alert tone="warning">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>We could not load the competitor limit.</span>
+                      <Button size="sm" variant="ghost" onClick={() => discoveryCatalog.refetch()}>
+                        Try again
+                      </Button>
+                    </div>
+                  </Alert>
+                ) : null}
+
+                {complete.isError ? (
+                  <Alert tone="danger">{onboardingErrorMessage(complete.error)}</Alert>
+                ) : null}
+                {!hasSelectedDomain || !hasSelectedPrompt ? (
+                  <Alert tone="warning">
+                    Keep at least one website address and one starting question selected.
+                  </Alert>
+                ) : null}
+                {hasSelectedPrompt && !hasCompletePromptPortfolio ? (
+                  <Alert tone="warning">
+                    Keep all ten questions selected with non-empty text: five neutral market
+                    questions and five unbranded, brand-relevant questions.
+                  </Alert>
+                ) : null}
+
+                <div className="-mt-1 flex items-center gap-3 pt-1 pb-4">
+                  <Button
+                    size="lg"
+                    onClick={() => complete.mutate()}
+                    disabled={
+                      complete.isPending ||
+                      !hasSelectedDomain ||
+                      !hasSelectedPrompt ||
+                      !hasCompletePromptPortfolio
+                    }
+                    className="text-sm font-medium"
+                  >
+                    {complete.isPending ? 'Creating…' : 'Create project'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    onClick={() => setStep(1)}
+                    disabled={complete.isPending}
+                  >
+                    Back
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

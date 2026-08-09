@@ -6,9 +6,12 @@ const failures = [];
 const budgets = [
   ['app/layout.tsx', 120],
   // Raised from 560 for the shared a11y primitives (skip link, anchor
-  // scroll-margin, safe-area helpers, touch-action). Token/recipe sprawl is
+  // scroll-margin, safe-area helpers, touch-action), then from 620 for the
+  // `brand-canvas-*` roles and `border-bold` — the split auth/onboarding
+  // surface is the one part of the app that is dark in every theme, and the
+  // alternative was the raw palette classes it replaced. Token/recipe sprawl is
   // still what this budget guards.
-  ['app/globals.css', 620],
+  ['app/globals.css', 640],
   ['components/layout/app-shell.tsx', 150],
   ['app/(app)/layout.tsx', 100],
 ];

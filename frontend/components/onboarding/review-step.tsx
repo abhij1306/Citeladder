@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Globe, MessageSquare, Plus, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,122 +9,146 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import type { ReviewCompetitor, ReviewDomain, ReviewPrompt } from '@/lib/onboarding/forms';
 
-/**
- * Review step — everything discovery produced, organized into clean tabs
- * with internal scrolling to ensure action controls stay visible without page scroll.
- */
-
-function SectionHead({
-  label,
-  count,
-  muted = false,
-}: Readonly<{ label: string; count: string; muted?: boolean }>) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <p className={cn('text-2xs font-medium uppercase', muted ? 'text-muted' : 'text-secondary')}>
-        {label}
-      </p>
-      <Badge variant="neutral">{count}</Badge>
-    </div>
-  );
-}
-
-type TabValue = 'entities' | 'prompts';
-
-/**
- * One tab in the review switcher.
- *
- * Ids are stable and derived from the tab value so each button can point at
- * its panel (`aria-controls`) and each panel back at its button
- * (`aria-labelledby`) — the WAI-ARIA Tabs pattern needs both halves.
- */
-const tabId = (value: TabValue) => `review-tab-${value}`;
-const tabPanelId = (value: TabValue) => `review-tabpanel-${value}`;
-
 function competitorUrl(competitor: ReviewCompetitor): string {
   const domain = competitor.domains.find(Boolean);
   if (!domain) return '';
   return /^https?:\/\//i.test(domain) ? domain : `https://${domain}`;
 }
 
-function TabButton({
-  value,
-  icon: Icon,
-  label,
-  count,
-  active,
-  onSelect,
-  onKeyDown,
-}: Readonly<{
-  value: TabValue;
-  icon: typeof Globe;
-  label: string;
-  count: number;
-  active: boolean;
-  onSelect: () => void;
-  onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void;
-}>) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      id={tabId(value)}
-      aria-selected={active}
-      aria-controls={tabPanelId(value)}
-      // Roving tabindex: only the active tab is in the tab order; the arrow
-      // keys move between tabs, per the ARIA authoring practice.
-      tabIndex={active ? 0 : -1}
-      onClick={onSelect}
-      onKeyDown={onKeyDown}
-      className={cn(
-        'flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-[background-color,color,box-shadow] duration-200 sm:text-sm',
-        active
-          ? 'text-foreground bg-panel font-medium'
-          : 'text-muted hover:text-foreground hover:bg-panel/50',
-      )}
-    >
-      <div className="flex items-center gap-1.5">
-        <Icon className="text-accent-text size-4" />
-        <span>{label}</span>
-      </div>
-      <span
-        className={cn(
-          'text-2xs rounded-full px-2 py-0.5 font-medium transition-colors',
-          active ? 'bg-accent-soft text-accent-text' : 'bg-border-subtle/60 text-muted',
-        )}
-      >
-        {count}
-      </span>
-    </button>
-  );
-}
-
-function Chip({
+/**
+ * A reviewable suggestion, in both states.
+ *
+ * An unselected chip is rendered MUTED rather than dropped. Hiding it made
+ * every exclusion permanent — and discovery legitimately returns more
+ * suggestions than the cap pre-selects, so the extras were unreachable before
+ * the user ever touched anything. A review step whose choices cannot be undone
+ * is not a review step.
+ */
+function DomainChip({
   label,
   selected,
   onToggle,
 }: Readonly<{ label: string; selected: boolean; onToggle: () => void }>) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-pressed={selected}
+    <div
       className={cn(
-        'inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-[background-color,border-color,color] duration-200',
+        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
         selected
-          ? 'border-accent-border/60 bg-accent-soft/80 text-accent-hover hover:bg-accent-subtle/80'
-          : 'border-border-subtle text-muted hover:bg-background hover:text-secondary hover:border-border-bold/30 bg-panel',
+          ? 'border-accent-border/60 bg-accent-soft/80 text-accent-hover'
+          : 'border-border-subtle text-muted border-dashed',
       )}
     >
       <span className="truncate">{label}</span>
-      <X
-        className={cn(
-          'size-4 shrink-0 transition-opacity',
-          selected ? 'opacity-70 hover:opacity-100' : 'opacity-40',
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={`${selected ? 'Exclude' : 'Include'} ${label}`}
+        aria-pressed={selected}
+        className="text-muted hover:text-foreground shrink-0 cursor-pointer p-0.5 transition-colors"
+      >
+        {selected ? (
+          <X className="size-3.5" aria-hidden />
+        ) : (
+          <Plus className="size-3.5" aria-hidden />
         )}
-        aria-hidden
-      />
-    </button>
+      </button>
+    </div>
+  );
+}
+
+function CompetitorChip({
+  competitor,
+  onToggle,
+  onEditDomain,
+}: Readonly<{
+  competitor: ReviewCompetitor;
+  onToggle: () => void;
+  onEditDomain: (domain: string) => void;
+}>) {
+  const primaryDomain = competitor.domains.find(Boolean) || competitor.name;
+  const displayName = competitor.name || primaryDomain || 'Competitor';
+
+  const [isEditing, setIsEditing] = useState(
+    competitor.name === '' && competitor.domains.length === 0,
+  );
+  const [editDomain, setEditDomain] = useState(primaryDomain);
+
+  // The field is labelled, seeded, and placeheld as a DOMAIN, so it writes the
+  // domain. It used to write `name` instead, which left `domains` holding the
+  // value the user had just replaced — the submitted payload carried both, and
+  // the chip's link still pointed at the old host.
+  const handleSave = () => {
+    setIsEditing(false);
+    const trimmed = editDomain.trim();
+    if (trimmed) {
+      onEditDomain(trimmed);
+    }
+  };
+
+  const url = competitorUrl(competitor);
+  const selected = competitor.selected;
+
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
+        selected
+          ? 'border-accent-border/60 bg-accent-soft/80 text-accent-hover'
+          : 'border-border-subtle text-muted border-dashed',
+      )}
+    >
+      {isEditing ? (
+        <input
+          autoFocus
+          type="text"
+          value={editDomain}
+          onChange={(e) => setEditDomain(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') {
+              setEditDomain(primaryDomain);
+              setIsEditing(false);
+            }
+          }}
+          placeholder="e.g. acme.com"
+          aria-label={`Edit domain for ${displayName}`}
+          className="text-accent-hover placeholder:text-accent-hover/50 min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-medium focus:ring-0 focus:outline-none"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => {
+            setEditDomain(primaryDomain);
+            setIsEditing(true);
+          }}
+          title="Click chip to edit domain"
+          className="text-accent-hover min-w-0 flex-1 cursor-pointer truncate text-left text-sm font-medium"
+        >
+          {displayName}
+        </button>
+      )}
+
+      {url ? (
+        <a href={url} target="_blank" rel="noreferrer" className="sr-only">
+          {url}
+        </a>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={`${selected ? 'Exclude' : 'Include'} ${displayName}`}
+        aria-pressed={selected}
+        className="text-muted hover:text-foreground shrink-0 cursor-pointer p-0.5 transition-colors"
+      >
+        {selected ? (
+          <X className="size-3.5" aria-hidden />
+        ) : (
+          <Plus className="size-3.5" aria-hidden />
+        )}
+      </button>
+    </div>
   );
 }
 
@@ -136,7 +160,7 @@ export function ReviewStep({
   onToggleCompetitor,
   onTogglePrompt,
   onEditPrompt,
-  onRenameCompetitor,
+  onEditCompetitorDomain,
   onAddCompetitor,
   maximumCompetitors,
 }: Readonly<{
@@ -147,234 +171,135 @@ export function ReviewStep({
   onToggleCompetitor: (index: number) => void;
   onTogglePrompt: (index: number) => void;
   onEditPrompt: (index: number, text: string) => void;
-  onRenameCompetitor: (index: number, name: string) => void;
+  onEditCompetitorDomain: (index: number, domain: string) => void;
   onAddCompetitor: () => void;
   maximumCompetitors: number | undefined;
 }>) {
-  const [activeTab, setActiveTab] = useState<TabValue>('entities');
-
-  const selectedDomains = domains.filter((d) => d.selected).length;
-  const selectedCompetitors = competitors.filter((c) => c.selected).length;
+  const selectedDomains = domains.filter((d) => d.selected);
+  const selectedCompetitors = competitors.filter((c) => c.selected);
   const selectedPrompts = prompts.filter((p) => p.selected).length;
   const competitorLimitReached =
-    maximumCompetitors === undefined || selectedCompetitors >= maximumCompetitors;
-
-  /**
-   * Arrow-key navigation between the two tabs (WAI-ARIA Tabs pattern).
-   *
-   * Both arrows toggle because there are exactly two tabs, so Left and Right
-   * from either one lands on the other — that is what wrapping degenerates to
-   * at length 2. Focus follows selection, matching the automatic-activation
-   * variant of the pattern.
-   */
-  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
-    const next: TabValue = activeTab === 'entities' ? 'prompts' : 'entities';
-    setActiveTab(next);
-    document.getElementById(tabId(next))?.focus();
-  };
+    maximumCompetitors === undefined || selectedCompetitors.length >= maximumCompetitors;
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Tab Switcher */}
-      <div className="border-border-subtle/80 bg-well/70 flex rounded-xl border p-1" role="tablist">
-        <TabButton
-          value="entities"
-          icon={Globe}
-          label="Domains & Competitors"
-          count={selectedDomains + selectedCompetitors}
-          active={activeTab === 'entities'}
-          onSelect={() => setActiveTab('entities')}
-          onKeyDown={handleTabKeyDown}
-        />
-        <TabButton
-          value="prompts"
-          icon={MessageSquare}
-          label="Starting Prompts"
-          count={selectedPrompts}
-          active={activeTab === 'prompts'}
-          onSelect={() => setActiveTab('prompts')}
-          onKeyDown={handleTabKeyDown}
-        />
-      </div>
-
-      {/* Tab 1: Domains & Competitors */}
-      {/*
-        Both panels stay MOUNTED and the inactive one is hidden. Unmounting it
-        would leave the inactive tab's `aria-controls` pointing at an id that is
-        not in the document, which breaks the ARIA Tabs relationship for AT, and
-        would also discard the panel's DOM state (scroll position, an in-progress
-        competitor rename) every time the user switches tabs.
-      */}
-      <div
-        role="tabpanel"
-        hidden={activeTab !== 'entities'}
-        id={tabPanelId('entities')}
-        aria-labelledby={tabId('entities')}
-        className="bg-panel/60 shadow-card rounded-xl p-4"
-      >
-        <div className="max-h-90 overflow-y-auto pr-1 sm:max-h-100">
-          <div className="grid gap-5 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-            {/* Column 1: Domains */}
-            {/* Card: the raised rung separates it from the panel, not an outline (docs/design.md §4a). */}
-            <div className="bg-panel shadow-card rounded-lg p-4">
-              <div className="mb-3">
-                <SectionHead label="Your domains" count={`${selectedDomains} selected`} />
-              </div>
-              {domains.length === 0 ? (
-                <p className="text-muted text-sm italic">None found — you can add these later.</p>
-              ) : (
-                <div className="flex flex-wrap content-start gap-2">
-                  {domains.map((entry, index) => (
-                    <Chip
-                      key={entry.domain}
-                      label={entry.domain}
-                      selected={entry.selected}
-                      onToggle={() => onToggleDomain(index)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Column 2: Competitors */}
-            {/* Card: the raised rung separates it from the panel, not an outline (docs/design.md §4a). */}
-            <div className="bg-panel shadow-card rounded-lg p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <SectionHead
-                  label="Competitors"
-                  count={`${selectedCompetitors} of ${maximumCompetitors ?? '…'}`}
+    <div className="grid w-full items-start gap-5 lg:grid-cols-12">
+      {/* Left Column (5 cols): Domains & Competitors */}
+      <div className="space-y-4 lg:col-span-5">
+        {/* Card 1: Your Domains */}
+        <div className="bg-panel border-border-subtle/80 space-y-2.5 rounded-xl border p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-muted text-xs font-semibold tracking-wider uppercase">
+              Your Domains
+            </span>
+            <Badge variant="neutral" className="px-2 py-0.5 text-xs">
+              {selectedDomains.length} selected
+            </Badge>
+          </div>
+          {domains.length === 0 ? (
+            <p className="text-muted text-xs italic">No domains were discovered.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              {domains.map((entry, index) => (
+                <DomainChip
+                  key={entry.domain}
+                  label={entry.domain}
+                  selected={entry.selected}
+                  onToggle={() => onToggleDomain(index)}
                 />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onAddCompetitor}
-                  disabled={competitorLimitReached}
-                  title={
-                    maximumCompetitors !== undefined && competitorLimitReached
-                      ? `You can track up to ${maximumCompetitors} competitors`
-                      : undefined
-                  }
-                  className="text-accent-text hover:bg-accent-soft gap-1 px-2 text-xs font-medium"
-                >
-                  <Plus className="size-4" aria-hidden />
-                  Add competitor
-                </Button>
-              </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-              {competitors.length === 0 ? (
-                <p className="text-muted text-sm italic">None found — add any you want to track.</p>
-              ) : (
-                <ul className="grid list-none content-start gap-2">
-                  {competitors.map((competitor, index) => (
-                    <li key={competitor.id} className="grid gap-1.5">
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={competitor.name}
-                          onChange={(event) => onRenameCompetitor(index, event.target.value)}
-                          aria-label={`Competitor ${index + 1} name`}
-                          placeholder="Competitor name"
-                          className={cn(
-                            'border-border-subtle bg-background/60 text-foreground focus:border-accent focus:ring-accent/20 focus:bg-panel text-sm transition-[background-color,border-color,box-shadow] focus:ring-1',
-                            !competitor.selected && 'bg-well/40 line-through opacity-50',
-                          )}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={
-                            competitor.selected
-                              ? `Exclude ${competitor.name || 'competitor'}`
-                              : `Include ${competitor.name || 'competitor'}`
-                          }
-                          aria-pressed={competitor.selected}
-                          onClick={() => onToggleCompetitor(index)}
-                          className={cn(
-                            'shrink-0 transition-colors',
-                            competitor.selected
-                              ? 'text-muted hover:text-secondary'
-                              : 'bg-accent-soft text-accent-text hover:bg-accent-subtle',
-                          )}
-                        >
-                          <X
-                            className={cn('size-4', !competitor.selected && 'opacity-40')}
-                            aria-hidden
-                          />
-                        </Button>
-                      </div>
-                      {competitorUrl(competitor) ? (
-                        <a
-                          href={competitorUrl(competitor)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-2xs text-accent-text w-fit px-1 hover:underline"
-                        >
-                          {competitorUrl(competitor)}
-                        </a>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
+        {/* Card 2: Competitors — Sleek Single-Line Chips */}
+        <div className="bg-panel border-border-subtle/80 space-y-3 rounded-xl border p-4 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-muted text-xs font-semibold tracking-wider uppercase">
+              Competitors
+            </span>
+            <div className="flex items-center gap-2">
+              <Badge variant="neutral" className="px-2 py-0.5 text-xs">
+                {selectedCompetitors.length} of {maximumCompetitors ?? '…'}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onAddCompetitor}
+                disabled={competitorLimitReached}
+                className="text-accent-text hover:bg-accent-soft border-accent-border/60 h-6 gap-1 rounded-lg border border-dashed px-2.5 text-xs font-medium"
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Add competitor
+              </Button>
             </div>
           </div>
+
+          {/* 2-Column Grid for Competitor Chips */}
+          {competitors.length === 0 ? (
+            <p className="text-muted text-xs italic">No competitors were discovered.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              {competitors.map((competitor, index) => (
+                <CompetitorChip
+                  key={competitor.id}
+                  competitor={competitor}
+                  onToggle={() => onToggleCompetitor(index)}
+                  onEditDomain={(domain) => onEditCompetitorDomain(index, domain)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Tab 2: Starting Prompts */}
-      <div
-        role="tabpanel"
-        hidden={activeTab !== 'prompts'}
-        id={tabPanelId('prompts')}
-        aria-labelledby={tabId('prompts')}
-        className="bg-panel/60 shadow-card rounded-xl p-4"
-      >
-        <div className="mb-3 flex items-center justify-between px-1">
-          <SectionHead label="Starting prompts" count={`${selectedPrompts} selected`} />
-          <span className="text-2xs text-muted font-medium">Use the checkbox to select</span>
+      {/* Right Column (7 cols): Starting Prompts Portfolio */}
+      <div className="bg-panel border-border-subtle/80 space-y-3 rounded-xl border p-4 shadow-xs lg:col-span-7">
+        <div className="flex items-center justify-between">
+          <span className="text-muted text-xs font-semibold tracking-wider uppercase">
+            Starting Prompts ({selectedPrompts} selected)
+          </span>
+          <span className="text-muted text-xs font-normal">Check to select / edit text</span>
         </div>
 
-        <div className="max-h-90 overflow-y-auto pr-1 sm:max-h-100">
+        <div className="max-h-80 overflow-y-auto pr-1">
           {prompts.length === 0 ? (
-            <p className="bg-panel shadow-card text-muted rounded-xl px-4 py-4 text-sm italic">
+            <p className="text-muted py-2 text-xs italic">
               None found — you can write your own after setup.
             </p>
           ) : (
-            <ul className="flex list-none flex-col gap-2">
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {prompts.map((prompt, index) => (
                 <li key={prompt.id}>
                   <div
                     className={cn(
-                      'flex items-center justify-between gap-3 rounded-xl border p-3 transition-[background-color,border-color] duration-200',
+                      'flex items-center justify-between gap-3 rounded-lg border px-3 py-2 transition-all',
                       prompt.selected
-                        ? 'border-accent-border/60 bg-accent-soft/30 hover:bg-accent-soft/50'
-                        : 'border-border-subtle bg-panel hover:bg-background/80 hover:border-border-bold/20',
+                        ? 'border-accent-border/50 bg-accent-soft/20'
+                        : 'border-border-subtle bg-well/20 opacity-60',
                     )}
                   >
-                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
                       <input
                         type="checkbox"
                         checked={prompt.selected}
                         onChange={() => onTogglePrompt(index)}
                         aria-label={prompt.text}
-                        className="border-border text-accent-text focus:ring-accent/20 accent-accent mt-0.5 size-4 shrink-0 cursor-pointer rounded-md"
+                        className="border-border text-accent-text accent-accent size-4 shrink-0 cursor-pointer rounded"
                       />
                       <Input
                         value={prompt.text}
                         onChange={(event) => onEditPrompt(index, event.target.value)}
                         aria-label={`Prompt ${index + 1}`}
                         className={cn(
-                          'min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus:ring-0',
+                          'h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm shadow-none focus:ring-0',
                           !prompt.selected && 'text-muted line-through',
                         )}
                       />
                     </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <Badge variant="neutral">
-                        {prompt.cohort === 'market_visibility' ? 'Industry' : 'Brand relevant'}
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Badge variant="neutral" className="px-2 py-0.5 text-xs font-normal">
+                        {prompt.cohort === 'market_visibility' ? 'Industry' : 'Brand'}
                       </Badge>
-                      {prompt.theme ? <Badge variant="neutral">{prompt.theme}</Badge> : null}
                     </div>
                   </div>
                 </li>

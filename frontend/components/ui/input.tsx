@@ -18,17 +18,37 @@ import { cn } from '@/lib/utils';
  * pre-empts the focus signal, which owns blue on its own.
  */
 export const inputClasses =
-  'focus-ring h-[var(--control-height)] w-full rounded-sm border border-border bg-input px-2 text-sm text-foreground transition-[border-color,box-shadow] placeholder:text-muted hover:border-border-strong focus:border-accent aria-invalid:border-danger disabled:cursor-not-allowed disabled:opacity-50';
+  'focus-ring h-[var(--control-height)] w-full rounded-sm border border-border-strong/80 bg-input px-2.5 text-sm text-foreground transition-[border-color,box-shadow] placeholder:text-muted hover:border-border-bold focus:border-accent aria-invalid:border-danger disabled:cursor-not-allowed disabled:opacity-50';
 
 const textareaClasses =
-  'focus-ring min-h-24 w-full resize-y rounded-sm border border-border bg-input p-2 text-sm text-foreground transition-[border-color,box-shadow] placeholder:text-muted hover:border-border-strong focus:border-accent aria-invalid:border-danger disabled:cursor-not-allowed disabled:opacity-50';
+  'focus-ring min-h-24 w-full resize-y rounded-sm border border-border-strong/80 bg-input p-2.5 text-sm text-foreground transition-[border-color,box-shadow] placeholder:text-muted hover:border-border-bold focus:border-accent aria-invalid:border-danger disabled:cursor-not-allowed disabled:opacity-50';
+
+/**
+ * The roomier field used on the standalone auth and onboarding screens, where a
+ * form is the whole page rather than one control in a dense table.
+ *
+ * A TOKEN, never a literal height. `--control-height-lg` rises to the 44px
+ * touch minimum on a narrow viewport exactly as `--control-height` does, so a
+ * hardcoded `h-10` here would silently shrink the app's most important form
+ * below the touch target on the devices most likely to use it.
+ */
+const inputSizes = {
+  md: '',
+  lg: 'h-[var(--control-height-lg)] px-3',
+} as const;
 
 export function Input({
   className,
+  size = 'md',
   ref,
   ...props
-}: Readonly<ComponentPropsWithoutRef<'input'> & { ref?: Ref<HTMLInputElement> }>) {
-  return <input ref={ref} className={cn(inputClasses, className)} {...props} />;
+}: Readonly<
+  Omit<ComponentPropsWithoutRef<'input'>, 'size'> & {
+    size?: keyof typeof inputSizes;
+    ref?: Ref<HTMLInputElement>;
+  }
+>) {
+  return <input ref={ref} className={cn(inputClasses, inputSizes[size], className)} {...props} />;
 }
 
 export function Textarea({
