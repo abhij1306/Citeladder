@@ -306,6 +306,67 @@ Directly casting token metrics or usage fields from provider JSON responses (e.g
 
 ---
 
+### 6. Knowledge Extraction & Published Facts (Site Intelligence)
+
+> This subsystem publishes claims **about a customer's business**. A wrong number here is not a
+> bug report, it is a fabricated fact shown to a user as observed evidence. Review it accordingly.
+
+#### 🚨 Recurring Anti-Pattern: `isinstance(x, (int, float))` as a Numeric Guard
+`bool` is a subclass of `int`, and Python's JSON decoder accepts `NaN`/`Infinity` by default. Both
+sail through the obvious check and format straight into a published value.
+
+* **Incorrect:**
+  ```python
+  # BAD: JSON `true` publishes as a fee of 1.00; NaN publishes as "INR nan"
+  if not isinstance(value, (int, float)):
+      return None
+  return float(value)
+  ```
+* **Correct:**
+  ```python
+  # GOOD: reject bool, non-finite, and ints too large to become a float
+  if isinstance(value, bool) or not isinstance(value, (int, float)):
+      return None
+  try:
+      amount = float(value)
+  except OverflowError:
+      return None
+  return amount if math.isfinite(amount) else None
+  ```
+
+#### 🚨 Recurring Anti-Pattern: Resolving Ambiguous Real-World Notation
+Mapping a symbol or abbreviation shared by several countries to one of them. `Rs`, `Rs.`, and `₨`
+(U+20A8, literally named RUPEE SIGN) are used for the Indian, Pakistani, Sri Lankan, and Nepalese
+rupee alike. Resolving any of them publishes a guess as an observed fact. Only country-specific
+marks (`₹`) may resolve. **Absence of a fact is a finding; an invented one is a defect.**
+
+#### 🚨 Recurring Anti-Pattern: Order-Dependent Text Sanitization Treated as Style
+When several strip passes run in sequence, their ORDER is a correctness property. Removing HTML
+comments before closed `<script>` subtrees let a bare `<!--` inside a JavaScript string literal
+read as an unterminated comment and discard the rest of the document — a content-rich page then
+counted zero readable characters and escalated to a browser render as a "JS shell".
+
+* **Rule:** closed non-text subtrees → comments → unterminated subtrees. Any reordering needs a
+  test for BOTH directions (a comment containing a script tag, and a script containing `<!--`).
+
+#### 🚨 Recurring Anti-Pattern: Binding a Value to the Wrong Subject
+A pack role lists its primary subject FIRST and later entity types as things the page may merely
+*mention*. Accepting any declared type let a schema-declared place or offer — identity-keyed by
+its own name rather than by the page — capture every amount on the page. Always resolve through
+the role's primary type, and check the identity key, not just the type.
+
+#### 🚨 Recurring Anti-Pattern: "Unused" Dependency Audits That Only Grep for Calls
+A dependency can be mandatory with no direct import. `python-multipart` has no `import multipart`
+anywhere, but FastAPI raises **at route-definition time** when a path declares `UploadFile`, so
+removing it fails every test that builds the app. Searching for `UploadFile(` missed the real
+usage, a bare type annotation (`file: UploadFile | None`).
+
+* **Rule:** before removing a dependency, run the full suite — do not trust a grep. Framework
+  plugins, type-only annotations, and CLI entry points (`uvicorn` in a Dockerfile `CMD`) all have
+  zero import sites.
+
+---
+
 ## 🤖 Code Reviewing Agent Instructions
 
 When performing automated or pair-programming code reviews on this codebase, agents MUST follow this protocol:

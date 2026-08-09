@@ -49,7 +49,7 @@ not a reason to put business logic in routers, connectors, workers, or generic u
 | Prompts/Audits/Visibility | Shipped | Reviewed prompt resources and answer-engine measurement loop inside Demand Intelligence |
 | Opportunities | Shipped | One action store and supersede-not-mutate history across all intelligence systems |
 | Commerce catalog/product analysis | Shipped/partial | Specialized identity source consumed by the shared Commerce industry profile |
-| Knowledge domain | Planned | Entities, assertions, relations, contradictions, corrections, and selective retrieval |
+| Knowledge domain | Shipped/partial | Entities, assertions, relations, and contradiction *detection* ship (16 packs, `education`/`commerce` calibrated). Corrections and selective retrieval are NOT built: there is no approved-memory store and no contradiction reviewer, so every assertion stays `observed` |
 | Growth Agent domain | Planned | Task runs, typed tools, context packages, and conversations |
 
 ## Canonical data layers

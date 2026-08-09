@@ -99,6 +99,15 @@ being a recomputable projection over immutable evidence, and by recording what p
 
 Approval gates are for spending money and for leaving the system. Nothing else.
 
+> **Open tension — contradiction review.** Clauses 3–6 of the contradiction policy call for a
+> reviewer who approves one side of a dispute, narrows its scope, marks it historical, or rejects
+> both. That is a THIRD human decision point, which this invariant does not currently permit. The
+> flow is deliberately unbuilt: contradictions are detected, every side preserved, and a group
+> assigned, but nothing blocks publication and every assertion stays `observed`. Resolving this
+> means either widening this invariant deliberately or expressing review as a recomputable
+> projection — decide that before implementing, not during. It sequences after Demand
+> Intelligence, which introduces the human-review surface such a flow would live in.
+
 ## 12. Derived facts are recomputable; corrections are durable
 
 Project facts are projections and may be recomputed or superseded at any time. A user correction

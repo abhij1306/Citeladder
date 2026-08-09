@@ -1,6 +1,10 @@
 # Site Intelligence and Knowledge Foundation
 
-> **Status:** canonical implementation plan.
+> **Status:** S0–S4 delivered and merged (PRs #52, #53, #55). S5 is not started.
+> This document stays canonical: sections 1–11 describe shipped behaviour,
+> §12 records which slices closed, and [§15](#15-delivery-status-and-open-work) is the
+> authoritative list of what is NOT built. Read §15 before planning work here — the
+> product is usable end to end, which is not the same as the plan being finished.
 >
 > **User decision in this layer:** run and schedule crawls. Classification, knowledge extraction,
 > gap detection, and prioritization all run automatically.
@@ -335,7 +339,7 @@ URL, counts come from server projections, and every finding drills into persiste
 
 ## 12. Implementation slices and gates
 
-### S0 — Lifecycle, registry, and contract reconciliation
+### S0 — Lifecycle, registry, and contract reconciliation ✅ shipped
 
 - fix phase/task terminal truth, failed-count integrity, and idempotent controls;
 - activate the one config-owned industry registry with structural, cross-reference, and maturity
@@ -346,7 +350,7 @@ URL, counts come from server projections, and every finding drills into persiste
 
 **Gate:** no drained task set renders live; fixtures define expected inventory and evidence.
 
-### S1 — Acquisition and corpus inventory
+### S1 — Acquisition and corpus inventory ✅ shipped
 
 - harden curl-cffi; port bounded Patchright; remove ScraperAPI-specific code and configuration;
 - implement disposition and document-aware inventory;
@@ -355,7 +359,7 @@ URL, counts come from server projections, and every finding drills into persiste
 **Gate:** representative fixtures replay deterministically; optional Flipkart/Myntra tests use no
 paid vendor or real Chrome.
 
-### S2 — Generic knowledge contracts
+### S2 — Generic knowledge contracts ✅ shipped
 
 - extend normalized artifacts and analyses;
 - split page kind from industry role;
@@ -364,7 +368,7 @@ paid vendor or real Chrome.
 
 **Gate:** identical artifacts reproduce identical working knowledge and scores.
 
-### S3 — Education v1 and complete report
+### S3 — Education v1 and complete report ✅ shipped
 
 - activate the validated Education profile from the shared registry, including classifiers, rules,
   questions/FAQs, journeys, report modules, and labelled fixtures;
@@ -374,7 +378,7 @@ paid vendor or real Chrome.
 **Gate:** the acceptance report answers the contract in §8 with traceable evidence and no live
 provider calls from read endpoints.
 
-### S4 — Commerce v1
+### S4 — Commerce v1 ✅ shipped
 
 - register existing Product/Offer rules;
 - activate the validated Commerce profile and its category/PDP/FAQ/policy roles plus catalog binding;
@@ -382,7 +386,7 @@ provider calls from read endpoints.
 
 **Gate:** commerce introduces no second knowledge model, fetcher, queue, or content pipeline.
 
-### S5 — Recrawl comparison and rollout
+### S5 — Recrawl comparison and rollout ❌ not started
 
 - compare compatible assertions, rules, journeys, and scores;
 - resolve action bundles only from observed passing evidence;
@@ -407,3 +411,74 @@ provider calls from read endpoints.
 An implementation session starts at S0 and closes only one gated slice at a time. It must inspect
 the current owner before adding a type or table, update the canonical subsystem docs with shipped
 behavior, and leave later slices as plans rather than partial hidden implementations.
+
+## 15. Delivery status and open work
+
+### Delivered
+
+| Slice | State | Landed in |
+| --- | --- | --- |
+| S0 — lifecycle, registry, contract reconciliation | ✅ complete | #53 |
+| S1 — acquisition and corpus inventory | ✅ complete | #53, #55 |
+| S2 — generic knowledge contracts | ✅ complete | #53, #55 |
+| S3 — Education v1 and complete report | ✅ complete | #52, #53 |
+| S4 — Commerce v1 | ✅ complete | #53 |
+| S5 — recrawl comparison and rollout | ❌ **not started** | — |
+
+The registry ships **16 industry packs**, not the two this plan scoped: `education` and
+`commerce` are the calibrated pair the acceptance work used, and the other fourteen
+(`automotive`, `financial_services`, `general_business`, `healthcare`, `hospitality`,
+`local_services`, `manufacturing`, `media_publishing`, `nonprofit`, `professional_services`,
+`real_estate`, `recruiting_staffing`, `restaurants`, `saas`) are structurally validated but
+have **not** been calibrated against a live corpus. Treat their role classifiers and question
+contracts as unproven until one is.
+
+### Open work
+
+**1. Contradiction review — clauses 3–6. Blocked on Demand Intelligence.**
+
+Only clauses 1–2 of the [contradiction policy](knowledge-kernel-and-industry-pack-spec.md#contradiction-policy)
+ship: disputes are detected, every side is preserved, and a shared group is assigned. Clauses
+3–6 — blocking publication as current truth, preferring no answer over an invented resolution,
+and the reviewer flow to approve one side, narrow its scope, mark it historical, or reject both
+— are **not implemented**. Every assertion stays `observed`; there is no review state a person
+can move it to.
+
+This cannot be closed inside this plan. A reviewer flow needs the approved-memory tables and
+the human-review surface that [`demand-intelligence.md`](demand-intelligence.md) introduces, so
+it sequences **after** that plan, not before. Anyone reading §7 or the spec's contradiction
+section should read this note first: an earlier draft of both described the policy as if it had
+shipped whole.
+
+**2. S5 — recrawl comparison and verified resolution.** No snapshot-to-snapshot comparison, no
+`verified | partial | unresolved` resolution of action bundles. Snapshots are immutable and
+individually reproducible, so the data needed for this exists; nothing consumes it yet.
+
+**3. Uncalibrated packs.** See the table note above.
+
+### Gotchas for the next implementer
+
+These are live constraints that cost real debugging. Changing any of them silently changes what
+the product publishes.
+
+- **A role's FIRST entity type is its subject; the rest are types the page may only MENTION.**
+  `entity_type_ids[0]` is load-bearing in three places (`_primary_type_id`, page-subject minting,
+  money binding). Treating any declared type as the subject let a schema-declared place or offer
+  — identity-keyed by its own name rather than the page — capture every amount on the page.
+- **Text-sanitization order is a correctness property, not style.** `readable_text_length` must
+  remove CLOSED non-text subtrees, then comments, then unterminated subtrees. Comments-first let
+  a bare `<!--` inside a JavaScript string literal discard the rest of the document, reporting a
+  content-rich page as a zero-text "JS shell" and escalating it to a browser render.
+- **Ambiguous currency notation is never resolved.** `Rs`, `Rs.`, and `₨` are all deliberately
+  absent from both the symbol map and the parser's pattern: each is shared by four rupees, and
+  guessing one publishes a fabricated fact. Only country-specific marks (`₹`) resolve.
+- **Money amounts must be finite.** Python's JSON decoder accepts `NaN`/`Infinity`, and `bool` is
+  a subclass of `int`, so an unguarded numeric check published `true` as a fee of 1.00 and `NaN`
+  as "INR nan".
+- **Coverage, journeys, and dimension scores are a bounded JSONB projection on
+  `SiteHealthSnapshot`, not tables.** Likewise there is deliberately no contradiction-group
+  table: the group is a deterministic UUID derived from `(crawl, subject, predicate, scope)`.
+- **`projection_version` is a digest of every input version**, not a hand-bumped constant, so a
+  changed input cannot be served from a stale projection.
+- **Read endpoints never fetch, classify, or call a model.** This is the §3 rule and it still
+  holds; a reader that needs new data needs a new worker phase, not a live call.

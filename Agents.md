@@ -107,6 +107,21 @@ Structured data is one classifier signal and one gap surface; it is not the sole
 a page. Deterministic path, title, heading, content, form, link, media, and visible-fact signals
 must work when schema is absent.
 
+**Status:** the Site Intelligence layer is built and merged through slice S4 — inventory,
+acquisition ladder, typed knowledge, 16 registered industry packs, snapshots, and the six-panel
+workspace. Two pieces of this architecture are NOT built, and agents should not assume otherwise:
+
+- **"explicitly approved project memory" above does not exist yet.** There are no
+  `approved_memory_items` / `approved_memory_transitions` tables. Every assertion stays
+  `observed`. Contradictions are detected and grouped, but nothing blocks publication and there
+  is no reviewer flow (clauses 3–6 of the contradiction policy). It sequences after Demand
+  Intelligence.
+- **Recrawl comparison / verified resolution (S5)** is not started.
+
+Only `education` and `commerce` are calibrated against a real corpus; the other fourteen packs
+are structurally valid but unproven. See
+[`docs/plans/site-intelligence-primary-product.md` §15](docs/plans/site-intelligence-primary-product.md#15-delivery-status-and-open-work).
+
 ## First acceptance corpora
 
 - **Education:** The Asian School Screaming Frog export is an external crawler baseline and a

@@ -43,6 +43,13 @@ Owns the business's owned digital corpus:
 
 It creates the knowledge foundation every other layer consumes.
 
+**Shipped as of PR #55:** everything above except the last item's *recrawl verification*, and
+except contradiction *review*. Snapshots, reports, and exports are live; snapshot-to-snapshot
+comparison and `verified | partial | unresolved` resolution (slice S5) are not built, and
+contradictions are detected and grouped but never block publication or reach a reviewer. See
+[`plans/site-intelligence-primary-product.md` §15](plans/site-intelligence-primary-product.md#15-delivery-status-and-open-work)
+for the authoritative list.
+
 ### 2.2 Content Intelligence
 
 Turns evidence into reviewable improvements:

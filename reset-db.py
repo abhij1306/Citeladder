@@ -147,6 +147,16 @@ def provision_dev_login(database_url: str) -> None:
     configuration = _configuration()
     app_env = configuration.get("APP_ENV", "").strip().lower()
     if app_env not in DEVELOPMENT_ENVS:
+        # Say so. This used to return in silence, so a reset run with APP_ENV
+        # unset — or overridden in the shell, which wins over every .env file
+        # here — wiped the database, printed "completed successfully", and left
+        # no account to log in with. The reset still succeeds; only the login
+        # is skipped, and now that is visible.
+        print(
+            f"APP_ENV is '{app_env or '(unset)'}', not one of "
+            f"{sorted(DEVELOPMENT_ENVS)} — skipping development login "
+            "provisioning. No account was created."
+        )
         return
 
     email = configuration.get("DEV_LOGIN_EMAIL", "").strip()
@@ -184,7 +194,66 @@ def provision_dev_login(database_url: str) -> None:
         print(f"Development login provisioning failed:\n{result.stderr}")
         raise SystemExit(1)
     print(result.stdout)
+    _verify_dev_login(provision_environment, email=email, password=password)
     print("Development login ready.")
+
+
+# Run in the backend package so it resolves the same settings and session the
+# API does. Credentials arrive through the environment, never argv, so they do
+# not surface in the process list.
+_VERIFY_LOGIN = """
+import asyncio, os, sys
+
+from app.core.database import SessionLocal, dispose_engine
+from app.domain.auth.service import authenticate_user
+
+
+async def main() -> None:
+    async with SessionLocal() as session:
+        # Returns ``(access_token, user)`` on success, ``None`` on failure.
+        authenticated = await authenticate_user(
+            session, os.environ["_VERIFY_EMAIL"], os.environ["_VERIFY_PASSWORD"]
+        )
+    await dispose_engine()
+    if authenticated is None:
+        sys.exit("credentials did not authenticate")
+    _token, user = authenticated
+    print(f"verified login for {user.email} (id={user.id})")
+
+
+asyncio.run(main())
+"""
+
+
+def _verify_dev_login(environment: dict[str, str], *, email: str, password: str) -> None:
+    """Prove the provisioned credentials actually authenticate.
+
+    Provisioning reported success whenever the row was written, which is a
+    weaker claim than the one the operator reads it as. This runs the API's own
+    ``authenticate_user`` against the freshly written row, so "Development login
+    ready" means the ``.env`` credentials were tried and worked rather than that
+    a user record exists.
+    """
+    print("Verifying development login...")
+    verify_environment = dict(environment)
+    verify_environment["_VERIFY_EMAIL"] = email
+    verify_environment["_VERIFY_PASSWORD"] = password
+    result = subprocess.run(
+        [sys.executable, "-c", _VERIFY_LOGIN],
+        cwd=BACKEND_DIR,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=verify_environment,
+    )
+    if result.returncode != 0:
+        print(
+            "Development login verification FAILED — the account was written "
+            f"but does not authenticate:\n{result.stderr}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    print(result.stdout.strip())
 
 
 def main() -> None:

@@ -58,7 +58,18 @@ async def get_current_user(
         ) from exc
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
-    if user is None or not user.is_active:
+    if user is None:
+        # A token that DECODED but names no row is a stale session, not a
+        # disabled account. In local development this is a database reset: the
+        # dev login is reprovisioned under a new id while the browser keeps
+        # presenting a cookie minted for the old one. Reporting that as
+        # "Inactive user" sent every such session hunting for a deactivated
+        # account that never existed. Still 401, so the client's existing
+        # clear-and-redirect path is unchanged.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session no longer valid"
+        )
+    if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
         )
