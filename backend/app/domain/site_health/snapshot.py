@@ -41,6 +41,7 @@ from app.core.config.site_health import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     SCORING_VERSION,
 )
+from app.domain.site_health.comparison import build_snapshot_comparison
 from app.domain.site_health.intelligence import (
     build_intelligence_projection,
     projection_version,
@@ -212,6 +213,24 @@ async def persist_crawl_snapshot(
     projection = await build_intelligence_projection(
         session, crawl=crawl, knowledge_result=knowledge_result
     )
+    analyzer_version = crawl.analyzer_version or ANALYZER_VERSION
+    scoring_version = crawl.scoring_version or SCORING_VERSION
+    intelligence_version = projection_version()
+    prior_snapshot_id, comparison = await build_snapshot_comparison(
+        session,
+        crawl=crawl,
+        intelligence=projection.payload,
+        analyzer_version=analyzer_version,
+        scoring_version=scoring_version,
+        intelligence_version=intelligence_version,
+        scores={
+            "technical_score": aggregate.technical_score,
+            "aeo_score": aggregate.aeo_score,
+            "overall_score": aggregate.overall_score,
+            "analyzed_url_count": aggregate.analyzed_url_count,
+            "issue_count": issue_total,
+        },
+    )
 
     # One immutable snapshot per crawl. ``ON CONFLICT DO NOTHING`` makes this
     # safe if the worker and a cancel both reach terminalization (the earliest
@@ -223,7 +242,9 @@ async def persist_crawl_snapshot(
             intelligence=projection.payload,
             # Every projection input, not the dimension formula alone — a new
             # knowledge extractor changed the payload under an unchanged stamp.
-            intelligence_version=projection_version(),
+            intelligence_version=intelligence_version,
+            prior_snapshot_id=prior_snapshot_id,
+            comparison=comparison,
             workspace_id=crawl.workspace_id,
             project_id=crawl.project_id,
             crawl_id=crawl.id,
@@ -238,8 +259,8 @@ async def persist_crawl_snapshot(
             source_analysis_ids=analysis_ids,
             source_artifact_ids=artifact_ids,
             source_evaluation_ids=evaluation_ids,
-            analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
-            scoring_version=crawl.scoring_version or SCORING_VERSION,
+            analyzer_version=analyzer_version,
+            scoring_version=scoring_version,
         )
         .on_conflict_do_nothing(
             constraint="uq_site_health_snapshot_crawl",

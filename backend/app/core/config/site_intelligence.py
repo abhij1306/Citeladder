@@ -31,6 +31,14 @@ QUESTION_COVERAGE_VERSION: Final = "si-coverage-1"
 JOURNEY_COVERAGE_VERSION: Final = "si-journey-1"
 # Bump when a dimension's components or the composite formula change.
 DIMENSION_FORMULA_VERSION: Final = "si-dimensions-1"
+# Bump when compatible-snapshot identity, diff semantics, or evidence-only
+# action resolution changes.
+SNAPSHOT_COMPARISON_VERSION: Final = "si-comparison-1"
+MAX_COMPARISON_CHANGE_ITEMS: Final = 200
+
+ACTION_RESOLUTION_VERIFIED: Final = "verified"
+ACTION_RESOLUTION_PARTIAL: Final = "partial"
+ACTION_RESOLUTION_UNRESOLVED: Final = "unresolved"
 
 # Crawl-configuration key holding the project's reviewed overlay (currently the
 # questions a reviewer has declared out of scope). Part of the spec's
@@ -83,6 +91,69 @@ VALUE_TYPE_DURATION: Final = "duration"
 VALUE_TYPE_URL: Final = "url"
 VALUE_TYPE_ENTITY_REF: Final = "entity_ref"
 VALUE_TYPE_OBJECT: Final = "object"
+VALUE_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        VALUE_TYPE_STRING,
+        VALUE_TYPE_NUMBER,
+        VALUE_TYPE_BOOLEAN,
+        VALUE_TYPE_DATE,
+        VALUE_TYPE_MONEY,
+        VALUE_TYPE_DURATION,
+        VALUE_TYPE_URL,
+        VALUE_TYPE_ENTITY_REF,
+        VALUE_TYPE_OBJECT,
+    }
+)
+
+# =========================================================================
+# Durable corrections
+# =========================================================================
+CORRECTION_TARGET_ENTITY: Final = "entity"
+CORRECTION_TARGET_ASSERTION: Final = "assertion"
+CORRECTION_TARGET_RELATION: Final = "relation"
+CORRECTION_TARGET_KINDS: Final[frozenset[str]] = frozenset(
+    {
+        CORRECTION_TARGET_ENTITY,
+        CORRECTION_TARGET_ASSERTION,
+        CORRECTION_TARGET_RELATION,
+    }
+)
+
+CORRECTION_SCOPE_PROJECT: Final = "project"
+CORRECTION_SCOPE_ENTITY: Final = "entity"
+CORRECTION_SCOPE_JOURNEY: Final = "journey"
+CORRECTION_SCOPE_CONTENT: Final = "content"
+CORRECTION_SCOPE_PROMPT: Final = "prompt"
+CORRECTION_SCOPES: Final[frozenset[str]] = frozenset(
+    {
+        CORRECTION_SCOPE_PROJECT,
+        CORRECTION_SCOPE_ENTITY,
+        CORRECTION_SCOPE_JOURNEY,
+        CORRECTION_SCOPE_CONTENT,
+        CORRECTION_SCOPE_PROMPT,
+    }
+)
+
+CORRECTION_STATE_ACTIVE: Final = "active"
+CORRECTION_STATE_WITHDRAWN: Final = "withdrawn"
+CORRECTION_STATES: Final[frozenset[str]] = frozenset(
+    {CORRECTION_STATE_ACTIVE, CORRECTION_STATE_WITHDRAWN}
+)
+
+CORRECTION_TRANSITION_CREATED: Final = "created"
+CORRECTION_TRANSITION_WITHDRAWN: Final = "withdrawn"
+CORRECTION_TRANSITION_TYPES: Final[frozenset[str]] = frozenset(
+    {CORRECTION_TRANSITION_CREATED, CORRECTION_TRANSITION_WITHDRAWN}
+)
+CONTRADICTION_RESOLUTION_CORRECTED: Final = "corrected"
+CONTRADICTION_RESOLUTION_UNRESOLVED: Final = "unresolved"
+CONTRADICTION_RESOLUTION_STATES: Final[frozenset[str]] = frozenset(
+    {CONTRADICTION_RESOLUTION_CORRECTED, CONTRADICTION_RESOLUTION_UNRESOLVED}
+)
+
+MAX_CORRECTION_REASON_CHARS: Final = 1000
+DEFAULT_CORRECTIONS_PAGE_SIZE: Final = 100
+MAX_CORRECTIONS_PAGE_SIZE: Final = 200
 
 # =========================================================================
 # The shared cross-pack vocabulary the extractor is written against

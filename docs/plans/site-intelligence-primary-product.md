@@ -1,6 +1,7 @@
 # Site Intelligence and Knowledge Foundation
 
-> **Status:** S0–S4 delivered and merged (PRs #52, #53, #55). S5 is not started.
+> **Status:** S0–S4 delivered and merged (PRs #52, #53, #55). S5 is implemented on
+> `feature/site-intelligence-s5` and awaiting merge.
 > This document stays canonical: sections 1–11 describe shipped behaviour,
 > §12 records which slices closed, and [§15](#15-delivery-status-and-open-work) is the
 > authoritative list of what is NOT built. Read §15 before planning work here — the
@@ -386,7 +387,7 @@ provider calls from read endpoints.
 
 **Gate:** commerce introduces no second knowledge model, fetcher, queue, or content pipeline.
 
-### S5 — Recrawl comparison and rollout ❌ not started
+### S5 — Recrawl comparison and rollout ✅ implemented
 
 - compare compatible assertions, rules, journeys, and scores;
 - resolve action bundles only from observed passing evidence;
@@ -423,7 +424,7 @@ behavior, and leave later slices as plans rather than partial hidden implementat
 | S2 — generic knowledge contracts | ✅ complete | #53, #55 |
 | S3 — Education v1 and complete report | ✅ complete | #52, #53 |
 | S4 — Commerce v1 | ✅ complete | #53 |
-| S5 — recrawl comparison and rollout | ❌ **not started** | — |
+| S5 — recrawl comparison and rollout | ✅ implemented, awaiting merge | `feature/site-intelligence-s5` |
 
 The registry ships **16 industry packs**, not the two this plan scoped: `education` and
 `commerce` are the calibrated pair the acceptance work used, and the other fourteen
@@ -433,28 +434,21 @@ The registry ships **16 industry packs**, not the two this plan scoped: `educati
 have **not** been calibrated against a live corpus. Treat their role classifiers and question
 contracts as unproven until one is.
 
-### Open work
+### S5 behavior and remaining constraints
 
-**1. Contradiction review — clauses 3–6. Blocked on Demand Intelligence.**
+**1. Corrections and contradiction decisions.** Durable typed corrections and append-only
+create/withdraw transitions ship. A correction targets a project-stable entity, assertion, or
+relation identity, survives recrawl/recomputation, and exposes both derived and effective values.
+Contradiction decisions happen inline: all sides remain `observed`, and withdrawal restores the
+latest derived value. There are no approved-memory tables, approval cards, or review inbox.
 
-Only clauses 1–2 of the [contradiction policy](knowledge-kernel-and-industry-pack-spec.md#contradiction-policy)
-ship: disputes are detected, every side is preserved, and a shared group is assigned. Clauses
-3–6 — blocking publication as current truth, preferring no answer over an invented resolution,
-and the reviewer flow to approve one side, narrow its scope, mark it historical, or reject both
-— are **not implemented**. Every assertion stays `observed`; there is no review state a person
-can move it to.
+**2. S5 comparison and verified resolution.** The later immutable snapshot freezes the prior
+snapshot identity, compatibility decision, bounded fact/question/rule/journey/dimension/score/
+coverage changes, and Site action resolutions. Only a later persisted `pass` evaluation verifies
+an action; mixed evidence is partial, and missing/non-passing evidence is unresolved.
 
-This cannot be closed inside this plan. A reviewer flow needs the approved-memory tables and
-the human-review surface that [`demand-intelligence.md`](demand-intelligence.md) introduces, so
-it sequences **after** that plan, not before. Anyone reading §7 or the spec's contradiction
-section should read this note first: an earlier draft of both described the policy as if it had
-shipped whole.
-
-**2. S5 — recrawl comparison and verified resolution.** No snapshot-to-snapshot comparison, no
-`verified | partial | unresolved` resolution of action bundles. Snapshots are immutable and
-individually reproducible, so the data needed for this exists; nothing consumes it yet.
-
-**3. Uncalibrated packs.** See the table note above.
+**3. Uncalibrated packs.** Education and Commerce remain the only calibrated packs. See the table
+note above; S5 does not broaden production claims for the other fourteen.
 
 ### Gotchas for the next implementer
 

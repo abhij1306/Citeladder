@@ -168,6 +168,7 @@ import type {
   assertionSubjectSchema,
   contradictionGroupSchema,
   contradictionPageSchema,
+  correctionItemSchema,
   corpusBlockSchema,
   coverageStateSchema,
   dimensionBlockSchema,
@@ -187,6 +188,7 @@ import type {
   questionCoverageBlockSchema,
   questionCoverageItemSchema,
   schemaGraphResponseSchema,
+  snapshotComparisonSchema,
 } from './schemas';
 
 export type SessionUser = z.infer<typeof sessionUserSchema>;
@@ -376,6 +378,8 @@ export type KnowledgeAssertionItem = z.infer<typeof knowledgeAssertionItemSchema
 export type KnowledgeAssertionPage = z.infer<typeof knowledgeAssertionPageSchema>;
 export type ContradictionGroup = z.infer<typeof contradictionGroupSchema>;
 export type ContradictionPage = z.infer<typeof contradictionPageSchema>;
+export type CorrectionItem = z.infer<typeof correctionItemSchema>;
+export type SnapshotComparison = z.infer<typeof snapshotComparisonSchema>;
 export type KnowledgeRelationItem = z.infer<typeof knowledgeRelationItemSchema>;
 export type KnowledgeRelationPage = z.infer<typeof knowledgeRelationPageSchema>;
 export type SchemaGraphResponse = z.infer<typeof schemaGraphResponseSchema>;

@@ -20,12 +20,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health import PAGE_ANALYSIS_STATUS_COMPLETED
 from app.core.config.site_intelligence import (
+    CONTRADICTION_RESOLUTION_CORRECTED,
+    CONTRADICTION_RESOLUTION_UNRESOLVED,
+    CORRECTION_TARGET_ASSERTION,
+    CORRECTION_TARGET_ENTITY,
+    CORRECTION_TARGET_RELATION,
     COVERAGE_STATES,
     DIMENSION_IDS,
     REVIEW_STATE_OBSERVED,
 )
+from app.domain.site_health.corrections import (
+    active_corrections_by_target,
+    assertion_target_ref,
+    correction_payload,
+    entity_target_ref,
+    relation_target_ref,
+    stable_target_key,
+)
 from app.domain.site_health.service.common import SiteHealthNotFoundError
 from app.models.knowledge import (
+    Correction,
     KnowledgeAssertion,
     KnowledgeEntity,
     KnowledgeRelation,
@@ -150,8 +164,30 @@ async def get_intelligence_overview(
         "root_url": crawl.root_url or "",
         "created_at": crawl.created_at.isoformat() if crawl.created_at else None,
     }
-    payload["snapshot_id"] = str(snapshot.id) if snapshot is not None else None
+    payload.update(_snapshot_context(snapshot))
     return payload
+
+
+def _snapshot_context(snapshot: SiteHealthSnapshot | None) -> dict:
+    if snapshot is None:
+        return {"snapshot_id": None, "prior_snapshot_id": None, "comparison": None}
+    prior_id = str(snapshot.prior_snapshot_id) if snapshot.prior_snapshot_id else None
+    return {
+        "snapshot_id": str(snapshot.id),
+        "prior_snapshot_id": prior_id,
+        "comparison": (
+            dict(snapshot.comparison) if snapshot.comparison is not None else None
+        ),
+    }
+
+
+def _correction_projection(derived_value: dict, correction: Correction | None) -> dict:
+    if correction is None:
+        return {"effective_value": derived_value, "correction": None}
+    return {
+        "effective_value": dict(correction.corrected_value),
+        "correction": correction_payload(correction),
+    }
 
 
 async def get_knowledge_entities(
@@ -199,14 +235,31 @@ async def get_knowledge_entities(
         .scalars()
         .all()
     )
+    corrections = await active_corrections_by_target(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        target_kind=CORRECTION_TARGET_ENTITY,
+    )
     return {
         "crawl_id": str(crawl.id),
         "total": total,
-        "items": [_entity_payload(row) for row in rows],
+        "items": [
+            _entity_payload(
+                row,
+                corrections.get(
+                    stable_target_key(
+                        entity_target_ref(row.entity_type_id, row.identity_key)
+                    )
+                ),
+            )
+            for row in rows
+        ],
     }
 
 
-def _entity_payload(entity: KnowledgeEntity) -> dict:
+def _entity_payload(entity: KnowledgeEntity, correction=None) -> dict:
+    derived_value = {"canonical_name": entity.canonical_name}
     return {
         "id": str(entity.id),
         "entity_type_id": entity.entity_type_id,
@@ -222,6 +275,7 @@ def _entity_payload(entity: KnowledgeEntity) -> dict:
             "pack_version": entity.industry_pack_version or "",
             "extractor_version": entity.extractor_version or "",
         },
+        **_correction_projection(derived_value, correction),
     }
 
 
@@ -273,14 +327,50 @@ async def get_knowledge_assertions(
             .limit(_bounded(limit))
         )
     ).all()
+    corrections = await active_corrections_by_target(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        target_kind=CORRECTION_TARGET_ASSERTION,
+    )
     return {
         "crawl_id": str(crawl.id),
         "total": total,
-        "items": [_assertion_payload(row[0], row[1]) for row in rows],
+        "items": [
+            _assertion_payload(
+                row[0],
+                row[1],
+                corrections.get(_assertion_target_key(row[0], row[1])),
+            )
+            for row in rows
+        ],
     }
 
 
-def _assertion_payload(assertion: KnowledgeAssertion, subject: KnowledgeEntity) -> dict:
+def _assertion_target_key(
+    assertion: KnowledgeAssertion, subject: KnowledgeEntity
+) -> str:
+    return stable_target_key(
+        assertion_target_ref(
+            subject_entity_type_id=subject.entity_type_id,
+            subject_identity_key=subject.identity_key,
+            predicate_id=assertion.predicate_id,
+            scope_key=assertion.scope_key,
+        )
+    )
+
+
+def _assertion_payload(
+    assertion: KnowledgeAssertion, subject: KnowledgeEntity, correction=None
+) -> dict:
+    derived_value = {
+        "raw_value": assertion.raw_value,
+        "normalized_value": assertion.normalized_value,
+        "numeric_value": assertion.numeric_value,
+        "unit": assertion.unit or "",
+        "currency": assertion.currency or "",
+        "value_type": assertion.value_type,
+    }
     return {
         "id": str(assertion.id),
         "predicate_id": assertion.predicate_id,
@@ -296,12 +386,7 @@ def _assertion_payload(assertion: KnowledgeAssertion, subject: KnowledgeEntity) 
         # like a fully qualified one, which is the one thing the model forbids.
         "scope_complete": bool(assertion.scope_complete),
         "temporal_state": assertion.temporal_state,
-        "effective_from": (
-            assertion.effective_from.isoformat() if assertion.effective_from else None
-        ),
-        "effective_to": (
-            assertion.effective_to.isoformat() if assertion.effective_to else None
-        ),
+        **_assertion_temporal_payload(assertion),
         "derivation_method": assertion.derivation_method or "",
         "confidence": assertion.confidence,
         "review_state": assertion.review_state or REVIEW_STATE_OBSERVED,
@@ -317,6 +402,44 @@ def _assertion_payload(assertion: KnowledgeAssertion, subject: KnowledgeEntity) 
             "entity_type_id": subject.entity_type_id,
             "canonical_name": subject.canonical_name,
         },
+        **_correction_projection(derived_value, correction),
+    }
+
+
+def _assertion_temporal_payload(assertion: KnowledgeAssertion) -> dict:
+    effective_from = (
+        assertion.effective_from.isoformat() if assertion.effective_from else None
+    )
+    effective_to = (
+        assertion.effective_to.isoformat() if assertion.effective_to else None
+    )
+    return {"effective_from": effective_from, "effective_to": effective_to}
+
+
+def _contradiction_group(
+    key: str,
+    assertion: KnowledgeAssertion,
+    subject: KnowledgeEntity,
+    correction: Correction | None,
+) -> dict:
+    resolution_state = (
+        CONTRADICTION_RESOLUTION_CORRECTED
+        if correction is not None
+        else CONTRADICTION_RESOLUTION_UNRESOLVED
+    )
+    correction_item = correction_payload(correction) if correction is not None else None
+    return {
+        "contradiction_group_id": key,
+        "predicate_id": assertion.predicate_id,
+        "scope": dict(assertion.scope or {}),
+        "subject": {
+            "id": str(subject.id),
+            "entity_type_id": subject.entity_type_id,
+            "canonical_name": subject.canonical_name,
+        },
+        "resolution_state": resolution_state,
+        "correction": correction_item,
+        "sides": [],
     }
 
 
@@ -390,27 +513,24 @@ async def get_knowledge_contradictions(
         else []
     )
 
+    corrections = await active_corrections_by_target(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        target_kind=CORRECTION_TARGET_ASSERTION,
+    )
     groups: dict[str, dict] = {}
     for assertion, subject in rows:
         key = str(assertion.contradiction_group_id)
+        correction = corrections.get(_assertion_target_key(assertion, subject))
         group = groups.setdefault(
             key,
-            {
-                "contradiction_group_id": key,
-                "predicate_id": assertion.predicate_id,
-                "scope": dict(assertion.scope or {}),
-                "subject": {
-                    "id": str(subject.id),
-                    "entity_type_id": subject.entity_type_id,
-                    "canonical_name": subject.canonical_name,
-                },
-                # Nothing in the deterministic pipeline resolves a contradiction;
-                # this stays open until a person acts on it.
-                "resolution_state": "unresolved",
-                "sides": [],
-            },
+            _contradiction_group(key, assertion, subject, correction),
         )
-        group["sides"].append(_assertion_payload(assertion, subject))
+        if correction is not None:
+            group["resolution_state"] = CONTRADICTION_RESOLUTION_CORRECTED
+            group["correction"] = correction_payload(correction)
+        group["sides"].append(_assertion_payload(assertion, subject, correction))
 
     return {
         # Every disputed claim in the crawl, not the size of this page of them.
@@ -567,10 +687,13 @@ async def get_knowledge_relations(
                 KnowledgeRelation.relation_type_id,
                 KnowledgeRelation.temporal_state,
                 KnowledgeRelation.evidence_refs,
+                KnowledgeRelation.is_current,
                 source.c.canonical_name.label("source_name"),
                 source.c.entity_type_id.label("source_type"),
+                source.c.identity_key.label("source_identity_key"),
                 target.c.canonical_name.label("target_name"),
                 target.c.entity_type_id.label("target_type"),
+                target.c.identity_key.label("target_identity_key"),
             )
             .join(source, source.c.id == KnowledgeRelation.source_entity_id)
             .join(target, target.c.id == KnowledgeRelation.target_entity_id)
@@ -583,25 +706,47 @@ async def get_knowledge_relations(
             .limit(_bounded(limit))
         )
     ).all()
+    corrections = await active_corrections_by_target(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        target_kind=CORRECTION_TARGET_RELATION,
+    )
+    items = []
+    for row in rows:
+        correction = corrections.get(
+            stable_target_key(
+                relation_target_ref(
+                    relation_type_id=row.relation_type_id,
+                    source_entity_type_id=row.source_type,
+                    source_identity_key=row.source_identity_key,
+                    target_entity_type_id=row.target_type,
+                    target_identity_key=row.target_identity_key,
+                )
+            )
+        )
+        items.append(_relation_payload(row, correction))
     return {
         # The crawl's real edge count, not the size of this page of it.
         "crawl_id": str(crawl.id),
         "total": total,
-        "items": [
-            {
-                "id": str(row.id),
-                "relation_type_id": row.relation_type_id,
-                "temporal_state": row.temporal_state,
-                "source": {
-                    "name": row.source_name,
-                    "entity_type_id": row.source_type,
-                },
-                "target": {
-                    "name": row.target_name,
-                    "entity_type_id": row.target_type,
-                },
-                "evidence_refs": list(row.evidence_refs or []),
-            }
-            for row in rows
-        ],
+        "items": items,
+    }
+
+
+def _relation_payload(row, correction: Correction | None) -> dict:
+    return {
+        "id": str(row.id),
+        "relation_type_id": row.relation_type_id,
+        "temporal_state": row.temporal_state,
+        "source": {
+            "name": row.source_name,
+            "entity_type_id": row.source_type,
+        },
+        "target": {
+            "name": row.target_name,
+            "entity_type_id": row.target_type,
+        },
+        "evidence_refs": list(row.evidence_refs or []),
+        **_correction_projection({"is_current": bool(row.is_current)}, correction),
     }

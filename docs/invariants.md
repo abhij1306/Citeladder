@@ -87,7 +87,7 @@ fixtures, and tests. There is no automatic cross-customer training or pack mutat
 
 ## 11. The system runs itself except at two decisions
 
-Human decisions exist at exactly two points:
+Human **gates** exist at exactly two points:
 
 - **generate and save content**, and
 - **run and schedule audits.**
@@ -99,14 +99,11 @@ being a recomputable projection over immutable evidence, and by recording what p
 
 Approval gates are for spending money and for leaving the system. Nothing else.
 
-> **Open tension — contradiction review.** Clauses 3–6 of the contradiction policy call for a
-> reviewer who approves one side of a dispute, narrows its scope, marks it historical, or rejects
-> both. That is a THIRD human decision point, which this invariant does not currently permit. The
-> flow is deliberately unbuilt: contradictions are detected, every side preserved, and a group
-> assigned, but nothing blocks publication and every assertion stays `observed`. Resolving this
-> means either widening this invariant deliberately or expressing review as a recomputable
-> projection — decide that before implementing, not during. It sequences after Demand
-> Intelligence, which introduces the human-review surface such a flow would live in.
+Contradiction handling does not add a third approval gate. Every observed side stays immutable and
+`observed`; a user may make an inline correction when the derived projection is wrong. Creating or
+withdrawing that correction is an explicit, non-gating durable action with an append-only audit
+trail—not approval of an observation and not a publication decision. It therefore sits outside the
+exactly-two gate count. Withdrawal restores the latest derived value.
 
 ## 12. Derived facts are recomputable; corrections are durable
 

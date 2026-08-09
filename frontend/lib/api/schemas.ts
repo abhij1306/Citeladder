@@ -3258,6 +3258,88 @@ export const corpusBlockSchema = responseObject({
   documents: count(),
 });
 
+const comparisonChangeSetSchema = responseObject({
+  before_count: count(),
+  after_count: count(),
+  added_count: count(),
+  removed_count: count(),
+  changed_count: count(),
+  changes: z.array(z.record(z.string(), z.unknown())),
+  truncated: z.boolean(),
+});
+
+const comparisonBoundedChangesSchema = responseObject({
+  changed_count: count(),
+  changes: z.array(z.record(z.string(), z.unknown())),
+  truncated: z.boolean(),
+});
+
+const actionResolutionTargetSchema = responseObject({
+  site_url_id: z.string(),
+  target_key: z.string(),
+  source_rule_id: z.string(),
+  prior_issue_id: z.string(),
+  current_evaluation_id: z.string().nullable(),
+  current_outcome: z.string(),
+  observed_pass: z.boolean(),
+});
+
+const actionResolutionItemSchema = responseObject({
+  opportunity_rule_id: z.string(),
+  state: z.enum(['verified', 'partial', 'unresolved']),
+  verified_targets: count(),
+  target_count: count(),
+  targets: z.array(actionResolutionTargetSchema),
+  truncated: z.boolean(),
+});
+
+export const snapshotComparisonSchema = responseObject({
+  version: z.string(),
+  available: z.boolean(),
+  reason: z.string().nullable(),
+  prior_snapshot_id: z.string().nullable().optional(),
+  prior_crawl_id: z.string().nullable().optional(),
+  facts: comparisonChangeSetSchema.nullable().optional(),
+  rules: comparisonChangeSetSchema.nullable().optional(),
+  questions: comparisonBoundedChangesSchema.nullable().optional(),
+  journeys: comparisonBoundedChangesSchema.nullable().optional(),
+  dimensions: comparisonBoundedChangesSchema
+    .extend({
+      composite_score_delta: z.number().nullable(),
+      composite_coverage_delta: z.number().nullable(),
+    })
+    .nullable()
+    .optional(),
+  coverage: responseObject({
+    answered_ratio_delta: z.number().nullable(),
+    denominator_before: count(),
+    denominator_after: count(),
+  })
+    .nullable()
+    .optional(),
+  scores: responseObject({
+    technical_delta: z.number().nullable(),
+    aeo_delta: z.number().nullable(),
+    overall_delta: z.number().nullable(),
+    analyzed_url_delta: z.number().nullable(),
+    issue_count_delta: z.number().nullable(),
+  })
+    .nullable()
+    .optional(),
+  action_resolutions: responseObject({
+    total: count(),
+    state_counts: responseObject({
+      verified: count(),
+      partial: count(),
+      unresolved: count(),
+    }),
+    items: z.array(actionResolutionItemSchema),
+    truncated: z.boolean(),
+  })
+    .nullable()
+    .optional(),
+});
+
 export const intelligenceOverviewSchema = responseObject({
   // `available` false = no snapshot yet. Distinct from `packed` false, which
   // means a snapshot exists and no industry pack applied.
@@ -3272,6 +3354,8 @@ export const intelligenceOverviewSchema = responseObject({
     created_at: z.string().nullable(),
   }),
   snapshot_id: z.string().nullable(),
+  prior_snapshot_id: z.string().nullable(),
+  comparison: snapshotComparisonSchema.nullable(),
   corpus: corpusBlockSchema,
   knowledge: knowledgeSummaryBlockSchema,
   coverage: questionCoverageBlockSchema,
@@ -3285,6 +3369,40 @@ export const evidenceRefSchema = responseObject({
   source_id: z.string(),
   locator: z.record(z.string(), z.unknown()),
 });
+
+const correctionTransitionItemSchema = responseObject({
+  id: z.string(),
+  sequence: count(),
+  transition_type: z.enum(['created', 'withdrawn']),
+  actor_user_id: z.string(),
+  reason: z.string(),
+  snapshot: z.record(z.string(), z.unknown()),
+  created_at: z.string(),
+});
+
+export const correctionItemSchema = responseObject({
+  id: z.string(),
+  target_kind: z.enum(['entity', 'assertion', 'relation']),
+  target_ref: z.record(z.string(), z.unknown()),
+  target_field: z.string(),
+  source_crawl_id: z.string(),
+  source_target_id: z.string(),
+  derived_value: z.record(z.string(), z.unknown()),
+  corrected_value: z.record(z.string(), z.unknown()),
+  value_type: z.string(),
+  effective_scope: z.enum(['project', 'entity']),
+  effective_scope_ref: z.record(z.string(), z.unknown()),
+  effective_from: z.string().nullable(),
+  effective_to: z.string().nullable(),
+  author_user_id: z.string(),
+  reason: z.string(),
+  state: z.enum(['active', 'withdrawn']),
+  withdrawn_at: z.string().nullable(),
+  created_at: z.string(),
+  transitions: z.array(correctionTransitionItemSchema),
+});
+
+const effectiveValueSchema = z.record(z.string(), z.unknown());
 
 export const knowledgeEntityItemSchema = responseObject({
   id: z.string(),
@@ -3301,6 +3419,8 @@ export const knowledgeEntityItemSchema = responseObject({
     pack_version: z.string(),
     extractor_version: z.string(),
   }),
+  effective_value: effectiveValueSchema,
+  correction: correctionItemSchema.nullable(),
 });
 
 export const knowledgeEntityPageSchema = responseObject({
@@ -3338,6 +3458,8 @@ export const knowledgeAssertionItemSchema = responseObject({
   contradiction_group_id: z.string().nullable(),
   evidence_refs: z.array(evidenceRefSchema),
   subject: assertionSubjectSchema,
+  effective_value: effectiveValueSchema,
+  correction: correctionItemSchema.nullable(),
 });
 
 export const knowledgeAssertionPageSchema = responseObject({
@@ -3352,6 +3474,7 @@ export const contradictionGroupSchema = responseObject({
   scope: z.record(z.string(), z.string()),
   subject: assertionSubjectSchema,
   resolution_state: z.string(),
+  correction: correctionItemSchema.nullable(),
   sides: z.array(knowledgeAssertionItemSchema),
 });
 
@@ -3368,6 +3491,8 @@ export const knowledgeRelationItemSchema = responseObject({
   source: responseObject({ name: z.string(), entity_type_id: z.string() }),
   target: responseObject({ name: z.string(), entity_type_id: z.string() }),
   evidence_refs: z.array(evidenceRefSchema),
+  effective_value: effectiveValueSchema,
+  correction: correctionItemSchema.nullable(),
 });
 
 export const knowledgeRelationPageSchema = responseObject({

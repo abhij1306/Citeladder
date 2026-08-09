@@ -20,14 +20,14 @@ Every conclusion must answer:
 
 1. What source was observed?
 2. What was derived, and by which version?
-3. What is explicitly approved as durable project knowledge?
+3. Which durable correction, if any, overrides the derived value?
 4. Which pack/version made the item relevant?
 5. Which exact evidence was included or omitted from the task/report?
 
 ## Invariants
 
 1. All IDs are UUIDs and all project-owned tables/queries are directly workspace-scoped.
-2. Raw artifacts are immutable; attempts and approval transitions are append-only.
+2. Raw artifacts are immutable; attempts and correction transitions are append-only.
 3. Every derived row carries source IDs and analyzer/rule/model versions.
 4. Industry configuration lives under `app/core/config`; services do not hardcode roles, thresholds, schema expectations, prompt archetypes, or guardrails.
 5. Reports and APIs render persisted projections and never silently re-fetch/recompute evidence.
@@ -37,7 +37,7 @@ Every conclusion must answer:
 9. Customer data never becomes shared pack truth.
 10. The Growth Agent orchestrates typed tools and context packages; it is not a second datastore.
 
-## Three layers
+## Two layers
 
 ### Immutable evidence
 
@@ -65,17 +65,12 @@ Versioned derived projections include:
 
 Recomputation produces a new version; it does not rewrite earlier evidence.
 
-### Approved memory
+### Durable corrections
 
-Only explicit user action creates durable memory.
-
-```text
-proposed -> approved -> superseded
-         -> rejected
-approved -> withdrawn
-```
-
-Every transition records actor, timestamp, reason, source proposal, evidence, and replacement link when applicable.
+Only explicit user action creates a durable override. A correction is `active | withdrawn`; create
+and withdraw transitions are append-only and record actor, timestamp, reason, source crawl/target,
+the replaced derived value, the typed corrected value, and effective scope. It is not a second
+knowledge layer or approval state: observed evidence remains untouched.
 
 ## Stable contracts
 
@@ -189,10 +184,11 @@ are derived automatically and a correction is the only thing that survives recom
 - target fact reference (entity, assertion, or relation);
 - typed subject, predicate, and value;
 - the derived value it replaces;
-- scope: `project | entity | journey | content | prompt`;
+- effective scope: `project | entity`; journey, content, and prompt scopes remain unadvertised
+  until those projections can apply them;
 - optional effective dates;
 - author and timestamp;
-- withdrawn flag, which restores the derived value.
+- state: `active | withdrawn`; the `withdrawn` transition restores the derived value.
 
 A crawl, import, or model output may supersede a derived fact. None of them may overwrite a
 correction. Generated content never becomes a fact automatically.
@@ -222,6 +218,7 @@ Immutable report input:
 - entity/assertion/relation IDs;
 - issue/opportunity/action IDs;
 - coverage/warnings;
+- optional prior compatible snapshot, bounded comparison, and evidence-only action resolutions;
 - created timestamp.
 
 ### `TaskContextPackage`
@@ -231,7 +228,7 @@ Frozen selective context for generation/agent tasks:
 - task type/subject;
 - active pack/version;
 - included source/entity/assertion/relation/journey/demand/visibility IDs;
-- approved-memory IDs;
+- applicable correction IDs;
 - explicit omissions and reasons;
 - size/token policy and truncation warnings;
 - selection-policy version;
@@ -316,7 +313,7 @@ Profile maturity gates behavior:
 | `SitePageAnalysis` | The single page-understanding owner. Becomes append-only; `PageUnderstanding` is its DTO name, never a second table |
 | `SiteHealthSnapshot` | Keep as crawl projection; add intelligence snapshot only where lifecycle/scope differs |
 | `BrandProfile` | Keep as a curated read model projected from facts and corrections during transition |
-| `BrandProfileSuggestion` | Immutable proposal source; acceptance creates memory transitions and updates the summary projection |
+| `BrandProfileSuggestion` | Immutable compatibility proposal; acceptance updates only the `BrandProfile` summary projection and never creates a fact or correction |
 | `Opportunity`/`OpportunitySnapshot` | Reuse for deterministic actions; add role/journey evidence instead of parallel recommendation storage |
 | `Prompt`/`Topic` | Reuse for provisional/evidence-prioritized/active lifecycle |
 | `ContentGeneration` | Keep basic generation; add FAQ-first `ContentBrief` and frozen context package before broad workflows |
@@ -357,7 +354,7 @@ Create separate config for hard-excluded assets, inventory-supported document ex
 - extend `SitePageAnalysis` as above;
 - add corpus item/disposition and document temporal state;
 - freeze pack snapshot on crawl/configuration/snapshot rows;
-- add approved-memory item and transition rows;
+- add durable correction and append-only transition rows;
 - add journey definition/version rows;
 - add task context package rows;
 - add bounded `knowledge_summary` candidate payload per analyzed artifact.
@@ -388,12 +385,11 @@ here because the gate is the reason the tables exist:
    entities discovered on different pages, and an edge cannot be stored on either endpoint's page
    row without electing an arbitrary owner and duplicating the other half.
 
-4. **Review state must outlive recomputation.** `SitePageAnalysis` is append-only on
+4. **Correction state must outlive recomputation.** `SitePageAnalysis` is append-only on
    `(artifact, analyzer, pack)`: recomputing under a new pack writes a *new* row. Assertions stored
-   inside that row would take every review decision attached to them out of scope on the next pack
-   upgrade — precisely the silent reinterpretation of history the append-only key exists to
-   prevent. Separately-keyed assertion rows carry their own review state and supersede on their own
-   terms.
+   inside that row would take every correction attached only to it out of scope on the next pack
+   upgrade. Project-stable typed correction targets match the recomputed identity instead, while
+   every crawl-scoped assertion remains immutable.
 
 What did **not** move: raw bodies stay in `SiteFetchArtifact` (kernel rows hold evidence refs, never
 excerpted truth), and `SitePageAnalysis` remains the sole page-understanding owner. The new tables
@@ -411,17 +407,13 @@ UUID derived from `(crawl, subject, predicate, scope)` and written onto every si
 members. Question coverage, journey coverage, and dimension scores are likewise not tables: they are
 a bounded JSONB projection on `SiteHealthSnapshot`, which is the existing crawl-projection owner.
 
-Only clauses 1–2 of the [Contradiction policy](#contradiction-policy) are shipped: disputes are
-detected, every side is preserved, and a shared group is assigned. **Clauses 3–6 — blocking
-publication as current truth, and the reviewer flow to approve one side, narrow its scope, mark it
-historical, or reject both — are not implemented.** Every assertion stays `observed`; there is no
-review state a person can move it to yet.
+The [Contradiction policy](#contradiction-policy) ships through an inline correction flow. Disputes
+are detected, every side is preserved with a shared group, and no side is silently promoted. A
+user may create a scoped correction with a reason; the correction outranks the derived value
+across recomputation and can be withdrawn. Every assertion itself remains `observed`.
 
 **Still planned** — none of these exist yet:
 
-- `approved_memory_items` and `approved_memory_transitions`;
-- `journey_definitions` and `journey_definition_versions` (journeys are read from the frozen pack
-  today; project-authored journeys will need them);
 - `task_context_packages`;
 - `content_briefs` and `intelligence_snapshots`, and only if their lifecycle turns out to differ
   from the existing owners.
@@ -470,10 +462,10 @@ A contradiction exists when active assertions share subject, predicate, and over
 
 1. preserve all evidence;
 2. assign a contradiction group;
-3. block automatic approval/publishing as current truth;
+3. keep unresolved sides out of authoritative output;
 4. prefer no answer over an invented resolution;
-5. let a reviewer approve one, narrow scope, mark historical, or reject both;
-6. preserve transition reasons/source IDs.
+5. let a user create a scoped correction without changing either observed side;
+6. preserve correction transition reasons/source IDs and allow withdrawal.
 
 Pack config defines predicate-specific compatibility, such as multiple campuses or tiered offers.
 
@@ -491,7 +483,9 @@ Order:
 6. required pack instructions/claim policy;
 7. bounded supporting excerpts.
 
-Always exclude unrelated pages/raw analytics rows, secrets, rejected/superseded memory unless reviewing history, unresolved conflicts from authoritative output, historical facts presented as current, and out-of-scope tenant data.
+Always exclude unrelated pages/raw analytics rows, secrets, withdrawn corrections unless reviewing
+history, unresolved conflicts from authoritative output, historical facts presented as current,
+and out-of-scope tenant data.
 
 ## API contract
 
@@ -502,9 +496,9 @@ GET  /projects/{id}/knowledge/overview
 GET  /projects/{id}/knowledge/entities
 GET  /projects/{id}/knowledge/assertions
 GET  /projects/{id}/knowledge/contradictions
-GET  /projects/{id}/knowledge/memory
-POST /projects/{id}/knowledge/memory/proposals/{proposal_id}/approve
-POST /projects/{id}/knowledge/memory/{memory_id}/withdraw
+GET  /projects/{id}/knowledge/corrections
+POST /projects/{id}/knowledge/corrections
+POST /projects/{id}/knowledge/corrections/{correction_id}/withdraw
 
 GET   /projects/{id}/corpus
 PATCH /projects/{id}/corpus/{corpus_item_id}/disposition
@@ -518,18 +512,23 @@ GET /projects/{id}/intelligence-snapshots
 GET /task-context-packages/{id}
 ```
 
+Corrections have no in-place edit transition. Replacing one is an explicit withdraw followed by a
+new create, preserving both reasons and both immutable transition histories. The public lifecycle
+uses only `active | withdrawn`; no boolean withdrawn flag or additional state is accepted.
+
 All lists are paginated and expose coverage/truncation. Writes are workspace-authorized and idempotent where retries could duplicate transitions.
 
 ## UI contract
 
-Extend Knowledge Base into separate review modes:
+Extend Knowledge into evidence and correction modes:
 
-1. **Approved memory** — durable facts/guidance and transitions.
-2. **Evidence review** — observed entities/assertions with persisted source previews.
-3. **Contradictions and unknowns** — explicit review or missing-fact requests.
+1. **Current knowledge** — derived and effective values with correction provenance.
+2. **Evidence** — observed entities/assertions with persisted source previews.
+3. **Contradictions and unknowns** — inline correction/withdrawal or missing-fact requests.
 4. **Industry and journey** — active pack, role coverage, stages, outcomes, and event mappings.
 
-Approved, proposed, historical, conflicting, unknown, and unavailable need distinct labels. “AI generated” is insufficient without model/template and source context.
+Observed, corrected, historical, conflicting, unknown, unavailable, and withdrawn need distinct
+labels. “AI generated” is insufficient without model/template and source context.
 
 ## Report contract
 
@@ -556,7 +555,7 @@ Every section distinguishes observed evidence, deterministic calculation, model 
 - document disposition/temporal rules;
 - entity identity/assertion normalization;
 - contradiction grouping;
-- memory transitions;
+- correction target/value validation and transitions;
 - context inclusion/exclusion;
 - unavailable-event semantics;
 - pack upgrade/snapshot behavior.
@@ -566,7 +565,7 @@ Every section distinguishes observed evidence, deterministic calculation, model 
 - workspace isolation;
 - crawl → understanding → snapshot persistence;
 - PDF inventory without HTML analysis;
-- proposal acceptance → `Correction` + `BrandProfile` projection;
+- correction creation → effective projection; withdrawal → derived projection restoration;
 - report reads persisted projections only;
 - frozen inspectable context package;
 - superseded history remains queryable.
@@ -594,7 +593,7 @@ Every section distinguishes observed evidence, deterministic calculation, model 
 - every analyzed artifact has generic kind and Education role evidence;
 - entities/assertions/relations retain exact provenance;
 - historical/current conflicts cannot auto-promote;
-- reviewers can approve, supersede, reject, and withdraw memory;
+- users can create and withdraw scoped corrections without mutating observations;
 - the admissions journey shows content and event coverage separately;
 - a brief and prompt proposal use inspectable selective context;
 - a recrawl creates a new snapshot without mutating the first;

@@ -167,7 +167,9 @@ def upgrade() -> None:
         sa.Column("consumed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("jti"),
     )
@@ -249,12 +251,24 @@ def upgrade() -> None:
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["prompt_set_id"], ["prompt_sets.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["prompt_set_id"], ["prompt_sets.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
-    for column in ("enabled", "next_run_at", "project_id", "prompt_set_id", "workspace_id"):
-        op.create_index(op.f(f"ix_audit_schedules_{column}"), "audit_schedules", [column])
-    op.create_index("ix_audit_schedules_due", "audit_schedules", ["enabled", "next_run_at"])
+    for column in (
+        "enabled",
+        "next_run_at",
+        "project_id",
+        "prompt_set_id",
+        "workspace_id",
+    ):
+        op.create_index(
+            op.f(f"ix_audit_schedules_{column}"), "audit_schedules", [column]
+        )
+    op.create_index(
+        "ix_audit_schedules_due", "audit_schedules", ["enabled", "next_run_at"]
+    )
     op.create_index("ix_audit_schedules_lease", "audit_schedules", ["lease_expires_at"])
     op.create_table(
         "provider_connections",
@@ -598,7 +612,9 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "parent_audit_id", "repair_key", name="uq_audit_parent_repair_key"
         ),
-        sa.UniqueConstraint("schedule_id", "scheduled_for", name="uq_audit_schedule_slot"),
+        sa.UniqueConstraint(
+            "schedule_id", "scheduled_for", name="uq_audit_schedule_slot"
+        ),
     )
     op.create_index(
         op.f("ix_audits_funding_account_id"),
@@ -1630,7 +1646,9 @@ def upgrade() -> None:
         sa.Column("intent", sa.String(length=32), nullable=False),
         sa.Column("branded", sa.Boolean(), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False),
-        sa.Column("cohort", sa.String(length=32), server_default="core", nullable=False),
+        sa.Column(
+            "cohort", sa.String(length=32), server_default="core", nullable=False
+        ),
         sa.Column(
             "status", sa.String(length=16), server_default="active", nullable=False
         ),
@@ -1868,8 +1886,14 @@ def upgrade() -> None:
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column("theme", sa.String(length=255), nullable=False),
         sa.Column("intent", sa.String(length=32), nullable=False),
-        sa.Column("cohort", sa.String(length=32), server_default="core", nullable=False),
-        sa.Column("generation_evidence", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "cohort", sa.String(length=32), server_default="core", nullable=False
+        ),
+        sa.Column(
+            "generation_evidence",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=True,
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["prompt_id"], ["prompts.id"], ondelete="SET NULL"),
@@ -2328,6 +2352,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("crawl_id", sa.UUID(), nullable=False),
+        sa.Column("prior_snapshot_id", sa.UUID(), nullable=True),
         sa.Column("selected_url_count", sa.Integer(), nullable=False),
         sa.Column("analyzed_url_count", sa.Integer(), nullable=False),
         sa.Column("technical_score", sa.Float(), nullable=True),
@@ -2347,14 +2372,24 @@ def upgrade() -> None:
         sa.Column("scoring_version", sa.String(length=32), nullable=False),
         sa.Column("intelligence", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("intelligence_version", sa.String(length=32), nullable=False),
+        sa.Column("comparison", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["prior_snapshot_id"], ["site_health_snapshots.id"], ondelete="SET NULL"
+        ),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("crawl_id", name="uq_site_health_snapshot_crawl"),
+    )
+    op.create_index(
+        op.f("ix_site_health_snapshots_prior_snapshot_id"),
+        "site_health_snapshots",
+        ["prior_snapshot_id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_site_health_snapshots_project_id"),
@@ -2513,7 +2548,9 @@ def upgrade() -> None:
         ["workspace_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_audit_tasks_source_task_id"), "audit_tasks", ["source_task_id"])
+    op.create_index(
+        op.f("ix_audit_tasks_source_task_id"), "audit_tasks", ["source_task_id"]
+    )
     op.create_table(
         "provider_capacity_buckets",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -3512,7 +3549,9 @@ def upgrade() -> None:
         sa.Column("prompt_index", sa.Integer(), nullable=False),
         sa.Column("repetition", sa.Integer(), nullable=False),
         sa.Column("prompt_class", sa.String(length=32), nullable=False),
-        sa.Column("cohort", sa.String(length=32), server_default="core", nullable=False),
+        sa.Column(
+            "cohort", sa.String(length=32), server_default="core", nullable=False
+        ),
         sa.Column("shopping_surface", sa.String(length=32), nullable=False),
         sa.Column("brand_mentioned", sa.Boolean(), nullable=False),
         sa.Column("brand_first_offset", sa.Integer(), nullable=True),
@@ -4942,7 +4981,6 @@ def upgrade() -> None:
     )
     # ### end Alembic commands ###
 
-
     op.create_table(
         "brand_research_snapshots",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -4952,18 +4990,36 @@ def upgrade() -> None:
         sa.Column("provider", sa.String(255), nullable=False),
         sa.Column("model", sa.String(255), nullable=False),
         sa.Column("method", sa.String(64), nullable=False),
-        sa.Column("extracted_fields", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("field_confidence", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "extracted_fields", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "field_confidence", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("evidence", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("warnings", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["discovery_id"], ["brand_discoveries.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["discovery_id"], ["brand_discoveries.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("discovery_id", "research_version", name="uq_brand_research_version"),
+        sa.UniqueConstraint(
+            "discovery_id", "research_version", name="uq_brand_research_version"
+        ),
     )
-    op.create_index(op.f("ix_brand_research_snapshots_workspace_id"), "brand_research_snapshots", ["workspace_id"])
-    op.create_index(op.f("ix_brand_research_snapshots_discovery_id"), "brand_research_snapshots", ["discovery_id"])
+    op.create_index(
+        op.f("ix_brand_research_snapshots_workspace_id"),
+        "brand_research_snapshots",
+        ["workspace_id"],
+    )
+    op.create_index(
+        op.f("ix_brand_research_snapshots_discovery_id"),
+        "brand_research_snapshots",
+        ["discovery_id"],
+    )
 
     op.create_table(
         "prompt_metric_snapshots",
@@ -4982,25 +5038,47 @@ def upgrade() -> None:
         sa.Column("previous_score", sa.Float(), nullable=True),
         sa.Column("immediate_delta", sa.Float(), nullable=True),
         sa.Column("rolling_four", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("per_engine_scores", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "per_engine_scores", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("components", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("engine_agreement", sa.Float(), nullable=False),
         sa.Column("repetition_agreement", sa.Float(), nullable=False),
         sa.Column("evidence_coverage", sa.Float(), nullable=False),
         sa.Column("trend_confidence", sa.Float(), nullable=False),
         sa.Column("decline_confirmed", sa.Boolean(), nullable=False),
-        sa.Column("source_analysis_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "source_analysis_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["prompt_id"], ["prompts.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("audit_id", "prompt_identity", name="uq_prompt_metric_audit_identity"),
+        sa.UniqueConstraint(
+            "audit_id", "prompt_identity", name="uq_prompt_metric_audit_identity"
+        ),
     )
-    for column in ("workspace_id", "project_id", "audit_id", "prompt_id", "cohort", "decline_confirmed", "created_at"):
-        op.create_index(op.f(f"ix_prompt_metric_snapshots_{column}"), "prompt_metric_snapshots", [column])
+    for column in (
+        "workspace_id",
+        "project_id",
+        "audit_id",
+        "prompt_id",
+        "cohort",
+        "decline_confirmed",
+        "created_at",
+    ):
+        op.create_index(
+            op.f(f"ix_prompt_metric_snapshots_{column}"),
+            "prompt_metric_snapshots",
+            [column],
+        )
     op.create_index(
         "ix_prompt_metric_history",
         "prompt_metric_snapshots",
@@ -5020,18 +5098,28 @@ def upgrade() -> None:
         sa.Column("engine_count", sa.Integer(), nullable=False),
         sa.Column("market_relevant", sa.Boolean(), nullable=False),
         sa.Column("analyzer_version", sa.String(32), nullable=False),
-        sa.Column("source_analysis_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "source_analysis_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("status", sa.String(16), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("audit_id", "domain", name="uq_observed_candidate_domain"),
     )
     for column in ("workspace_id", "project_id", "audit_id", "status"):
-        op.create_index(op.f(f"ix_observed_entity_candidates_{column}"), "observed_entity_candidates", [column])
+        op.create_index(
+            op.f(f"ix_observed_entity_candidates_{column}"),
+            "observed_entity_candidates",
+            [column],
+        )
 
     op.create_table(
         "brand_knowledge_artifacts",
@@ -5044,15 +5132,27 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("source_opportunity_id", sa.UUID(), nullable=True),
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["content_generation_id"], ["content_generations.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["source_opportunity_id"], ["opportunities.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["content_generation_id"], ["content_generations.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_opportunity_id"], ["opportunities.id"], ondelete="SET NULL"
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("content_generation_id", name="uq_brand_knowledge_generation"),
+        sa.UniqueConstraint(
+            "content_generation_id", name="uq_brand_knowledge_generation"
+        ),
     )
     for column in ("workspace_id", "project_id"):
-        op.create_index(op.f(f"ix_brand_knowledge_artifacts_{column}"), "brand_knowledge_artifacts", [column])
+        op.create_index(
+            op.f(f"ix_brand_knowledge_artifacts_{column}"),
+            "brand_knowledge_artifacts",
+            [column],
+        )
 
     # --- Typed project knowledge (kernel spec Phase B) --------------------
     # Crawl-scoped derived projections with deterministic (uuid5) primary keys,
@@ -5077,7 +5177,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "crawl_id",
@@ -5087,7 +5189,9 @@ def upgrade() -> None:
         ),
     )
     for column in ("workspace_id", "project_id", "crawl_id"):
-        op.create_index(op.f(f"ix_knowledge_entities_{column}"), "knowledge_entities", [column])
+        op.create_index(
+            op.f(f"ix_knowledge_entities_{column}"), "knowledge_entities", [column]
+        )
     op.create_index(
         "ix_knowledge_entity_crawl_type",
         "knowledge_entities",
@@ -5133,7 +5237,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["subject_entity_id"], ["knowledge_entities.id"], ondelete="CASCADE"
         ),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "crawl_id",
@@ -5145,7 +5251,9 @@ def upgrade() -> None:
         ),
     )
     for column in ("workspace_id", "project_id", "crawl_id", "subject_entity_id"):
-        op.create_index(op.f(f"ix_knowledge_assertions_{column}"), "knowledge_assertions", [column])
+        op.create_index(
+            op.f(f"ix_knowledge_assertions_{column}"), "knowledge_assertions", [column]
+        )
     op.create_index(
         "ix_knowledge_assertion_predicate",
         "knowledge_assertions",
@@ -5187,7 +5295,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["target_entity_id"], ["knowledge_entities.id"], ondelete="CASCADE"
         ),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "crawl_id",
@@ -5204,11 +5314,112 @@ def upgrade() -> None:
         "source_entity_id",
         "target_entity_id",
     ):
-        op.create_index(op.f(f"ix_knowledge_relations_{column}"), "knowledge_relations", [column])
+        op.create_index(
+            op.f(f"ix_knowledge_relations_{column}"), "knowledge_relations", [column]
+        )
     op.create_index(
         "ix_knowledge_relation_crawl_type",
         "knowledge_relations",
         ["crawl_id", "relation_type_id"],
+    )
+
+    op.create_table(
+        "corrections",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("target_kind", sa.String(length=16), nullable=False),
+        sa.Column("target_key", sa.String(length=64), nullable=False),
+        sa.Column("target_ref", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("target_field", sa.String(length=32), nullable=False),
+        sa.Column("source_crawl_id", sa.UUID(), nullable=False),
+        sa.Column("source_target_id", sa.UUID(), nullable=False),
+        sa.Column(
+            "derived_value", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "corrected_value", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("value_type", sa.String(length=16), nullable=False),
+        sa.Column("effective_scope", sa.String(length=16), nullable=False),
+        sa.Column(
+            "effective_scope_ref", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("effective_scope_key", sa.String(length=128), nullable=False),
+        sa.Column("effective_from", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("effective_to", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("author_user_id", sa.UUID(), nullable=False),
+        sa.Column("reason", sa.String(length=1000), nullable=False),
+        sa.Column("state", sa.String(length=16), nullable=False),
+        sa.Column("withdrawn_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["author_user_id"], ["users.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["source_crawl_id"], ["site_crawls.id"], ondelete="RESTRICT"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.CheckConstraint(
+            "state IN ('active', 'withdrawn')", name="ck_correction_state"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    for column in ("workspace_id", "project_id", "source_crawl_id", "author_user_id"):
+        op.create_index(op.f(f"ix_corrections_{column}"), "corrections", [column])
+    op.create_index(
+        "ix_correction_project_target",
+        "corrections",
+        ["project_id", "target_kind", "target_key"],
+    )
+    op.create_index(
+        "uq_correction_active_target_scope",
+        "corrections",
+        ["project_id", "target_key", "target_field", "effective_scope_key"],
+        unique=True,
+        postgresql_where=sa.text("state = 'active'"),
+    )
+
+    op.create_table(
+        "correction_transitions",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("correction_id", sa.UUID(), nullable=False),
+        sa.Column("sequence", sa.Integer(), nullable=False),
+        sa.Column("transition_type", sa.String(length=16), nullable=False),
+        sa.Column("actor_user_id", sa.UUID(), nullable=False),
+        sa.Column("reason", sa.String(length=1000), nullable=False),
+        sa.Column("snapshot", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(
+            ["correction_id"], ["corrections.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.CheckConstraint(
+            "transition_type IN ('created', 'withdrawn')",
+            name="ck_correction_transition_type",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "correction_id", "sequence", name="uq_correction_transition_sequence"
+        ),
+    )
+    for column in ("workspace_id", "project_id", "correction_id", "actor_user_id"):
+        op.create_index(
+            op.f(f"ix_correction_transitions_{column}"),
+            "correction_transitions",
+            [column],
+        )
+    op.create_index(
+        "ix_correction_transition_project_created",
+        "correction_transitions",
+        ["project_id", "created_at"],
     )
 
     # --- Demand Intelligence ---------------------------------------------
@@ -5224,12 +5435,16 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project_id", "slug", name="uq_journey_project_slug"),
     )
     for column in ("workspace_id", "project_id", "status"):
-        op.create_index(op.f(f"ix_journey_definitions_{column}"), "journey_definitions", [column])
+        op.create_index(
+            op.f(f"ix_journey_definitions_{column}"), "journey_definitions", [column]
+        )
 
     op.create_table(
         "journey_definition_versions",
@@ -5243,12 +5458,20 @@ def upgrade() -> None:
         sa.Column("source_version", sa.String(length=64), nullable=False),
         sa.Column("created_by_user_id", sa.UUID(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["journey_id"], ["journey_definitions.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["created_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["journey_id"], ["journey_definitions.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("journey_id", "version", name="uq_journey_definition_version"),
+        sa.UniqueConstraint(
+            "journey_id", "version", name="uq_journey_definition_version"
+        ),
     )
     for column in ("workspace_id", "project_id", "journey_id"):
         op.create_index(
@@ -5267,25 +5490,45 @@ def upgrade() -> None:
         sa.Column("source_hash", sa.String(length=64), nullable=False),
         sa.Column("site_snapshot_id", sa.UUID(), nullable=True),
         sa.Column("prior_snapshot_id", sa.UUID(), nullable=True),
-        sa.Column("source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("source_metric_row_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("source_audit_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("journey_version_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "source_metric_row_ids",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=False,
+        ),
+        sa.Column(
+            "source_audit_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "journey_version_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("summary", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("comparison", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("formula_version", sa.String(length=32), nullable=False),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["prior_snapshot_id"], ["demand_snapshots.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["prior_snapshot_id"], ["demand_snapshots.id"], ondelete="SET NULL"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("project_id", "source_hash", name="uq_demand_snapshot_source_hash"),
+        sa.UniqueConstraint(
+            "project_id", "source_hash", name="uq_demand_snapshot_source_hash"
+        ),
     )
     for column in ("workspace_id", "project_id", "created_at"):
-        op.create_index(op.f(f"ix_demand_snapshots_{column}"), "demand_snapshots", [column])
+        op.create_index(
+            op.f(f"ix_demand_snapshots_{column}"), "demand_snapshots", [column]
+        )
     op.create_foreign_key(
         "fk_opportunity_snapshots_demand_snapshot_id",
         "opportunity_snapshots",
@@ -5314,17 +5557,27 @@ def upgrade() -> None:
         sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("limitations", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("priority_score", sa.Float(), nullable=True),
-        sa.Column("priority_inputs", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "priority_inputs", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("rule_version", sa.String(length=32), nullable=False),
         sa.Column("formula_version", sa.String(length=32), nullable=False),
-        sa.Column("model_provenance", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column(
+            "model_provenance", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["snapshot_id"], ["demand_snapshots.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["snapshot_id"], ["demand_snapshots.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("snapshot_id", "identity_hash", name="uq_demand_signal_identity"),
+        sa.UniqueConstraint(
+            "snapshot_id", "identity_hash", name="uq_demand_signal_identity"
+        ),
     )
     for column in ("workspace_id", "project_id", "snapshot_id", "signal_type", "state"):
         op.create_index(op.f(f"ix_demand_signals_{column}"), "demand_signals", [column])
@@ -5340,6 +5593,8 @@ def downgrade() -> None:
     op.drop_table("demand_snapshots")
     op.drop_table("journey_definition_versions")
     op.drop_table("journey_definitions")
+    op.drop_table("correction_transitions")
+    op.drop_table("corrections")
     op.drop_table("knowledge_relations")
     op.drop_table("knowledge_assertions")
     op.drop_table("knowledge_entities")
@@ -5356,9 +5611,7 @@ def downgrade() -> None:
         op.f("ix_content_generations_opportunity_id"),
         table_name="content_generations",
     )
-    op.drop_index(
-        op.f("ix_audit_tasks_source_task_id"), table_name="audit_tasks"
-    )
+    op.drop_index(op.f("ix_audit_tasks_source_task_id"), table_name="audit_tasks")
     # audits.schedule_id points at audit_schedules, which is dropped first.
     op.drop_constraint("fk_audits_schedule_id", "audits", type_="foreignkey")
     op.drop_index(op.f("ix_audits_schedule_id"), table_name="audits")
@@ -5859,6 +6112,10 @@ def downgrade() -> None:
     op.drop_index("ix_site_urls_project_keyset", table_name="site_urls")
     op.drop_index(op.f("ix_site_urls_project_id"), table_name="site_urls")
     op.drop_table("site_urls")
+    op.drop_index(
+        op.f("ix_site_health_snapshots_prior_snapshot_id"),
+        table_name="site_health_snapshots",
+    )
     op.drop_index(
         op.f("ix_site_health_snapshots_workspace_id"),
         table_name="site_health_snapshots",

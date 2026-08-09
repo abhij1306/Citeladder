@@ -16,6 +16,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config.site_health import site_health_settings
+from app.core.config.site_intelligence import MAX_CORRECTION_REASON_CHARS
 
 # Presentation-status literals (superset of the persisted page-analysis states,
 # adding the mockup-facing `not_selected` / `error` / `blocked` / `cancelled`).
@@ -768,6 +769,83 @@ class IntelligenceCrawlRef(_Model):
     created_at: str | None = None
 
 
+class ComparisonChangeSet(_Model):
+    before_count: int
+    after_count: int
+    added_count: int
+    removed_count: int
+    changed_count: int
+    changes: list[dict[str, Any]] = []
+    truncated: bool
+
+
+class ComparisonBoundedChanges(_Model):
+    changed_count: int
+    changes: list[dict[str, Any]] = []
+    truncated: bool
+
+
+class ComparisonDimensions(ComparisonBoundedChanges):
+    composite_score_delta: float | None = None
+    composite_coverage_delta: float | None = None
+
+
+class ComparisonCoverage(_Model):
+    answered_ratio_delta: float | None = None
+    denominator_before: int
+    denominator_after: int
+
+
+class ComparisonScores(_Model):
+    technical_delta: float | None = None
+    aeo_delta: float | None = None
+    overall_delta: float | None = None
+    analyzed_url_delta: float | None = None
+    issue_count_delta: float | None = None
+
+
+class ActionResolutionTarget(_Model):
+    site_url_id: str
+    target_key: str
+    source_rule_id: str
+    prior_issue_id: str
+    current_evaluation_id: str | None = None
+    current_outcome: str
+    observed_pass: bool
+
+
+class ActionResolutionItem(_Model):
+    opportunity_rule_id: str
+    state: Literal["verified", "partial", "unresolved"]
+    verified_targets: int
+    target_count: int
+    targets: list[ActionResolutionTarget] = []
+    truncated: bool
+
+
+class ActionResolutionSet(_Model):
+    total: int
+    state_counts: dict[str, int]
+    items: list[ActionResolutionItem] = []
+    truncated: bool
+
+
+class SnapshotComparison(_Model):
+    version: str
+    available: bool
+    reason: str | None = None
+    prior_snapshot_id: str | None = None
+    prior_crawl_id: str | None = None
+    facts: ComparisonChangeSet | None = None
+    rules: ComparisonChangeSet | None = None
+    questions: ComparisonBoundedChanges | None = None
+    journeys: ComparisonBoundedChanges | None = None
+    dimensions: ComparisonDimensions | None = None
+    coverage: ComparisonCoverage | None = None
+    scores: ComparisonScores | None = None
+    action_resolutions: ActionResolutionSet | None = None
+
+
 class IntelligenceOverviewResponse(_Model):
     # ``False`` when the crawl has produced no snapshot yet. Distinct from
     # ``packed=False``, which means a snapshot exists and no pack applied.
@@ -777,6 +855,8 @@ class IntelligenceOverviewResponse(_Model):
     manifest: dict[str, str] | None = None
     crawl: IntelligenceCrawlRef
     snapshot_id: str | None = None
+    prior_snapshot_id: str | None = None
+    comparison: SnapshotComparison | None = None
     corpus: CorpusBlock = CorpusBlock()
     knowledge: KnowledgeSummaryBlock = KnowledgeSummaryBlock()
     coverage: QuestionCoverageBlock = QuestionCoverageBlock()
@@ -811,6 +891,8 @@ class KnowledgeEntityItem(_Model):
     evidence_page_count: int = 0
     evidence_refs: list[EvidenceRef] = []
     manifest: KnowledgeManifest
+    effective_value: dict[str, Any]
+    correction: CorrectionItem | None = None
 
 
 class KnowledgeEntityPage(_Model):
@@ -848,6 +930,8 @@ class KnowledgeAssertionItem(_Model):
     contradiction_group_id: str | None = None
     evidence_refs: list[EvidenceRef] = []
     subject: AssertionSubject
+    effective_value: dict[str, Any]
+    correction: CorrectionItem | None = None
 
 
 class KnowledgeAssertionPage(_Model):
@@ -862,6 +946,7 @@ class ContradictionGroup(_Model):
     scope: dict[str, str] = {}
     subject: AssertionSubject
     resolution_state: str
+    correction: CorrectionItem | None = None
     # ALL sides. A reader who sees one cannot tell what the dispute is.
     sides: list[KnowledgeAssertionItem] = []
 
@@ -870,6 +955,60 @@ class ContradictionPage(_Model):
     crawl_id: str
     total: int
     items: list[ContradictionGroup] = []
+
+
+class CorrectionCreateRequest(_Model):
+    target_kind: Literal["entity", "assertion", "relation"]
+    target_id: uuid.UUID
+    value: str | float | bool | dict[str, Any]
+    effective_scope: Literal["project", "entity"] = "project"
+    effective_scope_id: uuid.UUID | None = None
+    effective_from: datetime | None = None
+    effective_to: datetime | None = None
+    unit: str = ""
+    currency: str = ""
+    reason: str = Field(min_length=1, max_length=MAX_CORRECTION_REASON_CHARS)
+
+
+class CorrectionWithdrawRequest(_Model):
+    reason: str = Field(min_length=1, max_length=MAX_CORRECTION_REASON_CHARS)
+
+
+class CorrectionTransitionItem(_Model):
+    id: str
+    sequence: int
+    transition_type: Literal["created", "withdrawn"]
+    actor_user_id: str
+    reason: str
+    snapshot: dict[str, Any]
+    created_at: str
+
+
+class CorrectionItem(_Model):
+    id: str
+    target_kind: str
+    target_ref: dict[str, Any]
+    target_field: str
+    source_crawl_id: str
+    source_target_id: str
+    derived_value: dict[str, Any]
+    corrected_value: dict[str, Any]
+    value_type: str
+    effective_scope: Literal["project", "entity"]
+    effective_scope_ref: dict[str, Any]
+    effective_from: str | None = None
+    effective_to: str | None = None
+    author_user_id: str
+    reason: str
+    state: Literal["active", "withdrawn"]
+    withdrawn_at: str | None = None
+    created_at: str
+    transitions: list[CorrectionTransitionItem] = []
+
+
+class CorrectionPage(_Model):
+    total: int
+    items: list[CorrectionItem] = []
 
 
 class RelationEndpoint(_Model):
@@ -884,6 +1023,8 @@ class KnowledgeRelationItem(_Model):
     source: RelationEndpoint
     target: RelationEndpoint
     evidence_refs: list[EvidenceRef] = []
+    effective_value: dict[str, Any]
+    correction: CorrectionItem | None = None
 
 
 class KnowledgeRelationPage(_Model):

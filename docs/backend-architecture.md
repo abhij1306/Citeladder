@@ -49,7 +49,7 @@ not a reason to put business logic in routers, connectors, workers, or generic u
 | Prompts/Audits/Visibility | Shipped | Active/archive prompt portfolio with frozen generation/Demand evidence and manual/scheduled answer-engine measurement |
 | Opportunities | Shipped | One action store and supersede-not-mutate history across all intelligence systems |
 | Commerce catalog/product analysis | Shipped/partial | Specialized identity source consumed by the shared Commerce industry profile |
-| Knowledge domain | Shipped/partial | Entities, assertions, relations, and contradiction *detection* ship (16 packs, `education`/`commerce` calibrated). Corrections and selective retrieval are NOT built: there is no approved-memory store and no contradiction reviewer, so every assertion stays `observed` |
+| Knowledge domain | Shipped/partial | Entities, assertions, relations, contradiction detection, durable corrections, append-only correction transitions, and inline contradiction decisions ship (16 packs, `education`/`commerce` calibrated). Selective task context remains future work; observed rows stay immutable and corrections overlay them. |
 | Growth Agent domain | Planned | Task runs, typed tools, context packages, and conversations |
 
 ## Canonical data layers
@@ -72,6 +72,13 @@ carry direct source IDs and all relevant pack/analyzer/rule/formula/model versio
 plus typed `Correction` rows. Facts are recomputable projections; a correction is the one durable
 user override, and no crawl, import, or model output may overwrite it. There is no separate
 approved-memory store and no promotion state machine.
+
+Corrections target a stable typed entity, assertion, or relation identity rather than a crawl row.
+They record the source crawl/row, replaced derived value, corrected typed value, project/entity
+effective scope and dates, author, reason, and current state. Journey/content/prompt scopes are not
+accepted until those projections can apply them. Create/withdraw events are append-only. Current reads
+return both `derived_value` and `effective_value`; withdrawing never repairs evidence and simply
+removes correction precedence.
 
 ## Site Intelligence migration
 
@@ -119,8 +126,14 @@ Composites report over the FULL denominator with coverage beside them. A declare
 unevidenced STAYS in the denominator and lowers the score; only a reviewer's explicit
 `not_applicable` declaration — frozen onto the crawl like the pack manifest — removes it.
 
-Still deferred (next slices): approved-memory transitions, project-authored journey definitions,
-task context packages, content briefs, and recrawl comparison.
+Site S5 freezes comparison onto the later `SiteHealthSnapshot`, including compatible fact,
+question, rule, journey, dimension, score, and coverage changes. The immediately preceding
+snapshot is compared only under the same pack manifest and analyzer/scoring/projection versions.
+Mapped Site actions resolve solely from later persisted `pass` evaluations; unavailable or
+non-passing observations never imply resolution. Earlier snapshots remain immutable.
+
+Still deferred: selective task context packages, content briefs, and the Content Intelligence
+publication/verification workflow.
 
 ## Content Intelligence migration
 
@@ -205,7 +218,7 @@ not this document.
 - Greenfield schema changes remain in `migrations/versions/0001_initial.py` while that repository
   policy is active; verify against a disposable database.
 - JSONB is appropriate for bounded provider/source payloads and frozen manifests, not for data
-  that requires relational filtering, identity, integrity, or approval transitions.
+  that requires relational filtering, identity, integrity, or correction transitions.
 
 ## Verification
 

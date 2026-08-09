@@ -27,6 +27,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -42,6 +43,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.config.site_health import TEMPORAL_STATE_UNKNOWN
 from app.core.config.site_intelligence import (
+    MAX_CORRECTION_REASON_CHARS,
     REVIEW_STATE_OBSERVED,
     VALUE_TYPE_STRING,
 )
@@ -51,6 +53,7 @@ _FK_WORKSPACE = "workspaces.id"
 _FK_PROJECT = "projects.id"
 _FK_SITE_CRAWL = "site_crawls.id"
 _FK_KNOWLEDGE_ENTITY = "knowledge_entities.id"
+_FK_USER = "users.id"
 _ON_DELETE_CASCADE = "CASCADE"
 
 # uuid5 namespaces. Fixed constants, never regenerated: changing one would give
@@ -356,6 +359,124 @@ class KnowledgeRelation(Base):
     industry_pack_id: Mapped[str] = mapped_column(String(64), default="")
     industry_pack_version: Mapped[str] = mapped_column(String(32), default="")
     is_current: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class Correction(Base):
+    """Current durable override for one stable derived-fact identity.
+
+    ``target_key`` is project-stable and intentionally independent of a crawl.
+    The source crawl/row remain provenance, while ``target_ref`` is the typed
+    natural identity used to match the same fact after recomputation.
+    """
+
+    __tablename__ = "corrections"
+    __table_args__ = (
+        CheckConstraint("state IN ('active', 'withdrawn')", name="ck_correction_state"),
+        Index(
+            "uq_correction_active_target_scope",
+            "project_id",
+            "target_key",
+            "target_field",
+            "effective_scope_key",
+            unique=True,
+            postgresql_where=text("state = 'active'"),
+        ),
+        Index(
+            "ix_correction_project_target", "project_id", "target_kind", "target_key"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    target_kind: Mapped[str] = mapped_column(String(16))
+    target_key: Mapped[str] = mapped_column(String(64))
+    target_ref: Mapped[dict] = mapped_column(JSONB)
+    target_field: Mapped[str] = mapped_column(String(32))
+    source_crawl_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_SITE_CRAWL, ondelete="RESTRICT"),
+        index=True,
+    )
+    source_target_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
+    derived_value: Mapped[dict] = mapped_column(JSONB)
+    corrected_value: Mapped[dict] = mapped_column(JSONB)
+    value_type: Mapped[str] = mapped_column(String(16))
+    effective_scope: Mapped[str] = mapped_column(String(16))
+    effective_scope_ref: Mapped[dict] = mapped_column(JSONB)
+    effective_scope_key: Mapped[str] = mapped_column(String(128))
+    effective_from: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    effective_to: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    author_user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_FK_USER, ondelete="RESTRICT"), index=True
+    )
+    reason: Mapped[str] = mapped_column(String(MAX_CORRECTION_REASON_CHARS))
+    state: Mapped[str] = mapped_column(String(16))
+    withdrawn_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class CorrectionTransition(Base):
+    """Append-only audit event for a durable correction."""
+
+    __tablename__ = "correction_transitions"
+    __table_args__ = (
+        CheckConstraint(
+            "transition_type IN ('created', 'withdrawn')",
+            name="ck_correction_transition_type",
+        ),
+        UniqueConstraint(
+            "correction_id", "sequence", name="uq_correction_transition_sequence"
+        ),
+        Index("ix_correction_transition_project_created", "project_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    correction_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("corrections.id", ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    sequence: Mapped[int] = mapped_column(Integer)
+    transition_type: Mapped[str] = mapped_column(String(16))
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_FK_USER, ondelete="RESTRICT"), index=True
+    )
+    reason: Mapped[str] = mapped_column(String(MAX_CORRECTION_REASON_CHARS))
+    snapshot: Mapped[dict] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

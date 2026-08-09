@@ -91,6 +91,8 @@ from app.models.integrations import (
     IntegrationSyncRun,
 )
 from app.models.knowledge import (
+    Correction,
+    CorrectionTransition,
     KnowledgeAssertion,
     KnowledgeEntity,
     KnowledgeRelation,
@@ -192,6 +194,8 @@ __all__ = [
     "IntegrationMetricRow",
     "IntegrationOAuthGrant",
     "KnowledgeAssertion",
+    "Correction",
+    "CorrectionTransition",
     "KnowledgeEntity",
     "KnowledgeRelation",
     "JourneyDefinition",

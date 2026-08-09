@@ -43,10 +43,11 @@ Owns the business's owned digital corpus:
 
 It creates the knowledge foundation every other layer consumes.
 
-**Shipped as of PR #55:** everything above except the last item's *recrawl verification*, and
-except contradiction *review*. Snapshots, reports, and exports are live; snapshot-to-snapshot
-comparison and `verified | partial | unresolved` resolution (slice S5) are not built, and
-contradictions are detected and grouped but never block publication or reach a reviewer. See
+**Shipped through Site S5:** snapshots, reports, exports, compatible snapshot-to-snapshot
+comparison, durable corrections, inline contradiction decisions, and evidence-only
+`verified | partial | unresolved` action resolution are live. Corrections are project-owned
+overrides with project or entity effective scope, not approvals: every observed side remains
+immutable and a withdrawal restores the latest derived value. See
 [`plans/site-intelligence-primary-product.md` §15](plans/site-intelligence-primary-product.md#15-delivery-status-and-open-work)
 for the authoritative list.
 
@@ -159,7 +160,14 @@ confidence, coverage, effective dates, limitations, and analyzer versions.
 
 Project facts are recomputable. A user correction is the one thing that is not: it persists across
 recomputation, outranks derived values, and is preserved with its author and timestamp. A
-correction can be edited or withdrawn, which restores the derived value.
+correction can be withdrawn, which restores the derived value. Replacement is withdraw-then-create,
+so the earlier reason and transition history remain intact.
+
+Recrawl comparison is frozen onto the later Site snapshot. It compares only the immediately
+preceding snapshot when pack, analyzer, scoring, and projection versions are compatible; a
+mismatch is persisted as unavailable with its exact reason. An action becomes `verified` only
+when a later persisted rule evaluation observes `pass`; partial coverage is `partial`, and absent,
+failed, or non-passing evidence remains `unresolved`.
 
 Embeddings are optional retrieval projections. They are never authorization filters and never the
 canonical truth store.

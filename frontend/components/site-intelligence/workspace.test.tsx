@@ -50,6 +50,8 @@ function overview(patch: Partial<IntelligenceOverview> = {}): IntelligenceOvervi
     manifest: { pack_id: 'education', pack_version: '1.0.0' },
     crawl: { id: 'crawl-1', status: 'completed', root_url: 'https://a.test/', created_at: null },
     snapshot_id: 'snap-1',
+    prior_snapshot_id: null,
+    comparison: null,
     corpus: {
       by_disposition: { analyze: 10 },
       by_item_kind: { html_page: 10 },
@@ -180,6 +182,54 @@ describe('SiteIntelligenceWorkspace', () => {
     await waitFor(() =>
       expect(screen.getByText(/Not measurable: Entity naming/)).toBeInTheDocument(),
     );
+  });
+
+  it('renders persisted recrawl movement and evidence-only action resolution', async () => {
+    searchParams = new URLSearchParams('panel=overview');
+    renderWorkspace(
+      overview({
+        comparison: {
+          version: 'si-comparison-1',
+          available: true,
+          reason: null,
+          facts: {
+            before_count: 2,
+            after_count: 4,
+            changed_count: 1,
+            added_count: 2,
+            removed_count: 0,
+            changes: [],
+            truncated: false,
+          },
+          questions: { changed_count: 3, changes: [], truncated: false },
+          rules: {
+            before_count: 5,
+            after_count: 5,
+            changed_count: 4,
+            added_count: 0,
+            removed_count: 0,
+            changes: [],
+            truncated: false,
+          },
+          action_resolutions: {
+            total: 3,
+            state_counts: { verified: 1, partial: 1, unresolved: 1 },
+            items: [],
+            truncated: false,
+          },
+        },
+      }),
+    );
+
+    await waitFor(() => expect(screen.getByText('Since the previous crawl')).toBeInTheDocument());
+    expect(screen.getByText('1 changed')).toBeInTheDocument();
+    expect(screen.getByText('2 added · 0 removed')).toBeInTheDocument();
+    expect(screen.getByText('3 question states')).toBeInTheDocument();
+    expect(screen.getByText('4 rule outcomes changed')).toBeInTheDocument();
+    expect(screen.getByText('1 verified')).toBeInTheDocument();
+    expect(screen.getByText('1 partial')).toBeInTheDocument();
+    expect(screen.getByText('1 unresolved')).toBeInTheDocument();
+    expect(screen.getByText(/Only observed passing evidence resolves work/)).toBeInTheDocument();
   });
 
   it('distinguishes "no snapshot yet" from "no industry pack"', async () => {

@@ -48,6 +48,10 @@ from app.domain.site_health import service
 from app.domain.site_health.api_schemas import (
     BulkSelectMonitoredRequest,
     ContradictionPage,
+    CorrectionCreateRequest,
+    CorrectionItem,
+    CorrectionPage,
+    CorrectionWithdrawRequest,
     CrawlListPage,
     CrawlResponse,
     CreateCrawlRequest,
@@ -1239,6 +1243,108 @@ async def get_knowledge_contradictions_endpoint(
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
     return ContradictionPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/knowledge/corrections",
+    response_model=CorrectionPage,
+)
+async def get_knowledge_corrections_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    include_withdrawn: Annotated[bool, Query()] = True,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CorrectionPage:
+    try:
+        result = await service.list_corrections(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            include_withdrawn=include_withdrawn,
+            limit=limit,
+            offset=offset,
+        )
+    except service.CorrectionNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return CorrectionPage.model_validate(result)
+
+
+@router.post(
+    "/projects/{project_id}/knowledge/corrections",
+    response_model=CorrectionItem,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_knowledge_correction_endpoint(
+    project_id: uuid.UUID,
+    body: CorrectionCreateRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> CorrectionItem:
+    try:
+        correction = await service.create_correction(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            actor_user_id=ctx.user.id,
+            target_kind=body.target_kind,
+            target_id=body.target_id,
+            value=body.value,
+            effective_scope=body.effective_scope,
+            effective_scope_id=body.effective_scope_id,
+            effective_from=body.effective_from,
+            effective_to=body.effective_to,
+            unit=body.unit,
+            currency=body.currency,
+            reason=body.reason,
+        )
+    except service.CorrectionNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    except service.CorrectionValidationError as exc:
+        raise ApiException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            CODE_VALIDATION_ERROR,
+            str(exc),
+        ) from exc
+    except service.CorrectionConflictError as exc:
+        raise ApiException(
+            status.HTTP_409_CONFLICT,
+            CODE_VALIDATION_ERROR,
+            str(exc),
+        ) from exc
+    return CorrectionItem.model_validate(service.correction_payload(correction))
+
+
+@router.post(
+    "/projects/{project_id}/knowledge/corrections/{correction_id}/withdraw",
+    response_model=CorrectionItem,
+)
+async def withdraw_knowledge_correction_endpoint(
+    project_id: uuid.UUID,
+    correction_id: uuid.UUID,
+    body: CorrectionWithdrawRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> CorrectionItem:
+    try:
+        correction = await service.withdraw_correction(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            correction_id=correction_id,
+            actor_user_id=ctx.user.id,
+            reason=body.reason,
+        )
+    except service.CorrectionNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    except service.CorrectionValidationError as exc:
+        raise ApiException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            CODE_VALIDATION_ERROR,
+            str(exc),
+        ) from exc
+    return CorrectionItem.model_validate(service.correction_payload(correction))
 
 
 @router.get(

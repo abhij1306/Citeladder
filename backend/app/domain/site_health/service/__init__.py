@@ -36,6 +36,15 @@
 #   - ``lifecycle``    — ``cancel_crawl``, the dashboard, event replay.
 from __future__ import annotations
 
+from app.domain.site_health.corrections import (
+    CorrectionConflictError,
+    CorrectionNotFoundError,
+    CorrectionValidationError,
+    correction_payload,
+    create_correction,
+    list_corrections,
+    withdraw_correction,
+)
 from app.domain.site_health.service.common import (
     InvalidCursorError,
     SiteHealthNotFoundError,
@@ -82,6 +91,13 @@ from app.domain.site_health.service.queries import (
 __all__ = [
     "SiteHealthNotFoundError",
     "InvalidCursorError",
+    "CorrectionConflictError",
+    "CorrectionNotFoundError",
+    "CorrectionValidationError",
+    "correction_payload",
+    "create_correction",
+    "list_corrections",
+    "withdraw_correction",
     "get_entitlement_view",
     "get_crawl_summary",
     "list_crawls",

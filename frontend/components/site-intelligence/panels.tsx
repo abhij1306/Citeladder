@@ -7,8 +7,12 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CoverageBadge, Ratio, ScoreWithCoverage } from '@/components/site-intelligence/coverage';
+import {
+  ContradictionDecision,
+  displayValue,
+} from '@/components/site-intelligence/contradiction-decision';
 import { siteIntelligenceQueries } from '@/lib/api/site-intelligence';
-import type { IntelligenceOverview } from '@/lib/api/types';
+import type { IntelligenceOverview, SnapshotComparison } from '@/lib/api/types';
 
 type PanelProps = Readonly<{
   projectId: string;
@@ -98,6 +102,8 @@ export function OverviewPanel({ overview }: PanelProps) {
         </CardContent>
       </Card>
 
+      <SnapshotComparisonCard comparison={overview.comparison} />
+
       <Card>
         <CardHeader>
           <CardTitle>Dimensions</CardTitle>
@@ -145,6 +151,73 @@ export function OverviewPanel({ overview }: PanelProps) {
   );
 }
 
+function SnapshotComparisonCard({
+  comparison,
+}: Readonly<{ comparison: SnapshotComparison | null }>) {
+  if (!comparison) return null;
+  if (comparison.available !== true) {
+    const reason = comparison.reason?.replaceAll('_', ' ') ?? 'comparison unavailable';
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Since the previous crawl</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted text-sm">
+            No compatible comparison: {reason}. Earlier snapshots remain unchanged.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const facts = comparison.facts;
+  const questions = comparison.questions;
+  const rules = comparison.rules;
+  const resolutionCounts = comparison.action_resolutions?.state_counts;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Since the previous crawl</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-0.5">
+          <span className="text-muted text-2xs tracking-wide uppercase">Facts changed</span>
+          <span className="text-heading-sm text-foreground tabular-nums">
+            {facts?.changed_count ?? 0} changed
+          </span>
+          <span className="text-muted text-2xs">
+            {facts?.added_count ?? 0} added · {facts?.removed_count ?? 0} removed
+          </span>
+        </div>
+        <div className="grid gap-0.5">
+          <span className="text-muted text-2xs tracking-wide uppercase">Coverage movement</span>
+          <span className="text-heading-sm text-foreground tabular-nums">
+            {questions?.changed_count ?? 0} question states
+          </span>
+          <span className="text-muted text-2xs">
+            {rules?.changed_count ?? 0} rule outcomes changed
+          </span>
+        </div>
+        <div className="grid gap-1">
+          <span className="text-muted text-2xs tracking-wide uppercase">Action resolution</span>
+          <div className="flex flex-wrap gap-1.5">
+            <Badge variant="status" value="success">
+              {resolutionCounts?.verified ?? 0} verified
+            </Badge>
+            <Badge variant="status" value="warning">
+              {resolutionCounts?.partial ?? 0} partial
+            </Badge>
+            <Badge>{resolutionCounts?.unresolved ?? 0} unresolved</Badge>
+          </div>
+          <span className="text-muted text-2xs">Only observed passing evidence resolves work.</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Knowledge
 // ---------------------------------------------------------------------------
@@ -181,28 +254,12 @@ export function KnowledgePanel({ projectId, crawlId }: PanelProps) {
             <CardTitle>Conflicting facts</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {/* Every side is shown and none is pre-selected: the whole point of
-                preserving them is that nothing silently chose a winner. */}
             {contradictions.data?.items.map((group) => (
-              <div key={group.contradiction_group_id} className="grid gap-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-foreground text-sm">{group.subject.canonical_name}</span>
-                  <code className="text-muted text-2xs">{group.predicate_id}</code>
-                  <Badge variant="status" value="danger">
-                    {group.sides.length} conflicting values
-                  </Badge>
-                </div>
-                <ul className="text-muted grid gap-0.5 text-sm">
-                  {group.sides.map((side) => (
-                    <li key={side.id} className="flex flex-wrap gap-2">
-                      <span className="text-foreground">{side.normalized_value}</span>
-                      <span className="text-2xs">
-                        {side.temporal_state} · {side.evidence_refs.length} source(s)
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <ContradictionDecision
+                key={group.contradiction_group_id}
+                projectId={projectId}
+                group={group}
+              />
             ))}
           </CardContent>
         </Card>
@@ -220,11 +277,18 @@ export function KnowledgePanel({ projectId, crawlId }: PanelProps) {
             <CardContent className="grid gap-2">
               {entities.data.items.map((entity) => (
                 <div key={entity.id} className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-foreground text-sm">{entity.canonical_name || '—'}</span>
+                  <span className="text-foreground text-sm">
+                    {displayValue(entity.effective_value, entity.canonical_name || '—')}
+                  </span>
                   <code className="text-muted text-2xs">{entity.entity_type_id}</code>
                   <span className="text-muted text-2xs">
                     evidenced on {entity.evidence_page_count} page(s)
                   </span>
+                  {entity.correction ? (
+                    <Badge variant="status" value="success">
+                      corrected
+                    </Badge>
+                  ) : null}
                 </div>
               ))}
             </CardContent>
@@ -242,7 +306,9 @@ export function KnowledgePanel({ projectId, crawlId }: PanelProps) {
               {assertions.data.items.map((assertion) => (
                 <div key={assertion.id} className="flex flex-wrap items-baseline gap-2">
                   <code className="text-muted text-2xs">{assertion.predicate_id}</code>
-                  <span className="text-foreground text-sm">{assertion.normalized_value}</span>
+                  <span className="text-foreground text-sm">
+                    {displayValue(assertion.effective_value, assertion.normalized_value)}
+                  </span>
                   <Badge>{assertion.temporal_state}</Badge>
                   {/* An unscoped claim is missing a qualifier the pack requires
                       — a fee with no stated year or grade. Rendering it exactly
@@ -255,6 +321,11 @@ export function KnowledgePanel({ projectId, crawlId }: PanelProps) {
                   {assertion.contradiction_group_id ? (
                     <Badge variant="status" value="danger">
                       conflicting
+                    </Badge>
+                  ) : null}
+                  {assertion.correction ? (
+                    <Badge variant="status" value="success">
+                      corrected
                     </Badge>
                   ) : null}
                 </div>
@@ -416,6 +487,11 @@ export function EvidencePanel({ projectId, crawlId, overview }: PanelProps) {
                   <span className="text-foreground">{relation.source.name || '—'}</span>
                   <code className="text-muted text-2xs">{relation.relation_type_id}</code>
                   <span className="text-foreground">{relation.target.name || '—'}</span>
+                  {relation.correction ? (
+                    <Badge variant="status" value="success">
+                      corrected
+                    </Badge>
+                  ) : null}
                 </div>
               ))}
             </CardContent>

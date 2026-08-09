@@ -10,8 +10,8 @@
 
 | Order | Branch | Scope | Status | Pull request | Merge commit |
 |---|---|---|---|---|---|
-| 1 | `feature/demand-intelligence` | Demand D0-D5 | `ready_to_ship` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | pending |
-| 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `not_started` | — | — |
+| 1 | `feature/demand-intelligence` | Demand D0-D5 | `merged` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | `0f5915ac5c2e1eb935f72c56e9e745303662614f` |
+| 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `ready_to_ship` | — | — |
 | 3 | `feature/content-intelligence` | Content C0-C5 | `not_started` | — | — |
 
 Statuses are exact: `not_started | in_progress | ready_to_ship | merged`. A branch starts from
@@ -111,25 +111,59 @@ evidence and windows; reads make no external calls; unavailable is never rendere
 Canonical sources: [Site Intelligence](site-intelligence-primary-product.md) and the
 [knowledge kernel](knowledge-kernel-and-industry-pack-spec.md).
 
-- [ ] Durable corrections and append-only transitions.
-- [ ] Inline contradiction decisions with all observed evidence preserved.
-- [ ] Correction precedence across recomputation and withdrawal.
-- [ ] Compatible snapshot comparison across facts, questions, rules, journeys, dimensions, scores,
+- [x] Durable corrections and append-only transitions.
+- [x] Inline contradiction decisions with all observed evidence preserved.
+- [x] Correction precedence across recomputation and withdrawal.
+- [x] Compatible snapshot comparison across facts, questions, rules, journeys, dimensions, scores,
   and coverage.
-- [ ] Evidence-only `verified | partial | unresolved` action resolution.
-- [ ] Education and Commerce calibration; every other pack remains explicitly unproven.
+- [x] Evidence-only `verified | partial | unresolved` action resolution.
+- [x] Education and Commerce calibration preserved; every other pack remains explicitly unproven.
 
 **Acceptance gate:** corrections survive recrawl, unresolved conflicts cannot become authoritative
 output, and later evidence resolves actions without mutating earlier snapshots.
 
 ### Site implementation record
 
-- Implemented behavior: pending.
-- Public contract changes: pending.
-- Schema changes: pending.
-- Verification: pending.
-- Gotchas and conflict resolutions: pending.
-- Deliberate deferrals: pending.
+- Implemented behavior: project-stable typed corrections for entities, assertions, and relations
+  persist across recomputation and overlay rather than mutate observed rows. Create/withdraw
+  transitions are append-only; withdrawal restores the latest derived value. Contradictions keep
+  every side visible and accept an inline reasoned correction. The later Site snapshot freezes a
+  bounded compatible comparison across facts, questions, rules, journeys, dimensions, scores,
+  and coverage plus evidence-only Site action resolution.
+- Public contract changes: knowledge entity/assertion/relation items now expose `effective_value`
+  and correction provenance; contradiction groups expose `corrected | unresolved` and the active
+  correction. Added persisted-only correction list/create/withdraw routes. Site Intelligence
+  overview now exposes `prior_snapshot_id` and the frozen `comparison` projection.
+- Schema changes: folded `corrections` and `correction_transitions` into `0001_initial.py`; extended
+  `site_health_snapshots` with self-referential `prior_snapshot_id` and bounded `comparison` JSONB.
+  No approved-memory table, contradiction-group table, or `0002+` migration exists.
+- Verification: backend `2510 passed, 7 skipped`; frontend `1251 passed`; Playwright `26 passed`
+  with one worker. Ruff format/check, mypy, complexity ratchet, Prettier, ESLint, TypeScript,
+  frontend policy/contract, production build, documentation validation, and the 16-pack catalog
+  validator passed. `pip-audit` found no known vulnerabilities and the committed-baseline secrets
+  scan passed. The verified disposable `127.0.0.1:55432/citeladder` database was reset,
+  `0001_initial.py` upgraded from empty with no ORM drift, all Compose images were rebuilt and
+  force-recreated, migration exited 0, all services started, and `/health` returned 200. CI is
+  pending.
+- Gotchas and conflict resolutions: correction target identity excludes crawl IDs and, for an
+  assertion, the observed value; this is what lets a corrected value outrank a changed recrawl
+  derivation. Entity scope deterministically outranks project scope; journey/content/prompt scopes
+  remain unadvertised until their projections apply corrections. Snapshot compatibility is
+  fail-closed on the immediately preceding snapshot's pack manifest and analyzer/scoring/projection
+  versions. Only a persisted later `pass` verifies an
+  action; missing, error, not-applicable, or fail evidence cannot. Opportunity target keys remain
+  owned by the existing Site-issue mapping. The raw-artifact composite-FK redesign remains out of
+  scope because raw artifacts still lack `workspace_id`.
+- Review resolution: correction DTO expansion is explicit; shared target builders own all lookup
+  identities; active/withdrawn state and reason limits are shared and database-constrained;
+  concurrent insert conflicts map to 409; idempotent withdrawal releases its transaction;
+  comparison reads rank analyses deterministically and expose full action-state totals beside
+  bounded items. Crawl overlap needed no new lock: project-locked creation already permits only one
+  active crawl, so an earlier crawl terminalizes before a recrawl can be created. Object-valued
+  corrections remain withdrawable even though the inline editor cannot create them.
+- Deliberate deferrals: Content Intelligence context packages, briefs, generation, publication,
+  and post-publication verification remain Branch 3. The fourteen non-Education/Commerce packs
+  remain structurally valid but explicitly uncalibrated.
 
 ## Branch 3 — Content Intelligence
 

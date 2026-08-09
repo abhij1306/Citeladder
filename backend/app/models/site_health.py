@@ -1256,6 +1256,12 @@ class SiteHealthSnapshot(Base):
         PGUUID(as_uuid=True),
         ForeignKey(_FK_SITE_CRAWL, ondelete=_ON_DELETE_CASCADE),
     )
+    prior_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("site_health_snapshots.id", ondelete=_ON_DELETE_SET_NULL),
+        nullable=True,
+        index=True,
+    )
     selected_url_count: Mapped[int] = mapped_column(Integer, default=0)
     analyzed_url_count: Mapped[int] = mapped_column(Integer, default=0)
     technical_score: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -1286,6 +1292,9 @@ class SiteHealthSnapshot(Base):
     # nothing.
     intelligence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     intelligence_version: Mapped[str] = mapped_column(String(32), default="")
+    # Frozen S5 diff over the immediately preceding compatible snapshot. A
+    # mismatch is persisted with its explicit reason rather than compared.
+    comparison: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

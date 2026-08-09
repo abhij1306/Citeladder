@@ -48,6 +48,11 @@ Evidence panels. It reads immutable Demand projections, renders structured join/
 coverage, exposes persisted report-family capability state, and links to the existing owning
 workflows.
 
+The Site Intelligence Overview renders persisted compatible-recrawl movement and evidence-only
+action resolution. Its Knowledge panel keeps every contradictory observation visible and offers
+an inline correction/withdrawal control with a required reason; there is no modal approval queue
+or review inbox.
+
 ## Current route ownership
 
 | Route family | Current purpose | Target placement |
@@ -76,9 +81,9 @@ accelerate invalidation and presentation but never replaces persisted task state
 - Observed, derived, corrected, historical, conflicting, unknown, unavailable, and excluded states
   have distinct text labels and are never communicated by colour alone.
 - Context drawers show included sources and important omissions.
-- Derived facts are edited inline. A correction shows its author and timestamp, survives
-  recomputation, and can be withdrawn to restore the derived value. There is no approval card and
-  no review inbox.
+- Derived facts are corrected inline. A correction shows its author and timestamp, survives
+  recomputation, and can be withdrawn to restore the derived value. Replacement is
+  withdraw-then-create rather than an in-place edit. There is no approval card and no review inbox.
 - Industry role classification shows winning signals, alternatives, confidence, pack and version,
   and any correction.
 - Composites render over the full denominator with coverage beside them; never renormalize over

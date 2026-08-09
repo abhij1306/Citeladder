@@ -16,6 +16,7 @@ import { apiClient, type ApiRequestOptions } from './client';
 import { queryKeys } from './query-keys';
 import {
   contradictionPageSchema,
+  correctionItemSchema,
   intelligenceOverviewSchema,
   knowledgeAssertionPageSchema,
   knowledgeEntityPageSchema,
@@ -26,6 +27,7 @@ import {
 import { definedQuery, withQuery } from './shared';
 import type {
   ContradictionPage,
+  CorrectionItem,
   IntelligenceOverview,
   KnowledgeAssertionPage,
   KnowledgeEntityPage,
@@ -35,6 +37,19 @@ import type {
 
 /** Omitted `crawl_id` means "the project's most recent crawl". */
 type CrawlScoped = { crawlId?: string };
+
+export type CorrectionCreateInput = {
+  target_kind: 'entity' | 'assertion' | 'relation';
+  target_id: string;
+  value: string | number | boolean | Record<string, unknown>;
+  effective_scope?: 'project' | 'entity';
+  effective_scope_id?: string;
+  effective_from?: string;
+  effective_to?: string;
+  unit?: string;
+  currency?: string;
+  reason: string;
+};
 
 export const siteIntelligenceApi = {
   getOverview: async (
@@ -113,6 +128,22 @@ export const siteIntelligenceApi = {
     );
     const res = await apiClient.get<SchemaGraphResponse>(path, options);
     return strictValidate(schemaGraphResponseSchema, res, 'siteIntelligence.getSchemaGraph');
+  },
+
+  createCorrection: async (projectId: string, input: CorrectionCreateInput) => {
+    const res = await apiClient.post<CorrectionItem>(
+      `/projects/${projectId}/knowledge/corrections`,
+      input,
+    );
+    return strictValidate(correctionItemSchema, res, 'siteIntelligence.createCorrection');
+  },
+
+  withdrawCorrection: async (projectId: string, correctionId: string, reason: string) => {
+    const res = await apiClient.post<CorrectionItem>(
+      `/projects/${projectId}/knowledge/corrections/${correctionId}/withdraw`,
+      { reason },
+    );
+    return strictValidate(correctionItemSchema, res, 'siteIntelligence.withdrawCorrection');
   },
 };
 
