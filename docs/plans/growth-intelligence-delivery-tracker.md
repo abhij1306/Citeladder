@@ -10,7 +10,7 @@
 
 | Order | Branch | Scope | Status | Pull request | Merge commit |
 |---|---|---|---|---|---|
-| 1 | `feature/demand-intelligence` | Demand D0-D5 | `ready_to_ship` | pending | pending |
+| 1 | `feature/demand-intelligence` | Demand D0-D5 | `ready_to_ship` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | pending |
 | 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `not_started` | — | — |
 | 3 | `feature/content-intelligence` | Content C0-C5 | `not_started` | — | — |
 
