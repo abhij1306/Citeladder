@@ -190,6 +190,28 @@ def _correction_projection(derived_value: dict, correction: Correction | None) -
     }
 
 
+def _entity_context_ref(entity: KnowledgeEntity) -> dict:
+    return entity_target_ref(entity.entity_type_id, entity.identity_key)
+
+
+def _entity_correction_contexts(
+    rows: Sequence[KnowledgeEntity],
+) -> dict[str, dict]:
+    return {
+        stable_target_key(_entity_context_ref(entity)): _entity_context_ref(entity)
+        for entity in rows
+    }
+
+
+def _assertion_correction_contexts(
+    rows: Sequence[tuple[KnowledgeAssertion, KnowledgeEntity]],
+) -> dict[str, dict]:
+    return {
+        _assertion_target_key(assertion, subject): _entity_context_ref(subject)
+        for assertion, subject in rows
+    }
+
+
 async def get_knowledge_entities(
     session: AsyncSession,
     *,
@@ -240,12 +262,7 @@ async def get_knowledge_entities(
         workspace_id=workspace_id,
         project_id=project_id,
         target_kind=CORRECTION_TARGET_ENTITY,
-        context_entity_refs={
-            stable_target_key(
-                entity_target_ref(row.entity_type_id, row.identity_key)
-            ): entity_target_ref(row.entity_type_id, row.identity_key)
-            for row in rows
-        },
+        context_entity_refs=_entity_correction_contexts(rows),
     )
     return {
         "crawl_id": str(crawl.id),
@@ -317,33 +334,32 @@ async def get_knowledge_assertions(
         or 0
     )
     rows = (
-        await session.execute(
-            select(KnowledgeAssertion, KnowledgeEntity)
-            .join(
-                KnowledgeEntity,
-                KnowledgeEntity.id == KnowledgeAssertion.subject_entity_id,
+        (
+            await session.execute(
+                select(KnowledgeAssertion, KnowledgeEntity)
+                .join(
+                    KnowledgeEntity,
+                    KnowledgeEntity.id == KnowledgeAssertion.subject_entity_id,
+                )
+                .where(*where)
+                .order_by(
+                    KnowledgeAssertion.predicate_id,
+                    KnowledgeAssertion.scope_key,
+                    KnowledgeAssertion.id,
+                )
+                .offset(max(0, offset))
+                .limit(_bounded(limit))
             )
-            .where(*where)
-            .order_by(
-                KnowledgeAssertion.predicate_id,
-                KnowledgeAssertion.scope_key,
-                KnowledgeAssertion.id,
-            )
-            .offset(max(0, offset))
-            .limit(_bounded(limit))
         )
-    ).all()
+        .tuples()
+        .all()
+    )
     corrections = await active_corrections_by_target(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
         target_kind=CORRECTION_TARGET_ASSERTION,
-        context_entity_refs={
-            _assertion_target_key(assertion, subject): entity_target_ref(
-                subject.entity_type_id, subject.identity_key
-            )
-            for assertion, subject in rows
-        },
+        context_entity_refs=_assertion_correction_contexts(rows),
     )
     return {
         "crawl_id": str(crawl.id),
@@ -508,19 +524,23 @@ async def get_knowledge_contradictions(
     )
     rows = (
         (
-            await session.execute(
-                select(KnowledgeAssertion, KnowledgeEntity)
-                .join(
-                    KnowledgeEntity,
-                    KnowledgeEntity.id == KnowledgeAssertion.subject_entity_id,
-                )
-                .where(*where, KnowledgeAssertion.contradiction_group_id.in_(kept))
-                .order_by(
-                    KnowledgeAssertion.contradiction_group_id,
-                    KnowledgeAssertion.normalized_value,
+            (
+                await session.execute(
+                    select(KnowledgeAssertion, KnowledgeEntity)
+                    .join(
+                        KnowledgeEntity,
+                        KnowledgeEntity.id == KnowledgeAssertion.subject_entity_id,
+                    )
+                    .where(*where, KnowledgeAssertion.contradiction_group_id.in_(kept))
+                    .order_by(
+                        KnowledgeAssertion.contradiction_group_id,
+                        KnowledgeAssertion.normalized_value,
+                    )
                 )
             )
-        ).all()
+            .tuples()
+            .all()
+        )
         if kept
         else []
     )
@@ -530,12 +550,7 @@ async def get_knowledge_contradictions(
         workspace_id=workspace_id,
         project_id=project_id,
         target_kind=CORRECTION_TARGET_ASSERTION,
-        context_entity_refs={
-            _assertion_target_key(assertion, subject): entity_target_ref(
-                subject.entity_type_id, subject.identity_key
-            )
-            for assertion, subject in rows
-        },
+        context_entity_refs=_assertion_correction_contexts(rows),
     )
     groups: dict[str, dict] = {}
     for assertion, subject in rows:
