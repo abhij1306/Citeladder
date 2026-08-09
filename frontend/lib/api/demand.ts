@@ -61,6 +61,7 @@ const capabilitySchema = z
   .strict();
 const capabilityListSchema = z.object({ datasets: z.array(capabilitySchema) }).strict();
 export type DemandSnapshot = z.infer<typeof snapshotSchema>;
+export type DemandCapability = z.infer<typeof capabilitySchema>;
 
 export const demandApi = {
   listSnapshots: async (projectId: string, options?: ApiRequestOptions) =>

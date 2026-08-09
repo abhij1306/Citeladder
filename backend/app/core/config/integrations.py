@@ -595,6 +595,7 @@ GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP: Final = "default_channel_grou
 # these markers appears in the capped provider detail — a generic 400
 # keeps the standard provider-error behavior (no fallback).
 GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS: Final = ("incompatib",)
+GSC_SEARCH_ANALYTICS_METHOD: Final = "searchAnalytics.query"
 
 
 @dataclass(frozen=True)
@@ -624,42 +625,42 @@ INTEGRATION_DATASET_TEMPLATES: Final[dict[str, IntegrationDatasetTemplate]] = {
     DATASET_GSC_PAGE_DAILY: IntegrationDatasetTemplate(
         dataset=DATASET_GSC_PAGE_DAILY,
         provider=INTEGRATION_PROVIDER_GSC,
-        api_method="searchAnalytics.query",
+        api_method=GSC_SEARCH_ANALYTICS_METHOD,
         dimensions=("page", "date"),
         metrics=_GSC_SEARCH_ANALYTICS_METRICS,
     ),
     DATASET_GSC_QUERY_DAILY: IntegrationDatasetTemplate(
         dataset=DATASET_GSC_QUERY_DAILY,
         provider=INTEGRATION_PROVIDER_GSC,
-        api_method="searchAnalytics.query",
+        api_method=GSC_SEARCH_ANALYTICS_METHOD,
         dimensions=("query", "date"),
         metrics=_GSC_SEARCH_ANALYTICS_METRICS,
     ),
     DATASET_GSC_QUERY_PAGE_DAILY: IntegrationDatasetTemplate(
         dataset=DATASET_GSC_QUERY_PAGE_DAILY,
         provider=INTEGRATION_PROVIDER_GSC,
-        api_method="searchAnalytics.query",
+        api_method=GSC_SEARCH_ANALYTICS_METHOD,
         dimensions=("query", "page", "date"),
         metrics=_GSC_SEARCH_ANALYTICS_METRICS,
     ),
     DATASET_GSC_SEARCH_APPEARANCE_DAILY: IntegrationDatasetTemplate(
         dataset=DATASET_GSC_SEARCH_APPEARANCE_DAILY,
         provider=INTEGRATION_PROVIDER_GSC,
-        api_method="searchAnalytics.query",
+        api_method=GSC_SEARCH_ANALYTICS_METHOD,
         dimensions=("searchAppearance", "date"),
         metrics=_GSC_SEARCH_ANALYTICS_METRICS,
     ),
     DATASET_GSC_DEVICE_DAILY: IntegrationDatasetTemplate(
         dataset=DATASET_GSC_DEVICE_DAILY,
         provider=INTEGRATION_PROVIDER_GSC,
-        api_method="searchAnalytics.query",
+        api_method=GSC_SEARCH_ANALYTICS_METHOD,
         dimensions=("device", "date"),
         metrics=_GSC_SEARCH_ANALYTICS_METRICS,
     ),
     DATASET_GSC_COUNTRY_DAILY: IntegrationDatasetTemplate(
         dataset=DATASET_GSC_COUNTRY_DAILY,
         provider=INTEGRATION_PROVIDER_GSC,
-        api_method="searchAnalytics.query",
+        api_method=GSC_SEARCH_ANALYTICS_METHOD,
         dimensions=("country", "date"),
         metrics=_GSC_SEARCH_ANALYTICS_METRICS,
     ),

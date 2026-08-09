@@ -95,7 +95,10 @@ evidence and windows; reads make no external calls; unavailable is never rendere
   browser fixtures and assertions left by the current `main` contract, and serialized Playwright
   workers because its single lazy-compiled development server produced nondeterministic navigation
   races under six workers. The missing visual-test configuration now owns a deterministic Demand
-  empty-workspace snapshot.
+  empty-workspace snapshot. Pre-merge Sonar review reported 20 new maintainability findings even
+  though its quality gate passed; the API capability mapper, coded errors, snapshot inputs,
+  Opportunity mapping, provider/model constants, and frontend panels were simplified before merge
+  rather than accepting the green badge alone.
 - Deliberate deferrals: paid media, CRM, email, and social remain future connectors per the
   canonical plan. Composite workspace foreign keys across the entire audit/analysis/raw-artifact
   graph remain with that owning persistence redesign: raw artifacts do not currently carry a

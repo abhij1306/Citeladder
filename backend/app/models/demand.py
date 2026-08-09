@@ -25,6 +25,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
+_WORKSPACE_FK = "workspaces.id"
+_PROJECT_FK = "projects.id"
+_SET_NULL = "SET NULL"
+
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
@@ -43,11 +47,11 @@ class JourneyDefinition(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     slug: Mapped[str] = mapped_column(String(96))
     name: Mapped[str] = mapped_column(String(255))
@@ -74,11 +78,11 @@ class JourneyDefinitionVersion(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     journey_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -90,7 +94,7 @@ class JourneyDefinitionVersion(Base):
     source_kind: Mapped[str] = mapped_column(String(24))
     source_version: Mapped[str] = mapped_column(String(64), default="")
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete=_SET_NULL), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
@@ -112,23 +116,23 @@ class DemandSnapshot(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     window_start: Mapped[date] = mapped_column(Date)
     window_end: Mapped[date] = mapped_column(Date)
     source_hash: Mapped[str] = mapped_column(String(64))
     site_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("site_health_snapshots.id", ondelete="SET NULL"),
+        ForeignKey("site_health_snapshots.id", ondelete=_SET_NULL),
         nullable=True,
     )
     prior_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("demand_snapshots.id", ondelete="SET NULL"),
+        ForeignKey("demand_snapshots.id", ondelete=_SET_NULL),
         nullable=True,
     )
     source_artifact_ids: Mapped[list] = mapped_column(JSONB, default=list)
@@ -160,11 +164,11 @@ class DemandSignal(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     snapshot_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),

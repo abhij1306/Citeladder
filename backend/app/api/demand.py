@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,10 @@ from app.core.config.demand import (
     DEMAND_LIST_DEFAULT_LIMIT,
     DEMAND_LIST_MAX_LIMIT,
 )
+from app.core.config.errors import CODE_CONFLICT, CODE_VALIDATION_ERROR
 from app.core.config.integrations import INTEGRATION_DATASET_TEMPLATES
+from app.core.errors import ApiException
+from app.core.http_errors import raise_not_found
 from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
 from app.domain.demand.projection import stable_hash
 from app.domain.demand.schemas import (
@@ -54,7 +57,7 @@ async def _authorize(
     try:
         await get_project(session, workspace_id=workspace_id, project_id=project_id)
     except ProjectNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Project not found") from exc
+        raise_not_found("Project", cause=exc)
 
 
 def _signal_view(row) -> DemandSignalView:
@@ -127,7 +130,8 @@ def _capability_items(
     latest: dict[str, Any],
 ) -> list[DemandDatasetCapability]:
     items: list[DemandDatasetCapability] = []
-    capabilities = connection.dataset_capabilities or {} if connection else {}
+    capabilities = connection.dataset_capabilities if connection else {}
+    capabilities = capabilities or {}
     for template in INTEGRATION_DATASET_TEMPLATES.values():
         if template.provider != mapping.provider:
             continue
@@ -135,18 +139,15 @@ def _capability_items(
         snapshot = artifact.query_snapshot or {} if artifact else {}
         capability = capabilities.get(template.dataset, {})
         capability = capability if isinstance(capability, dict) else {}
-        provider_metadata = dict(snapshot.get("providerMetadata") or {})
-        if capability:
-            provider_metadata["capability"] = capability
+        provider_metadata = _provider_metadata(snapshot, capability)
+        state = (
+            "observed" if artifact else str(capability.get("status") or "unavailable")
+        )
         items.append(
             DemandDatasetCapability(
                 provider=mapping.provider,
                 dataset=template.dataset,
-                state=(
-                    "observed"
-                    if artifact
-                    else str(capability.get("status") or "unavailable")
-                ),
+                state=state,
                 latest_artifact_id=artifact.id if artifact else None,
                 coverage=dict(snapshot.get("coverage") or {}),
                 provider_metadata=provider_metadata,
@@ -155,7 +156,16 @@ def _capability_items(
     return items
 
 
-@router.get("/{project_id}/demand/snapshots", response_model=DemandSnapshotList)
+def _provider_metadata(
+    snapshot: dict[str, Any], capability: dict[str, Any]
+) -> dict[str, Any]:
+    metadata = dict(snapshot.get("providerMetadata") or {})
+    if capability:
+        metadata["capability"] = capability
+    return metadata
+
+
+@router.get("/{project_id}/demand/snapshots")
 async def snapshots(
     project_id: uuid.UUID,
     ctx: _WorkspaceDep,
@@ -175,7 +185,7 @@ async def snapshots(
     )
 
 
-@router.get("/{project_id}/demand/capabilities", response_model=DemandCapabilityView)
+@router.get("/{project_id}/demand/capabilities")
 async def capabilities(
     project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> DemandCapabilityView:
@@ -210,9 +220,7 @@ async def capabilities(
     return DemandCapabilityView(datasets=items)
 
 
-@router.get(
-    "/{project_id}/demand/snapshots/{snapshot_id}", response_model=DemandSnapshotView
-)
+@router.get("/{project_id}/demand/snapshots/{snapshot_id}")
 async def snapshot_detail(
     project_id: uuid.UUID,
     snapshot_id: uuid.UUID,
@@ -227,13 +235,12 @@ async def snapshot_detail(
         snapshot_id=snapshot_id,
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="Demand snapshot not found")
+        raise_not_found("Demand snapshot")
     return await _snapshot_view(session, row, include_signals=True)
 
 
 @router.post(
     "/{project_id}/demand/recompute",
-    response_model=DemandRecomputeResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def recompute(
@@ -293,7 +300,7 @@ async def _journey_view(
     )
 
 
-@router.get("/{project_id}/demand/journeys", response_model=list[JourneyDefinitionView])
+@router.get("/{project_id}/demand/journeys")
 async def journeys(
     project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> list[JourneyDefinitionView]:
@@ -313,9 +320,7 @@ async def journeys(
     return [await _journey_view(session, row) for row in rows]
 
 
-@router.put(
-    "/{project_id}/demand/journeys/{slug}", response_model=JourneyDefinitionView
-)
+@router.put("/{project_id}/demand/journeys/{slug}")
 async def put_journey(
     project_id: uuid.UUID,
     slug: str,
@@ -325,7 +330,11 @@ async def put_journey(
 ) -> JourneyDefinitionView:
     await _authorize(session, ctx.workspace_id, project_id)
     if slug != payload.slug:
-        raise HTTPException(status_code=422, detail="path slug must match payload slug")
+        raise ApiException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            CODE_VALIDATION_ERROR,
+            "path slug must match payload slug",
+        )
     row = await session.scalar(
         select(JourneyDefinition)
         .where(
@@ -366,11 +375,17 @@ async def put_journey(
                 .with_for_update()
             )
             if row is None:
-                raise HTTPException(
-                    status_code=409, detail="Journey creation conflicted; retry request"
+                raise ApiException(
+                    status.HTTP_409_CONFLICT,
+                    CODE_CONFLICT,
+                    "Journey creation conflicted; retry request",
                 )
     if row is None:
-        raise HTTPException(status_code=409, detail="Journey creation did not resolve")
+        raise ApiException(
+            status.HTTP_409_CONFLICT,
+            CODE_CONFLICT,
+            "Journey creation did not resolve",
+        )
     if created:
         version_number = 1
     else:

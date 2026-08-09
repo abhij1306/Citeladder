@@ -643,6 +643,34 @@ async def _confirmed_decline_hits(
     ]
 
 
+def _demand_hit(snapshot: DemandSnapshot, signal: DemandSignal) -> DetectorHit | None:
+    evidence = dict(signal.evidence or {})
+    target_kind = str(evidence.get("target_kind") or "")
+    target = str(evidence.get("target") or "")
+    if not target:
+        return None
+    return DetectorHit(
+        rule_id="search_demand_content_gap",
+        target_key=f"demand:{signal.identity_hash}",
+        target_prompt_id=None,
+        target_url=target if target_kind == "page" else None,
+        target_theme=target if target_kind == "query" else None,
+        evidence={
+            "demand_snapshot_id": str(snapshot.id),
+            "demand_signal_id": str(signal.id),
+            "signal_type": signal.signal_type,
+            "metrics": dict(signal.metrics or {}),
+            "coverage": dict(signal.coverage or {}),
+            "limitations": list(signal.limitations or []),
+        },
+        source_analysis_ids=(),
+        source_issue_ids=(),
+        source_metric_ids=tuple(evidence.get("source_metric_row_ids") or []),
+        value_factor=max(0.01, min(1.0, float(signal.priority_score or 0) / 100)),
+        gap_factor=DEMAND_SIGNAL_GAP_FACTOR,
+    )
+
+
 async def _demand_hits(
     session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
 ) -> tuple[DemandSnapshot | None, list[DetectorHit]]:
@@ -673,37 +701,7 @@ async def _demand_hits(
             )
         ).all()
     )
-    hits: list[DetectorHit] = []
-    for signal in signals:
-        evidence = dict(signal.evidence or {})
-        target_kind = str(evidence.get("target_kind") or "")
-        target = str(evidence.get("target") or "")
-        if not target:
-            continue
-        hits.append(
-            DetectorHit(
-                rule_id="search_demand_content_gap",
-                target_key=f"demand:{signal.identity_hash}",
-                target_prompt_id=None,
-                target_url=target if target_kind == "page" else None,
-                target_theme=target if target_kind == "query" else None,
-                evidence={
-                    "demand_snapshot_id": str(snapshot.id),
-                    "demand_signal_id": str(signal.id),
-                    "signal_type": signal.signal_type,
-                    "metrics": dict(signal.metrics or {}),
-                    "coverage": dict(signal.coverage or {}),
-                    "limitations": list(signal.limitations or []),
-                },
-                source_analysis_ids=(),
-                source_issue_ids=(),
-                source_metric_ids=tuple(evidence.get("source_metric_row_ids") or []),
-                value_factor=max(
-                    0.01, min(1.0, float(signal.priority_score or 0) / 100)
-                ),
-                gap_factor=DEMAND_SIGNAL_GAP_FACTOR,
-            )
-        )
+    hits = [hit for signal in signals if (hit := _demand_hit(snapshot, signal))]
     return snapshot, hits
 
 

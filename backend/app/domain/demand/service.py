@@ -138,6 +138,17 @@ def _page_identity(page_rows: list[TrafficPageStat]) -> dict[str, Any]:
         if isinstance((row.metrics or {}).get("key_events"), int | float)
     ]
     total_pages = len(page_rows)
+    key_events: dict[str, Any] = {"state": "unavailable", "value": None}
+    if key_event_values:
+        key_event_total = sum(key_event_values)
+        interpretation = "observed_nonzero"
+        if key_event_total == 0:
+            interpretation = "observed_zero_limited_evidence"
+        key_events = {
+            "state": "observed",
+            "value": key_event_total,
+            "interpretation": interpretation,
+        }
     page_identity = {
         "state": "observed",
         "total_pages": total_pages,
@@ -148,19 +159,7 @@ def _page_identity(page_rows: list[TrafficPageStat]) -> dict[str, Any]:
             if matched_pages < total_pages
             else []
         ),
-        "key_events": (
-            {
-                "state": "observed",
-                "value": sum(key_event_values),
-                "interpretation": (
-                    "observed_zero_limited_evidence"
-                    if sum(key_event_values) == 0
-                    else "observed_nonzero"
-                ),
-            }
-            if key_event_values
-            else {"state": "unavailable", "value": None}
-        ),
+        "key_events": key_events,
     }
     return page_identity
 
@@ -426,10 +425,10 @@ def _snapshot_row(
     page_identity: dict[str, Any],
     prompt_portfolio: dict[str, Any],
     candidates: list[DemandSignalCandidate],
-    metric_ids: list[str],
-    artifact_ids: list[str],
+    source_ids: tuple[list[str], list[str]],
     prior: DemandSnapshot | None,
 ) -> DemandSnapshot:
+    metric_ids, artifact_ids = source_ids
     counts: dict[str, int] = {}
     for candidate in candidates:
         counts[candidate.signal_type] = counts.get(candidate.signal_type, 0) + 1
@@ -584,8 +583,7 @@ async def recompute_demand(
             page_identity=page_identity,
             prompt_portfolio=prompt_portfolio,
             candidates=candidates,
-            metric_ids=metric_ids,
-            artifact_ids=artifact_ids,
+            source_ids=(metric_ids, artifact_ids),
             prior=prior,
         )
         session.add(snapshot)
