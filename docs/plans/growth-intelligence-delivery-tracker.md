@@ -11,7 +11,7 @@
 | Order | Branch | Scope | Status | Pull request | Merge commit |
 |---|---|---|---|---|---|
 | 1 | `feature/demand-intelligence` | Demand D0-D5 | `merged` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | `0f5915ac5c2e1eb935f72c56e9e745303662614f` |
-| 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `ready_to_ship` | — | — |
+| 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `ready_to_ship` | [#58](https://github.com/abhij1306/Citeladder/pull/58) | — |
 | 3 | `feature/content-intelligence` | Content C0-C5 | `not_started` | — | — |
 
 Statuses are exact: `not_started | in_progress | ready_to_ship | merged`. A branch starts from
@@ -143,8 +143,8 @@ output, and later evidence resolves actions without mutating earlier snapshots.
   validator passed. `pip-audit` found no known vulnerabilities and the committed-baseline secrets
   scan passed. The verified disposable `127.0.0.1:55432/citeladder` database was reset,
   `0001_initial.py` upgraded from empty with no ORM drift, all Compose images were rebuilt and
-  force-recreated, migration exited 0, all services started, and `/health` returned 200. CI is
-  pending.
+  force-recreated, migration exited 0, all services started, and `/health` returned 200. Pull
+  request [#58](https://github.com/abhij1306/Citeladder/pull/58) is awaiting CI.
 - Gotchas and conflict resolutions: correction target identity excludes crawl IDs and, for an
   assertion, the observed value; this is what lets a corrected value outrank a changed recrawl
   derivation. Entity scope deterministically outranks project scope; journey/content/prompt scopes
