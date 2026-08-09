@@ -258,8 +258,7 @@ function RunTimeline({ run }: Readonly<{ run: AgentTaskRun }>) {
   );
 }
 
-export function GrowthAgentWorkspace() {
-  // NOSONAR -- composition remains explicit for screen-level state
+export function GrowthAgentWorkspace() /* NOSONAR -- screen-level React composition */ {
   const search = useSearchParams();
   const queryClient = useQueryClient();
   const { activeProject, isLoading: projectLoading } = useProjectContext();

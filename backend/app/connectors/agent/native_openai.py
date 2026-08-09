@@ -230,23 +230,35 @@ def native_response_debug_shape(result: ModelResult) -> str:
 
 
 def _first_output_text(body: object) -> str:
+    for item in _response_output(body):
+        for part in _message_content(item):
+            text = _output_text(part)
+            if text is not None:
+                return text
+    raise LookupError("response has no output_text content")
+
+
+def _response_output(body: object) -> list[object]:
     if not isinstance(body, Mapping):
         raise TypeError("response body is not an object")
     output = body.get("output")
     if not isinstance(output, list):
         raise TypeError("response output is not a list")
-    for item in output:
-        if not isinstance(item, Mapping) or item.get("type") != "message":
-            continue
-        content = item.get("content")
-        if not isinstance(content, list):
-            continue
-        for part in content:
-            if isinstance(part, Mapping) and part.get("type") == "output_text":
-                text = part.get("text")
-                if isinstance(text, str):
-                    return text
-    raise LookupError("response has no output_text content")
+    return output
+
+
+def _message_content(item: object) -> list[object]:
+    if not isinstance(item, Mapping) or item.get("type") != "message":
+        return []
+    content = item.get("content")
+    return content if isinstance(content, list) else []
+
+
+def _output_text(part: object) -> str | None:
+    if not isinstance(part, Mapping) or part.get("type") != "output_text":
+        return None
+    text = part.get("text")
+    return text if isinstance(text, str) else None
 
 
 def _configuration_error(settings: DefaultAgentSettings) -> str:
