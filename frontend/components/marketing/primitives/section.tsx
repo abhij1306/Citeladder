@@ -5,6 +5,14 @@ import { cn } from '@/lib/utils';
 import { Eyebrow } from './label';
 import { Reveal } from './reveal';
 
+// The scoped website ladder resolves these semantic rungs responsively;
+// embedded product previews reset to the compact app ladder.
+const SECTION_HEADING_CLASSES = {
+  h1: 'website-page-title',
+  h2: 'website-section-heading',
+  h3: 'website-feature-heading',
+} as const;
+
 /**
  * Vertical rhythm for the whole public surface. Sections NEVER set their own
  * padding — the six cases live here, so every page breathes identically
@@ -143,14 +151,6 @@ export function SectionHeader({
   as?: 'h1' | 'h2' | 'h3';
   className?: string;
 }>) {
-  // The scoped website ladder resolves these semantic rungs responsively;
-  // embedded product previews reset to the compact app ladder.
-  const HEADING = {
-    h1: 'website-page-title',
-    h2: 'website-section-heading',
-    h3: 'website-feature-heading',
-  } as const;
-
   return (
     <Reveal
       className={cn(
@@ -164,7 +164,7 @@ export function SectionHeader({
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
       <Heading
         id={headingId}
-        className={cn('text-foreground max-w-[32ch] text-balance', HEADING[size])}
+        className={cn('text-foreground max-w-[32ch] text-balance', SECTION_HEADING_CLASSES[size])}
       >
         {title}
       </Heading>
