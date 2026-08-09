@@ -62,8 +62,11 @@ export function useContentIntelligence(projectId: string | null) {
     onSuccess: invalidate,
   });
   const updateRevisionMutation = useMutation({
-    mutationFn: (input: { revisionId: string; visibleContent: string }) =>
-      contentApi.updateRevision(input.revisionId, input.visibleContent, null),
+    mutationFn: (input: {
+      revisionId: string;
+      visibleContent: string;
+      structuredData: Record<string, unknown> | null;
+    }) => contentApi.updateRevision(input.revisionId, input.visibleContent, input.structuredData),
     onSuccess: invalidate,
   });
   const transitionRevisionMutation = useMutation({

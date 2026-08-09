@@ -442,12 +442,18 @@ function RevisionEditor({
     : revisions[0].id;
   const [selectedId, setSelectedId] = useState(initialId);
   const selected = revisions.find((item) => item.id === selectedId) ?? revisions[0];
-  const [body, setBody] = useState(selected.visible_content);
-  const [targetUrl, setTargetUrl] = useState(selected.publication_target_url);
+  const [drafts, setDrafts] = useState<Record<string, { body: string; targetUrl: string }>>({});
+  const draft = drafts[selected.id];
+  const body = draft?.body ?? selected.visible_content;
+  const targetUrl = draft?.targetUrl ?? selected.publication_target_url;
+  const updateDraft = (values: Partial<{ body: string; targetUrl: string }>) => {
+    setDrafts((current) => ({
+      ...current,
+      [selected.id]: { body, targetUrl, ...values },
+    }));
+  };
   const selectRevision = (revision: ContentRevision) => {
     setSelectedId(revision.id);
-    setBody(revision.visible_content);
-    setTargetUrl(revision.publication_target_url);
   };
   const editable = selected.state === 'draft' || selected.state === 'edited';
   return (
@@ -482,7 +488,7 @@ function RevisionEditor({
               rows={18}
               value={body}
               disabled={!editable}
-              onChange={(event) => setBody(event.target.value)}
+              onChange={(event) => updateDraft({ body: event.target.value })}
             />
           </label>
           {selected.state === 'saved' ? (
@@ -490,7 +496,7 @@ function RevisionEditor({
               Publication URL
               <Input
                 value={targetUrl}
-                onChange={(event) => setTargetUrl(event.target.value)}
+                onChange={(event) => updateDraft({ targetUrl: event.target.value })}
                 placeholder="https://example.com/faq"
               />
             </label>
@@ -506,6 +512,7 @@ function RevisionEditor({
                     content.updateRevisionMutation.mutate({
                       revisionId: selected.id,
                       visibleContent: body,
+                      structuredData: selected.structured_data,
                     })
                   }
                 >
@@ -572,7 +579,6 @@ function VerificationPanel({
     overviewQuery.isLoading
   )
     return <LoadingPanel />;
-  const strategy = content.strategyQuery.data;
   const latestSiteSnapshotId = overviewQuery.data?.snapshot_id;
   const claims = (content.revisionsQuery.data ?? []).filter(
     (item) => item.state === 'published_claimed',
@@ -606,17 +612,17 @@ function VerificationPanel({
                 </div>
                 <Button
                   variant="secondary"
-                  disabled={!strategy || content.verifyRevisionMutation.isPending}
+                  disabled={!latestSiteSnapshotId || content.verifyRevisionMutation.isPending}
                   onClick={() =>
-                    strategy &&
+                    latestSiteSnapshotId &&
                     content.verifyRevisionMutation.mutate({
                       revisionId: revision.id,
-                      siteSnapshotId: latestSiteSnapshotId ?? strategy.site_snapshot_id,
+                      siteSnapshotId: latestSiteSnapshotId,
                     })
                   }
                 >
                   <SearchCheck className="mr-2 size-4" aria-hidden />
-                  {latestSiteSnapshotId ? 'Compare latest recrawl' : 'Compare strategy snapshot'}
+                  {latestSiteSnapshotId ? 'Compare latest recrawl' : 'Recrawl required'}
                 </Button>
               </li>
             ))}

@@ -168,6 +168,21 @@ def test_validator_accepts_context_bound_education_answer() -> None:
     assert all(item["passed"] for item in checks)
 
 
+def test_validator_fails_closed_when_required_question_has_no_label() -> None:
+    brief = _brief()
+    brief.requirements = {"questions": [{"question_id": "admissions.requirements"}]}
+
+    status, checks = validate_output(
+        output_text="Contact the admissions team.", brief=brief, context=_context(brief)
+    )
+
+    assert status == "blocked"
+    required = next(
+        item for item in checks if item["check_id"].startswith("required_question:")
+    )
+    assert required["passed"] is False
+
+
 def test_faq_schema_requires_exact_visible_question_and_answer_parity() -> None:
     schema = {
         "@type": "FAQPage",
@@ -186,6 +201,11 @@ def test_faq_schema_requires_exact_visible_question_and_answer_parity() -> None:
     ):
         _validate_visible_schema_parity(
             "## What is the returns window?\n\nContact support for details.", schema
+        )
+
+    with pytest.raises(ContentValidationBlockedError, match="faq_schema_invalid"):
+        _validate_visible_schema_parity(
+            visible, {"@type": "FAQPage", "mainEntity": [None]}
         )
 
 

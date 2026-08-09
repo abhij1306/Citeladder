@@ -38,12 +38,13 @@ function isContentPanel(value: string | null): value is ContentPanel {
 function ContentTabPanel() {
   const searchParams = useSearchParams();
   const requested = searchParams.get('tab');
-  const panel = isContentPanel(requested) ? requested : 'strategy';
+  const opportunityId = searchParams.get('opportunity_id');
+  const panel = isContentPanel(requested) ? requested : opportunityId ? 'drafts' : 'strategy';
 
   return (
     <ContentIntelligenceScreen
       panel={panel}
-      opportunityId={searchParams.get('opportunity_id')}
+      opportunityId={opportunityId}
       revisionId={searchParams.get('revision_id')}
     />
   );

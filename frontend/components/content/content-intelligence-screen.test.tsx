@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
 
 import { ContentIntelligenceScreen } from './content-intelligence-screen';
 
@@ -94,5 +95,40 @@ describe('ContentIntelligenceScreen', () => {
   it('keeps the advanced custom task inside Drafts', () => {
     render(<ContentIntelligenceScreen panel="drafts" />);
     expect(screen.getByText('Custom task composer')).toBeInTheDocument();
+  });
+
+  it('switches revision drafts safely and preserves structured data on edit', async () => {
+    const updateMutation = mutation();
+    mocks.content.updateRevisionMutation = updateMutation;
+    mocks.content.revisionsQuery = query([
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        state: 'edited',
+        visible_content: 'Admissions answer',
+        structured_data: { '@type': 'FAQPage', mainEntity: [] },
+        publication_target_url: '',
+        validation_snapshot: { status: 'passed' },
+      },
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        state: 'edited',
+        visible_content: 'Fees answer',
+        structured_data: { '@type': 'FAQPage', mainEntity: [{ name: 'Fees' }] },
+        publication_target_url: '',
+        validation_snapshot: { status: 'passed' },
+      },
+    ]);
+    const user = userEvent.setup();
+
+    render(<ContentIntelligenceScreen panel="revisions" />);
+    await user.click(screen.getByRole('button', { name: /Fees answer/ }));
+
+    expect(screen.getByRole('textbox', { name: 'Visible content' })).toHaveValue('Fees answer');
+    await user.click(screen.getByRole('button', { name: 'Save edit' }));
+    expect(updateMutation.mutate).toHaveBeenCalledWith({
+      revisionId: '33333333-3333-4333-8333-333333333333',
+      visibleContent: 'Fees answer',
+      structuredData: { '@type': 'FAQPage', mainEntity: [{ name: 'Fees' }] },
+    });
   });
 });

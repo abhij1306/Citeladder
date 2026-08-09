@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.connectors.web_evidence.url_policy import UrlPolicyError
 from app.core.config.content_intelligence import (
     AUTOMATIC_BRIEF_STATES,
     BLOCKING_FACT_STATES,
@@ -33,6 +34,7 @@ from app.core.config.content_intelligence import (
     REVISION_TRANSITIONS,
 )
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
+from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.service.intelligence import get_knowledge_assertions
 from app.models.content import (
     ContentBrief,
@@ -830,7 +832,7 @@ def _required_question_checks(text: str, brief: ContentBrief) -> list[dict]:
     for question in questions:
         question_id = str(question.get("question_id") or "")
         label = str(question.get("question") or question.get("label") or "")
-        present = (label.lower() in text.lower()) if label else bool(question_id)
+        present = label.lower() in text.lower() if label else False
         checks.append(
             _check(
                 f"required_question:{question_id}",
@@ -1112,20 +1114,30 @@ async def transition_revision(
         _validate_visible_schema_parity(
             revision.visible_content, revision.structured_data
         )
-    if state == "published_claimed" and not target_url.strip():
-        raise ContentConflictError("publication_target_required")
+    publication_target = ""
+    if state == "published_claimed":
+        publication_target = _canonical_publication_target(target_url)
     previous = revision.state
     revision.state = state
     now = datetime.now(UTC)
     if state == "saved":
         revision.saved_at = now
     if state == "published_claimed":
-        revision.publication_target_url = target_url.strip()
+        revision.publication_target_url = publication_target
         revision.publication_claimed_at = now
     session.add(_transition(revision, previous, state, user_id, reason))
     await session.commit()
     await session.refresh(revision)
     return revision
+
+
+def _canonical_publication_target(target_url: str) -> str:
+    if not target_url.strip():
+        raise ContentConflictError("publication_target_required")
+    try:
+        return canonical_identity(target_url)[0]
+    except UrlPolicyError as exc:
+        raise ContentConflictError("publication_target_invalid") from exc
 
 
 def _validate_visible_schema_parity(visible: str, structured_data: dict | None) -> None:
@@ -1138,15 +1150,25 @@ def _validate_visible_schema_parity(visible: str, structured_data: dict | None) 
         raise ContentValidationBlockedError("faq_schema_empty")
     normalized_visible = " ".join(visible.lower().split())
     for item in entities:
-        question = str(item.get("name") or "").strip()
-        answer = str((item.get("acceptedAnswer") or {}).get("text") or "").strip()
-        if not question or not answer:
-            raise ContentValidationBlockedError("faq_schema_invalid")
+        question, answer = _faq_entity(item)
         if (
             " ".join(question.lower().split()) not in normalized_visible
             or " ".join(answer.lower().split()) not in normalized_visible
         ):
             raise ContentValidationBlockedError("faq_visible_schema_mismatch")
+
+
+def _faq_entity(item: Any) -> tuple[str, str]:
+    if not isinstance(item, dict):
+        raise ContentValidationBlockedError("faq_schema_invalid")
+    accepted_answer = item.get("acceptedAnswer")
+    if not isinstance(accepted_answer, dict):
+        raise ContentValidationBlockedError("faq_schema_invalid")
+    question = str(item.get("name") or "").strip()
+    answer = str(accepted_answer.get("text") or "").strip()
+    if not question or not answer:
+        raise ContentValidationBlockedError("faq_schema_invalid")
+    return question, answer
 
 
 async def _revision_for_update(

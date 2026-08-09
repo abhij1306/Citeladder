@@ -363,11 +363,12 @@ async def test_gap_to_recrawl_verification_without_fact_promotion(
         f"/api/v1/content/revisions/{revision_id}/transition",
         json={
             "state": "published_claimed",
-            "target_url": "https://acceptance.example/help",
+            "target_url": "https://acceptance.example/help#faq",
             "reason": "published by reviewer",
         },
     )
     assert claimed.status_code == 200
+    assert claimed.json()["publication_target_url"] == "https://acceptance.example/help"
 
     later_snapshot = await _seed_snapshot(
         session_factory,
