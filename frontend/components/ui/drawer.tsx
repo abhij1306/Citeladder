@@ -33,8 +33,15 @@ export function Drawer({
   const wasOpenRef = useRef(false);
 
   useInsertionEffect(() => {
-    if (open && !wasOpenRef.current && document.activeElement instanceof HTMLElement) {
-      returnFocusRef.current = document.activeElement;
+    if (open && !wasOpenRef.current) {
+      const activeElement = document.activeElement;
+      returnFocusRef.current =
+        activeElement instanceof HTMLElement &&
+        activeElement !== document.body &&
+        activeElement !== document.documentElement &&
+        activeElement.isConnected
+          ? activeElement
+          : null;
     }
     wasOpenRef.current = open;
   }, [open]);
@@ -45,8 +52,11 @@ export function Drawer({
         <DialogPrimitive.Overlay className="drawer-overlay bg-overlay-scrim z-overlay fixed inset-0" />
         <DialogPrimitive.Content
           onCloseAutoFocus={(event) => {
+            const returnTarget = returnFocusRef.current;
+            if (!returnTarget?.isConnected) return;
             event.preventDefault();
-            returnFocusRef.current?.focus();
+            returnTarget.focus();
+            returnFocusRef.current = null;
           }}
           className={cn(
             'drawer-panel border-border-subtle bg-elevated shadow-modal-value z-modal fixed inset-y-0 right-0 flex w-full max-w-180 flex-col rounded-l-lg border-l focus:outline-none',

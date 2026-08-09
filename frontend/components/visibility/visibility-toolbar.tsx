@@ -67,7 +67,7 @@ const CHIP_ACTIVE_CLASS =
 export function VisibilityToolbar({
   activeTab,
   runs,
-  activeRunId,
+  selectedRunId,
   onSelectRun,
   engine,
   onChangeEngine,
@@ -83,8 +83,8 @@ export function VisibilityToolbar({
 }: Readonly<{
   activeTab: VisibilityTab;
   runs: RunOption[];
-  activeRunId: string | null;
-  onSelectRun: (runId: string) => void;
+  selectedRunId: string | null;
+  onSelectRun: (runId: string | null) => void;
   engine: EngineFilter;
   onChangeEngine: (engine: EngineFilter) => void;
   promptOptions: PromptOption[];
@@ -103,7 +103,7 @@ export function VisibilityToolbar({
   const showRange = activeTab === 'trends' || evidence;
   const showGranularity = activeTab === 'trends';
 
-  const activeRun = runs.find((run) => run.id === activeRunId) ?? null;
+  const selectedRun = runs.find((run) => run.id === selectedRunId) ?? null;
   const engineText = engine === 'all' ? 'All models' : engineLabel(engine);
   const activePrompt = promptOptions.find((option) => option.id === promptId) ?? null;
   const promptText = promptId === null ? 'All prompts' : (activePrompt?.label ?? 'All prompts');
@@ -139,13 +139,16 @@ export function VisibilityToolbar({
           <DropdownTrigger asChild>
             <Button variant="secondary" size="sm" aria-label="Select run" className={CHIP_CLASS}>
               <ICONS.runs className="text-muted size-3" aria-hidden strokeWidth={2} />
-              <span className="font-medium">{activeRun?.label ?? 'Latest'}</span>
+              <span className="font-medium">{selectedRun?.label ?? 'Latest'}</span>
               <ChevronDown className="text-muted size-3" aria-hidden />
             </Button>
           </DropdownTrigger>
           <DropdownContent>
             <DropdownLabel>Runs</DropdownLabel>
-            <DropdownRadioGroup value={activeRunId ?? ''}>
+            <DropdownRadioGroup value={selectedRunId ?? '__latest__'}>
+              <DropdownRadioItem value="__latest__" onSelect={() => onSelectRun(null)}>
+                Latest
+              </DropdownRadioItem>
               {runs.map((run) => (
                 <DropdownRadioItem key={run.id} value={run.id} onSelect={() => onSelectRun(run.id)}>
                   {run.label}

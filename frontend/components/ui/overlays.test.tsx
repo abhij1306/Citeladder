@@ -101,6 +101,24 @@ describe('Drawer', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
+
+  it('leaves default focus restoration intact when opened without a trigger', async () => {
+    const user = userEvent.setup();
+
+    function ProgrammaticDrawerHarness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <Drawer open={open} onOpenChange={setOpen} title="Linked evidence">
+          <p>Opened from URL state</p>
+        </Drawer>
+      );
+    }
+
+    render(<ProgrammaticDrawerHarness />);
+    await user.click(screen.getByRole('button', { name: 'Close drawer' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(document.body).toHaveFocus();
+  });
 });
 
 describe('Dropdown', () => {

@@ -196,7 +196,8 @@
   text-transform: uppercase;
 }
 
-.website-type [data-button-variant]:not(.app-type-scale *) {
+.website-type [data-button-size='md']:not(.app-type-scale *),
+.website-type [data-button-size='lg']:not(.app-type-scale *) {
   min-height: 2.75rem;
   border-radius: var(--radius-lg);
   font-size: 1rem;

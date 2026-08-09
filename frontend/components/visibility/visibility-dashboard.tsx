@@ -140,7 +140,7 @@ export function VisibilityDashboard() {
       <VisibilityToolbar
         activeTab={filters.activeTab}
         runs={runOptions}
-        activeRunId={activeRunId}
+        selectedRunId={filters.selectedRunId}
         onSelectRun={filters.setSelectedRunId}
         engine={filters.engine}
         onChangeEngine={filters.setEngine}

@@ -492,6 +492,11 @@ describe('VisibilityPage — Overview (unchanged behavior)', () => {
     releaseOlder?.();
     await waitFor(() => expect(screen.getByTestId('overview-summary')).toHaveTextContent('42%'));
     expect(seen).toContain(AUDIT_OLDER);
+
+    await user.click(screen.getByRole('button', { name: 'Select run' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Latest' }));
+    await waitFor(() => expect(screen.getByTestId('overview-summary')).toHaveTextContent('67%'));
+    expect(screen.getByRole('button', { name: 'Select run' })).toHaveTextContent('Latest');
   });
 
   it('narrows the per-engine comparison when an engine filter is applied', async () => {
