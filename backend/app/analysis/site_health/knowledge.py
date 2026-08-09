@@ -994,21 +994,40 @@ def _own_money_subject(
     entities: Sequence[EntityCandidate],
     money_predicates: Sequence[PredicateSpec],
 ) -> tuple[PredicateSpec, EntityRef] | None:
-    """A money predicate whose subject is an entity type this ROLE itself owns.
+    """A money predicate whose subject is the role's OWN PRIMARY entity.
 
-    Restricted to the role's own types on purpose. Scanning every extracted
-    entity let a merely-mentioned one — a schema-declared place or person that
-    happens to be a valid money subject — win and short-circuit the guarded
-    resolution that keeps a page's price attached to the page's own subject.
+    Restricted to ``entity_type_ids[0]`` on purpose, following the same pack
+    convention ``_mint_page_subject`` relies on: a role lists its primary
+    subject first and the rest as types the page may merely MENTION. Accepting
+    any declared type let a mentioned entity — a schema-declared place, person
+    or offer, whose identity key is its own NAME rather than this page — win
+    the binding and short-circuit the guarded resolution below that keeps a
+    page's price attached to the page's own subject. The separate-commercial-
+    entity shape is not lost: it falls through to that resolution, which mints
+    the money subject under the PRIMARY entity's identity key.
     """
-    own_types = set(role.entity_type_ids)
-    for candidate in entities:
-        if candidate.ref.entity_type_id not in own_types:
-            continue
-        for spec in money_predicates:
-            if candidate.ref.entity_type_id in spec.subject_entity_type_ids:
-                return spec, candidate.ref
-    return None
+    primary_type_id = role.entity_type_ids[0] if role.entity_type_ids else ""
+    if not primary_type_id:
+        return None
+    spec = next(
+        (
+            candidate_spec
+            for candidate_spec in money_predicates
+            if primary_type_id in candidate_spec.subject_entity_type_ids
+        ),
+        None,
+    )
+    if spec is None:
+        return None
+    subject = next(
+        (
+            candidate
+            for candidate in entities
+            if candidate.ref.entity_type_id == primary_type_id
+        ),
+        None,
+    )
+    return None if subject is None else (spec, subject.ref)
 
 
 def _money_binding(

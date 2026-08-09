@@ -857,7 +857,9 @@ class SecureFetcher:
         # ``decoded_bytes`` is the measure the curl rung's own low-content check
         # uses, so the two floors mean the same thing.
         if result.decoded_bytes < self._settings.browser_low_content_bytes:
-            return replace(prior, attempts=tuple(attempts))
+            return cast(  # type: ignore[redundant-cast]
+                FetchResult, replace(prior, attempts=tuple(attempts))
+            )
         return cast(  # type: ignore[redundant-cast]
             FetchResult,
             replace(

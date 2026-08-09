@@ -234,22 +234,38 @@ class SiteHealthWorker(
             self._browser_transport = PatchrightTransport(settings=site_health_settings)
         return self._browser_transport
 
-    async def aclose(self) -> None:
-        """Release the worker's shared OS-level resources.
-
-        Teardown NEVER raises. This runs on the shutdown path, where the caller
-        is usually already unwinding ``run_forever``'s own exception or a
-        ``CancelledError`` — letting a dying browser process raise here would
-        replace the reason the worker is shutting down with a footnote about
-        cleanup, and the transport is dropped either way.
-        """
-        transport, self._browser_transport = self._browser_transport, None
-        if transport is None:
-            return
+    async def _close_transport(self, transport: PatchrightTransport) -> None:
+        """Close ``transport``, absorbing whatever a dying browser raises."""
         try:
             await transport.aclose()
         except Exception:  # noqa: BLE001
             logger.warning("browser transport teardown failed", exc_info=True)
+
+    async def aclose(self) -> None:
+        """Release the worker's shared OS-level resources.
+
+        Teardown NEVER raises one of its OWN. This runs on the shutdown path,
+        where the caller is usually already unwinding ``run_forever``'s own
+        exception or a ``CancelledError`` — letting a dying browser process
+        raise here would replace the reason the worker is shutting down with a
+        footnote about cleanup, and the transport is dropped either way.
+        """
+        transport, self._browser_transport = self._browser_transport, None
+        if transport is None:
+            return
+        # ``CancelledError`` derives from ``BaseException``, so the guard in
+        # ``_close_transport`` cannot see it: a cancel landing while the close
+        # is in flight would abandon a live Chromium process for the
+        # container's lifetime — exactly what ``run_forever``'s ``finally``
+        # exists to prevent. Shield the close from that cancel, then wait it
+        # out so the process is actually gone before the cancellation resumes
+        # unwinding; the cancellation itself is re-raised, never swallowed.
+        closing = asyncio.create_task(self._close_transport(transport))
+        try:
+            await asyncio.shield(closing)
+        except asyncio.CancelledError:
+            await closing
+            raise
 
     async def run_once(self) -> int:
         """Sweep expired leases, claim a batch of all task kinds, execute it.
