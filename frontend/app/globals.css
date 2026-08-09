@@ -388,25 +388,56 @@ samp {
   transition-duration: 140ms;
 }
 
-.drawer-overlay {
-  opacity: 1;
-  transition: opacity 180ms var(--ease-standard);
+@keyframes drawer-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes drawer-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-panel-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.drawer-overlay[data-state='open'] {
+  animation: drawer-overlay-in 180ms var(--ease-standard) both;
 }
 
 .drawer-overlay[data-state='closed'] {
-  opacity: 0;
-  transition-duration: 140ms;
+  animation: drawer-overlay-out 180ms var(--ease-standard) both;
 }
 
-.drawer-panel {
-  transform: translateX(0);
-  transition: transform var(--transition-base) var(--ease-drawer);
+.drawer-panel[data-state='open'] {
+  animation: drawer-panel-in var(--transition-base) var(--ease-drawer) both;
 }
 
 .drawer-panel[data-state='closed'] {
-  transform: translateX(100%);
-  transition-duration: 180ms;
-  transition-timing-function: var(--ease-standard);
+  animation: drawer-panel-out var(--transition-base) var(--ease-standard) both;
 }
 
 @starting-style {
@@ -416,13 +447,6 @@ samp {
     transform: translateY(-2px) scale(0.98);
   }
 
-  .drawer-overlay[data-state='open'] {
-    opacity: 0;
-  }
-
-  .drawer-panel[data-state='open'] {
-    transform: translateX(100%);
-  }
 }
 
 .skeleton {

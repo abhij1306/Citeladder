@@ -5,12 +5,12 @@ export const segmentedTrackVariants = cva(
 );
 
 export const segmentedItemVariants = cva(
-  'focus-ring inline-flex h-[calc(var(--control-height-sm)-6px)] items-center justify-center rounded-full px-3 text-xs font-medium whitespace-nowrap transition-colors',
+  'focus-ring inline-flex h-[calc(var(--control-height-sm)-6px)] items-center justify-center rounded-full px-3 text-xs font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50',
   {
     variants: {
       selected: {
         true: 'bg-panel text-foreground shadow-card',
-        false: 'text-secondary hover:text-foreground',
+        false: 'text-secondary enabled:hover:text-foreground',
       },
     },
     defaultVariants: { selected: false },

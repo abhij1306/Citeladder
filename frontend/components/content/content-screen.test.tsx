@@ -180,6 +180,10 @@ describe('ContentScreen — generate flow', () => {
     expect(await screen.findByRole('status', { name: /generating content/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /describe the website content/i })).toBeDisabled();
+    for (const option of screen.getAllByRole('radio')) {
+      expect(option).toBeDisabled();
+      expect(option).toHaveClass('disabled:cursor-not-allowed', 'disabled:opacity-50');
+    }
 
     // Result (poll flips to succeeded): markdown + provenance + actions.
     expect(

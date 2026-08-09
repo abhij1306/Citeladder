@@ -1,44 +1,16 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, relative, resolve } from 'node:path';
 
+import {
+  editorialTypographyViolations,
+  websiteContractViolations,
+} from './design-system-source-checks.mjs';
+
 const root = resolve(import.meta.dirname, '..');
 const tokenOwner = join(root, 'app', 'globals.css');
 const sourceExtensions = new Set(['.css', '.ts', '.tsx', '.js', '.mjs']);
 const ignored = new Set(['node_modules', '.next', '.next-stale-codex', 'coverage', 'test-results']);
 const violations = [];
-
-const requiredWebsiteContracts = new Map([
-  [
-    join(root, 'app', 'website-type.css'),
-    [
-      '.website-hero-display',
-      'font-size: 2.75rem;',
-      'letter-spacing: -0.04em;',
-      '.website-page-title',
-      'font-size: 2.5rem;',
-      'letter-spacing: -0.035em;',
-      '.website-section-heading',
-      '.website-feature-heading',
-      '.website-small-heading',
-      '.website-lead',
-      '.website-body',
-      '.website-nav',
-      '.website-label',
-      '.website-eyebrow',
-      '.website-data-display',
-      'color: var(--color-foreground);',
-      'color: var(--color-secondary);',
-      'color: var(--color-muted);',
-    ],
-  ],
-  [join(root, 'components', 'marketing', 'landing', 'hero.tsx'), ['website-hero-display']],
-  [join(root, 'components', 'marketing', 'primitives', 'page-hero.tsx'), ['website-page-title']],
-  [
-    join(root, 'components', 'marketing', 'primitives', 'section.tsx'),
-    ['website-section-heading', 'website-feature-heading'],
-  ],
-  [join(root, 'components', 'auth', 'auth-form.tsx'), ['website-small-heading', 'website-body']],
-]);
 
 function files(directory) {
   return readdirSync(directory).flatMap((name) => {
@@ -86,23 +58,10 @@ for (const path of files(root)) {
       !label.startsWith('components/marketing/scenes/')) ||
     label.startsWith('components/auth/') ||
     label.startsWith('components/onboarding/');
-  if (
-    ownsWebsiteEditorialCopy &&
-    /<(?:h[1-6]|p)\b[^>]*className=['"][^'"]*\btext-(?:2xs|xs|sm|base|lg|xl|2xl|3xl|4xl|5xl)\b/.test(
-      source,
-    )
-  ) {
-    violations.push(`${label}: editorial headings and paragraphs must use named website roles`);
-  }
+  violations.push(...editorialTypographyViolations(source, label, ownsWebsiteEditorialCopy));
 }
 
-for (const [path, requiredSnippets] of requiredWebsiteContracts) {
-  const source = readFileSync(path, 'utf8');
-  const label = relative(root, path).replaceAll('\\', '/');
-  for (const snippet of requiredSnippets) {
-    if (!source.includes(snippet)) violations.push(`${label}: missing website contract ${snippet}`);
-  }
-}
+violations.push(...websiteContractViolations(root));
 
 if (violations.length) {
   console.error(violations.join('\n'));
