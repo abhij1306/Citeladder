@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -40,14 +41,18 @@ TOOL_VERSION: Final = "1.0.0"
 MAX_TOOL_RESULT_ITEMS: Final = 50
 _SENSITIVE_KEY_PARTS: Final = frozenset(
     {
-        "access_token",
-        "api_key",
         "authorization",
-        "credential",
         "password",
         "secret",
-        "token",
     }
+)
+_SENSITIVE_KEYS: Final = frozenset(
+    {"access_token", "api_key", "credential", "oauth", "refresh_token", "token"}
+)
+_SENSITIVE_KEY_COMPOUNDS: Final = (
+    frozenset({"access", "token"}),
+    frozenset({"api", "key"}),
+    frozenset({"refresh", "token"}),
 )
 
 
@@ -614,10 +619,9 @@ def _sanitize(value: Any, *, maximum_items: int, depth: int = 0) -> Any:
     if isinstance(value, dict):
         result: dict[str, Any] = {}
         for key, item in value.items():
-            normalized = str(key).casefold()
             result[str(key)] = (
                 "[redacted]"
-                if any(part in normalized for part in _SENSITIVE_KEY_PARTS)
+                if _is_sensitive_key(key)
                 else _sanitize(item, maximum_items=maximum_items, depth=depth + 1)
             )
         return result
@@ -629,6 +633,16 @@ def _sanitize(value: Any, *, maximum_items: int, depth: int = 0) -> Any:
     if isinstance(value, str):
         return value[:AGENT_TOOL_RESULT_STRING_MAX_CHARS]
     return value
+
+
+def _is_sensitive_key(key: object) -> bool:
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", str(key)).casefold()
+    key_parts = frozenset(part for part in re.split(r"[^a-z0-9]+", normalized) if part)
+    return (
+        normalized in _SENSITIVE_KEYS
+        or bool(key_parts & _SENSITIVE_KEY_PARTS)
+        or any(compound <= key_parts for compound in _SENSITIVE_KEY_COMPOUNDS)
+    )
 
 
 def _serialized_chars(value: object) -> int:

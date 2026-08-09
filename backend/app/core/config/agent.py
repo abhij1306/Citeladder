@@ -259,6 +259,7 @@ class DefaultAgentSettings(BaseSettings):
     # Per-call output cap so one generation cannot run away.
     max_output_tokens: int = Field(
         default=4096,
+        gt=0,
         validation_alias=AliasChoices(
             "DEFAULT_AGENT_MAX_OUTPUT_TOKENS", "default_agent_max_output_tokens"
         ),

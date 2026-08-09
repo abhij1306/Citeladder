@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import json
+import uuid
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
+from pydantic import ValidationError
 
 from app.connectors.agent.gateway import FakeModelGateway
-from app.core.config.agent import AGENT_TASK_POLICIES, TOOL_KIND_AUTOMATIC
+from app.core.config.agent import (
+    AGENT_TASK_POLICIES,
+    TOOL_KIND_AUTOMATIC,
+    DefaultAgentSettings,
+)
 from app.domain.agent import context as agent_context
+from app.domain.agent import service as agent_service
 from app.domain.agent.service import _build_plan, _validate_result
 from app.domain.agent.tools import (
     TOOL_DEFINITIONS,
@@ -97,3 +106,63 @@ def test_tool_result_boundary_redacts_and_bounds_nested_values(
     assert "do-not-return" not in serialized
     assert _serialized_chars(result) <= 240
     assert result["truncated"] is True
+
+
+@pytest.mark.parametrize("invalid_limit", [0, -1])
+def test_agent_output_limit_must_be_positive(
+    monkeypatch: pytest.MonkeyPatch, invalid_limit: int
+) -> None:
+    monkeypatch.setenv("DEFAULT_AGENT_MAX_OUTPUT_TOKENS", str(invalid_limit))
+    with pytest.raises(ValidationError):
+        DefaultAgentSettings(_env_file=None)
+
+
+def test_context_text_redacts_embedded_secret_assignments() -> None:
+    value = agent_context._redacted_text(
+        'Keep this title; api_key="do-not-store"; remediation follows.'
+    )
+    assert "do-not-store" not in value
+    assert "api_key=[redacted]" in value
+
+
+def test_tool_redaction_uses_sensitive_key_boundaries() -> None:
+    result = _bounded_result(
+        {
+            "total_tokens": 10,
+            "tokenizer": "v1",
+            "credential_source": "workspace",
+            "access_token": "hidden",
+            "api_key": "hidden-too",
+            "access-token": "hidden-three",
+            "apiKey": "hidden-four",
+        },
+        maximum_items=10,
+    )
+    assert result["total_tokens"] == 10
+    assert result["tokenizer"] == "v1"
+    assert result["credential_source"] == "workspace"
+    assert result["access_token"] == "[redacted]"
+    assert result["api_key"] == "[redacted]"
+    assert result["access-token"] == "[redacted]"
+    assert result["apiKey"] == "[redacted]"
+
+
+@pytest.mark.asyncio
+async def test_execution_timeout_rolls_back_before_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = AsyncMock()
+    session.scalar.return_value = None
+
+    async def timeout(*_args: object, **_kwargs: object) -> None:
+        raise TimeoutError
+
+    monkeypatch.setattr(agent_service, "_execute_available_steps", timeout)
+    await agent_service._execute_with_timeout(
+        session,
+        run=SimpleNamespace(id=uuid.uuid4()),
+        user_id=uuid.uuid4(),
+        gateway=None,
+    )
+    session.rollback.assert_awaited_once_with()
+    session.scalar.assert_awaited_once()

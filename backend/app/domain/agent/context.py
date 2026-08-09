@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from typing import Any
 
@@ -381,5 +382,14 @@ def _redact(value: Any, *, depth: int = 0) -> Any:
 
 
 def _redacted_text(value: object) -> str:
-    redacted = _redact(str(value))
-    return str(redacted)[:AGENT_CONTEXT_EXCERPT_MAX_CHARS]
+    text = str(value)
+    key_pattern = "|".join(
+        re.escape(key) for key in sorted(_REDACTED_KEYS, key=len, reverse=True)
+    )
+    redacted = re.sub(
+        rf"(?i)[\"']?\b({key_pattern})\b[\"']?\s*[:=]\s*"
+        rf"(?:[\"'][^\"']*[\"']|[^,;\r\n]+)",
+        r"\1=[redacted]",
+        text,
+    )
+    return redacted[:AGENT_CONTEXT_EXCERPT_MAX_CHARS]

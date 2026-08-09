@@ -107,7 +107,7 @@ evidence and windows; reads make no external calls; unavailable is never rendere
   misleading boundary. Workspace authorization remains enforced on reads and writes. No D0-D5
   acceptance item is deferred.
 
-## Branch 2 — Pending Site Intelligence
+## Branch 2 — Site Intelligence complete
 
 Canonical sources: [Site Intelligence](site-intelligence-primary-product.md) and the
 [knowledge kernel](knowledge-kernel-and-industry-pack-spec.md).
@@ -227,8 +227,6 @@ fact promotion, score mutation, or autonomous publishing.
   raw-artifact `workspace_id` redesign. The fourteen non-Education/Commerce packs remain explicitly
   uncalibrated. There is no autonomous publishing, approved-memory store, or generated-fact path.
 
-## Final branch verification record
-
 ## Branch 4 — Growth Agent
 
 Canonical source: [Growth Agent](growth-agent.md).
@@ -289,6 +287,8 @@ decisions. No generated output becomes a fact and no correction is overwritten.
 - Deliberate deferrals: the fourteen non-Education/Commerce packs remain explicitly uncalibrated.
   Native streaming and semantic reranking are optional accelerations and are not required for the
   persisted polling/context contracts.
+
+## Final branch verification record
 
 For each branch, record exact results for formatting, Ruff, mypy, complexity ratchet, frontend
 format/lint/type/policy/contract/build checks, documentation and industry-pack validation,

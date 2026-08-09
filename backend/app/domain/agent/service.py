@@ -726,6 +726,7 @@ async def _execute_with_timeout(
                 session, run=run, user_id=user_id, gateway=gateway
             )
     except TimeoutError:
+        await session.rollback()
         step = await session.scalar(
             select(AgentTaskStep)
             .where(

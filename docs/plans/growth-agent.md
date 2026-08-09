@@ -264,13 +264,17 @@ Replace OpenAI-compatible assumptions in domain code with a capability-aware con
 
 ```text
 ModelGateway
-  validate_configuration()
+  adapter_name
+  base_url_host
   capabilities()
-  complete_text()
-  complete_structured()
-  execute_tool_turn()
-  normalize_usage()
   classify_error()
+  complete_json()
+  complete_structured()
+  complete_structured_json()
+  complete_text()
+  model
+  normalize_usage()
+  validate_configuration()
 ```
 
 Approved adapters may include native providers and an OpenAI-compatible endpoint. Environment
