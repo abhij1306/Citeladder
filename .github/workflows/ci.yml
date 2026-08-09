@@ -37,10 +37,16 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/citeladder
     steps:
       - uses: actions/checkout@v4
+      # Pinned to match the runtime image (infra/docker/Dockerfile is
+      # python:3.12.x) and backend/.python-version. Unpinned, uv resolved the
+      # newest interpreter it could find — CI was validating on 3.14 while
+      # production ran 3.12, so the gate and the deployment disagreed about
+      # which Python the code has to work on.
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          python-version: "3.12"
       - name: Install dependencies (frozen lock)
         run: uv sync --frozen --extra dev
       - name: Ruff
@@ -100,8 +106,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Same pin as the backend job: the audited requirements must be the set
+      # resolved for the interpreter that actually ships.
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
       - name: Dependency audit (SCA)
         working-directory: backend
         run: |
