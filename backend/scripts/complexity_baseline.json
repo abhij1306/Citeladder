@@ -497,7 +497,7 @@
       "list_tasks_endpoint": 3,
       "submit_task_endpoint": 4
     },
-    "loc": 311,
+    "loc": 307,
     "max_cc": 7
   },
   "app/api/analytics.py": {
@@ -1001,7 +1001,7 @@
       "ModelGateway.normalize_usage": 1,
       "ModelGateway.validate_configuration": 1
     },
-    "loc": 192,
+    "loc": 195,
     "max_cc": 5
   },
   "app/connectors/agent/json_utils.py": {
@@ -1014,7 +1014,9 @@
   "app/connectors/agent/native_openai.py": {
     "functions": {
       "NativeOpenAIClient.__init__": 3,
-      "NativeOpenAIClient._complete": 12,
+      "NativeOpenAIClient._complete": 2,
+      "NativeOpenAIClient._request": 5,
+      "NativeOpenAIClient._result_from_response": 7,
       "NativeOpenAIClient.adapter_name": 1,
       "NativeOpenAIClient.base_url_host": 2,
       "NativeOpenAIClient.capabilities": 1,
@@ -1027,11 +1029,14 @@
       "NativeOpenAIClient.normalize_usage": 4,
       "NativeOpenAIClient.validate_configuration": 2,
       "_configuration_error": 3,
-      "_first_output_text": 11,
+      "_first_output_text": 4,
+      "_message_content": 4,
+      "_output_text": 4,
+      "_response_output": 3,
       "native_response_debug_shape": 1
     },
-    "loc": 246,
-    "max_cc": 12
+    "loc": 269,
+    "max_cc": 7
   },
   "app/connectors/answer_engines/__init__.py": {
     "functions": {},
@@ -1603,7 +1608,7 @@
       "_is_nvidia_host": 2,
       "_is_provider_host": 2
     },
-    "loc": 313,
+    "loc": 320,
     "max_cc": 4
   },
   "app/core/config/analysis.py": {
@@ -2173,7 +2178,7 @@
       "_serialized_size": 1,
       "build_agent_context": 1
     },
-    "loc": 385,
+    "loc": 390,
     "max_cc": 14
   },
   "app/domain/agent/schemas.py": {
@@ -2258,6 +2263,7 @@
       "_demand_comparison": 3,
       "_demand_snapshot": 3,
       "_generate_draft": 3,
+      "_is_sensitive_key": 6,
       "_opportunity_source_refs": 4,
       "_optional_uuid": 2,
       "_prompt_candidates": 6,
@@ -2265,7 +2271,7 @@
       "_read_schedules": 5,
       "_required_string": 3,
       "_required_uuid": 2,
-      "_sanitize": 9,
+      "_sanitize": 8,
       "_schedule_audit": 3,
       "_serialized_chars": 1,
       "_site_comparison": 3,
@@ -2274,8 +2280,8 @@
       "tool_catalog": 2,
       "validate_automatic_tools": 5
     },
-    "loc": 652,
-    "max_cc": 9
+    "loc": 668,
+    "max_cc": 8
   },
   "app/domain/analysis/__init__.py": {
     "functions": {},
@@ -4642,7 +4648,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 340,
+    "loc": 346,
     "max_cc": 1
   },
   "app/models/analysis.py": {

@@ -38,6 +38,10 @@ _REDACTED_KEYS = frozenset(
         "token",
     }
 )
+_TEXT_SECRET_PATTERN = re.compile(
+    rf"(?i)[\"']?\b({'|'.join(sorted(_REDACTED_KEYS, key=len, reverse=True))})\b"
+    rf"[\"']?\s*[:=]\s*(?:[\"'][^\"']*[\"']|[^,;\r\n]+)"
+)
 
 
 async def build_agent_context(
@@ -382,14 +386,5 @@ def _redact(value: Any, *, depth: int = 0) -> Any:
 
 
 def _redacted_text(value: object) -> str:
-    text = str(value)
-    key_pattern = "|".join(
-        re.escape(key) for key in sorted(_REDACTED_KEYS, key=len, reverse=True)
-    )
-    redacted = re.sub(
-        rf"(?i)[\"']?\b({key_pattern})\b[\"']?\s*[:=]\s*"
-        rf"(?:[\"'][^\"']*[\"']|[^,;\r\n]+)",
-        r"\1=[redacted]",
-        text,
-    )
+    redacted = _TEXT_SECRET_PATTERN.sub(r"\1=[redacted]", str(value))
     return redacted[:AGENT_CONTEXT_EXCERPT_MAX_CHARS]
