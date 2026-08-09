@@ -1247,7 +1247,6 @@ async def get_knowledge_contradictions_endpoint(
 
 @router.get(
     "/projects/{project_id}/knowledge/corrections",
-    response_model=CorrectionPage,
 )
 async def get_knowledge_corrections_endpoint(
     project_id: uuid.UUID,
@@ -1273,7 +1272,6 @@ async def get_knowledge_corrections_endpoint(
 
 @router.post(
     "/projects/{project_id}/knowledge/corrections",
-    response_model=CorrectionItem,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_knowledge_correction_endpoint(
@@ -1295,8 +1293,7 @@ async def create_knowledge_correction_endpoint(
             effective_scope_id=body.effective_scope_id,
             effective_from=body.effective_from,
             effective_to=body.effective_to,
-            unit=body.unit,
-            currency=body.currency,
+            value_metadata={"unit": body.unit, "currency": body.currency},
             reason=body.reason,
         )
     except service.CorrectionNotFoundError as exc:
@@ -1318,7 +1315,6 @@ async def create_knowledge_correction_endpoint(
 
 @router.post(
     "/projects/{project_id}/knowledge/corrections/{correction_id}/withdraw",
-    response_model=CorrectionItem,
 )
 async def withdraw_knowledge_correction_endpoint(
     project_id: uuid.UUID,

@@ -150,7 +150,8 @@ async def test_correction_survives_recompute_and_withdrawal_restores_derived_val
                 WorkspaceMember.workspace_id == seed.workspace_id
             )
         )
-        assert crawl is not None and actor_id is not None
+        assert crawl is not None
+        assert actor_id is not None
         _entity, assertion = await _knowledge_row(
             session, crawl=crawl, value=250_000, conflicting_value=275_000
         )
@@ -167,8 +168,7 @@ async def test_correction_survives_recompute_and_withdrawal_restores_derived_val
             effective_scope_id=None,
             effective_from=None,
             effective_to=None,
-            unit="annual",
-            currency="INR",
+            value_metadata={"unit": "annual", "currency": "INR"},
             reason="The published fee excludes the mandatory annual charge.",
         )
 
@@ -271,7 +271,8 @@ async def test_correction_target_is_workspace_and_project_authorized(
                 WorkspaceMember.workspace_id == second.workspace_id
             )
         )
-        assert first_crawl is not None and second_actor is not None
+        assert first_crawl is not None
+        assert second_actor is not None
         _entity, assertion = await _knowledge_row(session, crawl=first_crawl, value=100)
 
         with pytest.raises(CorrectionNotFoundError):
@@ -287,8 +288,7 @@ async def test_correction_target_is_workspace_and_project_authorized(
                 effective_scope_id=None,
                 effective_from=None,
                 effective_to=None,
-                unit="annual",
-                currency="INR",
+                value_metadata={"unit": "annual", "currency": "INR"},
                 reason="Must not cross the workspace boundary.",
             )
 
@@ -304,7 +304,8 @@ async def test_unapplied_effective_scope_is_rejected_before_persistence(
                 WorkspaceMember.workspace_id == seed.workspace_id
             )
         )
-        assert crawl is not None and actor_id is not None
+        assert crawl is not None
+        assert actor_id is not None
         _entity, assertion = await _knowledge_row(session, crawl=crawl, value=100)
         with pytest.raises(CorrectionValidationError, match="unsupported"):
             await create_correction(
@@ -319,8 +320,7 @@ async def test_unapplied_effective_scope_is_rejected_before_persistence(
                 effective_scope_id=uuid.uuid4(),
                 effective_from=None,
                 effective_to=None,
-                unit="annual",
-                currency="INR",
+                value_metadata={"unit": "annual", "currency": "INR"},
                 reason="This scope has no projection consumer yet.",
             )
 
@@ -335,7 +335,8 @@ async def test_correction_api_persists_author_and_transition_contract(
         seed = await seed_site_crawl(session)
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         api_user = await session.scalar(select(User).where(User.email == email))
-        assert crawl is not None and api_user is not None
+        assert crawl is not None
+        assert api_user is not None
         session.add(
             WorkspaceMember(
                 workspace_id=seed.workspace_id,

@@ -70,6 +70,9 @@ class CorrectionConflictError(Exception):
     """An active correction already owns the target and effective scope."""
 
 
+_TARGET_NOT_FOUND = "correction target not found"
+
+
 def stable_target_key(target_ref: Mapping) -> str:
     """Hash a typed natural identity; crawl IDs never participate."""
     return hashlib.sha256(canonical_json_bytes(dict(target_ref))).hexdigest()
@@ -144,7 +147,7 @@ async def _target(
             )
         )
         if row is None:
-            raise CorrectionNotFoundError("correction target not found")
+            raise CorrectionNotFoundError(_TARGET_NOT_FOUND)
         ref = entity_target_ref(row.entity_type_id, row.identity_key)
         return (
             row,
@@ -167,7 +170,7 @@ async def _target(
         )
         found = result.one_or_none()
         if found is None:
-            raise CorrectionNotFoundError("correction target not found")
+            raise CorrectionNotFoundError(_TARGET_NOT_FOUND)
         row, subject = found
         ref = assertion_target_ref(
             subject_entity_type_id=subject.entity_type_id,
@@ -184,7 +187,7 @@ async def _target(
             )
         )
         if row is None:
-            raise CorrectionNotFoundError("correction target not found")
+            raise CorrectionNotFoundError(_TARGET_NOT_FOUND)
         source = await session.scalar(
             select(KnowledgeEntity).where(
                 KnowledgeEntity.id == row.source_entity_id,
@@ -200,7 +203,7 @@ async def _target(
             )
         )
         if source is None or target is None:
-            raise CorrectionNotFoundError("correction target not found")
+            raise CorrectionNotFoundError(_TARGET_NOT_FOUND)
         ref = relation_target_ref(
             relation_type_id=row.relation_type_id,
             source_entity_type_id=source.entity_type_id,
@@ -369,8 +372,7 @@ async def create_correction(
     effective_scope_id: uuid.UUID | None,
     effective_from: datetime | None,
     effective_to: datetime | None,
-    unit: str,
-    currency: str,
+    value_metadata: Mapping[str, str],
     reason: str,
 ) -> Correction:
     if effective_scope not in {CORRECTION_SCOPE_PROJECT, CORRECTION_SCOPE_ENTITY}:
@@ -413,8 +415,8 @@ async def create_correction(
         target_kind=target_kind,
         value_type=value_type,
         value=value,
-        unit=unit,
-        currency=currency,
+        unit=value_metadata.get("unit", ""),
+        currency=value_metadata.get("currency", ""),
     )
     correction = Correction(
         workspace_id=workspace_id,

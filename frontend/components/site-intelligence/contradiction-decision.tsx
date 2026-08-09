@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useId, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -88,6 +89,81 @@ export function ContradictionDecision({
   const error = create.error ?? withdraw.error;
   const selected = group.sides.find((side) => side.id === selectedId);
   const canSubmit = Boolean(selected && reason.trim()) && !pending;
+  let decisionPanel: ReactNode = null;
+  if (group.resolution_state === 'corrected') {
+    decisionPanel = (
+      <div className="bg-success-bg grid gap-3 rounded-md p-3">
+        <div className="min-w-0">
+          <p className="text-foreground text-sm break-words">{correctedLabel(group)}</p>
+          <p className="text-muted text-2xs break-words">
+            Project correction · {group.correction?.reason}
+          </p>
+        </div>
+        <div className="grid gap-1.5">
+          <label htmlFor={reasonId} className="text-secondary text-xs font-medium">
+            Reason for withdrawal
+          </label>
+          <Textarea
+            id={reasonId}
+            value={reason}
+            maxLength={1000}
+            disabled={pending}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Explain why the derived value should become effective again."
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            className="justify-self-start"
+            disabled={!reason.trim() || pending}
+            onClick={() => withdraw.mutate()}
+          >
+            {withdraw.isPending ? 'Withdrawing…' : 'Withdraw correction'}
+          </Button>
+        </div>
+      </div>
+    );
+  } else if (selected) {
+    decisionPanel = (
+      <div className="bg-background-alt grid gap-3 rounded-md p-3">
+        <p className="text-secondary text-sm">
+          This project-wide correction will survive later crawls. The observed values remain
+          available as evidence.
+        </p>
+        <div className="grid gap-1.5">
+          <label htmlFor={reasonId} className="text-secondary text-xs font-medium">
+            Why is this the effective value?
+          </label>
+          <Textarea
+            id={reasonId}
+            value={reason}
+            maxLength={1000}
+            disabled={pending}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder="Record the source or business reason for this correction."
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" disabled={!canSubmit} onClick={() => create.mutate(selected)}>
+            {create.isPending ? 'Saving…' : 'Save correction'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={pending}
+            onClick={() => {
+              create.reset();
+              withdraw.reset();
+              setSelectedId(null);
+              setReason('');
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid min-w-0 gap-3">
@@ -140,76 +216,7 @@ export function ContradictionDecision({
         })}
       </ul>
 
-      {group.resolution_state === 'corrected' ? (
-        <div className="bg-success-bg grid gap-3 rounded-md p-3">
-          <div className="min-w-0">
-            <p className="text-foreground text-sm break-words">{correctedLabel(group)}</p>
-            <p className="text-muted text-2xs break-words">
-              Project correction · {group.correction?.reason}
-            </p>
-          </div>
-          <div className="grid gap-1.5">
-            <label htmlFor={reasonId} className="text-secondary text-xs font-medium">
-              Reason for withdrawal
-            </label>
-            <Textarea
-              id={reasonId}
-              value={reason}
-              maxLength={1000}
-              disabled={pending}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Explain why the derived value should become effective again."
-            />
-            <Button
-              variant="secondary"
-              size="sm"
-              className="justify-self-start"
-              disabled={!reason.trim() || pending}
-              onClick={() => withdraw.mutate()}
-            >
-              {withdraw.isPending ? 'Withdrawing…' : 'Withdraw correction'}
-            </Button>
-          </div>
-        </div>
-      ) : selected ? (
-        <div className="bg-background-alt grid gap-3 rounded-md p-3">
-          <p className="text-secondary text-sm">
-            This project-wide correction will survive later crawls. The observed values remain
-            available as evidence.
-          </p>
-          <div className="grid gap-1.5">
-            <label htmlFor={reasonId} className="text-secondary text-xs font-medium">
-              Why is this the effective value?
-            </label>
-            <Textarea
-              id={reasonId}
-              value={reason}
-              maxLength={1000}
-              disabled={pending}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Record the source or business reason for this correction."
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={!canSubmit} onClick={() => create.mutate(selected)}>
-              {create.isPending ? 'Saving…' : 'Save correction'}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() => {
-                create.reset();
-                withdraw.reset();
-                setSelectedId(null);
-                setReason('');
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      {decisionPanel}
 
       {error ? <Alert tone="danger">{mutationMessage(error)}</Alert> : null}
     </div>

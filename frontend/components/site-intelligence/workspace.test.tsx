@@ -221,7 +221,7 @@ describe('SiteIntelligenceWorkspace', () => {
       }),
     );
 
-    await waitFor(() => expect(screen.getByText('Since the previous crawl')).toBeInTheDocument());
+    expect(await screen.findByText('Since the previous crawl')).toBeInTheDocument();
     expect(screen.getByText('1 changed')).toBeInTheDocument();
     expect(screen.getByText('2 added · 0 removed')).toBeInTheDocument();
     expect(screen.getByText('3 question states')).toBeInTheDocument();

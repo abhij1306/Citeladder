@@ -349,18 +349,18 @@ async def _action_resolutions(
     current_rules: Mapping[str, dict],
 ) -> dict:
     issues = (
-        await session.execute(
-            select(SiteIssue, SiteUrl.normalized_url)
-            .join(SiteUrl, SiteUrl.id == SiteIssue.site_url_id)
-            .where(SiteIssue.crawl_id == prior_crawl_id)
-            .order_by(SiteIssue.rule_id, SiteIssue.site_url_id, SiteIssue.id)
+        (
+            await session.execute(
+                select(SiteIssue, SiteUrl.normalized_url)
+                .join(SiteUrl, SiteUrl.id == SiteIssue.site_url_id)
+                .where(SiteIssue.crawl_id == prior_crawl_id)
+                .order_by(SiteIssue.rule_id, SiteIssue.site_url_id, SiteIssue.id)
+            )
         )
-    ).all()
-    by_rule: dict[str, list[tuple[SiteIssue, str]]] = defaultdict(list)
-    for issue, normalized_url in issues:
-        opportunity_rule_id = SITE_ISSUE_TO_OPPORTUNITY_RULE_ID.get(issue.rule_id)
-        if opportunity_rule_id is not None:
-            by_rule[opportunity_rule_id].append((issue, normalized_url))
+        .tuples()
+        .all()
+    )
+    by_rule = _issues_by_opportunity_rule(issues)
     resolutions = []
     for opportunity_rule_id, prior_issues in sorted(by_rule.items()):
         targets = []
@@ -411,6 +411,17 @@ async def _action_resolutions(
         "items": resolutions[:MAX_COMPARISON_CHANGE_ITEMS],
         "truncated": len(resolutions) > MAX_COMPARISON_CHANGE_ITEMS,
     }
+
+
+def _issues_by_opportunity_rule(
+    issues: Sequence[tuple[SiteIssue, str]],
+) -> dict[str, list[tuple[SiteIssue, str]]]:
+    by_rule: dict[str, list[tuple[SiteIssue, str]]] = defaultdict(list)
+    for issue, normalized_url in issues:
+        opportunity_rule_id = SITE_ISSUE_TO_OPPORTUNITY_RULE_ID.get(issue.rule_id)
+        if opportunity_rule_id is not None:
+            by_rule[opportunity_rule_id].append((issue, normalized_url))
+    return by_rule
 
 
 async def build_snapshot_comparison(
