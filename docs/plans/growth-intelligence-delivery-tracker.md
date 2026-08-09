@@ -267,8 +267,8 @@ decisions. No generated output becomes a fact and no correction is overwritten.
   `task_context_packages.brief_id` for non-Content tasks; removed `brand_profile_suggestions`.
   No `0002+` migration, approved-memory table, second knowledge store, or second queue exists.
 - Verification: Ruff and mypy pass across all 370 backend modules, and the tightened complexity
-  ratchet passes with five measured improvements. The complete backend suite passes with `2518
-  passed, 7 skipped`; the complete frontend suite passes `1257` tests in 147 files, followed by
+  ratchet passes with five measured improvements. The complete backend suite passes with `2523
+  passed, 7 skipped`; the complete frontend suite passes `1259` tests in 147 files, followed by
   ESLint, TypeScript, design/architecture policy, contract drift, formatting, and the production
   build. All 26 Playwright tests pass with one worker. Documentation validates 30 active documents
   and 47 archived files; all 16 packs validate with only Education and Commerce calibrated.
@@ -276,8 +276,9 @@ decisions. No generated output becomes a fact and no correction is overwritten.
   The verified disposable database at `127.0.0.1:55432/citeladder` passes a from-zero
   `0001_initial.py` upgrade and zero Alembic drift. Every Compose image rebuilds; migration exits
   0; the database, web service, and all nine workers remain running; and `/health` returns 200.
-  Pull request [#60](https://github.com/abhij1306/Citeladder/pull/60) is open; CI, Sonar, and merge
-  results remain pending until shipment completes.
+  Pull request [#60](https://github.com/abhij1306/Citeladder/pull/60) passes all nine required
+  checks. SonarCloud passes its quality gate and reports zero open pull-request issues; merge
+  remains pending until shipment completes.
 - Gotchas and conflict resolutions: `TaskContextPackage` stays Content-owned and is shared rather
   than duplicated. Corrections remain Site-owned overlays over immutable observations. A roadmap
   groups and explains deterministic priority but never changes rank. Model configuration chooses
