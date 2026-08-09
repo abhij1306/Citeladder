@@ -1,4 +1,5 @@
 """Unit tests for the transitional curated brand profile projection."""
+
 from __future__ import annotations
 
 from app.domain.projects.knowledge_base import build_brand_knowledge_context

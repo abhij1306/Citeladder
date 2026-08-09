@@ -318,7 +318,6 @@ Profile maturity gates behavior:
 | `SiteUrl`/observations | Identity/admission base for corpus-item projection |
 | `SitePageAnalysis` | The single page-understanding owner. Becomes append-only; `PageUnderstanding` is its DTO name, never a second table |
 | `SiteHealthSnapshot` | Keep as crawl projection; add intelligence snapshot only where lifecycle/scope differs |
-| `BrandProfile` | Keep as a curated read model projected from facts and corrections during transition |
 | `BrandProfile` | Transitional manually curated summary projection; generated suggestions are retired and derived facts use inline `Correction` instead |
 | `Opportunity`/`OpportunitySnapshot` | Reuse for deterministic actions; add role/journey evidence instead of parallel recommendation storage |
 | `Prompt`/`Topic` | Reuse for provisional/evidence-prioritized/active lifecycle |

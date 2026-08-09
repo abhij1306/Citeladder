@@ -21,19 +21,9 @@ business truth, scoring, knowledge, authorization, or lifecycle decisions.
 
 ## Target information architecture
 
-Six destinations, flat. Sub-surfaces are tabs on the layer route, never sidebar children — two
+Seven destinations, flat. Sub-surfaces are tabs on the layer route, never sidebar children — two
 levels of navigation is the limit. The screen geometry every route uses is owned by
 [`design.md`](design.md).
-
-```text
-Overview   /projects   project state, ranked insights, what changed
-Site       /site       corpus, pages, facts, schema, journeys, evidence
-Content    /content    strategy, inventory, briefs, drafts, verification
-Demand     /demand     search demand, journeys, prompts, visibility, coverage
-Agent      /agent      conversation, tasks, roadmap
-Reports    /reports    snapshots and exports
-Settings   /settings   project, integrations, providers, billing
-```
 
 Existing `/site-health`, `/issues`, `/traffic`, `/analytics`, `/prompt-research`, `/prompts`,
 `/visibility`, and `/runs` deep links stay usable through the migration. `/issues` and
