@@ -13,7 +13,7 @@
 | 1 | `feature/demand-intelligence` | Demand D0-D5 | `merged` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | `0f5915ac5c2e1eb935f72c56e9e745303662614f` |
 | 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `merged` | [#58](https://github.com/abhij1306/Citeladder/pull/58) | `70d5894be96d8bfb0f50c76bb6f83eabb2c4e640` |
 | 3 | `feature/content-intelligence` | Content C0-C5 | `merged` | [#59](https://github.com/abhij1306/Citeladder/pull/59) | `14fcbc511051f8076c817ea1331d5f3bdfccf103` |
-| 4 | `feat/growth-agent-branch-4` | Growth Agent G0-G5 | `ready_to_ship` | — | — |
+| 4 | `feat/growth-agent-branch-4` | Growth Agent G0-G5 | `ready_to_ship` | [#60](https://github.com/abhij1306/Citeladder/pull/60) | — |
 
 Statuses are exact: `not_started | in_progress | ready_to_ship | merged`. A branch starts from
 freshly synchronized `main` only after its predecessor is merged.
@@ -278,7 +278,8 @@ decisions. No generated output becomes a fact and no correction is overwritten.
   The verified disposable database at `127.0.0.1:55432/citeladder` passes a from-zero
   `0001_initial.py` upgrade and zero Alembic drift. Every Compose image rebuilds; migration exits
   0; the database, web service, and all nine workers remain running; and `/health` returns 200.
-  CI, Sonar, PR, and merge results remain pending until shipment.
+  Pull request [#60](https://github.com/abhij1306/Citeladder/pull/60) is open; CI, Sonar, and merge
+  results remain pending until shipment completes.
 - Gotchas and conflict resolutions: `TaskContextPackage` stays Content-owned and is shared rather
   than duplicated. Corrections remain Site-owned overlays over immutable observations. A roadmap
   groups and explains deterministic priority but never changes rank. Model configuration chooses
