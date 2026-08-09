@@ -35,11 +35,15 @@ function isContentPanel(value: string | null): value is ContentPanel {
   return value !== null && CONTENT_PANEL_ID_SET.has(value);
 }
 
+function defaultPanel(opportunityId: string | null): ContentPanel {
+  return opportunityId ? 'drafts' : 'strategy';
+}
+
 function ContentTabPanel() {
   const searchParams = useSearchParams();
   const requested = searchParams.get('tab');
   const opportunityId = searchParams.get('opportunity_id');
-  const panel = isContentPanel(requested) ? requested : opportunityId ? 'drafts' : 'strategy';
+  const panel = isContentPanel(requested) ? requested : defaultPanel(opportunityId);
 
   return (
     <ContentIntelligenceScreen
