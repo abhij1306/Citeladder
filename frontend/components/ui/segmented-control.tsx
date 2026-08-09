@@ -32,6 +32,7 @@ export function SegmentedControl<T extends string>({
   id,
   'aria-describedby': describedBy,
   className,
+  disabled = false,
 }: Readonly<{
   value: T;
   onChange: (value: T) => void;
@@ -40,6 +41,7 @@ export function SegmentedControl<T extends string>({
   id?: string;
   'aria-describedby'?: string;
   className?: string;
+  disabled?: boolean;
 }>) {
   const buttonsRef = useRef<Array<HTMLButtonElement | null>>([]);
   // With an off-list `value` nothing is checked, and a group where every option
@@ -73,6 +75,7 @@ export function SegmentedControl<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            disabled={disabled}
             // Roving tabindex: Tab enters the group at the current selection and
             // leaves it again, rather than stepping through every option.
             tabIndex={index === tabStop ? 0 : -1}

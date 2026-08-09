@@ -8,6 +8,7 @@ import { Check, ChevronRight, Circle, Clock3, ShieldCheck, X } from 'lucide-reac
 
 import { DecisionPrompt } from '@/components/intelligence/decision-prompt';
 import { Button } from '@/components/ui/button';
+import { Input, Textarea, inputClasses } from '@/components/ui/input';
 import { agentApi, type AgentTaskRun } from '@/lib/api/agent';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useProjectContext } from '@/lib/project/project-context';
@@ -402,7 +403,7 @@ export function GrowthAgentWorkspace() /* NOSONAR -- screen-level React composit
             <select
               value={resolvedTaskType}
               onChange={(event) => setTaskType(event.target.value)}
-              className="border-border bg-panel text-foreground focus:border-accent focus:ring-accent/20 h-11 rounded-sm border px-3 text-sm outline-none focus:ring-2"
+              className={cn(inputClasses, 'h-11')}
             >
               {(capabilities.data?.task_catalog ?? []).map((item) => (
                 <option key={item.task_type} value={item.task_type}>
@@ -413,11 +414,11 @@ export function GrowthAgentWorkspace() /* NOSONAR -- screen-level React composit
           </label>
           <label className="text-secondary grid gap-1.5 text-xs font-medium">
             <span>Objective</span>
-            <input
+            <Input
               value={objective}
               onChange={(event) => setObjective(event.target.value)}
               maxLength={2000}
-              className="border-border bg-panel text-foreground focus:border-accent focus:ring-accent/20 h-11 rounded-sm border px-3 text-sm outline-none focus:ring-2"
+              className="h-11"
             />
           </label>
           <Button
@@ -434,12 +435,11 @@ export function GrowthAgentWorkspace() /* NOSONAR -- screen-level React composit
         {taskPolicy?.required_scope.length ? (
           <label className="text-secondary mt-4 grid gap-1.5 text-xs font-medium">
             Resource scope · required: {taskPolicy.required_scope.join(', ')}
-            <textarea
+            <Textarea
               value={scopeText}
               onChange={(event) => setScopeText(event.target.value)}
               rows={3}
               spellCheck={false}
-              className="border-border bg-well text-foreground focus:border-accent focus:ring-accent/20 rounded-sm border px-3 py-2 font-sans text-xs outline-none focus:ring-2"
             />
             <span className="text-muted text-2xs">
               JSON object, for example {`{"${taskPolicy.required_scope[0]}": "…"}`}.

@@ -11,7 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { Textarea } from '@/components/ui/input';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
 import type { RunStatusValue } from '@/components/ui/badge-variants';
 import { contentApi, CONTENT_PROMPT_MAX_LEN } from '@/lib/api/content';
@@ -62,6 +64,7 @@ const STATUS_BADGE: Record<ContentGenerationStatus, RunStatusValue> = {
 
 const CONTENT_SKILLS = ['article', 'blog', 'youtube', 'reddit'] as const;
 type ContentSkill = (typeof CONTENT_SKILLS)[number];
+const CONTENT_SKILL_OPTIONS = CONTENT_SKILLS.map((skill) => ({ value: skill, label: skill }));
 
 function historyLabel(item: ContentGenerationListItem): string {
   return item.prompt_preview || 'Untitled generation';
@@ -268,43 +271,27 @@ function ProjectContentScreen({
             <Badge data-component-id="content-output-type" aria-label="Output type: Website page">
               Website page
             </Badge>
-            <div className="flex flex-wrap gap-1" aria-label="Content format">
-              {CONTENT_SKILLS.map((skill) => (
-                <button
-                  key={skill}
-                  type="button"
-                  aria-pressed={skillId === skill}
-                  disabled={generating}
-                  onClick={() => setSkillId(skill)}
-                  className={cn(
-                    'focus-ring rounded-full border px-3 py-1 text-xs capitalize transition-colors',
-                    skillId === skill
-                      ? 'border-accent-border bg-accent-subtle text-accent-text'
-                      : 'border-border bg-background text-secondary hover:text-primary',
-                  )}
-                >
-                  {skill}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              data-component-id="content-website-context-toggle"
-              role="switch"
-              aria-checked={websiteContextEnabled}
-              aria-label={`Website context, ${projectName}, ${websiteContextEnabled ? 'on' : 'off'}`}
+            <SegmentedControl
+              value={skillId}
+              onChange={setSkillId}
+              options={CONTENT_SKILL_OPTIONS}
+              ariaLabel="Content format"
               disabled={generating}
-              onClick={() => setWebsiteContextEnabled((value) => !value)}
-              className={cn(
-                'focus-ring inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                websiteContextEnabled
-                  ? 'border-accent-border bg-accent-subtle text-accent-text'
-                  : 'border-border bg-background-alt text-secondary',
-              )}
+              className="[&_button]:capitalize"
+            />
+            <div
+              data-component-id="content-website-context-toggle"
+              className="text-secondary inline-flex items-center gap-2 text-xs font-medium"
             >
               <Sparkles className="size-3" aria-hidden />
               Website context {websiteContextEnabled ? 'on' : 'off'}
-            </button>
+              <Switch
+                checked={websiteContextEnabled}
+                onCheckedChange={setWebsiteContextEnabled}
+                label={`Website context, ${projectName}, ${websiteContextEnabled ? 'on' : 'off'}`}
+                disabled={generating}
+              />
+            </div>
             <div className="ml-auto">
               <Button
                 data-component-id="content-generate-button"
