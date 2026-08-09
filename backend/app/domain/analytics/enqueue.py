@@ -34,6 +34,7 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
     ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
+    ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
     ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
     ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP,
@@ -154,6 +155,7 @@ async def _enqueue_window_snapshot_refresh(
     window_start: date,
     window_end: date,
     resync_seq: int,
+    source_revision: str | None = None,
     priority: int = 0,
 ) -> uuid.UUID | None:
     """The shared body of the two window snapshot-refresh enqueues (A7/A8).
@@ -164,12 +166,14 @@ async def _enqueue_window_snapshot_refresh(
     window re-fires the refresh while a same-revision duplicate still
     dedupes.
     """
-    payload: dict[str, object] = {
-        "window_start": window_start.isoformat(),
-        "window_end": window_end.isoformat(),
-    }
-    if task_kind == ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT:
-        payload["resync_seq"] = resync_seq
+    payload = _window_refresh_payload(
+        task_kind=task_kind,
+        window_start=window_start,
+        window_end=window_end,
+        resync_seq=resync_seq,
+        source_revision=source_revision,
+    )
+    revision_parts = [source_revision] if source_revision is not None else []
     return await _enqueue_task(
         session,
         workspace_id=workspace_id,
@@ -177,10 +181,34 @@ async def _enqueue_window_snapshot_refresh(
         task_kind=task_kind,
         payload=payload,
         idempotency_key=_idempotency_key(
-            task_kind, project_id, window_start, window_end, resync_seq
+            task_kind,
+            project_id,
+            window_start,
+            window_end,
+            resync_seq,
+            *revision_parts,
         ),
         priority=priority,
     )
+
+
+def _window_refresh_payload(
+    *,
+    task_kind: str,
+    window_start: date,
+    window_end: date,
+    resync_seq: int,
+    source_revision: str | None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "window_start": window_start.isoformat(),
+        "window_end": window_end.isoformat(),
+    }
+    if source_revision is not None:
+        payload["source_revision"] = source_revision
+    if task_kind == ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT:
+        payload["resync_seq"] = resync_seq
+    return payload
 
 
 async def enqueue_traffic_snapshot_refresh(
@@ -191,6 +219,7 @@ async def enqueue_traffic_snapshot_refresh(
     window_start: date,
     window_end: date,
     resync_seq: int,
+    source_revision: str | None = None,
     priority: int = 0,
 ) -> uuid.UUID | None:
     """Enqueue a rebuild of the Traffic snapshot rows for one window (A7).
@@ -207,6 +236,7 @@ async def enqueue_traffic_snapshot_refresh(
         window_start=window_start,
         window_end=window_end,
         resync_seq=resync_seq,
+        source_revision=source_revision,
         priority=priority,
     )
 
@@ -219,6 +249,7 @@ async def enqueue_analytics_snapshot_refresh(
     window_start: date,
     window_end: date,
     resync_seq: int,
+    source_revision: str | None = None,
     priority: int = 0,
 ) -> uuid.UUID | None:
     """Enqueue a rebuild of the LLM-Analytics snapshot for one window (A8).
@@ -235,6 +266,32 @@ async def enqueue_analytics_snapshot_refresh(
         window_start=window_start,
         window_end=window_end,
         resync_seq=resync_seq,
+        source_revision=source_revision,
+        priority=priority,
+    )
+
+
+async def enqueue_demand_snapshot_refresh(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    window_start: date,
+    window_end: date,
+    source_revision: str,
+    priority: int = 0,
+) -> uuid.UUID | None:
+    """Queue one immutable Demand interpretation for an evidence revision."""
+    revision = source_revision[:24]
+    return await _enqueue_window_snapshot_refresh(
+        session,
+        task_kind=ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        window_start=window_start,
+        window_end=window_end,
+        resync_seq=0,
+        source_revision=revision,
         priority=priority,
     )
 
@@ -493,13 +550,13 @@ async def enqueue_post_sync_projections(
     # deduped in first-seen order of the returned rows (the SELECT has no
     # ORDER BY; a hook call normally carries one run's artifacts — one
     # window at one resync_seq — so ordering is moot in practice).
-    traffic_revisions: dict[tuple[date, date, int], None] = {}
+    traffic_revisions: dict[tuple[date, date, int, uuid.UUID], None] = {}
     attribution_revisions: dict[tuple[date, date, int, uuid.UUID], None] = {}
     order_sync_runs: dict[uuid.UUID, None] = {}
     for row in rows:
         revision = (row.window_start, row.window_end, row.resync_seq)
         if row.dataset in TRAFFIC_REFRESH_TRIGGER_DATASETS:
-            traffic_revisions.setdefault(revision)
+            traffic_revisions.setdefault((*revision, row.sync_run_id))
         if row.dataset in ATTRIBUTION_CONSUMED_DATASETS:
             attribution_revisions.setdefault((*revision, row.sync_run_id))
         if row.dataset == DATASET_SHOPIFY_ORDERS:
@@ -521,7 +578,7 @@ async def enqueue_post_sync_projections(
         )
         if task_id is not None:
             enqueued.append(task_id)
-    for window_start, window_end, resync_seq in traffic_revisions:
+    for window_start, window_end, resync_seq, sync_run_id in traffic_revisions:
         task_id = await enqueue_traffic_snapshot_refresh(
             session,
             workspace_id=workspace_id,
@@ -529,6 +586,7 @@ async def enqueue_post_sync_projections(
             window_start=window_start,
             window_end=window_end,
             resync_seq=resync_seq,
+            source_revision=str(sync_run_id),
         )
         if task_id is not None:
             enqueued.append(task_id)

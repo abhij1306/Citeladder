@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from sqlalchemy import delete, func, select
@@ -40,9 +40,10 @@ from app.domain.opportunities.service import (
     OpportunitySupersededError,
     OpportunityValidationError,
 )
-from app.models.analysis import Citation, MetricSnapshot
+from app.models.analysis import Citation, MetricSnapshot, ResponseAnalysis
 from app.models.analytics import AnalyticsTask
 from app.models.audit import Audit
+from app.models.demand import DemandSignal, DemandSnapshot
 from app.models.opportunity import (
     Opportunity,
     OpportunitySnapshot,
@@ -67,6 +68,87 @@ from tests.component.opportunity_helpers import (
 )
 
 pytestmark = pytest.mark.asyncio
+
+
+async def test_unchanged_demand_snapshot_remains_fresh_and_ready(
+    db_session: AsyncSession,
+) -> None:
+    workspace_id, project_id, _prompt_ids = await _seed_base(db_session)
+    demand = DemandSnapshot(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        window_start=date(2026, 7, 1),
+        window_end=date(2026, 7, 7),
+        source_hash="d" * 64,
+        source_artifact_ids=[],
+        source_metric_row_ids=[],
+        source_audit_ids=[],
+        journey_version_ids=[],
+        coverage={},
+        summary={},
+        formula_version="demand-priority-1",
+        analyzer_version="demand-analyzer-1",
+    )
+    db_session.add(demand)
+    await db_session.flush()
+    source_metric_id = str(uuid.uuid4())
+    db_session.add(
+        DemandSignal(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            snapshot_id=demand.id,
+            identity_hash="s" * 64,
+            signal_type="high_impression_low_ctr",
+            state="active",
+            topic_cluster="admissions",
+            page_url="",
+            evidence={
+                "target_kind": "query",
+                "target": "admissions",
+                "source_metric_row_ids": [source_metric_id],
+            },
+            metrics={"impressions": 100, "clicks": 0},
+            coverage={"search_demand": "observed"},
+            limitations=[],
+            priority_score=80,
+            priority_inputs={},
+            analyzer_version="demand-analyzer-1",
+            rule_version="demand-rules-1",
+            formula_version="demand-priority-1",
+        )
+    )
+    await db_session.commit()
+
+    first = await service.recompute(
+        db_session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        skip_if_current=True,
+    )
+    second = await service.recompute(
+        db_session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        skip_if_current=True,
+    )
+
+    assert second["run_id"] == first["run_id"]
+    assert second["demand_snapshot_id"] == demand.id
+    assert (
+        await db_session.scalar(select(func.count()).select_from(OpportunitySnapshot))
+        == 1
+    )
+    summary = await service.get_summary(
+        db_session, workspace_id=workspace_id, project_id=project_id
+    )
+    assert summary["stale"] is False
+    assert summary["activation_state"] == "ready"
+    assert summary["demand_source_revision"] == demand.source_hash
+    opportunity_snapshot = (await db_session.scalars(select(OpportunitySnapshot))).one()
+    assert opportunity_snapshot.source_analysis_ids == []
+    opportunity = (await db_session.scalars(select(Opportunity))).one()
+    assert opportunity.source_metric_ids == [source_metric_id]
+    assert opportunity.evidence["demand_signal_id"]
 
 
 async def test_automatic_refresh_task_is_unique_and_manual_success_is_ready(
@@ -600,11 +682,14 @@ async def test_rerecompute_supersedes_carries_status_and_closes_vanished(
 
     # The prompt-0 analysis gains an owned citation -> both visibility hits
     # vanish on the next pass.
+    analysis0 = await db_session.get(ResponseAnalysis, scn.analysis0_id)
+    assert analysis0 is not None
     db_session.add(
         Citation(
             workspace_id=scn.workspace_id,
             audit_id=scn.audit_id,
             analysis_id=scn.analysis0_id,
+            artifact_id=analysis0.artifact_id,
             analyzer_version="b6-analysis-1",
             ordinal=2,
             url="https://acme.com/crm",

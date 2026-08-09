@@ -8,8 +8,10 @@ config-owned ``unpack_dimension_key``) with in-memory row inputs.
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -25,6 +27,7 @@ from app.core.config.integrations import (
 )
 from app.core.config.traffic import TRAFFIC_GA4_ORGANIC_CHANNEL_GROUPS
 from app.domain.traffic.projection import (
+    TRAFFIC_SERIES_NAMES,
     TrafficMetricRowInput,
     bucket_labels,
     bucket_start,
@@ -94,6 +97,49 @@ def _gsc_page(
 def _totals(rows: list[TrafficMetricRowInput], **kwargs: Any) -> dict[str, Any]:
     projection = build_traffic_projection(rows=rows, **kwargs)
     return projection.metrics["totals"]
+
+
+def test_sanitized_cube27_combines_gsc_and_ga4_without_coercing_zero() -> None:
+    fixture_path = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "demand"
+        / "cube27_combined_projection.json"
+    )
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    rows = [
+        _row(
+            provider=item["provider"],
+            dataset=item["dataset"],
+            row_date=date.fromisoformat(item["date"]),
+            dimension_values=item["dimensions"],
+            metrics=item["metrics"],
+            row_id=uuid.UUID(item["row_id"]),
+            artifact_id=uuid.UUID(item["artifact_id"]),
+        )
+        for item in fixture["rows"]
+    ]
+    projection = build_traffic_projection(
+        rows=rows,
+        window_start=date.fromisoformat(fixture["window_start"]),
+        window_end=date.fromisoformat(fixture["window_end"]),
+        granularity="day",
+        project_origin=fixture["site_origin"],
+    )
+    expected = fixture["expected"]
+    assert projection.metrics["totals"] == {
+        "impressions": expected["impressions"],
+        "clicks": expected["clicks"],
+        "ctr": pytest.approx(expected["clicks"] / expected["impressions"]),
+        "position": expected["position"] if "position" in expected else 14.2,
+        "sessions": expected["sessions"],
+        "engaged_sessions": expected["engagedSessions"],
+        "key_events": expected["keyEvents"],
+        "conversions": expected["keyEvents"],
+    }
+    assert projection.pages[0].canonical_url == expected["canonical_url"]
+    assert len(projection.source_metric_row_ids) == expected["source_row_count"]
+    assert len(projection.source_artifact_ids) == expected["source_artifact_count"]
 
 
 # --- normalize_query ------------------------------------------------------------
@@ -285,6 +331,48 @@ def test_select_latest_rows_treats_property_ref_as_identity() -> None:
     assert len(select_latest_rows([first, second])) == 2
 
 
+def test_relative_ga4_landing_resolves_against_project_origin() -> None:
+    row = _row(
+        dataset=DATASET_GA4_LANDING_DAILY,
+        row_date=date(2026, 7, 20),
+        dimension_values=[
+            "/admissions?utm_source=ignored",
+            "chatgpt.com",
+            "referral",
+            "20260720",
+        ],
+        metrics={"sessions": 3, "conversions": 1},
+    )
+    projection = build_traffic_projection(
+        rows=[row],
+        window_start=date(2026, 7, 20),
+        window_end=date(2026, 7, 20),
+        granularity="day",
+        project_origin="https://example.com",
+    )
+    assert len(projection.pages) == 1
+    assert projection.pages[0].canonical_url == "https://example.com/admissions"
+    assert projection.pages[0].metrics["sessions"] == 3
+
+
+def test_ga4_uses_engaged_sessions_and_stable_key_events() -> None:
+    row = _row(
+        dataset=DATASET_GA4_CHANNEL_DAILY,
+        row_date=date(2026, 7, 20),
+        dimension_values=["Organic Search", "20260720"],
+        metrics={"sessions": 7, "engagedSessions": 5, "keyEvents": 2},
+    )
+    totals = _totals(
+        [row],
+        window_start=date(2026, 7, 20),
+        window_end=date(2026, 7, 20),
+        granularity="day",
+    )
+    assert totals["engaged_sessions"] == 5
+    assert totals["key_events"] == 2
+    assert totals["conversions"] == 2
+
+
 # --- GA4 inclusion rule ---------------------------------------------------------------
 
 
@@ -448,9 +536,9 @@ def test_page_ga4_landing_metrics_and_exclusion_rule() -> None:
     )
     assert len(projection.pages) == 1
     page = projection.pages[0]
-    # Only the AI-referred landing row folds into the page's GA4 metrics.
-    assert page.metrics["sessions"] == 2
-    assert page.metrics["conversions"] == 0
+    # Page identity combines the configured organic and classified AI scope.
+    assert page.metrics["sessions"] == 52
+    assert page.metrics["conversions"] == 5
     # Landing rows feed page stats ONLY — never the snapshot totals.
     assert projection.metrics["totals"]["sessions"] is None
 
@@ -548,7 +636,11 @@ def test_series_buckets_render_gaps_for_rows_free_buckets() -> None:
             dataset=DATASET_GA4_CHANNEL_DAILY,
             row_date=date(2026, 7, 21),
             dimension_values=["Organic Search", "20260721"],
-            metrics={"sessions": 3, "conversions": 1},
+            metrics={
+                "sessions": 3,
+                "engagedSessions": 2,
+                "keyEvents": 1,
+            },
         ),
     ]
     projection = build_traffic_projection(
@@ -567,6 +659,8 @@ def test_series_buckets_render_gaps_for_rows_free_buckets() -> None:
     assert [p["value"] for p in series["impressions"]] == [None, 40, None]
     assert [p["value"] for p in series["clicks"]] == [None, 4, None]
     assert [p["value"] for p in series["sessions"]] == [None, 3, None]
+    assert [p["value"] for p in series["engaged_sessions"]] == [None, 2, None]
+    assert [p["value"] for p in series["key_events"]] == [None, 1, None]
     assert [p["value"] for p in series["conversions"]] == [None, 1, None]
     # CTR/position computed per bucket.
     assert [p["value"] for p in series["ctr"]] == [None, 0.1, None]
@@ -587,6 +681,8 @@ def test_empty_window_projects_zeroed_totals_and_gap_series() -> None:
         "ctr": None,
         "position": None,
         "sessions": None,
+        "engaged_sessions": None,
+        "key_events": None,
         "conversions": None,
     }
     assert projection.pages == ()
@@ -594,6 +690,7 @@ def test_empty_window_projects_zeroed_totals_and_gap_series() -> None:
     assert projection.source_metric_row_ids == []
     assert projection.source_artifact_ids == []
     assert len(projection.metrics["series"]["clicks"]) == 2
+    assert set(projection.metrics["series"]) == set(TRAFFIC_SERIES_NAMES)
     assert all(
         point["value"] is None
         for series in projection.metrics["series"].values()

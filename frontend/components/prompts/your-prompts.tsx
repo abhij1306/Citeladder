@@ -110,7 +110,7 @@ function groupByTopic(
 /**
  * Your Prompts (design.md §9.4, sidebar "Prompts"): the read-only,
  * score-annotated view of the ACTIVE prompt configuration, grouped by topic
- * with expandable rows. Editing, review (proposed/archived), and AI generation
+ * with expandable rows. Editing, archive/restore, and AI generation
  * live in the page's in-page manage mode (`/prompts?mode=manage`) — the
  * banner links there.
  */

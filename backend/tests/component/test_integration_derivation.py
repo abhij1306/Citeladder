@@ -29,8 +29,12 @@ from sqlalchemy import select
 
 from app.core.config.integrations import (
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
+    DATASET_GSC_COUNTRY_DAILY,
+    DATASET_GSC_DEVICE_DAILY,
     DATASET_GSC_PAGE_DAILY,
     DATASET_GSC_QUERY_DAILY,
+    DATASET_GSC_QUERY_PAGE_DAILY,
+    DATASET_GSC_SEARCH_APPEARANCE_DAILY,
     ERROR_UNMAPPED_PROPERTY,
     EVENT_INTEGRATION_SYNC_FINISHED,
     GRANT_STATUS_CONNECTED,
@@ -86,10 +90,32 @@ def _gsc_transport() -> httpx.MockTransport:
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         dimensions = tuple(body.get("dimensions") or ())
-        if "page" in dimensions:
-            return httpx.Response(200, json=_fixture("gsc_search_analytics_page1.json"))
+        values = {
+            ("page", "date"): ["https://example.com/admissions", "2026-07-21"],
+            ("query", "date"): ["admissions", "2026-07-21"],
+            ("query", "page", "date"): [
+                "admissions",
+                "https://example.com/admissions",
+                "2026-07-21",
+            ],
+            ("searchAppearance", "date"): ["WEB", "2026-07-21"],
+            ("device", "date"): ["MOBILE", "2026-07-21"],
+            ("country", "date"): ["ind", "2026-07-21"],
+        }
+        assert dimensions in values
         return httpx.Response(
-            200, json=_fixture("gsc_search_analytics_query_page.json")
+            200,
+            json={
+                "rows": [
+                    {
+                        "keys": values[dimensions],
+                        "clicks": 3,
+                        "impressions": 30,
+                        "ctr": 0.1,
+                        "position": 4.5,
+                    }
+                ]
+            },
         )
 
     return httpx.MockTransport(handler)
@@ -190,9 +216,9 @@ async def test_derivation_provenance_on_every_row(session_factory, db_session) -
     await db_session.refresh(run)
     assert run.status == TASK_STATUS_SUCCEEDED
     artifacts = await _run_artifacts(db_session, run.id)
-    assert len(artifacts) == 2  # one page-dataset page + one query-dataset page
+    assert len(artifacts) == 6  # one page for each registered GSC report family
     rows = await _run_metric_rows(db_session, run.id)
-    assert len(rows) == 3
+    assert len(rows) == 6
 
     artifact_ids = {artifact.id for artifact in artifacts}
     for row in rows:
@@ -210,25 +236,26 @@ async def test_derivation_provenance_on_every_row(session_factory, db_session) -
     for row in rows:
         by_dataset.setdefault(row.dataset, []).append(row)
 
-    page_rows = sorted(
-        by_dataset[DATASET_GSC_PAGE_DAILY], key=lambda row: row.dimension_key
-    )
-    assert [row.dimension_key for row in page_rows] == [
-        "https://example.com/ | 2026-07-20",
-        "https://example.com/pricing | 2026-07-20",
-    ]
-    assert all(row.date == date(2026, 7, 20) for row in page_rows)
-    first = page_rows[0]
-    assert first.metrics == {
-        "clicks": 12,
-        "impressions": 340,
-        "ctr": 0.0353,
-        "position": 4.2,
+    expected_keys = {
+        DATASET_GSC_PAGE_DAILY: "https://example.com/admissions | 2026-07-21",
+        DATASET_GSC_QUERY_DAILY: "admissions | 2026-07-21",
+        DATASET_GSC_QUERY_PAGE_DAILY: (
+            "admissions | https://example.com/admissions | 2026-07-21"
+        ),
+        DATASET_GSC_SEARCH_APPEARANCE_DAILY: "WEB | 2026-07-21",
+        DATASET_GSC_DEVICE_DAILY: "MOBILE | 2026-07-21",
+        DATASET_GSC_COUNTRY_DAILY: "ind | 2026-07-21",
     }
-
-    (query_row,) = by_dataset[DATASET_GSC_QUERY_DAILY]
-    assert query_row.dimension_key == "citeladder | 2026-07-20"
-    assert query_row.date == date(2026, 7, 20)
+    for dataset, expected_key in expected_keys.items():
+        (row,) = by_dataset[dataset]
+        assert row.dimension_key == expected_key
+        assert row.date == date(2026, 7, 21)
+        assert row.metrics == {
+            "clicks": 3,
+            "impressions": 30,
+            "ctr": 0.1,
+            "position": 4.5,
+        }
     # Each row points at the artifact of ITS dataset (not just any artifact).
     artifact_dataset = {artifact.id: artifact.dataset for artifact in artifacts}
     for row in rows:
@@ -250,7 +277,7 @@ async def test_unmapped_property_fails_run(session_factory, db_session) -> None:
     assert run.completed_at is not None
     # The raw import landed (immutable evidence retained) but NOTHING was
     # derived or projected: the property was never guessed.
-    assert len(await _run_artifacts(db_session, run.id)) == 2
+    assert len(await _run_artifacts(db_session, run.id)) == 6
     assert await _run_metric_rows(db_session, run.id) == []
     assert list((await db_session.scalars(select(AnalyticsTask))).all()) == []
     events = list(
@@ -278,7 +305,7 @@ async def test_resync_writes_new_rows_old_retained(session_factory, db_session) 
     rows0 = await _run_metric_rows(db_session, run0.id)
     artifacts0 = await _run_artifacts(db_session, run0.id)
     hashes0 = {artifact.id: artifact.payload_hash for artifact in artifacts0}
-    assert len(rows0) == 3
+    assert len(rows0) == 6
     assert {row.resync_seq for row in rows0} == {0}
 
     # The completed window re-syncs at resync_seq 1 (I5 allocation).
@@ -289,7 +316,7 @@ async def test_resync_writes_new_rows_old_retained(session_factory, db_session) 
     assert run1.status == TASK_STATUS_SUCCEEDED
 
     rows1 = await _run_metric_rows(db_session, run1.id)
-    assert len(rows1) == 3
+    assert len(rows1) == 6
     assert {row.resync_seq for row in rows1} == {1}
 
     # Old rows + old artifacts are retained, never mutated (invariant 3):
@@ -316,7 +343,7 @@ async def test_resync_writes_new_rows_old_retained(session_factory, db_session) 
         )
     )
     grouped = (await db_session.execute(identity)).all()
-    assert len(grouped) == 6  # 3 identities x 2 revisions
+    assert len(grouped) == 12  # six report identities x two revisions
     seqs = {row.resync_seq for row in grouped}
     assert seqs == {0, 1}
     for artifact in artifacts0:
@@ -350,8 +377,8 @@ async def test_derivation_replay_is_a_dedup_noop(session_factory, db_session) ->
         await session.commit()
     # The transform still maps every payload row, but the insert conflicts
     # on the identity tuple and lands NOTHING twice.
-    assert derived.metric_row_count == 3
-    assert len(await _run_metric_rows(db_session, run.id)) == 3
+    assert derived.metric_row_count == 6
+    assert len(await _run_metric_rows(db_session, run.id)) == 6
 
 
 @pytest.mark.asyncio
@@ -409,7 +436,7 @@ def test_build_metric_row_values_pure_packing() -> None:
                     "keys": ["google", "organic", "20260720"],
                     "sessions": 41,
                     "engagedSessions": 30,
-                    "conversions": 2,
+                    "keyEvents": 2,
                 },
                 {"keys": ["only-two", "20260720"]},  # wrong arity: skipped
                 {
@@ -429,7 +456,7 @@ def test_build_metric_row_values_pure_packing() -> None:
     assert row["metrics"] == {
         "sessions": 41,
         "engagedSessions": 30,
-        "conversions": 2,
+        "keyEvents": 2,
     }
     assert row["resync_seq"] == 2
     assert row["importer_version"] == INTEGRATION_IMPORTER_VERSION

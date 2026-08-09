@@ -27,6 +27,7 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
     ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
+    ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
     ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
     ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
@@ -59,6 +60,7 @@ from app.domain.analytics.enqueue import (
     enqueue_ingest_referrals,
     enqueue_post_sync_projections,
     enqueue_referral_retention_sweep,
+    enqueue_traffic_snapshot_refresh,
 )
 from app.models.analytics import AnalyticsTask
 from app.models.integrations import (
@@ -217,6 +219,7 @@ async def test_analytics_queue_claims_by_task_kind(
         + seeded[ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT]
         + seeded[ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP]
         + seeded[ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH]
+        + seeded[ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH]
     )
 
 
@@ -397,6 +400,12 @@ async def test_enqueue_post_sync_projections_routes_by_dataset(
                 DATASET_SHOPIFY_ORDERS,
             ),
         )
+        source_revision = await session.scalar(
+            select(IntegrationImportArtifact.sync_run_id).where(
+                IntegrationImportArtifact.id == artifact_ids[0]
+            )
+        )
+        assert source_revision is not None
         await session.commit()
         source_medium_id = artifact_ids[0]
 
@@ -425,6 +434,7 @@ async def test_enqueue_post_sync_projections_routes_by_dataset(
     assert traffic_rows[0].payload == {
         "window_start": _WINDOW[0].isoformat(),
         "window_end": _WINDOW[1].isoformat(),
+        "source_revision": str(source_revision),
     }
     attribution_rows = by_kind[ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT]
     assert len(attribution_rows) == 1
@@ -476,6 +486,57 @@ async def test_attribution_refresh_dedupes_per_source_run_not_window_sequence(
     assert len(tasks) == 2
     assert len({task.idempotency_key for task in tasks}) == 2
     assert {task.payload["resync_seq"] for task in tasks} == {0}
+
+
+@pytest.mark.asyncio
+async def test_traffic_refresh_dedupes_per_source_run_not_window_sequence(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Independent GSC and GA4 runs can both be revision zero."""
+    async with session_factory() as session:
+        workspace_id, project_id = await _seed_workspace_project(session)
+        source_runs = [uuid.uuid4(), uuid.uuid4()]
+        enqueued = [
+            await enqueue_traffic_snapshot_refresh(
+                session,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                window_start=_WINDOW[0],
+                window_end=_WINDOW[1],
+                resync_seq=0,
+                source_revision=str(source_run),
+            )
+            for source_run in source_runs
+        ]
+        duplicate = await enqueue_traffic_snapshot_refresh(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            window_start=_WINDOW[0],
+            window_end=_WINDOW[1],
+            resync_seq=0,
+            source_revision=str(source_runs[0]),
+        )
+        await session.commit()
+    assert all(task_id is not None for task_id in enqueued)
+    assert duplicate is None
+
+    async with session_factory() as session:
+        tasks = list(
+            (
+                await session.scalars(
+                    select(AnalyticsTask).where(
+                        AnalyticsTask.task_kind
+                        == ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH
+                    )
+                )
+            ).all()
+        )
+    assert len(tasks) == 2
+    assert len({task.idempotency_key for task in tasks}) == 2
+    assert {task.payload["source_revision"] for task in tasks} == {
+        str(source_run) for source_run in source_runs
+    }
 
 
 @pytest.mark.asyncio

@@ -47,6 +47,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
+from typing import NoReturn
 from urllib.parse import quote
 
 import httpx
@@ -71,6 +72,7 @@ from app.core.config.integrations import (
     GA4_ACCOUNT_SUMMARIES_PATH,
     GA4_ADMIN_API_BASE_URL,
     GA4_API_BASE_URL,
+    GA4_DEMAND_OPTIONAL_DATASETS,
     GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS,
     GA4_PROPERTY_RESOURCE_PREFIX,
     GA4_RUN_REPORT_PATH,
@@ -87,15 +89,54 @@ class Ga4ApiError(IntegrationApiError):
 
 
 class Ga4DimensionCompatibilityError(Ga4ApiError):
-    """The property rejected the primary item dataset's dimension mix.
+    """The property rejected a capability-tested dataset's dimension mix.
 
-    Raised ONLY for the primary item source/medium dataset when an HTTP
+    Raised for the primary item source/medium dataset or an optional Demand
+    report when an HTTP
     400's capped provider detail explicitly identifies an incompatible
     dimension/metric combination — the sync worker's signal to fall back
     to the channel-group item template in the same run. Authentication,
     rate-limit, malformed-body, and generic 400 failures keep the
     base-class behavior (no fallback).
     """
+
+
+def _is_compatibility_rejection(
+    response: httpx.Response, template: IntegrationDatasetTemplate, detail: str
+) -> bool:
+    capability_tested = (
+        template.dataset == DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
+        or template.dataset in GA4_DEMAND_OPTIONAL_DATASETS
+    )
+    markers = GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS
+    return (
+        response.status_code == 400
+        and capability_tested
+        and any(marker in detail.casefold() for marker in markers)
+    )
+
+
+def _raise_run_report_error(
+    response: httpx.Response, template: IntegrationDatasetTemplate
+) -> NoReturn:
+    error_code, retryable = classify_status(response.status_code)
+    try:
+        detail = nested_error_detail(response.json())
+    except ValueError:
+        detail = ""
+    suffix = f" ({detail})" if detail else ""
+    if _is_compatibility_rejection(response, template, detail):
+        raise Ga4DimensionCompatibilityError(
+            f"GA4 runReport rejected dataset {template.dataset}{suffix}",
+            error_code=ERROR_GA4_DIMENSION_INCOMPATIBLE,
+            retryable=False,
+        )
+    raise Ga4ApiError(
+        f"GA4 runReport returned HTTP {response.status_code}{suffix}",
+        error_code=error_code,
+        retryable=retryable,
+        retry_after_seconds=parse_retry_after(response),
+    )
 
 
 @dataclass(frozen=True)
@@ -403,37 +444,7 @@ class Ga4Client:
                 retryable=True,
             ) from exc
         if response.status_code != 200:
-            error_code, retryable = classify_status(response.status_code)
-            try:
-                detail = nested_error_detail(response.json())
-            except ValueError:
-                detail = ""
-            # The NARROW compatibility classification: only the primary item
-            # dataset, only an HTTP 400, and only when the capped provider
-            # detail explicitly names an incompatible dimension/metric
-            # combination. Not retryable — the worker falls back instead of
-            # burning the attempt budget on a deterministic rejection.
-            if (
-                response.status_code == 400
-                and template.dataset == DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
-                and any(
-                    marker in detail.casefold()
-                    for marker in GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS
-                )
-            ):
-                suffix = f" ({detail})" if detail else ""
-                raise Ga4DimensionCompatibilityError(
-                    f"GA4 runReport rejected the item source/medium dimensions{suffix}",
-                    error_code=ERROR_GA4_DIMENSION_INCOMPATIBLE,
-                    retryable=False,
-                )
-            suffix = f" ({detail})" if detail else ""
-            raise Ga4ApiError(
-                f"GA4 runReport returned HTTP {response.status_code}{suffix}",
-                error_code=error_code,
-                retryable=retryable,
-                retry_after_seconds=parse_retry_after(response),
-            )
+            _raise_run_report_error(response, template)
         try:
             report = response.json()
         except ValueError as exc:
@@ -463,6 +474,12 @@ class Ga4Client:
         payload: dict = {"rows": list(rows)}
         if "rowCount" in report:
             payload["rowCount"] = report["rowCount"]
+        metadata = report.get("metadata")
+        if isinstance(metadata, dict):
+            # Persist provider-declared thresholding/sampling/currency metadata
+            # beside the immutable rows. Read APIs expose this verbatim as
+            # limitations; they never infer complete coverage from row count.
+            payload["metadata"] = metadata
         # Ecommerce datasets only: persist the property's ISO currency as a
         # TOP-LEVEL payload key (beside ``rows``/``rowCount``) — never a
         # report dimension, which would change ``dimension_key`` identity

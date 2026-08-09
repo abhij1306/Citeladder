@@ -140,7 +140,6 @@ export function TopicRail({
             key={topic.id}
             label={topic.name}
             activeCount={topic.active_count}
-            proposedCount={topic.proposed_count}
             selected={selectedTopicId === topic.id}
             onSelect={() => onSelect(topic.id)}
             onDelete={() => onDelete(topic)}
@@ -210,14 +209,12 @@ function TopicSelect({
 function TopicItem({
   label,
   activeCount,
-  proposedCount,
   selected,
   onSelect,
   onDelete,
 }: Readonly<{
   label: string;
   activeCount?: number;
-  proposedCount?: number;
   selected: boolean;
   onSelect: () => void;
   onDelete?: () => void;
@@ -242,15 +239,7 @@ function TopicItem({
           <span className="min-w-0 flex-1 truncate">{label}</span>
         </Tooltip>
         {typeof activeCount === 'number' ? (
-          <span className="mono text-muted text-2xs shrink-0">
-            {activeCount}
-            {proposedCount ? (
-              <span className="text-accent-text" title={`${proposedCount} proposed`}>
-                {' '}
-                +{proposedCount}
-              </span>
-            ) : null}
-          </span>
+          <span className="mono text-muted text-2xs shrink-0">{activeCount}</span>
         ) : null}
       </button>
       {onDelete ? (

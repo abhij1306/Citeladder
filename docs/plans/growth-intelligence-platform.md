@@ -266,6 +266,10 @@ The architecture is accepted when one project can:
 11. rerun and show what changed;
 12. ask the Growth Agent to explain and execute bounded tasks with a visible context manifest.
 
+Demand acceptance item 9 and the Demand-owned portion of item 10 shipped in D0-D5: combined
+Google projections, versioned journeys, immutable signals/snapshots, active prompt provenance,
+frozen audit links, shared Opportunity routing, and the six-panel workspace.
+
 ## 12. Cross-plan implementation rules
 
 - Preserve UUIDs, workspace authorization, immutable artifacts, single-writer queue behaviour,

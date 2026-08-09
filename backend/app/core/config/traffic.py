@@ -56,7 +56,7 @@ TRAFFIC_DEFAULT_GRANULARITY: Final = TRAFFIC_GRANULARITY_DAY
 # Kept SEPARATE (normalization is NOT folded into a generic analyzer version)
 # so a consumer can tell a URL/normalization change apart from an
 # analytics-formula change (traffic.md section 8).
-TRAFFIC_FORMULA_VERSION: Final = "traffic-formula-1"
+TRAFFIC_FORMULA_VERSION: Final = "traffic-formula-2"
 TRAFFIC_NORMALIZATION_VERSION: Final = "traffic-normalization-1"
 
 # --- GA4 inclusion rule (organic + AI-driven only; traffic.md section 3) -----
@@ -66,6 +66,7 @@ TRAFFIC_NORMALIZATION_VERSION: Final = "traffic-normalization-1"
 TRAFFIC_GA4_ORGANIC_CHANNEL_GROUPS: Final[frozenset[str]] = frozenset(
     {"Organic Search"}
 )
+TRAFFIC_GA4_ORGANIC_MEDIUMS: Final[frozenset[str]] = frozenset({"organic"})
 # The C1 GA4 referral-dimension datasets the referral ingest (A5) reads.
 TRAFFIC_GA4_REFERRAL_DATASETS: Final[frozenset[str]] = frozenset(
     {DATASET_GA4_REFERRER_DAILY, DATASET_GA4_SOURCE_MEDIUM_DAILY}

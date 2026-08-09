@@ -28,11 +28,12 @@ from app.core.config.projects import (
 # catalog change, and ``FORMULA_VERSION`` on any scoring change so a derived
 # row is always traceable to the exact logic that produced it (mirrors
 # ``SCORING_RULE_VERSION`` in ``config/analysis.py``).
-ANALYZER_VERSION: Final = "opp-analyzer-1"
-RULE_VERSION: Final = "opp-rules-3"
+ANALYZER_VERSION: Final = "opp-analyzer-2"
+RULE_VERSION: Final = "opp-rules-4"
 FORMULA_VERSION: Final = "opp-formula-1"
 CONFIRMED_DECLINE_MIN_FACTOR: Final = 0.1
 CONFIRMED_DECLINE_GAP_NORMALIZER: Final = 10.0
+DEMAND_SIGNAL_GAP_FACTOR: Final = 2.0
 
 
 # =========================================================================
@@ -297,6 +298,17 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
             " this product. Make the current price prominent and"
             " machine-readable on the product page (visible price plus"
             " schema.org Offer markup) so engines stop citing stale figures."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="search_demand_content_gap",
+        opportunity_type=OPPORTUNITY_TYPE_TRAFFIC,
+        severity=SEVERITY_MEDIUM,
+        title="Search demand is not earning expected clicks",
+        remediation=(
+            "Improve the matching owned page and search snippet for this "
+            "measured query or page. Keep the answer aligned with the observed "
+            "intent and verify the later GSC window."
         ),
     ),
     OpportunityRule(

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 import { LayerTabs, type LayerTab } from '@/components/layout/layer-tabs';
-import { TrafficScreen } from '@/components/traffic/traffic-screen';
+import { DemandProjection } from '@/components/demand/demand-projection';
 import { VisibilityDashboard } from '@/components/visibility/visibility-dashboard';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -22,9 +22,12 @@ import { TooltipProvider } from '@/components/ui/tooltip';
  * Demand signals and the coverage panel land with stage 3.
  */
 const TABS: readonly LayerTab[] = [
-  { id: 'visibility', label: 'Visibility' },
-  { id: 'traffic', label: 'Traffic' },
-  { id: 'signals', label: 'Demand signals' },
+  { id: 'overview', label: 'Overview' },
+  { id: 'search', label: 'Search Demand' },
+  { id: 'journeys', label: 'Journeys' },
+  { id: 'prompts', label: 'Prompts' },
+  { id: 'visibility', label: 'AI Visibility' },
+  { id: 'evidence', label: 'Evidence' },
 ];
 
 /**
@@ -35,24 +38,20 @@ const TABS: readonly LayerTab[] = [
  */
 const RELATED = [
   { href: '/prompts', label: 'Prompts' },
+  { href: '/traffic', label: 'Traffic' },
   { href: '/analytics', label: 'AI referrals' },
   { href: '/runs', label: 'Runs' },
 ] as const;
 
 function DemandTabPanel() {
-  const tab = useSearchParams().get('tab') ?? 'visibility';
+  const tab = useSearchParams().get('tab') ?? 'overview';
 
   if (tab === 'visibility') return <VisibilityDashboard />;
-  if (tab === 'traffic') return <TrafficScreen />;
-
-  return (
-    <div className="bg-panel shadow-card rounded-lg p-8">
-      <p className="text-foreground text-sm font-medium">Not yet available</p>
-      <p className="text-muted mt-2 max-w-[60ch] text-sm leading-relaxed">
-        Demand signals with their time window, source coverage, and the join that produced them.
-      </p>
-    </div>
-  );
+  if (tab === 'search') return <DemandProjection panel="search" />;
+  if (tab === 'journeys') return <DemandProjection panel="journeys" />;
+  if (tab === 'evidence') return <DemandProjection panel="evidence" />;
+  if (tab === 'prompts') return <DemandProjection panel="prompts" />;
+  return <DemandProjection panel="overview" />;
 }
 
 export default function DemandPage() {

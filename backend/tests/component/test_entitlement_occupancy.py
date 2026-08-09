@@ -28,7 +28,6 @@ from app.core.config.projects import PROMPT_ORIGIN_GENERATED, PROMPT_ORIGIN_MANU
 from app.core.config.prompts import (
     PROMPT_STATUS_ACTIVE,
     PROMPT_STATUS_ARCHIVED,
-    PROMPT_STATUS_PROPOSED,
 )
 from app.domain.entitlements.cache import clear_cache
 from app.domain.entitlements.enforcement import (
@@ -424,7 +423,7 @@ async def test_duplicate_filtering_charges_only_actual_inserts(
 
 
 @pytest.mark.asyncio
-async def test_archived_proposed_generated_rows_count_and_update_is_free(
+async def test_archived_and_generated_rows_count_and_update_is_free(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
@@ -441,10 +440,10 @@ async def test_archived_proposed_generated_rows_count_and_update_is_free(
             status=PROMPT_STATUS_ARCHIVED,
             origin=PROMPT_ORIGIN_MANUAL,
         )
-        proposed = Prompt(
+        generated_active_two = Prompt(
             prompt_set_id=prompt_set_id,
-            text="proposed row",
-            status=PROMPT_STATUS_PROPOSED,
+            text="second generated active row",
+            status=PROMPT_STATUS_ACTIVE,
             origin=PROMPT_ORIGIN_GENERATED,
         )
         generated_active = Prompt(
@@ -453,11 +452,11 @@ async def test_archived_proposed_generated_rows_count_and_update_is_free(
             status=PROMPT_STATUS_ACTIVE,
             origin=PROMPT_ORIGIN_GENERATED,
         )
-        session.add_all([archived, proposed, generated_active])
+        session.add_all([archived, generated_active_two, generated_active])
         await session.commit()
         archived_id = archived.id
 
-    # Archived, proposed, and generated rows all occupy slots: 3/3 used.
+    # Archived and generated rows all occupy slots: 3/3 used.
     async with session_factory() as session:
         with pytest.raises(OccupancyLimitExceededError):
             await create_prompt(

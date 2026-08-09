@@ -21,8 +21,8 @@ test.describe('marketing navigation (real-engine CSS contract)', () => {
       await expect(panel).toBeVisible();
       await expect(directLink).toHaveAttribute('aria-expanded', 'true');
       await expect(directLink).toHaveAttribute('aria-controls', `desktop-nav-panel-${key}`);
-      await expect(panel.getByRole('menuitem')).toHaveCount(count);
-      await panel.getByRole('menuitem').first().hover();
+      await expect(panel.getByRole('link')).toHaveCount(count);
+      await panel.getByRole('link').first().hover();
       await page.waitForTimeout(500);
       await expect(panel).toBeVisible();
 

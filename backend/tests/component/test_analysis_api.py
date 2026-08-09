@@ -1363,7 +1363,6 @@ async def _seed_evidence_execution(
     search_query_count: int = 1,
     artifact_events=None,
     task_events=None,
-    write_artifact: bool = True,
     brand_mentions=None,
     competitor_mentions=None,
     citations=None,
@@ -1445,24 +1444,22 @@ async def _seed_evidence_execution(
     session.add(task)
     await session.flush()
 
-    artifact_id = None
-    if write_artifact:
-        artifact = RawResponseArtifact(
-            audit_id=audit.id,
-            task_id=task.id,
-            logical_engine=logical_engine,
-            transport_provider=transport_provider,
-            transport_model=transport_model,
-            answer_text="Acme Corp is great. Globex is an alternative.",
-            search_used=search_used,
-            search_events=artifact_events if artifact_events is not None else [],
-            citations=[],
-        )
-        session.add(artifact)
-        await session.flush()
-        artifact_id = artifact.id
-        task.result_artifact_id = artifact_id
-        await session.flush()
+    artifact = RawResponseArtifact(
+        audit_id=audit.id,
+        task_id=task.id,
+        logical_engine=logical_engine,
+        transport_provider=transport_provider,
+        transport_model=transport_model,
+        answer_text="Acme Corp is great. Globex is an alternative.",
+        search_used=search_used,
+        search_events=artifact_events if artifact_events is not None else [],
+        citations=[],
+    )
+    session.add(artifact)
+    await session.flush()
+    artifact_id = artifact.id
+    task.result_artifact_id = artifact_id
+    await session.flush()
 
     analysis = ResponseAnalysis(
         workspace_id=workspace_id,
@@ -1693,16 +1690,6 @@ async def test_evidence_artifact_first_then_task_fallback(
             artifact_events=[],
             task_events=[_event(0, "fallback query")],
         )
-        # Artifact absent/pruned entirely -> also fall back to task copy.
-        await _seed_evidence_execution(
-            session,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-            completed_at=datetime(2026, 1, 1, tzinfo=UTC),
-            prompt_index=1,
-            write_artifact=False,
-            task_events=[_event(0, "pruned artifact query")],
-        )
         await session.commit()
         result = await get_visibility_evidence(
             session,
@@ -1712,9 +1699,6 @@ async def test_evidence_artifact_first_then_task_fallback(
     by_index = {i.prompt_index: i for i in result.items}
     assert by_index[0].event_source == "audit_task"
     assert [e.query for e in by_index[0].search_events] == ["fallback query"]
-    assert by_index[1].event_source == "audit_task"
-    assert by_index[1].artifact_id is None
-    assert [e.query for e in by_index[1].search_events] == ["pruned artifact query"]
 
 
 @pytest.mark.asyncio

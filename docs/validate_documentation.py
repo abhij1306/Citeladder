@@ -42,6 +42,7 @@ ACTIVE_EXACT = {
     "docs/site-health.md",
     "docs/validate_documentation.py",
     "docs/plans/growth-intelligence-platform.md",
+    "docs/plans/growth-intelligence-delivery-tracker.md",
     "docs/plans/site-intelligence-primary-product.md",
     "docs/plans/content-intelligence.md",
     "docs/plans/demand-intelligence.md",

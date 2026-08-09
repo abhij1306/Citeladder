@@ -22,7 +22,7 @@ PromptIntent = Literal["", "discovery", "comparison", "purchase", "service", "lo
 # ``Literal`` requires inline literals for static checkers, so the values are
 # repeated here; this guard keeps the alias in lock-step with the config
 # constants (PROMPT_STATUS_*) so they cannot drift silently.
-PromptStatus = Literal["proposed", "active", "archived"]
+PromptStatus = Literal["active", "archived"]
 # Same inline-literal rule as above: the values mirror ``PROMPT_ORIGIN_MANUAL``
 # and ``PROMPT_ORIGIN_GENERATED`` in ``config/projects.py``. ``imported`` is not
 # offered here — CSV import sets its own origin server-side.

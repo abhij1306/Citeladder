@@ -104,6 +104,7 @@ def test_analytics_task_kinds_include_attribution_snapshot() -> None:
             "attribution_link",
             "order_retention_sweep",
             "opportunity_refresh",
+            "demand_snapshot_refresh",
         }
     )
 

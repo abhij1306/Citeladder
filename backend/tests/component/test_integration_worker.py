@@ -37,8 +37,12 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
 )
 from app.core.config.integrations import (
+    DATASET_GSC_COUNTRY_DAILY,
+    DATASET_GSC_DEVICE_DAILY,
     DATASET_GSC_PAGE_DAILY,
     DATASET_GSC_QUERY_DAILY,
+    DATASET_GSC_QUERY_PAGE_DAILY,
+    DATASET_GSC_SEARCH_APPEARANCE_DAILY,
     ERROR_GRANT_AUTH_FAILED,
     ERROR_PAYLOAD_TOO_LARGE,
     ERROR_PROVIDER_API,
@@ -151,18 +155,38 @@ class _ProviderFake:
         start_row = int(body.get("startRow") or 0)
         self.gsc_auth.append(request.headers.get("authorization", ""))
         self.gsc_pages.append((dimensions, start_row))
-        dataset_key = "page" if "page" in dimensions else "query"
+        dataset_key = "page" if dimensions == ("page", "date") else "query"
         status = self._gsc_status.get(dataset_key, 200)
         if status != 200:
             headers = {"Retry-After": "7"} if status == 429 else None
             return httpx.Response(
                 status, json={"error": {"message": "provider boom"}}, headers=headers
             )
-        if dataset_key == "query":
+        if dimensions != ("page", "date"):
             payload = (
                 {}
                 if self._query_empty
-                else _fixture("gsc_search_analytics_query_page.json")
+                else {
+                    "rows": [
+                        {
+                            "keys": {
+                                ("query", "date"): ["admissions", "2026-07-21"],
+                                ("query", "page", "date"): [
+                                    "admissions",
+                                    "https://example.com/admissions",
+                                    "2026-07-21",
+                                ],
+                                ("searchAppearance", "date"): ["WEB", "2026-07-21"],
+                                ("device", "date"): ["MOBILE", "2026-07-21"],
+                                ("country", "date"): ["ind", "2026-07-21"],
+                            }[dimensions],
+                            "clicks": 3,
+                            "impressions": 30,
+                            "ctr": 0.1,
+                            "position": 4.5,
+                        }
+                    ]
+                }
             )
             return httpx.Response(200, json=payload)
         page_payloads = {
@@ -370,15 +394,54 @@ async def test_fixture_import_writes_immutable_artifacts(
     assert run.completed_at is not None
 
     artifacts = await _artifacts(db_session, run.id)
-    assert len(artifacts) == 3  # page dataset pages 0/2 + one query page
+    assert len(artifacts) == 7  # two URL pages plus five one-page families
     by_dataset: dict[str, list[IntegrationImportArtifact]] = {}
     for artifact in artifacts:
         by_dataset.setdefault(artifact.dataset, []).append(artifact)
-    assert sorted(by_dataset) == [DATASET_GSC_PAGE_DAILY, DATASET_GSC_QUERY_DAILY]
+    assert sorted(by_dataset) == sorted(
+        {
+            DATASET_GSC_PAGE_DAILY,
+            DATASET_GSC_QUERY_DAILY,
+            DATASET_GSC_QUERY_PAGE_DAILY,
+            DATASET_GSC_SEARCH_APPEARANCE_DAILY,
+            DATASET_GSC_DEVICE_DAILY,
+            DATASET_GSC_COUNTRY_DAILY,
+        }
+    )
     page_artifacts = by_dataset[DATASET_GSC_PAGE_DAILY]
     assert [a.query_snapshot["startRow"] for a in page_artifacts] == [0, 2]
     assert [a.row_count for a in page_artifacts] == [2, 1]
     assert by_dataset[DATASET_GSC_QUERY_DAILY][0].row_count == 1
+
+    metric_rows = list(
+        (
+            await db_session.scalars(
+                select(IntegrationMetricRow).where(
+                    IntegrationMetricRow.source_artifact_id.in_(
+                        [artifact.id for artifact in artifacts]
+                    )
+                )
+            )
+        ).all()
+    )
+    one_page_families = {
+        DATASET_GSC_QUERY_DAILY: "admissions | 2026-07-21",
+        DATASET_GSC_QUERY_PAGE_DAILY: (
+            "admissions | https://example.com/admissions | 2026-07-21"
+        ),
+        DATASET_GSC_SEARCH_APPEARANCE_DAILY: "WEB | 2026-07-21",
+        DATASET_GSC_DEVICE_DAILY: "MOBILE | 2026-07-21",
+        DATASET_GSC_COUNTRY_DAILY: "ind | 2026-07-21",
+    }
+    for dataset, dimension_key in one_page_families.items():
+        (row,) = [metric for metric in metric_rows if metric.dataset == dataset]
+        assert row.dimension_key == dimension_key
+        assert row.metrics == {
+            "clicks": 3,
+            "impressions": 30,
+            "ctr": 0.1,
+            "position": 4.5,
+        }
 
     for artifact in artifacts:
         # Immutable evidence: sha256 of the raw payload + fetch metadata.
@@ -398,6 +461,7 @@ async def test_fixture_import_writes_immutable_artifacts(
             "metrics",
             "rowLimit",
             "startRow",
+            "coverage",
         }
         snapshot_text = json.dumps(artifact.query_snapshot).lower()
         assert "token" not in snapshot_text
@@ -419,8 +483,8 @@ async def test_fixture_import_writes_immutable_artifacts(
     ]
     finished = events[-1]
     assert finished.payload["sync_run_id"] == str(run.id)
-    assert finished.payload["row_count"] == 4
-    assert finished.payload["metric_row_count"] == 4
+    assert finished.payload["row_count"] == 8
+    assert finished.payload["metric_row_count"] == 8
 
     tasks = list((await db_session.scalars(select(AnalyticsTask))).all())
     ingest_tasks = [
@@ -436,12 +500,13 @@ async def test_fixture_import_writes_immutable_artifacts(
     assert refresh_tasks[0].payload == {
         "window_start": _WINDOW[0].isoformat(),
         "window_end": _WINDOW[1].isoformat(),
+        "source_revision": str(run.id),
     }
     assert all(task.project_id == seed.project_id for task in tasks)
 
     # The fresh (non-expired) access token was used; no refresh happened.
     assert fake.token_calls == []
-    assert fake.gsc_auth == ["Bearer access-token-1"] * 3
+    assert fake.gsc_auth == ["Bearer access-token-1"] * 7
 
 
 @pytest.mark.asyncio
@@ -491,7 +556,7 @@ async def test_two_workers_one_grant_exactly_one_remote_refresh(
     # The grant row lock serialized the refresh: exactly ONE remote call.
     assert len(fake.token_calls) == 1
     # Both workers then used the fresh token for every provider call.
-    assert fake.gsc_auth == ["Bearer fresh-access-token"] * 4
+    assert fake.gsc_auth == ["Bearer fresh-access-token"] * 12
 
     for run_id in (run_a.id, run_b.id):
         run = await db_session.get(IntegrationSyncRun, run_id)
@@ -812,7 +877,16 @@ async def test_retry_resumes_from_durable_artifacts(
     assert run.status == TASK_STATUS_SUCCEEDED
     # Page 0 was NOT refetched: the only requests were page startRow 2 +
     # query startRow 0.
-    assert sorted(fake.gsc_pages) == [(("page", "date"), 2), (("query", "date"), 0)]
+    assert sorted(fake.gsc_pages) == sorted(
+        [
+            (("page", "date"), 2),
+            (("query", "date"), 0),
+            (("query", "page", "date"), 0),
+            (("searchAppearance", "date"), 0),
+            (("device", "date"), 0),
+            (("country", "date"), 0),
+        ]
+    )
     artifacts = await _artifacts(db_session, run.id)
-    assert len(artifacts) == 3  # the pre-seeded page + two new ones
-    assert len({artifact.id for artifact in artifacts}) == 3
+    assert len(artifacts) == 7
+    assert len({artifact.id for artifact in artifacts}) == 7

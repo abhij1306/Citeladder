@@ -12,15 +12,14 @@ from typing import Final
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# --- Prompt review status --------------------------------------------------
-# Lifecycle of a prompt in the library. Generated suggestions land as
-# ``proposed`` and are audit-INELIGIBLE until a human accepts them (the
-# roadmap's "no auto-run" rule); ``archived`` keeps history without deleting.
-PROMPT_STATUS_PROPOSED: Final = "proposed"
+# --- Prompt lifecycle ------------------------------------------------------
+# Generation creates active library entries. Measurement is still explicitly
+# initiated by running or scheduling an audit; a second approval gate here
+# adds no safety and fragments the portfolio lifecycle.
 PROMPT_STATUS_ACTIVE: Final = "active"
 PROMPT_STATUS_ARCHIVED: Final = "archived"
 PROMPT_STATUSES: Final[frozenset[str]] = frozenset(
-    {PROMPT_STATUS_PROPOSED, PROMPT_STATUS_ACTIVE, PROMPT_STATUS_ARCHIVED}
+    {PROMPT_STATUS_ACTIVE, PROMPT_STATUS_ARCHIVED}
 )
 DEFAULT_PROMPT_STATUS: Final = PROMPT_STATUS_ACTIVE
 
@@ -335,18 +334,6 @@ class PromptGenerationSettings(BaseSettings):
         ge=1,
         validation_alias=AliasChoices("GENERATION_MAX_COUNT", "generation_max_count"),
     )
-    # Set-wide pool of prompts that are ``active`` (audit/scheduled-run
-    # eligible across all three AI providers). Generation promotes the
-    # earliest newly-inserted prompts to fill this pool; anything beyond it
-    # stays ``proposed`` until a human promotes it. Existing manual/active
-    # rows count toward the pool; archived rows are never auto-reactivated.
-    active_threshold: int = Field(
-        default=20,
-        ge=1,
-        validation_alias=AliasChoices(
-            "GENERATION_ACTIVE_THRESHOLD", "generation_active_threshold"
-        ),
-    )
     # Upper bound on how many existing prompt texts are sent to the model as
     # "do not duplicate" context, so the user message can't grow unbounded as
     # a set accumulates prompts. Must be >= 0: a negative env override would
@@ -358,22 +345,6 @@ class PromptGenerationSettings(BaseSettings):
         validation_alias=AliasChoices(
             "GENERATION_EXISTING_PROMPT_CONTEXT_LIMIT",
             "generation_existing_prompt_context_limit",
-        ),
-    )
-    # Cap on the share of the ACTIVE pool that may be branded prompts (brand,
-    # alias, or competitor name in the text — the deterministic ``branded``
-    # flag). A branded prompt trivially guarantees a brand mention, so an
-    # active pool dominated by them inflates the Visibility Score toward 100%.
-    # Auto-activation never exceeds this share; a human can still promote
-    # branded prompts past it deliberately. 0 disables auto-activating any
-    # branded prompt; 1 disables the cap.
-    max_branded_active_share: float = Field(
-        default=0.2,
-        ge=0.0,
-        le=1.0,
-        validation_alias=AliasChoices(
-            "GENERATION_MAX_BRANDED_ACTIVE_SHARE",
-            "generation_max_branded_active_share",
         ),
     )
 

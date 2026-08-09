@@ -1,0 +1,9 @@
+{
+  "dimensionHeaders": [{"name": "eventName"}, {"name": "date"}],
+  "metricHeaders": [{"name": "keyEvents", "type": "TYPE_FLOAT"}],
+  "rows": [{
+    "dimensionValues": [{"value": "application_submit"}, {"value": "20260721"}],
+    "metricValues": [{"value": "3"}]
+  }],
+  "rowCount": 1
+}

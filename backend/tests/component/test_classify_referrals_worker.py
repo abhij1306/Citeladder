@@ -43,6 +43,7 @@ from app.models.analytics import (
     ReferralClassification,
     ReferralEvent,
 )
+from app.models.integrations import IntegrationImportArtifact
 from app.workers.analytics_worker import AnalyticsWorker
 from tests.component.analytics_helpers import (
     seed_ga4_import,
@@ -235,9 +236,12 @@ async def test_classify_enqueues_snapshot_refresh_for_sync_window(
         assert len(refreshes) == 1
         refresh = refreshes[0]
         # The window resolves from the artifact's sync run (C5).
+        artifact = await session.get(IntegrationImportArtifact, artifact_id)
+        assert artifact is not None
         assert refresh.payload == {
             "window_start": "2026-07-20",
             "window_end": "2026-07-22",
+            "source_revision": str(artifact.sync_run_id),
         }
         assert refresh.workspace_id == workspace_id
         assert refresh.project_id == project_id

@@ -1424,6 +1424,7 @@ async def create_audit(
             theme=prompt.theme or "",
             intent=prompt.intent or "",
             cohort=prompt.cohort,
+            generation_evidence=prompt.generation_evidence,
         )
         session.add(snapshot)
         prompt_snapshots.append(snapshot)

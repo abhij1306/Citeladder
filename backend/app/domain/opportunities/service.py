@@ -58,11 +58,13 @@ from app.core.config.audits import (
     AUDIT_STATUS_COMPLETED,
     AUDIT_STATUS_PARTIALLY_COMPLETED,
 )
+from app.core.config.demand import DEMAND_SIGNAL_HIGH_IMPRESSION_LOW_CTR
 from app.core.config.opportunities import (
     ANALYZER_VERSION,
     CODE_OPPORTUNITY_SUPERSEDED,
     CONFIRMED_DECLINE_GAP_NORMALIZER,
     CONFIRMED_DECLINE_MIN_FACTOR,
+    DEMAND_SIGNAL_GAP_FACTOR,
     FORMULA_VERSION,
     GUIDANCE_ENABLED_ENVIRONMENTS,
     GUIDANCE_GENERATOR_VERSION,
@@ -120,6 +122,7 @@ from app.models.analysis import (
 from app.models.analytics import AnalyticsTask
 from app.models.audit import Audit, AuditPromptSnapshot
 from app.models.brand import OwnedDomain
+from app.models.demand import DemandSignal, DemandSnapshot
 from app.models.opportunity import (
     Opportunity,
     OpportunityGuidance,
@@ -640,9 +643,162 @@ async def _confirmed_decline_hits(
     ]
 
 
+async def _demand_hits(
+    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> tuple[DemandSnapshot | None, list[DetectorHit]]:
+    """Map the latest persisted Demand candidates into the shared action store."""
+    snapshot = await session.scalar(
+        select(DemandSnapshot)
+        .where(
+            DemandSnapshot.workspace_id == workspace_id,
+            DemandSnapshot.project_id == project_id,
+        )
+        .order_by(DemandSnapshot.created_at.desc(), DemandSnapshot.id.desc())
+        .limit(1)
+    )
+    if snapshot is None:
+        return None, []
+    signals = list(
+        (
+            await session.scalars(
+                select(DemandSignal)
+                .where(
+                    DemandSignal.workspace_id == workspace_id,
+                    DemandSignal.project_id == project_id,
+                    DemandSignal.snapshot_id == snapshot.id,
+                    DemandSignal.signal_type == DEMAND_SIGNAL_HIGH_IMPRESSION_LOW_CTR,
+                    DemandSignal.state == "active",
+                )
+                .order_by(DemandSignal.identity_hash, DemandSignal.id)
+            )
+        ).all()
+    )
+    hits: list[DetectorHit] = []
+    for signal in signals:
+        evidence = dict(signal.evidence or {})
+        target_kind = str(evidence.get("target_kind") or "")
+        target = str(evidence.get("target") or "")
+        if not target:
+            continue
+        hits.append(
+            DetectorHit(
+                rule_id="search_demand_content_gap",
+                target_key=f"demand:{signal.identity_hash}",
+                target_prompt_id=None,
+                target_url=target if target_kind == "page" else None,
+                target_theme=target if target_kind == "query" else None,
+                evidence={
+                    "demand_snapshot_id": str(snapshot.id),
+                    "demand_signal_id": str(signal.id),
+                    "signal_type": signal.signal_type,
+                    "metrics": dict(signal.metrics or {}),
+                    "coverage": dict(signal.coverage or {}),
+                    "limitations": list(signal.limitations or []),
+                },
+                source_analysis_ids=(),
+                source_issue_ids=(),
+                source_metric_ids=tuple(evidence.get("source_metric_row_ids") or []),
+                value_factor=max(
+                    0.01, min(1.0, float(signal.priority_score or 0) / 100)
+                ),
+                gap_factor=DEMAND_SIGNAL_GAP_FACTOR,
+            )
+        )
+    return snapshot, hits
+
+
 # =========================================================================
 # Recompute (supersede-not-mutate write path, one transaction)
 # =========================================================================
+async def _collect_recompute_hits(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    audit: Audit | None,
+    crawl: SiteCrawl | None,
+    explicit_audit: bool,
+) -> tuple[Audit | None, DemandSnapshot | None, list[DetectorHit]]:
+    hits: list[DetectorHit] = []
+    demand_snapshot, demand_hits = await _demand_hits(
+        session, workspace_id=workspace_id, project_id=project_id
+    )
+    hits.extend(demand_hits)
+    if audit is not None:
+        visibility, metric_snapshot = await _load_visibility_evidence(
+            session, workspace_id=workspace_id, audit=audit
+        )
+        if metric_snapshot is None and not explicit_audit:
+            audit = None
+        else:
+            visibility_hits = detect_brand_absent_high_value_prompt(
+                visibility
+            ) + detect_owned_page_not_cited(visibility)
+            if metric_snapshot is not None:
+                metric_ids = (str(metric_snapshot.id),)
+                visibility_hits = [
+                    replace(hit, source_metric_ids=metric_ids)
+                    for hit in visibility_hits
+                ]
+            hits.extend(visibility_hits)
+            commerce = await _load_commerce_evidence(
+                session, workspace_id=workspace_id, audit=audit
+            )
+            hits.extend(detect_product_not_mentioned(commerce))
+            hits.extend(detect_competitor_product_dominates(commerce))
+            hits.extend(detect_price_mention_mismatch(commerce))
+            hits.extend(
+                await _confirmed_decline_hits(
+                    session, workspace_id=workspace_id, audit=audit
+                )
+            )
+    if crawl is not None:
+        site = await _load_site_evidence(
+            session, workspace_id=workspace_id, crawl=crawl
+        )
+        hits.extend(detect_site_issue_opportunities(site))
+    return audit, demand_snapshot, hits
+
+
+def _score_hits(hits: list[DetectorHit]) -> list[tuple[DetectorHit, float]]:
+    scored: list[tuple[DetectorHit, float]] = []
+    seen_targets: set[tuple[str, str]] = set()
+    for hit in hits:
+        rule = OPPORTUNITY_RULES_BY_ID[hit.rule_id]
+        score = priority_score(
+            severity=rule.severity,
+            value_factor=hit.value_factor,
+            gap_factor=hit.gap_factor,
+        )
+        target = (hit.rule_id, hit.target_key)
+        if score >= MIN_PRIORITY_TO_SURFACE and target not in seen_targets:
+            seen_targets.add(target)
+            scored.append((hit, score))
+    return sorted(scored, key=lambda item: (item[0].rule_id, item[0].target_key))
+
+
+def _snapshot_is_current(
+    current: OpportunitySnapshot | None,
+    *,
+    audit: Audit | None,
+    crawl: SiteCrawl | None,
+    demand_snapshot: DemandSnapshot | None,
+) -> bool:
+    if current is None:
+        return False
+    return (
+        current.audit_id == (audit.id if audit else None)
+        and current.site_crawl_id == (crawl.id if crawl else None)
+        and current.demand_snapshot_id
+        == (demand_snapshot.id if demand_snapshot else None)
+        and current.demand_source_revision
+        == (demand_snapshot.source_hash if demand_snapshot else None)
+        and current.analyzer_version == ANALYZER_VERSION
+        and current.rule_version == RULE_VERSION
+        and current.formula_version == FORMULA_VERSION
+    )
+
+
 async def recompute(
     session: AsyncSession,
     *,
@@ -681,45 +837,16 @@ async def recompute(
         not_found_detail=_CRAWL_NOT_FOUND,
     )
 
-    hits: list[DetectorHit] = []
-    if audit is not None:
-        visibility, metric_snapshot = await _load_visibility_evidence(
-            session, workspace_id=workspace_id, audit=audit
-        )
-        if metric_snapshot is None and audit_id is None:
-            # Not dashboard-ready (mirrors ``_load_snapshot``): the default
-            # resolution requires the audit's aggregate snapshot.
-            audit = None
-        else:
-            visibility_hits = detect_brand_absent_high_value_prompt(
-                visibility
-            ) + detect_owned_page_not_cited(visibility)
-            if metric_snapshot is not None:
-                metric_ids = (str(metric_snapshot.id),)
-                visibility_hits = [
-                    replace(hit, source_metric_ids=metric_ids)
-                    for hit in visibility_hits
-                ]
-            hits.extend(visibility_hits)
-            # Commerce-derived rules: same audit, persisted product slice.
-            commerce = await _load_commerce_evidence(
-                session, workspace_id=workspace_id, audit=audit
-            )
-            hits.extend(detect_product_not_mentioned(commerce))
-            hits.extend(detect_competitor_product_dominates(commerce))
-            hits.extend(detect_price_mention_mismatch(commerce))
-            hits.extend(
-                await _confirmed_decline_hits(
-                    session, workspace_id=workspace_id, audit=audit
-                )
-            )
-    if crawl is not None:
-        site = await _load_site_evidence(
-            session, workspace_id=workspace_id, crawl=crawl
-        )
-        hits.extend(detect_site_issue_opportunities(site))
+    audit, demand_snapshot, hits = await _collect_recompute_hits(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        audit=audit,
+        crawl=crawl,
+        explicit_audit=audit_id is not None,
+    )
 
-    if audit is None and crawl is None:
+    if audit is None and crawl is None and demand_snapshot is None:
         unchanged = await _latest_snapshot(
             session, workspace_id=workspace_id, project_id=project_id
         )
@@ -731,38 +858,17 @@ async def recompute(
 
     # Score + apply the write-time floor; dedupe on the live-target identity
     # (first hit wins — detector output is already deterministically ordered).
-    scored: list[tuple[DetectorHit, float]] = []
-    seen_targets: set[tuple[str, str]] = set()
-    for hit in hits:
-        rule = OPPORTUNITY_RULES_BY_ID[hit.rule_id]
-        score = priority_score(
-            severity=rule.severity,
-            value_factor=hit.value_factor,
-            gap_factor=hit.gap_factor,
-        )
-        if score < MIN_PRIORITY_TO_SURFACE:
-            continue
-        target = (hit.rule_id, hit.target_key)
-        if target in seen_targets:
-            continue
-        seen_targets.add(target)
-        scored.append((hit, score))
-    scored.sort(key=lambda item: (item[0].rule_id, item[0].target_key))
+    scored = _score_hits(hits)
 
     # Write path: ONE transaction, serialized per project.
     await acquire_project_lock(session, project_id)
     current = await _latest_snapshot(
         session, workspace_id=workspace_id, project_id=project_id
     )
-    if (
-        skip_if_current
-        and current is not None
-        and current.audit_id == (audit.id if audit is not None else None)
-        and current.site_crawl_id == (crawl.id if crawl is not None else None)
-        and current.analyzer_version == ANALYZER_VERSION
-        and current.rule_version == RULE_VERSION
-        and current.formula_version == FORMULA_VERSION
+    if skip_if_current and _snapshot_is_current(
+        current, audit=audit, crawl=crawl, demand_snapshot=demand_snapshot
     ):
+        assert current is not None
         return _project_snapshot(current)
     live_rows = list(
         (
@@ -838,6 +944,7 @@ async def recompute(
         project_id=project_id,
         audit=audit,
         crawl=crawl,
+        demand_snapshot=demand_snapshot,
         new_rows=new_rows,
         scored=scored,
     )
@@ -852,6 +959,7 @@ def _build_snapshot(
     project_id: uuid.UUID,
     audit: Audit | None,
     crawl: SiteCrawl | None,
+    demand_snapshot: DemandSnapshot | None,
     new_rows: list[Opportunity],
     scored: list[tuple[DetectorHit, float]],
 ) -> OpportunitySnapshot:
@@ -866,18 +974,18 @@ def _build_snapshot(
         counts_by_status[row.status] += 1
     scores = sorted(score for _hit, score in scored)
     median = round(statistics.median(scores), 1) if scores else None
-    source_analysis_ids = sorted(
-        {sid for hit, _score in scored for sid in hit.source_analysis_ids}
-    )
-    source_issue_ids = sorted(
-        {sid for hit, _score in scored for sid in hit.source_issue_ids}
-    )
+    source_analysis_ids = _source_ids(scored, "source_analysis_ids")
+    source_issue_ids = _source_ids(scored, "source_issue_ids")
     return OpportunitySnapshot(
         workspace_id=workspace_id,
         project_id=project_id,
         run_id=uuid.uuid4(),
         audit_id=audit.id if audit is not None else None,
         site_crawl_id=crawl.id if crawl is not None else None,
+        demand_snapshot_id=demand_snapshot.id if demand_snapshot is not None else None,
+        demand_source_revision=(
+            demand_snapshot.source_hash if demand_snapshot is not None else None
+        ),
         counts_by_type=counts_by_type,
         counts_by_severity=counts_by_severity,
         counts_by_status=counts_by_status,
@@ -889,6 +997,10 @@ def _build_snapshot(
         source_analysis_ids=source_analysis_ids,
         source_issue_ids=source_issue_ids,
     )
+
+
+def _source_ids(scored: list[tuple[DetectorHit, float]], attribute: str) -> list[str]:
+    return sorted({sid for hit, _score in scored for sid in getattr(hit, attribute)})
 
 
 # =========================================================================
@@ -1598,9 +1710,9 @@ async def _resolve_scored_audit(
     return audit if has_snapshot is not None else None
 
 
-async def _latest_evidence_at(
+async def _latest_evidence(
     session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
-) -> datetime | None:
+) -> tuple[datetime | None, DemandSnapshot | None]:
     """Newest usable-evidence timestamp (latest dashboard-ready audit/crawl).
 
     Read-time only (C4c): compared against the latest snapshot's
@@ -1621,15 +1733,25 @@ async def _latest_evidence_at(
         ready_statuses=_EVIDENCE_CRAWL_STATUSES,
         not_found_detail=_CRAWL_NOT_FOUND,
     )
+    demand_snapshot = await session.scalar(
+        select(DemandSnapshot)
+        .where(
+            DemandSnapshot.workspace_id == workspace_id,
+            DemandSnapshot.project_id == project_id,
+        )
+        .order_by(DemandSnapshot.created_at.desc(), DemandSnapshot.id.desc())
+        .limit(1)
+    )
     stamps = [
         stamp
         for stamp in (
             (audit.completed_at or audit.created_at) if audit is not None else None,
             (crawl.completed_at or crawl.created_at) if crawl is not None else None,
+            demand_snapshot.created_at if demand_snapshot is not None else None,
         )
         if stamp is not None
     ]
-    return max(stamps) if stamps else None
+    return (max(stamps) if stamps else None), demand_snapshot
 
 
 async def get_summary(
@@ -1644,14 +1766,10 @@ async def get_summary(
     snapshot = await _latest_snapshot(
         session, workspace_id=workspace_id, project_id=project_id
     )
-    evidence_at = await _latest_evidence_at(
+    evidence_at, demand_snapshot = await _latest_evidence(
         session, workspace_id=workspace_id, project_id=project_id
     )
-    stale = (
-        snapshot is not None
-        and evidence_at is not None
-        and evidence_at > snapshot.created_at
-    )
+    stale = _summary_is_stale(snapshot, evidence_at, demand_snapshot)
     refresh_task = await session.scalar(
         select(AnalyticsTask)
         .where(
@@ -1662,30 +1780,20 @@ async def get_summary(
         .order_by(AnalyticsTask.created_at.desc(), AnalyticsTask.id.desc())
         .limit(1)
     )
-    if evidence_at is None:
-        activation_state = "waiting_for_evidence"
-    elif snapshot is not None and not stale:
-        activation_state = "ready"
-    elif refresh_task is not None and refresh_task.status in {
-        TASK_STATUS_LEASED,
-        TASK_STATUS_RUNNING,
-    }:
-        activation_state = "refreshing"
-    elif refresh_task is not None and refresh_task.status in {
-        TASK_STATUS_RETRY_WAIT,
-        TASK_STATUS_FAILED,
-    }:
-        activation_state = "delayed"
-    elif refresh_task is not None and refresh_task.status == TASK_STATUS_QUEUED:
-        activation_state = "queued"
-    else:
-        activation_state = "queued"
+    activation_state = _activation_state(
+        evidence_at=evidence_at,
+        snapshot=snapshot,
+        stale=stale,
+        refresh_task=refresh_task,
+    )
     if snapshot is None:
         return {
             "computed": False,
             "run_id": None,
             "audit_id": None,
             "site_crawl_id": None,
+            "demand_snapshot_id": None,
+            "demand_source_revision": None,
             "counts_by_type": {},
             "counts_by_severity": {},
             "counts_by_status": {},
@@ -1704,6 +1812,8 @@ async def get_summary(
         "run_id": snapshot.run_id,
         "audit_id": snapshot.audit_id,
         "site_crawl_id": snapshot.site_crawl_id,
+        "demand_snapshot_id": snapshot.demand_snapshot_id,
+        "demand_source_revision": snapshot.demand_source_revision,
         "counts_by_type": snapshot.counts_by_type or {},
         "counts_by_severity": snapshot.counts_by_severity or {},
         "counts_by_status": snapshot.counts_by_status or {},
@@ -1717,6 +1827,45 @@ async def get_summary(
         "stale": stale,
         "activation_state": activation_state,
     }
+
+
+def _summary_is_stale(
+    snapshot: OpportunitySnapshot | None,
+    evidence_at: datetime | None,
+    demand_snapshot: DemandSnapshot | None,
+) -> bool:
+    if snapshot is None:
+        return False
+    newer_evidence = evidence_at is not None and evidence_at > snapshot.created_at
+    changed_demand = demand_snapshot is not None and (
+        snapshot.demand_snapshot_id != demand_snapshot.id
+        or snapshot.demand_source_revision != demand_snapshot.source_hash
+    )
+    return newer_evidence or changed_demand
+
+
+def _activation_state(
+    *,
+    evidence_at: datetime | None,
+    snapshot: OpportunitySnapshot | None,
+    stale: bool,
+    refresh_task: AnalyticsTask | None,
+) -> str:
+    if evidence_at is None:
+        return "waiting_for_evidence"
+    if snapshot is not None and not stale:
+        return "ready"
+    if refresh_task is not None and refresh_task.status in {
+        TASK_STATUS_LEASED,
+        TASK_STATUS_RUNNING,
+    }:
+        return "refreshing"
+    if refresh_task is not None and refresh_task.status in {
+        TASK_STATUS_RETRY_WAIT,
+        TASK_STATUS_FAILED,
+    }:
+        return "delayed"
+    return "queued"
 
 
 async def load_export_rows(
@@ -1921,6 +2070,8 @@ def _project_snapshot(snapshot: OpportunitySnapshot) -> dict:
         "run_id": snapshot.run_id,
         "audit_id": snapshot.audit_id,
         "site_crawl_id": snapshot.site_crawl_id,
+        "demand_snapshot_id": snapshot.demand_snapshot_id,
+        "demand_source_revision": snapshot.demand_source_revision,
         "counts_by_type": snapshot.counts_by_type or {},
         "counts_by_severity": snapshot.counts_by_severity or {},
         "counts_by_status": snapshot.counts_by_status or {},

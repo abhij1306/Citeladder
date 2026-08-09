@@ -45,6 +45,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 from app.connectors.web_evidence.url_policy import UrlPolicyError
 from app.core.config.integrations import (
@@ -57,6 +58,7 @@ from app.core.config.integrations import (
 )
 from app.core.config.traffic import (
     TRAFFIC_GA4_ORGANIC_CHANNEL_GROUPS,
+    TRAFFIC_GA4_ORGANIC_MEDIUMS,
     TRAFFIC_GRANULARITY_DAY,
     TRAFFIC_GRANULARITY_MONTH,
     TRAFFIC_GRANULARITY_WEEK,
@@ -65,7 +67,7 @@ from app.core.config.traffic import (
 from app.domain.analytics.classification import classify_referral_signals
 from app.domain.site_health.normalization import canonical_identity
 
-# The six persisted series names of the headline projection — this module
+# The persisted series names of the headline projection — this module
 # writes exactly these into ``TrafficSnapshot.metrics["series"]`` and the
 # read service (``domain/traffic/service.py``) imports the one owner.
 TRAFFIC_SERIES_NAMES: tuple[str, ...] = (
@@ -74,6 +76,8 @@ TRAFFIC_SERIES_NAMES: tuple[str, ...] = (
     "ctr",
     "position",
     "sessions",
+    "engaged_sessions",
+    "key_events",
     "conversions",
 )
 
@@ -243,6 +247,14 @@ def ga4_source_medium_ai_match(source: str, medium: str) -> bool:
     return classify_referral_signals(utm_source=source, utm_medium=medium) is not None
 
 
+def ga4_landing_included(source: str, medium: str) -> bool:
+    """Landing rows represent the same organic-plus-AI Traffic scope."""
+    return (
+        medium.strip().casefold() in TRAFFIC_GA4_ORGANIC_MEDIUMS
+        or ga4_source_medium_ai_match(source, medium)
+    )
+
+
 # --- Aggregation ---------------------------------------------------------------
 
 
@@ -309,26 +321,44 @@ class _GscAccum:
 
 @dataclass
 class _Ga4Accum:
-    """Running GA4 aggregate (sessions/conversions sums)."""
+    """Running GA4 aggregate using the stable key-events contract."""
 
     sessions: int = 0
-    conversions: int = 0
+    engaged_sessions: int = 0
+    key_events: int = 0
     has_rows: bool = False
     row_ids: set[str] = field(default_factory=set)
     artifact_ids: set[str] = field(default_factory=set)
 
+    @staticmethod
+    def _key_events(metrics: Mapping[str, Any] | None) -> int:
+        key = (
+            "keyEvents"
+            if metrics is not None and "keyEvents" in metrics
+            else "conversions"
+        )
+        return metric_count(metrics, key)
+
+    def _observed(self, value: int) -> int | None:
+        return value if self.has_rows else None
+
     def add(self, row: TrafficMetricRowInput) -> None:
         self.has_rows = True
         self.sessions += metric_count(row.metrics, "sessions")
-        self.conversions += metric_count(row.metrics, "conversions")
+        self.engaged_sessions += metric_count(row.metrics, "engagedSessions")
+        # ``conversions`` supports already-persisted pre-Demand rows.
+        self.key_events += self._key_events(row.metrics)
         self.row_ids.add(str(row.id))
         self.artifact_ids.add(str(row.source_artifact_id))
 
     def measures(self) -> dict[str, Any]:
         # Null (not 0) when no included GA4 row fed this total/bucket.
         return {
-            "sessions": self.sessions if self.has_rows else None,
-            "conversions": self.conversions if self.has_rows else None,
+            "sessions": self._observed(self.sessions),
+            "engaged_sessions": self._observed(self.engaged_sessions),
+            "key_events": self._observed(self.key_events),
+            # One compatibility window for the existing Traffic wire contract.
+            "conversions": self._observed(self.key_events),
         }
 
 
@@ -341,7 +371,18 @@ class _PageAccum:
     ga4: _Ga4Accum = field(default_factory=_Ga4Accum)
 
 
-def _page_accum(pages: dict[str, _PageAccum], raw_page_value: str) -> _PageAccum | None:
+def _absolute_page_value(raw_page_value: str, project_origin: str | None) -> str:
+    value = raw_page_value.strip()
+    if urlsplit(value).scheme or not project_origin:
+        return value
+    return urljoin(project_origin.rstrip("/") + "/", value)
+
+
+def _page_accum(
+    pages: dict[str, _PageAccum],
+    raw_page_value: str,
+    project_origin: str | None,
+) -> _PageAccum | None:
     """The page's accumulator keyed by its canonical URL identity.
 
     The page dimension value is canonicalized with the ONE canonical-form
@@ -353,7 +394,9 @@ def _page_accum(pages: dict[str, _PageAccum], raw_page_value: str) -> _PageAccum
     totals-level contribution is unaffected.
     """
     try:
-        canonical, url_hash = canonical_identity(raw_page_value)
+        canonical, url_hash = canonical_identity(
+            _absolute_page_value(raw_page_value, project_origin)
+        )
     except UrlPolicyError:
         return None
     accum = pages.get(canonical)
@@ -374,6 +417,7 @@ def build_traffic_projection(
     window_start: date,
     window_end: date,
     granularity: str,
+    project_origin: str | None = None,
 ) -> SnapshotProjection:
     """Project the latest metric rows into one snapshot + its stat rows.
 
@@ -411,7 +455,7 @@ def build_traffic_projection(
             (page_value,) = dimension_values
             totals_gsc.add(row)
             bucket_gsc[bucket].add(row)
-            page = _page_accum(pages, page_value)
+            page = _page_accum(pages, page_value, project_origin)
             if page is not None:
                 page.gsc.add(row)
         elif row.dataset == DATASET_GSC_QUERY_DAILY:
@@ -433,8 +477,8 @@ def build_traffic_projection(
                 bucket_ga4[bucket].add(row)
         elif row.dataset == DATASET_GA4_LANDING_DAILY:
             landing, source, medium = dimension_values
-            if ga4_source_medium_ai_match(source, medium):
-                page = _page_accum(pages, landing)
+            if ga4_landing_included(source, medium):
+                page = _page_accum(pages, landing, project_origin)
                 if page is not None:
                     page.ga4.add(row)
         # Any other dataset id is not consumed by Traffic (the C1 referral
@@ -457,6 +501,10 @@ def build_traffic_projection(
         series["position"].append(series_point(label, gsc.position()))
         ga4_measures = ga4.measures()
         series["sessions"].append(series_point(label, ga4_measures["sessions"]))
+        series["engaged_sessions"].append(
+            series_point(label, ga4_measures["engaged_sessions"])
+        )
+        series["key_events"].append(series_point(label, ga4_measures["key_events"]))
         series["conversions"].append(series_point(label, ga4_measures["conversions"]))
 
     totals = totals_gsc.measures() | totals_ga4.measures()

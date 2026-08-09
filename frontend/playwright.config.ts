@@ -7,6 +7,9 @@ export default defineConfig({
   // suite has its own config too (`pnpm test:visual`); without this ignore it
   // would show up here as 54 viewport-skipped tests.
   testIgnore: ['**/content-integration.spec.ts', 'visual/**'],
+  // One Next dev server compiles routes lazily; serial browser work avoids
+  // navigation aborts and hydration races caused by six concurrent compiles.
+  workers: 1,
   retries: 1,
   use: {
     baseURL: 'http://127.0.0.1:3000',

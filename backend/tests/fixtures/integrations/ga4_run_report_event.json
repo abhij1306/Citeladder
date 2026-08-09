@@ -1,0 +1,9 @@
+{
+  "dimensionHeaders": [{"name": "eventName"}, {"name": "date"}],
+  "metricHeaders": [{"name": "eventCount", "type": "TYPE_INTEGER"}],
+  "rows": [{
+    "dimensionValues": [{"value": "application_start"}, {"value": "20260721"}],
+    "metricValues": [{"value": "7"}]
+  }],
+  "rowCount": 1
+}

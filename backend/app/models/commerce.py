@@ -351,7 +351,6 @@ class CommerceDiscoveryArtifact(Base):
     task_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("commerce_discovery_tasks.id", ondelete=_ON_DELETE_CASCADE),
-        index=True,
     )
     run_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),

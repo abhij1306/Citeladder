@@ -43,6 +43,11 @@ they concern.
 The migration order lives in
 [`plans/frontend-growth-intelligence.md`](plans/frontend-growth-intelligence.md).
 
+The shipped `/demand` workspace has Overview, Search Demand, Journeys, Prompts, AI Visibility, and
+Evidence panels. It reads immutable Demand projections, renders structured join/key-event
+coverage, exposes persisted report-family capability state, and links to the existing owning
+workflows.
+
 ## Current route ownership
 
 | Route family | Current purpose | Target placement |

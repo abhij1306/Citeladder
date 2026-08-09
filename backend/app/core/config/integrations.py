@@ -459,10 +459,21 @@ DIMENSION_KEY_SEPARATOR: Final = " | "
 
 DATASET_GSC_PAGE_DAILY: Final = "gsc_page_daily"
 DATASET_GSC_QUERY_DAILY: Final = "gsc_query_daily"
+DATASET_GSC_QUERY_PAGE_DAILY: Final = "gsc_query_page_daily"
+DATASET_GSC_SEARCH_APPEARANCE_DAILY: Final = "gsc_search_appearance_daily"
+DATASET_GSC_DEVICE_DAILY: Final = "gsc_device_daily"
+DATASET_GSC_COUNTRY_DAILY: Final = "gsc_country_daily"
 DATASET_GA4_CHANNEL_DAILY: Final = "ga4_channel_daily"
 DATASET_GA4_SOURCE_MEDIUM_DAILY: Final = "ga4_source_medium_daily"
 DATASET_GA4_REFERRER_DAILY: Final = "ga4_referrer_daily"
 DATASET_GA4_LANDING_DAILY: Final = "ga4_landing_daily"
+DATASET_GA4_PAGE_DAILY: Final = "ga4_page_daily"
+DATASET_GA4_EVENT_DAILY: Final = "ga4_event_daily"
+DATASET_GA4_KEY_EVENT_DAILY: Final = "ga4_key_event_daily"
+GA4_DEMAND_OPTIONAL_DATASETS: Final[frozenset[str]] = frozenset(
+    {DATASET_GA4_PAGE_DAILY, DATASET_GA4_EVENT_DAILY, DATASET_GA4_KEY_EVENT_DAILY}
+)
+GA4_DEMAND_CAPABILITY_VERSION: Final = "ga4-demand-capabilities-1"
 # GA4 ecommerce datasets (WS-B A1 attribution slice). The source/medium
 # ecommerce report shares its dimension tuple with ``ga4_source_medium_daily``
 # and differs only in METRICS — template resolution therefore keys on the
@@ -546,7 +557,10 @@ SHOPIFY_GRAPHQL_ORDER_LINE_ITEMS: Final = (
 SHOPIFY_GRAPHQL_CONNECTION_PROBE: Final = "query ShopifyConnectionProbe { shop { id } }"
 
 _GSC_SEARCH_ANALYTICS_METRICS: Final = ("clicks", "impressions", "ctr", "position")
-_GA4_SESSION_METRICS: Final = ("sessions", "engagedSessions", "conversions")
+_GA4_SESSION_METRICS: Final = ("sessions", "engagedSessions", "keyEvents")
+_GA4_PAGE_METRICS: Final = ("screenPageViews", "sessions", "engagedSessions")
+_GA4_EVENT_METRICS: Final = ("eventCount",)
+_GA4_KEY_EVENT_METRICS: Final = ("keyEvents",)
 # GA4 ecommerce metric sets (A1): order-level measures on the source/medium
 # report; item-level measures on both item reports. ``purchaseRevenue`` /
 # ``itemRevenue`` are reported in the PROPERTY's single currency — the
@@ -621,6 +635,34 @@ INTEGRATION_DATASET_TEMPLATES: Final[dict[str, IntegrationDatasetTemplate]] = {
         dimensions=("query", "date"),
         metrics=_GSC_SEARCH_ANALYTICS_METRICS,
     ),
+    DATASET_GSC_QUERY_PAGE_DAILY: IntegrationDatasetTemplate(
+        dataset=DATASET_GSC_QUERY_PAGE_DAILY,
+        provider=INTEGRATION_PROVIDER_GSC,
+        api_method="searchAnalytics.query",
+        dimensions=("query", "page", "date"),
+        metrics=_GSC_SEARCH_ANALYTICS_METRICS,
+    ),
+    DATASET_GSC_SEARCH_APPEARANCE_DAILY: IntegrationDatasetTemplate(
+        dataset=DATASET_GSC_SEARCH_APPEARANCE_DAILY,
+        provider=INTEGRATION_PROVIDER_GSC,
+        api_method="searchAnalytics.query",
+        dimensions=("searchAppearance", "date"),
+        metrics=_GSC_SEARCH_ANALYTICS_METRICS,
+    ),
+    DATASET_GSC_DEVICE_DAILY: IntegrationDatasetTemplate(
+        dataset=DATASET_GSC_DEVICE_DAILY,
+        provider=INTEGRATION_PROVIDER_GSC,
+        api_method="searchAnalytics.query",
+        dimensions=("device", "date"),
+        metrics=_GSC_SEARCH_ANALYTICS_METRICS,
+    ),
+    DATASET_GSC_COUNTRY_DAILY: IntegrationDatasetTemplate(
+        dataset=DATASET_GSC_COUNTRY_DAILY,
+        provider=INTEGRATION_PROVIDER_GSC,
+        api_method="searchAnalytics.query",
+        dimensions=("country", "date"),
+        metrics=_GSC_SEARCH_ANALYTICS_METRICS,
+    ),
     DATASET_GA4_CHANNEL_DAILY: IntegrationDatasetTemplate(
         dataset=DATASET_GA4_CHANNEL_DAILY,
         provider=INTEGRATION_PROVIDER_GA4,
@@ -652,6 +694,27 @@ INTEGRATION_DATASET_TEMPLATES: Final[dict[str, IntegrationDatasetTemplate]] = {
         api_method="runReport",
         dimensions=("landingPage", "sessionSource", "sessionMedium", "date"),
         metrics=_GA4_SESSION_METRICS,
+    ),
+    DATASET_GA4_PAGE_DAILY: IntegrationDatasetTemplate(
+        dataset=DATASET_GA4_PAGE_DAILY,
+        provider=INTEGRATION_PROVIDER_GA4,
+        api_method="runReport",
+        dimensions=("pageLocation", "date"),
+        metrics=_GA4_PAGE_METRICS,
+    ),
+    DATASET_GA4_EVENT_DAILY: IntegrationDatasetTemplate(
+        dataset=DATASET_GA4_EVENT_DAILY,
+        provider=INTEGRATION_PROVIDER_GA4,
+        api_method="runReport",
+        dimensions=("eventName", "date"),
+        metrics=_GA4_EVENT_METRICS,
+    ),
+    DATASET_GA4_KEY_EVENT_DAILY: IntegrationDatasetTemplate(
+        dataset=DATASET_GA4_KEY_EVENT_DAILY,
+        provider=INTEGRATION_PROVIDER_GA4,
+        api_method="runReport",
+        dimensions=("eventName", "date"),
+        metrics=_GA4_KEY_EVENT_METRICS,
     ),
     # A1 attribution slice (WS-B): the ecommerce reports. Both item
     # templates stay REGISTERED so normalization/derivation resolve them,

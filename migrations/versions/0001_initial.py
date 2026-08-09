@@ -380,12 +380,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("workspace_id", name="uq_ws_site_health_runtime_workspace"),
     )
-    op.create_index(
-        op.f("ix_workspace_site_health_runtime_workspace_id"),
-        "workspace_site_health_runtime",
-        ["workspace_id"],
-        unique=False,
-    )
     op.create_table(
         "analytics_snapshots",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -686,9 +680,6 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_brands_logo_asset_id"), "brands", ["logo_asset_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_brands_project_id"), "brands", ["project_id"], unique=False
     )
     op.create_table(
         "competitors",
@@ -995,12 +986,6 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project_id", name="uq_site_health_profile_project"),
-    )
-    op.create_index(
-        op.f("ix_site_health_profiles_project_id"),
-        "site_health_profiles",
-        ["project_id"],
-        unique=False,
     )
     op.create_index(
         op.f("ix_site_health_profiles_workspace_id"),
@@ -1320,9 +1305,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("brand_id", name="uq_brand_profile_brand"),
     )
     op.create_index(
-        op.f("ix_brand_profiles_brand_id"), "brand_profiles", ["brand_id"], unique=False
-    )
-    op.create_index(
         op.f("ix_brand_profiles_project_id"),
         "brand_profiles",
         ["project_id"],
@@ -1626,12 +1608,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("audit_id", name="uq_metric_snapshot_audit"),
     )
     op.create_index(
-        op.f("ix_metric_snapshots_audit_id"),
-        "metric_snapshots",
-        ["audit_id"],
-        unique=False,
-    )
-    op.create_index(
         op.f("ix_metric_snapshots_project_id"),
         "metric_snapshots",
         ["project_id"],
@@ -1893,6 +1869,7 @@ def upgrade() -> None:
         sa.Column("theme", sa.String(length=255), nullable=False),
         sa.Column("intent", sa.String(length=32), nullable=False),
         sa.Column("cohort", sa.String(length=32), server_default="core", nullable=False),
+        sa.Column("generation_evidence", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["prompt_id"], ["prompts.id"], ondelete="SET NULL"),
@@ -2078,12 +2055,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("project_id", name="uq_opportunity_orders_project"),
     )
     op.create_index(
-        op.f("ix_opportunity_orders_project_id"),
-        "opportunity_orders",
-        ["project_id"],
-        unique=False,
-    )
-    op.create_index(
         op.f("ix_opportunity_orders_workspace_id"),
         "opportunity_orders",
         ["workspace_id"],
@@ -2144,6 +2115,8 @@ def upgrade() -> None:
         sa.Column("run_id", sa.UUID(), nullable=False),
         sa.Column("audit_id", sa.UUID(), nullable=True),
         sa.Column("site_crawl_id", sa.UUID(), nullable=True),
+        sa.Column("demand_snapshot_id", sa.UUID(), nullable=True),
+        sa.Column("demand_source_revision", sa.String(length=64), nullable=True),
         sa.Column(
             "counts_by_type", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
@@ -2382,12 +2355,6 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("crawl_id", name="uq_site_health_snapshot_crawl"),
-    )
-    op.create_index(
-        op.f("ix_site_health_snapshots_crawl_id"),
-        "site_health_snapshots",
-        ["crawl_id"],
-        unique=False,
     )
     op.create_index(
         op.f("ix_site_health_snapshots_project_id"),
@@ -3395,12 +3362,6 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_site_fetch_artifacts_task_id"),
-        "site_fetch_artifacts",
-        ["task_id"],
-        unique=False,
-    )
-    op.create_index(
         op.f("ix_site_fetch_artifacts_workspace_id"),
         "site_fetch_artifacts",
         ["workspace_id"],
@@ -3531,12 +3492,6 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_referral_classifications_referral_event_id"),
-        "referral_classifications",
-        ["referral_event_id"],
-        unique=False,
-    )
-    op.create_index(
         op.f("ix_referral_classifications_workspace_id"),
         "referral_classifications",
         ["workspace_id"],
@@ -3548,7 +3503,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("audit_id", sa.UUID(), nullable=False),
         sa.Column("task_id", sa.UUID(), nullable=False),
-        sa.Column("artifact_id", sa.UUID(), nullable=True),
+        sa.Column("artifact_id", sa.UUID(), nullable=False),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("scoring_rule_version", sa.String(length=32), nullable=False),
         sa.Column("logical_engine", sa.String(length=32), nullable=False),
@@ -3572,7 +3527,7 @@ def upgrade() -> None:
         sa.Column("score", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
-            ["artifact_id"], ["raw_response_artifacts.id"], ondelete="SET NULL"
+            ["artifact_id"], ["raw_response_artifacts.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["task_id"], ["audit_tasks.id"], ondelete="CASCADE"),
@@ -3586,12 +3541,6 @@ def upgrade() -> None:
         op.f("ix_response_analyses_audit_id"),
         "response_analyses",
         ["audit_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_response_analyses_task_id"),
-        "response_analyses",
-        ["task_id"],
         unique=False,
     )
     op.create_index(
@@ -3849,7 +3798,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("audit_id", sa.UUID(), nullable=False),
         sa.Column("analysis_id", sa.UUID(), nullable=False),
-        sa.Column("artifact_id", sa.UUID(), nullable=True),
+        sa.Column("artifact_id", sa.UUID(), nullable=False),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("brand_name", sa.String(length=255), nullable=False),
         sa.Column("first_offset", sa.Integer(), nullable=True),
@@ -3858,7 +3807,7 @@ def upgrade() -> None:
             ["analysis_id"], ["response_analyses.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
-            ["artifact_id"], ["raw_response_artifacts.id"], ondelete="SET NULL"
+            ["artifact_id"], ["raw_response_artifacts.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
@@ -3887,7 +3836,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("audit_id", sa.UUID(), nullable=False),
         sa.Column("analysis_id", sa.UUID(), nullable=False),
-        sa.Column("artifact_id", sa.UUID(), nullable=True),
+        sa.Column("artifact_id", sa.UUID(), nullable=False),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("ordinal", sa.Integer(), nullable=False),
         sa.Column("url", sa.Text(), nullable=False),
@@ -3902,7 +3851,7 @@ def upgrade() -> None:
             ["analysis_id"], ["response_analyses.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
-            ["artifact_id"], ["raw_response_artifacts.id"], ondelete="SET NULL"
+            ["artifact_id"], ["raw_response_artifacts.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
@@ -3925,7 +3874,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("audit_id", sa.UUID(), nullable=False),
         sa.Column("analysis_id", sa.UUID(), nullable=False),
-        sa.Column("artifact_id", sa.UUID(), nullable=True),
+        sa.Column("artifact_id", sa.UUID(), nullable=False),
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("competitor_name", sa.String(length=255), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -3933,7 +3882,7 @@ def upgrade() -> None:
             ["analysis_id"], ["response_analyses.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
-            ["artifact_id"], ["raw_response_artifacts.id"], ondelete="SET NULL"
+            ["artifact_id"], ["raw_response_artifacts.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
@@ -4219,12 +4168,6 @@ def upgrade() -> None:
     )
     op.create_index(
         op.f("ix_site_issues_crawl_id"), "site_issues", ["crawl_id"], unique=False
-    )
-    op.create_index(
-        op.f("ix_site_issues_evaluation_id"),
-        "site_issues",
-        ["evaluation_id"],
-        unique=False,
     )
     op.create_index(
         "ix_site_issues_filter",
@@ -4663,12 +4606,6 @@ def upgrade() -> None:
         op.f("ix_commerce_discovery_artifacts_run_id"),
         "commerce_discovery_artifacts",
         ["run_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_commerce_discovery_artifacts_task_id"),
-        "commerce_discovery_artifacts",
-        ["task_id"],
         unique=False,
     )
     op.create_index(
@@ -5114,7 +5051,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("content_generation_id", name="uq_brand_knowledge_generation"),
     )
-    for column in ("workspace_id", "project_id", "content_generation_id"):
+    for column in ("workspace_id", "project_id"):
         op.create_index(op.f(f"ix_brand_knowledge_artifacts_{column}"), "brand_knowledge_artifacts", [column])
 
     # --- Typed project knowledge (kernel spec Phase B) --------------------
@@ -5274,8 +5211,135 @@ def upgrade() -> None:
         ["crawl_id", "relation_type_id"],
     )
 
+    # --- Demand Intelligence ---------------------------------------------
+    op.create_table(
+        "journey_definitions",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("slug", sa.String(length=96), nullable=False),
+        sa.Column("name", sa.String(length=255), nullable=False),
+        sa.Column("status", sa.String(length=16), nullable=False),
+        sa.Column("current_version", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("project_id", "slug", name="uq_journey_project_slug"),
+    )
+    for column in ("workspace_id", "project_id", "status"):
+        op.create_index(op.f(f"ix_journey_definitions_{column}"), "journey_definitions", [column])
+
+    op.create_table(
+        "journey_definition_versions",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("journey_id", sa.UUID(), nullable=False),
+        sa.Column("version", sa.Integer(), nullable=False),
+        sa.Column("definition", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("source_kind", sa.String(length=24), nullable=False),
+        sa.Column("source_version", sa.String(length=64), nullable=False),
+        sa.Column("created_by_user_id", sa.UUID(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["journey_id"], ["journey_definitions.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("journey_id", "version", name="uq_journey_definition_version"),
+    )
+    for column in ("workspace_id", "project_id", "journey_id"):
+        op.create_index(
+            op.f(f"ix_journey_definition_versions_{column}"),
+            "journey_definition_versions",
+            [column],
+        )
+
+    op.create_table(
+        "demand_snapshots",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("window_start", sa.Date(), nullable=False),
+        sa.Column("window_end", sa.Date(), nullable=False),
+        sa.Column("source_hash", sa.String(length=64), nullable=False),
+        sa.Column("site_snapshot_id", sa.UUID(), nullable=True),
+        sa.Column("prior_snapshot_id", sa.UUID(), nullable=True),
+        sa.Column("source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("source_metric_row_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("source_audit_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("journey_version_ids", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("summary", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("comparison", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("formula_version", sa.String(length=32), nullable=False),
+        sa.Column("analyzer_version", sa.String(length=32), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["prior_snapshot_id"], ["demand_snapshots.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("project_id", "source_hash", name="uq_demand_snapshot_source_hash"),
+    )
+    for column in ("workspace_id", "project_id", "created_at"):
+        op.create_index(op.f(f"ix_demand_snapshots_{column}"), "demand_snapshots", [column])
+    op.create_foreign_key(
+        "fk_opportunity_snapshots_demand_snapshot_id",
+        "opportunity_snapshots",
+        "demand_snapshots",
+        ["demand_snapshot_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+
+    op.create_table(
+        "demand_signals",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("identity_hash", sa.String(length=64), nullable=False),
+        sa.Column("signal_type", sa.String(length=64), nullable=False),
+        sa.Column("state", sa.String(length=24), nullable=False),
+        sa.Column("audience", sa.String(length=128), nullable=False),
+        sa.Column("intent", sa.String(length=32), nullable=False),
+        sa.Column("journey_stage", sa.String(length=96), nullable=False),
+        sa.Column("topic_cluster", sa.String(length=512), nullable=False),
+        sa.Column("page_url", sa.String(length=2048), nullable=False),
+        sa.Column("evidence", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("metrics", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("limitations", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("priority_score", sa.Float(), nullable=True),
+        sa.Column("priority_inputs", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("analyzer_version", sa.String(length=32), nullable=False),
+        sa.Column("rule_version", sa.String(length=32), nullable=False),
+        sa.Column("formula_version", sa.String(length=32), nullable=False),
+        sa.Column("model_provenance", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["snapshot_id"], ["demand_snapshots.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("snapshot_id", "identity_hash", name="uq_demand_signal_identity"),
+    )
+    for column in ("workspace_id", "project_id", "snapshot_id", "signal_type", "state"):
+        op.create_index(op.f(f"ix_demand_signals_{column}"), "demand_signals", [column])
+
 
 def downgrade() -> None:
+    op.drop_table("demand_signals")
+    op.drop_constraint(
+        "fk_opportunity_snapshots_demand_snapshot_id",
+        "opportunity_snapshots",
+        type_="foreignkey",
+    )
+    op.drop_table("demand_snapshots")
+    op.drop_table("journey_definition_versions")
+    op.drop_table("journey_definitions")
     op.drop_table("knowledge_relations")
     op.drop_table("knowledge_assertions")
     op.drop_table("knowledge_entities")
@@ -5292,43 +5356,14 @@ def downgrade() -> None:
         op.f("ix_content_generations_opportunity_id"),
         table_name="content_generations",
     )
-    for column in ("feedback_at", "feedback", "evidence_context", "skill_id", "opportunity_id"):
-        op.drop_column("content_generations", column)
-    op.drop_constraint(
-        "fk_audit_tasks_source_task_id", "audit_tasks", type_="foreignkey"
-    )
     op.drop_index(
         op.f("ix_audit_tasks_source_task_id"), table_name="audit_tasks"
     )
-    op.drop_column("audit_tasks", "source_task_id")
-    op.drop_constraint("uq_audit_schedule_slot", "audits", type_="unique")
-    op.drop_constraint("uq_audit_parent_repair_key", "audits", type_="unique")
+    # audits.schedule_id points at audit_schedules, which is dropped first.
     op.drop_constraint("fk_audits_schedule_id", "audits", type_="foreignkey")
-    op.drop_constraint("fk_audits_parent_audit_id", "audits", type_="foreignkey")
     op.drop_index(op.f("ix_audits_schedule_id"), table_name="audits")
     op.drop_index(op.f("ix_audits_parent_audit_id"), table_name="audits")
-    for column in ("scheduled_for", "schedule_id", "repair_key", "parent_audit_id"):
-        op.drop_column("audits", column)
     op.drop_table("audit_schedules")
-    op.alter_column(
-        "response_analyses",
-        "cohort",
-        existing_type=sa.String(32),
-        type_=sa.String(16),
-    )
-    op.alter_column(
-        "audit_prompt_snapshots",
-        "cohort",
-        existing_type=sa.String(32),
-        type_=sa.String(16),
-    )
-    op.alter_column(
-        "prompts", "cohort", existing_type=sa.String(32), type_=sa.String(16)
-    )
-    op.drop_column("brand_discoveries", "error_code")
-    op.drop_column("brand_discoveries", "warnings")
-    for column in ("primary_market", "subindustry", "industry"):
-        op.drop_column("projects", column)
     # These FKs are attached after the referenced discovery tables exist.
     # Drop them before the reverse walk removes those tables.
     op.drop_constraint(
@@ -5411,10 +5446,6 @@ def downgrade() -> None:
     op.drop_table("commerce_discovery_candidates")
     op.drop_index(
         op.f("ix_commerce_discovery_artifacts_workspace_id"),
-        table_name="commerce_discovery_artifacts",
-    )
-    op.drop_index(
-        op.f("ix_commerce_discovery_artifacts_task_id"),
         table_name="commerce_discovery_artifacts",
     )
     op.drop_index(
@@ -5532,7 +5563,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_site_issues_site_url_id"), table_name="site_issues")
     op.drop_index(op.f("ix_site_issues_project_id"), table_name="site_issues")
     op.drop_index("ix_site_issues_filter", table_name="site_issues")
-    op.drop_index(op.f("ix_site_issues_evaluation_id"), table_name="site_issues")
     op.drop_index(op.f("ix_site_issues_crawl_id"), table_name="site_issues")
     op.drop_index(op.f("ix_site_issues_analysis_id"), table_name="site_issues")
     op.drop_table("site_issues")
@@ -5641,15 +5671,10 @@ def downgrade() -> None:
     op.drop_index(
         op.f("ix_response_analyses_workspace_id"), table_name="response_analyses"
     )
-    op.drop_index(op.f("ix_response_analyses_task_id"), table_name="response_analyses")
     op.drop_index(op.f("ix_response_analyses_audit_id"), table_name="response_analyses")
     op.drop_table("response_analyses")
     op.drop_index(
         op.f("ix_referral_classifications_workspace_id"),
-        table_name="referral_classifications",
-    )
-    op.drop_index(
-        op.f("ix_referral_classifications_referral_event_id"),
         table_name="referral_classifications",
     )
     op.drop_index(
@@ -5675,9 +5700,6 @@ def downgrade() -> None:
     op.drop_table("product_response_analyses")
     op.drop_index(
         op.f("ix_site_fetch_artifacts_workspace_id"), table_name="site_fetch_artifacts"
-    )
-    op.drop_index(
-        op.f("ix_site_fetch_artifacts_task_id"), table_name="site_fetch_artifacts"
     )
     op.drop_index(
         op.f("ix_site_fetch_artifacts_crawl_id"), table_name="site_fetch_artifacts"
@@ -5844,9 +5866,6 @@ def downgrade() -> None:
     op.drop_index(
         op.f("ix_site_health_snapshots_project_id"), table_name="site_health_snapshots"
     )
-    op.drop_index(
-        op.f("ix_site_health_snapshots_crawl_id"), table_name="site_health_snapshots"
-    )
     op.drop_table("site_health_snapshots")
     op.drop_index(
         op.f("ix_site_crawl_events_created_at"), table_name="site_crawl_events"
@@ -5910,9 +5929,6 @@ def downgrade() -> None:
     op.drop_table("opportunity_status_events")
     op.drop_index(
         op.f("ix_opportunity_orders_workspace_id"), table_name="opportunity_orders"
-    )
-    op.drop_index(
-        op.f("ix_opportunity_orders_project_id"), table_name="opportunity_orders"
     )
     op.drop_table("opportunity_orders")
     op.drop_index(
@@ -5992,7 +6008,6 @@ def downgrade() -> None:
         op.f("ix_metric_snapshots_workspace_id"), table_name="metric_snapshots"
     )
     op.drop_index(op.f("ix_metric_snapshots_project_id"), table_name="metric_snapshots")
-    op.drop_index(op.f("ix_metric_snapshots_audit_id"), table_name="metric_snapshots")
     op.drop_table("metric_snapshots")
     op.drop_index(
         op.f("ix_integration_sync_runs_workspace_id"),
@@ -6069,7 +6084,6 @@ def downgrade() -> None:
     op.drop_table("competitor_products")
     op.drop_index(op.f("ix_brand_profiles_workspace_id"), table_name="brand_profiles")
     op.drop_index(op.f("ix_brand_profiles_project_id"), table_name="brand_profiles")
-    op.drop_index(op.f("ix_brand_profiles_brand_id"), table_name="brand_profiles")
     op.drop_table("brand_profiles")
     op.drop_index(
         op.f("ix_brand_profile_suggestions_workspace_id"),
@@ -6134,9 +6148,6 @@ def downgrade() -> None:
     op.drop_index(
         op.f("ix_site_health_profiles_workspace_id"), table_name="site_health_profiles"
     )
-    op.drop_index(
-        op.f("ix_site_health_profiles_project_id"), table_name="site_health_profiles"
-    )
     op.drop_table("site_health_profiles")
     op.drop_index(op.f("ix_provider_routes_workspace_id"), table_name="provider_routes")
     op.drop_index(
@@ -6194,7 +6205,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_competitors_project_id"), table_name="competitors")
     op.drop_index(op.f("ix_competitors_logo_asset_id"), table_name="competitors")
     op.drop_table("competitors")
-    op.drop_index(op.f("ix_brands_project_id"), table_name="brands")
     op.drop_index(op.f("ix_brands_logo_asset_id"), table_name="brands")
     op.drop_table("brands")
     op.drop_table("brand_logo_assets")
@@ -6230,10 +6240,6 @@ def downgrade() -> None:
         op.f("ix_analytics_snapshots_project_id"), table_name="analytics_snapshots"
     )
     op.drop_table("analytics_snapshots")
-    op.drop_index(
-        op.f("ix_workspace_site_health_runtime_workspace_id"),
-        table_name="workspace_site_health_runtime",
-    )
     op.drop_table("workspace_site_health_runtime")
     op.drop_index(
         op.f("ix_workspace_members_workspace_id"), table_name="workspace_members"

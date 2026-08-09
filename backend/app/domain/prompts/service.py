@@ -74,7 +74,7 @@ async def _enforce_activation_binding(
     prompt_ids: list[uuid.UUID],
     status: str,
 ) -> None:
-    """Binding gate for the human proposed -> active transition.
+    """Binding gate for any transition into active measurement eligibility.
 
     A transition INTO ``active`` (the audit-eligible status) re-validates
     every targeted prompt against the project vocabulary, so stale or
@@ -584,7 +584,7 @@ async def _enforce_update_binding(
 
     Re-validates when the text is being replaced OR the prompt is
     transitioning INTO ``active`` — against the text it would carry after
-    the update — so an off-domain edit or a stale proposed prompt can never
+    the update — so an off-domain edit or a stale prompt can never
     become audit-eligible. Raises BEFORE any field is mutated.
     """
     new_text = data.get("text")

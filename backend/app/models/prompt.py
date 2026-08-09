@@ -122,9 +122,8 @@ class Prompt(Base):
 
     ``origin`` records provenance (manual / imported / generated). Generated
     prompts additionally carry ``generation_evidence`` (the model + reasoning
-    that produced them). ``status`` is the review lifecycle: generated
-    suggestions land ``proposed`` and only a human acceptance makes them
-    ``active`` (audit-eligible); ``archived`` keeps history. The
+    that produced them). Valid generated suggestions enter the ``active``
+    audit-eligible portfolio directly; ``archived`` keeps history. The
     ``(prompt_set_id, normalized_text_hash)`` uniqueness makes dedupe
     conflict-safe under concurrent generation (DB-enforced, not app-checked).
     """
@@ -164,7 +163,7 @@ class Prompt(Base):
     )
     branded: Mapped[bool] = mapped_column(Boolean, default=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    # proposed | active | archived (config/prompts.py PROMPT_STATUS_*).
+    # active | archived (config/prompts.py PROMPT_STATUS_*).
     status: Mapped[str] = mapped_column(
         String(16), default=DEFAULT_PROMPT_STATUS, server_default=DEFAULT_PROMPT_STATUS
     )

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import uuid
 
-from app.core.config.prompts import PROMPT_STATUS_ACTIVE, PROMPT_STATUS_PROPOSED
+from app.core.config.prompts import PROMPT_STATUS_ACTIVE
 from app.domain.prompts.schemas import (
     PromptResponse,
     PromptSetResponse,
@@ -44,7 +44,7 @@ def topic_to_response(
         description=topic.description,
         origin=topic.origin,
         active_count=bucket.get(PROMPT_STATUS_ACTIVE, 0),
-        proposed_count=bucket.get(PROMPT_STATUS_PROPOSED, 0),
+        proposed_count=0,
         created_at=topic.created_at,
         updated_at=topic.updated_at,
     )

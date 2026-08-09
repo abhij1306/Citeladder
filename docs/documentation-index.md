@@ -48,6 +48,7 @@ states the migration starting point.
 
 | Document | Role |
 |---|---|
+| [`plans/growth-intelligence-delivery-tracker.md`](plans/growth-intelligence-delivery-tracker.md) | Active three-branch delivery status, verification record, gotchas, and fresh-chat handoffs |
 | [`plans/codex-site-intelligence-wiring-handoff.md`](plans/codex-site-intelligence-wiring-handoff.md) | Next gated slice: freeze pack manifests and shadow-wire industry roles beside generic page types |
 
 The handoff is subordinate to the architecture and companion plans. Update it when gates or

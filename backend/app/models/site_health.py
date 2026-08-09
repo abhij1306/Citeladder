@@ -108,7 +108,6 @@ class WorkspaceSiteHealthRuntime(Base):
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
     )
     # Resolver provenance of the last projection (fail-closed empty defaults).
     resolved_registry_revision: Mapped[str] = mapped_column(String(64), default="")
@@ -164,7 +163,6 @@ class SiteHealthProfile(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
     )
     root_url: Mapped[str] = mapped_column(String(2048), default="")
     root_host: Mapped[str] = mapped_column(String(255), default="")
@@ -843,7 +841,6 @@ class SiteFetchArtifact(Base):
     task_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_SITE_CRAWL_TASK, ondelete=_ON_DELETE_CASCADE),
-        index=True,
     )
     crawl_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -1210,7 +1207,6 @@ class SiteIssue(Base):
     evaluation_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_SITE_RULE_EVALUATION, ondelete=_ON_DELETE_CASCADE),
-        index=True,
     )
     source_artifact_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -1259,7 +1255,6 @@ class SiteHealthSnapshot(Base):
     crawl_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_SITE_CRAWL, ondelete=_ON_DELETE_CASCADE),
-        index=True,
     )
     selected_url_count: Mapped[int] = mapped_column(Integer, default=0)
     analyzed_url_count: Mapped[int] = mapped_column(Integer, default=0)

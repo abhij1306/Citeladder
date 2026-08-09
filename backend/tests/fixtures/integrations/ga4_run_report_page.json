@@ -1,0 +1,13 @@
+{
+  "dimensionHeaders": [{"name": "pageLocation"}, {"name": "date"}],
+  "metricHeaders": [
+    {"name": "screenPageViews", "type": "TYPE_INTEGER"},
+    {"name": "sessions", "type": "TYPE_INTEGER"},
+    {"name": "engagedSessions", "type": "TYPE_INTEGER"}
+  ],
+  "rows": [{
+    "dimensionValues": [{"value": "https://example.com/admissions"}, {"value": "20260721"}],
+    "metricValues": [{"value": "12"}, {"value": "8"}, {"value": "5"}]
+  }],
+  "rowCount": 1
+}

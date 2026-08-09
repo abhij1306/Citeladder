@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.prompts import (
     PROMPT_STATUS_ACTIVE,
-    PROMPT_STATUS_PROPOSED,
     TOPIC_ORIGIN_MANUAL,
 )
 from app.domain.prompts.locks import acquire_project_lock
@@ -62,7 +61,7 @@ async def _get_topic(
 async def topic_status_counts(
     session: AsyncSession, *, project_id: uuid.UUID
 ) -> dict[uuid.UUID, dict[str, int]]:
-    """Per-topic active/proposed prompt counts for the topics rail."""
+    """Per-topic prompt counts; archived rows stay outside the active rail."""
     result = await session.execute(
         select(Prompt.topic_id, Prompt.status, func.count(Prompt.id))
         .join(Topic, Topic.id == Prompt.topic_id)
@@ -71,9 +70,7 @@ async def topic_status_counts(
     )
     counts: dict[uuid.UUID, dict[str, int]] = {}
     for topic_id, status, count in result.all():
-        bucket = counts.setdefault(
-            topic_id, {PROMPT_STATUS_ACTIVE: 0, PROMPT_STATUS_PROPOSED: 0}
-        )
+        bucket = counts.setdefault(topic_id, {PROMPT_STATUS_ACTIVE: 0})
         if status in bucket:
             bucket[status] = count
     return counts

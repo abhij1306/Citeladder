@@ -121,9 +121,9 @@ export const promptIntentSchema = z.enum([
   'local',
 ]);
 
-// Review lifecycle for a prompt: AI suggestions land `proposed`; only human
-// acceptance makes them `active` (audit-eligible); `archived` keeps history.
-export const promptStatusSchema = z.enum(['proposed', 'active', 'archived']);
+// Prompt library lifecycle. Measurement still requires an explicit audit run
+// or schedule; generated prompts do not need a second approval state.
+export const promptStatusSchema = z.enum(['active', 'archived']);
 export const promptCohortSchema = z.enum([
   'market_visibility',
   'brand_relevant',
@@ -2646,6 +2646,8 @@ export const opportunitySummarySchema = responseObject({
   run_id: uuid().nullable(),
   audit_id: uuid().nullable(),
   site_crawl_id: uuid().nullable(),
+  demand_snapshot_id: uuid().nullable(),
+  demand_source_revision: z.string().nullable(),
   counts_by_type: z.record(z.string(), z.number().int()),
   counts_by_severity: z.record(z.string(), z.number().int()),
   counts_by_status: z.record(z.string(), z.number().int()),
@@ -2667,6 +2669,8 @@ export const recomputeResponseSchema = responseObject({
   run_id: uuid(),
   audit_id: uuid().nullable(),
   site_crawl_id: uuid().nullable(),
+  demand_snapshot_id: uuid().nullable(),
+  demand_source_revision: z.string().nullable(),
   counts_by_type: z.record(z.string(), z.number().int()),
   counts_by_severity: z.record(z.string(), z.number().int()),
   counts_by_status: z.record(z.string(), z.number().int()),

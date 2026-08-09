@@ -1,8 +1,11 @@
 # Demand Intelligence, Prompt Strategy, and Visibility
 
-> **Status:** canonical implementation plan.
+> **Status:** shipped through D0-D5 on `feature/demand-intelligence`; branch-close verification is
+> recorded in the [delivery tracker](growth-intelligence-delivery-tracker.md).
 >
-> **User decision in this layer:** run and schedule audits. Everything else runs automatically.
+> **Approval gate in this layer:** running or scheduling an audit is the only approval gate.
+> Users may also generate or edit prompts, archive or restore them, and confirm journey/key-event
+> mappings; those operations do not approve an external measurement run.
 >
 > **Parent architecture:** [`growth-intelligence-platform.md`](growth-intelligence-platform.md).
 >
@@ -28,7 +31,7 @@ Initial channels are owned-site evidence, Google Search Console, Google Analytic
 answer-engine Visibility. Paid media, CRM, email, and social sources are future connectors that
 must map into the same signal contracts.
 
-## 2. Existing foundation
+## 2. Shipped foundation
 
 Reuse:
 
@@ -36,8 +39,8 @@ Reuse:
 - immutable `IntegrationImportArtifact` and versioned `IntegrationMetricRow` derivation;
 - `TrafficSnapshot`, `TrafficPageStat`, and `TrafficQueryStat`;
 - deterministic AI-referral classification and `AnalyticsSnapshot` projections;
-- first-class `Topic`, `PromptSet`, and `Prompt` with proposed/active/archived states;
-- consent-gated prompt generation, validation, deduplication, cohorts, and review;
+- first-class `Topic`, `PromptSet`, and `Prompt` with active/archived states;
+- consent-gated prompt generation, validation, deduplication, cohorts, and editable active output;
 - persisted Visibility audits, evidence, metrics, and trends;
 - recurring `AuditSchedule` slots that delegate to the same planner and create new immutable audits;
 - Opportunities v2 and traffic source-id fields.
@@ -218,7 +221,8 @@ candidate alongside the existing one. Historical audits keep the exact text they
 
 ### 7.2 `PromptCandidate` validity
 
-Every candidate records:
+`PromptCandidate` is a transient generation value, never a persisted resource, lifecycle state, or
+user-edit staging record. Every candidate carries:
 
 - exact natural-language text and language/market;
 - audience/persona, intent, journey stage, and question/topic cluster;
@@ -229,15 +233,17 @@ Every candidate records:
 - generation context hash, provider/model, skill/template, and generator version;
 - deterministic validation, relevance, policy, normalized-hash dedupe, and diversity results;
 - priority and its formula inputs;
-- state and any user edits.
+- the evidence and validation fields needed to decide whether it can be persisted.
 
 Prompt generation is model-driven because natural, useful prompts cannot be produced by metrics
 alone. The knowledge/demand layer determines eligible context and evidence; the provider-neutral
 model proposes text; deterministic and semantic validators enforce grounding, topical relevance,
 cohort rules, deduplication, and portfolio coverage.
 
-Extend the existing `Prompt`/`Topic` workflow. Validated candidates become active prompt resources
-directly; the existing status transitions are reduced to active and archived.
+Extend the existing `Prompt`/`Topic` workflow. Validated candidates become active `Prompt`
+resources directly, candidate evidence maps to `Prompt.generation_evidence`, and only active and
+archived are persisted statuses. User edits apply to the persisted `Prompt`, never the transient
+candidate.
 
 ### 7.3 Portfolio design
 
@@ -295,8 +301,7 @@ Add or extend:
 - Traffic/Analytics projections and provenance completeness;
 - `JourneyDefinition` plus append-only transition/version history;
 - `DemandSignal` and `DemandSnapshot`;
-- prompt `generation_evidence` or a candidate staging resource if the existing proposed Prompt
-  row cannot represent pre-review output cleanly;
+- prompt `generation_evidence`, frozen again on each immutable audit prompt snapshot;
 - Opportunity source ids for Demand Signals;
 - links from prompt/audit snapshots to originating candidate/signal ids.
 
@@ -312,7 +317,8 @@ provider payload details in existing JSONB artifacts. All ids are UUIDs and work
 - signal list/detail with filters for source, audience, intent, journey, entity, page, confidence,
   and status;
 - journey definitions and versioning;
-- prompt-candidate generate/list/detail/edit/accept/archive;
+- prompt generate/list/detail/edit/archive/restore; restore is an idempotent archived-to-active
+  transition, and restoring an already-active prompt leaves it active without creating a new row;
 - portfolio coverage and recommendation projection;
 - linked Site/Content/Visibility comparison;
 - report/export endpoints from persisted snapshots.
@@ -325,7 +331,7 @@ LLM.
 1. **Overview** — coverage, important signals, journey outcomes, and changes.
 2. **Search Demand** — query clusters, query-page fit, content gaps, and segments.
 3. **Journeys** — landing, engagement, configured key events, and measurement gaps.
-4. **Prompts** — provisional, evidence-prioritized, active, archived, and portfolio coverage.
+4. **Prompts** — evidence-prioritized active/archived resources and portfolio coverage.
 5. **AI Visibility** — existing Overview/Trends/Evidence/Fanout views in the demand context.
 6. **Evidence** — import revisions, source coverage, joins, limitations, and versions.
 
@@ -333,6 +339,9 @@ Existing `/traffic`, `/analytics`, `/prompt-research`, `/prompts`, and `/visibil
 remain compatible while navigation and cross-links migrate.
 
 ## 12. Implementation slices and gates
+
+All six slices are shipped. The notes below remain the acceptance contract; implementation uses
+the existing integration, Traffic, Prompt, Opportunity, Audit Schedule, and Visibility owners.
 
 ### D0 — Data correctness and Cube27 fixture
 

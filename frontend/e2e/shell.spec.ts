@@ -22,9 +22,10 @@ test('authenticated shell renders sidebar groups and top bar', async ({ page }) 
   // Sidebar groups + a nav item. Scoped to the primary nav landmark and
   // exact-matched so page copy can't satisfy or trip the assertion.
   const nav = page.getByRole('navigation', { name: 'Primary' });
-  await expect(nav.getByText('Analyze', { exact: true })).toBeVisible();
-  await expect(nav.getByText('Improve', { exact: true })).toBeVisible();
-  await expect(nav.getByRole('link', { name: /visibility/i })).toBeVisible();
+  await expect(nav.getByText('Workspace', { exact: true })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Site', exact: true })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Content', exact: true })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Demand', exact: true })).toBeVisible();
 
   // Project switcher shows the active brand.
   await expect(page.getByText('Acme').first()).toBeVisible();
@@ -33,5 +34,5 @@ test('authenticated shell renders sidebar groups and top bar', async ({ page }) 
   // 52px top bar, and the title is the page's single <h1> inside it; scoping
   // by heading level keeps this independent of the surrounding landmark.
   await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /toggle color theme/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /search or jump to/i })).toBeVisible();
 });

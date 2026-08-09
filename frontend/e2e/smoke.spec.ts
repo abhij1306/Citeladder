@@ -19,14 +19,12 @@ test('landing renders on the Proof surface without a backend', async ({ page }) 
   await expect(h1).toBeVisible();
   await expect(h1).toHaveCount(1);
 
-  await expect(page.locator('.citeladder-root')).toHaveCSS(
+  await expect(page.locator('.bg-background').first()).toHaveCSS(
     'background-color',
-    'rgb(245, 248, 247)',
+    'rgb(249, 250, 251)',
   );
 
-  // The hero scene is decorative, so its figures must stay out of the
-  // accessibility tree while its honesty mark stays visible.
-  await expect(page.getByText('Example data').first()).toBeVisible();
+  await expect(page.getByRole('img', { name: /ChatGPT, Grok, Gemini/i })).toBeVisible();
 
   expect(pageErrors, pageErrors.join('\n')).toHaveLength(0);
 });

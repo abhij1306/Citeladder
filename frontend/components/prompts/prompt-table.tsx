@@ -30,8 +30,8 @@ const PAGE_SIZE = 10;
 /**
  * Prompt table (F7). Dense analytics table with columns text / theme / intent /
  * branded / enabled and per-row actions (edit, delete, enable/disable toggle,
- * and — when `onSetStatus` is wired — review transitions: accept a proposed
- * prompt, archive, or restore an archived one). Client-side pagination footer
+ * and — when `onSetStatus` is wired — archive or restore transitions).
+ * Client-side pagination footer
  * (mono indicator + ghost buttons) per the prompts frame. Purely
  * presentational — CRUD is delegated to callbacks owned by the page.
  */
@@ -119,12 +119,6 @@ export function PromptTable({
                     </Button>
                   </DropdownTrigger>
                   <DropdownContent align="end">
-                    {onSetStatus && prompt.status === 'proposed' ? (
-                      <DropdownItem onSelect={() => onSetStatus(prompt, 'active')}>
-                        <Check className="size-4" aria-hidden />
-                        Accept
-                      </DropdownItem>
-                    ) : null}
                     {onSetStatus && prompt.status === 'archived' ? (
                       <DropdownItem onSelect={() => onSetStatus(prompt, 'active')}>
                         <Check className="size-4" aria-hidden />

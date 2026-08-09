@@ -179,7 +179,6 @@ class BrandKnowledgeArtifact(Base):
     content_generation_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("content_generations.id", ondelete="CASCADE"),
-        index=True,
     )
     skill_id: Mapped[str] = mapped_column(String(16))
     title: Mapped[str] = mapped_column(String(255))

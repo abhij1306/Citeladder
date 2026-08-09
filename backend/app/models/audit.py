@@ -243,6 +243,7 @@ class AuditPromptSnapshot(Base):
     cohort: Mapped[str] = mapped_column(
         String(32), default="core", server_default="core", index=True
     )
+    generation_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

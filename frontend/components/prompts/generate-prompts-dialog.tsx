@@ -16,9 +16,8 @@ import type { PromptGenerateResponse, Topic } from '@/lib/api/types';
  * target topic, and requires an explicit consent checkbox before the brand
  * profile (name, aliases, competitors, market) is sent to the configured
  * default agent — the backend independently enforces the same gate
- * (`confirm_send_evidence`). Suggestions fill the set-wide active pool first
- * and the rest land in Proposed; nothing beyond the pool is audit-eligible
- * until a human accepts it.
+ * (`confirm_send_evidence`). Validated suggestions become active portfolio
+ * entries; this action never runs or schedules an audit.
  */
 export function GeneratePromptsDialog({
   open,
@@ -152,13 +151,10 @@ export function GeneratePromptsDialog({
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /**
- * Success summary. Generated prompts fill the set-wide active pool first, so a
- * run can land rows in Active and/or Proposed — report both counts (and any
- * dropped duplicates) and point the user at the tab(s) that received rows.
+ * Success summary for validated prompts added to the active portfolio.
  */
 function GenerateResultAlert({ result }: Readonly<{ result: PromptGenerateResponse }>) {
   const total = result.generated.length;
-  const proposed = result.generated.filter((prompt) => prompt.status === 'proposed').length;
   const active = result.generated.filter((prompt) => prompt.status === 'active').length;
 
   // Count topics that actually received generated rows — i.e. the unique
@@ -171,7 +167,6 @@ function GenerateResultAlert({ result }: Readonly<{ result: PromptGenerateRespon
 
   const placements: string[] = [];
   if (active > 0) placements.push(`${plural(active, 'prompt')} added to Active`);
-  if (proposed > 0) placements.push(`${plural(proposed, 'prompt')} proposed for review`);
 
   return (
     <Alert tone="success">

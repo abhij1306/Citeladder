@@ -69,6 +69,7 @@ def test_v2_enabled_rule_set() -> None:
         "competitor_product_dominates",
         "price_mention_mismatch",
         "confirmed_prompt_decline",
+        "search_demand_content_gap",
     }
 
 

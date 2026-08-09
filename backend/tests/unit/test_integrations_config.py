@@ -16,13 +16,20 @@ from app.core.config.integrations import (
     DATASET_BING_QUERY_DAILY,
     DATASET_GA4_CHANNEL_DAILY,
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
+    DATASET_GA4_EVENT_DAILY,
     DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
+    DATASET_GA4_KEY_EVENT_DAILY,
     DATASET_GA4_LANDING_DAILY,
+    DATASET_GA4_PAGE_DAILY,
     DATASET_GA4_REFERRER_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
+    DATASET_GSC_COUNTRY_DAILY,
+    DATASET_GSC_DEVICE_DAILY,
     DATASET_GSC_PAGE_DAILY,
     DATASET_GSC_QUERY_DAILY,
+    DATASET_GSC_QUERY_PAGE_DAILY,
+    DATASET_GSC_SEARCH_APPEARANCE_DAILY,
     DATASET_SHOPIFY_ORDERS,
     DATASET_SHOPIFY_PRODUCTS,
     GA4_API_BASE_URL,
@@ -196,6 +203,22 @@ def test_dataset_templates_match_pinned_c1() -> None:
     expected = {
         DATASET_GSC_PAGE_DAILY: (INTEGRATION_PROVIDER_GSC, ("page", "date")),
         DATASET_GSC_QUERY_DAILY: (INTEGRATION_PROVIDER_GSC, ("query", "date")),
+        DATASET_GSC_QUERY_PAGE_DAILY: (
+            INTEGRATION_PROVIDER_GSC,
+            ("query", "page", "date"),
+        ),
+        DATASET_GSC_SEARCH_APPEARANCE_DAILY: (
+            INTEGRATION_PROVIDER_GSC,
+            ("searchAppearance", "date"),
+        ),
+        DATASET_GSC_DEVICE_DAILY: (
+            INTEGRATION_PROVIDER_GSC,
+            ("device", "date"),
+        ),
+        DATASET_GSC_COUNTRY_DAILY: (
+            INTEGRATION_PROVIDER_GSC,
+            ("country", "date"),
+        ),
         DATASET_GA4_CHANNEL_DAILY: (
             INTEGRATION_PROVIDER_GA4,
             ("sessionDefaultChannelGroup", "date"),
@@ -211,6 +234,18 @@ def test_dataset_templates_match_pinned_c1() -> None:
         DATASET_GA4_LANDING_DAILY: (
             INTEGRATION_PROVIDER_GA4,
             ("landingPage", "sessionSource", "sessionMedium", "date"),
+        ),
+        DATASET_GA4_PAGE_DAILY: (
+            INTEGRATION_PROVIDER_GA4,
+            ("pageLocation", "date"),
+        ),
+        DATASET_GA4_EVENT_DAILY: (
+            INTEGRATION_PROVIDER_GA4,
+            ("eventName", "date"),
+        ),
+        DATASET_GA4_KEY_EVENT_DAILY: (
+            INTEGRATION_PROVIDER_GA4,
+            ("eventName", "date"),
         ),
         DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY: (
             INTEGRATION_PROVIDER_GA4,
@@ -237,6 +272,11 @@ def test_dataset_templates_match_pinned_c1() -> None:
         DATASET_GA4_REFERRER_DAILY,
         DATASET_GA4_LANDING_DAILY,
     }
+    ga4_demand_metrics = {
+        DATASET_GA4_PAGE_DAILY: ("screenPageViews", "sessions", "engagedSessions"),
+        DATASET_GA4_EVENT_DAILY: ("eventCount",),
+        DATASET_GA4_KEY_EVENT_DAILY: ("keyEvents",),
+    }
     for dataset, (provider, dimensions) in expected.items():
         template = INTEGRATION_DATASET_TEMPLATES[dataset]
         assert template.dataset == dataset
@@ -245,7 +285,9 @@ def test_dataset_templates_match_pinned_c1() -> None:
         if provider == INTEGRATION_PROVIDER_GSC:
             assert template.metrics == ("clicks", "impressions", "ctr", "position")
         elif dataset in ga4_session_datasets:
-            assert template.metrics == ("sessions", "engagedSessions", "conversions")
+            assert template.metrics == ("sessions", "engagedSessions", "keyEvents")
+        elif dataset in ga4_demand_metrics:
+            assert template.metrics == ga4_demand_metrics[dataset]
         elif dataset == DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY:
             assert template.metrics == ("transactions", "purchaseRevenue", "sessions")
         elif provider == INTEGRATION_PROVIDER_GA4:

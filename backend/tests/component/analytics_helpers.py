@@ -44,6 +44,7 @@ from app.models.audit import (
     AuditEngineSnapshot,
     AuditPromptSnapshot,
     AuditTask,
+    RawResponseArtifact,
 )
 from app.models.integrations import (
     IntegrationConnection,
@@ -415,10 +416,21 @@ async def seed_theme_analysis(
     )
     session.add(task)
     await session.flush()
+    artifact = RawResponseArtifact(
+        audit_id=audit_id,
+        task_id=task.id,
+        logical_engine=logical_engine,
+        transport_provider="google",
+        transport_model="gemini-flash-latest",
+        answer_text="fixture answer",
+    )
+    session.add(artifact)
+    await session.flush()
     analysis = ResponseAnalysis(
         workspace_id=workspace_id,
         audit_id=audit_id,
         task_id=task.id,
+        artifact_id=artifact.id,
         analyzer_version=ANALYZER_VERSION,
         scoring_rule_version=SCORING_RULE_VERSION,
         logical_engine=logical_engine,

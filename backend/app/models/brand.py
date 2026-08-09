@@ -79,7 +79,6 @@ class Brand(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("projects.id", ondelete="CASCADE"),
-        index=True,
     )
     logo_asset_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
@@ -155,7 +154,6 @@ class BrandProfile(Base):
     brand_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("brands.id", ondelete="CASCADE"),
-        index=True,
     )
     # Canonical short blurb: what the brand is / sells.
     description: Mapped[str] = mapped_column(Text, default="")

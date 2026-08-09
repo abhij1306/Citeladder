@@ -127,8 +127,8 @@ export const promptsApi = {
     return strictValidate(promptSetSchema, res, 'prompts.importRows');
   },
   /**
-   * AI topic/prompt generation via the app-level default agent. Suggestions
-   * land as `proposed` (never audit-eligible until accepted). The caller must
+   * AI topic/prompt generation via the app-level default agent. Validated
+   * suggestions become active, but generation never starts measurement. The caller must
    * set `confirm_send_evidence: true` after user consent — the backend
    * enforces it. Errors: 422 invalid, 502 agent/output failure, 503 when no
    * default agent is configured in the backend environment.

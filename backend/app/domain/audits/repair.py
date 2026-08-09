@@ -214,6 +214,7 @@ def _clone_prompt_snapshots(session, child_id, tasks, prompts_by_id):
             theme=source.theme,
             intent=source.intent,
             cohort=source.cohort,
+            generation_evidence=source.generation_evidence,
         )
         session.add(clone)
         clones[source.id] = clone

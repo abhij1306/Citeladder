@@ -45,8 +45,8 @@ not a reason to put business logic in routers, connectors, workers, or generic u
 | Brand identity/profile | Shipped/partial | Transitional curated summary; evolves into project facts plus corrections |
 | Site Health | Shipped | Acquisition and deterministic foundation for Site Intelligence |
 | Content generation | Basic v1 shipped | Retained queue/result owner; extended with strategy, briefs, FAQ-first workflows, review, and verification |
-| Integrations/Traffic/Analytics | Shipped | Persisted source evidence and projections for Demand Intelligence |
-| Prompts/Audits/Visibility | Shipped | Reviewed prompt resources and answer-engine measurement loop inside Demand Intelligence |
+| Integrations/Traffic/Analytics/Demand | Shipped | Rich GSC/GA4 evidence, combined Traffic projections, journeys, immutable Demand snapshots/signals, capability coverage, and Opportunity routing |
+| Prompts/Audits/Visibility | Shipped | Active/archive prompt portfolio with frozen generation/Demand evidence and manual/scheduled answer-engine measurement |
 | Opportunities | Shipped | One action store and supersede-not-mutate history across all intelligence systems |
 | Commerce catalog/product analysis | Shipped/partial | Specialized identity source consumed by the shared Commerce industry profile |
 | Knowledge domain | Shipped/partial | Entities, assertions, relations, and contradiction *detection* ship (16 packs, `education`/`commerce` calibrated). Corrections and selective retrieval are NOT built: there is no approved-memory store and no contradiction reviewer, so every assertion stays `observed` |
@@ -136,7 +136,7 @@ task context packages, content briefs, and recrawl comparison.
 
 Generated bodies never become knowledge automatically and never mutate earlier output.
 
-## Demand Intelligence migration
+## Demand Intelligence runtime
 
 Integration imports stay provider-specific evidence. Demand Intelligence creates normalized,
 time-bounded observations and `DemandSignal` projections over GSC, GA4, Site, Content, and
@@ -146,7 +146,8 @@ or conversion interpretation.
 Prompt resources reduce to active and archived. Generated candidates carry source signal,
 knowledge, and context provenance and become active directly — nothing is measured until the user
 runs or schedules an audit, so a second gate on the prompt buys no safety. Scheduled Visibility
-runs create new immutable audits through the existing queue.
+runs create new immutable audits through the existing queue. Each audit prompt snapshot freezes
+generation evidence so later prompt edits or archival cannot sever its Demand provenance.
 
 ## Growth Agent migration
 

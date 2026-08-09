@@ -73,6 +73,12 @@ from app.models.content import (
     ContentGeneration,
     ContentGenerationAttempt,
 )
+from app.models.demand import (
+    DemandSignal,
+    DemandSnapshot,
+    JourneyDefinition,
+    JourneyDefinitionVersion,
+)
 from app.models.discovery import BrandDiscovery, BrandResearchSnapshot
 from app.models.integrations import (
     IntegrationConnection,
@@ -174,6 +180,8 @@ __all__ = [
     "CommerceDiscoveryTask",
     "ConsumableLedger",
     "DiscoveryModelConfig",
+    "DemandSignal",
+    "DemandSnapshot",
     "ExecutionCostProjection",
     "FeedIssue",
     "GrantRevocation",
@@ -186,6 +194,8 @@ __all__ = [
     "KnowledgeAssertion",
     "KnowledgeEntity",
     "KnowledgeRelation",
+    "JourneyDefinition",
+    "JourneyDefinitionVersion",
     "IntegrationOAuthState",
     "IntegrationPropertyMapping",
     "IntegrationSyncRun",

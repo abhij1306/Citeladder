@@ -31,6 +31,9 @@ const project = {
   name: 'Acme',
   brand_name: 'Acme',
   website_url: 'https://acme.example',
+  industry: 'general',
+  subindustry: '',
+  primary_market: 'United States',
   country_code: 'US',
   language_code: 'en',
   benchmark_mode: 'consumer_like',
@@ -151,7 +154,7 @@ test('shell → open run → open execution evidence', async ({ page }) => {
 
   // Runs list renders and the run links to its detail page.
   await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible();
-  await page.getByRole('link', { name: 'View' }).first().click();
+  await page.getByRole('table').getByRole('link', { name: 'View' }).first().click();
 
   // Run detail: progress panel + executions table.
   await expect(page).toHaveURL(new RegExp(`/runs/${AUDIT_ID}$`));

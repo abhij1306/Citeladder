@@ -43,6 +43,7 @@ from app.models.audit import (
     AuditEngineSnapshot,
     AuditPromptSnapshot,
     AuditTask,
+    RawResponseArtifact,
 )
 from app.models.brand import OwnedDomain
 from app.models.opportunity import Opportunity
@@ -172,10 +173,21 @@ async def _add_analysis(
     )
     session.add(task)
     await session.flush()
+    artifact = RawResponseArtifact(
+        audit_id=audit.id,
+        task_id=task.id,
+        logical_engine="gemini",
+        transport_provider="google",
+        transport_model="gemini-flash-latest",
+        answer_text="fixture answer",
+    )
+    session.add(artifact)
+    await session.flush()
     analysis = ResponseAnalysis(
         workspace_id=workspace_id,
         audit_id=audit.id,
         task_id=task.id,
+        artifact_id=artifact.id,
         analyzer_version="b6-analysis-1",
         scoring_rule_version="scoring-v1",
         logical_engine="gemini",
@@ -192,6 +204,7 @@ async def _add_analysis(
                 workspace_id=workspace_id,
                 audit_id=audit.id,
                 analysis_id=analysis.id,
+                artifact_id=artifact.id,
                 analyzer_version="b6-analysis-1",
                 ordinal=0,
                 url="https://acme.com/guide",
@@ -207,6 +220,7 @@ async def _add_analysis(
                 workspace_id=workspace_id,
                 audit_id=audit.id,
                 analysis_id=analysis.id,
+                artifact_id=artifact.id,
                 analyzer_version="b6-analysis-1",
                 ordinal=1,
                 url="https://globex.com/crm",
@@ -221,6 +235,7 @@ async def _add_analysis(
                 workspace_id=workspace_id,
                 audit_id=audit.id,
                 analysis_id=analysis.id,
+                artifact_id=artifact.id,
                 analyzer_version="b6-analysis-1",
                 competitor_name=competitor,
             )

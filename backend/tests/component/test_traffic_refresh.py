@@ -209,8 +209,8 @@ async def _seed_traffic_data(
     )
     await session.commit()
     return {
-        "included_row_ids": [r1.id, r2.id, r3.id, q1.id, c1.id, sm1.id, l1.id],
-        "excluded_row_ids": [c2.id, sm2.id, l2.id],
+        "included_row_ids": [r1.id, r2.id, r3.id, q1.id, c1.id, sm1.id, l1.id, l2.id],
+        "excluded_row_ids": [c2.id, sm2.id],
         "artifact_ids": [
             pages.artifact_id,
             queries.artifact_id,
@@ -364,10 +364,12 @@ async def test_refresh_builds_snapshots_stats_join_and_provenance(
         # Unmatched join: still a valid measured page with a NULL join.
         assert page_b.site_url_id is None
         assert page_b.metrics["clicks"] == 5
-        # Its google/organic landing row is excluded (not an AI referral).
-        assert page_b.metrics["sessions"] is None
-        assert page_b.metrics["conversions"] is None
-        assert page_b.source_metric_row_ids == [str(ids["included_row_ids"][2])]
+        # Configured organic landing traffic joins the same canonical page.
+        assert page_b.metrics["sessions"] == 50
+        assert page_b.metrics["conversions"] == 5
+        assert page_b.source_metric_row_ids == sorted(
+            [str(ids["included_row_ids"][2]), str(ids["included_row_ids"][7])]
+        )
 
         # Query stats: normalized key, GSC-only measures.
         query_stats = list(
@@ -558,7 +560,8 @@ async def test_worker_routes_traffic_snapshot_refresh_kind(
     assert task_id is not None
 
     worker = AnalyticsWorker(session_factory=session_factory, owner="traffic-test")
-    assert await worker.run_until_idle() == 1
+    # Traffic completion chains Demand and then Opportunity refresh.
+    assert await worker.run_until_idle() == 3
 
     async with session_factory() as session:
         row = await session.get(AnalyticsTask, task_id)

@@ -510,10 +510,10 @@ def _agent_response_with_n_prompts(n: int, *, topic: str = "Bulk") -> str:
 
 
 @pytest.mark.asyncio
-async def test_generate_activates_only_up_to_pool_then_proposed(
+async def test_generate_activates_validated_requested_count(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """First 20 generated prompts become active; the rest stay proposed."""
+    """The requested, validated portfolio becomes active without measuring it."""
     _, prompt_set_id = await _make_project_and_set(client, "pool1@example.com")
     agent = FakeAgent(response=_agent_response_with_n_prompts(25))
     monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
@@ -527,15 +527,14 @@ async def test_generate_activates_only_up_to_pool_then_proposed(
     # Model returned 25 but only 20 were requested -> output trimmed to 20.
     assert len(body["generated"]) == 20
     statuses = [p["status"] for p in body["generated"]]
-    # The set-wide active pool is 20, so all 20 are active.
     assert statuses == ["active"] * 20
 
 
 @pytest.mark.asyncio
-async def test_generate_second_run_stays_proposed_when_pool_full(
+async def test_generate_second_run_adds_active_candidates(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Once the 20-active pool is full, later generations land proposed."""
+    """Later validated candidates are active; generation never starts an audit."""
     _, prompt_set_id = await _make_project_and_set(client, "pool2@example.com")
 
     first_agent = FakeAgent(response=_agent_response_with_n_prompts(20, topic="One"))
@@ -554,17 +553,14 @@ async def test_generate_second_run_stays_proposed_when_pool_full(
         json={"count": 5, "confirm_send_evidence": True},
     )
     assert second.status_code == 201
-    # Pool already full from run 1 -> every new prompt stays proposed.
-    assert {p["status"] for p in second.json()["generated"]} == {"proposed"}
+    assert {p["status"] for p in second.json()["generated"]} == {"active"}
 
 
 @pytest.mark.asyncio
-async def test_generate_caps_branded_share_of_active_pool(
+async def test_generate_comparison_cohort_is_active_and_branded(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Branded prompts fill at most 20% of the post-activation active pool;
-    the slots they would have taken go to later unbranded prompts, and the
-    skipped branded rows stay proposed."""
+    """Validated comparison prompts retain their cohort signal and are active."""
     _, prompt_set_id = await _make_project_and_set(client, "brandcap@example.com")
     # Ten existing core prompts plus ten named comparisons settle at 12 active:
     # 10 core + 2 comparison, because int(12 * 0.2) == 2.
@@ -596,33 +592,17 @@ async def test_generate_caps_branded_share_of_active_pool(
     body = resp.json()
     assert len(body["generated"]) == 10
 
-    by_text = {p["text"]: p for p in body["generated"]}
     active_branded = [
         p for p in body["generated"] if p["branded"] and p["status"] == "active"
     ]
-    # Projected pool = 12 active -> branded cap = int(12 * 0.2) = 2; the
-    # first 2 branded rows take the slots.
-    assert len(active_branded) == 2
-    for i in range(2):
-        assert (
-            by_text[f"Acme Corp vs Globex for running shoe use case {i}"]["status"]
-            == "active"
-        )
-    # Branded rows beyond the cap stay proposed even though pool slots remained.
-    for i in range(2, 10):
-        assert (
-            by_text[f"Acme Corp vs Globex for running shoe use case {i}"]["status"]
-            == "proposed"
-        )
+    assert len(active_branded) == 10
 
 
 @pytest.mark.asyncio
-async def test_generate_branded_cap_holds_for_undersized_pool(
+async def test_generate_comparison_candidates_do_not_need_pool_slots(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An initially empty pool that stays below the threshold still honors the
-    branded share against the pool that actually exists after activation, not
-    the configured threshold."""
+    """Comparison candidates use the same active/archive lifecycle."""
     _, prompt_set_id = await _make_project_and_set(client, "brandcap2@example.com")
     # Two existing core prompts plus three comparisons still permit zero
     # comparison rows: int(2 * 0.2) == 0.
@@ -649,19 +629,14 @@ async def test_generate_branded_cap_holds_for_undersized_pool(
         json={"count": 3, "cohort": "comparison", "confirm_send_evidence": True},
     )
     assert resp.status_code == 201
-    by_text = {p["text"]: p for p in resp.json()["generated"]}
-    for i in range(3):
-        assert (
-            by_text[f"Acme Corp vs Globex for running shoe use case {i}"]["status"]
-            == "proposed"
-        )
+    assert {p["status"] for p in resp.json()["generated"]} == {"active"}
 
 
 @pytest.mark.asyncio
-async def test_generate_branded_cap_allows_share_of_undersized_pool(
+async def test_generate_all_comparison_candidates_active(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A pool below threshold still admits branded rows up to its own share."""
+    """Portfolio review happens through edit/archive, not a proposed state."""
     _, prompt_set_id = await _make_project_and_set(client, "brandcap3@example.com")
     # Six existing core prompts permit one of four new named comparisons:
     # int(7 * 0.2) == 1.
@@ -688,22 +663,14 @@ async def test_generate_branded_cap_allows_share_of_undersized_pool(
         json={"count": 4, "cohort": "comparison", "confirm_send_evidence": True},
     )
     assert resp.status_code == 201
-    by_text = {p["text"]: p for p in resp.json()["generated"]}
-    assert (
-        by_text["Acme Corp vs Globex for running shoe use case 0"]["status"] == "active"
-    )
-    for i in range(1, 4):
-        assert (
-            by_text[f"Acme Corp vs Globex for running shoe use case {i}"]["status"]
-            == "proposed"
-        )
+    assert {p["status"] for p in resp.json()["generated"]} == {"active"}
 
 
 @pytest.mark.asyncio
-async def test_generate_manual_active_rows_count_toward_pool(
+async def test_generate_is_independent_of_existing_active_count(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Existing active (manual) prompts consume slots in the 20-pool."""
+    """Existing active prompts do not force new valid prompts into another state."""
     _, prompt_set_id = await _make_project_and_set(client, "pool3@example.com")
     # Seed 18 manual prompts (created active by default).
     for i in range(18):
@@ -721,8 +688,7 @@ async def test_generate_manual_active_rows_count_toward_pool(
     )
     assert resp.status_code == 201
     statuses = [p["status"] for p in resp.json()["generated"]]
-    # Only 2 slots remain (18 active + 2 = 20) -> first 2 active, rest proposed.
-    assert statuses == ["active", "active", "proposed", "proposed", "proposed"]
+    assert statuses == ["active"] * 5
 
 
 @pytest.mark.asyncio
@@ -791,12 +757,12 @@ async def test_generate_bounds_existing_prompt_context(
 
 
 @pytest.mark.asyncio
-async def test_concurrent_generation_never_exceeds_active_pool(
+async def test_concurrent_generation_keeps_all_validated_rows_active(
     client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Two overlapping generations must not push active past the 20-pool."""
+    """Concurrent generation preserves both active portfolios without duplicates."""
     import asyncio
 
     from app.domain.prompts.generation import generate_prompts
@@ -849,8 +815,7 @@ async def test_concurrent_generation_never_exceeds_active_pool(
             .scalars()
             .all()
         )
-    # 30 prompts inserted total, but the set-wide active pool is capped at 20.
-    assert len(active) == 20
+    assert len(active) == 30
 
 
 @pytest.mark.asyncio

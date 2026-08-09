@@ -33,6 +33,9 @@ const project = {
   name: 'Acme',
   brand_name: 'Acme',
   website_url: 'https://acme.example',
+  industry: 'general',
+  subindustry: '',
+  primary_market: 'United States',
   country_code: 'US',
   language_code: 'en',
   benchmark_mode: 'consumer_like',
@@ -85,7 +88,7 @@ function assertSameOriginApi(requests: Request[], baseURL: string) {
   }
 }
 
-test('direct-only provider settings: three engines, save + test an OpenAI key', async ({
+test('provider settings: available engines save and test an OpenAI key', async ({
   page,
   baseURL,
 }) => {
@@ -134,7 +137,7 @@ test('direct-only provider settings: three engines, save + test an OpenAI key', 
 
   await page.goto('/providers');
 
-  // Exactly the three direct engine cards render, in order.
+  // The three directly configurable engine cards render.
   await expect(page.getByRole('heading', { name: 'ChatGPT' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Gemini' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Claude' })).toBeVisible();
@@ -147,24 +150,23 @@ test('direct-only provider settings: three engines, save + test an OpenAI key', 
   await expect(page.getByText('Direct (Google)')).toBeVisible();
   await expect(page.getByText('Direct (Anthropic)')).toBeVisible();
 
-  // No route toggle or "coming soon" disabled option.
+  // No route toggle; six catalog engines are visibly planned but unavailable.
   await expect(page.getByRole('radio')).toHaveCount(0);
-  await expect(page.getByText(/coming soon/i)).toHaveCount(0);
-  await expect(page.getByText(/direct openai — coming soon/i)).toHaveCount(0);
+  await expect(page.getByText(/coming soon/i)).toHaveCount(6);
 
   // Exercise the ChatGPT card: fill the key, save, then test the connection.
   const chatgptCard = page.locator('section', {
     has: page.getByRole('heading', { name: 'ChatGPT' }),
   });
-  await expect(chatgptCard.getByText('Not configured')).toBeVisible();
+  await expect(chatgptCard.getByText('Missing')).toBeVisible();
 
   await chatgptCard.getByPlaceholder(/paste your api key/i).fill('sk-test-key');
   await chatgptCard.getByRole('button', { name: /save key/i }).click();
 
-  // After save the connection list refetches → the card becomes configured.
-  await expect(chatgptCard.getByText('Configured')).toBeVisible();
-
-  await chatgptCard.getByRole('button', { name: /test connection/i }).click();
+  // Saving enables verification; the status remains Missing until that succeeds.
+  const testConnection = chatgptCard.getByRole('button', { name: /test connection/i });
+  await expect(testConnection).toBeEnabled();
+  await testConnection.click();
   await expect(chatgptCard.getByText(/connection succeeded/i)).toBeVisible();
 
   // Same-origin: every /api/ request went to the page origin (no cross-origin backend).

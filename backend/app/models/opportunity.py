@@ -169,7 +169,6 @@ class OpportunityOrder(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
     )
     ordered_keys: Mapped[list[str]] = mapped_column(JSONB, default=list)
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -271,6 +270,14 @@ class OpportunitySnapshot(Base):
         PGUUID(as_uuid=True),
         ForeignKey(_FK_SITE_CRAWL, ondelete=ON_DELETE_SET_NULL),
         nullable=True,
+    )
+    demand_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("demand_snapshots.id", ondelete=ON_DELETE_SET_NULL),
+        nullable=True,
+    )
+    demand_source_revision: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
     )
     counts_by_type: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     counts_by_severity: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

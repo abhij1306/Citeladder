@@ -61,8 +61,10 @@ from app.core.config.traffic import (
     TRAFFIC_SYNC_PROVIDERS,
     TRAFFIC_TABLE_PAGE_SIZE,
 )
+from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
 from app.domain.analytics.schemas import metric_series_points
 from app.domain.analytics.tasks import payload_window, raise_if_task_terminal
+from app.domain.demand.projection import stable_hash
 from app.domain.site_health.normalization import (
     decode_keyset_cursor,
     encode_keyset_cursor,
@@ -89,7 +91,7 @@ from app.models.integrations import (
     IntegrationOAuthGrant,
     IntegrationPropertyMapping,
 )
-from app.models.site_health import SiteUrl
+from app.models.site_health import SiteHealthProfile, SiteUrl
 from app.models.traffic import TrafficPageStat, TrafficQueryStat, TrafficSnapshot
 
 # Bounded work per read batch: each batch is one cooperative-cancel boundary
@@ -321,6 +323,12 @@ async def refresh_traffic_snapshot(
         raise ValueError("traffic_snapshot_refresh task missing project_id")
     window_start, window_end = payload_window(task, kind="traffic_snapshot_refresh")
     async with session_factory() as session:
+        project_origin = await session.scalar(
+            select(SiteHealthProfile.root_url).where(
+                SiteHealthProfile.workspace_id == task.workspace_id,
+                SiteHealthProfile.project_id == task.project_id,
+            )
+        )
         inputs: list[TrafficMetricRowInput] = []
         after_id: uuid.UUID | None = None
         while True:
@@ -347,6 +355,7 @@ async def refresh_traffic_snapshot(
                 window_start=window_start,
                 window_end=window_end,
                 granularity=granularity,
+                project_origin=project_origin,
             )
             snapshot_id = await _upsert_snapshot(
                 session,
@@ -362,7 +371,40 @@ async def refresh_traffic_snapshot(
             await _replace_query_stats(
                 session, task=task, snapshot_id=snapshot_id, projection=projection
             )
+        await _enqueue_demand_refresh(
+            session,
+            task=task,
+            inputs=inputs,
+            window_start=window_start,
+            window_end=window_end,
+        )
         await session.commit()
+
+
+async def _enqueue_demand_refresh(
+    session: AsyncSession,
+    *,
+    task: AnalyticsTask,
+    inputs: list[TrafficMetricRowInput],
+    window_start: date,
+    window_end: date,
+) -> None:
+    if task.project_id is None:
+        raise ValueError("traffic refresh requires project_id")
+    source_revision = stable_hash(
+        {
+            "metric_row_ids": sorted(str(row.id) for row in inputs),
+            "window": [window_start.isoformat(), window_end.isoformat()],
+        }
+    )[:24]
+    await enqueue_demand_snapshot_refresh(
+        session,
+        workspace_id=task.workspace_id,
+        project_id=task.project_id,
+        window_start=window_start,
+        window_end=window_end,
+        source_revision=source_revision,
+    )
 
 
 # =========================================================================

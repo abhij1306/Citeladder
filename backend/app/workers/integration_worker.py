@@ -67,6 +67,8 @@ from app.core.config.integrations import (
     EVENT_INTEGRATION_REAUTH_REQUIRED,
     EVENT_INTEGRATION_SYNC_FINISHED,
     EVENT_INTEGRATION_SYNC_STARTED,
+    GA4_DEMAND_CAPABILITY_VERSION,
+    GA4_DEMAND_OPTIONAL_DATASETS,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_KEY,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_VERSION,
     GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP,
@@ -698,6 +700,10 @@ class IntegrationWorker(DrainableWorkerMixin):
         capability selection under the connection row lock, and pages the
         fallback in the SAME run. Every other error propagates unchanged.
         """
+        if template.dataset in GA4_DEMAND_OPTIONAL_DATASETS:
+            return await self._sync_demand_template(
+                ctx, client=client, template=template, access_token=access_token
+            )
         try:
             return await self._sync_dataset(
                 ctx,
@@ -706,33 +712,91 @@ class IntegrationWorker(DrainableWorkerMixin):
                 access_token=access_token,
             )
         except Ga4DimensionCompatibilityError:
-            if template.dataset != DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY:
-                # The connector raises only for the primary item dataset;
-                # anything else is a bug — fail loud, never guess.
-                raise
-            # Never overwrite item evidence: a durable primary artifact in
-            # THIS run means the property served the primary mix before, so
-            # the 400 is anomalous — re-raise into the standard taxonomy.
+            return await self._sync_item_fallback(
+                ctx, client=client, template=template, access_token=access_token
+            )
+
+    async def _sync_demand_template(
+        self,
+        ctx: _RunContext,
+        *,
+        client: _DataClient,
+        template: IntegrationDatasetTemplate,
+        access_token: str,
+    ) -> bool:
+        try:
+            synced = await self._sync_dataset(
+                ctx, client=client, template=template, access_token=access_token
+            )
+        except Ga4DimensionCompatibilityError:
             if await self._has_dataset_artifact(ctx.run_id, template.dataset):
                 raise
-            persisted = await self._persist_item_fallback_capability(ctx)
-            if not persisted:
-                # Lost lease / cancelled mid-switch: nothing more is ours.
-                return False
-            fallback = INTEGRATION_DATASET_TEMPLATES[
-                DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY
-            ]
-            logger.info(
-                "ga4 item dimensions incompatible; falling back to %s",
-                fallback.dataset,
-                extra={"sync_run_id": str(ctx.run_id)},
-            )
-            return await self._sync_dataset(
+            return await self._persist_demand_capability(
                 ctx,
-                client=client,
-                template=fallback,
-                access_token=access_token,
+                dataset=template.dataset,
+                status="unavailable",
+                reason=ERROR_GA4_DIMENSION_INCOMPATIBLE,
             )
+        if not synced:
+            return False
+        return await self._persist_demand_capability(
+            ctx, dataset=template.dataset, status="compatible"
+        )
+
+    async def _sync_item_fallback(
+        self,
+        ctx: _RunContext,
+        *,
+        client: _DataClient,
+        template: IntegrationDatasetTemplate,
+        access_token: str,
+    ) -> bool:
+        if template.dataset != DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY:
+            raise
+        if await self._has_dataset_artifact(ctx.run_id, template.dataset):
+            raise
+        if not await self._persist_item_fallback_capability(ctx):
+            return False
+        fallback = INTEGRATION_DATASET_TEMPLATES[DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY]
+        logger.info(
+            "ga4 item dimensions incompatible; falling back to %s",
+            fallback.dataset,
+            extra={"sync_run_id": str(ctx.run_id)},
+        )
+        return await self._sync_dataset(
+            ctx, client=client, template=fallback, access_token=access_token
+        )
+
+    async def _persist_demand_capability(
+        self,
+        ctx: _RunContext,
+        *,
+        dataset: str,
+        status: str,
+        reason: str | None = None,
+    ) -> bool:
+        """Persist a GA4 Demand report's observed compatibility."""
+        async with self._session_factory() as session:
+            run = await self._claim_run_if_owned(session, ctx.run_id)
+            if run is None:
+                return False
+            connection = await session.get(
+                IntegrationConnection, ctx.connection_id, with_for_update=True
+            )
+            if connection is None:
+                await session.commit()
+                return False
+            capabilities = dict(connection.dataset_capabilities or {})
+            state: dict[str, str] = {
+                "status": status,
+                "version": GA4_DEMAND_CAPABILITY_VERSION,
+            }
+            if reason is not None:
+                state["reason"] = reason
+            capabilities[dataset] = state
+            connection.dataset_capabilities = capabilities
+            await session.commit()
+            return True
 
     async def _has_dataset_artifact(self, run_id: uuid.UUID, dataset: str) -> bool:
         """True when the run already holds a durable artifact for ``dataset``."""
@@ -1061,6 +1125,33 @@ class IntegrationWorker(DrainableWorkerMixin):
         payload_hash = hashlib.sha256(encoded).hexdigest()
         now = _utcnow()
         # The exact credential-free API query (invariant 6).
+        query_snapshot = self._query_snapshot(
+            ctx,
+            template=template,
+            page=page,
+            start_row=start_row,
+            page_cursor=page_cursor,
+            page_info=page_info,
+        )
+        return await self._persist_artifact(
+            ctx,
+            template=template,
+            page=page,
+            payload_hash=payload_hash,
+            query_snapshot=query_snapshot,
+            now=now,
+        )
+
+    @staticmethod
+    def _query_snapshot(
+        ctx: _RunContext,
+        *,
+        template: IntegrationDatasetTemplate,
+        page: _ClientPage,
+        start_row: int,
+        page_cursor: str | None,
+        page_info: dict | None,
+    ) -> dict:
         query_snapshot: dict = {
             "api_method": template.api_method,
             "dataset": template.dataset,
@@ -1072,6 +1163,16 @@ class IntegrationWorker(DrainableWorkerMixin):
             "rowLimit": integration_settings.sync_page_size,
             "startRow": start_row,
         }
+        metadata = page.payload.get("metadata")
+        if isinstance(metadata, dict):
+            query_snapshot["providerMetadata"] = metadata
+        query_snapshot["coverage"] = {
+            "returnedRows": page.raw_row_count,
+            "pageCapacity": integration_settings.sync_page_size,
+            "mayHaveMoreRows": (
+                page.raw_row_count >= integration_settings.sync_page_size
+            ),
+        }
         if page_info is not None:
             # Cursor datasets only: the durable resume protocol state.
             query_snapshot["pagingMode"] = template.paging_mode
@@ -1079,6 +1180,18 @@ class IntegrationWorker(DrainableWorkerMixin):
             query_snapshot["nextPageCursor"] = (
                 page_info["endCursor"] if page_info["hasNextPage"] else None
             )
+        return query_snapshot
+
+    async def _persist_artifact(
+        self,
+        ctx: _RunContext,
+        *,
+        template: IntegrationDatasetTemplate,
+        page: _ClientPage,
+        payload_hash: str,
+        query_snapshot: dict,
+        now: datetime,
+    ) -> bool:
         async with self._session_factory() as session:
             run = await self._claim_run_if_owned(session, ctx.run_id)
             if run is None:

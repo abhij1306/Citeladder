@@ -6,7 +6,7 @@
 #   - GET/POST /prompt-sets/{id}/prompts, PATCH/DELETE /prompts/{id}
 #   - POST /prompt-sets/{id}/import  -> CSV bulk-create
 #   - POST /prompt-sets/{id}/generate -> AI topic/prompt generation
-#     (default agent, config/agent.py; suggestions land as status='proposed')
+#     (default agent, config/agent.py; validated suggestions become active)
 #   - POST /prompt-sets/{id}/prompts/bulk-status -> review transitions
 #   - GET/POST /projects/{id}/topics, PATCH/DELETE /topics/{id}
 from __future__ import annotations
@@ -377,8 +377,8 @@ async def generate_prompts_endpoint(
     then confirmation/bounds/topic ownership (422), then agent configuration
     (503) — an invalid payload is rejected as invalid even when no agent is
     configured, and the backend enforces ``confirm_send_evidence``, never
-    just the UI. Suggestions land as ``status='proposed'`` and are
-    audit-ineligible until a human accepts them.
+    just the UI. Validated suggestions become active library resources, but
+    generation never runs or schedules an audit.
     """
     try:
         prompt_set = await validate_generation_request(

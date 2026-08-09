@@ -285,9 +285,7 @@ class ReferralClassification(Base):
         ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
         index=True,
     )
-    referral_event_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), index=True
-    )
+    referral_event_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
     is_ai_referral: Mapped[bool] = mapped_column(Boolean, default=False)
     # chatgpt | gemini | claude | perplexity | copilot |
     # google_ai_overview | other (AI_SOURCES).

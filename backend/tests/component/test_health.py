@@ -92,4 +92,4 @@ def test_health_route_and_router_stubs_registered() -> None:
 
     paths = {getattr(route, "path", None) for route in app.routes}
     assert "/health" in paths
-    assert len(_ROUTERS) == 20
+    assert len(_ROUTERS) == 21

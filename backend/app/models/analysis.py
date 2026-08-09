@@ -54,10 +54,10 @@ class DerivedRowProvenanceMixin:
     ``Citation`` — stating it once means a new derived model cannot quietly
     omit half of it.
 
-    ``artifact_id`` is nullable with ``SET NULL`` so pruning a raw artifact
-    keeps the derived row rather than cascading it away. The row's PARENT
-    (``task_id`` on the per-execution analysis, ``analysis_id`` on its child
-    rows) stays declared per-model — that is what actually differs.
+    ``artifact_id`` is required and cascades with its immutable raw artifact,
+    so no derived row can survive without verifiable evidence. The row's
+    parent (``task_id`` on the per-execution analysis, ``analysis_id`` on its
+    child rows) stays declared per-model — that is what actually differs.
     """
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -73,10 +73,9 @@ class DerivedRowProvenanceMixin:
         ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
         index=True,
     )
-    artifact_id: Mapped[uuid.UUID | None] = mapped_column(
+    artifact_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("raw_response_artifacts.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
+        ForeignKey("raw_response_artifacts.id", ondelete="CASCADE"),
     )
     analyzer_version: Mapped[str] = mapped_column(String(32))
 
@@ -104,7 +103,6 @@ class ResponseAnalysis(DerivedRowProvenanceMixin, Base):
     task_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("audit_tasks.id", ondelete="CASCADE"),
-        index=True,
     )
     scoring_rule_version: Mapped[str] = mapped_column(String(32))
 
@@ -267,7 +265,6 @@ class MetricSnapshot(Base):
     audit_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
-        index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),

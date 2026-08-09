@@ -36,15 +36,14 @@ function errorMessage(error: unknown): string {
 
 const STATUS_TABS: { id: PromptStatus; label: string }[] = [
   { id: 'active', label: 'Active' },
-  { id: 'proposed', label: 'Proposed' },
   { id: 'archived', label: 'Archived' },
 ];
 
 /**
  * Prompt library client (F7). Owns the active prompt set (via F5 project
  * context), the topic/status/search filter state, and every CRUD, import,
- * review, and AI-generation mutation. Layout: topics rail on the left;
- * Active / Proposed / Archived status tabs over the prompt table on the
+ * lifecycle, and AI-generation mutation. Layout: topics rail on the left;
+ * Active / Archived status tabs over the prompt table on the
  * right; "Generate prompts & topics" opens the consent-gated AI dialog.
  */
 // react-doctor-disable-next-line react-doctor/no-giant-component -- this component only orchestrates queries/mutations; toolbar, topic rail, table, empty state, and dialogs are extracted.
@@ -125,15 +124,6 @@ export function PromptLibrary() {
     onSuccess: invalidate,
   });
 
-  const bulkStatusMutation = useMutation({
-    mutationFn: (vars: { promptIds: string[]; status: PromptStatus }) =>
-      promptsApi.bulkStatus(promptSet?.id as string, {
-        prompt_ids: vars.promptIds,
-        status: vars.status,
-      }),
-    onSuccess: invalidate,
-  });
-
   const importMutation = useMutation({
     mutationFn: async (rows: PromptInput[]): Promise<PromptSet> => {
       const set = await ensurePromptSet();
@@ -155,15 +145,7 @@ export function PromptLibrary() {
     onMutate: () => setGenerateResult(null),
     onSuccess: async (result) => {
       setGenerateResult(result);
-      // Generated prompts fill the set-wide active pool first (backend
-      // auto-promotes up to a threshold), so a run can land rows in either
-      // Active or Proposed. Switch to a tab that actually contains new rows —
-      // prefer Proposed when it has any, otherwise Active — so the user never
-      // lands on an empty tab after generating.
-      const hasProposed = result.generated.some((prompt) => prompt.status === 'proposed');
-      const hasActive = result.generated.some((prompt) => prompt.status === 'active');
-      if (hasProposed) setStatusTab('proposed');
-      else if (hasActive) setStatusTab('active');
+      if (result.generated.length > 0) setStatusTab('active');
       // Reset the topic filter to "All topics" so freshly generated rows are
       // visible even if the run landed them in a topic other than the one the
       // user was viewing.
@@ -203,7 +185,7 @@ export function PromptLibrary() {
   );
 
   const statusCounts = useMemo(() => {
-    const counts: Record<PromptStatus, number> = { active: 0, proposed: 0, archived: 0 };
+    const counts: Record<PromptStatus, number> = { active: 0, archived: 0 };
     for (const prompt of prompts) counts[prompt.status] += 1;
     return counts;
   }, [prompts]);
@@ -299,21 +281,6 @@ export function PromptLibrary() {
               })}
             </div>
             <div className="flex items-center gap-2 pb-1">
-              {statusTab === 'proposed' && visible.length > 0 ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={bulkStatusMutation.isPending}
-                  onClick={() =>
-                    bulkStatusMutation.mutate({
-                      promptIds: visible.map((prompt) => prompt.id),
-                      status: 'active',
-                    })
-                  }
-                >
-                  Accept all
-                </Button>
-              ) : null}
               <Button
                 variant="secondary"
                 size="sm"
@@ -329,17 +296,11 @@ export function PromptLibrary() {
             </div>
           </div>
 
-          {bulkStatusMutation.isError ? (
-            <Alert tone="danger">{errorMessage(bulkStatusMutation.error)}</Alert>
-          ) : null}
-
           {!hasPrompts ? (
             <PromptEmptyState onAdd={openAdd} onImport={() => setImportOpen(true)} />
           ) : visible.length === 0 ? (
             <div className="bg-panel shadow-card text-secondary rounded-lg px-6 py-12 text-center text-sm">
-              {statusTab === 'proposed'
-                ? 'No proposed prompts. Use "Generate prompts & topics" to draft suggestions.'
-                : 'No prompts match your search or filters.'}
+              No prompts match your search or filters.
             </div>
           ) : (
             <PromptTable

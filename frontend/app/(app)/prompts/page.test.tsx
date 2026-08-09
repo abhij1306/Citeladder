@@ -287,11 +287,11 @@ describe('PromptsPage (Your Prompts)', () => {
           id: '44444444-4444-4444-8444-444444444444',
           text: 'Ungrouped prompt',
         }),
-        // Proposed prompts never appear on Your Prompts.
+        // Archived prompts never appear on Your Prompts.
         makePrompt({
           id: '66666666-6666-4666-8666-666666666666',
-          text: 'Proposed prompt',
-          status: 'proposed',
+          text: 'Archived prompt',
+          status: 'archived',
         }),
       ],
       [makeTopic()],
@@ -311,7 +311,7 @@ describe('PromptsPage (Your Prompts)', () => {
     // Topic group header + ungrouped bucket.
     expect(screen.getAllByText('Footwear').length).toBeGreaterThan(0);
     expect(screen.getByText('Ungrouped')).toBeInTheDocument();
-    expect(screen.queryByText('Proposed prompt')).not.toBeInTheDocument();
+    expect(screen.queryByText('Archived prompt')).not.toBeInTheDocument();
   });
 
   it('collapses a topic group when its expander is toggled', async () => {
@@ -464,11 +464,11 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     const user = userEvent.setup();
     baseHandlers([makePrompt()]);
     let generateBody: Record<string, unknown> | null = null;
-    const proposed = makePrompt({
+    const generated = makePrompt({
       id: '66666666-6666-4666-8666-666666666666',
       text: 'Best trail runners?',
       theme: 'Footwear',
-      status: 'proposed',
+      status: 'active',
       origin: 'generated',
       topic_id: '55555555-5555-4555-8555-555555555555',
     });
@@ -477,8 +477,8 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
         generateBody = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           {
-            generated: [proposed],
-            topics: [makeTopic({ origin: 'generated', proposed_count: 1 })],
+            generated: [generated],
+            topics: [makeTopic({ origin: 'generated', active_count: 1 })],
             dropped_duplicates: 0,
           },
           { status: 201 },
@@ -505,11 +505,9 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
 
     await waitFor(() => expect(generateBody).not.toBeNull());
     expect(generateBody).toMatchObject({ confirm_send_evidence: true, count: 10 });
-    // Success summary reports the placement (proposed) + auto-switch to the
-    // Proposed tab with the new prompt.
-    expect(await within(dialog).findByText(/1 prompt proposed for review/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/1 prompt added to Active/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Close' }));
-    expect(screen.getByRole('tab', { name: /Proposed/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Active/ })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('selects the Active tab and reports placement when generated prompts land active', async () => {
@@ -540,22 +538,20 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     );
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
 
-    // Summary reports the Active placement, not an unconditional "proposed".
+    // Summary reports the Active placement.
     expect(await within(dialog).findByText(/1 prompt added to Active/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Close' }));
-    // The Active tab (which holds the generated row) stays selected — the user
-    // is not dumped on an empty Proposed tab.
+    // The Active tab (which holds the generated row) stays selected.
     expect(screen.getByRole('tab', { name: /Active/ })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: /Proposed/ })).toHaveAttribute('aria-selected', 'false');
   });
 
   it('shows a fresh error only, never a stale success summary, on a failed retry', async () => {
     const user = userEvent.setup();
     baseHandlers([makePrompt()]);
-    const proposed = makePrompt({
+    const generated = makePrompt({
       id: '66666666-6666-4666-8666-666666666666',
       text: 'Best trail runners?',
-      status: 'proposed',
+      status: 'active',
       origin: 'generated',
       topic_id: '55555555-5555-4555-8555-555555555555',
     });
@@ -567,8 +563,8 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
         if (calls === 1) {
           return HttpResponse.json(
             {
-              generated: [proposed],
-              topics: [makeTopic({ origin: 'generated', proposed_count: 1 })],
+              generated: [generated],
+              topics: [makeTopic({ origin: 'generated', active_count: 1 })],
               dropped_duplicates: 0,
             },
             { status: 201 },
@@ -590,12 +586,12 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
       within(dialog).getByRole('checkbox', { name: /Confirm sending brand details/i }),
     );
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
-    expect(await within(dialog).findByText(/1 prompt proposed for review/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/1 prompt added to Active/)).toBeInTheDocument();
 
     // Retry fails: the stale success summary must be gone, only the error shows.
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
     expect(await within(dialog).findByText(/The AI provider call failed/)).toBeInTheDocument();
-    expect(within(dialog).queryByText(/1 prompt proposed for review/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/1 prompt added to Active/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/Generated 1 prompt/)).not.toBeInTheDocument();
   });
 
@@ -608,7 +604,7 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     const generated = makePrompt({
       id: '66666666-6666-4666-8666-666666666666',
       text: 'Best trail runners?',
-      status: 'proposed',
+      status: 'active',
       origin: 'generated',
       topic_id: '55555555-5555-4555-8555-555555555555',
     });
@@ -618,7 +614,7 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
           {
             generated: [generated],
             topics: [
-              makeTopic({ id: '55555555-5555-4555-8555-555555555555', proposed_count: 1 }),
+              makeTopic({ id: '55555555-5555-4555-8555-555555555555', active_count: 1 }),
               makeTopic({
                 id: '77777777-7777-4777-8777-777777777777',
                 name: 'Apparel',
@@ -656,7 +652,7 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     const generated = makePrompt({
       id: '66666666-6666-4666-8666-666666666666',
       text: 'Generated elsewhere prompt',
-      status: 'proposed',
+      status: 'active',
       origin: 'generated',
       topic_id: otherTopicId,
     });
@@ -664,8 +660,7 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
       [makePrompt({ topic_id: viewedTopic.id, text: 'Topic-scoped prompt' })],
       [viewedTopic, makeTopic({ id: otherTopicId, name: 'Apparel' })],
     );
-    // After generation the prompt-set refetch must include the new proposed
-    // row so it can render under the reset (All topics) Proposed tab.
+    // After generation the prompt-set refetch includes the new active row.
     let generatedYet = false;
     mswServer.use(
       http.get('/api/v1/prompt-sets', () =>
@@ -682,7 +677,7 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
         return HttpResponse.json(
           {
             generated: [generated],
-            topics: [makeTopic({ id: otherTopicId, name: 'Apparel', proposed_count: 1 })],
+            topics: [makeTopic({ id: otherTopicId, name: 'Apparel', active_count: 1 })],
             dropped_duplicates: 0,
           },
           { status: 201 },
@@ -703,12 +698,12 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
       within(dialog).getByRole('checkbox', { name: /Confirm sending brand details/i }),
     );
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
-    await within(dialog).findByText(/1 prompt proposed for review/);
+    await within(dialog).findByText(/1 prompt added to Active/);
     await user.click(within(dialog).getByRole('button', { name: 'Close' }));
 
-    // Topic filter reset to All topics + Proposed tab selected → the new row
+    // Topic filter reset to All topics + Active tab selected → the new row
     // is visible even though it landed in a topic the user was not viewing.
-    expect(screen.getByRole('tab', { name: /Proposed/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Active/ })).toHaveAttribute('aria-selected', 'true');
     expect(await screen.findByText('Generated elsewhere prompt')).toBeInTheDocument();
   });
 
@@ -753,52 +748,26 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     expect(within(dialog).getByText('DEFAULT_AGENT_API_KEY')).toBeInTheDocument();
   });
 
-  it('splits prompts across status tabs and accepts all proposed', async () => {
+  it('splits prompts across active and archived tabs', async () => {
     const user = userEvent.setup();
     baseHandlers([
       makePrompt(),
       makePrompt({
         id: '77777777-7777-4777-8777-777777777777',
-        text: 'Proposed prompt one',
-        status: 'proposed',
-        origin: 'generated',
-      }),
-      makePrompt({
-        id: '99999999-9999-4999-8999-999999999999',
-        text: 'Unrelated draft',
-        status: 'proposed',
+        text: 'Archived prompt one',
+        status: 'archived',
         origin: 'generated',
       }),
     ]);
-    let bulkBody: Record<string, unknown> | null = null;
-    mswServer.use(
-      http.post(`/api/v1/prompt-sets/${SET_ID}/prompts/bulk-status`, async ({ request }) => {
-        bulkBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(makeSet([makePrompt()]));
-      }),
-    );
 
     renderPage();
     // Active tab shows only the active prompt.
     await screen.findByText('Best running shoes?', undefined, { timeout: 5000 });
-    expect(screen.queryByText('Proposed prompt one')).not.toBeInTheDocument();
+    expect(screen.queryByText('Archived prompt one')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: /Proposed/ }));
-    expect(screen.getByText('Proposed prompt one')).toBeInTheDocument();
-    expect(screen.getByText('Unrelated draft')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Archived/ }));
+    expect(screen.getByText('Archived prompt one')).toBeInTheDocument();
     expect(screen.queryByText('Best running shoes?')).not.toBeInTheDocument();
-
-    // Narrow with search first: Accept all must only send the visible
-    // (matching) prompt, not every proposed prompt.
-    await user.type(screen.getByRole('searchbox', { name: 'Search prompts' }), 'Proposed prompt');
-    expect(screen.queryByText('Unrelated draft')).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Accept all' }));
-    await waitFor(() => expect(bulkBody).not.toBeNull());
-    expect(bulkBody).toMatchObject({
-      prompt_ids: ['77777777-7777-4777-8777-777777777777'],
-      status: 'active',
-    });
   });
 
   it('filters by topic from the topics rail and creates topics', async () => {

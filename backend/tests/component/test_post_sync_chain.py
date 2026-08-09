@@ -141,6 +141,7 @@ async def test_post_sync_chain_runs_ingest_classify_and_enqueues_refreshes(
         assert analytics_refresh[0].payload == {
             "window_start": DEFAULT_WINDOW[0].isoformat(),
             "window_end": DEFAULT_WINDOW[1].isoformat(),
+            "source_revision": str(seed.sync_run_id),
         }
         assert analytics_refresh[0].workspace_id == workspace_id
         assert analytics_refresh[0].project_id == project_id
@@ -257,7 +258,7 @@ async def test_resync_of_projected_window_refires_refreshes(
         # One refresh per data revision of the same window.
         assert {
             row.idempotency_key.rsplit(":", 1)[-1] for row in analytics_refreshes
-        } == {"0", "1"}
+        } == {str(seed0.sync_run_id), str(seed1.sync_run_id)}
 
     # A same-revision duplicate hook call still dedupes to nothing.
     async with session_factory() as session:

@@ -546,8 +546,8 @@ async def test_pages_sorting_paging_and_dto_mapping(
     assert page_a["sessions"] == 2
     assert page_a["conversions"] == 1
     assert page_b["site_url_id"] is None
-    assert page_b["sessions"] is None  # google/organic landing excluded
-    assert page_b["conversions"] is None
+    assert page_b["sessions"] == 50
+    assert page_b["conversions"] == 5
     assert page_c["position"] is None  # no position-bearing rows
     assert page_c["sessions"] == 5
     assert page_c["conversions"] == 0
@@ -564,9 +564,9 @@ async def test_pages_sorting_paging_and_dto_mapping(
     # NULLS LAST on both ratio and GA4-absent sorts.
     by_sessions = await client.get(url, params={**window, "sort": "-sessions"})
     assert [row["canonical_url"] for row in by_sessions.json()["items"]] == [
+        PAGE_B,
         PAGE_C,
         PAGE_A,
-        PAGE_B,
     ]
     by_position = await client.get(url, params={**window, "sort": "-position"})
     assert [row["canonical_url"] for row in by_position.json()["items"]] == [

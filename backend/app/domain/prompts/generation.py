@@ -6,12 +6,9 @@
 # enforced HERE, not just in the UI). Suggestions are persisted with full
 # ``generation_evidence`` provenance (invariant 4) via a conflict-safe upsert
 # on the per-set normalized-text hash, so concurrent generations can never
-# double-insert a concept. The earliest generated rows fill a set-wide pool of
-# ``active`` prompts (``GENERATION_ACTIVE_THRESHOLD``, default 20) — the
-# scheduled-run/audit eligibility gate — promoted atomically in the insert
-# transaction under a prompt-set advisory lock so concurrent generations can
-# never exceed the pool; rows beyond it stay ``proposed`` until a human
-# promotes them (planner filters status='active').
+# double-insert a concept. Validated rows enter the active portfolio directly;
+# no provider measurement runs until the user explicitly runs or schedules an
+# audit (the planner continues to filter status='active').
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +18,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +33,6 @@ from app.core.config.prompts import (
     GENERATOR_VERSION,
     PROMPT_NEAR_DUPLICATE_SIMILARITY,
     PROMPT_STATUS_ACTIVE,
-    PROMPT_STATUS_PROPOSED,
     TOPIC_ORIGIN_GENERATED,
     prompt_generation_settings,
 )
@@ -58,6 +54,7 @@ from app.domain.prompts.topical_binding import (
     validate_prompt_binding,
 )
 from app.models.brand import Brand
+from app.models.demand import DemandSignal, DemandSnapshot
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet, Topic
 
@@ -524,7 +521,7 @@ async def _insert_prompts_returning(
     evidence_base: dict[str, Any],
     cohort: str,
 ) -> tuple[list[uuid.UUID], int]:
-    """Conflict-safe multi-row insert for one topic batch as ``proposed``.
+    """Conflict-safe multi-row insert for one validated active topic batch.
 
     The parse step already de-duplicated texts across the whole response, so
     rows within a batch can never conflict with each other — only with
@@ -545,7 +542,7 @@ async def _insert_prompts_returning(
             "cohort": cohort,
             "branded": cohort == "comparison",
             "enabled": True,
-            "status": PROMPT_STATUS_PROPOSED,
+            "status": PROMPT_STATUS_ACTIVE,
             "origin": PROMPT_ORIGIN_GENERATED,
             "generation_evidence": evidence_base,
         }
@@ -564,92 +561,87 @@ async def _insert_prompts_returning(
     return inserted_ids, len(rows) - len(inserted_ids)
 
 
-async def _activate_first_n(
+async def _load_demand_grounding(
     session: AsyncSession,
     *,
-    prompt_set_id: uuid.UUID,
-    ordered_new_ids: list[uuid.UUID],
-) -> None:
-    """Promote enough newly-inserted prompts to fill the set-wide active pool.
-
-    Assumes the caller already holds the prompt-set writer lock. Counts the
-    prompts already ``active`` in the set (existing manual/active rows count
-    toward the cap; archived rows are never auto-reactivated), then activates
-    the earliest ``ordered_new_ids`` needed to reach ``active_threshold``.
-    Everything beyond the pool stays ``proposed`` until a human promotes it.
-
-    Branded prompts (brand/alias/competitor name in the text) are capped at
-    ``max_branded_active_share`` of the pool: a branded prompt trivially
-    guarantees a brand mention, so a pool dominated by them inflates the
-    Visibility Score toward 100%. The cap applies to the pool as it will
-    exist AFTER activation (existing active rows plus newly activated ones),
-    not the configured threshold, so an empty or undersized pool can't end
-    up mostly branded. When a branded candidate would exceed the cap it is
-    skipped (stays ``proposed``) and the slot goes to the next unbranded
-    candidate; a human can still promote it deliberately.
-    """
-    if not ordered_new_ids:
-        return
-    threshold = prompt_generation_settings.active_threshold
-    counts = (
-        await session.execute(
-            select(
-                func.count(),
-                func.count().filter(Prompt.branded.is_(True)),
-            )
-            .select_from(Prompt)
-            .where(
-                Prompt.prompt_set_id == prompt_set_id,
-                Prompt.status == PROMPT_STATUS_ACTIVE,
-            )
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    limit: int,
+) -> tuple[DemandSnapshot | None, list[DemandSignal]]:
+    snapshot = await session.scalar(
+        select(DemandSnapshot)
+        .where(
+            DemandSnapshot.workspace_id == workspace_id,
+            DemandSnapshot.project_id == project_id,
         )
-    ).one()
-    active_count, active_branded = int(counts[0]), int(counts[1])
-    remaining = threshold - active_count
-    if remaining <= 0:
-        return
-
-    branded_rows = (
-        await session.execute(
-            select(Prompt.id, Prompt.branded).where(Prompt.id.in_(ordered_new_ids))
-        )
-    ).all()
-    branded_by_id: dict[uuid.UUID, bool] = {
-        row_id: bool(row_branded) for row_id, row_branded in branded_rows
-    }
-
-    def _select(branded_cap: int) -> list[uuid.UUID]:
-        branded_budget = max(0, branded_cap - active_branded)
-        picked: list[uuid.UUID] = []
-        for prompt_id in ordered_new_ids:
-            if len(picked) >= remaining:
-                break
-            if branded_by_id.get(prompt_id, False):
-                if branded_budget <= 0:
-                    continue
-                branded_budget -= 1
-            picked.append(prompt_id)
-        return picked
-
-    # The cap depends on the post-activation pool size, which depends on how
-    # many branded rows get skipped — iterate to a fixed point. The cap only
-    # ever shrinks, so this terminates; when it stabilizes, total branded
-    # active <= share of the pool that actually exists after activation.
-    share = prompt_generation_settings.max_branded_active_share
-    branded_cap = int(threshold * share)
-    while True:
-        to_activate = _select(branded_cap)
-        recomputed = int((active_count + len(to_activate)) * share)
-        if recomputed >= branded_cap:
-            break
-        branded_cap = recomputed
-    if not to_activate:
-        return
-    await session.execute(
-        update(Prompt)
-        .where(Prompt.id.in_(to_activate))
-        .values(status=PROMPT_STATUS_ACTIVE)
+        .order_by(DemandSnapshot.created_at.desc(), DemandSnapshot.id.desc())
+        .limit(1)
     )
+    if snapshot is None:
+        return None, []
+    signals = list(
+        (
+            await session.scalars(
+                select(DemandSignal)
+                .where(
+                    DemandSignal.workspace_id == workspace_id,
+                    DemandSignal.project_id == project_id,
+                    DemandSignal.snapshot_id == snapshot.id,
+                )
+                .order_by(
+                    DemandSignal.priority_score.desc().nullslast(), DemandSignal.id
+                )
+                .limit(limit)
+            )
+        ).all()
+    )
+    return snapshot, signals
+
+
+def _generation_brand_context(
+    project: Project, demand_signals: list[DemandSignal]
+) -> dict[str, Any]:
+    context = project_scoring_identity(project)
+    context["knowledge_base"] = build_brand_knowledge_data(project)
+    context["demand_signals"] = [
+        {
+            "id": str(signal.id),
+            "type": signal.signal_type,
+            "topic": signal.topic_cluster,
+            "page": signal.page_url,
+            "priority": signal.priority_score,
+            "limitations": list(signal.limitations or []),
+        }
+        for signal in demand_signals
+    ]
+    return context
+
+
+def _generation_evidence(
+    *,
+    agent: DefaultAgentClient,
+    payload: Any,
+    brand_context: dict[str, Any],
+    demand_snapshot: DemandSnapshot | None,
+    demand_signals: list[DemandSignal],
+) -> dict[str, Any]:
+    return {
+        "model_identity": {
+            "transport_host": agent.base_url_host,
+            "transport_model": agent.model,
+        },
+        "generation_run_id": str(uuid.uuid4()),
+        "generator_version": GENERATOR_VERSION,
+        "brand_context_hash": _brand_context_hash(brand_context),
+        "requested_count": payload.count,
+        "requested_intents": [intent for intent in payload.intents if intent],
+        "cohort": payload.cohort,
+        "demand_snapshot_id": str(demand_snapshot.id) if demand_snapshot else None,
+        "demand_signal_ids": [str(signal.id) for signal in demand_signals],
+        "demand_signal_coverage": (
+            dict(demand_snapshot.coverage or {}) if demand_snapshot else {}
+        ),
+    }
 
 
 async def generate_prompts(
@@ -670,12 +662,9 @@ async def generate_prompts(
     ``validate_generation_request``) to avoid a second scope query; the
     payload checks always re-run here so direct service calls stay guarded.
 
-    The earliest inserted prompts are promoted to ``active`` to fill the
-    set-wide pool of ``active_threshold`` (default 20); the rest stay
-    ``proposed`` until a human promotes them. ``active`` is the scheduled-run
-    eligibility gate across all three AI providers. Insertion and activation
-    commit together under a prompt-set writer lock so concurrent generations
-    can never exceed the pool.
+    Every validated generated prompt is active immediately. Running or
+    scheduling an audit remains the explicit measurement decision; generation
+    never initiates provider measurement.
     """
     # 1. Scope first (404 before anything runs), then confirmation + bounds.
     if prompt_set is None:
@@ -687,10 +676,16 @@ async def generate_prompts(
     project = prompt_set.project
     project_id = project.id
 
+    demand_snapshot, demand_signals = await _load_demand_grounding(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        limit=payload.count,
+    )
+
     # 2. Brand evidence via the one existing serializer (invariant 2). Bound
     #    the existing-prompt context so the user message can't grow unbounded.
-    brand_context = project_scoring_identity(project)
-    brand_context["knowledge_base"] = build_brand_knowledge_data(project)
+    brand_context = _generation_brand_context(project, demand_signals)
     context_limit = prompt_generation_settings.existing_prompt_context_limit
     user_message = build_generation_user_message(
         brand_context=brand_context,
@@ -769,19 +764,13 @@ async def generate_prompts(
     topics_by_name = {topic.name.lower(): topic for topic in project.topics}
 
     # 5. Persist: get-or-create topics by name, then conflict-safe inserts.
-    generation_run_id = str(uuid.uuid4())
-    evidence_base = {
-        "model_identity": {
-            "transport_host": agent.base_url_host,
-            "transport_model": agent.model,
-        },
-        "generation_run_id": generation_run_id,
-        "generator_version": GENERATOR_VERSION,
-        "brand_context_hash": _brand_context_hash(brand_context),
-        "requested_count": payload.count,
-        "requested_intents": [i for i in payload.intents if i],
-        "cohort": payload.cohort,
-    }
+    evidence_base = _generation_evidence(
+        agent=agent,
+        payload=payload,
+        brand_context=brand_context,
+        demand_snapshot=demand_snapshot,
+        demand_signals=demand_signals,
+    )
 
     try:
         # Topical binding gate: generated text is not trusted merely because
@@ -826,11 +815,6 @@ async def generate_prompts(
             )
             inserted_ids.extend(batch_ids)
             dropped += batch_dropped
-
-        # Fill the set-wide active pool from the earliest inserted rows.
-        await _activate_first_n(
-            session, prompt_set_id=prompt_set.id, ordered_new_ids=inserted_ids
-        )
 
         # Hydrate the response BEFORE commit so nothing has to be refreshed
         # afterward (a post-commit refresh could itself race a delete). With

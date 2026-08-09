@@ -217,6 +217,7 @@ async def run_classify_referrals(
             raise ValueError(f"unknown sync run: {artifact.sync_run_id}")
         # Bind to locals BEFORE any commit (post-commit attribute access on
         # an expired ORM object would re-load).
+        sync_run_id = sync_run.id
         window_start, window_end = sync_run.window_start, sync_run.window_end
         resync_seq = sync_run.resync_seq
 
@@ -245,6 +246,7 @@ async def run_classify_referrals(
             window_start=window_start,
             window_end=window_end,
             resync_seq=resync_seq,
+            source_revision=str(sync_run_id),
         )
         await session.commit()
 
