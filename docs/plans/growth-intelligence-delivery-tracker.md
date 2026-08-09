@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|
 | 1 | `feature/demand-intelligence` | Demand D0-D5 | `merged` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | `0f5915ac5c2e1eb935f72c56e9e745303662614f` |
 | 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `merged` | [#58](https://github.com/abhij1306/Citeladder/pull/58) | `70d5894be96d8bfb0f50c76bb6f83eabb2c4e640` |
-| 3 | `feature/content-intelligence` | Content C0-C5 | `ready_to_ship` | — | — |
+| 3 | `feature/content-intelligence` | Content C0-C5 | `ready_to_ship` | [#59](https://github.com/abhij1306/Citeladder/pull/59) | — |
 
 Statuses are exact: `not_started | in_progress | ready_to_ship | merged`. A branch starts from
 freshly synchronized `main` only after its predecessor is merged.
