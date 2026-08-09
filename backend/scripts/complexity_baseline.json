@@ -636,7 +636,7 @@
       "update_content_revision_endpoint": 2,
       "verify_content_revision_endpoint": 2
     },
-    "loc": 633,
+    "loc": 625,
     "max_cc": 6
   },
   "app/api/demand.py": {
@@ -2842,8 +2842,9 @@
       "_commit_revision": 3,
       "_commit_strategy": 3,
       "_hash": 1,
+      "_inventory_headings": 3,
       "_inventory_summary": 3,
-      "_inventory_value": 6,
+      "_inventory_value": 4,
       "_latest_site_snapshot": 2,
       "_new_content_brief": 4,
       "_new_strategy": 7,
@@ -2882,7 +2883,7 @@
       "validate_output": 3,
       "verify_revision": 9
     },
-    "loc": 1391,
+    "loc": 1402,
     "max_cc": 14
   },
   "app/domain/content/message_builder.py": {
@@ -2920,6 +2921,7 @@
       "_prepare_generation": 3,
       "_project_in_workspace": 2,
       "_require_provider_configured": 3,
+      "_require_supported_output": 2,
       "_reserve_content_capacity": 1,
       "_select_website_context": 2,
       "_skill_definition": 4,
@@ -2936,7 +2938,7 @@
       "to_list_item": 1,
       "try_again": 3
     },
-    "loc": 728,
+    "loc": 712,
     "max_cc": 8
   },
   "app/domain/content/website_context.py": {
@@ -4503,7 +4505,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 541,
+    "loc": 548,
     "max_cc": 1
   },
   "app/models/demand.py": {

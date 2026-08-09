@@ -177,55 +177,23 @@ def to_detail(row: ContentGeneration) -> ContentGenerationDetail:
 async def _insert_generation(
     session: AsyncSession,
     *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    prompt: str,
-    output_type: str,
-    website_context_enabled: bool,
+    row: ContentGeneration,
     website_context: WebsiteContext,
-    idempotency_key: str,
-    fingerprint: str,
-    skill_id: str = "article",
-    opportunity_id: uuid.UUID | None = None,
-    evidence_context: dict | None = None,
-    brief_id: uuid.UUID | None = None,
-    context_package_id: uuid.UUID | None = None,
-    skill_version: str = "content-v1",
-    validator_snapshot: dict | None = None,
 ) -> ContentGeneration:
     messages, digest, message_snapshot = build_messages(
-        prompt=prompt,
-        output_type=output_type,
+        prompt=row.prompt,
+        output_type=row.output_type,
         website_context=website_context,
-        skill_id=skill_id,
-        evidence_context=evidence_context,
+        skill_id=row.skill_id,
+        evidence_context=row.evidence_context,
     )
     # ``messages`` itself is never persisted — the worker rebuilds it from the
     # frozen prompt + snapshot; only the digest + safe snapshot are stored.
     del messages
-    row = ContentGeneration(
-        workspace_id=workspace_id,
-        project_id=project_id,
-        opportunity_id=opportunity_id,
-        brief_id=brief_id,
-        context_package_id=context_package_id,
-        prompt=prompt,
-        skill_id=skill_id,
-        skill_version=skill_version,
-        evidence_context=evidence_context,
-        output_type=output_type,
-        website_context_enabled=website_context_enabled,
-        website_context_status=website_context.status,
-        website_context_snapshot=website_context.snapshot(),
-        request_fingerprint=fingerprint,
-        message_digest=digest,
-        message_snapshot=message_snapshot,
-        idempotency_key=idempotency_key,
-        provider=content_settings.provider,
-        requested_model=content_settings.model,
-        generator_version=CONTENT_GENERATOR_VERSION,
-        validator_snapshot=validator_snapshot,
-    )
+    row.website_context_status = website_context.status
+    row.website_context_snapshot = website_context.snapshot()
+    row.message_digest = digest
+    row.message_snapshot = message_snapshot
     session.add(row)
     return row
 
@@ -271,7 +239,13 @@ def _skill_definition(brief: ContentBrief, skill_id: str) -> ContentSkillDefinit
         raise ValueError("content_skill_incompatible")
     if brief.industry_pack_id not in definition["packs"]:
         raise ValueError("content_skill_pack_incompatible")
+    _require_supported_output(definition)
     return definition
+
+
+def _require_supported_output(definition: ContentSkillDefinition) -> None:
+    if definition["output_format"] != "markdown":
+        raise ValueError("content_skill_output_unsupported")
 
 
 async def _prepare_generation(
@@ -423,21 +397,26 @@ async def enqueue_generation(
 
     row = await _insert_generation(
         session,
-        workspace_id=workspace_id,
-        project_id=project_id,
-        prompt=prepared.prompt,
-        output_type=output_type,
-        website_context_enabled=website_context_enabled,
+        row=ContentGeneration(
+            workspace_id=workspace_id,
+            project_id=project_id,
+            prompt=prepared.prompt,
+            output_type=output_type,
+            website_context_enabled=website_context_enabled,
+            idempotency_key=key,
+            request_fingerprint=fingerprint,
+            skill_id=skill_id,
+            opportunity_id=opportunity_id,
+            evidence_context=prepared.evidence_context,
+            brief_id=brief_id,
+            context_package_id=prepared.context_package_id,
+            skill_version=prepared.skill_version,
+            validator_snapshot=prepared.validator_snapshot,
+            provider=content_settings.provider,
+            requested_model=content_settings.model,
+            generator_version=CONTENT_GENERATOR_VERSION,
+        ),
         website_context=website_context,
-        idempotency_key=key,
-        fingerprint=fingerprint,
-        skill_id=skill_id,
-        opportunity_id=opportunity_id,
-        evidence_context=prepared.evidence_context,
-        brief_id=brief_id,
-        context_package_id=prepared.context_package_id,
-        skill_version=prepared.skill_version,
-        validator_snapshot=prepared.validator_snapshot,
     )
     winner = await _commit_generation(
         session, workspace_id=workspace_id, key=key, fingerprint=fingerprint
@@ -668,21 +647,26 @@ async def try_again(
     )
     row = await _insert_generation(
         session,
-        workspace_id=workspace_id,
-        project_id=source.project_id,
-        prompt=source.prompt,
-        output_type=source.output_type,
-        website_context_enabled=source.website_context_enabled,
+        row=ContentGeneration(
+            workspace_id=workspace_id,
+            project_id=source.project_id,
+            prompt=source.prompt,
+            output_type=source.output_type,
+            website_context_enabled=source.website_context_enabled,
+            idempotency_key=str(uuid.uuid4()),
+            request_fingerprint=fingerprint,
+            skill_id=source.skill_id,
+            opportunity_id=source.opportunity_id,
+            evidence_context=source.evidence_context,
+            brief_id=source.brief_id,
+            context_package_id=source.context_package_id,
+            skill_version=source.skill_version,
+            validator_snapshot=source.validator_snapshot,
+            provider=content_settings.provider,
+            requested_model=content_settings.model,
+            generator_version=CONTENT_GENERATOR_VERSION,
+        ),
         website_context=frozen,
-        idempotency_key=str(uuid.uuid4()),
-        fingerprint=fingerprint,
-        skill_id=source.skill_id,
-        opportunity_id=source.opportunity_id,
-        evidence_context=source.evidence_context,
-        brief_id=source.brief_id,
-        context_package_id=source.context_package_id,
-        skill_version=source.skill_version,
-        validator_snapshot=source.validator_snapshot,
     )
     await session.commit()
     await session.refresh(row)

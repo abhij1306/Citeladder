@@ -22,6 +22,15 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
+_CONTENT_GENERATION_FK = "content_generations.id"
+_SITE_SNAPSHOT_FK = "site_health_snapshots.id"
+_DEMAND_SNAPSHOT_FK = "demand_snapshots.id"
+
+
+def _create_indexes(table: str, columns: tuple[str, ...]) -> None:
+    for column in columns:
+        op.create_index(op.f(f"ix_{table}_{column}"), table, [column])
+
 
 def upgrade() -> None:
     op.create_table(
@@ -256,16 +265,10 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    for column in (
-        "enabled",
-        "next_run_at",
-        "project_id",
-        "prompt_set_id",
-        "workspace_id",
-    ):
-        op.create_index(
-            op.f(f"ix_audit_schedules_{column}"), "audit_schedules", [column]
-        )
+    _create_indexes(
+        "audit_schedules",
+        ("enabled", "next_run_at", "project_id", "prompt_set_id", "workspace_id"),
+    )
     op.create_index(
         "ix_audit_schedules_due", "audit_schedules", ["enabled", "next_run_at"]
     )
@@ -1416,7 +1419,7 @@ def upgrade() -> None:
         sa.Column("latency_ms", sa.Integer(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
-            ["content_generation_id"], ["content_generations.id"], ondelete="CASCADE"
+            ["content_generation_id"], [_CONTENT_GENERATION_FK], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
@@ -2393,7 +2396,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["prior_snapshot_id"], ["site_health_snapshots.id"], ondelete="SET NULL"
+            ["prior_snapshot_id"], [_SITE_SNAPSHOT_FK], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
@@ -5081,20 +5084,18 @@ def upgrade() -> None:
             "audit_id", "prompt_identity", name="uq_prompt_metric_audit_identity"
         ),
     )
-    for column in (
-        "workspace_id",
-        "project_id",
-        "audit_id",
-        "prompt_id",
-        "cohort",
-        "decline_confirmed",
-        "created_at",
-    ):
-        op.create_index(
-            op.f(f"ix_prompt_metric_snapshots_{column}"),
-            "prompt_metric_snapshots",
-            [column],
-        )
+    _create_indexes(
+        "prompt_metric_snapshots",
+        (
+            "workspace_id",
+            "project_id",
+            "audit_id",
+            "prompt_id",
+            "cohort",
+            "decline_confirmed",
+            "created_at",
+        ),
+    )
     op.create_index(
         "ix_prompt_metric_history",
         "prompt_metric_snapshots",
@@ -5130,12 +5131,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("audit_id", "domain", name="uq_observed_candidate_domain"),
     )
-    for column in ("workspace_id", "project_id", "audit_id", "status"):
-        op.create_index(
-            op.f(f"ix_observed_entity_candidates_{column}"),
-            "observed_entity_candidates",
-            [column],
-        )
+    _create_indexes(
+        "observed_entity_candidates",
+        ("workspace_id", "project_id", "audit_id", "status"),
+    )
 
     # --- Typed project knowledge (kernel spec Phase B) --------------------
     # Crawl-scoped derived projections with deterministic (uuid5) primary keys,
@@ -5171,10 +5170,7 @@ def upgrade() -> None:
             name="uq_knowledge_entity_identity",
         ),
     )
-    for column in ("workspace_id", "project_id", "crawl_id"):
-        op.create_index(
-            op.f(f"ix_knowledge_entities_{column}"), "knowledge_entities", [column]
-        )
+    _create_indexes("knowledge_entities", ("workspace_id", "project_id", "crawl_id"))
     op.create_index(
         "ix_knowledge_entity_crawl_type",
         "knowledge_entities",
@@ -5233,10 +5229,10 @@ def upgrade() -> None:
             name="uq_knowledge_assertion_claim",
         ),
     )
-    for column in ("workspace_id", "project_id", "crawl_id", "subject_entity_id"):
-        op.create_index(
-            op.f(f"ix_knowledge_assertions_{column}"), "knowledge_assertions", [column]
-        )
+    _create_indexes(
+        "knowledge_assertions",
+        ("workspace_id", "project_id", "crawl_id", "subject_entity_id"),
+    )
     op.create_index(
         "ix_knowledge_assertion_predicate",
         "knowledge_assertions",
@@ -5290,16 +5286,16 @@ def upgrade() -> None:
             name="uq_knowledge_relation_edge",
         ),
     )
-    for column in (
-        "workspace_id",
-        "project_id",
-        "crawl_id",
-        "source_entity_id",
-        "target_entity_id",
-    ):
-        op.create_index(
-            op.f(f"ix_knowledge_relations_{column}"), "knowledge_relations", [column]
-        )
+    _create_indexes(
+        "knowledge_relations",
+        (
+            "workspace_id",
+            "project_id",
+            "crawl_id",
+            "source_entity_id",
+            "target_entity_id",
+        ),
+    )
     op.create_index(
         "ix_knowledge_relation_crawl_type",
         "knowledge_relations",
@@ -5349,8 +5345,10 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    for column in ("workspace_id", "project_id", "source_crawl_id", "author_user_id"):
-        op.create_index(op.f(f"ix_corrections_{column}"), "corrections", [column])
+    _create_indexes(
+        "corrections",
+        ("workspace_id", "project_id", "source_crawl_id", "author_user_id"),
+    )
     op.create_index(
         "ix_correction_project_target",
         "corrections",
@@ -5393,12 +5391,10 @@ def upgrade() -> None:
             "correction_id", "sequence", name="uq_correction_transition_sequence"
         ),
     )
-    for column in ("workspace_id", "project_id", "correction_id", "actor_user_id"):
-        op.create_index(
-            op.f(f"ix_correction_transitions_{column}"),
-            "correction_transitions",
-            [column],
-        )
+    _create_indexes(
+        "correction_transitions",
+        ("workspace_id", "project_id", "correction_id", "actor_user_id"),
+    )
     op.create_index(
         "ix_correction_transition_project_created",
         "correction_transitions",
@@ -5424,10 +5420,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("project_id", "slug", name="uq_journey_project_slug"),
     )
-    for column in ("workspace_id", "project_id", "status"):
-        op.create_index(
-            op.f(f"ix_journey_definitions_{column}"), "journey_definitions", [column]
-        )
+    _create_indexes("journey_definitions", ("workspace_id", "project_id", "status"))
 
     op.create_table(
         "journey_definition_versions",
@@ -5456,12 +5449,10 @@ def upgrade() -> None:
             "journey_id", "version", name="uq_journey_definition_version"
         ),
     )
-    for column in ("workspace_id", "project_id", "journey_id"):
-        op.create_index(
-            op.f(f"ix_journey_definition_versions_{column}"),
-            "journey_definition_versions",
-            [column],
-        )
+    _create_indexes(
+        "journey_definition_versions",
+        ("workspace_id", "project_id", "journey_id"),
+    )
 
     op.create_table(
         "demand_snapshots",
@@ -5494,11 +5485,11 @@ def upgrade() -> None:
         sa.Column("analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
-            ["prior_snapshot_id"], ["demand_snapshots.id"], ondelete="SET NULL"
+            ["prior_snapshot_id"], [_DEMAND_SNAPSHOT_FK], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="SET NULL"
+            ["site_snapshot_id"], [_SITE_SNAPSHOT_FK], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
@@ -5508,10 +5499,7 @@ def upgrade() -> None:
             "project_id", "source_hash", name="uq_demand_snapshot_source_hash"
         ),
     )
-    for column in ("workspace_id", "project_id", "created_at"):
-        op.create_index(
-            op.f(f"ix_demand_snapshots_{column}"), "demand_snapshots", [column]
-        )
+    _create_indexes("demand_snapshots", ("workspace_id", "project_id", "created_at"))
     op.create_foreign_key(
         "fk_opportunity_snapshots_demand_snapshot_id",
         "opportunity_snapshots",
@@ -5552,7 +5540,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["snapshot_id"], ["demand_snapshots.id"], ondelete="CASCADE"
+            ["snapshot_id"], [_DEMAND_SNAPSHOT_FK], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
@@ -5562,8 +5550,10 @@ def upgrade() -> None:
             "snapshot_id", "identity_hash", name="uq_demand_signal_identity"
         ),
     )
-    for column in ("workspace_id", "project_id", "snapshot_id", "signal_type", "state"):
-        op.create_index(op.f(f"ix_demand_signals_{column}"), "demand_signals", [column])
+    _create_indexes(
+        "demand_signals",
+        ("workspace_id", "project_id", "snapshot_id", "signal_type", "state"),
+    )
 
     # --- Content Intelligence (C0-C5) -----------------------------------
     op.create_table(
@@ -5590,7 +5580,7 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="CASCADE"
+            ["site_snapshot_id"], [_SITE_SNAPSHOT_FK], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
             ["site_analysis_id"], ["site_page_analyses.id"], ondelete="CASCADE"
@@ -5601,12 +5591,10 @@ def upgrade() -> None:
             "site_snapshot_id", "site_analysis_id", name="uq_content_inventory_source"
         ),
     )
-    for column in ("workspace_id", "project_id", "site_snapshot_id"):
-        op.create_index(
-            op.f(f"ix_content_inventory_items_{column}"),
-            "content_inventory_items",
-            [column],
-        )
+    _create_indexes(
+        "content_inventory_items",
+        ("workspace_id", "project_id", "site_snapshot_id"),
+    )
 
     op.create_table(
         "content_strategy_snapshots",
@@ -5634,22 +5622,17 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="CASCADE"
+            ["site_snapshot_id"], [_SITE_SNAPSHOT_FK], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
-            ["demand_snapshot_id"], ["demand_snapshots.id"], ondelete="SET NULL"
+            ["demand_snapshot_id"], [_DEMAND_SNAPSHOT_FK], ondelete="SET NULL"
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "project_id", "source_hash", name="uq_content_strategy_source"
         ),
     )
-    for column in ("workspace_id", "project_id"):
-        op.create_index(
-            op.f(f"ix_content_strategy_snapshots_{column}"),
-            "content_strategy_snapshots",
-            [column],
-        )
+    _create_indexes("content_strategy_snapshots", ("workspace_id", "project_id"))
 
     op.create_table(
         "content_briefs",
@@ -5698,8 +5681,7 @@ def upgrade() -> None:
             "project_id", "identity_hash", name="uq_content_brief_identity"
         ),
     )
-    for column in ("workspace_id", "project_id"):
-        op.create_index(op.f(f"ix_content_briefs_{column}"), "content_briefs", [column])
+    _create_indexes("content_briefs", ("workspace_id", "project_id"))
 
     op.create_table(
         "task_context_packages",
@@ -5729,12 +5711,7 @@ def upgrade() -> None:
             "brief_id", "manifest_hash", name="uq_content_context_manifest"
         ),
     )
-    for column in ("workspace_id", "project_id", "brief_id"):
-        op.create_index(
-            op.f(f"ix_task_context_packages_{column}"),
-            "task_context_packages",
-            [column],
-        )
+    _create_indexes("task_context_packages", ("workspace_id", "project_id", "brief_id"))
 
     op.create_table(
         "content_validations",
@@ -5754,17 +5731,14 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["content_generation_id"], ["content_generations.id"], ondelete="CASCADE"
+            ["content_generation_id"], [_CONTENT_GENERATION_FK], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "content_generation_id", name="uq_content_validation_generation"
         ),
     )
-    for column in ("workspace_id", "project_id"):
-        op.create_index(
-            op.f(f"ix_content_validations_{column}"), "content_validations", [column]
-        )
+    _create_indexes("content_validations", ("workspace_id", "project_id"))
 
     op.create_table(
         "content_revisions",
@@ -5798,7 +5772,7 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["content_generation_id"], ["content_generations.id"], ondelete="CASCADE"
+            ["content_generation_id"], [_CONTENT_GENERATION_FK], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
             ["created_by_user_id"], ["users.id"], ondelete="SET NULL"
@@ -5808,10 +5782,7 @@ def upgrade() -> None:
             "content_generation_id", name="uq_content_revision_generation"
         ),
     )
-    for column in ("workspace_id", "project_id"):
-        op.create_index(
-            op.f(f"ix_content_revisions_{column}"), "content_revisions", [column]
-        )
+    _create_indexes("content_revisions", ("workspace_id", "project_id"))
 
     op.create_table(
         "content_revision_transitions",
@@ -5834,12 +5805,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
-    for column in ("workspace_id", "project_id", "revision_id"):
-        op.create_index(
-            op.f(f"ix_content_revision_transitions_{column}"),
-            "content_revision_transitions",
-            [column],
-        )
+    _create_indexes(
+        "content_revision_transitions",
+        ("workspace_id", "project_id", "revision_id"),
+    )
 
     op.create_table(
         "content_verifications",
@@ -5863,10 +5832,10 @@ def upgrade() -> None:
             ["revision_id"], ["content_revisions.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
-            ["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="CASCADE"
+            ["site_snapshot_id"], [_SITE_SNAPSHOT_FK], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
-            ["demand_snapshot_id"], ["demand_snapshots.id"], ondelete="SET NULL"
+            ["demand_snapshot_id"], [_DEMAND_SNAPSHOT_FK], ondelete="SET NULL"
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
@@ -5875,12 +5844,9 @@ def upgrade() -> None:
             name="uq_content_verification_observation",
         ),
     )
-    for column in ("workspace_id", "project_id", "revision_id"):
-        op.create_index(
-            op.f(f"ix_content_verifications_{column}"),
-            "content_verifications",
-            [column],
-        )
+    _create_indexes(
+        "content_verifications", ("workspace_id", "project_id", "revision_id")
+    )
 
     op.create_foreign_key(
         "fk_content_generations_brief_id_content_briefs",

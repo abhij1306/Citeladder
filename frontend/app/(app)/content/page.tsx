@@ -29,9 +29,10 @@ const TABS: readonly LayerTab[] = CONTENT_PANEL_IDS.map((id) => ({
   id,
   label: CONTENT_PANEL_LABELS[id],
 }));
+const CONTENT_PANEL_ID_SET: ReadonlySet<string> = new Set(CONTENT_PANEL_IDS);
 
 function isContentPanel(value: string | null): value is ContentPanel {
-  return CONTENT_PANEL_IDS.some((id) => id === value);
+  return value !== null && CONTENT_PANEL_ID_SET.has(value);
 }
 
 function ContentTabPanel() {

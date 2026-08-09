@@ -33,6 +33,13 @@ from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.database import Base
 from app.models.constants import CASCADE_ALL_DELETE_ORPHAN
 
+_WORKSPACE_FK = "workspaces.id"
+_PROJECT_FK = "projects.id"
+_CONTENT_BRIEF_FK = "content_briefs.id"
+_CONTENT_GENERATION_FK = "content_generations.id"
+_SITE_SNAPSHOT_FK = "site_health_snapshots.id"
+_SET_NULL = "SET NULL"
+
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
@@ -66,29 +73,29 @@ class ContentGeneration(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
+        ForeignKey(_PROJECT_FK, ondelete="CASCADE"),
         index=True,
     )
     opportunity_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("opportunities.id", ondelete="SET NULL"),
+        ForeignKey("opportunities.id", ondelete=_SET_NULL),
         nullable=True,
         index=True,
     )
     brief_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("content_briefs.id", ondelete="SET NULL", use_alter=True),
+        ForeignKey(_CONTENT_BRIEF_FK, ondelete=_SET_NULL, use_alter=True),
         nullable=True,
         index=True,
     )
     context_package_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("task_context_packages.id", ondelete="SET NULL", use_alter=True),
+        ForeignKey("task_context_packages.id", ondelete=_SET_NULL, use_alter=True),
         nullable=True,
         index=True,
     )
@@ -193,7 +200,7 @@ class ContentGenerationAttempt(Base):
     )
     content_generation_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("content_generations.id", ondelete="CASCADE"),
+        ForeignKey(_CONTENT_GENERATION_FK, ondelete="CASCADE"),
         index=True,
     )
     attempt_number: Mapped[int] = mapped_column(Integer)
@@ -227,15 +234,15 @@ class ContentInventoryItem(Base):
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     site_snapshot_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("site_health_snapshots.id", ondelete="CASCADE"),
+        ForeignKey(_SITE_SNAPSHOT_FK, ondelete="CASCADE"),
         index=True,
     )
     site_analysis_id: Mapped[uuid.UUID] = mapped_column(
@@ -271,18 +278,18 @@ class ContentStrategySnapshot(Base):
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     site_snapshot_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("site_health_snapshots.id", ondelete="CASCADE")
+        PGUUID(as_uuid=True), ForeignKey(_SITE_SNAPSHOT_FK, ondelete="CASCADE")
     )
     demand_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("demand_snapshots.id", ondelete="SET NULL"),
+        ForeignKey("demand_snapshots.id", ondelete=_SET_NULL),
         nullable=True,
     )
     source_hash: Mapped[str] = mapped_column(String(64))
@@ -312,20 +319,20 @@ class ContentBrief(Base):
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     strategy_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("content_strategy_snapshots.id", ondelete="SET NULL"),
+        ForeignKey("content_strategy_snapshots.id", ondelete=_SET_NULL),
         nullable=True,
     )
     prior_brief_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("content_briefs.id", ondelete="SET NULL"),
+        ForeignKey(_CONTENT_BRIEF_FK, ondelete=_SET_NULL),
         nullable=True,
     )
     version: Mapped[int] = mapped_column(Integer, default=1)
@@ -360,15 +367,15 @@ class TaskContextPackage(Base):
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     brief_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("content_briefs.id", ondelete="CASCADE"),
+        ForeignKey(_CONTENT_BRIEF_FK, ondelete="CASCADE"),
         index=True,
     )
     task_type: Mapped[str] = mapped_column(String(32))
@@ -396,14 +403,14 @@ class ContentValidation(Base):
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     content_generation_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("content_generations.id", ondelete="CASCADE")
+        PGUUID(as_uuid=True), ForeignKey(_CONTENT_GENERATION_FK, ondelete="CASCADE")
     )
     status: Mapped[str] = mapped_column(String(16))
     blocking: Mapped[bool] = mapped_column(Boolean)
@@ -433,14 +440,14 @@ class ContentRevision(Base):
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     content_generation_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("content_generations.id", ondelete="CASCADE")
+        PGUUID(as_uuid=True), ForeignKey(_CONTENT_GENERATION_FK, ondelete="CASCADE")
     )
     state: Mapped[str] = mapped_column(String(24), default="draft")
     visible_content: Mapped[str] = mapped_column(Text)
@@ -455,7 +462,7 @@ class ContentRevision(Base):
         DateTime(timezone=True), nullable=True
     )
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete=_SET_NULL), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
@@ -475,11 +482,11 @@ class ContentRevisionTransition(Base):
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     revision_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -489,7 +496,7 @@ class ContentRevisionTransition(Base):
     from_state: Mapped[str] = mapped_column(String(24))
     to_state: Mapped[str] = mapped_column(String(24))
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete=_SET_NULL), nullable=True
     )
     reason: Mapped[str] = mapped_column(String(512), default="")
     created_at: Mapped[datetime] = mapped_column(
@@ -512,11 +519,11 @@ class ContentVerification(Base):
     id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
         index=True,
     )
     project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
     revision_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -524,11 +531,11 @@ class ContentVerification(Base):
         index=True,
     )
     site_snapshot_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("site_health_snapshots.id", ondelete="CASCADE")
+        PGUUID(as_uuid=True), ForeignKey(_SITE_SNAPSHOT_FK, ondelete="CASCADE")
     )
     demand_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("demand_snapshots.id", ondelete="SET NULL"),
+        ForeignKey("demand_snapshots.id", ondelete=_SET_NULL),
         nullable=True,
     )
     status: Mapped[str] = mapped_column(String(24))

@@ -7,6 +7,7 @@ import json
 import re
 import uuid
 from datetime import UTC, datetime
+from itertools import islice
 from typing import Any
 
 from sqlalchemy import select
@@ -304,7 +305,7 @@ def _inventory_value(
         "temporal_state": analysis.temporal_state,
         "purpose": {
             "title": str(facts.get("title") or "")[:512],
-            "headings": list((facts.get("headings") or {}).get("h1_texts") or [])[:5],
+            "headings": _inventory_headings(facts),
         },
         "coverage": {
             "technical_score": analysis.technical_score,
@@ -321,6 +322,16 @@ def _inventory_value(
             "pack": analysis.industry_pack_version,
         },
     }
+
+
+def _inventory_headings(facts: dict[str, Any]) -> list[Any]:
+    headings = facts.get("headings")
+    if not isinstance(headings, dict):
+        return []
+    h1_texts = headings.get("h1_texts")
+    if not isinstance(h1_texts, list):
+        return []
+    return list(islice(h1_texts, 5))
 
 
 async def _upsert_inventory(

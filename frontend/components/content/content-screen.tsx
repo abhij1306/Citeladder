@@ -219,6 +219,29 @@ function ProjectContentScreen({
   if (copied) copyLabel = 'Copied';
   else if (copyFailed) copyLabel = 'Copy failed';
 
+  const revisionAction = () => {
+    if (!detail) return null;
+    if (createdRevision?.generationId === detail.id) {
+      return (
+        <Link
+          href={`/content?tab=revisions&revision_id=${createdRevision.revisionId}`}
+          className="focus-ring bg-accent text-on-accent inline-flex min-h-8 items-center rounded-sm px-3 text-sm font-medium"
+        >
+          Open revision
+        </Link>
+      );
+    }
+    if (!detail.brief_id) return null;
+    return (
+      <Button
+        disabled={createRevisionMutation.isPending || validationQuery.data?.status !== 'passed'}
+        onClick={() => createRevisionMutation.mutate(detail.id)}
+      >
+        Start revision
+      </Button>
+    );
+  };
+
   return (
     <div className="grid gap-6">
       {/* Composer */}
@@ -415,23 +438,7 @@ function ProjectContentScreen({
                 <RefreshCw className="mr-1.5 size-4" aria-hidden />
                 Regenerate
               </Button>
-              {createdRevision?.generationId === detail.id ? (
-                <Link
-                  href={`/content?tab=revisions&revision_id=${createdRevision.revisionId}`}
-                  className="focus-ring bg-accent text-on-accent inline-flex min-h-8 items-center rounded-sm px-3 text-sm font-medium"
-                >
-                  Open revision
-                </Link>
-              ) : detail.brief_id ? (
-                <Button
-                  disabled={
-                    createRevisionMutation.isPending || validationQuery.data?.status !== 'passed'
-                  }
-                  onClick={() => createRevisionMutation.mutate(detail.id)}
-                >
-                  Start revision
-                </Button>
-              ) : null}
+              {revisionAction()}
               {detail.feedback === null ? (
                 <>
                   <Button

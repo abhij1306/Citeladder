@@ -14,6 +14,7 @@ from app.domain.content.intelligence import (
     _validate_visible_schema_parity,
     validate_output,
 )
+from app.domain.content.service import _skill_definition
 from app.models.content import ContentBrief, TaskContextPackage
 
 
@@ -205,3 +206,11 @@ def test_versioned_catalog_covers_education_and_commerce_reuse() -> None:
     }
     assert expected <= CONTENT_SKILL_CATALOG.keys()
     assert all(item["version"] for item in CONTENT_SKILL_CATALOG.values())
+
+
+def test_generation_rejects_skill_formats_the_worker_cannot_render() -> None:
+    brief = _brief()
+    brief.kind = "faq_schema"
+
+    with pytest.raises(ValueError, match="content_skill_output_unsupported"):
+        _skill_definition(brief, "faq_jsonld")

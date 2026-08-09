@@ -120,7 +120,7 @@ def _enqueue_conflict(exc: Exception) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
-@router.get("/strategy", response_model=ContentStrategyResponse | None)
+@router.get("/strategy")
 async def content_strategy_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
@@ -135,7 +135,7 @@ async def content_strategy_endpoint(
         raise _not_found(exc) from exc
 
 
-@router.post("/strategy/recompute", response_model=ContentStrategyResponse)
+@router.post("/strategy/recompute")
 async def recompute_content_strategy_endpoint(
     project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> ContentStrategyResponse:
@@ -148,7 +148,7 @@ async def recompute_content_strategy_endpoint(
         raise _content_error(exc) from exc
 
 
-@router.get("/inventory", response_model=list[ContentInventoryResponse])
+@router.get("/inventory")
 async def content_inventory_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
@@ -167,7 +167,7 @@ async def content_inventory_endpoint(
         raise _not_found(exc) from exc
 
 
-@router.get("/briefs", response_model=list[ContentBriefResponse])
+@router.get("/briefs")
 async def content_briefs_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
@@ -182,7 +182,7 @@ async def content_briefs_endpoint(
         raise _not_found(exc) from exc
 
 
-@router.post("/briefs", response_model=ContentBriefResponse, status_code=201)
+@router.post("/briefs", status_code=201)
 async def create_content_brief_endpoint(
     payload: ContentBriefCreate, ctx: _WorkspaceDep, session: _SessionDep
 ) -> ContentBriefResponse:
@@ -201,7 +201,7 @@ async def create_content_brief_endpoint(
         raise _content_error(exc) from exc
 
 
-@router.get("/briefs/{brief_id}", response_model=ContentBriefResponse)
+@router.get("/briefs/{brief_id}")
 async def content_brief_detail_endpoint(
     brief_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> ContentBriefResponse:
@@ -213,7 +213,7 @@ async def content_brief_detail_endpoint(
         raise _not_found(exc) from exc
 
 
-@router.post("/briefs/{brief_id}/context", response_model=TaskContextResponse)
+@router.post("/briefs/{brief_id}/context")
 async def content_brief_context_endpoint(
     brief_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> TaskContextResponse:
@@ -228,7 +228,6 @@ async def content_brief_context_endpoint(
 
 @router.post(
     "/briefs/{brief_id}/generate",
-    response_model=ContentGenerationDetail,
     status_code=status.HTTP_201_CREATED,
 )
 async def generate_content_brief_endpoint(
@@ -282,10 +281,7 @@ async def _generate_content_brief(
         raise _usage_limited(exc) from exc
 
 
-@router.get(
-    "/generations/{generation_id}/validation",
-    response_model=ContentValidationResponse,
-)
+@router.get("/generations/{generation_id}/validation")
 async def content_validation_endpoint(
     generation_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> ContentValidationResponse:
@@ -301,7 +297,6 @@ async def content_validation_endpoint(
 
 @router.post(
     "/generations/{generation_id}/revision",
-    response_model=ContentRevisionResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_content_revision_endpoint(
@@ -324,7 +319,7 @@ async def create_content_revision_endpoint(
         raise _content_error(exc) from exc
 
 
-@router.get("/revisions", response_model=list[ContentRevisionResponse])
+@router.get("/revisions")
 async def content_revisions_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
@@ -339,7 +334,7 @@ async def content_revisions_endpoint(
         raise _not_found(exc) from exc
 
 
-@router.put("/revisions/{revision_id}", response_model=ContentRevisionResponse)
+@router.put("/revisions/{revision_id}")
 async def update_content_revision_endpoint(
     revision_id: uuid.UUID,
     payload: ContentRevisionUpdate,
@@ -365,9 +360,7 @@ async def update_content_revision_endpoint(
         raise _content_error(exc) from exc
 
 
-@router.post(
-    "/revisions/{revision_id}/transition", response_model=ContentRevisionResponse
-)
+@router.post("/revisions/{revision_id}/transition")
 async def transition_content_revision_endpoint(
     revision_id: uuid.UUID,
     payload: ContentRevisionTransitionRequest,
@@ -414,7 +407,6 @@ async def export_content_revision_endpoint(
 
 @router.post(
     "/revisions/{revision_id}/verifications",
-    response_model=ContentVerificationResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def verify_content_revision_endpoint(
@@ -435,7 +427,7 @@ async def verify_content_revision_endpoint(
         raise _content_error(exc) from exc
 
 
-@router.get("/verifications", response_model=list[ContentVerificationResponse])
+@router.get("/verifications")
 async def content_verifications_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
