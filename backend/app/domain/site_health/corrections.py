@@ -639,9 +639,10 @@ async def active_corrections_by_target(
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     target_kind: str,
+    context_entity_refs: Mapping[str, Mapping],
     at: datetime | None = None,
 ) -> dict[str, Correction]:
-    """Effective project/entity corrections keyed by stable target identity."""
+    """Select current corrections applicable to each target's entity context."""
     instant = at or datetime.now(UTC)
     scope_precedence = case(
         (Correction.effective_scope == CORRECTION_SCOPE_ENTITY, 0), else_=1
@@ -680,7 +681,16 @@ async def active_corrections_by_target(
     )
     selected: dict[str, Correction] = {}
     for row in rows:
-        selected.setdefault(row.target_key, row)
+        if row.target_key in selected:
+            continue
+        if row.effective_scope == CORRECTION_SCOPE_PROJECT:
+            selected[row.target_key] = row
+            continue
+        context_ref = context_entity_refs.get(row.target_key)
+        if context_ref is not None and dict(row.effective_scope_ref) == dict(
+            context_ref
+        ):
+            selected[row.target_key] = row
     return selected
 
 

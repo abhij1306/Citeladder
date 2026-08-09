@@ -240,6 +240,12 @@ async def get_knowledge_entities(
         workspace_id=workspace_id,
         project_id=project_id,
         target_kind=CORRECTION_TARGET_ENTITY,
+        context_entity_refs={
+            stable_target_key(
+                entity_target_ref(row.entity_type_id, row.identity_key)
+            ): entity_target_ref(row.entity_type_id, row.identity_key)
+            for row in rows
+        },
     )
     return {
         "crawl_id": str(crawl.id),
@@ -332,6 +338,12 @@ async def get_knowledge_assertions(
         workspace_id=workspace_id,
         project_id=project_id,
         target_kind=CORRECTION_TARGET_ASSERTION,
+        context_entity_refs={
+            _assertion_target_key(assertion, subject): entity_target_ref(
+                subject.entity_type_id, subject.identity_key
+            )
+            for assertion, subject in rows
+        },
     )
     return {
         "crawl_id": str(crawl.id),
@@ -518,6 +530,12 @@ async def get_knowledge_contradictions(
         workspace_id=workspace_id,
         project_id=project_id,
         target_kind=CORRECTION_TARGET_ASSERTION,
+        context_entity_refs={
+            _assertion_target_key(assertion, subject): entity_target_ref(
+                subject.entity_type_id, subject.identity_key
+            )
+            for assertion, subject in rows
+        },
     )
     groups: dict[str, dict] = {}
     for assertion, subject in rows:
@@ -527,9 +545,6 @@ async def get_knowledge_contradictions(
             key,
             _contradiction_group(key, assertion, subject, correction),
         )
-        if correction is not None:
-            group["resolution_state"] = CONTRADICTION_RESOLUTION_CORRECTED
-            group["correction"] = correction_payload(correction)
         group["sides"].append(_assertion_payload(assertion, subject, correction))
 
     return {
@@ -711,6 +726,18 @@ async def get_knowledge_relations(
         workspace_id=workspace_id,
         project_id=project_id,
         target_kind=CORRECTION_TARGET_RELATION,
+        context_entity_refs={
+            stable_target_key(
+                relation_target_ref(
+                    relation_type_id=row.relation_type_id,
+                    source_entity_type_id=row.source_type,
+                    source_identity_key=row.source_identity_key,
+                    target_entity_type_id=row.target_type,
+                    target_identity_key=row.target_identity_key,
+                )
+            ): entity_target_ref(row.source_type, row.source_identity_key)
+            for row in rows
+        },
     )
     items = []
     for row in rows:

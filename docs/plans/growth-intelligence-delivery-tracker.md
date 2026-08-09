@@ -148,8 +148,9 @@ output, and later evidence resolves actions without mutating earlier snapshots.
   reported zero open pull-request issues after its findings were resolved.
 - Gotchas and conflict resolutions: correction target identity excludes crawl IDs and, for an
   assertion, the observed value; this is what lets a corrected value outrank a changed recrawl
-  derivation. Entity scope deterministically outranks project scope; journey/content/prompt scopes
-  remain unadvertised until their projections apply corrections. Snapshot compatibility is
+  derivation. Entity scope outranks project scope only when it matches the projected entity,
+  assertion subject, or relation source; unrelated entity scopes are ignored. Journey/content/
+  prompt scopes remain unadvertised until their projections apply corrections. Snapshot compatibility is
   fail-closed on the immediately preceding snapshot's pack manifest and analyzer/scoring/projection
   versions. Only a persisted later `pass` verifies an
   action; missing, error, not-applicable, or fail evidence cannot. Opportunity target keys remain
@@ -159,7 +160,8 @@ output, and later evidence resolves actions without mutating earlier snapshots.
   identities; active/withdrawn state and reason limits are shared and database-constrained;
   concurrent insert conflicts map to 409; idempotent withdrawal releases its transaction;
   comparison reads rank analyses deterministically and expose full action-state totals beside
-  bounded items. Crawl overlap needed no new lock: project-locked creation already permits only one
+  bounded items. Review also added entity-context matching and regression coverage so simultaneous
+  scoped corrections cannot leak into unrelated projections. Crawl overlap needed no new lock: project-locked creation already permits only one
   active crawl, so an earlier crawl terminalizes before a recrawl can be created. Object-valued
   corrections remain withdrawable even though the inline editor cannot create them.
 - Deliberate deferrals: Content Intelligence context packages, briefs, generation, publication,

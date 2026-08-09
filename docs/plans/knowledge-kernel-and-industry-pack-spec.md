@@ -72,6 +72,12 @@ and withdraw transitions are append-only and record actor, timestamp, reason, so
 the replaced derived value, the typed corrected value, and effective scope. It is not a second
 knowledge layer or approval state: observed evidence remains untouched.
 
+Project scope is the fallback. Entity scope outranks it only when the projected row has that
+entity context: the entity itself for an entity, the subject for an assertion, and the source for
+a relation. Current-knowledge reads apply the correction active at read time even when a caller
+selects an older crawl; the older crawl's observed rows remain unchanged, and immutable snapshot
+comparisons are never recomputed.
+
 ## Stable contracts
 
 ### `KnowledgeSourceRef`

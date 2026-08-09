@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_health import CRAWL_STATUS_RUNNING, TEMPORAL_STATE_CURRENT
 from app.core.config.site_intelligence import (
+    CORRECTION_SCOPE_ENTITY,
     CORRECTION_SCOPE_PROJECT,
     CORRECTION_STATE_WITHDRAWN,
     CORRECTION_TARGET_ASSERTION,
@@ -257,6 +258,90 @@ async def test_correction_survives_recompute_and_withdrawal_restores_derived_val
             .where(CorrectionTransition.correction_id == correction.id)
         )
         assert transition_count == 2
+
+
+async def test_entity_scope_matches_the_projected_subject_before_precedence(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        actor_id = await session.scalar(
+            select(WorkspaceMember.user_id).where(
+                WorkspaceMember.workspace_id == seed.workspace_id
+            )
+        )
+        assert crawl is not None
+        assert actor_id is not None
+        subject, assertion = await _knowledge_row(session, crawl=crawl, value=250_000)
+        unrelated = KnowledgeEntity(
+            id=entity_id(crawl.id, "education.organization", "other.example"),
+            workspace_id=crawl.workspace_id,
+            project_id=crawl.project_id,
+            crawl_id=crawl.id,
+            entity_type_id="education.organization",
+            identity_key="other.example",
+            canonical_name="Other School",
+            aliases=[],
+            identifiers={},
+            review_state=REVIEW_STATE_OBSERVED,
+            evidence_refs=[],
+            evidence_page_count=0,
+            industry_pack_id="education",
+            industry_pack_version="1.0.0",
+            extractor_version="si-knowledge-1",
+        )
+        session.add(unrelated)
+        await session.commit()
+
+        common = {
+            "session": session,
+            "workspace_id": seed.workspace_id,
+            "project_id": seed.project_id,
+            "actor_user_id": actor_id,
+            "target_kind": CORRECTION_TARGET_ASSERTION,
+            "target_id": assertion.id,
+            "effective_from": None,
+            "effective_to": None,
+            "value_metadata": {"unit": "annual", "currency": "INR"},
+        }
+        await create_correction(
+            **common,
+            value=255_000,
+            effective_scope=CORRECTION_SCOPE_PROJECT,
+            effective_scope_id=None,
+            reason="Project fallback.",
+        )
+        await create_correction(
+            **common,
+            value=999_000,
+            effective_scope=CORRECTION_SCOPE_ENTITY,
+            effective_scope_id=unrelated.id,
+            reason="Applies only to the unrelated school.",
+        )
+        fallback = await get_knowledge_assertions(
+            session,
+            workspace_id=seed.workspace_id,
+            project_id=seed.project_id,
+            crawl_id=crawl.id,
+        )
+        assert fallback["items"][0]["effective_value"]["numeric_value"] == 255_000
+
+        subject_correction = await create_correction(
+            **common,
+            value=260_000,
+            effective_scope=CORRECTION_SCOPE_ENTITY,
+            effective_scope_id=subject.id,
+            reason="Applies to this assertion subject.",
+        )
+        scoped = await get_knowledge_assertions(
+            session,
+            workspace_id=seed.workspace_id,
+            project_id=seed.project_id,
+            crawl_id=crawl.id,
+        )
+        assert scoped["items"][0]["effective_value"]["numeric_value"] == 260_000
+        assert scoped["items"][0]["correction"]["id"] == str(subject_correction.id)
 
 
 async def test_correction_target_is_workspace_and_project_authorized(
