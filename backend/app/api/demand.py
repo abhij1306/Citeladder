@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, status
@@ -16,7 +17,10 @@ from app.core.config.demand import (
     DEMAND_LIST_MAX_LIMIT,
 )
 from app.core.config.errors import CODE_CONFLICT, CODE_VALIDATION_ERROR
-from app.core.config.integrations import INTEGRATION_DATASET_TEMPLATES
+from app.core.config.integrations import (
+    INTEGRATION_DATASET_TEMPLATES,
+    IntegrationDatasetTemplate,
+)
 from app.core.errors import ApiException
 from app.core.http_errors import raise_not_found
 from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
@@ -132,9 +136,7 @@ def _capability_items(
     items: list[DemandDatasetCapability] = []
     capabilities = connection.dataset_capabilities if connection else {}
     capabilities = capabilities or {}
-    for template in INTEGRATION_DATASET_TEMPLATES.values():
-        if template.provider != mapping.provider:
-            continue
+    for template in _provider_templates(mapping.provider):
         artifact = latest.get(template.dataset)
         snapshot = artifact.query_snapshot or {} if artifact else {}
         capability = capabilities.get(template.dataset, {})
@@ -163,6 +165,14 @@ def _provider_metadata(
     if capability:
         metadata["capability"] = capability
     return metadata
+
+
+def _provider_templates(provider: str) -> Iterator[IntegrationDatasetTemplate]:
+    return (
+        template
+        for template in INTEGRATION_DATASET_TEMPLATES.values()
+        if template.provider == provider
+    )
 
 
 @router.get("/{project_id}/demand/snapshots")
