@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
@@ -79,10 +80,23 @@ class ContentGeneration(Base):
         nullable=True,
         index=True,
     )
+    brief_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_briefs.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+        index=True,
+    )
+    context_package_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("task_context_packages.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+        index=True,
+    )
 
     # --- Frozen inputs (written at enqueue, never mutated) ----------------
     prompt: Mapped[str] = mapped_column(Text)
-    skill_id: Mapped[str] = mapped_column(String(16), default="article")
+    skill_id: Mapped[str] = mapped_column(String(64), default="article")
+    skill_version: Mapped[str] = mapped_column(String(32), default="content-v1")
     evidence_context: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     output_type: Mapped[str] = mapped_column(String(32))
     website_context_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -136,6 +150,7 @@ class ContentGeneration(Base):
     # What determined the provider request. NEVER the key (invariant 6).
     request_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     generator_version: Mapped[str] = mapped_column(String(32), default="")
+    validator_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     feedback: Mapped[str | None] = mapped_column(String(16), nullable=True)
     feedback_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -154,40 +169,6 @@ class ContentGeneration(Base):
         cascade=CASCADE_ALL_DELETE_ORPHAN,
         passive_deletes=True,
         order_by="ContentGenerationAttempt.attempt_number",
-    )
-
-
-class BrandKnowledgeArtifact(Base):
-    """User-accepted generated content; never written by generation alone."""
-
-    __tablename__ = "brand_knowledge_artifacts"
-    __table_args__ = (
-        UniqueConstraint("content_generation_id", name="uq_brand_knowledge_generation"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
-    )
-    content_generation_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("content_generations.id", ondelete="CASCADE"),
-    )
-    skill_id: Mapped[str] = mapped_column(String(16))
-    title: Mapped[str] = mapped_column(String(255))
-    content: Mapped[str] = mapped_column(Text)
-    source_opportunity_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("opportunities.id", ondelete="SET NULL")
-    )
-    accepted_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
     )
 
 
@@ -230,4 +211,331 @@ class ContentGenerationAttempt(Base):
 
     generation: Mapped[ContentGeneration] = relationship(
         "ContentGeneration", back_populates="attempts"
+    )
+
+
+class ContentInventoryItem(Base):
+    """Immutable page/document projection for one Site snapshot."""
+
+    __tablename__ = "content_inventory_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "site_snapshot_id", "site_analysis_id", name="uq_content_inventory_source"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    site_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("site_health_snapshots.id", ondelete="CASCADE"),
+        index=True,
+    )
+    site_analysis_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("site_page_analyses.id", ondelete="CASCADE"),
+    )
+    site_url_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("site_urls.id", ondelete="CASCADE")
+    )
+    canonical_url: Mapped[str] = mapped_column(String(2048))
+    page_kind: Mapped[str] = mapped_column(String(24))
+    industry_role_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    temporal_state: Mapped[str] = mapped_column(String(16))
+    purpose: Mapped[dict] = mapped_column(JSONB, default=dict)
+    coverage: Mapped[dict] = mapped_column(JSONB, default=dict)
+    evidence: Mapped[dict] = mapped_column(JSONB, default=dict)
+    source_versions: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class ContentStrategySnapshot(Base):
+    """Immutable deterministic portfolio strategy over Site and optional Demand."""
+
+    __tablename__ = "content_strategy_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id", "source_hash", name="uq_content_strategy_source"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    site_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("site_health_snapshots.id", ondelete="CASCADE")
+    )
+    demand_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("demand_snapshots.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    source_hash: Mapped[str] = mapped_column(String(64))
+    industry_pack_id: Mapped[str] = mapped_column(String(64))
+    industry_pack_version: Mapped[str] = mapped_column(String(32))
+    inventory_summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    coverage: Mapped[dict] = mapped_column(JSONB, default=dict)
+    priorities: Mapped[list] = mapped_column(JSONB, default=list)
+    program: Mapped[list] = mapped_column(JSONB, default=list)
+    limitations: Mapped[list] = mapped_column(JSONB, default=list)
+    source_versions: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class ContentBrief(Base):
+    """Immutable, versioned instruction artifact containing no generated prose."""
+
+    __tablename__ = "content_briefs"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id", "identity_hash", name="uq_content_brief_identity"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    strategy_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_strategy_snapshots.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    prior_brief_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_briefs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    identity_hash: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(255))
+    target: Mapped[dict] = mapped_column(JSONB, default=dict)
+    requirements: Mapped[dict] = mapped_column(JSONB, default=dict)
+    allowed_facts: Mapped[list] = mapped_column(JSONB, default=list)
+    prohibited_claims: Mapped[list] = mapped_column(JSONB, default=list)
+    source_refs: Mapped[list] = mapped_column(JSONB, default=list)
+    verification_criteria: Mapped[list] = mapped_column(JSONB, default=list)
+    industry_pack_id: Mapped[str] = mapped_column(String(64))
+    industry_pack_version: Mapped[str] = mapped_column(String(32))
+    brief_builder_version: Mapped[str] = mapped_column(String(32))
+    evidence_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class TaskContextPackage(Base):
+    """Frozen, bounded and inspectable task-specific provider context."""
+
+    __tablename__ = "task_context_packages"
+    __table_args__ = (
+        UniqueConstraint(
+            "brief_id", "manifest_hash", name="uq_content_context_manifest"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    brief_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_briefs.id", ondelete="CASCADE"),
+        index=True,
+    )
+    task_type: Mapped[str] = mapped_column(String(32))
+    manifest: Mapped[dict] = mapped_column(JSONB)
+    rendered_context: Mapped[dict] = mapped_column(JSONB)
+    omissions: Mapped[list] = mapped_column(JSONB, default=list)
+    selection_policy_version: Mapped[str] = mapped_column(String(32))
+    manifest_hash: Mapped[str] = mapped_column(String(64))
+    char_count: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class ContentValidation(Base):
+    """Immutable automatic validator result for one generated output."""
+
+    __tablename__ = "content_validations"
+    __table_args__ = (
+        UniqueConstraint(
+            "content_generation_id", name="uq_content_validation_generation"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    content_generation_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("content_generations.id", ondelete="CASCADE")
+    )
+    status: Mapped[str] = mapped_column(String(16))
+    blocking: Mapped[bool] = mapped_column(Boolean)
+    checks: Mapped[list] = mapped_column(JSONB)
+    validator_version: Mapped[str] = mapped_column(String(32))
+    brief_evidence_hash: Mapped[str] = mapped_column(String(64), default="")
+    context_manifest_hash: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class ContentRevision(Base):
+    """User-editable draft; saving is the sole durable content decision."""
+
+    __tablename__ = "content_revisions"
+    __table_args__ = (
+        UniqueConstraint(
+            "content_generation_id", name="uq_content_revision_generation"
+        ),
+        CheckConstraint(
+            "state IN ('draft','edited','saved','published_claimed','discarded')",
+            name="ck_content_revision_state",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    content_generation_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("content_generations.id", ondelete="CASCADE")
+    )
+    state: Mapped[str] = mapped_column(String(24), default="draft")
+    visible_content: Mapped[str] = mapped_column(Text)
+    structured_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    validation_snapshot: Mapped[dict] = mapped_column(JSONB, default=dict)
+    publication_target_url: Mapped[str] = mapped_column(String(2048), default="")
+    publication_claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    saved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class ContentRevisionTransition(Base):
+    """Append-only state transition history for a revision."""
+
+    __tablename__ = "content_revision_transitions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    revision_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_revisions.id", ondelete="CASCADE"),
+        index=True,
+    )
+    from_state: Mapped[str] = mapped_column(String(24))
+    to_state: Mapped[str] = mapped_column(String(24))
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    reason: Mapped[str] = mapped_column(String(512), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class ContentVerification(Base):
+    """Immutable observation of a saved revision against a later Site snapshot."""
+
+    __tablename__ = "content_verifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "revision_id",
+            "site_snapshot_id",
+            name="uq_content_verification_observation",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    revision_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_revisions.id", ondelete="CASCADE"),
+        index=True,
+    )
+    site_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("site_health_snapshots.id", ondelete="CASCADE")
+    )
+    demand_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("demand_snapshots.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    status: Mapped[str] = mapped_column(String(24))
+    requirements: Mapped[list] = mapped_column(JSONB)
+    comparison: Mapped[dict] = mapped_column(JSONB, default=dict)
+    coverage: Mapped[dict] = mapped_column(JSONB, default=dict)
+    verifier_version: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
     )

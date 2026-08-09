@@ -33,7 +33,6 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
 )
 from app.models.content import (
-    BrandKnowledgeArtifact,
     ContentGeneration,
     ContentGenerationAttempt,
 )
@@ -151,6 +150,37 @@ async def _get_generation(
     row = await session.get(ContentGeneration, generation_id)
     assert row is not None
     return row
+
+
+async def test_content_intelligence_empty_state_and_workspace_isolation(
+    client: httpx.AsyncClient,
+) -> None:
+    await _register(client, "content-intelligence-owner@example.com")
+    project_id = await _create_project(client)
+
+    strategy = await client.get(
+        "/api/v1/content/strategy", params={"project_id": project_id}
+    )
+    assert strategy.status_code == 200
+    assert strategy.json() is None
+    for path in ("inventory", "briefs", "revisions", "verifications"):
+        response = await client.get(
+            f"/api/v1/content/{path}", params={"project_id": project_id}
+        )
+        assert response.status_code == 200
+        assert response.json() == []
+
+    unavailable = await client.post(
+        "/api/v1/content/strategy/recompute", params={"project_id": project_id}
+    )
+    assert unavailable.status_code == 409
+    assert unavailable.json()["detail"] == "site_intelligence_unavailable"
+
+    await _register(client, "content-intelligence-outsider@example.com")
+    hidden = await client.get(
+        "/api/v1/content/briefs", params={"project_id": project_id}
+    )
+    assert hidden.status_code == 404
 
 
 # --- Enqueue + validation --------------------------------------------------
@@ -693,7 +723,7 @@ async def test_regenerate_creates_new_record(
     assert original["output_text"] is not None
 
 
-async def test_feedback_acceptance_is_immutable_and_saves_brand_knowledge(
+async def test_feedback_acceptance_is_immutable_reaction_only(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -708,32 +738,13 @@ async def test_feedback_acceptance_is_immutable_and_saves_brand_knowledge(
     )
     assert accepted.status_code == 200
     assert accepted.json()["feedback"] == "accepted"
-    async with session_factory() as session:
-        artifact = await session.scalar(
-            select(BrandKnowledgeArtifact).where(
-                BrandKnowledgeArtifact.content_generation_id == uuid.UUID(created["id"])
-            )
-        )
-    assert artifact is not None
-    assert artifact.skill_id == "blog"
 
     repeated = await client.post(
         f"/api/v1/content/generations/{created['id']}/feedback",
         json={"feedback": "accepted"},
     )
     assert repeated.status_code == 200
-    async with session_factory() as session:
-        artifacts = list(
-            (
-                await session.scalars(
-                    select(BrandKnowledgeArtifact).where(
-                        BrandKnowledgeArtifact.content_generation_id
-                        == uuid.UUID(created["id"])
-                    )
-                )
-            ).all()
-        )
-    assert len(artifacts) == 1
+    assert repeated.json()["feedback"] == "accepted"
 
     conflicting = await client.post(
         f"/api/v1/content/generations/{created['id']}/feedback",

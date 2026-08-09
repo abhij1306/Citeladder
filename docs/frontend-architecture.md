@@ -59,7 +59,7 @@ or review inbox.
 |---|---|---|
 | `/projects`, `/knowledge-base` | Project state and curated profile | Project command centre and Business Knowledge |
 | `/site-health`, `/issues` | Crawl, pages, rules, issues | Site Intelligence |
-| `/content` | Basic generation | Content Intelligence |
+| `/content` | Strategy, Inventory, Briefs, Drafts, Revisions, Verification | Content Intelligence |
 | `/traffic`, `/analytics` | First-party projections | Demand Intelligence |
 | `/prompt-research`, `/prompts` | Prompt creation/review | Demand Intelligence |
 | `/visibility`, `/runs` | Answer-engine measurement/evidence | Demand Intelligence |
@@ -108,6 +108,15 @@ generates is the user who edits and saves. Visible content and any mirroring str
 separate outputs, and markup cannot be saved when it does not match the visible content.
 
 FAQ is one worked example of this flow, not a required first slice.
+
+The shipped `/content` route renders six URL-addressable panels: **Strategy**, **Inventory**,
+**Briefs**, **Drafts**, **Revisions**, and **Verification**. Strategy and inventory expose the
+persisted source denominator, states, priorities, limitations, and pack scope. Briefs can be
+created from automatically eligible missing questions. Drafts retains the advanced custom-task
+composer while brief-driven results expose automatic validation and a Start revision action.
+Revisions display their current revalidation state and cannot save while blocked. Verification
+records publication as a claim first and compares only later persisted evidence; it never labels
+an association causal.
 
 ## Mobile and accessibility
 

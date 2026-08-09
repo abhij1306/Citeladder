@@ -42,6 +42,8 @@ function generation(overrides: Record<string, unknown> = {}) {
     status: 'queued',
     output_type: 'website_page',
     skill_id: 'article',
+    brief_id: null,
+    context_package_id: null,
     opportunity_id: null,
     evidence_context: null,
     feedback: null,
@@ -75,6 +77,8 @@ function generation(overrides: Record<string, unknown> = {}) {
     latency_ms: null,
     error_detail: '',
     generator_version: 'content-v1',
+    skill_version: 'content-v1',
+    validator_snapshot: null,
     ...overrides,
   };
 }
@@ -93,6 +97,17 @@ function mockBase(listItems: Record<string, unknown>[] = []) {
   mswServer.use(
     http.get('/api/v1/projects', () => HttpResponse.json([project])),
     http.get('/api/v1/content/generations', () => HttpResponse.json(listItems)),
+    http.get(`/api/v1/content/generations/${GEN}/validation`, () =>
+      HttpResponse.json({
+        id: '66666666-6666-4666-8666-666666666666',
+        project_id: PROJECT,
+        generation_id: GEN,
+        validator_version: 'content-validator-v1',
+        status: 'passed',
+        findings: [],
+        created_at: '2026-07-15T00:01:00Z',
+      }),
+    ),
   );
 }
 

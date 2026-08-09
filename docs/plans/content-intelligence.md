@@ -435,3 +435,21 @@ from the reviewer or omitted. Then prove reuse with a category or PDP enhancemen
 - frontend tests for question-gap-to-review flow, safe rendering, null/conflict/coverage states,
   evidence, and accessible mobile operation;
 - model eval fixtures are versioned and provider-independent; live generation tests are opt-in.
+
+## 16. Delivery status
+
+Content Intelligence is implemented through C5 for the calibrated Education and Commerce packs.
+The shipped path persists deterministic inventory and strategy snapshots, creates immutable
+question-grounded briefs, freezes bounded context manifests, runs versioned skills through the
+existing PostgreSQL generation queue, automatically validates output, revalidates user edits,
+records save/publication transitions, and compares a later Site snapshot without asserting
+causality. The `/content` workspace exposes Strategy, Inventory, Briefs, Drafts, Revisions, and
+Verification.
+
+The generation queue remains the single output owner and Site Intelligence remains the evidence
+and action-resolution owner. Feedback is reaction metadata only. There is no
+`approved_memory_items`, generated-fact store, review inbox, autonomous publication path, or score
+mutation. Corrections flow into allowed facts as effective overlays while observed values remain
+immutable. Raw-artifact/downstream composite workspace foreign keys await an owning raw-artifact
+workspace redesign. The fourteen non-Education/Commerce packs remain structurally valid but
+unproven.

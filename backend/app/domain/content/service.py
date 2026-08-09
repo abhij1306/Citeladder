@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import hashlib
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,9 +25,15 @@ from app.core.config.content import (
     CONTENT_KNOWN_PROVIDERS,
     CONTENT_LIST_MAX_LIMIT,
     CONTEXT_STATUS_DISABLED,
+    CONTEXT_STATUS_INCLUDED,
     FEEDBACK_ACCEPTED,
     FEEDBACK_REJECTED,
     content_settings,
+)
+from app.core.config.content_intelligence import (
+    CONTENT_SKILL_CATALOG,
+    CONTENT_VALIDATOR_VERSION,
+    ContentSkillDefinition,
 )
 from app.core.config.task_queue import (
     TASK_ACTIVE_STATUSES,
@@ -35,6 +42,7 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.domain.abuse.service import reserve_workspace_capacity
+from app.domain.content.intelligence import build_task_context, get_brief
 from app.domain.content.message_builder import build_messages
 from app.domain.content.schemas import (
     ContentGenerationDetail,
@@ -46,7 +54,7 @@ from app.domain.content.website_context import (
     WebsiteContext,
     build_website_context,
 )
-from app.models.content import BrandKnowledgeArtifact, ContentGeneration
+from app.models.content import ContentBrief, ContentGeneration, TaskContextPackage
 from app.models.opportunity import Opportunity
 from app.models.project import Project
 
@@ -92,6 +100,8 @@ def request_fingerprint(
     website_context_enabled: bool,
     skill_id: str = "article",
     opportunity_id: uuid.UUID | None = None,
+    brief_id: uuid.UUID | None = None,
+    context_manifest_hash: str = "",
 ) -> str:
     """Stable comparator for idempotency replay-vs-conflict decisions."""
     canonical = "\x1f".join(
@@ -101,6 +111,8 @@ def request_fingerprint(
             output_type,
             skill_id,
             _optional_uuid(opportunity_id),
+            _optional_uuid(brief_id),
+            context_manifest_hash,
             "1" if website_context_enabled else "0",
         ]
     )
@@ -126,9 +138,8 @@ async def _project_in_workspace(
 
 
 def _summary_dto(row: ContentGeneration) -> WebsiteContextSummary | None:
-    snapshot = row.website_context_snapshot or {}
-    summary = snapshot.get("summary")
-    if not summary:
+    summary = _persisted_crawl_summary(row)
+    if summary is None:
         return None
     return WebsiteContextSummary(
         crawl_id=str(summary.get("crawl_id", "")),
@@ -141,6 +152,13 @@ def _summary_dto(row: ContentGeneration) -> WebsiteContextSummary | None:
         artifact_ids=list(summary.get("artifact_ids", [])),
         content_hashes=list(summary.get("content_hashes", [])),
     )
+
+
+def _persisted_crawl_summary(row: ContentGeneration) -> dict | None:
+    summary = (row.website_context_snapshot or {}).get("summary")
+    if not summary or not summary.get("crawl_id"):
+        return None
+    return summary
 
 
 def to_list_item(row: ContentGeneration) -> ContentGenerationListItem:
@@ -170,6 +188,10 @@ async def _insert_generation(
     skill_id: str = "article",
     opportunity_id: uuid.UUID | None = None,
     evidence_context: dict | None = None,
+    brief_id: uuid.UUID | None = None,
+    context_package_id: uuid.UUID | None = None,
+    skill_version: str = "content-v1",
+    validator_snapshot: dict | None = None,
 ) -> ContentGeneration:
     messages, digest, message_snapshot = build_messages(
         prompt=prompt,
@@ -185,8 +207,11 @@ async def _insert_generation(
         workspace_id=workspace_id,
         project_id=project_id,
         opportunity_id=opportunity_id,
+        brief_id=brief_id,
+        context_package_id=context_package_id,
         prompt=prompt,
         skill_id=skill_id,
+        skill_version=skill_version,
         evidence_context=evidence_context,
         output_type=output_type,
         website_context_enabled=website_context_enabled,
@@ -199,6 +224,7 @@ async def _insert_generation(
         provider=content_settings.provider,
         requested_model=content_settings.model,
         generator_version=CONTENT_GENERATOR_VERSION,
+        validator_snapshot=validator_snapshot,
     )
     session.add(row)
     return row
@@ -218,6 +244,112 @@ def _require_provider_configured() -> None:
         )
 
 
+@dataclass(frozen=True)
+class _PreparedGeneration:
+    prompt: str
+    evidence_context: dict | None
+    context_package: TaskContextPackage | None = None
+    skill_version: str = "content-v1"
+    validator_snapshot: dict | None = None
+
+    @property
+    def manifest_hash(self) -> str:
+        if self.context_package is None:
+            return ""
+        return self.context_package.manifest_hash
+
+    @property
+    def context_package_id(self) -> uuid.UUID | None:
+        if self.context_package is None:
+            return None
+        return self.context_package.id
+
+
+def _skill_definition(brief: ContentBrief, skill_id: str) -> ContentSkillDefinition:
+    definition = CONTENT_SKILL_CATALOG.get(skill_id)
+    if definition is None or brief.kind not in definition["brief_kinds"]:
+        raise ValueError("content_skill_incompatible")
+    if brief.industry_pack_id not in definition["packs"]:
+        raise ValueError("content_skill_pack_incompatible")
+    return definition
+
+
+async def _prepare_generation(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    prompt: str,
+    skill_id: str,
+    opportunity_id: uuid.UUID | None,
+    brief_id: uuid.UUID | None,
+) -> _PreparedGeneration:
+    evidence = await _opportunity_evidence(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        opportunity_id=opportunity_id,
+    )
+    if brief_id is None:
+        return _PreparedGeneration(prompt=prompt, evidence_context=evidence)
+    brief = await get_brief(session, workspace_id=workspace_id, brief_id=brief_id)
+    if brief.project_id != project_id:
+        raise ContentGenerationNotFoundError("Content brief not found")
+    definition = _skill_definition(brief, skill_id)
+    context_package, _created = await build_task_context(
+        session, workspace_id=workspace_id, brief_id=brief_id
+    )
+    skill_version = str(definition["version"])
+    return _PreparedGeneration(
+        prompt=_brief_prompt(brief),
+        evidence_context=dict(context_package.rendered_context),
+        context_package=context_package,
+        skill_version=skill_version,
+        validator_snapshot={
+            "validator_version": CONTENT_VALIDATOR_VERSION,
+            "skill_id": skill_id,
+            "skill_version": skill_version,
+            "output_format": definition["output_format"],
+        },
+    )
+
+
+async def _select_website_context(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    enabled: bool,
+    context_package: TaskContextPackage | None,
+) -> WebsiteContext:
+    if context_package is None:
+        return await _generation_website_context(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            enabled=enabled,
+        )
+    return _context_package_website_context(context_package, enabled=enabled)
+
+
+def _context_package_website_context(
+    context_package: TaskContextPackage, *, enabled: bool
+) -> WebsiteContext:
+    if not enabled:
+        return WebsiteContext(status=CONTEXT_STATUS_DISABLED)
+    return WebsiteContext(
+        status=CONTEXT_STATUS_INCLUDED,
+        pages=[],
+        summary={
+            "crawl_id": "",
+            "page_count": 0,
+            "char_count": context_package.char_count,
+            "task_context_package_id": str(context_package.id),
+            "manifest_hash": context_package.manifest_hash,
+        },
+    )
+
+
 async def enqueue_generation(
     session: AsyncSession,
     *,
@@ -229,6 +361,7 @@ async def enqueue_generation(
     idempotency_key: str = "",
     skill_id: str = "article",
     opportunity_id: uuid.UUID | None = None,
+    brief_id: uuid.UUID | None = None,
 ) -> tuple[ContentGeneration, bool]:
     """Enqueue one generation. Returns ``(row, created)``.
 
@@ -241,19 +374,24 @@ async def enqueue_generation(
         session, workspace_id=workspace_id, project_id=project_id
     )
 
-    evidence_context = await _opportunity_evidence(
+    prepared = await _prepare_generation(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
+        prompt=prompt,
+        skill_id=skill_id,
         opportunity_id=opportunity_id,
+        brief_id=brief_id,
     )
     fingerprint = request_fingerprint(
         project_id=project_id,
-        prompt=prompt,
+        prompt=prepared.prompt,
         output_type=output_type,
         website_context_enabled=website_context_enabled,
         skill_id=skill_id,
         opportunity_id=opportunity_id,
+        brief_id=brief_id,
+        context_manifest_hash=prepared.manifest_hash,
     )
     # A server-side key when the client sent none: the composite constraint is
     # always satisfied and keyless requests never collide with each other.
@@ -275,18 +413,19 @@ async def enqueue_generation(
     _require_provider_configured()
     await _reserve_content_capacity(session, workspace_id=workspace_id)
 
-    website_context = await _generation_website_context(
+    website_context = await _select_website_context(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
         enabled=website_context_enabled,
+        context_package=prepared.context_package,
     )
 
     row = await _insert_generation(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
-        prompt=prompt,
+        prompt=prepared.prompt,
         output_type=output_type,
         website_context_enabled=website_context_enabled,
         website_context=website_context,
@@ -294,7 +433,11 @@ async def enqueue_generation(
         fingerprint=fingerprint,
         skill_id=skill_id,
         opportunity_id=opportunity_id,
-        evidence_context=evidence_context,
+        evidence_context=prepared.evidence_context,
+        brief_id=brief_id,
+        context_package_id=prepared.context_package_id,
+        skill_version=prepared.skill_version,
+        validator_snapshot=prepared.validator_snapshot,
     )
     winner = await _commit_generation(
         session, workspace_id=workspace_id, key=key, fingerprint=fingerprint
@@ -303,6 +446,20 @@ async def enqueue_generation(
         return winner, False
     await session.refresh(row)
     return row, True
+
+
+def _brief_prompt(brief: ContentBrief) -> str:
+    questions = list((brief.requirements or {}).get("questions") or [])
+    labels = [
+        str(item.get("question") or item.get("label") or item.get("question_id") or "")
+        for item in questions
+    ]
+    return (
+        f"Create {brief.kind} content for {brief.title}. "
+        f"Answer only these required questions: {', '.join(filter(None, labels))}. "
+        "Use only allowed facts in the supplied task context; preserve unknowns and "
+        "prohibitions."
+    )
 
 
 async def _opportunity_evidence(session, *, workspace_id, project_id, opportunity_id):
@@ -475,6 +632,7 @@ async def regenerate(
         website_context_enabled=source.website_context_enabled,
         skill_id=source.skill_id,
         opportunity_id=source.opportunity_id,
+        brief_id=source.brief_id,
     )
     return row
 
@@ -505,6 +663,8 @@ async def try_again(
         website_context_enabled=source.website_context_enabled,
         skill_id=source.skill_id,
         opportunity_id=source.opportunity_id,
+        brief_id=source.brief_id,
+        context_manifest_hash=_snapshot_manifest_hash(snapshot),
     )
     row = await _insert_generation(
         session,
@@ -519,10 +679,19 @@ async def try_again(
         skill_id=source.skill_id,
         opportunity_id=source.opportunity_id,
         evidence_context=source.evidence_context,
+        brief_id=source.brief_id,
+        context_package_id=source.context_package_id,
+        skill_version=source.skill_version,
+        validator_snapshot=source.validator_snapshot,
     )
     await session.commit()
     await session.refresh(row)
     return row
+
+
+def _snapshot_manifest_hash(snapshot: dict) -> str:
+    summary = snapshot.get("summary") or {}
+    return str(summary.get("manifest_hash") or "")
 
 
 async def record_feedback(
@@ -531,8 +700,8 @@ async def record_feedback(
     workspace_id: uuid.UUID,
     generation_id: uuid.UUID,
     feedback: str,
-) -> tuple[ContentGeneration, BrandKnowledgeArtifact | None]:
-    """Record human feedback and save accepted output to Brand Knowledge."""
+) -> ContentGeneration:
+    """Record immutable reaction metadata; saving is owned by ContentRevision."""
     row = await session.scalar(
         select(ContentGeneration)
         .where(
@@ -550,41 +719,10 @@ async def record_feedback(
     if row.feedback is not None and row.feedback != feedback:
         raise ValueError("content feedback cannot be changed once recorded")
     if row.feedback == feedback:
-        artifact = await session.scalar(
-            select(BrandKnowledgeArtifact).where(
-                BrandKnowledgeArtifact.content_generation_id == row.id
-            )
-        )
         await session.commit()
-        return row, artifact
+        return row
     row.feedback = feedback
     row.feedback_at = datetime.now(UTC)
-    artifact = None
-    if feedback == FEEDBACK_ACCEPTED:
-        artifact = await session.scalar(
-            select(BrandKnowledgeArtifact).where(
-                BrandKnowledgeArtifact.content_generation_id == row.id
-            )
-        )
-        if artifact is None:
-            artifact = BrandKnowledgeArtifact(
-                workspace_id=row.workspace_id,
-                project_id=row.project_id,
-                content_generation_id=row.id,
-                skill_id=row.skill_id,
-                title=prompt_preview(row.prompt),
-                content=row.output_text,
-                source_opportunity_id=row.opportunity_id,
-            )
-            session.add(artifact)
-    else:
-        await session.execute(
-            delete(BrandKnowledgeArtifact).where(
-                BrandKnowledgeArtifact.content_generation_id == row.id
-            )
-        )
     await session.commit()
     await session.refresh(row)
-    if artifact is not None:
-        await session.refresh(artifact)
-    return row, artifact
+    return row

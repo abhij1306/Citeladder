@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.config.content_intelligence import CONTENT_SKILL_CATALOG
 from app.core.config.task_queue import (
     ERROR_MAX_ATTEMPTS,
     PostgresQueueSpec,
@@ -35,7 +36,7 @@ CONTENT_OUTPUT_TYPES: Final[frozenset[str]] = frozenset(
 )
 CONTENT_DEFAULT_OUTPUT_TYPE: Final = CONTENT_OUTPUT_TYPE_WEBSITE_PAGE
 CONTENT_SKILLS: Final[frozenset[str]] = frozenset(
-    {"youtube", "reddit", "blog", "article"}
+    {"youtube", "reddit", "blog", "article", *CONTENT_SKILL_CATALOG}
 )
 CONTENT_DEFAULT_SKILL: Final = "article"
 CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {
@@ -43,6 +44,10 @@ CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {
     "reddit": "Write a useful, conversational Reddit post without promotional hype.",
     "blog": "Write an answer-first blog post with practical examples.",
     "article": "Write an authoritative, evidence-led article.",
+    **{
+        skill_id: str(definition["directive"])
+        for skill_id, definition in CONTENT_SKILL_CATALOG.items()
+    },
 }
 FEEDBACK_ACCEPTED: Final = "accepted"
 FEEDBACK_REJECTED: Final = "rejected"

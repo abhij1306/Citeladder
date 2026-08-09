@@ -12,13 +12,31 @@
  */
 import { apiClient, type ApiRequestOptions } from './client';
 import {
+  contentBriefSchema,
   contentGenerationDetailSchema,
   contentGenerationListItemSchema,
+  contentInventoryItemSchema,
+  contentRevisionSchema,
+  contentSkillSchema,
+  contentStrategySchema,
+  contentValidationSchema,
+  contentVerificationSchema,
   strictValidate,
+  taskContextPackageSchema,
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
 import { z } from 'zod';
-import type { ContentGenerationDetail, ContentGenerationListItem } from './types';
+import type {
+  ContentBrief,
+  ContentGenerationDetail,
+  ContentGenerationListItem,
+  ContentInventoryItem,
+  ContentRevision,
+  ContentStrategy,
+  ContentValidation,
+  ContentVerification,
+  TaskContextPackage,
+} from './types';
 import { CONTENT_LIST_DEFAULT_LIMIT } from '@/lib/config/operational';
 
 export {
@@ -30,20 +48,187 @@ export {
 
 /** The only output type currently supported (backend `CONTENT_DEFAULT_OUTPUT_TYPE`). */
 export const CONTENT_OUTPUT_TYPE_WEBSITE_PAGE = 'website_page';
+export const CONTENT_INVENTORY_LIST_LIMIT = 250;
+export type ContentSkill = z.infer<typeof contentSkillSchema>;
 
 const contentGenerationListSchema = z.array(contentGenerationListItemSchema);
+const contentInventoryListSchema = z.array(contentInventoryItemSchema);
+const contentBriefListSchema = z.array(contentBriefSchema);
+const contentRevisionListSchema = z.array(contentRevisionSchema);
+const contentVerificationListSchema = z.array(contentVerificationSchema);
 
 /** `POST /content/generations` body. Workspace rides the session/header. */
 export type EnqueueGenerationInput = {
   project_id: string;
   prompt: string;
   output_type?: string;
-  skill_id?: 'youtube' | 'reddit' | 'blog' | 'article';
+  skill_id?: z.infer<typeof contentSkillSchema>;
   opportunity_id?: string;
+  brief_id?: string;
   website_context_enabled?: boolean;
 };
 
 export const contentApi = {
+  getStrategy: async (
+    projectId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentStrategy | null> => {
+    const res = await apiClient.get<ContentStrategy | null>(
+      withQuery('/content/strategy', definedQuery({ project_id: projectId })),
+      options,
+    );
+    return strictValidate(contentStrategySchema.nullable(), res, 'content.getStrategy');
+  },
+  recomputeStrategy: async (
+    projectId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentStrategy> => {
+    const res = await apiClient.post<ContentStrategy>(
+      withQuery('/content/strategy/recompute', definedQuery({ project_id: projectId })),
+      undefined,
+      options,
+    );
+    return strictValidate(contentStrategySchema, res, 'content.recomputeStrategy');
+  },
+  listInventory: async (
+    projectId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentInventoryItem[]> => {
+    const res = await apiClient.get<ContentInventoryItem[]>(
+      withQuery(
+        '/content/inventory',
+        definedQuery({ project_id: projectId, limit: CONTENT_INVENTORY_LIST_LIMIT }),
+      ),
+      options,
+    );
+    return strictValidate(contentInventoryListSchema, res, 'content.listInventory');
+  },
+  listBriefs: async (projectId: string, options?: ApiRequestOptions): Promise<ContentBrief[]> => {
+    const res = await apiClient.get<ContentBrief[]>(
+      withQuery('/content/briefs', definedQuery({ project_id: projectId })),
+      options,
+    );
+    return strictValidate(contentBriefListSchema, res, 'content.listBriefs');
+  },
+  createBrief: async (
+    input: {
+      project_id: string;
+      question_id: string;
+      kind?: string;
+      target_url?: string;
+      title?: string;
+    },
+    options?: ApiRequestOptions,
+  ): Promise<ContentBrief> => {
+    const res = await apiClient.post<ContentBrief>('/content/briefs', input, options);
+    return strictValidate(contentBriefSchema, res, 'content.createBrief');
+  },
+  buildContext: async (
+    briefId: string,
+    options?: ApiRequestOptions,
+  ): Promise<TaskContextPackage> => {
+    const res = await apiClient.post<TaskContextPackage>(
+      `/content/briefs/${briefId}/context`,
+      undefined,
+      options,
+    );
+    return strictValidate(taskContextPackageSchema, res, 'content.buildContext');
+  },
+  generateBrief: async (
+    briefId: string,
+    skillId: ContentSkill,
+    idempotencyKey?: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentGenerationDetail> => {
+    const res = await apiClient.post<ContentGenerationDetail>(
+      `/content/briefs/${briefId}/generate`,
+      { skill_id: skillId },
+      { ...options, idempotencyKey },
+    );
+    return strictValidate(contentGenerationDetailSchema, res, 'content.generateBrief');
+  },
+  getValidation: async (
+    generationId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentValidation> => {
+    const res = await apiClient.get<ContentValidation>(
+      `/content/generations/${generationId}/validation`,
+      options,
+    );
+    return strictValidate(contentValidationSchema, res, 'content.getValidation');
+  },
+  createRevision: async (
+    generationId: string,
+    visibleContent?: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentRevision> => {
+    const res = await apiClient.post<ContentRevision>(
+      `/content/generations/${generationId}/revision`,
+      { visible_content: visibleContent ?? null, structured_data: null },
+      options,
+    );
+    return strictValidate(contentRevisionSchema, res, 'content.createRevision');
+  },
+  listRevisions: async (
+    projectId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentRevision[]> => {
+    const res = await apiClient.get<ContentRevision[]>(
+      withQuery('/content/revisions', definedQuery({ project_id: projectId })),
+      options,
+    );
+    return strictValidate(contentRevisionListSchema, res, 'content.listRevisions');
+  },
+  exportRevision: (revisionId: string, options?: ApiRequestOptions): Promise<Blob> =>
+    apiClient.getBlob(`/content/revisions/${revisionId}/export`, options),
+  updateRevision: async (
+    revisionId: string,
+    visibleContent: string,
+    structuredData: Record<string, unknown> | null,
+    options?: ApiRequestOptions,
+  ): Promise<ContentRevision> => {
+    const res = await apiClient.put<ContentRevision>(
+      `/content/revisions/${revisionId}`,
+      { visible_content: visibleContent, structured_data: structuredData },
+      options,
+    );
+    return strictValidate(contentRevisionSchema, res, 'content.updateRevision');
+  },
+  transitionRevision: async (
+    revisionId: string,
+    state: 'saved' | 'published_claimed' | 'discarded',
+    targetUrl = '',
+    options?: ApiRequestOptions,
+  ): Promise<ContentRevision> => {
+    const res = await apiClient.post<ContentRevision>(
+      `/content/revisions/${revisionId}/transition`,
+      { state, target_url: targetUrl, reason: '' },
+      options,
+    );
+    return strictValidate(contentRevisionSchema, res, 'content.transitionRevision');
+  },
+  listVerifications: async (
+    projectId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentVerification[]> => {
+    const res = await apiClient.get<ContentVerification[]>(
+      withQuery('/content/verifications', definedQuery({ project_id: projectId })),
+      options,
+    );
+    return strictValidate(contentVerificationListSchema, res, 'content.listVerifications');
+  },
+  verifyRevision: async (
+    revisionId: string,
+    siteSnapshotId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentVerification> => {
+    const res = await apiClient.post<ContentVerification>(
+      `/content/revisions/${revisionId}/verifications`,
+      { site_snapshot_id: siteSnapshotId },
+      options,
+    );
+    return strictValidate(contentVerificationSchema, res, 'content.verifyRevision');
+  },
   listGenerations: async (
     projectId: string,
     limit: number = CONTENT_LIST_DEFAULT_LIMIT,

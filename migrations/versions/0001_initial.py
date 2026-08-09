@@ -731,9 +731,12 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("opportunity_id", sa.UUID(), nullable=True),
+        sa.Column("brief_id", sa.UUID(), nullable=True),
+        sa.Column("context_package_id", sa.UUID(), nullable=True),
         sa.Column("prompt", sa.Text(), nullable=False),
         sa.Column("output_type", sa.String(length=32), nullable=False),
-        sa.Column("skill_id", sa.String(16), nullable=False),
+        sa.Column("skill_id", sa.String(64), nullable=False),
+        sa.Column("skill_version", sa.String(32), nullable=False),
         sa.Column(
             "evidence_context", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
@@ -776,6 +779,9 @@ def upgrade() -> None:
             "request_snapshot", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
         sa.Column("generator_version", sa.String(length=32), nullable=False),
+        sa.Column(
+            "validator_snapshot", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
@@ -821,6 +827,16 @@ def upgrade() -> None:
         op.f("ix_content_generations_opportunity_id"),
         "content_generations",
         ["opportunity_id"],
+    )
+    op.create_index(
+        op.f("ix_content_generations_brief_id"),
+        "content_generations",
+        ["brief_id"],
+    )
+    op.create_index(
+        op.f("ix_content_generations_context_package_id"),
+        "content_generations",
+        ["context_package_id"],
     )
     op.create_table(
         "discovery_model_configs",
@@ -5121,39 +5137,6 @@ def upgrade() -> None:
             [column],
         )
 
-    op.create_table(
-        "brand_knowledge_artifacts",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("workspace_id", sa.UUID(), nullable=False),
-        sa.Column("project_id", sa.UUID(), nullable=False),
-        sa.Column("content_generation_id", sa.UUID(), nullable=False),
-        sa.Column("skill_id", sa.String(16), nullable=False),
-        sa.Column("title", sa.String(255), nullable=False),
-        sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("source_opportunity_id", sa.UUID(), nullable=True),
-        sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
-        ),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["content_generation_id"], ["content_generations.id"], ondelete="CASCADE"
-        ),
-        sa.ForeignKeyConstraint(
-            ["source_opportunity_id"], ["opportunities.id"], ondelete="SET NULL"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "content_generation_id", name="uq_brand_knowledge_generation"
-        ),
-    )
-    for column in ("workspace_id", "project_id"):
-        op.create_index(
-            op.f(f"ix_brand_knowledge_artifacts_{column}"),
-            "brand_knowledge_artifacts",
-            [column],
-        )
-
     # --- Typed project knowledge (kernel spec Phase B) --------------------
     # Crawl-scoped derived projections with deterministic (uuid5) primary keys,
     # so replaying the same artifacts reproduces byte-identical knowledge.
@@ -5582,8 +5565,360 @@ def upgrade() -> None:
     for column in ("workspace_id", "project_id", "snapshot_id", "signal_type", "state"):
         op.create_index(op.f(f"ix_demand_signals_{column}"), "demand_signals", [column])
 
+    # --- Content Intelligence (C0-C5) -----------------------------------
+    op.create_table(
+        "content_inventory_items",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("site_snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("site_analysis_id", sa.UUID(), nullable=False),
+        sa.Column("site_url_id", sa.UUID(), nullable=False),
+        sa.Column("canonical_url", sa.String(length=2048), nullable=False),
+        sa.Column("page_kind", sa.String(length=24), nullable=False),
+        sa.Column("industry_role_id", sa.String(length=64), nullable=True),
+        sa.Column("temporal_state", sa.String(length=16), nullable=False),
+        sa.Column("purpose", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("evidence", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "source_versions", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["site_analysis_id"], ["site_page_analyses.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["site_url_id"], ["site_urls.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "site_snapshot_id", "site_analysis_id", name="uq_content_inventory_source"
+        ),
+    )
+    for column in ("workspace_id", "project_id", "site_snapshot_id"):
+        op.create_index(
+            op.f(f"ix_content_inventory_items_{column}"),
+            "content_inventory_items",
+            [column],
+        )
+
+    op.create_table(
+        "content_strategy_snapshots",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("site_snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("demand_snapshot_id", sa.UUID(), nullable=True),
+        sa.Column("source_hash", sa.String(length=64), nullable=False),
+        sa.Column("industry_pack_id", sa.String(length=64), nullable=False),
+        sa.Column("industry_pack_version", sa.String(length=32), nullable=False),
+        sa.Column(
+            "inventory_summary", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("priorities", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("program", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("limitations", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "source_versions", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["demand_snapshot_id"], ["demand_snapshots.id"], ondelete="SET NULL"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "project_id", "source_hash", name="uq_content_strategy_source"
+        ),
+    )
+    for column in ("workspace_id", "project_id"):
+        op.create_index(
+            op.f(f"ix_content_strategy_snapshots_{column}"),
+            "content_strategy_snapshots",
+            [column],
+        )
+
+    op.create_table(
+        "content_briefs",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("strategy_snapshot_id", sa.UUID(), nullable=True),
+        sa.Column("prior_brief_id", sa.UUID(), nullable=True),
+        sa.Column("version", sa.Integer(), nullable=False),
+        sa.Column("identity_hash", sa.String(length=64), nullable=False),
+        sa.Column("kind", sa.String(length=32), nullable=False),
+        sa.Column("title", sa.String(length=255), nullable=False),
+        sa.Column("target", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("requirements", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "allowed_facts", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "prohibited_claims", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("source_refs", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "verification_criteria",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=False,
+        ),
+        sa.Column("industry_pack_id", sa.String(length=64), nullable=False),
+        sa.Column("industry_pack_version", sa.String(length=32), nullable=False),
+        sa.Column("brief_builder_version", sa.String(length=32), nullable=False),
+        sa.Column("evidence_hash", sa.String(length=64), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["strategy_snapshot_id"],
+            ["content_strategy_snapshots.id"],
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["prior_brief_id"], ["content_briefs.id"], ondelete="SET NULL"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "project_id", "identity_hash", name="uq_content_brief_identity"
+        ),
+    )
+    for column in ("workspace_id", "project_id"):
+        op.create_index(op.f(f"ix_content_briefs_{column}"), "content_briefs", [column])
+
+    op.create_table(
+        "task_context_packages",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("brief_id", sa.UUID(), nullable=False),
+        sa.Column("task_type", sa.String(length=32), nullable=False),
+        sa.Column("manifest", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column(
+            "rendered_context", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("omissions", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("selection_policy_version", sa.String(length=32), nullable=False),
+        sa.Column("manifest_hash", sa.String(length=64), nullable=False),
+        sa.Column("char_count", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["brief_id"], ["content_briefs.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "brief_id", "manifest_hash", name="uq_content_context_manifest"
+        ),
+    )
+    for column in ("workspace_id", "project_id", "brief_id"):
+        op.create_index(
+            op.f(f"ix_task_context_packages_{column}"),
+            "task_context_packages",
+            [column],
+        )
+
+    op.create_table(
+        "content_validations",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("content_generation_id", sa.UUID(), nullable=False),
+        sa.Column("status", sa.String(length=16), nullable=False),
+        sa.Column("blocking", sa.Boolean(), nullable=False),
+        sa.Column("checks", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("validator_version", sa.String(length=32), nullable=False),
+        sa.Column("brief_evidence_hash", sa.String(length=64), nullable=False),
+        sa.Column("context_manifest_hash", sa.String(length=64), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["content_generation_id"], ["content_generations.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "content_generation_id", name="uq_content_validation_generation"
+        ),
+    )
+    for column in ("workspace_id", "project_id"):
+        op.create_index(
+            op.f(f"ix_content_validations_{column}"), "content_validations", [column]
+        )
+
+    op.create_table(
+        "content_revisions",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("content_generation_id", sa.UUID(), nullable=False),
+        sa.Column("state", sa.String(length=24), nullable=False),
+        sa.Column("visible_content", sa.Text(), nullable=False),
+        sa.Column(
+            "structured_data", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column("content_hash", sa.String(length=64), nullable=False),
+        sa.Column(
+            "validation_snapshot",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+        ),
+        sa.Column("publication_target_url", sa.String(length=2048), nullable=False),
+        sa.Column("publication_claimed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("saved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_by_user_id", sa.UUID(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(
+            "state IN ('draft','edited','saved','published_claimed','discarded')",
+            name="ck_content_revision_state",
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["content_generation_id"], ["content_generations.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["created_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "content_generation_id", name="uq_content_revision_generation"
+        ),
+    )
+    for column in ("workspace_id", "project_id"):
+        op.create_index(
+            op.f(f"ix_content_revisions_{column}"), "content_revisions", [column]
+        )
+
+    op.create_table(
+        "content_revision_transitions",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("revision_id", sa.UUID(), nullable=False),
+        sa.Column("from_state", sa.String(length=24), nullable=False),
+        sa.Column("to_state", sa.String(length=24), nullable=False),
+        sa.Column("actor_user_id", sa.UUID(), nullable=True),
+        sa.Column("reason", sa.String(length=512), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["revision_id"], ["content_revisions.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    for column in ("workspace_id", "project_id", "revision_id"):
+        op.create_index(
+            op.f(f"ix_content_revision_transitions_{column}"),
+            "content_revision_transitions",
+            [column],
+        )
+
+    op.create_table(
+        "content_verifications",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("revision_id", sa.UUID(), nullable=False),
+        sa.Column("site_snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("demand_snapshot_id", sa.UUID(), nullable=True),
+        sa.Column("status", sa.String(length=24), nullable=False),
+        sa.Column("requirements", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("comparison", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("verifier_version", sa.String(length=32), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["revision_id"], ["content_revisions.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["site_snapshot_id"], ["site_health_snapshots.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["demand_snapshot_id"], ["demand_snapshots.id"], ondelete="SET NULL"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "revision_id",
+            "site_snapshot_id",
+            name="uq_content_verification_observation",
+        ),
+    )
+    for column in ("workspace_id", "project_id", "revision_id"):
+        op.create_index(
+            op.f(f"ix_content_verifications_{column}"),
+            "content_verifications",
+            [column],
+        )
+
+    op.create_foreign_key(
+        "fk_content_generations_brief_id_content_briefs",
+        "content_generations",
+        "content_briefs",
+        ["brief_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+    op.create_foreign_key(
+        "fk_content_generations_context_package_id_task_context_packages",
+        "content_generations",
+        "task_context_packages",
+        ["context_package_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
+
 
 def downgrade() -> None:
+    op.drop_constraint(
+        "fk_content_generations_context_package_id_task_context_packages",
+        "content_generations",
+        type_="foreignkey",
+    )
+    op.drop_constraint(
+        "fk_content_generations_brief_id_content_briefs",
+        "content_generations",
+        type_="foreignkey",
+    )
+    op.drop_table("content_verifications")
+    op.drop_table("content_revision_transitions")
+    op.drop_table("content_revisions")
+    op.drop_table("content_validations")
+    op.drop_table("task_context_packages")
+    op.drop_table("content_briefs")
+    op.drop_table("content_strategy_snapshots")
+    op.drop_table("content_inventory_items")
     op.drop_table("demand_signals")
     op.drop_constraint(
         "fk_opportunity_snapshots_demand_snapshot_id",
@@ -5598,7 +5933,6 @@ def downgrade() -> None:
     op.drop_table("knowledge_relations")
     op.drop_table("knowledge_assertions")
     op.drop_table("knowledge_entities")
-    op.drop_table("brand_knowledge_artifacts")
     op.drop_table("observed_entity_candidates")
     op.drop_table("prompt_metric_snapshots")
     op.drop_table("brand_research_snapshots")
@@ -6444,6 +6778,13 @@ def downgrade() -> None:
     op.drop_table("discovery_model_configs")
     op.drop_index(
         op.f("ix_content_generations_workspace_id"), table_name="content_generations"
+    )
+    op.drop_index(
+        op.f("ix_content_generations_context_package_id"),
+        table_name="content_generations",
+    )
+    op.drop_index(
+        op.f("ix_content_generations_brief_id"), table_name="content_generations"
     )
     op.drop_index(
         op.f("ix_content_generations_status"), table_name="content_generations"

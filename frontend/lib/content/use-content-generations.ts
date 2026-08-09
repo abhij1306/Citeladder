@@ -25,7 +25,7 @@ export function isTerminalContentStatus(status: ContentGenerationStatus): boolea
 /** RFC 4122 v4 idempotency key: `randomUUID` when available, else built from
  * `getRandomValues` — the enqueue key must never be empty (the backend keys
  * replay-safety on it). */
-function newIdempotencyKey(): string {
+export function newIdempotencyKey(): string {
   const cryptoObj = globalThis.crypto;
   if (cryptoObj?.randomUUID) return cryptoObj.randomUUID();
   const bytes = cryptoObj.getRandomValues(new Uint8Array(16));

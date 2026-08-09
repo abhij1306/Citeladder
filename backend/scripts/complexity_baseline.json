@@ -607,18 +607,57 @@
   },
   "app/api/content.py": {
     "functions": {
+      "_content_error": 2,
+      "_enqueue_conflict": 2,
+      "_generate_content_brief": 5,
       "_not_found": 1,
       "_usage_limited": 1,
       "cancel_generation_endpoint": 3,
+      "content_brief_context_endpoint": 2,
+      "content_brief_detail_endpoint": 2,
+      "content_briefs_endpoint": 3,
       "content_feedback_endpoint": 3,
+      "content_inventory_endpoint": 3,
+      "content_revisions_endpoint": 3,
+      "content_strategy_endpoint": 3,
+      "content_validation_endpoint": 2,
+      "content_verifications_endpoint": 3,
+      "create_content_brief_endpoint": 2,
+      "create_content_revision_endpoint": 2,
       "enqueue_generation_endpoint": 6,
+      "export_content_revision_endpoint": 2,
+      "generate_content_brief_endpoint": 2,
       "get_generation_endpoint": 2,
       "list_generations_endpoint": 3,
+      "recompute_content_strategy_endpoint": 2,
       "regenerate_endpoint": 4,
-      "try_again_endpoint": 4
+      "transition_content_revision_endpoint": 2,
+      "try_again_endpoint": 4,
+      "update_content_revision_endpoint": 2,
+      "verify_content_revision_endpoint": 2
     },
-    "loc": 253,
+    "loc": 633,
     "max_cc": 6
+  },
+  "app/api/demand.py": {
+    "functions": {
+      "_authorize": 2,
+      "_capability_items": 11,
+      "_journey_view": 2,
+      "_latest_artifacts": 2,
+      "_provider_metadata": 3,
+      "_provider_templates": 3,
+      "_signal_view": 1,
+      "_snapshot_view": 9,
+      "capabilities": 2,
+      "journeys": 2,
+      "put_journey": 9,
+      "recompute": 2,
+      "snapshot_detail": 2,
+      "snapshots": 2
+    },
+    "loc": 447,
+    "max_cc": 11
   },
   "app/api/deps.py": {
     "functions": {
@@ -631,7 +670,7 @@
       "require_project_member": 3,
       "require_workspace_member": 2
     },
-    "loc": 167,
+    "loc": 178,
     "max_cc": 5
   },
   "app/api/executions.py": {
@@ -819,6 +858,7 @@
       "bulk_select_monitored_urls_endpoint": 3,
       "cancel_crawl_endpoint": 2,
       "create_crawl_endpoint": 4,
+      "create_knowledge_correction_endpoint": 4,
       "export_csv_endpoint": 3,
       "export_markdown_endpoint": 3,
       "get_crawl_endpoint": 2,
@@ -831,6 +871,7 @@
       "get_issues_endpoint": 3,
       "get_knowledge_assertions_endpoint": 2,
       "get_knowledge_contradictions_endpoint": 2,
+      "get_knowledge_corrections_endpoint": 2,
       "get_knowledge_entities_endpoint": 2,
       "get_knowledge_relations_endpoint": 2,
       "get_monitored_urls_endpoint": 2,
@@ -845,9 +886,10 @@
       "start_analysis_endpoint": 2,
       "start_discovery_endpoint": 2,
       "stop_analysis_endpoint": 2,
-      "stop_discovery_endpoint": 2
+      "stop_discovery_endpoint": 2,
+      "withdraw_knowledge_correction_endpoint": 3
     },
-    "loc": 1291,
+    "loc": 1393,
     "max_cc": 10
   },
   "app/api/traffic.py": {
@@ -1165,17 +1207,19 @@
       "Ga4Client.__init__": 1,
       "Ga4Client._fetch_account_summaries": 4,
       "Ga4Client.list_properties": 4,
-      "Ga4Client.query_search_analytics": 23,
+      "Ga4Client.query_search_analytics": 17,
       "_account_summaries": 3,
       "_coerce_metric_value": 3,
       "_ga4_template": 4,
+      "_is_compatibility_rejection": 5,
       "_iter_ga4_properties": 12,
       "_normalize_row": 13,
+      "_raise_run_report_error": 4,
       "_report_currency_code": 6,
       "build_ga4_client": 1
     },
-    "loc": 479,
-    "max_cc": 23
+    "loc": 496,
+    "max_cc": 17
   },
   "app/connectors/integrations/gsc.py": {
     "functions": {
@@ -1487,7 +1531,7 @@
       "_analytics_claim_order": 1,
       "_analytics_task_model": 1
     },
-    "loc": 377,
+    "loc": 379,
     "max_cc": 3
   },
   "app/core/config/api.py": {
@@ -1607,8 +1651,13 @@
       "_content_claim_order": 1,
       "_content_model": 1
     },
-    "loc": 192,
+    "loc": 197,
     "max_cc": 5
+  },
+  "app/core/config/content_intelligence.py": {
+    "functions": {},
+    "loc": 178,
+    "max_cc": 0
   },
   "app/core/config/costs.py": {
     "functions": {
@@ -1622,6 +1671,11 @@
     },
     "loc": 295,
     "max_cc": 7
+  },
+  "app/core/config/demand.py": {
+    "functions": {},
+    "loc": 60,
+    "max_cc": 0
   },
   "app/core/config/entitlements.py": {
     "functions": {
@@ -1786,7 +1840,7 @@
       "shopify_oauth_token_url": 1,
       "unpack_dimension_key": 3
     },
-    "loc": 947,
+    "loc": 1011,
     "max_cc": 5
   },
   "app/core/config/measurement.py": {
@@ -1818,7 +1872,7 @@
       "OpportunityRule.__init__": 1,
       "validate_rule_id": 2
     },
-    "loc": 479,
+    "loc": 491,
     "max_cc": 2
   },
   "app/core/config/product_tour.py": {
@@ -1838,7 +1892,7 @@
   },
   "app/core/config/prompts.py": {
     "functions": {},
-    "loc": 381,
+    "loc": 352,
     "max_cc": 0
   },
   "app/core/config/provider_catalog.py": {
@@ -1887,7 +1941,7 @@
   },
   "app/core/config/site_intelligence.py": {
     "functions": {},
-    "loc": 379,
+    "loc": 450,
     "max_cc": 0
   },
   "app/core/config/suggestions.py": {
@@ -1907,7 +1961,7 @@
   },
   "app/core/config/traffic.py": {
     "functions": {},
-    "loc": 128,
+    "loc": 129,
     "max_cc": 0
   },
   "app/core/database.py": {
@@ -2104,18 +2158,20 @@
       "_enqueue_task": 1,
       "_enqueue_window_snapshot_refresh": 2,
       "_idempotency_key": 2,
+      "_window_refresh_payload": 3,
       "enqueue_analytics_snapshot_refresh": 1,
       "enqueue_attribution_link": 1,
       "enqueue_attribution_recompute": 5,
       "enqueue_attribution_snapshot_refresh": 2,
       "enqueue_classify_referrals": 1,
+      "enqueue_demand_snapshot_refresh": 1,
       "enqueue_ingest_referrals": 1,
       "enqueue_order_retention_sweep": 1,
       "enqueue_post_sync_projections": 18,
       "enqueue_referral_retention_sweep": 1,
       "enqueue_traffic_snapshot_refresh": 1
     },
-    "loc": 556,
+    "loc": 614,
     "max_cc": 18
   },
   "app/domain/analytics/ingest.py": {
@@ -2199,7 +2255,7 @@
       "run_classify_referrals": 9,
       "run_referral_retention_sweep": 6
     },
-    "loc": 319,
+    "loc": 321,
     "max_cc": 9
   },
   "app/domain/attribution/__init__.py": {
@@ -2352,7 +2408,7 @@
       "list_audits": 2,
       "list_tasks": 1
     },
-    "loc": 1690,
+    "loc": 1691,
     "max_cc": 16
   },
   "app/domain/audits/repair.py": {
@@ -2367,7 +2423,7 @@
       "_task_matches": 8,
       "create_repair_audit": 10
     },
-    "loc": 334,
+    "loc": 335,
     "max_cc": 11
   },
   "app/domain/audits/schedule_schemas.py": {
@@ -2775,6 +2831,60 @@
     "loc": 1,
     "max_cc": 0
   },
+  "app/domain/content/intelligence.py": {
+    "functions": {
+      "_allowed_claim_tokens": 5,
+      "_brief_evidence": 2,
+      "_canonical": 1,
+      "_check": 2,
+      "_commit_brief": 3,
+      "_commit_context": 3,
+      "_commit_revision": 3,
+      "_commit_strategy": 3,
+      "_hash": 1,
+      "_inventory_summary": 3,
+      "_inventory_value": 6,
+      "_latest_site_snapshot": 2,
+      "_new_content_brief": 4,
+      "_new_strategy": 7,
+      "_new_verification": 4,
+      "_partition_facts": 9,
+      "_persist_inventory": 2,
+      "_project": 2,
+      "_question_priorities": 11,
+      "_required_question_checks": 8,
+      "_revision_for_update": 2,
+      "_selected_link_check": 12,
+      "_sensitive_claim_check": 3,
+      "_source_refs": 8,
+      "_stable_id": 2,
+      "_transition": 1,
+      "_upsert_inventory": 3,
+      "_validate_visible_schema_parity": 13,
+      "_verification_page": 1,
+      "_verification_requirements": 13,
+      "_verification_status": 5,
+      "build_task_context": 14,
+      "create_faq_brief": 12,
+      "create_revision": 8,
+      "get_brief": 2,
+      "get_revision": 2,
+      "get_validation": 2,
+      "latest_strategy": 1,
+      "list_briefs": 1,
+      "list_inventory": 2,
+      "list_revisions": 1,
+      "list_verifications": 1,
+      "persist_validation": 7,
+      "recompute_strategy": 9,
+      "transition_revision": 10,
+      "update_revision": 7,
+      "validate_output": 3,
+      "verify_revision": 9
+    },
+    "loc": 1391,
+    "max_cc": 14
+  },
   "app/domain/content/message_builder.py": {
     "functions": {
       "_context_messages": 4,
@@ -2791,34 +2901,43 @@
       "ContentGenerationCreate._skill_known": 2,
       "prompt_preview": 2
     },
-    "loc": 152,
+    "loc": 308,
     "max_cc": 3
   },
   "app/domain/content/service.py": {
     "functions": {
+      "_PreparedGeneration.context_package_id": 2,
+      "_PreparedGeneration.manifest_hash": 2,
+      "_brief_prompt": 7,
       "_commit_generation": 4,
+      "_context_package_website_context": 2,
       "_generation_website_context": 2,
       "_idempotent_replay": 4,
       "_insert_generation": 1,
       "_opportunity_evidence": 6,
       "_optional_uuid": 2,
+      "_persisted_crawl_summary": 4,
+      "_prepare_generation": 3,
       "_project_in_workspace": 2,
       "_require_provider_configured": 3,
       "_reserve_content_capacity": 1,
-      "_summary_dto": 3,
+      "_select_website_context": 2,
+      "_skill_definition": 4,
+      "_snapshot_manifest_hash": 3,
+      "_summary_dto": 2,
       "cancel_generation": 4,
       "enqueue_generation": 4,
       "get_generation": 2,
       "list_generations": 1,
-      "record_feedback": 11,
+      "record_feedback": 8,
       "regenerate": 1,
       "request_fingerprint": 2,
       "to_detail": 1,
       "to_list_item": 1,
       "try_again": 3
     },
-    "loc": 590,
-    "max_cc": 11
+    "loc": 728,
+    "max_cc": 8
   },
   "app/domain/content/website_context.py": {
     "functions": {
@@ -2830,6 +2949,55 @@
     },
     "loc": 265,
     "max_cc": 33
+  },
+  "app/domain/demand/__init__.py": {
+    "functions": {},
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/demand/projection.py": {
+    "functions": {
+      "_priority": 2,
+      "detect_question_gap_signals": 10,
+      "detect_search_signals": 8,
+      "stable_hash": 1
+    },
+    "loc": 162,
+    "max_cc": 10
+  },
+  "app/domain/demand/schemas.py": {
+    "functions": {
+      "DemandRecomputeRequest.validate_window": 3,
+      "JourneyDefinitionWrite.validate_source": 2,
+      "JourneyDefinitionWrite.validate_status": 2
+    },
+    "loc": 131,
+    "max_cc": 3
+  },
+  "app/domain/demand/service.py": {
+    "functions": {
+      "_add_signals": 2,
+      "_detect_candidates": 2,
+      "_ensure_pack_journey": 6,
+      "_journey_versions": 3,
+      "_latest_site_snapshot": 1,
+      "_page_identity": 10,
+      "_prompt_portfolio": 9,
+      "_question_rows": 7,
+      "_search_inputs": 9,
+      "_snapshot_row": 13,
+      "_source_material": 7,
+      "_traffic_source": 2,
+      "_visibility_audits": 1,
+      "_visibility_outcome": 7,
+      "demand_source_revision": 1,
+      "get_snapshot": 1,
+      "list_signals": 1,
+      "list_snapshots": 1,
+      "recompute_demand": 9
+    },
+    "loc": 708,
+    "max_cc": 13
   },
   "app/domain/entitlements/__init__.py": {
     "functions": {},
@@ -3071,17 +3239,21 @@
     "functions": {
       "OpportunityStatusPatch._known_status": 2
     },
-    "loc": 194,
+    "loc": 198,
     "max_cc": 2
   },
   "app/domain/opportunities/service.py": {
     "functions": {
+      "_activation_state": 8,
       "_active_opportunity_at": 8,
       "_bounded_value": 9,
-      "_build_snapshot": 13,
+      "_build_snapshot": 11,
       "_clamp_limit": 2,
+      "_collect_recompute_hits": 7,
       "_confirmed_decline_hits": 5,
       "_cursor_filters": 5,
+      "_demand_hit": 12,
+      "_demand_hits": 4,
       "_evidence_summary": 8,
       "_filter_clauses": 6,
       "_guidance_enabled": 2,
@@ -3092,7 +3264,7 @@
       "_history_transition": 4,
       "_humanize_theme": 2,
       "_iso": 2,
-      "_latest_evidence_at": 8,
+      "_latest_evidence": 9,
       "_latest_snapshot": 1,
       "_load_commerce_evidence": 14,
       "_load_order": 1,
@@ -3110,7 +3282,11 @@
       "_require_project": 2,
       "_resolve_scored_audit": 3,
       "_resolve_source": 3,
+      "_score_hits": 4,
+      "_snapshot_is_current": 12,
+      "_source_ids": 3,
       "_stable_key": 1,
+      "_summary_is_stale": 6,
       "_target_label": 9,
       "_utcnow": 1,
       "_validate_filters": 9,
@@ -3120,16 +3296,16 @@
       "get_grouped_history": 9,
       "get_latest_guidance": 1,
       "get_opportunity": 2,
-      "get_summary": 16,
+      "get_summary": 5,
       "list_guidance_history": 2,
       "list_opportunities": 4,
       "load_export_rows": 2,
-      "recompute": 29,
+      "recompute": 15,
       "update_order": 8,
       "update_status": 4
     },
-    "loc": 1933,
-    "max_cc": 29
+    "loc": 2082,
+    "max_cc": 15
   },
   "app/domain/products/__init__.py": {
     "functions": {},
@@ -3489,7 +3665,6 @@
   },
   "app/domain/prompts/generation.py": {
     "functions": {
-      "_activate_first_n": 11,
       "_apply_insert_capacity": 7,
       "_brand_context_hash": 1,
       "_cap_suggestions_to_count": 5,
@@ -3498,22 +3673,25 @@
       "_drop_invalid_core_prompts": 6,
       "_drop_unbound_suggestions": 5,
       "_filter_for_cohort": 2,
+      "_generation_brand_context": 3,
+      "_generation_evidence": 7,
       "_get_or_create_topic": 4,
       "_hydrate_inserted": 5,
       "_insert_prompts_returning": 5,
       "_is_branded": 3,
+      "_load_demand_grounding": 2,
       "_load_prompt_set_with_project": 3,
       "_prompt_count": 2,
       "_reraise_scoped_integrity_error": 4,
       "_resolve_target_topic": 5,
       "_validate_generation_payload": 3,
       "build_generation_user_message": 11,
-      "generate_prompts": 19,
+      "generate_prompts": 17,
       "parse_generation_output": 10,
       "validate_generation_request": 1
     },
-    "loc": 936,
-    "max_cc": 19
+    "loc": 920,
+    "max_cc": 17
   },
   "app/domain/prompts/locks.py": {
     "functions": {
@@ -3626,7 +3804,7 @@
       "topic_status_counts": 3,
       "update_topic": 4
     },
-    "loc": 155,
+    "loc": 152,
     "max_cc": 4
   },
   "app/domain/providers/__init__.py": {
@@ -3685,8 +3863,57 @@
   },
   "app/domain/site_health/api_schemas.py": {
     "functions": {},
-    "loc": 914,
+    "loc": 1055,
     "max_cc": 0
+  },
+  "app/domain/site_health/comparison.py": {
+    "functions": {
+      "_action_resolutions": 9,
+      "_compatibility_reason": 5,
+      "_coverage_comparison": 5,
+      "_delta": 3,
+      "_dimension_comparison": 9,
+      "_facts": 3,
+      "_indexed": 6,
+      "_issues_by_opportunity_rule": 3,
+      "_journey_change": 5,
+      "_journey_comparison": 3,
+      "_manifest": 3,
+      "_map_changes": 7,
+      "_projection_comparison": 1,
+      "_question_comparison": 5,
+      "_rules": 2,
+      "action_resolution_state": 5,
+      "build_snapshot_comparison": 4
+    },
+    "loc": 506,
+    "max_cc": 9
+  },
+  "app/domain/site_health/corrections.py": {
+    "functions": {
+      "_assertion_value": 3,
+      "_boolean_value": 3,
+      "_constraint_name": 2,
+      "_corrected_value": 10,
+      "_effective_scope": 7,
+      "_numeric_value": 7,
+      "_object_value": 2,
+      "_snapshot": 1,
+      "_target": 12,
+      "_text_value": 3,
+      "_transitions": 3,
+      "active_corrections_by_target": 7,
+      "assertion_target_ref": 1,
+      "correction_payload": 6,
+      "create_correction": 9,
+      "entity_target_ref": 1,
+      "list_corrections": 6,
+      "relation_target_ref": 1,
+      "stable_target_key": 1,
+      "withdraw_correction": 5
+    },
+    "loc": 700,
+    "max_cc": 12
   },
   "app/domain/site_health/discovery.py": {
     "functions": {
@@ -3929,7 +4156,7 @@
   },
   "app/domain/site_health/service/__init__.py": {
     "functions": {},
-    "loc": 116,
+    "loc": 132,
     "max_cc": 0
   },
   "app/domain/site_health/service/common.py": {
@@ -3946,22 +4173,31 @@
   },
   "app/domain/site_health/service/intelligence.py": {
     "functions": {
+      "_assertion_correction_contexts": 2,
       "_assertion_payload": 10,
+      "_assertion_target_key": 1,
+      "_assertion_temporal_payload": 3,
       "_blocks": 6,
       "_bounded": 1,
+      "_contradiction_group": 4,
+      "_correction_projection": 2,
       "_empty_projection": 1,
+      "_entity_context_ref": 1,
+      "_entity_correction_contexts": 2,
       "_entity_payload": 9,
       "_load_crawl": 4,
+      "_relation_payload": 2,
       "_snapshot": 1,
+      "_snapshot_context": 4,
       "dimension_order": 2,
-      "get_intelligence_overview": 6,
+      "get_intelligence_overview": 5,
       "get_knowledge_assertions": 5,
-      "get_knowledge_contradictions": 5,
+      "get_knowledge_contradictions": 4,
       "get_knowledge_entities": 4,
       "get_knowledge_relations": 4,
       "get_schema_graph": 12
     },
-    "loc": 607,
+    "loc": 794,
     "max_cc": 12
   },
   "app/domain/site_health/service/issues.py": {
@@ -4046,7 +4282,7 @@
       "_intelligence_summary": 4,
       "persist_crawl_snapshot": 9
     },
-    "loc": 282,
+    "loc": 303,
     "max_cc": 9
   },
   "app/domain/site_health/state_events.py": {
@@ -4072,12 +4308,15 @@
   },
   "app/domain/traffic/projection.py": {
     "functions": {
+      "_Ga4Accum._key_events": 3,
+      "_Ga4Accum._observed": 2,
       "_Ga4Accum.add": 1,
-      "_Ga4Accum.measures": 3,
+      "_Ga4Accum.measures": 1,
       "_GscAccum.add": 2,
       "_GscAccum.ctr": 2,
       "_GscAccum.measures": 1,
       "_GscAccum.position": 2,
+      "_absolute_page_value": 3,
       "_bucket_starts": 5,
       "_number": 3,
       "_page_accum": 3,
@@ -4086,13 +4325,14 @@
       "bucket_start": 4,
       "build_traffic_projection": 27,
       "ga4_channel_included": 1,
+      "ga4_landing_included": 2,
       "ga4_source_medium_ai_match": 1,
       "metric_count": 3,
       "normalize_query": 1,
       "select_latest_rows": 4,
       "series_point": 1
     },
-    "loc": 500,
+    "loc": 548,
     "max_cc": 27
   },
   "app/domain/traffic/schemas.py": {
@@ -4104,6 +4344,7 @@
     "functions": {
       "_decode_table_cursor": 3,
       "_empty_dashboard": 3,
+      "_enqueue_demand_refresh": 3,
       "_float_or_none": 2,
       "_int_or_none": 2,
       "_int_or_zero": 2,
@@ -4130,7 +4371,7 @@
       "list_traffic_sync_connections": 1,
       "refresh_traffic_snapshot": 8
     },
-    "loc": 887,
+    "loc": 929,
     "max_cc": 8
   },
   "app/domain/workspaces/__init__.py": {
@@ -4184,12 +4425,12 @@
       "create_app": 4,
       "lifespan": 1
     },
-    "loc": 175,
+    "loc": 177,
     "max_cc": 5
   },
   "app/models/__init__.py": {
     "functions": {},
-    "loc": 245,
+    "loc": 273,
     "max_cc": 0
   },
   "app/models/abuse.py": {
@@ -4203,14 +4444,14 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 358,
+    "loc": 355,
     "max_cc": 1
   },
   "app/models/analytics.py": {
     "functions": {
       "_utcnow": 1
     },
-    "loc": 371,
+    "loc": 369,
     "max_cc": 1
   },
   "app/models/attribution.py": {
@@ -4224,7 +4465,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 782,
+    "loc": 783,
     "max_cc": 1
   },
   "app/models/audit_schedule.py": {
@@ -4243,14 +4484,14 @@
   },
   "app/models/brand.py": {
     "functions": {},
-    "loc": 371,
+    "loc": 369,
     "max_cc": 0
   },
   "app/models/commerce.py": {
     "functions": {
       "_utcnow": 1
     },
-    "loc": 522,
+    "loc": 521,
     "max_cc": 1
   },
   "app/models/constants.py": {
@@ -4262,7 +4503,14 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 234,
+    "loc": 541,
+    "max_cc": 1
+  },
+  "app/models/demand.py": {
+    "functions": {
+      "_utcnow": 1
+    },
+    "loc": 198,
     "max_cc": 1
   },
   "app/models/discovery.py": {
@@ -4287,14 +4535,14 @@
       "entity_id": 1,
       "relation_id": 1
     },
-    "loc": 361,
+    "loc": 482,
     "max_cc": 1
   },
   "app/models/opportunity.py": {
     "functions": {
       "_utcnow": 1
     },
-    "loc": 352,
+    "loc": 359,
     "max_cc": 1
   },
   "app/models/product.py": {
@@ -4311,7 +4559,7 @@
     "functions": {
       "Prompt._sync_normalized_hash": 1
     },
-    "loc": 193,
+    "loc": 192,
     "max_cc": 1
   },
   "app/models/provider.py": {
@@ -4323,7 +4571,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 1325,
+    "loc": 1329,
     "max_cc": 1
   },
   "app/models/traffic.py": {
@@ -4443,7 +4691,7 @@
       "_utcnow": 1,
       "main": 1
     },
-    "loc": 285,
+    "loc": 288,
     "max_cc": 8
   },
   "app/workers/audit_scheduler.py": {
@@ -4609,7 +4857,7 @@
       "_utcnow": 1,
       "main": 1
     },
-    "loc": 385,
+    "loc": 387,
     "max_cc": 23
   },
   "app/workers/drain.py": {
@@ -4651,15 +4899,20 @@
       "IntegrationWorker._has_dataset_artifact": 2,
       "IntegrationWorker._heartbeat_loop": 4,
       "IntegrationWorker._mark_grant_needs_reauth": 4,
+      "IntegrationWorker._persist_artifact": 3,
+      "IntegrationWorker._persist_demand_capability": 6,
       "IntegrationWorker._persist_item_fallback_capability": 5,
       "IntegrationWorker._preflight": 2,
+      "IntegrationWorker._query_snapshot": 4,
       "IntegrationWorker._run": 10,
       "IntegrationWorker._sanitize_orders_page": 6,
       "IntegrationWorker._still_owned": 4,
       "IntegrationWorker._sync_dataset": 14,
-      "IntegrationWorker._sync_template": 5,
+      "IntegrationWorker._sync_demand_template": 4,
+      "IntegrationWorker._sync_item_fallback": 4,
+      "IntegrationWorker._sync_template": 3,
       "IntegrationWorker._validated_cursor_page_info": 9,
-      "IntegrationWorker._write_artifact": 6,
+      "IntegrationWorker._write_artifact": 2,
       "IntegrationWorker.run_forever": 4,
       "IntegrationWorker.run_once": 2,
       "_ClientPage.payload": 1,
@@ -4673,7 +4926,7 @@
       "_utcnow": 1,
       "main": 1
     },
-    "loc": 1231,
+    "loc": 1344,
     "max_cc": 14
   },
   "app/workers/site_health/__init__.py": {

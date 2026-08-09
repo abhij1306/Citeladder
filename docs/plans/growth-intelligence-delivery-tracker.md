@@ -11,8 +11,8 @@
 | Order | Branch | Scope | Status | Pull request | Merge commit |
 |---|---|---|---|---|---|
 | 1 | `feature/demand-intelligence` | Demand D0-D5 | `merged` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | `0f5915ac5c2e1eb935f72c56e9e745303662614f` |
-| 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `ready_to_ship` | [#58](https://github.com/abhij1306/Citeladder/pull/58) | — |
-| 3 | `feature/content-intelligence` | Content C0-C5 | `not_started` | — | — |
+| 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `merged` | [#58](https://github.com/abhij1306/Citeladder/pull/58) | `70d5894be96d8bfb0f50c76bb6f83eabb2c4e640` |
+| 3 | `feature/content-intelligence` | Content C0-C5 | `ready_to_ship` | — | — |
 
 Statuses are exact: `not_started | in_progress | ready_to_ship | merged`. A branch starts from
 freshly synchronized `main` only after its predecessor is merged.
@@ -172,12 +172,12 @@ output, and later evidence resolves actions without mutating earlier snapshots.
 
 Canonical source: [Content Intelligence](content-intelligence.md).
 
-- [ ] **C0:** reconcile Content v1 ownership and lifecycle.
-- [ ] **C1:** question gaps, semantic match candidates, immutable briefs, selective context.
-- [ ] **C2:** provider-neutral generation, versioned skills, automatic validation.
-- [ ] **C3:** revisions, revalidation, save/export, publication claims, recrawl verification.
-- [ ] **C4:** inventory, strategy, Demand-aware priorities, Education then Commerce skills.
-- [ ] **C5:** Strategy, Inventory, Briefs, Drafts, Revisions, and Verification experience.
+- [x] **C0:** reconcile Content v1 ownership and lifecycle.
+- [x] **C1:** question gaps, semantic match candidates, immutable briefs, selective context.
+- [x] **C2:** provider-neutral generation, versioned skills, automatic validation.
+- [x] **C3:** revisions, revalidation, save/export, publication claims, recrawl verification.
+- [x] **C4:** inventory, strategy, Demand-aware priorities, Education then Commerce skills.
+- [x] **C5:** Strategy, Inventory, Briefs, Drafts, Revisions, and Verification experience.
 
 **Acceptance gate:** Education and Commerce fixtures complete gap → brief → context → generation →
 validation → edit → save → publication claim → recrawl verification without invented facts,
@@ -185,12 +185,42 @@ fact promotion, score mutation, or autonomous publishing.
 
 ### Content implementation record
 
-- Implemented behavior: pending.
-- Public contract changes: pending.
-- Schema changes: pending.
-- Verification: pending.
-- Gotchas and conflict resolutions: pending.
-- Deliberate deferrals: pending.
+- Implemented behavior: deterministic inventory/strategy projections over compatible Site and
+  optional Demand snapshots; immutable question-grounded briefs and bounded context manifests;
+  brief-driven generation through the existing queue; automatic output validation; revision
+  revalidation, save/export, publication claim, and later recrawl verification; and the six-panel
+  Content Intelligence workspace. Education and Commerce fake-provider acceptance flows pass from
+  missing question through observed recrawl evidence.
+- Public contract changes: added persisted-only strategy, inventory, brief, context, validation,
+  revision, transition, export, publication-claim, and verification endpoints under `/api/v1/content`.
+  `ContentGeneration` responses now expose brief/context/skill/validator provenance. Feedback is
+  reaction metadata only and no longer saves generated text into Brand Knowledge.
+- Schema changes: folded content inventory, strategy, briefs, task context packages, validations,
+  revisions, append-only revision transitions, and verifications into `0001_initial.py`; extended
+  `content_generations` with brief, context-package, skill-version, and validator provenance. The
+  obsolete generated-prose `brand_knowledge_artifacts` table was removed. No `0002+` migration or
+  approved-memory store exists.
+- Verification: Ruff format/check, mypy, the tightened complexity ratchet, `2521 passed, 7
+  skipped` backend tests, `1254 passed` frontend tests, frontend format/lint/type/policy/contract,
+  the production build, and `26 passed` single-worker Playwright tests pass. Documentation and the
+  16-pack catalog validate; `pip-audit` reports no known vulnerabilities and the committed-baseline
+  secrets scan passes. The verified disposable database passes downgrade, a from-zero
+  `0001_initial.py` upgrade, and zero Alembic drift. All Compose images rebuild, the migration
+  container exits 0, every long-running service remains up, and `/health` returns 200. CI and Sonar
+  results are recorded after the pull request opens.
+- Gotchas and conflict resolutions: a generation validation is immutable; an edited revision gets
+  its own validation snapshot so a corrected blocked draft can pass without rewriting history.
+  Verification rejects a snapshot at or before the publication claim and reports associations as
+  `descriptive_only`. Corrections supply effective allowed values while original observed values
+  remain untouched. Existing Site S5 evidence-only action resolution remains the sole resolver.
+  Concurrent context/revision creates converge on their unique winner; inventory persistence is a
+  single PostgreSQL upsert. Validation compares claims only with canonical allowed fact values,
+  never metadata. Authenticated revision exports carry active-workspace context. `/content`
+  defaults to Strategy, while custom generation remains the Drafts panel and deep-linked revisions
+  select the requested revision without refetches discarding unsaved edits.
+- Deliberate deferrals: raw-artifact/downstream composite workspace foreign keys require the owning
+  raw-artifact `workspace_id` redesign. The fourteen non-Education/Commerce packs remain explicitly
+  uncalibrated. There is no autonomous publishing, approved-memory store, or generated-fact path.
 
 ## Final branch verification record
 

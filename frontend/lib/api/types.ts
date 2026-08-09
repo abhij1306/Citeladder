@@ -98,7 +98,14 @@ import type {
   contentGenerationDetailSchema,
   contentGenerationListItemSchema,
   contentGenerationStatusSchema,
+  contentBriefSchema,
+  contentInventoryItemSchema,
   contentOutputTypeSchema,
+  contentRevisionSchema,
+  contentStrategySchema,
+  contentValidationSchema,
+  contentVerificationSchema,
+  taskContextPackageSchema,
   websiteContextStatusSchema,
   websiteContextSummarySchema,
   // Products (agentic commerce)
@@ -290,6 +297,13 @@ export type WebsiteContextStatus = z.infer<typeof websiteContextStatusSchema>;
 export type WebsiteContextSummary = z.infer<typeof websiteContextSummarySchema>;
 export type ContentGenerationListItem = z.infer<typeof contentGenerationListItemSchema>;
 export type ContentGenerationDetail = z.infer<typeof contentGenerationDetailSchema>;
+export type ContentStrategy = z.infer<typeof contentStrategySchema>;
+export type ContentInventoryItem = z.infer<typeof contentInventoryItemSchema>;
+export type ContentBrief = z.infer<typeof contentBriefSchema>;
+export type TaskContextPackage = z.infer<typeof taskContextPackageSchema>;
+export type ContentValidation = z.infer<typeof contentValidationSchema>;
+export type ContentRevision = z.infer<typeof contentRevisionSchema>;
+export type ContentVerification = z.infer<typeof contentVerificationSchema>;
 
 // --- Products (agentic commerce) ---
 export type ProductVariant = z.infer<typeof productVariantSchema>;

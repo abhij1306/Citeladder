@@ -132,22 +132,27 @@ snapshot is compared only under the same pack manifest and analyzer/scoring/proj
 Mapped Site actions resolve solely from later persisted `pass` evaluations; unavailable or
 non-passing observations never imply resolution. Earlier snapshots remain immutable.
 
-Still deferred: selective task context packages, content briefs, and the Content Intelligence
-publication/verification workflow.
+## Content Intelligence runtime
 
-## Content Intelligence migration
+`ContentGeneration` and `ContentGenerationAttempt` remain the sole queue/result owners. Content
+Intelligence extends that queue with immutable brief and context-package provenance plus a frozen
+skill and validator contract. `ContentInventoryItem` and `ContentStrategySnapshot` are persisted
+projections over a compatible Site snapshot and optional Demand snapshot. Only Education and
+Commerce are calibrated; every other pack fails closed before strategy creation.
 
-`ContentGeneration` and `ContentGenerationAttempt` remain the queue/result owners. Add, in order:
+`ContentBrief` contains requirements, allowed facts, prohibited claims, sources, and verification
+criteria but no generated prose. `TaskContextPackage` freezes the bounded selected evidence and a
+manifest hash. A successful brief-driven generation gets an immutable `ContentValidation` before
+the user can start the revision workflow. Edits receive their own revalidation snapshot;
+`ContentRevisionTransition` records draft, edit, save, publication-claim, and discard decisions.
+`ContentVerification` accepts only a later Site snapshot and reports observed, partial, or absent
+requirements with optional aligned Demand evidence and an explicit `descriptive_only` causality
+boundary.
 
-1. persisted content inventory and strategy snapshot;
-2. immutable `ContentBrief`;
-3. frozen `TaskContextPackage`;
-4. content skills and automatic validation;
-5. mutable revision with append-only transitions, ending in the user's save;
-6. publication claim separate from publication observation;
-7. recrawl, demand, and visibility verification.
-
-Generated bodies never become knowledge automatically and never mutate earlier output.
+Generated bodies and feedback never become knowledge, never create project facts, and never
+mutate a score. Existing Site S5 action resolution remains the only owner of evidence-only action
+resolution. Raw-artifact/downstream composite workspace foreign keys remain deferred until raw
+artifacts gain an owning `workspace_id` redesign.
 
 ## Demand Intelligence runtime
 

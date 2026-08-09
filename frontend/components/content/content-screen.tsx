@@ -3,6 +3,7 @@
 import { Check, Copy, RefreshCw, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -13,8 +14,9 @@ import { Textarea } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
 import type { RunStatusValue } from '@/components/ui/badge-variants';
-import { CONTENT_PROMPT_MAX_LEN } from '@/lib/api/content';
+import { contentApi, CONTENT_PROMPT_MAX_LEN } from '@/lib/api/content';
 import { ApiError, httpErrorStatus } from '@/lib/api/errors';
+import { queryKeys } from '@/lib/api/query-keys';
 import type {
   ContentGenerationDetail,
   ContentGenerationListItem,
@@ -116,7 +118,12 @@ function ProjectContentScreen({
   const [skillId, setSkillId] = useState<ContentSkill>('article');
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [createdRevision, setCreatedRevision] = useState<{
+    generationId: string;
+    revisionId: string;
+  } | null>(null);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
+  const queryClient = useQueryClient();
 
   const {
     listQuery,
@@ -136,12 +143,26 @@ function ProjectContentScreen({
   );
   const failed = detail?.status === 'failed';
   const succeeded = detail?.status === 'succeeded';
+  const validationQuery = useQuery({
+    queryKey: queryKeys.content.validation(detail?.id ?? ''),
+    queryFn: ({ signal }) => contentApi.getValidation(detail?.id ?? '', { signal }),
+    enabled: Boolean(succeeded && detail?.id && detail.brief_id),
+  });
+  const createRevisionMutation = useMutation({
+    mutationFn: (generationId: string) => contentApi.createRevision(generationId),
+    onSuccess: (revision, generationId) => {
+      setCreatedRevision({ generationId, revisionId: revision.id });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
+    },
+  });
 
   const mutationError =
     enqueueMutation.error ??
     regenerateMutation.error ??
     tryAgainMutation.error ??
     feedbackMutation.error ??
+    createRevisionMutation.error ??
+    validationQuery.error ??
     null;
   const showErrorPanel = !generating && (Boolean(mutationError) || failed);
 
@@ -348,9 +369,17 @@ function ProjectContentScreen({
               <ContentMarkdown markdown={detail.output_text} />
             </div>
             <p data-component-id="content-ai-disclaimer" className="text-secondary text-xs">
-              AI-generated {detail.skill_id} — review before publishing or saving to Brand
-              Knowledge.
+              AI-generated {detail.skill_id} — review and revise before publishing. Generated prose
+              never becomes a project fact.
             </p>
+            {validationQuery.data ? (
+              <Alert tone={validationQuery.data.status === 'passed' ? 'success' : 'warning'}>
+                Automatic validation {validationQuery.data.status}.{' '}
+                {!validationQuery.data.blocking
+                  ? 'No blocking findings.'
+                  : `${validationQuery.data.checks.filter((check) => check.passed === false).length} finding(s) require review.`}
+              </Alert>
+            ) : null}
             <div
               data-component-id="content-result-provenance"
               className="border-border-subtle text-muted text-2xs flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 font-mono"
@@ -386,6 +415,23 @@ function ProjectContentScreen({
                 <RefreshCw className="mr-1.5 size-4" aria-hidden />
                 Regenerate
               </Button>
+              {createdRevision?.generationId === detail.id ? (
+                <Link
+                  href={`/content?tab=revisions&revision_id=${createdRevision.revisionId}`}
+                  className="focus-ring bg-accent text-on-accent inline-flex min-h-8 items-center rounded-sm px-3 text-sm font-medium"
+                >
+                  Open revision
+                </Link>
+              ) : detail.brief_id ? (
+                <Button
+                  disabled={
+                    createRevisionMutation.isPending || validationQuery.data?.status !== 'passed'
+                  }
+                  onClick={() => createRevisionMutation.mutate(detail.id)}
+                >
+                  Start revision
+                </Button>
+              ) : null}
               {detail.feedback === null ? (
                 <>
                   <Button
@@ -394,7 +440,7 @@ function ProjectContentScreen({
                       feedbackMutation.mutate({ generationId: detail.id, feedback: 'accepted' })
                     }
                   >
-                    Accept & save
+                    Helpful
                   </Button>
                   <Button
                     variant="secondary"
@@ -403,12 +449,12 @@ function ProjectContentScreen({
                       feedbackMutation.mutate({ generationId: detail.id, feedback: 'rejected' })
                     }
                   >
-                    Reject
+                    Not useful
                   </Button>
                 </>
               ) : (
                 <span className="text-secondary self-center text-sm">
-                  {detail.feedback === 'accepted' ? 'Saved to Brand Knowledge' : 'Rejected'}
+                  {detail.feedback === 'accepted' ? 'Marked helpful' : 'Marked not useful'}
                 </span>
               )}
             </div>

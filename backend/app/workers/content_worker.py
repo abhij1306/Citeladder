@@ -47,6 +47,7 @@ from app.core.config.task_queue import (
 )
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging
+from app.domain.content.intelligence import persist_validation
 from app.domain.content.message_builder import build_messages
 from app.domain.content.website_context import WebsiteContext
 from app.models.content import ContentGeneration, ContentGenerationAttempt
@@ -348,6 +349,7 @@ class ContentWorker(DrainableWorkerMixin):
                 row.completed_at = now
                 row.error_code = ""
                 row.error_detail = ""
+                await persist_validation(session, generation=row)
             elif (
                 error is not None
                 and error.retryable

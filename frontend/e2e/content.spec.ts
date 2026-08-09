@@ -52,6 +52,9 @@ function generation(overrides: Record<string, unknown> = {}) {
     output_type: 'website_page',
     skill_id: 'article',
     opportunity_id: null,
+    brief_id: null,
+    context_package_id: null,
+    skill_version: 'content-v1',
     evidence_context: null,
     feedback: null,
     feedback_at: null,
@@ -74,6 +77,7 @@ function generation(overrides: Record<string, unknown> = {}) {
     latency_ms: null,
     error_detail: '',
     generator_version: 'content-v1',
+    validator_snapshot: null,
     ...overrides,
   };
 }
@@ -127,6 +131,8 @@ test('content nav link is live and the enqueue → output flow renders sanitised
   await expect(navLink).toBeVisible();
   await navLink.click();
   await expect(page).toHaveURL(/\/content$/);
+  await page.getByRole('link', { name: 'Drafts' }).click();
+  await expect(page).toHaveURL(/\/content\?tab=drafts$/);
 
   const promptBox = page.getByRole('textbox', { name: /describe the website content/i });
   await promptBox.fill('Write an about page for Acme.');
@@ -172,7 +178,7 @@ test('cancel during generation returns the screen to a non-generating state', as
     });
   });
 
-  await page.goto('/content');
+  await page.goto('/content?tab=drafts');
   await page
     .getByRole('textbox', { name: /describe the website content/i })
     .fill('Write an about page.');

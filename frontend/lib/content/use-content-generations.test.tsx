@@ -20,6 +20,8 @@ const listItem = {
   output_type: 'website_page',
   skill_id: 'article',
   opportunity_id: null,
+  brief_id: null,
+  context_package_id: null,
   evidence_context: null,
   feedback: null,
   feedback_at: null,
@@ -46,6 +48,8 @@ const detail = {
   latency_ms: null,
   error_detail: '',
   generator_version: 'content-v1',
+  skill_version: 'content-v1',
+  validator_snapshot: null,
 };
 
 function setup() {

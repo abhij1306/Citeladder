@@ -1586,7 +1586,24 @@ export const contentGenerationStatusSchema = z.enum([
 export const websiteContextStatusSchema = z.enum(['included', 'unavailable', 'disabled']);
 
 export const contentOutputTypeSchema = z.enum(['website_page']);
-export const contentSkillSchema = z.enum(['youtube', 'reddit', 'blog', 'article']);
+export const contentSkillSchema = z.enum([
+  'youtube',
+  'reddit',
+  'blog',
+  'article',
+  'faq_visible',
+  'faq_jsonld',
+  'answer_first',
+  'page_refresh',
+  'comparison',
+  'guide',
+  'education_admissions',
+  'education_program',
+  'commerce_category',
+  'commerce_pdp',
+  'commerce_policy',
+  'internal_links',
+]);
 
 // Provenance for the frozen Website-context snapshot (backend
 // `WebsiteContextSummary`) — which crawl, how fresh, which sources. Never
@@ -1613,6 +1630,8 @@ export const contentGenerationListItemSchema = responseObject({
   output_type: contentOutputTypeSchema,
   skill_id: contentSkillSchema,
   opportunity_id: uuid().nullable(),
+  brief_id: uuid().nullable(),
+  context_package_id: uuid().nullable(),
   website_context_status: websiteContextStatusSchema,
   requested_model: z.string(),
   returned_model: z.string().nullable(),
@@ -1633,6 +1652,9 @@ export const contentGenerationDetailSchema = responseObject({
   output_type: contentOutputTypeSchema,
   skill_id: contentSkillSchema,
   opportunity_id: uuid().nullable(),
+  brief_id: uuid().nullable(),
+  context_package_id: uuid().nullable(),
+  skill_version: z.string(),
   evidence_context: z.record(z.string(), z.unknown()).nullable(),
   feedback: z.enum(['accepted', 'rejected']).nullable(),
   feedback_at: z.string().nullable(),
@@ -1655,6 +1677,132 @@ export const contentGenerationDetailSchema = responseObject({
   latency_ms: z.number().int().nullable(),
   error_detail: z.string(),
   generator_version: z.string(),
+  validator_snapshot: z.record(z.string(), z.unknown()).nullable(),
+});
+
+const jsonRecordSchema = z.record(z.string(), z.unknown());
+
+export const contentStrategySchema = responseObject({
+  id: uuid(),
+  workspace_id: uuid(),
+  project_id: uuid(),
+  site_snapshot_id: uuid(),
+  demand_snapshot_id: uuid().nullable(),
+  source_hash: z.string(),
+  industry_pack_id: z.string(),
+  industry_pack_version: z.string(),
+  inventory_summary: jsonRecordSchema,
+  coverage: jsonRecordSchema,
+  priorities: z.array(jsonRecordSchema),
+  program: z.array(jsonRecordSchema),
+  limitations: z.array(z.unknown()),
+  source_versions: jsonRecordSchema,
+  created_at: z.string(),
+});
+
+export const contentInventoryItemSchema = responseObject({
+  id: uuid(),
+  project_id: uuid(),
+  site_snapshot_id: uuid(),
+  site_analysis_id: uuid(),
+  site_url_id: uuid(),
+  canonical_url: z.string(),
+  page_kind: z.string(),
+  industry_role_id: z.string().nullable(),
+  temporal_state: z.string(),
+  purpose: jsonRecordSchema,
+  coverage: jsonRecordSchema,
+  evidence: jsonRecordSchema,
+  source_versions: jsonRecordSchema,
+  created_at: z.string(),
+});
+
+export const contentBriefSchema = responseObject({
+  id: uuid(),
+  project_id: uuid(),
+  strategy_snapshot_id: uuid().nullable(),
+  prior_brief_id: uuid().nullable(),
+  version: z.number().int().positive(),
+  identity_hash: z.string(),
+  kind: z.string(),
+  title: z.string(),
+  target: jsonRecordSchema,
+  requirements: jsonRecordSchema,
+  allowed_facts: z.array(jsonRecordSchema),
+  prohibited_claims: z.array(jsonRecordSchema),
+  source_refs: z.array(jsonRecordSchema),
+  verification_criteria: z.array(jsonRecordSchema),
+  industry_pack_id: z.string(),
+  industry_pack_version: z.string(),
+  brief_builder_version: z.string(),
+  evidence_hash: z.string(),
+  created_at: z.string(),
+});
+
+export const taskContextPackageSchema = responseObject({
+  id: uuid(),
+  project_id: uuid(),
+  brief_id: uuid(),
+  task_type: z.string(),
+  manifest: jsonRecordSchema,
+  rendered_context: jsonRecordSchema,
+  omissions: z.array(jsonRecordSchema),
+  selection_policy_version: z.string(),
+  manifest_hash: z.string(),
+  char_count: z.number().int().nonnegative(),
+  created_at: z.string(),
+});
+
+export const contentValidationCheckSchema = responseObject({
+  check_id: z.string(),
+  passed: z.boolean(),
+  blocking: z.boolean(),
+  message: z.string(),
+  evidence: z.array(z.unknown()),
+});
+
+export const contentValidationSchema = responseObject({
+  id: uuid(),
+  project_id: uuid(),
+  content_generation_id: uuid(),
+  status: z.enum(['passed', 'blocked']),
+  blocking: z.boolean(),
+  checks: z.array(contentValidationCheckSchema),
+  validator_version: z.string(),
+  brief_evidence_hash: z.string(),
+  context_manifest_hash: z.string(),
+  created_at: z.string(),
+});
+
+export const contentRevisionSchema = responseObject({
+  id: uuid(),
+  project_id: uuid(),
+  content_generation_id: uuid(),
+  state: z.enum(['draft', 'edited', 'saved', 'published_claimed', 'discarded']),
+  visible_content: z.string(),
+  structured_data: jsonRecordSchema.nullable(),
+  content_hash: z.string(),
+  validation_snapshot: jsonRecordSchema,
+  publication_target_url: z.string(),
+  publication_claimed_at: z.string().nullable(),
+  saved_at: z.string().nullable(),
+  created_by_user_id: uuid().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const contentVerificationSchema = responseObject({
+  id: uuid(),
+  project_id: uuid(),
+  revision_id: uuid(),
+  site_snapshot_id: uuid(),
+  demand_snapshot_id: uuid().nullable(),
+  status: z.enum(['observed', 'partial', 'absent', 'materially_different']),
+  requirements: z.array(jsonRecordSchema),
+  comparison: jsonRecordSchema,
+  coverage: jsonRecordSchema,
+  verifier_version: z.string(),
+  created_at: z.string(),
 });
 
 // ---------------------------------------------------------------------------

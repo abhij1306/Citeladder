@@ -24,6 +24,8 @@ const listItem = {
   status: 'queued' as const,
   output_type: 'website_page' as const,
   skill_id: 'article' as const,
+  brief_id: null,
+  context_package_id: null,
   opportunity_id: null,
   website_context_status: 'included' as const,
   requested_model: 'mistral-small-latest',
@@ -61,6 +63,8 @@ const detail = {
   latency_ms: null,
   error_detail: '',
   generator_version: 'content-v1',
+  skill_version: 'content-v1',
+  validator_snapshot: null,
 };
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));

@@ -8,8 +8,8 @@
 ## 1. Product vision
 
 CiteLadder is the growth operating system for businesses that cannot afford to manage website
-health, brand knowledge, content production, search demand, analytics, AI visibility, and growth
-planning in disconnected tools.
+health, brand knowledge, governed content production, search demand, analytics, AI visibility, and
+growth planning in disconnected tools.
 
 It answers four connected questions:
 
@@ -62,6 +62,12 @@ Turns evidence into reviewable improvements:
 - provider-neutral generation and append-only attempts;
 - automatic validation, then user edit and save;
 - recrawl, demand, and visibility verification.
+
+**Shipped through Content C5:** Education and Commerce now run through persisted inventory and
+strategy, immutable briefs, bounded context packages, versioned generation skills, automatic
+validation, revision revalidation, user save, publication claim, and later recrawl verification.
+The six-panel workspace exposes evidence and limitations throughout. Other industry packs remain
+explicitly uncalibrated, and generated prose never enters the governed knowledge system.
 
 ### 2.3 Demand Intelligence
 
