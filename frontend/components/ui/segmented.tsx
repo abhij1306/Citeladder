@@ -18,8 +18,4 @@ import { segmentedItemVariants, segmentedTrackVariants } from './segmented-varia
  */
 export const segmentedTrackClasses = segmentedTrackVariants({});
 
-/* Flat 2.0: the selected pill is a plain --bg-panel fill on the tinted track.
-   It previously carried `shadow-xs` to lift off the track; the track is now an
-   alpha neutral, so white-on-tint already separates them and the shadow was
-   only softening the edge. */
 export const segmentedItemClasses = (selected: boolean) => segmentedItemVariants({ selected });

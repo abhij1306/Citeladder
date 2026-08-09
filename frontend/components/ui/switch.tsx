@@ -40,7 +40,7 @@ export function Switch({
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         'focus-ring border-border inline-flex h-6 w-12 shrink-0 items-center rounded-full border',
-        'transition-colors duration-100 ease-in-out disabled:cursor-not-allowed disabled:opacity-60',
+        'ease-standard transition-colors duration-[250ms] disabled:cursor-not-allowed disabled:opacity-60',
         // Checked takes the accent fill — the same fill every primary
         // action carries, so "on" reads as the active state everywhere.
         checked ? 'bg-accent border-transparent' : 'bg-alt',
@@ -54,7 +54,7 @@ export function Switch({
         aria-hidden
         className={cn(
           'bg-panel border-border size-4 rounded-full border',
-          'transition-transform duration-100 ease-in-out',
+          'ease-standard transition-transform duration-[250ms]',
           checked ? 'translate-x-6' : 'translate-x-1',
         )}
       />

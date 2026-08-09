@@ -14,8 +14,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Dropdown,
   DropdownContent,
-  DropdownItem,
   DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
   DropdownTrigger,
 } from '@/components/ui/dropdown';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
@@ -118,15 +119,17 @@ function TrafficToolbar({
         </DropdownTrigger>
         <DropdownContent>
           <DropdownLabel>Date range</DropdownLabel>
-          {RANGE_OPTIONS.map((option) => (
-            <DropdownItem
-              key={option.value}
-              data-active={range === option.value}
-              onSelect={() => onChangeRange(option.value)}
-            >
-              {option.label}
-            </DropdownItem>
-          ))}
+          <DropdownRadioGroup value={range}>
+            {RANGE_OPTIONS.map((option) => (
+              <DropdownRadioItem
+                key={option.value}
+                value={option.value}
+                onSelect={() => onChangeRange(option.value)}
+              >
+                {option.label}
+              </DropdownRadioItem>
+            ))}
+          </DropdownRadioGroup>
         </DropdownContent>
       </Dropdown>
 

@@ -7,8 +7,9 @@ import { LaunchAuditButton } from '@/components/runs/launch-audit-button';
 import {
   Dropdown,
   DropdownContent,
-  DropdownItem,
   DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
   DropdownTrigger,
 } from '@/components/ui/dropdown';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -123,15 +124,14 @@ export function VisibilityToolbar({
         </DropdownTrigger>
         <DropdownContent>
           <DropdownLabel>Prompt cohort</DropdownLabel>
-          <DropdownItem data-active={cohort === 'core'} onSelect={() => onChangeCohort('core')}>
-            Core visibility
-          </DropdownItem>
-          <DropdownItem
-            data-active={cohort === 'comparison'}
-            onSelect={() => onChangeCohort('comparison')}
-          >
-            Named comparisons
-          </DropdownItem>
+          <DropdownRadioGroup value={cohort}>
+            <DropdownRadioItem value="core" onSelect={() => onChangeCohort('core')}>
+              Core visibility
+            </DropdownRadioItem>
+            <DropdownRadioItem value="comparison" onSelect={() => onChangeCohort('comparison')}>
+              Named comparisons
+            </DropdownRadioItem>
+          </DropdownRadioGroup>
         </DropdownContent>
       </Dropdown>
       {showRun ? (
@@ -145,15 +145,13 @@ export function VisibilityToolbar({
           </DropdownTrigger>
           <DropdownContent>
             <DropdownLabel>Runs</DropdownLabel>
-            {runs.map((run) => (
-              <DropdownItem
-                key={run.id}
-                data-active={run.id === activeRunId}
-                onSelect={() => onSelectRun(run.id)}
-              >
-                {run.label}
-              </DropdownItem>
-            ))}
+            <DropdownRadioGroup value={activeRunId ?? ''}>
+              {runs.map((run) => (
+                <DropdownRadioItem key={run.id} value={run.id} onSelect={() => onSelectRun(run.id)}>
+                  {run.label}
+                </DropdownRadioItem>
+              ))}
+            </DropdownRadioGroup>
           </DropdownContent>
         </Dropdown>
       ) : null}
@@ -173,18 +171,20 @@ export function VisibilityToolbar({
         </DropdownTrigger>
         <DropdownContent>
           <DropdownLabel>Model</DropdownLabel>
-          <DropdownItem data-active={engine === 'all'} onSelect={() => onChangeEngine('all')}>
-            All models
-          </DropdownItem>
-          {TREND_ENGINES.map((option: LogicalEngine) => (
-            <DropdownItem
-              key={option}
-              data-active={engine === option}
-              onSelect={() => onChangeEngine(option)}
-            >
-              {engineLabel(option)}
-            </DropdownItem>
-          ))}
+          <DropdownRadioGroup value={engine}>
+            <DropdownRadioItem value="all" onSelect={() => onChangeEngine('all')}>
+              All models
+            </DropdownRadioItem>
+            {TREND_ENGINES.map((option: LogicalEngine) => (
+              <DropdownRadioItem
+                key={option}
+                value={option}
+                onSelect={() => onChangeEngine(option)}
+              >
+                {engineLabel(option)}
+              </DropdownRadioItem>
+            ))}
+          </DropdownRadioGroup>
         </DropdownContent>
       </Dropdown>
 
@@ -204,15 +204,17 @@ export function VisibilityToolbar({
           </DropdownTrigger>
           <DropdownContent>
             <DropdownLabel>Date range</DropdownLabel>
-            {RANGE_OPTIONS.map((option) => (
-              <DropdownItem
-                key={option.value}
-                data-active={range === option.value}
-                onSelect={() => onChangeRange(option.value)}
-              >
-                {option.label}
-              </DropdownItem>
-            ))}
+            <DropdownRadioGroup value={range}>
+              {RANGE_OPTIONS.map((option) => (
+                <DropdownRadioItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => onChangeRange(option.value)}
+                >
+                  {option.label}
+                </DropdownRadioItem>
+              ))}
+            </DropdownRadioGroup>
           </DropdownContent>
         </Dropdown>
       ) : null}
@@ -232,15 +234,17 @@ export function VisibilityToolbar({
           </DropdownTrigger>
           <DropdownContent>
             <DropdownLabel>Granularity</DropdownLabel>
-            {GRANULARITY_OPTIONS.map((option) => (
-              <DropdownItem
-                key={option.value}
-                data-active={granularity === option.value}
-                onSelect={() => onChangeGranularity(option.value)}
-              >
-                {option.label}
-              </DropdownItem>
-            ))}
+            <DropdownRadioGroup value={granularity}>
+              {GRANULARITY_OPTIONS.map((option) => (
+                <DropdownRadioItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => onChangeGranularity(option.value)}
+                >
+                  {option.label}
+                </DropdownRadioItem>
+              ))}
+            </DropdownRadioGroup>
           </DropdownContent>
         </Dropdown>
       ) : null}
@@ -261,18 +265,20 @@ export function VisibilityToolbar({
           </DropdownTrigger>
           <DropdownContent>
             <DropdownLabel>Prompt</DropdownLabel>
-            <DropdownItem data-active={promptId === null} onSelect={() => onChangePrompt(null)}>
-              All prompts
-            </DropdownItem>
-            {promptOptions.map((option) => (
-              <DropdownItem
-                key={option.id}
-                data-active={promptId === option.id}
-                onSelect={() => onChangePrompt(option.id)}
-              >
-                {option.label}
-              </DropdownItem>
-            ))}
+            <DropdownRadioGroup value={promptId ?? '__all__'}>
+              <DropdownRadioItem value="__all__" onSelect={() => onChangePrompt(null)}>
+                All prompts
+              </DropdownRadioItem>
+              {promptOptions.map((option) => (
+                <DropdownRadioItem
+                  key={option.id}
+                  value={option.id}
+                  onSelect={() => onChangePrompt(option.id)}
+                >
+                  {option.label}
+                </DropdownRadioItem>
+              ))}
+            </DropdownRadioGroup>
           </DropdownContent>
         </Dropdown>
       ) : null}

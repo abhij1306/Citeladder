@@ -278,7 +278,7 @@ describe('ProductEvidenceTable kind sub-tabs', () => {
     expect(params.get('surface')).toBe('');
 
     await user.click(screen.getByRole('button', { name: 'Filter by engine' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Gemini' }));
+    await user.click(screen.getByRole('menuitemradio', { name: 'Gemini' }));
     await waitFor(() => expect(urls.length).toBeGreaterThan(1));
     expect(new URL(urls.at(-1)!).searchParams.get('engine')).toBe('gemini');
   });

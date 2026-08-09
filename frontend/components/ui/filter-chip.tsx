@@ -2,18 +2,10 @@
 
 import type { ReactNode } from 'react';
 
+import { filterChipClasses } from '@/components/ui/filter-chip-variants';
 import { cn } from '@/lib/utils';
 
-import { filterChipClasses } from './filter-chip-variants';
-
-/**
- * Filter chip: a pill button with a hairline border; the active chip takes the
- * accent-soft fill + accent text (blue stays reserved for active states).
- *
- * The class recipe lives in `./filter-chip-variants` — the launch dialog's
- * engine chips share the visual but need `role=checkbox` semantics, so they
- * import the recipe directly rather than this component.
- */
+/** A compact toggle for filtering a data set without changing views. */
 export function FilterChip({
   active,
   onClick,
@@ -22,7 +14,6 @@ export function FilterChip({
 }: Readonly<{
   active: boolean;
   onClick: () => void;
-  /** Optional mono count rendered after the label (muted, tabular). */
   count?: number;
   children: ReactNode;
 }>) {

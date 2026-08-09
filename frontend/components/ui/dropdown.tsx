@@ -5,20 +5,18 @@ import { Check } from 'lucide-react';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 
 import { eyebrowClasses } from '@/components/ui/eyebrow';
+import { menuItemVariants, menuPanelClasses } from '@/components/ui/menu-variants';
 import { cn } from '@/lib/utils';
 
 /**
  * Dropdown (§8) — Radix menu. Surface = bg-elevated, border,
- * shadow-modal-value (the single live overlay rung — see docs/design.md §4a).
+ * shadow-elevated, and the shared menu radius.
  * Re-exports the Radix parts with token-styled Content / Item defaults.
  */
 export const Dropdown = DropdownPrimitive.Root;
 export const DropdownTrigger = DropdownPrimitive.Trigger;
 export const DropdownSeparator = DropdownPrimitive.Separator;
 export const DropdownRadioGroup = DropdownPrimitive.RadioGroup;
-
-const dropdownSelectableItemClasses =
-  'text-foreground data-[highlighted]:bg-background-alt relative flex cursor-pointer items-center gap-2 rounded-sm py-1 ps-7 pe-2 text-sm transition-colors outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50';
 
 export function DropdownContent({
   className,
@@ -32,10 +30,7 @@ export function DropdownContent({
       <DropdownPrimitive.Content
         align={align}
         sideOffset={sideOffset}
-        className={cn(
-          'border-border-subtle bg-elevated shadow-modal-value z-modal min-w-40 overflow-hidden rounded-sm border p-1 focus:outline-none',
-          className,
-        )}
+        className={cn(menuPanelClasses, 'min-w-40', className)}
         {...props}
       >
         {children}
@@ -50,13 +45,7 @@ export function DropdownItem({
   ...props
 }: Readonly<ComponentPropsWithoutRef<typeof DropdownPrimitive.Item>>) {
   return (
-    <DropdownPrimitive.Item
-      className={cn(
-        'text-foreground data-[highlighted]:bg-background-alt flex min-h-8 cursor-pointer items-center gap-2 rounded-sm px-2 py-1 text-sm transition-colors outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        className,
-      )}
-      {...props}
-    >
+    <DropdownPrimitive.Item className={cn(menuItemVariants(), className)} {...props}>
       {children}
     </DropdownPrimitive.Item>
   );
@@ -73,7 +62,7 @@ export function DropdownCheckboxItem({
         // `relative` makes each row the containing block for its own absolutely
         // positioned indicator below — without it every checkmark resolves
         // against a distant ancestor and they all stack in one spot.
-        dropdownSelectableItemClasses,
+        menuItemVariants({ inset: true }),
         className,
       )}
       {...props}
@@ -95,7 +84,7 @@ export function DropdownRadioItem({
 }: Readonly<ComponentPropsWithoutRef<typeof DropdownPrimitive.RadioItem>>) {
   return (
     <DropdownPrimitive.RadioItem
-      className={cn(dropdownSelectableItemClasses, className)}
+      className={cn(menuItemVariants({ inset: true }), className)}
       {...props}
     >
       <span className="absolute start-2 flex size-4 items-center justify-center">

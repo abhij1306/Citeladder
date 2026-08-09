@@ -1,8 +1,6 @@
 'use client';
 
-import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
 import Link from 'next/link';
 
 import { OpportunityEvidenceSection } from '@/components/opportunities/opportunity-evidence-section';
@@ -13,6 +11,7 @@ import { OpportunityTypeBadge } from '@/components/opportunities/opportunity-typ
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Drawer } from '@/components/ui/drawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/typography';
 import { opportunitiesMutations, opportunitiesQueries } from '@/lib/api/opportunities';
@@ -58,105 +57,92 @@ export function EvidenceDrawer({
   if (guidanceMutation.isPending) guidanceActionLabel = 'Generating…';
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="bg-overlay-scrim z-overlay fixed inset-0" />
-        <DialogPrimitive.Content className="border-border-subtle bg-elevated shadow-modal-value z-modal fixed top-0 right-0 flex h-full w-112 max-w-full flex-col border-l focus:outline-none">
-          <header className="border-border-subtle flex items-center justify-between gap-2 border-b px-4 py-3">
-            <DialogPrimitive.Title className="text-foreground text-heading-sm truncate">
-              Opportunity detail
-            </DialogPrimitive.Title>
-            <DialogPrimitive.Close asChild>
-              <Button variant="ghost" size="icon" aria-label="Close drawer">
-                <X className="size-4" aria-hidden />
-              </Button>
-            </DialogPrimitive.Close>
-          </header>
-          <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
-            {detailQuery.isError ? (
-              <Alert tone="danger">Could not load this opportunity. Please try again.</Alert>
-            ) : detailQuery.isLoading || !detail ? (
-              <div className="grid gap-3">
-                <Skeleton className="h-8 w-3/4" />
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-32 w-full" />
-              </div>
-            ) : (
-              <div className="grid gap-5">
-                <div className="grid gap-2">
-                  <h2 className="text-foreground text-lg">{detail.title}</h2>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant="status" value={severityBadgeValue(detail.severity)}>
-                      {severityLabel(detail.severity)} impact
-                    </Badge>
-                    <OpportunityTypeBadge type={detail.opportunity_type} />
-                    <OpportunityStatusBadge status={detail.status} />
-                  </div>
-                </div>
-                <OpportunityEvidenceSection detail={detail} />
-                {detail.remediation ? (
-                  <section className="grid gap-2">
-                    <Label>Recommended improvements</Label>
-                    <div className="border-border-subtle bg-background-alt rounded-lg border p-3">
-                      <p className="text-foreground text-sm whitespace-pre-line">
-                        {detail.remediation}
-                      </p>
-                    </div>
-                  </section>
-                ) : null}
-                <Button variant="secondary" size="sm" asChild>
-                  <Link href={`/content?opportunity_id=${detail.id}`}>
-                    Create content from this opportunity
-                  </Link>
-                </Button>
-                <section className="grid gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label>Tailored guidance</Label>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={createGuidance}
-                      disabled={guidanceMutation.isPending}
-                    >
-                      {guidanceActionLabel}
-                    </Button>
-                  </div>
-                  {guidanceQuery.data ? (
-                    <div className="border-border-subtle bg-background-alt grid gap-3 rounded-lg border p-3">
-                      <div className="grid gap-1">
-                        <span className="text-2xs text-muted">What was found</span>
-                        <ul className="text-foreground grid list-disc gap-1 pl-4 text-sm">
-                          {guidanceQuery.data.findings.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className="grid gap-1">
-                        <span className="text-2xs text-muted">Recommended improvements</span>
-                        <ul className="text-foreground grid list-disc gap-1 pl-4 text-sm">
-                          {guidanceQuery.data.recommendations.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <p className="text-muted text-xs">
-                        Updated {new Date(guidanceQuery.data.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  ) : guidanceQuery.isError ? (
-                    <Alert tone="info">Tailored guidance is unavailable for this workspace.</Alert>
-                  ) : null}
-                  {guidanceMutation.isError ? (
-                    <Alert tone="danger">Could not generate guidance. Please try again.</Alert>
-                  ) : null}
-                </section>
-                <OpportunitySummarySection detail={detail} />
-              </div>
-            )}
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Opportunity detail"
+      className="max-w-112"
+      bodyClassName="px-4"
+      footer={detail ? <OpportunityStatusFooter detail={detail} projectId={projectId} /> : null}
+    >
+      {detailQuery.isError ? (
+        <Alert tone="danger">Could not load this opportunity. Please try again.</Alert>
+      ) : detailQuery.isLoading || !detail ? (
+        <div className="grid gap-3">
+          <Skeleton className="h-8 w-3/4" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      ) : (
+        <div className="grid gap-5">
+          <div className="grid gap-2">
+            <h2 className="text-foreground text-lg">{detail.title}</h2>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant="status" value={severityBadgeValue(detail.severity)}>
+                {severityLabel(detail.severity)} impact
+              </Badge>
+              <OpportunityTypeBadge type={detail.opportunity_type} />
+              <OpportunityStatusBadge status={detail.status} />
+            </div>
           </div>
-          {detail ? <OpportunityStatusFooter detail={detail} projectId={projectId} /> : null}
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+          <OpportunityEvidenceSection detail={detail} />
+          {detail.remediation ? (
+            <section className="grid gap-2">
+              <Label>Recommended improvements</Label>
+              <div className="border-border-subtle bg-background-alt rounded-lg border p-3">
+                <p className="text-foreground text-sm whitespace-pre-line">{detail.remediation}</p>
+              </div>
+            </section>
+          ) : null}
+          <Button variant="secondary" size="sm" asChild>
+            <Link href={`/content?opportunity_id=${detail.id}`}>
+              Create content from this opportunity
+            </Link>
+          </Button>
+          <section className="grid gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label>Tailored guidance</Label>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={createGuidance}
+                disabled={guidanceMutation.isPending}
+              >
+                {guidanceActionLabel}
+              </Button>
+            </div>
+            {guidanceQuery.data ? (
+              <div className="border-border-subtle bg-background-alt grid gap-3 rounded-lg border p-3">
+                <div className="grid gap-1">
+                  <span className="text-2xs text-muted">What was found</span>
+                  <ul className="text-foreground grid list-disc gap-1 pl-4 text-sm">
+                    {guidanceQuery.data.findings.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="grid gap-1">
+                  <span className="text-2xs text-muted">Recommended improvements</span>
+                  <ul className="text-foreground grid list-disc gap-1 pl-4 text-sm">
+                    {guidanceQuery.data.recommendations.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+                <p className="text-muted text-xs">
+                  Updated {new Date(guidanceQuery.data.created_at).toLocaleString()}
+                </p>
+              </div>
+            ) : guidanceQuery.isError ? (
+              <Alert tone="info">Tailored guidance is unavailable for this workspace.</Alert>
+            ) : null}
+            {guidanceMutation.isError ? (
+              <Alert tone="danger">Could not generate guidance. Please try again.</Alert>
+            ) : null}
+          </section>
+          <OpportunitySummarySection detail={detail} />
+        </div>
+      )}
+    </Drawer>
   );
 }

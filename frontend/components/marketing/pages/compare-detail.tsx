@@ -30,16 +30,16 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
               All comparisons
             </Link>
             <Eyebrow>Comparison · {competitor.lastReviewed}</Eyebrow>
-            <h1 className="font-display text-foreground mt-4 max-w-[28ch] text-2xl text-balance md:text-3xl">
+            <h1 className="website-page-title text-foreground mt-4 max-w-[28ch] text-balance">
               CiteLadder vs <em className="text-accent-text not-italic">{competitor.name}</em>
             </h1>
-            <p className="text-muted mt-3 max-w-[56ch] text-base">{competitor.tagline}</p>
+            <p className="website-body-lg text-muted mt-3 max-w-[56ch]">{competitor.tagline}</p>
           </Reveal>
         </Container>
       </header>
 
       <Section tone="paper" rhythm="tight" aria-label="Quick facts" dense>
-        <Reveal className="border-border-subtle bg-panel shadow-card overflow-hidden rounded-lg border">
+        <Reveal className="bg-panel shadow-card overflow-hidden rounded-lg">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[36rem] border-collapse text-left">
               <thead>
@@ -94,7 +94,7 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
             </table>
           </div>
         </Reveal>
-        <p className="text-subtle mt-3 text-xs">
+        <p className="website-label text-subtle mt-3">
           Maintained by the CiteLadder team from each vendor’s public pages. Last reviewed{' '}
           {competitor.lastReviewed}. Re-check before quoting.
         </p>
@@ -103,24 +103,24 @@ export function CompareDetailView({ competitor }: Readonly<{ competitor: Competi
       <Section tone="sunken" rhythm="tight" aria-label="Verdict and fit">
         <Reveal className="grid gap-8 md:grid-cols-2 md:gap-10">
           <div>
-            <h2 className="font-display text-foreground text-xl">Our verdict</h2>
-            <p className="text-muted mt-3 text-sm leading-relaxed">{competitor.verdict}</p>
+            <h2 className="website-feature-heading text-foreground">Our verdict</h2>
+            <p className="website-body text-muted mt-3">{competitor.verdict}</p>
           </div>
           <div>
-            <h2 className="font-display text-foreground text-xl">
+            <h2 className="website-feature-heading text-foreground">
               Where {competitor.name} fits better
             </h2>
-            <p className="text-muted mt-3 text-sm leading-relaxed">{competitor.betterFit}</p>
+            <p className="website-body text-muted mt-3">{competitor.betterFit}</p>
           </div>
         </Reveal>
       </Section>
 
       <Section tone="paper" rhythm="base" aria-label="Get started">
         <Reveal className="mx-auto max-w-3xl text-center">
-          <h2 className="font-display text-foreground mx-auto mb-3 max-w-[28ch] text-2xl">
+          <h2 className="website-section-heading text-foreground mx-auto mb-3 max-w-[28ch]">
             See your own numbers instead.
           </h2>
-          <p className="text-muted mx-auto max-w-[52ch] text-base">
+          <p className="website-body-lg text-muted mx-auto max-w-[52ch]">
             Your category, your prompts — raw answers behind every score.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">

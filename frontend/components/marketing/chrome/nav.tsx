@@ -36,7 +36,7 @@ function hasStoredActiveProject(): boolean {
 }
 
 const NAV_LINK =
-  'text-base text-secondary hover:text-foreground relative z-1 inline-flex items-center gap-2 ' +
+  'website-nav text-secondary hover:text-foreground relative z-1 inline-flex items-center gap-2 ' +
   'rounded-sm px-4 py-4 font-medium transition-colors duration-300';
 
 /**
@@ -233,7 +233,7 @@ export function MarketingNav() {
               style={{ left: lens.left, width: lens.width }}
               transition={{ layout: { duration: 0.18, ease: EASE_OUT } }}
               className={cn(
-                'border-border-subtle bg-panel shadow-modal-value pointer-events-none rounded-md',
+                'border-border-subtle bg-panel shadow-elevated pointer-events-none rounded-md',
                 'absolute inset-y-0 border',
               )}
             />
@@ -303,7 +303,7 @@ export function MarketingNav() {
                   maxWidth: 'calc(100vw - 2rem)',
                 }}
                 className={cn(
-                  'border-border-subtle bg-panel shadow-modal-value absolute top-full rounded-md',
+                  'border-border-subtle bg-panel shadow-elevated absolute top-full rounded-md',
                   'mt-2 overflow-hidden border',
                 )}
               >
@@ -317,7 +317,7 @@ export function MarketingNav() {
                         key={group.label}
                         className="border-border-subtle bg-background-alt border-t p-3 sm:border-t-0 sm:border-l"
                       >
-                        <p className="text-muted px-4 pt-3 pb-3 text-xs uppercase">{group.label}</p>
+                        <p className="website-eyebrow text-muted px-4 pt-3 pb-3">{group.label}</p>
                         {group.items.map((item) => (
                           <NavItemLink key={item.title} item={item} onSelect={closeDrop} />
                         ))}
@@ -345,7 +345,7 @@ export function MarketingNav() {
             <>
               <Link
                 href="/login"
-                className="text-muted hover:text-foreground hidden px-4 text-sm font-medium transition-colors sm:inline-flex"
+                className="website-nav text-muted hover:text-foreground hidden px-4 transition-colors sm:inline-flex"
               >
                 Log in
               </Link>
@@ -381,7 +381,7 @@ export function MarketingNav() {
               <div className="flex items-center">
                 <Link
                   href={href}
-                  className="text-foreground flex-1 py-5 text-base font-medium"
+                  className="website-nav text-foreground flex-1 py-5"
                   onClick={() => setMobileOpen(false)}
                 >
                   {label}
@@ -407,7 +407,7 @@ export function MarketingNav() {
                 {groups.map((group) => (
                   <Fragment key={group.label ?? 'items'}>
                     {group.label && (
-                      <p className="text-muted px-4 pt-4 pb-2 text-xs uppercase">{group.label}</p>
+                      <p className="website-eyebrow text-muted px-4 pt-4 pb-2">{group.label}</p>
                     )}
                     {group.items.map((item) => (
                       <NavItemLink
@@ -430,7 +430,7 @@ export function MarketingNav() {
               <Link
                 key={href}
                 href={href}
-                className="text-foreground py-3 text-base font-medium"
+                className="website-nav text-foreground py-3"
                 onClick={() => setMobileOpen(false)}
               >
                 {label}
@@ -438,7 +438,7 @@ export function MarketingNav() {
             ))}
             <Link
               href={isAuthenticated ? dashboardHref : '/login'}
-              className="text-muted py-3 text-base font-medium"
+              className="website-nav text-muted py-3"
               onClick={() => setMobileOpen(false)}
             >
               {isAuthenticated ? 'Dashboard' : 'Log in'}

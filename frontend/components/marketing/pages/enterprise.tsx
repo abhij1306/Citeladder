@@ -133,12 +133,12 @@ export function EnterpriseOps() {
       <StaggerGroup className="grid gap-5 md:grid-cols-3">
         {CAPABILITIES.map(({ icon: Icon, title, tagline, highlights }) => (
           <StaggerItem key={title} className="h-full">
-            <article className="border-border-subtle bg-panel shadow-card hover:shadow-card-hover flex h-full flex-col rounded-lg border p-7 transition-[box-shadow] duration-200">
+            <article className="bg-panel shadow-card hover:shadow-card-hover flex h-full flex-col rounded-lg p-7 transition-shadow duration-200">
               <div className="bg-accent-soft text-accent-text grid size-10 place-items-center rounded-md">
                 <Icon aria-hidden strokeWidth={1.8} className="size-5" />
               </div>
-              <h3 className="font-display text-foreground mt-5 text-xl leading-snug">{title}</h3>
-              <p className="text-muted mt-3 text-sm leading-relaxed">{tagline}</p>
+              <h3 className="website-feature-heading text-foreground mt-5">{title}</h3>
+              <p className="website-body text-muted mt-3">{tagline}</p>
               <ul className="border-border-subtle mt-6 space-y-3 border-t pt-6">
                 {highlights.map((item) => (
                   <li key={item} className="text-foreground flex gap-3 text-sm">
@@ -158,10 +158,10 @@ export function EnterpriseOps() {
 
       <section aria-label="Platform data flow" className="mt-12">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-          <p className="text-muted text-sm font-medium">How a request travels</p>
+          <p className="website-body text-muted font-medium">How a request travels</p>
           <span className="text-subtle text-xs">Managed cloud · same-origin boundary</span>
         </div>
-        <Reveal className="border-border-subtle bg-panel shadow-card overflow-hidden rounded-lg border">
+        <Reveal className="bg-panel shadow-card overflow-hidden rounded-lg">
           <ol className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {DATA_FLOW_STEPS.map((step, index) => (
               <li
@@ -175,8 +175,8 @@ export function EnterpriseOps() {
                 <span className="text-accent-text text-xs font-medium tabular-nums">
                   {String(index + 1).padStart(2, '0')}
                 </span>
-                <p className="text-foreground text-sm font-medium">{step.title}</p>
-                <p className="text-muted text-xs leading-snug">{step.detail}</p>
+                <p className="website-body text-foreground font-medium">{step.title}</p>
+                <p className="website-label text-muted">{step.detail}</p>
               </li>
             ))}
           </ol>
@@ -196,11 +196,11 @@ export function EnterpriseLimits() {
         headingId="enterprise-limits-title"
       />
 
-      <Reveal className="border-border-subtle bg-panel shadow-card overflow-hidden rounded-lg border">
+      <Reveal className="bg-panel shadow-card overflow-hidden rounded-lg">
         <div className="border-border-subtle bg-accent-soft flex flex-col justify-between gap-4 border-b px-6 py-5 md:flex-row md:items-center md:px-8">
           <div>
-            <h3 className="font-display text-foreground text-2xl">Enterprise agreement</h3>
-            <p className="text-muted mt-1 text-sm">Six dials. One quote.</p>
+            <h3 className="website-section-heading text-foreground">Enterprise agreement</h3>
+            <p className="website-body text-muted mt-1">Six dials. One quote.</p>
           </div>
           <span className="border-accent-border bg-panel text-accent-text shrink-0 rounded-md border px-4 py-2 text-xs font-medium tracking-wide uppercase">
             Quoted to fit
@@ -214,22 +214,22 @@ export function EnterpriseLimits() {
               className="bg-panel hover:bg-accent-soft p-6 transition-colors duration-200 md:p-7"
             >
               <div className="flex items-start justify-between gap-3">
-                <h4 className="font-display text-foreground text-lg">{item.title}</h4>
+                <h4 className="website-small-heading text-foreground">{item.title}</h4>
                 <span className="bg-well text-secondary shrink-0 rounded-md px-2.5 py-1 text-xs font-medium">
                   {item.badge}
                 </span>
               </div>
-              <p className="text-accent-text mt-3 text-xs font-medium">{item.unit}</p>
-              <p className="text-muted mt-2 text-sm leading-relaxed">{item.desc}</p>
+              <p className="website-label text-accent-text mt-3 font-medium">{item.unit}</p>
+              <p className="website-body text-muted mt-2">{item.desc}</p>
             </StaggerItem>
           ))}
         </StaggerGroup>
       </Reveal>
 
-      <div className="border-border-subtle bg-panel shadow-card mt-8 flex flex-col items-start justify-between gap-6 rounded-lg border p-6 md:flex-row md:items-center md:p-8">
+      <div className="bg-panel shadow-card mt-8 flex flex-col items-start justify-between gap-6 rounded-lg p-6 md:flex-row md:items-center md:p-8">
         <div>
-          <p className="font-display text-foreground text-2xl">Audit trail included</p>
-          <p className="text-muted mt-2 max-w-[60ch] text-sm leading-relaxed">
+          <p className="website-section-heading text-foreground">Audit trail included</p>
+          <p className="website-body text-muted mt-2 max-w-[60ch]">
             Deterministic rules, immutable logs, provenance on every derived metric.
           </p>
         </div>
@@ -246,10 +246,10 @@ export function EnterpriseContactCta() {
   return (
     <Section id="contact" tone="paper" rhythm="base" aria-label="Contact sales">
       <Reveal className="mx-auto max-w-3xl text-center">
-        <h2 className="font-display text-foreground mx-auto mb-4 max-w-[28ch] text-2xl">
+        <h2 className="website-section-heading text-foreground mx-auto mb-4 max-w-[28ch]">
           Bring AI visibility in-house.
         </h2>
-        <p className="text-muted mx-auto max-w-[56ch] text-lg">
+        <p className="website-lead text-muted mx-auto max-w-[56ch]">
           Volumes, constraints, review process — we shape the plan around them.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">

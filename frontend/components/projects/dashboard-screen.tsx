@@ -84,7 +84,7 @@ function StateMetric({
 }>) {
   const positive = delta !== null && (inverse ? delta < 0 : delta > 0);
   return (
-    <div className="border-border bg-panel shadow-card grid min-h-28 gap-2 rounded-md border p-4">
+    <div className="bg-panel shadow-card grid min-h-28 gap-2 rounded-md p-4">
       <p className="text-muted text-xs font-medium">{label}</p>
       <p className="text-foreground font-mono text-3xl leading-none tabular-nums">
         {metricValue(value, suffix)}
@@ -116,7 +116,7 @@ function MovementChart({ movements }: Readonly<{ movements: CommandCenter['movem
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {movements.map((row) => (
-        <div key={row.label} className="border-border bg-panel shadow-card rounded-md border p-3">
+        <div key={row.label} className="bg-panel shadow-card rounded-md p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-foreground text-sm font-medium capitalize">{row.label}</span>
             <span

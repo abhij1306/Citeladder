@@ -91,7 +91,7 @@ export function FaqGroups() {
         {FAQ_GROUPS.map((group) => (
           <section key={group.heading} id={groupAnchor(group)} aria-label={group.heading}>
             <div className="border-border-subtle mb-3 flex items-baseline justify-between gap-5 border-b pb-5">
-              <h2 className="font-display text-foreground text-2xl">{group.heading}</h2>
+              <h2 className="website-section-heading text-foreground">{group.heading}</h2>
               <Meta>{group.items.length} answers</Meta>
             </div>
             {group.items.map((item) => (
@@ -103,7 +103,7 @@ export function FaqGroups() {
                     className="text-muted size-4 shrink-0 transition-transform duration-300 group-open:rotate-45"
                   />
                 </summary>
-                <p className="text-muted max-w-[90ch] pb-8 text-base">
+                <p className="website-body-lg text-muted max-w-[75ch] pb-8">
                   <AnswerText text={item.a} />
                 </p>
               </details>

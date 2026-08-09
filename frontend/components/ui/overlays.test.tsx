@@ -1,8 +1,18 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { Dialog } from './dialog';
-import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from './dropdown';
+import { Drawer } from './drawer';
+import {
+  Dropdown,
+  DropdownContent,
+  DropdownItem,
+  DropdownRadioGroup,
+  DropdownRadioItem,
+  DropdownTrigger,
+} from './dropdown';
 import { Tooltip, TooltipProvider } from './tooltip';
 
 // jsdom has no ResizeObserver, which Radix's tooltip arrow measurement
@@ -46,6 +56,53 @@ describe('Dialog', () => {
   });
 });
 
+describe('Drawer', () => {
+  it('renders a labelled contextual sheet with a shared close action', () => {
+    render(
+      <Drawer open onOpenChange={() => {}} title="Evidence" description="Persisted sources">
+        <p>Source details</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Evidence' })).toBeInTheDocument();
+    expect(screen.getByText('Persisted sources')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close drawer' })).toBeInTheDocument();
+  });
+
+  it('closes from Escape or the scrim and restores focus to the opening control', async () => {
+    const user = userEvent.setup();
+
+    function DrawerHarness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            View evidence
+          </button>
+          <Drawer open={open} onOpenChange={setOpen} title="Evidence">
+            <p>Source details</p>
+          </Drawer>
+        </>
+      );
+    }
+
+    render(<DrawerHarness />);
+    const trigger = screen.getByRole('button', { name: 'View evidence' });
+    await user.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Evidence' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    const overlay = document.querySelector<HTMLElement>('.drawer-overlay');
+    expect(overlay).not.toBeNull();
+    await user.click(overlay!);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
+});
+
 describe('Dropdown', () => {
   it('exposes a trigger with menu semantics (closed by default)', () => {
     render(
@@ -61,6 +118,25 @@ describe('Dropdown', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     // Items are not mounted until opened.
     expect(screen.queryByText('Edit')).not.toBeInTheDocument();
+  });
+
+  it('marks the selected radio filter and uses the elevated menu recipe', () => {
+    render(
+      <Dropdown open>
+        <DropdownTrigger>Range</DropdownTrigger>
+        <DropdownContent>
+          <DropdownRadioGroup value="month">
+            <DropdownRadioItem value="week">Week</DropdownRadioItem>
+            <DropdownRadioItem value="month">Month</DropdownRadioItem>
+          </DropdownRadioGroup>
+        </DropdownContent>
+      </Dropdown>,
+    );
+    expect(screen.getByRole('menu')).toHaveClass('shadow-elevated', 'rounded-md');
+    expect(screen.getByRole('menuitemradio', { name: 'Month' })).toHaveAttribute(
+      'data-state',
+      'checked',
+    );
   });
 });
 
@@ -88,5 +164,7 @@ describe('Tooltip', () => {
     const tip = await screen.findByRole('tooltip');
     expect(tip.className).toContain('bg-surface-inverse');
     expect(tip.className).toContain('text-on-inverse');
+    expect(tip.className).toContain('shadow-elevated');
+    expect(tip.className).toContain('rounded-md');
   });
 });

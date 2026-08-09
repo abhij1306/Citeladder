@@ -1,4 +1,5 @@
 import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import type { MutationNotice as MutationNoticeData } from '@/lib/api/mutation-notice';
 
 /**
@@ -32,11 +33,11 @@ export function MutationNotice({
       <div className="grid gap-1">
         <span>{notice.message}</span>
         {notice.retryable && onRetry ? (
-          <span>
-            <button type="button" className="underline" onClick={onRetry}>
+          <div>
+            <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
               Try again
-            </button>
-          </span>
+            </Button>
+          </div>
         ) : null}
         {correlation ? <span className="text-2xs text-muted">Support: {correlation}</span> : null}
       </div>

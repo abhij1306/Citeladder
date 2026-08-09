@@ -5,6 +5,8 @@ import { useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
+import { inputClasses, Textarea } from '@/components/ui/input';
 import { siteHealthApi, type CreateCrawlInput } from '@/lib/api/site-health';
 import { SITE_HEALTH_DEFAULT_PHASE_BATCH_SIZE } from '@/lib/config/operational';
 import { PAGE_KINDS, pageKindLabel } from '@/lib/site-health/page-kinds';
@@ -31,7 +33,6 @@ export function CrawlIntakeDialog({
     mutationFn: () =>
       siteHealthApi.previewUrls({ project_id: projectId, content: urls, input_format: 'text' }),
   });
-  if (!open) return null;
   const discoveryCount = Number(limit);
   const validDiscoveryCount = Number.isSafeInteger(discoveryCount) && discoveryCount > 0;
   const start = () => {
@@ -53,30 +54,40 @@ export function CrawlIntakeDialog({
     onClose();
   };
   return (
-    <dialog
-      open
-      className="bg-overlay-scrim z-modal fixed inset-0 grid place-items-center p-4"
-      aria-modal="true"
-      aria-labelledby="crawl-intake-title"
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
+      title="Choose pages to crawl"
+      description="URLs are checked before a request is ever created. Excluded and out-of-scope URLs are not fetched."
+      footer={
+        <>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            onClick={start}
+            disabled={
+              advancedControlsEnabled &&
+              (!validDiscoveryCount || (mode === 'exact_urls' && !urls.trim()))
+            }
+          >
+            Start crawl
+          </Button>
+        </>
+      }
     >
-      <div className="bg-elevated shadow-modal-value grid max-h-full w-full max-w-2xl gap-4 overflow-auto rounded-lg p-5">
-        <div>
-          <h2 id="crawl-intake-title" className="text-foreground text-heading-sm">
-            Choose pages to crawl
-          </h2>
-          <p className="text-muted mt-1 text-sm">
-            URLs are checked before a request is ever created. Excluded and out-of-scope URLs are
-            not fetched.
-          </p>
-        </div>
+      <div className="grid gap-4 py-4">
         {!advancedControlsEnabled ? (
           <Alert tone="info">This crawl will use the automatic page budget.</Alert>
         ) : (
           <>
             <label className="grid gap-1 text-sm">
               <span className="text-foreground">URLs or upload contents</span>
-              <textarea
-                className="border-border bg-background min-h-28 rounded-md border p-2"
+              <Textarea
+                className="min-h-28"
                 value={urls}
                 onChange={(event) => setUrls(event.target.value)}
                 placeholder="https://example.com/product"
@@ -86,7 +97,7 @@ export function CrawlIntakeDialog({
               <label className="grid gap-1 text-sm">
                 <span>Mode</span>
                 <select
-                  className="border-border bg-background rounded-md border p-2"
+                  className={inputClasses}
                   value={mode}
                   onChange={(event) =>
                     setMode(event.target.value as CreateCrawlInput['input_mode'])
@@ -100,7 +111,7 @@ export function CrawlIntakeDialog({
               <label className="grid gap-1 text-sm">
                 <span>Page budget</span>
                 <input
-                  className="border-border bg-background rounded-md border p-2"
+                  className={inputClasses}
                   type="number"
                   min="1"
                   value={limit}
@@ -166,22 +177,7 @@ export function CrawlIntakeDialog({
             ) : null}
           </>
         )}
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            onClick={start}
-            disabled={
-              advancedControlsEnabled &&
-              (!validDiscoveryCount || (mode === 'exact_urls' && !urls.trim()))
-            }
-          >
-            Start crawl
-          </Button>
-        </div>
       </div>
-    </dialog>
+    </Dialog>
   );
 }

@@ -3,9 +3,8 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * The recurring product surface. The marketing shell owns the single animated
- * atmosphere; scene cards stay opaque so the wallpaper never repeats inside
- * them.
+ * The recurring product surface. The quiet neutral highlight groups the scene;
+ * scene cards stay opaque and use the shared elevation ladder.
  */
 export function WallpaperPanel({
   children,

@@ -27,15 +27,11 @@ export function Hero() {
               <span>{hook.eyebrow}</span>
             </div>
           </div>
-          <h1 className="font-display text-foreground mx-auto mt-6 max-w-[32ch] text-3xl font-semibold tracking-tight text-balance md:text-4xl lg:text-5xl">
+          <h1 className="website-hero-display text-foreground mx-auto mt-6 max-w-[32ch] text-balance">
             {hook.title}{' '}
-            <em className="from-accent via-accent-text to-accent-active bg-gradient-to-r bg-clip-text font-bold text-transparent not-italic">
-              {hook.titleAccent}
-            </em>
+            <em className="text-accent font-semibold not-italic">{hook.titleAccent}</em>
           </h1>
-          <p className="text-muted mx-auto mt-6 max-w-[72ch] text-base leading-relaxed md:text-lg">
-            {hook.body}
-          </p>
+          <p className="website-lead text-muted mx-auto mt-6 max-w-[72ch]">{hook.body}</p>
           <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row sm:items-center">
             <ButtonLink
               href={DEMO_HREF}

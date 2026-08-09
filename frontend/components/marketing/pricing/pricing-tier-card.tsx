@@ -71,21 +71,21 @@ export function PricingTierCard({
       )}
     >
       <div className="flex items-center justify-between gap-4">
-        <h3 className="font-display text-foreground text-xl">{plan.name}</h3>
+        <h3 className="website-feature-heading text-foreground">{plan.name}</h3>
         {highlighted && (
           <Badge variant="status" value="info">
             Recommended
           </Badge>
         )}
       </div>
-      <p className="text-muted mt-3 min-h-[3rem] text-sm">
+      <p className="website-body text-muted mt-3 min-h-[3rem]">
         {presentation?.blurb ?? plan.description}
       </p>
 
       {/* The price rides the website's own display rung, not the app's
           `text-hero`: an app token on this surface drifts with the dashboard
           ladder rather than the site's. */}
-      <p className="text-foreground mt-5 flex items-baseline gap-2 font-mono text-2xl tabular-nums">
+      <p className="website-data-display text-foreground mt-5 flex items-baseline gap-2">
         <AnimatedPrice
           value={numeric}
           format={(value) =>

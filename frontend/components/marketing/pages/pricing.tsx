@@ -21,10 +21,10 @@ export function PricingCta() {
   return (
     <Section tone="paper" rhythm="base" aria-label="Get started">
       <Reveal className="mx-auto max-w-5xl text-center">
-        <h2 className="font-display text-foreground mx-auto mb-5 max-w-[32ch] text-2xl">
+        <h2 className="website-section-heading text-foreground mx-auto mb-5 max-w-[32ch]">
           Start from the evidence, not the invoice.
         </h2>
-        <p className="text-muted mx-auto max-w-[80ch] text-lg">
+        <p className="website-lead text-muted mx-auto max-w-[75ch]">
           Walk through your own category with us, then pick the plan that matches the volume you
           actually need.
         </p>

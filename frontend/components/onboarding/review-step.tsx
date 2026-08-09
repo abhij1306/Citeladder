@@ -196,7 +196,7 @@ export function ReviewStep({
             </Badge>
           </div>
           {domains.length === 0 ? (
-            <p className="text-muted text-xs italic">No domains were discovered.</p>
+            <p className="website-body text-muted italic">No domains were discovered.</p>
           ) : (
             <div className="flex flex-wrap gap-2 pt-0.5">
               {domains.map((entry, index) => (
@@ -236,7 +236,7 @@ export function ReviewStep({
 
           {/* 2-Column Grid for Competitor Chips */}
           {competitors.length === 0 ? (
-            <p className="text-muted text-xs italic">No competitors were discovered.</p>
+            <p className="website-body text-muted italic">No competitors were discovered.</p>
           ) : (
             <div className="grid grid-cols-2 gap-2">
               {competitors.map((competitor, index) => (
@@ -263,7 +263,7 @@ export function ReviewStep({
 
         <div className="max-h-80 overflow-y-auto pr-1">
           {prompts.length === 0 ? (
-            <p className="text-muted py-2 text-xs italic">
+            <p className="website-body text-muted py-2 italic">
               None found — you can write your own after setup.
             </p>
           ) : (

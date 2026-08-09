@@ -38,8 +38,8 @@ export function Workflow() {
                   <Icon className="size-5" strokeWidth={1.75} aria-hidden />
                 </span>
                 <span className="text-subtle mt-5 font-mono text-xs tabular-nums">{step.num}</span>
-                <h3 className="font-display text-foreground mt-1 text-base">{step.label}</h3>
-                <p className="text-muted mt-2 max-w-[34ch] text-sm leading-relaxed">{step.desc}</p>
+                <h3 className="website-small-heading text-foreground mt-1">{step.label}</h3>
+                <p className="website-body text-muted mt-2 max-w-[34ch]">{step.desc}</p>
               </StaggerItem>
             );
           })}

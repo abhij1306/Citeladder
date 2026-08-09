@@ -161,10 +161,8 @@ export function AuthFormShell({
   return (
     <div className="w-full">
       <div className="text-center">
-        <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
-          {title}
-        </h1>
-        <p className="text-muted mt-1 text-xs sm:text-sm">{description}</p>
+        <h1 className="website-small-heading text-foreground">{title}</h1>
+        <p className="website-body text-muted mt-1">{description}</p>
       </div>
 
       <div className="mt-6 space-y-4">
@@ -206,7 +204,7 @@ export function AuthFormShell({
           </Button>
         </form>
 
-        <p className="text-muted pt-1 text-center text-sm">
+        <p className="website-body text-muted pt-1 text-center">
           {footerPrompt}{' '}
           <Link
             href={footerHref}

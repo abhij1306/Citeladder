@@ -47,7 +47,7 @@ export function CatalogPurchases({
     <div className="grid gap-8">
       {catalog.addons.length > 0 && (
         <section aria-label="Add-ons" className="grid gap-4">
-          <h3 className="font-display text-foreground text-xl">Add-ons</h3>
+          <h3 className="website-feature-heading text-foreground">Add-ons</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {catalog.addons.map((addon) => (
               <PurchaseRow
@@ -65,7 +65,7 @@ export function CatalogPurchases({
 
       {catalog.topups.length > 0 && (
         <section aria-label="Top-ups" className="grid gap-4">
-          <h3 className="font-display text-foreground text-xl">Top-ups</h3>
+          <h3 className="website-feature-heading text-foreground">Top-ups</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {catalog.topups.map((topup) => (
               <PurchaseRow
@@ -120,8 +120,8 @@ function PurchaseRow({
             : 'Not yet priced'}
         </span>
       </div>
-      <p className="text-muted flex-1 text-xs">{entry.description}</p>
-      {footnote && <p className="text-muted text-xs">{footnote}</p>}
+      <p className="website-body text-muted flex-1">{entry.description}</p>
+      {footnote && <p className="website-body text-muted">{footnote}</p>}
       <button
         type="button"
         disabled={!purchasable || pending}
@@ -131,7 +131,7 @@ function PurchaseRow({
         {pending ? 'Starting…' : `Add ${entry.name}`}
       </button>
       {!purchasable && entry.unavailable_reason && (
-        <p className="text-muted text-xs">{reasonLabel(entry.unavailable_reason)}</p>
+        <p className="website-body text-muted">{reasonLabel(entry.unavailable_reason)}</p>
       )}
     </div>
   );

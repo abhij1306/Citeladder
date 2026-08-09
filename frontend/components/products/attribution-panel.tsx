@@ -17,8 +17,9 @@ import {
 import {
   Dropdown,
   DropdownContent,
-  DropdownItem,
   DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
   DropdownTrigger,
 } from '@/components/ui/dropdown';
 import { SegmentedControl } from '@/components/ui/segmented-control';
@@ -131,15 +132,17 @@ export function AttributionPanel({
           </DropdownTrigger>
           <DropdownContent>
             <DropdownLabel>Date range</DropdownLabel>
-            {RANGE_OPTIONS.map((option) => (
-              <DropdownItem
-                key={option.value}
-                data-active={range === option.value}
-                onSelect={() => setRange(option.value)}
-              >
-                {option.label}
-              </DropdownItem>
-            ))}
+            <DropdownRadioGroup value={range}>
+              {RANGE_OPTIONS.map((option) => (
+                <DropdownRadioItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => setRange(option.value)}
+                >
+                  {option.label}
+                </DropdownRadioItem>
+              ))}
+            </DropdownRadioGroup>
           </DropdownContent>
         </Dropdown>
 

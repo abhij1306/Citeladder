@@ -193,7 +193,7 @@ describe('AnalyticsScreen — populated dashboard', () => {
     expect(await screen.findByText('3 days')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Select date range' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Last 30 days' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Last 30 days' }));
     const params = (url: string) => new URL(url).searchParams;
     const fromValues = () => seen.map((url) => params(url).get('from'));
     // Bounded presets send the both-or-neither `from`+`to` UTC-date window
@@ -205,7 +205,7 @@ describe('AnalyticsScreen — populated dashboard', () => {
     }
 
     await user.click(screen.getByRole('button', { name: 'Select date range' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Last 90 days' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Last 90 days' }));
     await waitFor(() => expect(new Set(fromValues().filter(Boolean)).size).toBeGreaterThan(1));
   });
 });

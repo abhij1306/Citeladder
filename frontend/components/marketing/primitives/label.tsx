@@ -15,11 +15,7 @@ export function Meta({
   className,
   as: Tag = 'span',
 }: Readonly<{ children: ReactNode; className?: string; as?: 'span' | 'p' | 'div' }>) {
-  return (
-    <Tag className={cn('text-muted font-mono text-xs font-medium tabular-nums', className)}>
-      {children}
-    </Tag>
-  );
+  return <Tag className={cn('website-label text-muted tabular-nums', className)}>{children}</Tag>;
 }
 
 /**
@@ -41,7 +37,7 @@ export function Eyebrow({
   return (
     <div
       className={cn(
-        'text-muted inline-flex items-center gap-2 text-xs font-semibold tracking-normal',
+        'website-label text-muted inline-flex items-center gap-2 font-semibold',
         className,
       )}
     >

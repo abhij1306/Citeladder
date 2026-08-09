@@ -14,29 +14,40 @@ deliberate, quiet motion treatments.
 - **Name and domain:** CiteLadder, `citeladder.com`.
 - **Voice:** direct, confident, specific. One idea per sentence. Prefer evidence
   and outcomes over generic AI language.
-- **Typography:** Manrope for display headings, Public Sans for UI, body, and
-  data. Weights 400–600, normal tracking (a tight display headline may use
-  `tracking-tight`). Section headings are 32px; the hero headline scales
-  responsively up to 48px, which is the display ceiling.
-- **Accent:** a single Electric Blue (`#3E6AE1`) for primary actions, selection,
-  links, and focus. It is the only chromatic colour on the marketing surface; the
-  hero closing clause may render it as an accent-token gradient.
+- **Typography:** Manrope for display headings and Geist for UI, body, and data,
+  both loaded through `next/font/google`. The website and authentication surfaces
+  use a 16px reading baseline and a content-role ladder; the authenticated app
+  keeps its existing compact size scale. Size, leading, weight, tracking, and
+  colour are one role contract, never independent page-level choices.
+- **Accent:** a single Reference Blue (`#2667FF`) for primary actions, explicit
+  selection, links, and focus. It is the only chromatic colour on the marketing
+  surface and is always rendered as a flat semantic colour, not an atmospheric
+  field.
 - **Composition:** state before features. Product pages prioritise current state,
   movement, next action, then evidence. Marketing is more editorial but uses the
   same tokens, type, and restraint.
 
-There is no dark theme, marketing token namespace, or route-local palette.
+There is no user-selectable dark theme, parallel marketing colour namespace, or
+route-local palette. The dark brand panel on login and onboarding is an intentional,
+fixed composition inside an otherwise light product; it is not a theme.
 
 ## Source of truth and implementation rules
 
 `frontend/app/globals.css` is the sole owner of global tokens, the font binding,
-shared geometry, and global interaction rules. Components consume its semantic
-Tailwind utilities and CSS custom properties.
+shared geometry, and global interaction rules. Its imported
+`frontend/app/website-type.css` owns the named website/auth type roles, the
+legacy scoped size-rung compatibility layer, and the website button treatment;
+it does not own a second palette. Editorial and auth hierarchy uses the named
+roles, while product UI consumes semantic Tailwind utilities and CSS custom
+properties.
 
 - Do not add `@theme`, a raw hex colour, a shared control recipe, or an
   unregistered animation outside `globals.css`.
-- Do not create a marketing token namespace. Marketing scenes and product screens
-  use the same surface, type, status, elevation, and motion tokens.
+- Do not create a marketing colour or elevation namespace. Marketing scenes and
+  product screens use the same surface, status, elevation, and motion tokens. A
+  scoped website type ladder is allowed because public/auth reading sizes and
+  dense product UI have different jobs; embedded product previews explicitly reset
+  to the app type ladder.
 - Prefer existing primitives in `frontend/components/ui/` and
   `frontend/components/marketing/` before making a new one.
 - `pnpm check:policy` guards raw colours outside the owner, stray `@theme` blocks,
@@ -46,19 +57,20 @@ Tailwind utilities and CSS custom properties.
 
 Tokens are semantic; components use the role, not a colour value.
 
-| Role | Token family | Use |
-|---|---|---|
-| Canvas and surfaces | `background` (Untitled UI Gray-50 #f9fafb), `background-alt` (#f2f4f7), `panel` (white), `well`, `sidebar` | Clean light tiers — crisp panels with high legibility and contrast |
-| Text | `foreground` (#101828), `secondary` (#344054), `muted` (#475467), `subtle` (#667085), `inverse` | Untitled UI 10-step Gray reading ramp |
-| Borders | `border` (#e4e7ec), `border-subtle` (#f2f4f7), `border-strong` (#d0d5dd) | Crisp hairlines for subtle separation |
-| Primary action | `accent-*` | Electric-blue (`#3E6AE1`) CTAs, selection, links, focus (UNCHANGED) |
-| Status | `success-*`, `warning-*`, `danger-*`, `info-*`, `neutral-bg` | App only; always paired with text or an icon |
-| Evidence and scores | `citation-*`, `run-*`, `score-*`, `series-*`, `chart-*` | Persisted evidence, audit status, score bands, and charts |
+| Role                | Token family                                                                                    | Use                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Canvas and surfaces | `background` and `panel` (white), `background-alt` / `well` (`#F3F4F6`), `sidebar`              | White is the default canvas; subtle neutral gray groups or highlights content without turning every region into a card |
+| Text                | `foreground` (#101828), `secondary` (#344054), `muted` (#475467), `subtle` (#667085), `inverse` | Untitled UI 10-step Gray reading ramp                                                                                  |
+| Borders             | `border` (#e4e7ec), `border-subtle` (#f2f4f7), `border-strong` (#d0d5dd)                        | Crisp hairlines for subtle separation                                                                                  |
+| Primary action      | `accent-*`                                                                                      | Reference Blue (`#2667FF`) CTAs, explicit selection, links, and focus                                                  |
+| Status              | `success-*`, `warning-*`, `danger-*`, `info-*`, `neutral-bg`                                    | App only; always paired with text or an icon                                                                           |
+| Evidence and scores | `citation-*`, `run-*`, `score-*`, `series-*`, `chart-*`                                         | Persisted evidence, audit status, score bands, and charts                                                              |
 
-The accent is Electric Blue: `#3E6AE1` at rest (UNCHANGED), darkened on hover and press. Its
-subtle fill and border are pale-blue tints; `accent-text` is a darker blue so
-accent-coloured text clears WCAG AA on white. The canvas is Gray 50 (`#f9fafb`),
-working surfaces are white, and ink is Carbon Ink (`#101828`).
+The accent is Reference Blue: `#2667FF` at rest, darkened on hover and press.
+`accent-text` is a darker accessible blue for text on white. Page, panel, card,
+dialog, and drawer surfaces are white. `#F3F4F6` is the shared neutral highlight
+for grouped regions, wells, hover, and quiet emphasis. Pale-blue fills do not act
+as atmosphere, section backgrounds, or generic highlights.
 
 **Marketing is monochrome-plus-blue.** It uses only white, the ink ramp, and the
 one blue — no status, score, or category colour. **The authenticated app keeps
@@ -67,26 +79,60 @@ the categorical chart series, whose first series is the brand blue), because a
 data view has to stay legible at a glance. Status colour never carries meaning
 alone; it is always paired with a label or icon.
 
-## Type, data, and geometry
+## Typography
 
-Two families: Manrope for display headings (`font-display`), Public Sans for UI,
-body, and data (`font-sans`). Weights run 400–600. Metrics, dates, ranks, and
-percentages use tabular numerals, never a monospace face.
+Two families only: Manrope for display headings (`font-display`) and Geist for
+UI, body, and data (`font-sans`). Both are Google Fonts loaded through
+`next/font/google`; no local font files or runtime stylesheet request is added.
+Weights run 400–600. Metrics, dates, ranks, and percentages use tabular numerals,
+never a monospace face.
 
-The scale clusters low and caps at 48px. `text-sm` (14px) is the reading
-baseline; `text-2xl` (32px) is the section heading; the hero headline scales
-`text-3xl` → `text-4xl` → `text-5xl` (40 → 44 → 48px) across breakpoints, and 48px
-is the ceiling. Every one of those sizes is a `--text-*` token in `globals.css`;
-no page invents an off-scale size.
+### Website and authentication ladder
 
-| Context | Desktop | Touch / compact |
-|---|---:|---:|
-| Top bar | 48px | 52px |
-| Sidebar rail | 224px | mobile drawer |
-| Content gutter | 20px | 16px |
-| Navigation / control row | 32px | 44px minimum target |
-| Primary CTA | 40px height | 44px minimum target |
-| Table row | 36px | labelled record |
+The website scale is role-based and starts from a 16px reading baseline. A role
+owns its size, leading, weight, tracking, and colour as one unit. Public and auth
+components consume these roles instead of assembling arbitrary size, leading,
+tracking, weight, and colour combinations.
+
+| Role                    | Family  |      Size / line height |  Weight |                       Tracking | Colour                                      |
+| ----------------------- | ------- | ----------------------: | ------: | -----------------------------: | ------------------------------------------- |
+| Hero display            | Manrope | 44/48 → 56/60 → 64/68px |     600 |                        -0.04em | foreground; one short phrase may use accent |
+| Page title              | Manrope |         40/44 → 48/54px |     600 |                       -0.035em | foreground                                  |
+| Section heading         | Manrope |         32/38 → 40/46px |     600 |                        -0.03em | foreground                                  |
+| Feature heading         | Manrope |                 24/30px |     600 |                        -0.02em | foreground                                  |
+| Small heading           | Manrope |                 20/26px |     600 |                        -0.01em | foreground                                  |
+| Lead                    | Geist   |                 20/30px |     400 |                        -0.01em | secondary                                   |
+| Large body              | Geist   |                 18/28px |     400 |                              0 | secondary                                   |
+| Body baseline           | Geist   |                 16/24px |     400 |                              0 | secondary                                   |
+| Navigation and actions  | Geist   |                 16/20px | 500–600 |                              0 | foreground or inverse                       |
+| Label, caption, eyebrow | Geist   |                 14/20px | 500–600 | 0; +0.06em only when uppercase | muted or subtle                             |
+
+Ordinary website paragraphs never render below 16px. Fourteen pixels is reserved
+for short labels, metadata, captions, and legal support. Prose stays within a
+45–75 character measure. Accent blue never carries a long paragraph. Large text
+uses tighter leading and tracking; body text stays at zero tracking with more
+leading. Pricing values are the one non-editorial website display role:
+`website-data-display` uses Geist at 40/46px with tabular numerals and never
+applies to prose or headings.
+
+### Product app ladder
+
+The authenticated app keeps the current compact `--text-*` sizes. Replacing Public
+Sans with Geist must not change their computed sizes, control heights, table
+density, or screen geometry. Product previews embedded on the website use the app
+ladder because they depict product UI, while surrounding editorial copy uses the
+website ladder.
+
+## Data and geometry
+
+| Context                  |     Desktop |     Touch / compact |
+| ------------------------ | ----------: | ------------------: |
+| Top bar                  |        48px |                52px |
+| Sidebar rail             |       224px |       mobile drawer |
+| Content gutter           |        20px |                16px |
+| Navigation / control row |        32px | 44px minimum target |
+| Primary CTA              | 40px height | 44px minimum target |
+| Table row                |        36px |     labelled record |
 
 The content area caps at 1383px. Standard cards use 16px internal padding and gap.
 The radius scale is 4px (`xs`), 6px (`sm`, controls/buttons), 8px (`md`), 12px
@@ -134,14 +180,14 @@ to look on every page in the app.
 
 Fixed responsibilities per region:
 
-| Region | Owns | Never |
-|---|---|---|
-| Top bar | Project and context switching, date range and comparison window, global search, agent entry | Page-specific actions |
-| Sidebar | The four layers plus Reports and Settings, flat and always visible | Nested trees or disabled future items |
-| Page header | Title, one line of supporting context, and this page's actions | Metrics |
-| Metric row | Three to five headline numbers, each with coverage | More than five, or a metric without provenance |
-| Analytical surface | The one chart, table, or comparison this page exists for | Competing equal-weight surfaces |
-| Insight list | Ranked insight objects (below) | Ad-hoc card shapes |
+| Region             | Owns                                                                                        | Never                                          |
+| ------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Top bar            | Project and context switching, date range and comparison window, global search, agent entry | Page-specific actions                          |
+| Sidebar            | The four layers plus Reports and Settings, flat and always visible                          | Nested trees or disabled future items          |
+| Page header        | Title, one line of supporting context, and this page's actions                              | Metrics                                        |
+| Metric row         | Three to five headline numbers, each with coverage                                          | More than five, or a metric without provenance |
+| Analytical surface | The one chart, table, or comparison this page exists for                                    | Competing equal-weight surfaces                |
+| Insight list       | Ranked insight objects (below)                                                              | Ad-hoc card shapes                             |
 
 Date range and comparison live in the top bar because they apply to the whole
 context, not to one chart. A page that needs its own time control is a page whose
@@ -149,8 +195,8 @@ scope is wrong.
 
 #### The insight object
 
-The product model is *acquire evidence → understand → detect gaps → create
-opportunities → improve → verify → recommend next*. The reusable unit that model
+The product model is _acquire evidence → understand → detect gaps → create
+opportunities → improve → verify → recommend next_. The reusable unit that model
 produces is not a dashboard card — it is an **insight**, and it is the single most
 important component in the system.
 
@@ -207,18 +253,23 @@ focused grid, then an optional CTA.
   over a wall of feature cards. The product UI is the "photography": a real
   workspace canvas carries the visual weight.
 - Keep body copy around 60–70 characters wide and use one H1 per page.
-- Auth uses the same palette and focus treatment; the form remains the primary task.
+- Auth uses the website type ladder and shared focus treatment; the form remains
+  the primary task. The existing dark login/onboarding brand panel is preserved.
+- Website and app copy, data, feature claims, and workflow behaviour are outside
+  this pass. Product previews may change layout, typography, colour, border,
+  radius, or elevation only; their strings and scripted content stay unchanged.
 
 ## Component recipes
 
 ### Controls
 
-Buttons are `rounded-sm` (6px) rectangles, never pills. Primary is the blue fill
-with a white label; secondary is a white fill with a hairline and a Graphite
-label; neutral and ghost stay quiet so a screen has one obvious action; danger is
-reserved for destructive actions. Hover shifts colour, border, and the micro-shadow
-over the universal 330ms curve. Every control has a direct label, a visible focus
-ring (an opaque accent halo, ≥3:1), and at least a 44px touch target.
+App buttons are `rounded-sm` (6px) rectangles with no decorative inset border.
+Website and auth primary buttons use the same shared Button behaviour and blue
+fill, but add the reference treatment: 12px corners, a subtle light inset edge,
+a defined outer blue edge, and quiet elevation. Secondary, neutral, ghost, and
+danger remain shared semantic variants. Every control has a direct label, a
+visible focus ring (an opaque accent halo, ≥3:1), immediate pressed feedback, and
+at least a 44px touch target.
 
 Inputs use the semantic input and border roles. Labels sit with their control,
 helper text explains constraints, and errors give a recovery instruction. Never
@@ -226,9 +277,14 @@ use placeholder text as the only label.
 
 ### Panels, badges, and evidence
 
-Panels are white or semantic-surface fills carried by a hairline border and a
-crisp micro-shadow. Interactive cards may raise a step on hover — a deeper shadow
-and a small rise (`hover:-translate-y-0.5`) — as the one sanctioned lift. Badges
+Elevation is shared between marketing and the app. The reference card treatment
+uses a crisp near edge plus a soft neutral ambient shadow, as shown in reference
+image 2. Elevation never implies that every region needs a white card: sections,
+tables, and grouped rows may remain borderless on the white canvas or use the
+`#F3F4F6` highlight. A surface receives elevation only when it floats, overlays,
+or needs separation from adjacent content. Interactive cards may raise one rung
+on hover — a deeper shadow and a small rise (`hover:-translate-y-0.5`) — as the
+one sanctioned lift. Badges
 pair a text label with their state mark; a colour, dot, or icon is never the sole
 signal. Evidence rows identify source, measurement context, and the action that
 opens the persisted record. Empty and loading states preserve layout and explain
@@ -239,17 +295,28 @@ what is missing.
 The marketing nav floats transparent over the hero and becomes a frosted white on
 scroll, with no shadow. The app sidebar makes the active location obvious through a
 blue fill, a leading blue rail, and a Carbon-Dark label — not through weight.
-Menus, tooltips, dialogs, and drawers use the overlay elevation rung, maintain
-focus, close predictably, and return focus to their trigger.
+Menus and custom listboxes use `shadow-elevated`, `rounded-md`, the shared menu
+panel/item recipes, and a short system-curve entrance. Single-select filters use
+radio menu items so the current value is visible without relying on colour.
+Tooltips use the elevated rung and `rounded-md`; dialogs and drawers use
+`shadow-modal-value` with `rounded-lg`. Drawers are right-side modal contextual
+sheets owned by `components/ui/drawer.tsx`. Their scrim dims and locks the page;
+outside click, Escape, or the close control dismisses them, and focus returns to
+the trigger. Feature components never import Radix directly.
+
+Tabs remain the underline treatment for navigation between views. Segmented
+controls use one bordered-track recipe for compact single-select changes within
+a view. Filter chips are the shared pill treatment for independent or
+multi-select filters; they live in `components/ui`, not a feature directory.
 
 ## Motion and accessibility
 
-State changes use one 330ms `cubic-bezier(0.5, 0, 0, 0.75)` curve, with a 250ms
-micro for feedback. Beyond that, a small, deliberate set of ambient and
-storytelling motions is sanctioned, each one calm and each one reduced-motion-safe:
+Pointer-opened menus use a barely visible 150–180ms origin-aware fade/shift.
+Keyboard-opened command interfaces are immediate. Drawers use a short 220–260ms
+right-side transition that remains interruptible. Press feedback starts on
+pointer-down. Beyond that, a small, deliberate set of explanatory motions is
+sanctioned, each one calm and reduced-motion-safe:
 
-- the marketing **atmosphere** — two very-low-opacity accent auras drifting behind
-  the public surface;
 - the **architecture pipeline** diagram (platform section) — accent dots flowing
   along conduit paths;
 - the rotating answer-engine wordmarks and the product-window walkthrough;
@@ -268,13 +335,16 @@ usable.
 Before merging a visual change, verify:
 
 - It uses semantic global tokens and an existing primitive where one applies.
-- Type stays within weights 400–600 and at or below the 48px ceiling, using the
-  `--text-*` token sizes.
+- Website/auth type uses a documented content role with a 16px body baseline;
+  app type keeps its compact scale. Both stay within weights 400–600.
 - Marketing stays monochrome-plus-blue; functional colour appears only in the app.
-- Elevation uses the micro-shadow tokens; radius uses the 4 / 6 / 8 / 12 / 16 / 20
+- The default canvas is white, quiet highlight is `#F3F4F6`, and elevation does
+  not force card backgrounds onto structural regions.
+- Elevation uses the shared shadow tokens; radius uses the 4 / 6 / 8 / 12 / 16 / 20
   scale.
 - Any new motion is calm and stops under `prefers-reduced-motion`.
 - Text, focus, status, loading, error, empty, keyboard, touch, reduced-motion,
   forced-colours, and mobile states remain usable.
+- No website or app copy, data, claims, or workflow behaviour changed.
 - Focused tests, `pnpm check:policy`, and the appropriate build or visual checks
-  pass.
+  pass. React Doctor is the final verification command.

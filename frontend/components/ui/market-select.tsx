@@ -3,6 +3,7 @@
 import { useId, useRef, useState } from 'react';
 
 import { Input } from '@/components/ui/input';
+import { menuItemVariants, menuPanelClasses } from '@/components/ui/menu-variants';
 import type { MarketOption } from '@/lib/setup/markets';
 import { cn } from '@/lib/utils';
 
@@ -152,7 +153,8 @@ export function MarketSelect({
           id={listId}
           role="listbox"
           aria-label={ariaLabel}
-          className="border-border-subtle bg-elevated shadow-modal-value z-modal absolute mt-1 max-h-56 w-full overflow-auto rounded-sm border p-1"
+          data-open="true"
+          className={cn(menuPanelClasses, 'absolute mt-1 max-h-56 w-full overflow-auto')}
         >
           {filtered.map((option, index) => (
             <li
@@ -166,8 +168,9 @@ export function MarketSelect({
               }}
               onMouseEnter={() => setHighlight(index)}
               className={cn(
-                'text-foreground flex min-h-8 cursor-pointer items-center justify-between gap-2 rounded-sm px-2 py-1 text-sm',
-                index === highlight && 'bg-background-alt',
+                menuItemVariants({ selected: option.value === value }),
+                'justify-between',
+                index === highlight && option.value !== value && 'bg-background-alt',
               )}
             >
               <span>{option.label}</span>

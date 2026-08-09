@@ -34,7 +34,7 @@ export function PageHero({
           <Eyebrow>{eyebrow}</Eyebrow>
           <h1
             className={cn(
-              'font-display text-foreground mt-8 mb-8 max-w-[32ch] text-3xl',
+              'website-page-title text-foreground mt-8 mb-8 max-w-[32ch]',
               centered && 'mx-auto',
             )}
           >
@@ -47,7 +47,9 @@ export function PageHero({
             )}
           </h1>
           {lead && (
-            <p className={cn('text-muted max-w-[80ch] text-lg', centered && 'mx-auto')}>{lead}</p>
+            <p className={cn('website-lead text-muted max-w-[75ch]', centered && 'mx-auto')}>
+              {lead}
+            </p>
           )}
           {children}
         </Reveal>

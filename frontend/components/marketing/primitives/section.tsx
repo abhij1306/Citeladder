@@ -143,12 +143,12 @@ export function SectionHeader({
   as?: 'h1' | 'h2' | 'h3';
   className?: string;
 }>) {
-  // Tesla ramp under the 40px ceiling: h1 hero (40), h2 section (28), h3
-  // compact (22). Never text-4xl/5xl — those exceed the ceiling.
+  // The scoped website ladder resolves these semantic rungs responsively;
+  // embedded product previews reset to the compact app ladder.
   const HEADING = {
-    h1: 'text-3xl',
-    h2: 'text-2xl',
-    h3: 'text-xl',
+    h1: 'website-page-title',
+    h2: 'website-section-heading',
+    h3: 'website-feature-heading',
   } as const;
 
   return (
@@ -164,16 +164,11 @@ export function SectionHeader({
       {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
       <Heading
         id={headingId}
-        className={cn(
-          'font-display text-foreground max-w-[32ch] font-semibold tracking-tight text-balance',
-          HEADING[size],
-        )}
+        className={cn('text-foreground max-w-[32ch] text-balance', HEADING[size])}
       >
         {title}
       </Heading>
-      {lead && (
-        <p className="text-muted max-w-[65ch] text-base leading-relaxed md:text-lg">{lead}</p>
-      )}
+      {lead && <p className="website-lead text-muted max-w-[65ch]">{lead}</p>}
     </Reveal>
   );
 }

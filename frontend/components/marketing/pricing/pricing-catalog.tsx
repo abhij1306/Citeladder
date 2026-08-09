@@ -202,18 +202,18 @@ export function PricingCatalog() {
             describedBy="byok-disclosure"
           />
           <span className="text-foreground text-sm font-medium">{BYOK_SWITCH_LABEL}</span>
-          <p id="byok-disclosure" className="text-muted max-w-[70ch] basis-full text-sm">
+          <p id="byok-disclosure" className="website-body text-muted max-w-[70ch] basis-full">
             {BYOK_DISCLOSURE}
           </p>
         </div>
 
         {notice && (
-          <p role="status" className="text-warning-text mb-8 text-sm">
+          <p role="status" className="website-body text-warning-text mb-8">
             {notice}
           </p>
         )}
         {activation.isError && (
-          <p role="status" className="text-warning-text mb-8 text-sm">
+          <p role="status" className="website-body text-warning-text mb-8">
             {activation.error instanceof Error
               ? activation.error.message
               : 'That purchase could not be started. Please try again.'}
@@ -320,7 +320,7 @@ function LoadingShell() {
 function CatalogError({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
     <div className="border-border-subtle grid gap-4 rounded-lg border border-dashed p-10 text-center">
-      <p className="text-muted text-sm">
+      <p className="website-body text-muted">
         Plans could not be loaded, so no price is shown. Check your connection and retry.
       </p>
       <button

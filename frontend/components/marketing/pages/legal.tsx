@@ -31,11 +31,9 @@ export function LegalDocumentView({ document }: Readonly<{ document: LegalDocume
       <header className="border-border-subtle border-b pt-16 pb-6 md:pb-8">
         <div className="px-6-phone md:px-6-tablet mx-auto w-full max-w-3xl xl:px-6">
           <Reveal>
-            <p className="text-muted text-xs font-medium tracking-wide uppercase">Legal</p>
-            <h1 className="font-display text-foreground mt-3 text-2xl md:text-3xl">
-              {document.title}
-            </h1>
-            <p className="text-muted mt-3 max-w-[60ch] text-base">{document.description}</p>
+            <p className="website-eyebrow text-muted">Legal</p>
+            <h1 className="website-page-title text-foreground mt-3">{document.title}</h1>
+            <p className="website-body-lg text-muted mt-3 max-w-[60ch]">{document.description}</p>
             <Meta as="p" className="mt-5">
               Last updated · {formatUpdated(LEGAL_ENTITY.lastUpdated)}
             </Meta>
@@ -46,9 +44,7 @@ export function LegalDocumentView({ document }: Readonly<{ document: LegalDocume
       <Section tone="paper" rhythm="tight" dense>
         <div className="mx-auto grid max-w-3xl gap-10 lg:max-w-5xl lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-14">
           <nav aria-label="On this page" className="lg:sticky lg:top-24 lg:self-start">
-            <p className="text-muted mb-3 text-xs font-medium tracking-wide uppercase">
-              On this page
-            </p>
+            <p className="website-eyebrow text-muted mb-3">On this page</p>
             <ol className="grid gap-2">
               {document.sections.map((section) => (
                 <li key={section.id}>
@@ -70,12 +66,9 @@ export function LegalDocumentView({ document }: Readonly<{ document: LegalDocume
                 id={section.id}
                 className="border-border-subtle scroll-mt-28 border-b py-8 last:border-b-0"
               >
-                <h2 className="font-display text-foreground text-2xl">{section.title}</h2>
+                <h2 className="website-section-heading text-foreground">{section.title}</h2>
                 {section.paragraphs?.map((paragraph, index) => (
-                  <p
-                    key={`${section.id}-p-${index}`}
-                    className="text-muted mt-4 text-base leading-relaxed"
-                  >
+                  <p key={`${section.id}-p-${index}`} className="website-body-lg text-muted mt-4">
                     {paragraph}
                   </p>
                 ))}
@@ -87,7 +80,7 @@ export function LegalDocumentView({ document }: Readonly<{ document: LegalDocume
                   </ul>
                 ) : null}
                 {section.note ? (
-                  <p className="border-border-subtle bg-background-alt text-subtle mt-5 rounded-md border px-4 py-3 text-xs leading-relaxed">
+                  <p className="website-label border-border-subtle bg-background-alt text-subtle mt-5 rounded-md border px-4 py-3">
                     {section.note}
                   </p>
                 ) : null}

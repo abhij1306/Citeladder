@@ -11,8 +11,9 @@ import { Card, CardContent, CardEyebrow, CardHeader, CardTitle } from '@/compone
 import {
   Dropdown,
   DropdownContent,
-  DropdownItem,
   DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
   DropdownTrigger,
 } from '@/components/ui/dropdown';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -565,18 +566,16 @@ function RunSelectorDropdown({
       </DropdownTrigger>
       <DropdownContent>
         <DropdownLabel>Runs</DropdownLabel>
-        <DropdownItem data-active={activeRunId === null} onSelect={() => selectRun(null)}>
-          Latest
-        </DropdownItem>
-        {runOptions.map((run) => (
-          <DropdownItem
-            key={run.id}
-            data-active={run.id === activeRunId}
-            onSelect={() => selectRun(run.id)}
-          >
-            {run.label}
-          </DropdownItem>
-        ))}
+        <DropdownRadioGroup value={activeRunId ?? '__latest__'}>
+          <DropdownRadioItem value="__latest__" onSelect={() => selectRun(null)}>
+            Latest
+          </DropdownRadioItem>
+          {runOptions.map((run) => (
+            <DropdownRadioItem key={run.id} value={run.id} onSelect={() => selectRun(run.id)}>
+              {run.label}
+            </DropdownRadioItem>
+          ))}
+        </DropdownRadioGroup>
       </DropdownContent>
     </Dropdown>
   );

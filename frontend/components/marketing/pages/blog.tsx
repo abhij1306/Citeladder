@@ -59,8 +59,10 @@ function BlogCta({
   return (
     <Section tone="paper" rhythm="base" aria-label="Get started">
       <Reveal className="mx-auto max-w-3xl text-center">
-        <h2 className="font-display text-foreground mx-auto mb-3 max-w-[28ch] text-2xl">{title}</h2>
-        <p className="text-muted mx-auto max-w-[52ch] text-base">
+        <h2 className="website-section-heading text-foreground mx-auto mb-3 max-w-[28ch]">
+          {title}
+        </h2>
+        <p className="website-body-lg text-muted mx-auto max-w-[52ch]">
           Your category, your prompts — raw answers behind every score.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -96,14 +98,14 @@ export function BlogIndex() {
               <Link
                 href={`/blog/${featured.slug}`}
                 aria-label={featured.title}
-                className="border-border-subtle bg-panel shadow-card hover:shadow-card-hover group block overflow-hidden rounded-lg border transition-[box-shadow] duration-200"
+                className="bg-panel shadow-card hover:shadow-card-hover group block overflow-hidden rounded-lg transition-shadow duration-200"
               >
                 <div className="p-6 md:p-8">
                   <TagRow tags={featured.tags} />
-                  <h2 className="font-display text-foreground group-hover:text-accent-text max-w-[32ch] text-2xl font-normal transition-colors duration-200">
+                  <h2 className="website-section-heading text-foreground group-hover:text-accent-text max-w-[32ch] transition-colors duration-200">
                     {featured.title}
                   </h2>
-                  <p className="text-muted mt-4 max-w-[65ch] text-base">{featured.excerpt}</p>
+                  <p className="website-body-lg text-muted mt-4 max-w-[65ch]">{featured.excerpt}</p>
                   <PostMeta post={featured} />
                   <span className="text-accent-text mt-5 inline-flex items-center gap-2 text-sm font-medium">
                     Read note
@@ -125,7 +127,7 @@ export function BlogIndex() {
                   {rest.length} {rest.length === 1 ? 'post' : 'posts'}
                 </Meta>
               </div>
-              <StaggerGroup className="border-border-subtle divide-border-subtle bg-panel shadow-card divide-y overflow-hidden rounded-lg border">
+              <StaggerGroup className="divide-border-subtle bg-panel shadow-card divide-y overflow-hidden rounded-lg">
                 {rest.map((post) => (
                   <StaggerItem key={post.slug}>
                     <Link
@@ -134,10 +136,8 @@ export function BlogIndex() {
                       className="hover:bg-accent-soft group block px-5 py-5 transition-colors duration-200 md:px-6"
                     >
                       <TagRow tags={post.tags} />
-                      <h3 className="font-display text-foreground text-xl font-normal">
-                        {post.title}
-                      </h3>
-                      <p className="text-muted mt-2 max-w-[65ch] text-sm">{post.excerpt}</p>
+                      <h3 className="website-feature-heading text-foreground">{post.title}</h3>
+                      <p className="website-body text-muted mt-2 max-w-[65ch]">{post.excerpt}</p>
                       <PostMeta post={post} />
                     </Link>
                   </StaggerItem>
@@ -152,10 +152,12 @@ export function BlogIndex() {
             <span className="bg-accent-soft text-accent-text mx-auto grid size-10 place-items-center rounded-md">
               <PenLine aria-hidden strokeWidth={1.8} className="size-5" />
             </span>
-            <h2 className="font-display text-foreground mt-6 text-2xl">
+            <h2 className="website-section-heading text-foreground mt-6">
               {BLOG_EMPTY_STATE.heading}
             </h2>
-            <p className="text-muted mx-auto mt-3 max-w-[48ch] text-sm">{BLOG_EMPTY_STATE.body}</p>
+            <p className="website-body text-muted mx-auto mt-3 max-w-[48ch]">
+              {BLOG_EMPTY_STATE.body}
+            </p>
             <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <ButtonLink href={DEMO_HREF}>
                 {DEMO_CTA}
@@ -213,7 +215,7 @@ function blockIdentity(block: BlogBlock): string {
 function PostBlock({ block }: Readonly<{ block: BlogBlock }>) {
   switch (block.type) {
     case 'heading':
-      return <h2 className="font-display text-foreground mt-8 mb-3 text-xl">{block.text}</h2>;
+      return <h2 className="website-feature-heading text-foreground mt-8 mb-3">{block.text}</h2>;
     case 'list':
       return (
         <ul className="text-muted my-4 grid list-disc gap-2 pl-5 text-sm leading-relaxed">
@@ -223,7 +225,7 @@ function PostBlock({ block }: Readonly<{ block: BlogBlock }>) {
         </ul>
       );
     case 'paragraph':
-      return <p className="text-muted my-4 text-base leading-relaxed">{block.text}</p>;
+      return <p className="website-body-lg text-muted my-4">{block.text}</p>;
   }
 }
 
@@ -243,7 +245,7 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
             </Link>
             <Eyebrow>Field notes</Eyebrow>
             <TagRow tags={post.tags} />
-            <h1 className="font-display text-foreground mt-3 max-w-[28ch] text-2xl text-balance md:text-3xl">
+            <h1 className="website-page-title text-foreground mt-3 max-w-[28ch] text-balance">
               {post.title}
             </h1>
             {(post.author ?? post.date ?? post.readTime) && (
@@ -268,7 +270,7 @@ export function BlogPostView({ post }: Readonly<{ post: BlogPost }>) {
 
       <Container dense>
         <article aria-label="Post content" className="max-w-3xl py-8 md:py-10">
-          <p className="bg-accent-soft text-foreground mb-6 rounded-lg px-5 py-4 text-base leading-relaxed font-medium">
+          <p className="website-body-lg bg-accent-soft text-foreground mb-6 rounded-lg px-5 py-4 font-medium">
             {post.excerpt}
           </p>
           {withOccurrenceKeys(post.body, blockIdentity).map(({ key, value }) => (

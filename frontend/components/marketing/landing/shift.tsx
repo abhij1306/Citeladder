@@ -18,7 +18,7 @@ export function Shift() {
           const Icon = LANDING_ICONS[fact.icon];
           return (
             <StaggerItem key={fact.label} className="h-full">
-              <article className="bg-panel border-border shadow-card hover:shadow-card-hover group flex h-full flex-col justify-between rounded-xl border p-6 transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 md:p-7">
+              <article className="bg-panel shadow-card hover:shadow-card-hover group flex h-full flex-col justify-between rounded-xl p-6 transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 md:p-7">
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="bg-accent-subtle/80 text-accent-text border-accent-border/60 flex size-9 items-center justify-center rounded-lg border shadow-xs">
@@ -28,12 +28,10 @@ export function Shift() {
                       {fact.label}
                     </span>
                   </div>
-                  <h3 className="font-display text-foreground group-hover:text-accent-text mt-5 max-w-[28ch] text-lg font-semibold transition-colors">
+                  <h3 className="website-small-heading text-foreground group-hover:text-accent-text mt-5 max-w-[28ch] transition-colors">
                     {fact.title}
                   </h3>
-                  <p className="text-muted mt-3 max-w-[48ch] text-sm leading-relaxed">
-                    {fact.body}
-                  </p>
+                  <p className="website-body text-muted mt-3 max-w-[48ch]">{fact.body}</p>
                 </div>
               </article>
             </StaggerItem>

@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import {
   Dropdown,
   DropdownContent,
-  DropdownItem,
   DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
   DropdownTrigger,
 } from '@/components/ui/dropdown';
 import type { ProductEngineFilter } from '@/lib/products/catalog';
@@ -38,18 +39,16 @@ export function EngineFilterDropdown({
       </DropdownTrigger>
       <DropdownContent>
         <DropdownLabel>Engine</DropdownLabel>
-        <DropdownItem data-active={engine === 'all'} onSelect={() => onChange('all')}>
-          All engines
-        </DropdownItem>
-        {ENGINE_ORDER.map((option) => (
-          <DropdownItem
-            key={option}
-            data-active={engine === option}
-            onSelect={() => onChange(option)}
-          >
-            {engineLabel(option)}
-          </DropdownItem>
-        ))}
+        <DropdownRadioGroup value={engine}>
+          <DropdownRadioItem value="all" onSelect={() => onChange('all')}>
+            All engines
+          </DropdownRadioItem>
+          {ENGINE_ORDER.map((option) => (
+            <DropdownRadioItem key={option} value={option} onSelect={() => onChange(option)}>
+              {engineLabel(option)}
+            </DropdownRadioItem>
+          ))}
+        </DropdownRadioGroup>
       </DropdownContent>
     </Dropdown>
   );

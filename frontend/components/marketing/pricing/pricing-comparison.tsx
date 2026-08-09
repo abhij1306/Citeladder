@@ -20,7 +20,7 @@ export function PricingComparison({ catalog }: Readonly<{ catalog: BillingCatalo
   if (rows.length === 0) return null;
 
   return (
-    <div className="border-border-subtle bg-panel shadow-card overflow-hidden rounded-lg border">
+    <div className="bg-panel shadow-card overflow-hidden rounded-lg">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[36rem] border-collapse text-left">
           <thead>

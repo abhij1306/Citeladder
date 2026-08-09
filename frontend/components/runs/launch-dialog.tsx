@@ -7,6 +7,7 @@ import { ConnectProviderDialog } from '@/components/providers/connect-provider-d
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
+import { filterChipClasses } from '@/components/ui/filter-chip-variants';
 import { Input, inputClasses } from '@/components/ui/input';
 import { MutationNotice } from '@/components/ui/mutation-notice';
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
@@ -25,8 +26,6 @@ import {
   MIN_REPETITIONS,
   toggleEngine,
 } from '@/lib/runs/launch';
-
-import { filterChipClasses } from './filter-chip-variants';
 
 /**
  * Launch-audit dialog (F10, design.md §9.7).

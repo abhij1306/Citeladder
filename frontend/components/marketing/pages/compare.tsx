@@ -34,11 +34,11 @@ export function CompareIndex() {
         </div>
 
         {COMPETITORS.length === 0 ? (
-          <p className="border-border-subtle text-muted rounded-lg border border-dashed p-8 text-center text-sm">
+          <p className="website-body border-border-subtle text-muted rounded-lg border border-dashed p-8 text-center">
             Comparison notes publish as each vendor review completes.
           </p>
         ) : (
-          <StaggerGroup className="border-border-subtle divide-border-subtle bg-panel shadow-card divide-y overflow-hidden rounded-lg border">
+          <StaggerGroup className="divide-border-subtle bg-panel shadow-card divide-y overflow-hidden rounded-lg">
             {COMPETITORS.map((competitor) => (
               <StaggerItem key={competitor.slug}>
                 <Link
@@ -74,10 +74,10 @@ export function CompareIndex() {
 
       <Section tone="sunken" rhythm="tight" aria-labelledby="compare-fair-title">
         <Reveal className="mb-6 max-w-3xl">
-          <h2 id="compare-fair-title" className="font-display text-foreground text-2xl">
+          <h2 id="compare-fair-title" className="website-section-heading text-foreground">
             Compared honestly.
           </h2>
-          <p className="text-muted mt-3 text-base">
+          <p className="website-body-lg text-muted mt-3">
             Competitor facts come from each vendor’s public site. Ours come from this codebase.
           </p>
         </Reveal>
@@ -118,10 +118,10 @@ export function CompareIndex() {
 
       <Section tone="paper" rhythm="base" aria-label="Get started">
         <Reveal className="mx-auto max-w-3xl text-center">
-          <h2 className="font-display text-foreground mx-auto mb-3 max-w-[28ch] text-2xl">
+          <h2 className="website-section-heading text-foreground mx-auto mb-3 max-w-[28ch]">
             Don’t compare pages. Compare evidence.
           </h2>
-          <p className="text-muted mx-auto max-w-[56ch] text-base">
+          <p className="website-body-lg text-muted mx-auto max-w-[56ch]">
             Same prompts across ChatGPT, Gemini and Claude — raw responses included.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">

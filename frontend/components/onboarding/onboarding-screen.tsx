@@ -307,17 +307,17 @@ export function OnboardingScreen() {
   );
 
   return (
-    <div className="bg-panel text-foreground selection:bg-accent selection:text-accent-fg relative h-screen max-h-screen w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
+    <div className="website-type bg-panel text-foreground selection:bg-accent selection:text-accent-fg relative h-screen max-h-screen w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
       {/* Left Brand Panel — Vertical Stepper (Desktop ≥900px) */}
       <BrandCanvas className="col-span-5 h-screen max-h-screen justify-between p-6 lg:col-span-4 xl:p-10">
         <div className="relative z-10 flex flex-col gap-8">
           <AuthWordmark light />
 
           <div className="space-y-1.5">
-            <h2 className="font-display text-brand-canvas-foreground text-xl font-bold tracking-tight sm:text-2xl">
+            <h2 className="website-feature-heading text-brand-canvas-foreground">
               Set up your project
             </h2>
-            <p className="text-brand-canvas-secondary text-sm">
+            <p className="website-body text-brand-canvas-secondary">
               Create your workspace in a few clicks.
             </p>
           </div>
@@ -362,7 +362,7 @@ export function OnboardingScreen() {
                     <div className="space-y-1">
                       <p
                         className={cn(
-                          'text-base font-semibold transition-colors sm:text-lg',
+                          'website-small-heading transition-colors',
                           isCurrent && 'text-brand-canvas-foreground',
                           isDone && 'text-brand-canvas-secondary',
                           !isDone && !isCurrent && 'text-brand-canvas-muted',
@@ -370,9 +370,7 @@ export function OnboardingScreen() {
                       >
                         {stage.title}
                       </p>
-                      <p className="text-brand-canvas-muted text-xs sm:text-sm">
-                        {stage.description}
-                      </p>
+                      <p className="website-label text-brand-canvas-muted">{stage.description}</p>
                     </div>
                   </li>
                 );
@@ -381,7 +379,7 @@ export function OnboardingScreen() {
           </div>
         </div>
 
-        <div className="border-brand-canvas-border/80 text-brand-canvas-muted relative z-10 border-t pt-4 text-xs">
+        <div className="website-label border-brand-canvas-border/80 text-brand-canvas-muted relative z-10 border-t pt-4">
           <span>© {new Date().getFullYear()} CiteLadder · Onboarding</span>
         </div>
       </BrandCanvas>
@@ -442,10 +440,10 @@ export function OnboardingScreen() {
             {step === 0 ? (
               <form noValidate onSubmit={submitBrand} className="space-y-6">
                 <div className="space-y-1">
-                  <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
+                  <h1 className="website-feature-heading text-foreground">
                     {isAdditional ? 'Add a project' : "Let's get started"}
                   </h1>
-                  <p className="text-muted text-sm">
+                  <p className="website-body text-muted">
                     We&apos;ll review your website, suggest comparable brands, and prepare balanced
                     questions.
                   </p>
@@ -587,10 +585,8 @@ export function OnboardingScreen() {
             {step === 1 ? (
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
-                    Finding what to track
-                  </h1>
-                  <p className="text-muted text-sm">
+                  <h1 className="website-feature-heading text-foreground">Finding what to track</h1>
+                  <p className="website-body text-muted">
                     We&apos;re learning about {brand?.brand_name || 'your brand'} and preparing
                     useful questions. You can review everything before the project is created.
                   </p>
@@ -604,7 +600,7 @@ export function OnboardingScreen() {
                 </div>
 
                 {(discovery.discovery?.warnings ?? []).map((warning) => (
-                  <Alert key={warning} tone="warning" className="px-3 py-2.5 text-xs">
+                  <Alert key={warning} tone="warning" className="website-body px-3 py-2.5">
                     {warningMessage(warning)}
                   </Alert>
                 ))}
@@ -662,10 +658,8 @@ export function OnboardingScreen() {
             {step === 2 ? (
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <h1 className="font-display text-foreground text-xl font-semibold tracking-tight">
-                    Does this look right?
-                  </h1>
-                  <p className="text-muted text-sm">
+                  <h1 className="website-feature-heading text-foreground">Does this look right?</h1>
+                  <p className="website-body text-muted">
                     Deselect anything you don&apos;t want — you can change all of it after setup.
                   </p>
                 </div>
@@ -673,10 +667,8 @@ export function OnboardingScreen() {
                 {/* Discovered Profile at TOP */}
                 {discovery.discovery?.profile.description ? (
                   <div className="border-border-subtle bg-well/40 rounded-lg border px-3.5 py-2.5">
-                    <p className="text-3xs text-muted font-semibold tracking-wider uppercase">
-                      Discovered Profile
-                    </p>
-                    <p className="text-foreground mt-0.5 text-xs leading-relaxed">
+                    <p className="website-eyebrow text-muted">Discovered Profile</p>
+                    <p className="website-body text-foreground mt-0.5">
                       {discovery.discovery.profile.description}
                     </p>
                   </div>

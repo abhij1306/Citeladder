@@ -125,7 +125,7 @@ export function MarketingFooter() {
               <Wordmark />
             </Link>
 
-            <p className="text-muted max-w-[28ch] text-sm leading-relaxed">
+            <p className="website-body text-muted max-w-[28ch]">
               Verifiable AI visibility — every metric opens to the answer it came from.
             </p>
 
@@ -140,9 +140,7 @@ export function MarketingFooter() {
 
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.key} className="space-y-4">
-              <p className="f-col-label text-foreground mb-4 font-mono text-xs font-medium uppercase">
-                {column.label}
-              </p>
+              <p className="website-eyebrow f-col-label text-foreground mb-4">{column.label}</p>
               <div className="grid justify-items-start gap-4">
                 {column.links.map((link) => (
                   <FooterColumnLink key={link.label} link={link} />
@@ -153,7 +151,7 @@ export function MarketingFooter() {
         </nav>
 
         <div className="border-border-subtle mt-12 flex flex-col gap-5 border-t pt-8 lg:flex-row lg:items-center lg:justify-between">
-          <p className="text-muted text-xs">
+          <p className="website-label text-muted">
             © {year} {name}. All rights reserved.
           </p>
           <nav aria-label="Legal" className="flex flex-wrap gap-x-5 gap-y-2 lg:justify-end">

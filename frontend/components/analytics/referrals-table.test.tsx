@@ -145,7 +145,7 @@ describe('ReferralsTable — source filter', () => {
     expect(await screen.findByText('perplexity.ai')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Filter by source' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'ChatGPT' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'ChatGPT' }));
 
     await waitFor(() => {
       const last = new URL(seen.at(-1)!);
@@ -186,7 +186,7 @@ describe('ReferralsTable — empty states', () => {
 
     expect(await screen.findByText('chatgpt.com')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Filter by source' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Gemini' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Gemini' }));
 
     expect(await screen.findByText('No referral events match Gemini.')).toBeInTheDocument();
 

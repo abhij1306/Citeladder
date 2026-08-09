@@ -1,0 +1,270 @@
+/* Public and authentication typography is intentionally roomier than the
+   authenticated product. The --text-* remap keeps legacy/supporting UI usable,
+   while the named website roles below own the exact editorial hierarchy. */
+.website-type {
+  --text-2xs: 0.875rem;
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+  --text-base: 1.125rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.75rem;
+  --text-4xl: 3.5rem;
+  --text-5xl: 4rem;
+  --text-heading-sm: 1.25rem;
+  --text-2xs--line-height: 1.25rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm--line-height: 1.5rem;
+  --text-base--line-height: 1.75rem;
+  --text-lg--line-height: 1.875rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl--line-height: 2.375rem;
+  --text-3xl--line-height: 3rem;
+  --text-4xl--line-height: 3.75rem;
+  --text-5xl--line-height: 4.25rem;
+  --tracking-tight: -0.03em;
+  --tracking-wide: 0.02em;
+  --tracking-wider: 0.06em;
+  --leading-relaxed: 1.5;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.website-type :where(h1, h2, h3, h4, h5, h6):not(.app-type-scale *) {
+  font-family:
+    var(--font-manrope),
+    var(--font-geist),
+    -apple-system,
+    sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 600;
+}
+
+.website-type :where(h1):not(.app-type-scale *) {
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.website-type :where(h2):not(.app-type-scale *) {
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.website-type :where(h3, h4, h5, h6):not(.app-type-scale *) {
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+/* Named website/auth roles. Size, leading, weight, tracking, and default colour
+   travel as one contract. The low-specificity colour defaults let explicit
+   semantic utilities override them for warnings and the fixed inverse
+   auth/onboarding brand canvas. */
+.website-hero-display,
+.website-page-title,
+.website-section-heading,
+.website-feature-heading,
+.website-small-heading {
+  font-family:
+    var(--font-manrope),
+    var(--font-geist),
+    -apple-system,
+    sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 600;
+}
+
+.website-hero-display {
+  font-size: 2.75rem;
+  line-height: 3rem;
+  letter-spacing: -0.04em;
+}
+
+.website-page-title {
+  font-size: 2.5rem;
+  line-height: 2.75rem;
+  letter-spacing: -0.035em;
+}
+
+.website-section-heading {
+  font-size: 2rem;
+  line-height: 2.375rem;
+  letter-spacing: -0.03em;
+}
+
+.website-feature-heading {
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.02em;
+}
+
+.website-small-heading {
+  font-size: 1.25rem;
+  line-height: 1.625rem;
+  letter-spacing: -0.01em;
+}
+
+.website-lead,
+.website-body-lg,
+.website-body,
+.website-nav,
+.website-label,
+.website-eyebrow {
+  font-family:
+    var(--font-geist),
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+.website-data-display {
+  font-family:
+    var(--font-geist),
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-size: 2.5rem;
+  line-height: 2.875rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+:where(
+  .website-hero-display,
+  .website-page-title,
+  .website-section-heading,
+  .website-feature-heading,
+  .website-small-heading,
+  .website-nav,
+  .website-data-display
+) {
+  color: var(--color-foreground);
+}
+
+:where(.website-lead, .website-body-lg, .website-body) {
+  color: var(--color-secondary);
+}
+
+:where(.website-label, .website-eyebrow) {
+  color: var(--color-muted);
+}
+
+.website-lead {
+  font-size: 1.25rem;
+  line-height: 1.875rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.website-body-lg {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.website-body {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.website-nav {
+  font-size: 1rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.website-label,
+.website-eyebrow {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+}
+
+.website-label {
+  letter-spacing: 0;
+}
+
+.website-eyebrow {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.website-type [data-button-variant]:not(.app-type-scale *) {
+  min-height: 2.75rem;
+  border-radius: var(--radius-lg);
+  font-size: 1rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.website-type [data-button-variant='primary']:not(.app-type-scale *) {
+  border-color: var(--color-accent-active);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.38),
+    0 1px 2px rgb(16 24 40 / 0.1),
+    0 6px 14px -7px rgb(38 103 255 / 0.52);
+}
+
+.website-type [data-button-variant='primary']:not(.app-type-scale *):hover {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.32),
+    0 2px 4px rgb(16 24 40 / 0.1),
+    0 10px 20px -9px rgb(38 103 255 / 0.58);
+}
+
+/* A coded product preview is product UI, not oversized marketing copy. */
+.app-type-scale {
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.5rem;
+  --text-4xl: 2.75rem;
+  --text-5xl: 3rem;
+  --text-heading-sm: 0.9375rem;
+  --leading-relaxed: 1.625;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+@media (min-width: 768px) {
+  .website-type {
+    --text-2xl: 2.5rem;
+    --text-2xl--line-height: 2.875rem;
+    --text-3xl: 3rem;
+    --text-3xl--line-height: 3.375rem;
+  }
+
+  .website-hero-display {
+    font-size: 3.5rem;
+    line-height: 3.75rem;
+  }
+
+  .website-page-title {
+    font-size: 3rem;
+    line-height: 3.375rem;
+  }
+
+  .website-section-heading {
+    font-size: 2.5rem;
+    line-height: 2.875rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .website-hero-display {
+    font-size: 4rem;
+    line-height: 4.25rem;
+  }
+}

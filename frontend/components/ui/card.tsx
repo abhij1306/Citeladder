@@ -7,8 +7,8 @@ import { cardClasses } from './card-variants';
 export { cardClasses } from './card-variants';
 
 /**
- * Card (§8) — bg-panel, --radius-lg, --card-padding, and the shared
- * `shadow-card` elevation rung owned by globals.css.
+ * Card (§8) — bg-panel, --radius-lg, --card-padding, and the shared Image-2
+ * reference `shadow-card` elevation rung owned by globals.css.
  * Composed from header / title / description / content slots.
  *
  * Elevation model (docs/design.md): a card is a --bg-panel fill lifted
@@ -16,8 +16,8 @@ export { cardClasses } from './card-variants';
  * cards lift on hover — `hover:shadow-card-hover` (the overlay rung) plus
  * a 2px rise — which is why the base transition includes box-shadow.
  *
- * Dialog, Dropdown, Tooltip, and the command palette retain the deeper
- * `shadow-modal-value` overlay rung.
+ * Dialog, Drawer, and the command palette use the deeper modal rung; menus
+ * and tooltips use `shadow-elevated`.
  *
  * Optional eyebrow header hook: render <CardEyebrow> above <CardTitle> for the
  * micro-label — e.g.

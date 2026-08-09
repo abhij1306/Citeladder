@@ -420,11 +420,12 @@ function ChatWindow({
 
   return (
     <div
+      data-testid="growth-agent-preview"
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
-      className="bg-panel border-border shadow-elevated flex h-full flex-col overflow-hidden rounded-2xl border"
+      className="app-type-scale bg-panel shadow-card flex h-full flex-col overflow-hidden rounded-xl"
     >
-      <div className="border-border-subtle flex items-center gap-3 border-b px-5 py-3.5">
+      <div className="border-border-subtle flex items-center gap-3 border-b px-4 py-3">
         <span className="bg-accent text-inverse flex size-8 shrink-0 items-center justify-center rounded-lg">
           <AgentIcon className="size-4.5" strokeWidth={1.75} aria-hidden />
         </span>
@@ -455,7 +456,7 @@ function ChatWindow({
           a flicker on every message. */}
       <div
         aria-live="polite"
-        className="flex min-h-0 flex-1 flex-col justify-end gap-3 overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_14%)] px-5 py-4"
+        className="flex min-h-0 flex-1 flex-col justify-end gap-3 overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_14%)] px-4 py-4"
       >
         {entries.map((entry) => (
           <Bubble key={entry.id} entry={entry} />
@@ -478,8 +479,8 @@ function ChatWindow({
         )}
       </div>
 
-      <div className="border-border-subtle bg-background-alt/60 border-t px-5 py-4">
-        <div className="border-border bg-panel flex items-center gap-3 rounded-lg border px-3.5 py-2.5">
+      <div className="border-border-subtle bg-background-alt border-t p-3">
+        <div className="border-border bg-panel flex items-center gap-3 rounded-lg border px-3.5 py-2.5 shadow-xs">
           <span className="text-subtle text-2xs shrink-0 font-semibold tracking-wide uppercase">
             {reduce ? 'Layers' : step?.name.split(' ')[0]}
           </span>
@@ -514,11 +515,11 @@ function Bubble({
   const fromAgent = entry.from === 'agent';
 
   return (
-    <div className={cn('flex items-start gap-2.5', fromAgent ? '' : 'flex-row-reverse')}>
+    <div className={cn('flex items-start gap-2.5', fromAgent && 'flex-row-reverse')}>
       <span
         className={cn(
           'flex size-6 shrink-0 items-center justify-center rounded-md',
-          fromAgent ? 'bg-accent text-inverse' : 'bg-accent-subtle text-accent-text',
+          fromAgent ? 'bg-accent text-inverse' : 'bg-panel text-foreground shadow-xs',
         )}
       >
         <Icon className="size-3.5" strokeWidth={2} aria-hidden />
@@ -527,7 +528,7 @@ function Bubble({
       <div
         className={cn(
           'max-w-[82%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed',
-          fromAgent ? 'bg-background-alt text-secondary' : 'bg-accent text-inverse',
+          fromAgent ? 'bg-accent text-inverse shadow-sm' : 'bg-panel text-secondary shadow-sm',
         )}
       >
         {thinking ? (
@@ -535,11 +536,16 @@ function Bubble({
             {[0, 1, 2].map((dot) => (
               <span
                 key={dot}
-                className="bg-subtle size-1.5 animate-pulse rounded-full"
+                className={cn(
+                  'size-1.5 animate-pulse rounded-full',
+                  fromAgent ? 'bg-inverse/70' : 'bg-subtle',
+                )}
                 style={{ animationDelay: `${dot * 160}ms` }}
               />
             ))}
-            <span className="text-subtle ml-1">Analyzing evidence</span>
+            <span className={cn('ml-1', fromAgent ? 'text-inverse/80' : 'text-subtle')}>
+              Analyzing evidence
+            </span>
           </span>
         ) : (
           <>
@@ -548,7 +554,12 @@ function Bubble({
             )}
             {entry.text}
             {caret && (
-              <span className="bg-secondary ml-0.5 inline-block h-3 w-px animate-pulse align-middle" />
+              <span
+                className={cn(
+                  'ml-0.5 inline-block h-3 w-px animate-pulse align-middle',
+                  fromAgent ? 'bg-inverse/80' : 'bg-secondary',
+                )}
+              />
             )}
           </>
         )}

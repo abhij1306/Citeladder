@@ -53,7 +53,7 @@ export function SolutionsHero() {
             <a
               key={id}
               href={`#${id}`}
-              className="border-border-subtle bg-panel text-foreground shadow-card hover:border-border hover:shadow-card-hover inline-flex items-center gap-4 rounded-md border px-5 py-4 text-sm font-medium transition-[border-color,box-shadow] duration-200"
+              className="bg-panel text-foreground shadow-card hover:shadow-card-hover inline-flex items-center gap-4 rounded-lg px-5 py-4 text-sm font-medium transition-shadow duration-200"
             >
               <Icon aria-hidden strokeWidth={1.8} className="text-muted size-4" />
               {label}
@@ -86,11 +86,11 @@ export function SolutionSegments() {
           >
             <div>
               <Meta as="p">{segment.eyebrow}</Meta>
-              <h2 className="font-display text-foreground mt-5 max-w-[32ch] text-2xl">
+              <h2 className="website-section-heading text-foreground mt-5 max-w-[32ch]">
                 {segment.title}
               </h2>
               {segment.pack ? (
-                <p className="text-secondary bg-well mt-4 inline-block rounded-md px-2.5 py-1 text-xs font-medium">
+                <p className="website-label text-secondary bg-well mt-4 inline-block rounded-md px-2.5 py-1 font-medium">
                   {segment.pack.name} · {PACK_MATURITY_LABEL[segment.pack.maturity]}
                 </p>
               ) : null}
@@ -145,10 +145,10 @@ export function SolutionsCta() {
   return (
     <Section tone="paper" rhythm="base" aria-label="Get started">
       <Reveal className="mx-auto max-w-5xl text-center">
-        <h2 className="font-display text-foreground mx-auto mb-5 max-w-[32ch] text-2xl">
+        <h2 className="website-section-heading text-foreground mx-auto mb-5 max-w-[32ch]">
           Bring your team the version of the truth it reports in.
         </h2>
-        <p className="text-muted mx-auto max-w-[80ch] text-lg">
+        <p className="website-lead text-muted mx-auto max-w-[75ch]">
           One observation field, five ways of reading it. We will walk through the one that matches
           how you are measured.
         </p>

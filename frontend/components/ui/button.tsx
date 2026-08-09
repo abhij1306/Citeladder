@@ -31,6 +31,8 @@ export function Button({
       // A real <button> defaults to type="button" (avoid accidental submits);
       // when asChild we forward whatever the caller renders.
       type={asChild ? undefined : (type ?? 'button')}
+      data-button-variant={variant ?? 'primary'}
+      data-button-size={size ?? 'md'}
       className={cn(buttonVariants({ variant, size }), className)}
       {...props}
     />

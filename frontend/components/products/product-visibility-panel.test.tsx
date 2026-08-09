@@ -358,10 +358,10 @@ describe('ProductVisibilityPanel states', () => {
     const user = userEvent.setup();
     renderWithData();
     await user.click(screen.getByRole('button', { name: 'Filter by surface' }));
-    expect(screen.getByRole('menuitem', { name: 'Answer-engine APIs' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'chatgpt-shopping' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: 'Answer-engine APIs' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitemradio', { name: 'chatgpt-shopping' })).toBeInTheDocument();
     // There is deliberately no "All surfaces" aggregate option.
-    expect(screen.queryByRole('menuitem', { name: /all surfaces/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitemradio', { name: /all surfaces/i })).not.toBeInTheDocument();
   });
 });
 

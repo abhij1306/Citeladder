@@ -329,7 +329,7 @@ describe('TrafficScreen — empty + bounded-miss states', () => {
     // Populated landing in latest mode, then switch to a bounded preset.
     await screen.findByTestId('traffic-stats');
     await ue.click(screen.getByRole('button', { name: 'Select date range' }));
-    await ue.click(await screen.findByRole('menuitem', { name: 'Last 28 days' }));
+    await ue.click(await screen.findByRole('menuitemradio', { name: 'Last 28 days' }));
 
     // The unmatched window surfaces the honest note (never a recomputation);
     // the toolbar stays so the user can switch back.

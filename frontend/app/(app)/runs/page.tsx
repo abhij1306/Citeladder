@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LaunchDialog } from '@/components/runs/launch-dialog';
-import { FilterChip } from '@/components/runs/filter-chip';
+import { FilterChip } from '@/components/ui/filter-chip';
 import { RunsTable } from '@/components/runs/runs-table';
 import { AuditSchedules } from '@/components/runs/audit-schedules';
 import { eyebrowClasses } from '@/components/ui/eyebrow';

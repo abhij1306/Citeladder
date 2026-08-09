@@ -23,10 +23,10 @@ export function SeeIt() {
   return (
     <Section id="see-it" tone="paper" rhythm="base" aria-labelledby="see-it-title">
       <Reveal className="mx-auto mb-8 max-w-5xl text-center md:mb-10">
-        <p className="text-accent-text font-mono text-xs uppercase">{seeIt.kicker}</p>
+        <p className="website-eyebrow text-accent-text">{seeIt.kicker}</p>
         {/* Heading weight and tracking come from the base rule in globals.css;
             the size rung is the only thing markup sets, so type stays uniform. */}
-        <h2 id="see-it-title" className="font-display text-foreground mt-3 text-2xl">
+        <h2 id="see-it-title" className="website-section-heading text-foreground mt-3">
           {seeIt.title}
         </h2>
       </Reveal>

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { NAV_GROUPS } from '@/components/layout/nav-items';
 import { BrandLogo } from '@/components/ui/brand-logo';
+import { Button } from '@/components/ui/button';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { useProjectContext } from '@/lib/project/project-context';
 import { cn } from '@/lib/utils';
@@ -196,20 +197,21 @@ export function CommandPalette() {
       {/* The top bar's pointer affordance for the same palette. It records
           itself as the focus target for the same reason the ⌘K path does —
           this button is not a Radix Trigger, so nothing else would. */}
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={(event) => {
           returnFocusTo.current = event.currentTarget;
           setOpenState(true);
         }}
         aria-label="Search or jump to"
         aria-keyshortcuts="Meta+K Control+K"
-        className="bg-input text-muted focus-ring hover:bg-panel hover:shadow-card flex h-8 w-full items-center gap-2 rounded-md px-2 text-left transition-[background-color,box-shadow]"
+        className="text-muted w-full justify-start text-left"
       >
         <Search className="size-4 shrink-0" aria-hidden strokeWidth={1.75} />
         <span className="text-xs">Search or jump to…</span>
         <kbd className="text-subtle text-2xs ms-auto font-mono">⌘K</kbd>
-      </button>
+      </Button>
 
       <DialogPrimitive.Root open={open} onOpenChange={setOpenState}>
         <DialogPrimitive.Portal>

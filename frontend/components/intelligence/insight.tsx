@@ -88,10 +88,7 @@ export function Insight({ insight, action, className }: Readonly<InsightProps>) 
     <article
       data-insight-id={insight.id}
       data-layer={insight.layer}
-      className={cn(
-        'border-border-subtle bg-panel shadow-card flex flex-col gap-4 rounded-lg border p-4',
-        className,
-      )}
+      className={cn('bg-panel shadow-card flex flex-col gap-4 rounded-lg p-4', className)}
     >
       {/* 1. Priority and source layer */}
       <div className="flex items-center justify-between gap-3">

@@ -54,8 +54,8 @@ export function ProjectSwitcher({ className }: Readonly<{ className?: string }>)
           return (
             <DropdownItem
               key={project.id}
+              data-active={selected}
               onSelect={() => setActiveProjectId(project.id)}
-              className={selected ? 'text-accent-text' : undefined}
             >
               <BrandLogo
                 name={project.brand_name || project.name}

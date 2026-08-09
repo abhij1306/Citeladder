@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 
+import { segmentedItemVariants, segmentedTrackVariants } from '@/components/ui/segmented-variants';
 import { cn } from '@/lib/utils';
 
 /** Arrow keys that move the roving focus, and the direction each moves it. */
@@ -59,10 +60,7 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       aria-describedby={describedBy}
-      className={cn(
-        'border-border bg-background-alt inline-flex h-[var(--control-height-sm)] items-center gap-0.5 rounded-full border p-0.5',
-        className,
-      )}
+      className={cn(segmentedTrackVariants(), className)}
     >
       {options.map((option, index) => {
         const selected = option.value === value;
@@ -87,13 +85,7 @@ export function SegmentedControl<T extends string>({
               event.preventDefault();
               move(index, delta);
             }}
-            className={cn(
-              // Horizontal padding stays on the ADS ladder, which has no 10px rung.
-              'focus-ring inline-flex h-full items-center justify-center rounded-full px-3 text-xs font-medium transition-colors',
-              selected
-                ? 'bg-panel text-foreground shadow-card font-medium'
-                : 'text-secondary hover:text-foreground',
-            )}
+            className={segmentedItemVariants({ selected })}
           >
             {option.label}
           </button>

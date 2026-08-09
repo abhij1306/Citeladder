@@ -12,8 +12,9 @@ import { CursorPager } from '@/components/ui/cursor-pager';
 import {
   Dropdown,
   DropdownContent,
-  DropdownItem,
   DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
   DropdownTrigger,
 } from '@/components/ui/dropdown';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -169,18 +170,20 @@ export function ReferralsTable({
           </DropdownTrigger>
           <DropdownContent>
             <DropdownLabel>Source</DropdownLabel>
-            <DropdownItem data-active={source === null} onSelect={() => selectSource(null)}>
-              All sources
-            </DropdownItem>
-            {AI_SOURCES.map((option) => (
-              <DropdownItem
-                key={option}
-                data-active={source === option}
-                onSelect={() => selectSource(option)}
-              >
-                {aiSourceLabel(option)}
-              </DropdownItem>
-            ))}
+            <DropdownRadioGroup value={source ?? '__all__'}>
+              <DropdownRadioItem value="__all__" onSelect={() => selectSource(null)}>
+                All sources
+              </DropdownRadioItem>
+              {AI_SOURCES.map((option) => (
+                <DropdownRadioItem
+                  key={option}
+                  value={option}
+                  onSelect={() => selectSource(option)}
+                >
+                  {aiSourceLabel(option)}
+                </DropdownRadioItem>
+              ))}
+            </DropdownRadioGroup>
           </DropdownContent>
         </Dropdown>
       </CardHeader>

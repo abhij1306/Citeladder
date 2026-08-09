@@ -19,25 +19,25 @@ export function Trust() {
           <Eyebrow>{trust.kicker}</Eyebrow>
           <h2
             id="trust-title"
-            className="font-display text-foreground mt-6 max-w-[20ch] text-2xl font-semibold tracking-tight text-balance"
+            className="website-section-heading text-foreground mt-6 max-w-[20ch] text-balance"
           >
             {trust.title}
           </h2>
-          <p className="text-muted mt-5 max-w-[52ch] text-base leading-relaxed">{trust.lead}</p>
+          <p className="website-body-lg text-muted mt-5 max-w-[52ch]">{trust.lead}</p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {trust.features.map((feature) => {
               const Icon = LANDING_ICONS[feature.icon];
               return (
                 <div
                   key={feature.title}
-                  className="bg-panel border-border shadow-card hover:shadow-card-hover flex gap-3.5 rounded-xl border p-4.5 transition-shadow duration-300"
+                  className="bg-panel shadow-card hover:shadow-card-hover flex gap-3.5 rounded-xl p-4.5 transition-shadow duration-300"
                 >
                   <span className="bg-accent-subtle/80 text-accent-text border-accent-border/60 flex size-9 shrink-0 items-center justify-center rounded-lg border shadow-xs">
                     <Icon className="size-4.5" strokeWidth={1.75} aria-hidden />
                   </span>
                   <div>
-                    <p className="text-foreground text-sm font-semibold">{feature.title}</p>
-                    <p className="text-muted mt-1 text-xs leading-relaxed">{feature.sub}</p>
+                    <p className="website-body text-foreground font-semibold">{feature.title}</p>
+                    <p className="website-label text-muted mt-1">{feature.sub}</p>
                   </div>
                 </div>
               );
@@ -45,7 +45,7 @@ export function Trust() {
           </div>
         </Reveal>
 
-        <Reveal className="bg-panel border-border shadow-card overflow-hidden rounded-xl border">
+        <Reveal className="bg-panel shadow-card overflow-hidden rounded-xl">
           <dl className="divide-border divide-y">
             {trust.ledger.map((row) => (
               <div

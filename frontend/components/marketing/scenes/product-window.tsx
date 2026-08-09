@@ -264,7 +264,7 @@ export function ProductWindow() {
     <div
       ref={containerRef}
       data-testid="product-window"
-      className="bg-panel border-border-subtle mx-auto max-w-5xl rounded-lg border p-4 sm:p-5"
+      className="app-type-scale bg-panel shadow-card mx-auto max-w-5xl rounded-lg p-4 sm:p-5"
     >
       {/* Storytelling Tour Stepper */}
       <div className="bg-background-alt border-border-subtle mb-5 rounded-lg border p-4 sm:p-4">

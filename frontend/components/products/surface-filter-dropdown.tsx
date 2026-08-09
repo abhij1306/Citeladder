@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import {
   Dropdown,
   DropdownContent,
-  DropdownItem,
   DropdownLabel,
+  DropdownRadioGroup,
+  DropdownRadioItem,
   DropdownTrigger,
 } from '@/components/ui/dropdown';
 import { MEASUREMENT_SURFACE_LABEL } from '@/lib/products/catalog';
@@ -47,15 +48,17 @@ export function SurfaceFilterDropdown({
       </DropdownTrigger>
       <DropdownContent>
         <DropdownLabel>Surface</DropdownLabel>
-        {options.map((option) => (
-          <DropdownItem
-            key={option === '' ? '__measurement__' : option}
-            data-active={surface === option}
-            onSelect={() => onChange(option)}
-          >
-            {surfaceLabel(option)}
-          </DropdownItem>
-        ))}
+        <DropdownRadioGroup value={surface}>
+          {options.map((option) => (
+            <DropdownRadioItem
+              key={option === '' ? '__measurement__' : option}
+              value={option}
+              onSelect={() => onChange(option)}
+            >
+              {surfaceLabel(option)}
+            </DropdownRadioItem>
+          ))}
+        </DropdownRadioGroup>
       </DropdownContent>
     </Dropdown>
   );
