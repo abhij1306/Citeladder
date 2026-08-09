@@ -144,7 +144,8 @@ output, and later evidence resolves actions without mutating earlier snapshots.
   scan passed. The verified disposable `127.0.0.1:55432/citeladder` database was reset,
   `0001_initial.py` upgraded from empty with no ORM drift, all Compose images were rebuilt and
   force-recreated, migration exited 0, all services started, and `/health` returned 200. Pull
-  request [#58](https://github.com/abhij1306/Citeladder/pull/58) is awaiting CI.
+  request [#58](https://github.com/abhij1306/Citeladder/pull/58) passed all nine CI checks; Sonar
+  reported zero open pull-request issues after its findings were resolved.
 - Gotchas and conflict resolutions: correction target identity excludes crawl IDs and, for an
   assertion, the observed value; this is what lets a corrected value outrank a changed recrawl
   derivation. Entity scope deterministically outranks project scope; journey/content/prompt scopes
