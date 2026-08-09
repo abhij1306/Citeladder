@@ -1,3 +1,4 @@
+import withBundleAnalyzer from '@next/bundle-analyzer';
 import type { NextConfig } from 'next';
 
 /**
@@ -111,4 +112,21 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * Bundle analyzer, off unless `ANALYZE=true`.
+ *
+ * READ THIS BEFORE REACHING FOR IT: `@next/bundle-analyzer` is a webpack
+ * plugin and Next 16 builds with Turbopack by default, so `ANALYZE=true pnpm
+ * build` prints "not compatible with Turbopack builds, no report will be
+ * generated" and writes nothing. Use `pnpm analyze` instead, which runs
+ * Next's own Turbopack analyzer. This wrapper is kept because it is inert when
+ * disabled and becomes correct the moment a build runs on webpack.
+ *
+ * Wraps only the DEFAULT export: `resolveBackendOrigin` above stays a plain
+ * named export because `next.config.test.ts` imports it directly, and that
+ * import executes this module — so the wrapper has to stay a no-op passthrough
+ * when the flag is unset, which is exactly what `enabled: false` gives.
+ */
+export default withBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+})(nextConfig);

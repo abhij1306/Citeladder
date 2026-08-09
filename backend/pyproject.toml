@@ -18,6 +18,10 @@ dependencies = [
   "patchright>=1.52,<2",
   "protego>=0.3.1,<1",
   "pydantic-settings>=2.10.0,<3",
+  # Required, with no direct import to prove it: FastAPI raises at ROUTE
+  # DEFINITION time when a path declares ``UploadFile``, which the products and
+  # prompts CSV import endpoints do. Removing it fails every test that touches
+  # the app, not just the two upload routes.
   "python-multipart>=0.0.31,<1",
   "reportlab>=5.0.0",
   "sqlalchemy[asyncio]>=2.0.43,<3",
@@ -27,8 +31,14 @@ dependencies = [
   "uvicorn[standard]>=0.35.0,<1",
 ]
 
+# The ONE dev set. CI installs with ``uv sync --frozen --extra dev``, so an
+# extra is the only declaration it is guaranteed to read; a parallel
+# ``[dependency-groups] dev`` previously held ``asyncpg-stubs`` and re-declared
+# two of these, leaving mypy's type coverage dependent on uv's default-group
+# behaviour rather than on anything CI actually asks for.
 [project.optional-dependencies]
 dev = [
+  "asyncpg-stubs>=0.31.3,<1",
   "lxml-stubs>=0.5.1,<1",
   "mypy>=2.3.0,<3",
   "pytest>=9.0.3,<10",
@@ -72,10 +82,3 @@ files = ["app"]
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true
 warn_redundant_casts = true
-
-[dependency-groups]
-dev = [
-    "asyncpg-stubs>=0.31.3",
-    "lxml-stubs>=0.5.1",
-    "types-defusedxml>=0.7.0.20260504",
-]
