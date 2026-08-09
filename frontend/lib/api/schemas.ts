@@ -211,30 +211,6 @@ export const brandProfileSchema = responseObject({
   updated_at: z.string(),
 });
 
-export const brandProfileSuggestionSchema = responseObject({
-  id: uuid(),
-  workspace_id: uuid(),
-  project_id: uuid(),
-  brand_id: uuid(),
-  draft: brandProfileDraftSchema,
-  model_identity: z.record(z.string(), z.string()),
-  prompt_template_version: z.string(),
-  created_at: z.string(),
-});
-
-export const brandProfileFieldSchema = z.enum([
-  'description',
-  'positioning',
-  'products_services',
-  'target_audience',
-]);
-
-export const brandProfileAcceptResponseSchema = responseObject({
-  profile: brandProfileSchema,
-  accepted_fields: z.array(brandProfileFieldSchema),
-  skipped_manual_fields: z.array(brandProfileFieldSchema),
-});
-
 export const promptSetSchema = responseObject({
   id: uuid(),
   project_id: uuid(),

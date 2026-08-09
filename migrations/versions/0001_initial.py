@@ -1272,48 +1272,6 @@ def upgrade() -> None:
         op.f("ix_brand_aliases_brand_id"), "brand_aliases", ["brand_id"], unique=False
     )
     op.create_table(
-        "brand_profile_suggestions",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("workspace_id", sa.UUID(), nullable=False),
-        sa.Column("project_id", sa.UUID(), nullable=False),
-        sa.Column("brand_id", sa.UUID(), nullable=False),
-        sa.Column(
-            "model_identity", postgresql.JSONB(astext_type=Text()), nullable=False
-        ),
-        sa.Column("prompt_template_version", sa.String(length=64), nullable=False),
-        sa.Column(
-            "input_context_snapshot",
-            postgresql.JSONB(astext_type=Text()),
-            nullable=False,
-        ),
-        sa.Column("output", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["brand_id"], ["brands.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_brand_profile_suggestions_brand_id"),
-        "brand_profile_suggestions",
-        ["brand_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_brand_profile_suggestions_project_id"),
-        "brand_profile_suggestions",
-        ["project_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_brand_profile_suggestions_workspace_id"),
-        "brand_profile_suggestions",
-        ["workspace_id"],
-        unique=False,
-    )
-    op.create_table(
         "brand_profiles",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
@@ -5688,7 +5646,7 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
-        sa.Column("brief_id", sa.UUID(), nullable=False),
+        sa.Column("brief_id", sa.UUID(), nullable=True),
         sa.Column("task_type", sa.String(length=32), nullable=False),
         sa.Column("manifest", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column(
@@ -5865,8 +5823,220 @@ def upgrade() -> None:
         ondelete="SET NULL",
     )
 
+    op.create_table(
+        "agent_conversations",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("title", sa.String(length=255), nullable=False),
+        sa.Column("created_by_user_id", sa.UUID(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    _create_indexes("agent_conversations", ("workspace_id", "project_id"))
+    op.create_index(
+        "ix_agent_conversations_project_updated",
+        "agent_conversations",
+        ["project_id", "updated_at", "id"],
+    )
+
+    op.create_table(
+        "agent_task_runs",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("user_id", sa.UUID(), nullable=True),
+        sa.Column("conversation_id", sa.UUID(), nullable=True),
+        sa.Column("parent_run_id", sa.UUID(), nullable=True),
+        sa.Column("context_package_id", sa.UUID(), nullable=True),
+        sa.Column("idempotency_key", sa.String(length=128), nullable=False),
+        sa.Column("request_fingerprint", sa.String(length=64), nullable=False),
+        sa.Column("task_type", sa.String(length=64), nullable=False),
+        sa.Column("objective", sa.Text(), nullable=False),
+        sa.Column("requested_outputs", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("task_policy_version", sa.String(length=32), nullable=False),
+        sa.Column("allowed_tools", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("resource_scope", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("industry_pack_id", sa.String(length=64), nullable=False),
+        sa.Column("industry_pack_version", sa.String(length=32), nullable=False),
+        sa.Column("status", sa.String(length=32), nullable=False),
+        sa.Column("plan", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("result", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("validation", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("decisions", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("provider_adapter", sa.String(length=64), nullable=False),
+        sa.Column("endpoint_host", sa.String(length=255), nullable=False),
+        sa.Column("model", sa.String(length=255), nullable=False),
+        sa.Column("capability_snapshot", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("instruction_version", sa.String(length=64), nullable=False),
+        sa.Column("skill_version", sa.String(length=64), nullable=False),
+        sa.Column("usage", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("latency_ms", sa.Integer(), nullable=True),
+        sa.Column("error_code", sa.String(length=64), nullable=False),
+        sa.Column("error_detail", sa.Text(), nullable=False),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(
+            "status IN ('draft','validating','queued','planning','running','awaiting_user','awaiting_task','completed','partially_completed','failed','cancelled')",
+            name="ck_agent_task_run_status",
+        ),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["conversation_id"], ["agent_conversations.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["parent_run_id"], ["agent_task_runs.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["context_package_id"], ["task_context_packages.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("workspace_id", "idempotency_key", name="uq_agent_run_ws_idempotency"),
+    )
+    _create_indexes(
+        "agent_task_runs",
+        ("workspace_id", "project_id", "conversation_id", "task_type"),
+    )
+    op.create_index(
+        "ix_agent_task_runs_project_created",
+        "agent_task_runs",
+        ["project_id", "created_at", "id"],
+    )
+    op.create_index(
+        "ix_agent_task_runs_status",
+        "agent_task_runs",
+        ["status", "updated_at"],
+    )
+
+    op.create_table(
+        "agent_task_steps",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("task_run_id", sa.UUID(), nullable=False),
+        sa.Column("ordinal", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(length=128), nullable=False),
+        sa.Column("tool_name", sa.String(length=128), nullable=False),
+        sa.Column("tool_version", sa.String(length=32), nullable=False),
+        sa.Column("tool_kind", sa.String(length=24), nullable=False),
+        sa.Column("status", sa.String(length=24), nullable=False),
+        sa.Column("input", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("output", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("child_task_kind", sa.String(length=64), nullable=False),
+        sa.Column("child_task_id", sa.UUID(), nullable=True),
+        sa.Column("retry_count", sa.Integer(), nullable=False),
+        sa.Column("error_code", sa.String(length=64), nullable=False),
+        sa.Column("error_detail", sa.Text(), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(
+            "status IN ('pending','running','awaiting_user','awaiting_task','completed','failed','cancelled','skipped')",
+            name="ck_agent_task_step_status",
+        ),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["task_run_id"], ["agent_task_runs.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("task_run_id", "ordinal", name="uq_agent_step_run_ordinal"),
+    )
+    _create_indexes("agent_task_steps", ("workspace_id", "project_id", "task_run_id"))
+    op.create_index(
+        "ix_agent_task_steps_status_child",
+        "agent_task_steps",
+        ["status", "child_task_id"],
+    )
+
+    op.create_table(
+        "agent_tool_attempts",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("task_run_id", sa.UUID(), nullable=False),
+        sa.Column("step_id", sa.UUID(), nullable=False),
+        sa.Column("attempt_number", sa.Integer(), nullable=False),
+        sa.Column("tool_name", sa.String(length=128), nullable=False),
+        sa.Column("tool_version", sa.String(length=32), nullable=False),
+        sa.Column("input", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("output", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("error_code", sa.String(length=64), nullable=False),
+        sa.Column("retryable", sa.Boolean(), nullable=False),
+        sa.Column("latency_ms", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["task_run_id"], ["agent_task_runs.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["step_id"], ["agent_task_steps.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("step_id", "attempt_number", name="uq_agent_tool_attempt_number"),
+    )
+    _create_indexes("agent_tool_attempts", ("workspace_id", "project_id", "task_run_id", "step_id"))
+
+    op.create_table(
+        "agent_messages",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("conversation_id", sa.UUID(), nullable=False),
+        sa.Column("task_run_id", sa.UUID(), nullable=True),
+        sa.Column("role", sa.String(length=16), nullable=False),
+        sa.Column("content", sa.Text(), nullable=False),
+        sa.Column("citations", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("created_by_user_id", sa.UUID(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint("role IN ('user','assistant')", name="ck_agent_message_role"),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["conversation_id"], ["agent_conversations.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["task_run_id"], ["agent_task_runs.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    _create_indexes("agent_messages", ("workspace_id", "project_id", "conversation_id"))
+    op.create_index(
+        "ix_agent_messages_conversation_created",
+        "agent_messages",
+        ["conversation_id", "created_at", "id"],
+    )
+
+    op.create_table(
+        "priority_override_proposals",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("task_run_id", sa.UUID(), nullable=False),
+        sa.Column("deterministic_order", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("proposed_order", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("reasoning", sa.Text(), nullable=False),
+        sa.Column("evidence_refs", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("status", sa.String(length=16), nullable=False),
+        sa.Column("created_by_user_id", sa.UUID(), nullable=True),
+        sa.Column("withdrawn_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint("status IN ('active','withdrawn')", name="ck_priority_override_status"),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["task_run_id"], ["agent_task_runs.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    _create_indexes("priority_override_proposals", ("workspace_id", "project_id", "task_run_id"))
+    op.create_index(
+        "ix_priority_override_project_created",
+        "priority_override_proposals",
+        ["project_id", "created_at", "id"],
+    )
+
 
 def downgrade() -> None:
+    op.drop_table("priority_override_proposals")
+    op.drop_table("agent_messages")
+    op.drop_table("agent_tool_attempts")
+    op.drop_table("agent_task_steps")
+    op.drop_table("agent_task_runs")
+    op.drop_table("agent_conversations")
     op.drop_constraint(
         "fk_content_generations_context_package_id_task_context_packages",
         "content_generations",
@@ -6642,19 +6812,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_brand_profiles_workspace_id"), table_name="brand_profiles")
     op.drop_index(op.f("ix_brand_profiles_project_id"), table_name="brand_profiles")
     op.drop_table("brand_profiles")
-    op.drop_index(
-        op.f("ix_brand_profile_suggestions_workspace_id"),
-        table_name="brand_profile_suggestions",
-    )
-    op.drop_index(
-        op.f("ix_brand_profile_suggestions_project_id"),
-        table_name="brand_profile_suggestions",
-    )
-    op.drop_index(
-        op.f("ix_brand_profile_suggestions_brand_id"),
-        table_name="brand_profile_suggestions",
-    )
-    op.drop_table("brand_profile_suggestions")
     op.drop_index(op.f("ix_brand_aliases_brand_id"), table_name="brand_aliases")
     op.drop_table("brand_aliases")
     op.drop_index(

@@ -143,6 +143,9 @@ function baseHandlers(prompts: unknown[], topics: unknown[] = [], evidenceItems:
   const set = makeSet(prompts);
   mswServer.use(
     http.get('/api/v1/projects', () => HttpResponse.json([makeProject([set])])),
+    http.post(`/api/v1/projects/${PROJECT_ID}/logos/refresh`, () =>
+      HttpResponse.json(makeProject([set])),
+    ),
     http.get('/api/v1/prompt-sets', () => HttpResponse.json([set])),
     http.get(`/api/v1/projects/${PROJECT_ID}/topics`, () => HttpResponse.json(topics)),
     http.get(`/api/v1/projects/${PROJECT_ID}/visibility/evidence`, () =>
@@ -491,20 +494,13 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     await user.click(screen.getByRole('button', { name: /Generate prompts & topics/ }));
 
     const dialog = await screen.findByRole('dialog');
-    // The Generate action stays disabled until the user consents to sending
-    // brand evidence to the AI provider.
     const generateButton = within(dialog).getByRole('button', { name: 'Generate' });
-    expect(generateButton).toBeDisabled();
-    await user.click(
-      within(dialog).getByRole('checkbox', {
-        name: /Confirm sending brand details/i,
-      }),
-    );
     expect(generateButton).toBeEnabled();
     await user.click(generateButton);
 
     await waitFor(() => expect(generateBody).not.toBeNull());
-    expect(generateBody).toMatchObject({ confirm_send_evidence: true, count: 10 });
+    expect(generateBody).toMatchObject({ count: 10 });
+    expect(generateBody).not.toHaveProperty('confirm_send_evidence');
     expect(await within(dialog).findByText(/1 prompt added to Active/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Close' }));
     expect(screen.getByRole('tab', { name: /Active/ })).toHaveAttribute('aria-selected', 'true');
@@ -533,9 +529,6 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     await user.click(screen.getByRole('button', { name: /Generate prompts & topics/ }));
 
     const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /Confirm sending brand details/i }),
-    );
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
 
     // Summary reports the Active placement.
@@ -582,9 +575,6 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     await user.click(screen.getByRole('button', { name: /Generate prompts & topics/ }));
 
     const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /Confirm sending brand details/i }),
-    );
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
     expect(await within(dialog).findByText(/1 prompt added to Active/)).toBeInTheDocument();
 
@@ -632,9 +622,6 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     await user.click(screen.getByRole('button', { name: /Generate prompts & topics/ }));
 
     const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /Confirm sending brand details/i }),
-    );
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
 
     // Derived from unique non-null topic_id values on `generated` (1), not the
@@ -694,9 +681,6 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     // Generate — the run lands the row in a different topic (Apparel).
     await user.click(screen.getByRole('button', { name: /Generate prompts & topics/ }));
     const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /Confirm sending brand details/i }),
-    );
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
     await within(dialog).findByText(/1 prompt added to Active/);
     await user.click(within(dialog).getByRole('button', { name: 'Close' }));
@@ -739,9 +723,6 @@ describe('PromptsPage manage mode (PromptLibrary)', () => {
     await user.click(screen.getByRole('button', { name: /Generate prompts & topics/ }));
 
     const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /Confirm sending brand details/i }),
-    );
     await user.click(within(dialog).getByRole('button', { name: 'Generate' }));
 
     expect(await within(dialog).findByText(/No AI provider is configured/)).toBeInTheDocument();

@@ -223,7 +223,7 @@ class TaskContextResponse(BaseModel):
 
     id: uuid.UUID
     project_id: uuid.UUID
-    brief_id: uuid.UUID
+    brief_id: uuid.UUID | None = None
     task_type: str
     manifest: dict
     rendered_context: dict

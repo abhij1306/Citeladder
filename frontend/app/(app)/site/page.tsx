@@ -2,6 +2,7 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 import { LayerTabs, type LayerTab } from '@/components/layout/layer-tabs';
 import { CorpusPanel } from '@/components/site/corpus-panel';
@@ -91,6 +92,12 @@ export default function SitePage() {
           <LayerTabs tabs={TABS} />
           <SiteTabPanel />
         </Suspense>
+        <Link
+          href="/agent?task=build_roadmap&objective=Build%20a%20roadmap%20from%20the%20current%20Site%20evidence."
+          className="text-accent-text self-start text-sm font-medium underline-offset-2 hover:underline"
+        >
+          Build a roadmap with the Growth Agent
+        </Link>
       </div>
     </TooltipProvider>
   );

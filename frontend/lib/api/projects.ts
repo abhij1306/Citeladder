@@ -6,23 +6,13 @@ import { z } from 'zod';
 
 import { apiClient, type ApiRequestOptions } from './client';
 import {
-  brandProfileAcceptResponseSchema,
   brandProfileSchema,
-  brandProfileSuggestionSchema,
+  commandCenterSchema,
   projectSchema,
   strictValidate,
   workspaceSchema,
-  commandCenterSchema,
 } from './schemas';
-import type {
-  BrandProfile,
-  BrandProfileAcceptResponse,
-  BrandProfileDraft,
-  BrandProfileSuggestion,
-  CommandCenter,
-  Project,
-  Workspace,
-} from './types';
+import type { BrandProfile, BrandProfileDraft, CommandCenter, Project, Workspace } from './types';
 
 const workspaceListSchema = z.array(workspaceSchema);
 const projectListSchema = z.array(projectSchema);
@@ -43,10 +33,6 @@ export type ProjectInput = {
 
 export type BrandProfileField = keyof BrandProfileDraft;
 export type BrandProfileUpdateInput = Partial<BrandProfileDraft>;
-export type BrandProfileAcceptInput = {
-  accepted_fields: BrandProfileField[];
-  manual_overrides: BrandProfileUpdateInput;
-};
 
 export const projectsApi = {
   listWorkspaces: async (options?: ApiRequestOptions) => {
@@ -103,34 +89,5 @@ export const projectsApi = {
       options,
     );
     return strictValidate(brandProfileSchema, res, 'projects.updateBrandProfile');
-  },
-  suggestBrandProfile: async (
-    projectId: string,
-    input?: { manual_brand_context?: string },
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.post<BrandProfileSuggestion>(
-      `/projects/${projectId}/brand-profile/suggest`,
-      { confirm_send_evidence: true, manual_brand_context: input?.manual_brand_context },
-      options,
-    );
-    return strictValidate(brandProfileSuggestionSchema, res, 'projects.suggestBrandProfile');
-  },
-  acceptBrandProfileSuggestion: async (
-    projectId: string,
-    suggestionId: string,
-    input: BrandProfileAcceptInput,
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.post<BrandProfileAcceptResponse>(
-      `/projects/${projectId}/brand-profile/suggestions/${suggestionId}/accept`,
-      input,
-      options,
-    );
-    return strictValidate(
-      brandProfileAcceptResponseSchema,
-      res,
-      'projects.acceptBrandProfileSuggestion',
-    );
   },
 };

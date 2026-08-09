@@ -37,6 +37,10 @@ const TABS: readonly LayerTab[] = [
  * deep-link contracts (§3 keeps every one of them working).
  */
 const RELATED = [
+  {
+    href: '/agent?task=demand_analysis&objective=Explain%20the%20current%20Demand%20signals%20and%20coverage.',
+    label: 'Explain with Growth Agent',
+  },
   { href: '/prompts', label: 'Prompts' },
   { href: '/traffic', label: 'Traffic' },
   { href: '/analytics', label: 'AI referrals' },

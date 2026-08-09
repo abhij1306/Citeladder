@@ -482,6 +482,24 @@
     "loc": 0,
     "max_cc": 0
   },
+  "app/api/agent.py": {
+    "functions": {
+      "_configured_gateway": 2,
+      "_error": 3,
+      "accept_correction_proposal_endpoint": 2,
+      "agent_capabilities_endpoint": 7,
+      "cancel_task_endpoint": 2,
+      "confirm_task_decision_endpoint": 2,
+      "create_conversation_endpoint": 2,
+      "get_conversation_endpoint": 2,
+      "get_task_endpoint": 2,
+      "list_conversations_endpoint": 3,
+      "list_tasks_endpoint": 3,
+      "submit_task_endpoint": 4
+    },
+    "loc": 311,
+    "max_cc": 7
+  },
   "app/api/analytics.py": {
     "functions": {
       "_get_project_or_404": 2,
@@ -764,12 +782,9 @@
   },
   "app/api/projects.py": {
     "functions": {
-      "_brand_profile_drafting_failures_mapped": 5,
       "_get_project_or_404": 2,
       "_logo_response": 2,
       "_map_occupancy": 2,
-      "_resolve_default_agent": 2,
-      "accept_brand_profile_suggestion_endpoint": 4,
       "accept_observed_competitor_endpoint": 2,
       "create_project_endpoint": 4,
       "delete_project_endpoint": 2,
@@ -787,11 +802,10 @@
       "list_projects_endpoint": 2,
       "put_brand_profile_endpoint": 2,
       "refresh_project_logos_endpoint": 2,
-      "suggest_brand_profile_endpoint": 3,
       "update_project_endpoint": 2
     },
-    "loc": 753,
-    "max_cc": 5
+    "loc": 621,
+    "max_cc": 4
   },
   "app/api/prompts.py": {
     "functions": {
@@ -935,16 +949,89 @@
   "app/connectors/agent/client.py": {
     "functions": {
       "DefaultAgentClient.__init__": 3,
-      "DefaultAgentClient._complete": 8,
+      "DefaultAgentClient._complete": 1,
+      "DefaultAgentClient._complete_result": 11,
+      "DefaultAgentClient.adapter_name": 1,
       "DefaultAgentClient.base_url_host": 2,
+      "DefaultAgentClient.capabilities": 1,
+      "DefaultAgentClient.classify_error": 1,
       "DefaultAgentClient.complete_json": 1,
+      "DefaultAgentClient.complete_structured": 2,
       "DefaultAgentClient.complete_structured_json": 2,
+      "DefaultAgentClient.complete_text": 1,
       "DefaultAgentClient.model": 1,
-      "_fenced_json_body": 5,
-      "_strip_json_fence": 2
+      "DefaultAgentClient.normalize_usage": 6,
+      "DefaultAgentClient.validate_configuration": 2
     },
-    "loc": 224,
-    "max_cc": 8
+    "loc": 309,
+    "max_cc": 11
+  },
+  "app/connectors/agent/factory.py": {
+    "functions": {
+      "create_model_gateway": 3
+    },
+    "loc": 21,
+    "max_cc": 3
+  },
+  "app/connectors/agent/gateway.py": {
+    "functions": {
+      "FakeModelGateway.__init__": 1,
+      "FakeModelGateway._result": 1,
+      "FakeModelGateway.adapter_name": 1,
+      "FakeModelGateway.base_url_host": 1,
+      "FakeModelGateway.capabilities": 1,
+      "FakeModelGateway.classify_error": 1,
+      "FakeModelGateway.complete_json": 1,
+      "FakeModelGateway.complete_structured": 1,
+      "FakeModelGateway.complete_structured_json": 1,
+      "FakeModelGateway.complete_text": 1,
+      "FakeModelGateway.model": 1,
+      "FakeModelGateway.normalize_usage": 5,
+      "FakeModelGateway.validate_configuration": 1,
+      "ModelCapabilities.as_dict": 1,
+      "ModelGateway.adapter_name": 1,
+      "ModelGateway.base_url_host": 1,
+      "ModelGateway.capabilities": 1,
+      "ModelGateway.classify_error": 1,
+      "ModelGateway.complete_json": 1,
+      "ModelGateway.complete_structured": 1,
+      "ModelGateway.complete_structured_json": 1,
+      "ModelGateway.complete_text": 1,
+      "ModelGateway.model": 1,
+      "ModelGateway.normalize_usage": 1,
+      "ModelGateway.validate_configuration": 1
+    },
+    "loc": 192,
+    "max_cc": 5
+  },
+  "app/connectors/agent/json_utils.py": {
+    "functions": {
+      "strip_json_fence": 5
+    },
+    "loc": 15,
+    "max_cc": 5
+  },
+  "app/connectors/agent/native_openai.py": {
+    "functions": {
+      "NativeOpenAIClient.__init__": 3,
+      "NativeOpenAIClient._complete": 12,
+      "NativeOpenAIClient.adapter_name": 1,
+      "NativeOpenAIClient.base_url_host": 2,
+      "NativeOpenAIClient.capabilities": 1,
+      "NativeOpenAIClient.classify_error": 1,
+      "NativeOpenAIClient.complete_json": 1,
+      "NativeOpenAIClient.complete_structured": 1,
+      "NativeOpenAIClient.complete_structured_json": 1,
+      "NativeOpenAIClient.complete_text": 1,
+      "NativeOpenAIClient.model": 1,
+      "NativeOpenAIClient.normalize_usage": 4,
+      "NativeOpenAIClient.validate_configuration": 2,
+      "_configuration_error": 3,
+      "_first_output_text": 11,
+      "native_response_debug_shape": 1
+    },
+    "loc": 246,
+    "max_cc": 12
   },
   "app/connectors/answer_engines/__init__.py": {
     "functions": {},
@@ -1516,7 +1603,7 @@
       "_is_nvidia_host": 2,
       "_is_provider_host": 2
     },
-    "loc": 137,
+    "loc": 313,
     "max_cc": 4
   },
   "app/core/config/analysis.py": {
@@ -1621,7 +1708,7 @@
   },
   "app/core/config/brand_evidence.py": {
     "functions": {},
-    "loc": 101,
+    "loc": 100,
     "max_cc": 0
   },
   "app/core/config/brand_logos.py": {
@@ -2064,6 +2151,131 @@
     },
     "loc": 170,
     "max_cc": 7
+  },
+  "app/domain/agent/__init__.py": {
+    "functions": {},
+    "loc": 1,
+    "max_cc": 0
+  },
+  "app/domain/agent/context.py": {
+    "functions": {
+      "_add_bounded_list": 3,
+      "_bounded_list_section": 4,
+      "_contradiction_count": 6,
+      "_enforce_budgets": 6,
+      "_latest": 1,
+      "_manifest": 14,
+      "_omissions": 5,
+      "_record_remaining_truncations": 3,
+      "_redact": 9,
+      "_redacted_text": 1,
+      "_rendered_context": 8,
+      "_serialized_size": 1,
+      "build_agent_context": 1
+    },
+    "loc": 385,
+    "max_cc": 14
+  },
+  "app/domain/agent/schemas.py": {
+    "functions": {},
+    "loc": 181,
+    "max_cc": 0
+  },
+  "app/domain/agent/service.py": {
+    "functions": {
+      "_apply_child_outcome": 6,
+      "_authorized_tool_definition": 3,
+      "_awaiting_runs": 1,
+      "_build_plan": 4,
+      "_cancel_child_best_effort": 4,
+      "_children_by_id": 7,
+      "_complete_run": 11,
+      "_context_ids": 6,
+      "_context_values": 2,
+      "_continue_reconciled_runs": 5,
+      "_conversation": 3,
+      "_correction_target": 6,
+      "_create_site_correction": 5,
+      "_decision_confirmed": 6,
+      "_execute_available_steps": 7,
+      "_execute_step": 6,
+      "_execute_with_timeout": 4,
+      "_execution_should_stop": 3,
+      "_fail_run": 1,
+      "_fingerprint": 1,
+      "_flush_or_replay": 3,
+      "_has_step_status": 2,
+      "_idempotent_run": 3,
+      "_industry_pack_id": 3,
+      "_locked_run": 2,
+      "_narrate": 7,
+      "_optional_uuid_value": 2,
+      "_parent_run": 3,
+      "_parse_correction_uuid": 2,
+      "_persist_steps": 2,
+      "_policy": 5,
+      "_project": 2,
+      "_reconcile_run": 8,
+      "_record_attempt": 1,
+      "_result_evidence": 10,
+      "_result_from_steps": 6,
+      "_result_roadmap": 4,
+      "_roadmap_view": 5,
+      "_run_values": 2,
+      "_step_values": 2,
+      "_steps": 1,
+      "_steps_by_run": 5,
+      "_terminal_child_for_run": 4,
+      "_utcnow": 1,
+      "_validate_result": 4,
+      "_waiting_child": 3,
+      "_waiting_steps": 6,
+      "accept_correction_proposal": 7,
+      "cancel_task": 5,
+      "confirm_decision": 6,
+      "create_conversation": 1,
+      "get_conversation": 2,
+      "get_task_run": 2,
+      "list_conversations": 1,
+      "list_task_runs": 1,
+      "reconcile_awaiting_tasks": 4,
+      "submit_task": 13,
+      "task_run_projection": 4,
+      "task_runs_projection": 12
+    },
+    "loc": 1517,
+    "max_cc": 13
+  },
+  "app/domain/agent/tools.py": {
+    "functions": {
+      "AgentToolDefinition.version": 1,
+      "_bounded_result": 3,
+      "_bounded_top_level_items": 3,
+      "_budget_fallback": 3,
+      "_content_strategy": 3,
+      "_correction_proposal": 3,
+      "_create_brief": 5,
+      "_demand_comparison": 3,
+      "_demand_snapshot": 3,
+      "_generate_draft": 3,
+      "_opportunity_source_refs": 4,
+      "_optional_uuid": 2,
+      "_prompt_candidates": 6,
+      "_ranked_opportunities": 5,
+      "_read_schedules": 5,
+      "_required_string": 3,
+      "_required_uuid": 2,
+      "_sanitize": 9,
+      "_schedule_audit": 3,
+      "_serialized_chars": 1,
+      "_site_comparison": 3,
+      "_site_snapshot": 4,
+      "execute_tool": 3,
+      "tool_catalog": 2,
+      "validate_automatic_tools": 5
+    },
+    "loc": 652,
+    "max_cc": 9
   },
   "app/domain/analysis/__init__.py": {
     "functions": {},
@@ -3438,23 +3650,6 @@
     "loc": 130,
     "max_cc": 8
   },
-  "app/domain/projects/brand_profile_suggestions.py": {
-    "functions": {
-      "BrandEvidenceUnavailableError.__init__": 1,
-      "_evidence_and_instruction_sections": 2,
-      "_get_project_with_brand": 2,
-      "_has_curated_profile_context": 7,
-      "_raise_evidence_unavailable": 2,
-      "accept_brand_profile_suggestion": 13,
-      "brand_profile_suggestion_to_response": 1,
-      "build_brand_profile_suggestion_message": 7,
-      "parse_brand_profile_draft": 4,
-      "suggest_brand_profile": 3,
-      "validate_brand_profile_suggest_request": 2
-    },
-    "loc": 377,
-    "max_cc": 13
-  },
   "app/domain/projects/discovery.py": {
     "functions": {},
     "loc": 19,
@@ -3586,7 +3781,7 @@
       "_verify_competitors": 4,
       "research_brand": 12
     },
-    "loc": 319,
+    "loc": 320,
     "max_cc": 12
   },
   "app/domain/projects/onboarding/service.py": {
@@ -3616,10 +3811,9 @@
   "app/domain/projects/schemas.py": {
     "functions": {
       "ProjectCreate.brand_aliases": 1,
-      "_validate_brand_profile_field": 2,
       "_validate_brand_profile_source": 2
     },
-    "loc": 382,
+    "loc": 335,
     "max_cc": 2
   },
   "app/domain/projects/service.py": {
@@ -3688,13 +3882,13 @@
       "_prompt_count": 2,
       "_reraise_scoped_integrity_error": 4,
       "_resolve_target_topic": 5,
-      "_validate_generation_payload": 3,
+      "_validate_generation_payload": 2,
       "build_generation_user_message": 11,
       "generate_prompts": 17,
       "parse_generation_output": 10,
       "validate_generation_request": 1
     },
-    "loc": 920,
+    "loc": 914,
     "max_cc": 17
   },
   "app/domain/prompts/locks.py": {
@@ -3745,7 +3939,7 @@
   },
   "app/domain/prompts/schemas.py": {
     "functions": {},
-    "loc": 215,
+    "loc": 214,
     "max_cc": 0
   },
   "app/domain/prompts/service.py": {
@@ -4429,12 +4623,12 @@
       "create_app": 4,
       "lifespan": 1
     },
-    "loc": 177,
+    "loc": 179,
     "max_cc": 5
   },
   "app/models/__init__.py": {
     "functions": {},
-    "loc": 273,
+    "loc": 285,
     "max_cc": 0
   },
   "app/models/abuse.py": {
@@ -4442,6 +4636,13 @@
       "_utcnow": 1
     },
     "loc": 73,
+    "max_cc": 1
+  },
+  "app/models/agent.py": {
+    "functions": {
+      "_utcnow": 1
+    },
+    "loc": 340,
     "max_cc": 1
   },
   "app/models/analysis.py": {
@@ -4488,7 +4689,7 @@
   },
   "app/models/brand.py": {
     "functions": {},
-    "loc": 369,
+    "loc": 328,
     "max_cc": 0
   },
   "app/models/commerce.py": {
@@ -4507,7 +4708,7 @@
     "functions": {
       "_utcnow": 1
     },
-    "loc": 548,
+    "loc": 549,
     "max_cc": 1
   },
   "app/models/demand.py": {
@@ -4681,6 +4882,18 @@
     "functions": {},
     "loc": 0,
     "max_cc": 0
+  },
+  "app/workers/agent_worker.py": {
+    "functions": {
+      "AgentWorker.__init__": 1,
+      "AgentWorker.run_forever": 5,
+      "AgentWorker.run_once": 2,
+      "AgentWorker.stop": 1,
+      "_main": 3,
+      "main": 1
+    },
+    "loc": 69,
+    "max_cc": 5
   },
   "app/workers/analytics_worker.py": {
     "functions": {

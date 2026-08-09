@@ -21,9 +21,12 @@ export type DecisionKind = 'save-content' | 'run-audit';
 /** Static: only one DecisionPrompt is open at a time (it is a modal). */
 const BLOCKERS_ID = 'decision-prompt-blockers';
 
-const DECISION_COPY: Record<DecisionKind, { title: string; confirmLabel: string }> = {
-  'save-content': { title: 'Save this content?', confirmLabel: 'Save' },
-  'run-audit': { title: 'Run this audit?', confirmLabel: 'Run audit' },
+const DECISION_COPY: Record<
+  DecisionKind,
+  { title: string; confirmLabel: string; declineLabel: string }
+> = {
+  'save-content': { title: 'Save this content?', confirmLabel: 'Save', declineLabel: "Don't save" },
+  'run-audit': { title: 'Run this audit?', confirmLabel: 'Run audit', declineLabel: "Don't run" },
 };
 
 /**
@@ -44,6 +47,8 @@ export type DecisionPromptProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
+  /** Records an explicit negative decision; closing the dialog does not. */
+  onDecline?: () => void;
   /**
    * Exactly what will be spent or written — "3 pages, ~12k tokens on your
    * OpenAI key" or "Writes revision 4 of /pricing". Required: a decision
@@ -57,6 +62,8 @@ export type DecisionPromptProps = {
   blockers?: readonly DecisionBlocker[];
   /** In-flight state for the confirm action. */
   pending?: boolean;
+  /** Recoverable request failure; does not disable retry. */
+  error?: string;
 };
 
 export function DecisionPrompt({
@@ -64,11 +71,13 @@ export function DecisionPrompt({
   open,
   onOpenChange,
   onConfirm,
+  onDecline,
   consequence,
   blockers = [],
   pending = false,
+  error,
 }: Readonly<DecisionPromptProps>) {
-  const { title, confirmLabel } = DECISION_COPY[kind];
+  const { title, confirmLabel, declineLabel } = DECISION_COPY[kind];
   const isBlocked = blockers.length > 0;
 
   return (
@@ -81,6 +90,11 @@ export function DecisionPrompt({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
+          {onDecline ? (
+            <Button variant="secondary" onClick={onDecline} disabled={pending}>
+              {declineLabel}
+            </Button>
+          ) : null}
           <Button
             onClick={onConfirm}
             disabled={isBlocked || pending}
@@ -117,6 +131,14 @@ export function DecisionPrompt({
               ))}
             </ul>
           </div>
+        ) : null}
+        {error ? (
+          <p
+            role="alert"
+            className="border-danger bg-danger-bg text-danger-text rounded-md border p-3 text-xs"
+          >
+            {error}
+          </p>
         ) : null}
       </div>
     </Dialog>

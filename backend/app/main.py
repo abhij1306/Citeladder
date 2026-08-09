@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.agent import router as agent_router
 from app.api.analytics import router as analytics_router
 from app.api.audit_schedules import router as audit_schedules_router
 from app.api.audits import router as audits_router
@@ -75,6 +76,7 @@ def _sanitize_correlation_id(value: str) -> str:
 # owns its own paths; the prefix keeps the whole surface under /api/v1.
 _ROUTERS = (
     auth_router,
+    agent_router,
     billing_router,
     oauth_router,
     workspaces_router,

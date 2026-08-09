@@ -23,6 +23,8 @@ from typing import Any
 
 import httpx
 
+from app.connectors.agent.gateway import ModelCapabilities, ModelResult
+from app.connectors.agent.json_utils import strip_json_fence
 from app.connectors.answer_engines.errors import (
     ProviderError,
     classify_provider_status,
@@ -64,6 +66,10 @@ class DefaultAgentClient:
             )
 
     @property
+    def adapter_name(self) -> str:
+        return "openai_compatible"
+
+    @property
     def model(self) -> str:
         return self._settings.model
 
@@ -72,6 +78,58 @@ class DefaultAgentClient:
         """Credential-free endpoint host, safe for provenance records."""
         return httpx.URL(self._settings.base_url).host or ""
 
+    def validate_configuration(self) -> None:
+        """Fail early before a task is persisted or sent to a provider."""
+        if not self._settings.configured:
+            raise AgentNotConfiguredError("Default agent configuration is incomplete")
+
+    def capabilities(self) -> ModelCapabilities:
+        return ModelCapabilities(
+            structured_output=True,
+            native_tool_calling=False,
+            context_limit=self._settings.context_limit,
+            output_limit=self._settings.max_output_tokens,
+            streaming=False,
+            usage_reporting=True,
+            safety_metadata=False,
+        )
+
+    async def complete_text(self, *, system: str, user: str) -> ModelResult:
+        return await self._complete_result(
+            system=system, user=user, response_format=None
+        )
+
+    async def complete_structured(
+        self,
+        *,
+        system: str,
+        user: str,
+        schema_name: str,
+        schema: Mapping[str, Any],
+    ) -> ModelResult:
+        schema_payload = dict(schema)
+        response_format: Mapping[str, Any]
+        if self._settings.structured_output_mode == STRUCTURED_OUTPUT_JSON_SCHEMA:
+            response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema_name,
+                    "strict": True,
+                    "schema": schema_payload,
+                },
+            }
+        else:
+            response_format = {"type": "json_object"}
+        return await self._complete_result(
+            system=system,
+            user=(
+                f"{user}\n\nReturn JSON that matches the {schema_name} "
+                "schema exactly:\n"
+                + json.dumps(schema_payload, ensure_ascii=False, separators=(",", ":"))
+            ),
+            response_format=response_format,
+        )
+
     async def complete_json(self, *, system: str, user: str) -> str:
         """Run one JSON-mode completion and return normalized JSON content."""
         raw = await self._complete(
@@ -79,7 +137,7 @@ class DefaultAgentClient:
             user=user,
             response_format={"type": "json_object"},
         )
-        return _strip_json_fence(raw)
+        return strip_json_fence(raw)
 
     async def complete_structured_json(
         self,
@@ -118,16 +176,28 @@ class DefaultAgentClient:
             ),
             response_format=response_format,
         )
-        return _strip_json_fence(raw)
+        return strip_json_fence(raw)
 
     async def _complete(
         self,
         *,
         system: str,
         user: str,
-        response_format: Mapping[str, Any],
+        response_format: Mapping[str, Any] | None,
     ) -> str:
         """Run one OpenAI-compatible completion without logging prompt data."""
+        result = await self._complete_result(
+            system=system, user=user, response_format=response_format
+        )
+        return result.content
+
+    async def _complete_result(
+        self,
+        *,
+        system: str,
+        user: str,
+        response_format: Mapping[str, Any] | None,
+    ) -> ModelResult:
         settings = self._settings
         payload: dict[str, Any] = {
             "model": settings.model,
@@ -135,9 +205,10 @@ class DefaultAgentClient:
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
-            "response_format": dict(response_format),
             "max_tokens": settings.max_output_tokens,
         }
+        if response_format is not None:
+            payload["response_format"] = dict(response_format)
         headers = {
             "Authorization": f"Bearer {settings.resolved_api_key}",
             "Content-Type": "application/json",
@@ -182,7 +253,8 @@ class DefaultAgentClient:
 
         try:
             body = response.json()
-            content = body["choices"][0]["message"]["content"]
+            choice = body["choices"][0]
+            content = choice["message"]["content"]
         except (ValueError, LookupError, TypeError) as exc:
             raise ProviderError(
                 f"Default agent returned an unparseable response: {type(exc).__name__}",
@@ -199,26 +271,39 @@ class DefaultAgentClient:
             "default agent call ok",
             extra={"latency_ms": latency_ms, "model": settings.model},
         )
-        return content
+        usage = self.normalize_usage(body.get("usage"))
+        return ModelResult(
+            content=content,
+            provider_adapter="openai_compatible",
+            endpoint_host=self.base_url_host,
+            requested_model=settings.model,
+            returned_model=str(body.get("model") or settings.model),
+            finish_status=str(choice.get("finish_reason") or "unknown"),
+            usage=usage,
+            latency_ms=latency_ms,
+        )
 
+    @staticmethod
+    def normalize_usage(value: object) -> dict[str, int]:
+        if not isinstance(value, Mapping):
+            return {}
+        aliases = {
+            "input_tokens": ("input_tokens", "prompt_tokens"),
+            "output_tokens": ("output_tokens", "completion_tokens"),
+            "total_tokens": ("total_tokens",),
+        }
+        normalized: dict[str, int] = {}
+        for target, keys in aliases.items():
+            for key in keys:
+                raw = value.get(key)
+                if isinstance(raw, int) and raw >= 0:
+                    normalized[target] = raw
+                    break
+        return normalized
 
-def _strip_json_fence(content: str) -> str:
-    """Normalize the harmless JSON fences emitted by some compatible hosts."""
-    stripped = content.strip()
-    fenced_body = _fenced_json_body(stripped)
-    if fenced_body is not None:
-        return fenced_body
-    return stripped
-
-
-def _fenced_json_body(content: str) -> str | None:
-    """Return content from a complete Markdown JSON fence, if present."""
-    if not content.startswith("```"):
-        return None
-    opening, separator, remainder = content.partition("\n")
-    if not separator or opening.casefold() not in {"```", "```json"}:
-        return None
-    body = remainder.rstrip()
-    if body.endswith("```"):
-        body = body[:-3]
-    return body.strip()
+    @staticmethod
+    def classify_error(exc: Exception) -> dict[str, Any]:
+        return {
+            "code": str(getattr(exc, "error_code", ERROR_CONNECTION)),
+            "retryable": bool(getattr(exc, "retryable", False)),
+        }

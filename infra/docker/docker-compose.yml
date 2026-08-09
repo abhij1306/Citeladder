@@ -172,6 +172,25 @@ services:
     healthcheck:
       disable: true
 
+  # Growth Agent reconciler: advances runs that are waiting on existing
+  # content/audit queues. It performs no provider I/O and owns no second queue.
+  agent-worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment: *backend_env
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ["python", "-m", "app.workers.agent_worker"]
+    healthcheck:
+      disable: true
+
   # Analytics worker: claims analytics_tasks queue rows and runs the
   # registered per-kind projection executor (no network I/O — invariant 7).
   analytics-worker:

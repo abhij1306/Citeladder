@@ -8,6 +8,14 @@ from __future__ import annotations
 
 from app.core.database import Base
 from app.models.abuse import QueueWorkspaceTurn, UsageWindow
+from app.models.agent import (
+    AgentConversation,
+    AgentMessage,
+    AgentTaskRun,
+    AgentTaskStep,
+    AgentToolAttempt,
+    PriorityOverrideProposal,
+)
 from app.models.analysis import (
     BrandMention,
     Citation,
@@ -52,7 +60,6 @@ from app.models.brand import (
     BrandAlias,
     BrandLogoAsset,
     BrandProfile,
-    BrandProfileSuggestion,
     Competitor,
     ObservedEntityCandidate,
     OwnedDomain,
@@ -150,6 +157,11 @@ from app.models.workspace import Workspace, WorkspaceMember
 
 __all__ = [
     "AccountGrant",
+    "AgentConversation",
+    "AgentMessage",
+    "AgentTaskRun",
+    "AgentTaskStep",
+    "AgentToolAttempt",
     "AnalyticsSnapshot",
     "AnalyticsTask",
     "AttributionLink",
@@ -166,7 +178,6 @@ __all__ = [
     "BrandAlias",
     "BrandLogoAsset",
     "BrandProfile",
-    "BrandProfileSuggestion",
     "BrandMention",
     "BrandDiscovery",
     "BrandResearchSnapshot",
@@ -220,6 +231,7 @@ __all__ = [
     "MerchantMention",
     "MetricSnapshot",
     "PromptMetricSnapshot",
+    "PriorityOverrideProposal",
     "Opportunity",
     "OpportunityGuidance",
     "OpportunityOrder",

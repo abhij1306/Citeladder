@@ -15,6 +15,8 @@
 # swapping env values.
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Final, Literal
 from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field
@@ -24,6 +26,141 @@ from app.core.config import BASE_DIR, PROJECT_ROOT
 
 STRUCTURED_OUTPUT_PROMPT_JSON = "prompt_json"
 STRUCTURED_OUTPUT_JSON_SCHEMA = "json_schema"
+
+AGENT_POLICY_VERSION: Final = "growth-agent-v1"
+AGENT_CONTEXT_POLICY_VERSION: Final = "agent-context-v1"
+AGENT_PLANNER_VERSION: Final = "bounded-planner-v1"
+AGENT_RESULT_VALIDATOR_VERSION: Final = "agent-result-v1"
+AGENT_TOOL_REGISTRY_VERSION: Final = "agent-tools-v1"
+AGENT_INSTRUCTION_VERSION: Final = "growth-agent-instructions-v1"
+
+TOOL_KIND_AUTOMATIC: Final = "automatic"
+TOOL_KIND_SAVE_CONTENT: Final = "save_content"
+TOOL_KIND_RUN_AUDIT: Final = "run_audit"
+AgentToolKind = Literal["automatic", "save_content", "run_audit"]
+
+AGENT_CONTEXT_MAX_ITEMS: Final = 80
+AGENT_CONTEXT_MAX_CHARS: Final = 48_000
+AGENT_CONTEXT_SECTION_MAX_CHARS: Final = 16_000
+AGENT_CONTEXT_EXCERPT_MAX_CHARS: Final = 1_200
+AGENT_TOOL_RESULT_MAX_CHARS: Final = 32_000
+AGENT_TOOL_RESULT_STRING_MAX_CHARS: Final = 1_200
+AGENT_MAX_PLAN_STEPS: Final = 8
+AGENT_MAX_TOOL_CALLS: Final = 8
+AGENT_LIST_DEFAULT_LIMIT: Final = 25
+AGENT_LIST_MAX_LIMIT: Final = 100
+AGENT_OBJECTIVE_MAX_CHARS: Final = 2_000
+AGENT_IDEMPOTENCY_KEY_MAX_CHARS: Final = 128
+
+
+@dataclass(frozen=True, slots=True)
+class AgentTaskPolicy:
+    """Versioned allowlist for one bounded Growth Agent task family."""
+
+    task_type: str
+    title: str
+    description: str
+    allowed_tools: tuple[str, ...]
+    required_scope: tuple[str, ...] = ()
+    requested_outputs: tuple[str, ...] = ("answer",)
+    max_steps: int = AGENT_MAX_PLAN_STEPS
+    max_tool_calls: int = AGENT_MAX_TOOL_CALLS
+
+
+AGENT_TASK_POLICIES: Final[dict[str, AgentTaskPolicy]] = {
+    policy.task_type: policy
+    for policy in (
+        AgentTaskPolicy(
+            "explain",
+            "Explain evidence",
+            "Explain a selected persisted artifact and its limitations.",
+            ("site.read_snapshot", "content.read_strategy", "demand.read_snapshot"),
+        ),
+        AgentTaskPolicy(
+            "compare_snapshots",
+            "Compare snapshots",
+            "Compare an already-persisted compatible Site or Demand snapshot.",
+            ("site.compare_snapshots", "demand.compare_snapshots"),
+        ),
+        AgentTaskPolicy(
+            "build_roadmap",
+            "Build roadmap",
+            (
+                "Present deterministic opportunity order with grounded grouping "
+                "and rationale."
+            ),
+            (
+                "site.read_snapshot",
+                "content.read_strategy",
+                "demand.read_snapshot",
+                "opportunities.read_ranked",
+            ),
+            requested_outputs=("roadmap", "answer"),
+        ),
+        AgentTaskPolicy(
+            "create_brief",
+            "Create content brief",
+            "Create an immutable brief from an eligible persisted question gap.",
+            ("content.create_brief",),
+            required_scope=("question_id",),
+            requested_outputs=("content_brief", "answer"),
+        ),
+        AgentTaskPolicy(
+            "generate_draft",
+            "Generate draft",
+            "Queue brief-driven generation after the save-content decision.",
+            ("content.generate_draft",),
+            required_scope=("brief_id",),
+            requested_outputs=("content_generation", "answer"),
+        ),
+        AgentTaskPolicy(
+            "demand_analysis",
+            "Analyze demand",
+            "Explain current persisted Demand signals and coverage.",
+            ("demand.read_snapshot",),
+        ),
+        AgentTaskPolicy(
+            "create_prompt_candidates",
+            "Create prompt candidates",
+            "Create grounded prompt candidates through the Demand prompt owner.",
+            ("demand.create_prompt_candidates",),
+            required_scope=("prompt_set_id",),
+            requested_outputs=("prompt_candidates", "answer"),
+        ),
+        AgentTaskPolicy(
+            "schedule_audit",
+            "Schedule audit",
+            "Create an answer-engine audit schedule after the run-audit decision.",
+            ("audits.schedule",),
+            required_scope=("prompt_set_id", "schedule"),
+            requested_outputs=("audit_schedule", "answer"),
+        ),
+        AgentTaskPolicy(
+            "next_measurement",
+            "Recommend measurement",
+            (
+                "Name the next evidence action from persisted coverage and "
+                "unavailable states."
+            ),
+            (
+                "site.read_snapshot",
+                "demand.read_snapshot",
+                "audits.read_schedules",
+            ),
+        ),
+        AgentTaskPolicy(
+            "propose_correction",
+            "Propose correction",
+            (
+                "Prepare an evidence-linked correction for inline acceptance in "
+                "Project Facts."
+            ),
+            ("knowledge.propose_correction",),
+            required_scope=("target_ref", "corrected_value", "reason"),
+            requested_outputs=("correction_proposal", "answer"),
+        ),
+    )
+}
 
 
 def _is_nvidia_host(host: str) -> bool:
@@ -74,6 +211,11 @@ class DefaultAgentSettings(BaseSettings):
         default="",
         validation_alias=AliasChoices("DEFAULT_AGENT_API_KEY", "default_agent_api_key"),
     )
+    adapter: str = Field(
+        default="openai_compatible",
+        validation_alias=AliasChoices("DEFAULT_AGENT_ADAPTER", "default_agent_adapter"),
+        pattern="^(openai_compatible|openai_responses)$",
+    )
     nvidia_api_key: str = Field(default="", validation_alias="NVIDIA_API_KEY")
     mistral_api_key: str = Field(
         default="",
@@ -113,6 +255,40 @@ class DefaultAgentSettings(BaseSettings):
         default=4096,
         validation_alias=AliasChoices(
             "DEFAULT_AGENT_MAX_OUTPUT_TOKENS", "default_agent_max_output_tokens"
+        ),
+    )
+    execution_timeout_seconds: float = Field(
+        default=210.0,
+        gt=0,
+        validation_alias=AliasChoices(
+            "DEFAULT_AGENT_EXECUTION_TIMEOUT_SECONDS",
+            "default_agent_execution_timeout_seconds",
+        ),
+    )
+    context_limit: int = Field(
+        default=32_000,
+        ge=1_024,
+        validation_alias=AliasChoices(
+            "DEFAULT_AGENT_CONTEXT_LIMIT", "default_agent_context_limit"
+        ),
+    )
+    reconcile_poll_seconds: float = Field(
+        default=2.0,
+        gt=0,
+        validation_alias=AliasChoices(
+            "DEFAULT_AGENT_RECONCILE_POLL_SECONDS",
+            "AGENT_RECONCILE_POLL_SECONDS",
+            "agent_reconcile_poll_seconds",
+        ),
+    )
+    reconcile_batch_size: int = Field(
+        default=50,
+        ge=1,
+        le=250,
+        validation_alias=AliasChoices(
+            "DEFAULT_AGENT_RECONCILE_BATCH_SIZE",
+            "AGENT_RECONCILE_BATCH_SIZE",
+            "agent_reconcile_batch_size",
         ),
     )
 

@@ -48,9 +48,6 @@ export type PromptGenerateInput = {
   // Scope generation to one existing topic; omitted = model proposes topics.
   topic_id?: string;
   intents?: Prompt['intent'][];
-  // Backend-enforced consent gate: brand evidence is only sent to the default
-  // agent when this is true (422 otherwise).
-  confirm_send_evidence: boolean;
 };
 
 export const promptsApi = {
@@ -128,9 +125,8 @@ export const promptsApi = {
   },
   /**
    * AI topic/prompt generation via the app-level default agent. Validated
-   * suggestions become active, but generation never starts measurement. The caller must
-   * set `confirm_send_evidence: true` after user consent — the backend
-   * enforces it. Errors: 422 invalid, 502 agent/output failure, 503 when no
+   * suggestions become active, but generation never starts measurement.
+   * Errors: 422 invalid, 502 agent/output failure, 503 when no
    * default agent is configured in the backend environment.
    */
   generate: async (

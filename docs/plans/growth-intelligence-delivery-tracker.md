@@ -3,8 +3,8 @@
 > **Status:** active implementation handoff.
 >
 > **Authority:** tracks delivery only. Product and implementation decisions remain in the
-> canonical [Demand](demand-intelligence.md), [Site](site-intelligence-primary-product.md), and
-> [Content](content-intelligence.md) plans.
+> canonical [Demand](demand-intelligence.md), [Site](site-intelligence-primary-product.md),
+> [Content](content-intelligence.md), and [Growth Agent](growth-agent.md) plans.
 
 ## Branch sequence
 
@@ -12,7 +12,8 @@
 |---|---|---|---|---|---|
 | 1 | `feature/demand-intelligence` | Demand D0-D5 | `merged` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | `0f5915ac5c2e1eb935f72c56e9e745303662614f` |
 | 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `merged` | [#58](https://github.com/abhij1306/Citeladder/pull/58) | `70d5894be96d8bfb0f50c76bb6f83eabb2c4e640` |
-| 3 | `feature/content-intelligence` | Content C0-C5 | `ready_to_ship` | [#59](https://github.com/abhij1306/Citeladder/pull/59) | — |
+| 3 | `feature/content-intelligence` | Content C0-C5 | `merged` | [#59](https://github.com/abhij1306/Citeladder/pull/59) | `14fcbc511051f8076c817ea1331d5f3bdfccf103` |
+| 4 | `feat/growth-agent-branch-4` | Growth Agent G0-G5 | `ready_to_ship` | — | — |
 
 Statuses are exact: `not_started | in_progress | ready_to_ship | merged`. A branch starts from
 freshly synchronized `main` only after its predecessor is merged.
@@ -227,6 +228,66 @@ fact promotion, score mutation, or autonomous publishing.
   uncalibrated. There is no autonomous publishing, approved-memory store, or generated-fact path.
 
 ## Final branch verification record
+
+## Branch 4 — Growth Agent
+
+Canonical source: [Growth Agent](growth-agent.md).
+
+- [x] **G0:** provider-neutral gateway contract, OpenAI-compatible and native Responses adapters,
+  capability discovery, normalized usage/errors, and deterministic fake adapter.
+- [x] **G1:** authorized bounded task contexts in the existing `TaskContextPackage` owner, with
+  correction precedence, manifests, omissions, redaction, hashes, and quality metrics.
+- [x] **G2:** durable idempotent task runs, bounded plans, typed Site/Content/Demand tools,
+  append-only attempts, citations, cancellation, and persisted-only reads.
+- [x] **G3:** server-enforced `save_content` and `run_audit` transitions, inline correction
+  proposal acceptance through Site Intelligence, and retirement of `BrandProfileSuggestion`.
+- [x] **G4:** deterministic roadmaps, brief/draft orchestration, Demand analysis and prompt
+  generation, schedule management, next-measurement tasks, and child-task reconciliation.
+- [x] **G5:** project Agent workspace, contextual layer actions, progress polling, evidence/context,
+  decision, provider capability, validation, latency, and usage surfaces.
+
+**Acceptance gate:** the admissions-roadmap workflow preserves deterministic rank, exposes absent
+evidence, freezes exact context/tool/model provenance, and has only the save-content and run-audit
+decisions. No generated output becomes a fact and no correction is overwritten.
+
+### Growth Agent implementation record
+
+- Implemented behavior: the Growth Agent executes only versioned catalog tasks and allowlisted
+  typed tools over authorized project state. Runs freeze the active pack and bounded context,
+  persist plan/step/attempt/result provenance, validate citation IDs, keep deterministic
+  Opportunity order, and reconcile long-running Content tasks without holding a model turn or
+  transaction. Prompt creation delegates to Demand; briefs and drafts delegate to Content;
+  corrections delegate to Site. The project workspace shows history, progress, results,
+  limitations, context counts, model capability/usage, and the two decisions.
+- Public contract changes: added `/api/v1/agent/capabilities`, conversation list/create/detail,
+  task list/submit/detail/cancel/decision, and correction-proposal acceptance routes. Prompt
+  generation is automatic and no longer accepts or renders a separate evidence-consent gate.
+  The obsolete generated brand-profile suggestion and accept routes are removed; manual
+  `BrandProfile` compatibility editing remains.
+- Schema changes: folded agent conversations/messages, task runs/steps, append-only tool attempts,
+  and visible priority-override proposals into `0001_initial.py`; generalized the existing
+  `task_context_packages.brief_id` for non-Content tasks; removed `brand_profile_suggestions`.
+  No `0002+` migration, approved-memory table, second knowledge store, or second queue exists.
+- Verification: Ruff and mypy pass across all 370 backend modules, and the tightened complexity
+  ratchet passes with five measured improvements. The complete backend suite passes with `2518
+  passed, 7 skipped`; the complete frontend suite passes `1257` tests in 147 files, followed by
+  ESLint, TypeScript, design/architecture policy, contract drift, formatting, and the production
+  build. All 26 Playwright tests pass with one worker. Documentation validates 30 active documents
+  and 47 archived files; all 16 packs validate with only Education and Commerce calibrated.
+  `pip-audit` reports no known vulnerabilities and the committed-baseline secrets scan passes.
+  The verified disposable database at `127.0.0.1:55432/citeladder` passes a from-zero
+  `0001_initial.py` upgrade and zero Alembic drift. Every Compose image rebuilds; migration exits
+  0; the database, web service, and all nine workers remain running; and `/health` returns 200.
+  CI, Sonar, PR, and merge results remain pending until shipment.
+- Gotchas and conflict resolutions: `TaskContextPackage` stays Content-owned and is shared rather
+  than duplicated. Corrections remain Site-owned overlays over immutable observations. A roadmap
+  groups and explains deterministic priority but never changes rank. Model configuration chooses
+  adapters without changing task/domain artifacts. The agent reconciler observes existing domain
+  queues and owns no provider work. Playwright remains one worker. Raw-artifact composite workspace
+  FKs remain deferred until the owning artifacts gain `workspace_id`.
+- Deliberate deferrals: the fourteen non-Education/Commerce packs remain explicitly uncalibrated.
+  Native streaming and semantic reranking are optional accelerations and are not required for the
+  persisted polling/context contracts.
 
 For each branch, record exact results for formatting, Ruff, mypy, complexity ratchet, frontend
 format/lint/type/policy/contract/build checks, documentation and industry-pack validation,

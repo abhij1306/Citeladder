@@ -101,6 +101,11 @@ It is not a fourth data owner, an unrestricted chat interface, or an autonomous 
 fact it states belongs to one of the three intelligence layers and resolves to that layer's
 evidence.
 
+**Shipped through Growth Agent G5:** versioned bounded tasks, typed cross-domain tools, frozen
+selective contexts, provider-neutral adapters, deterministic roadmaps, persisted progress and
+attempts, child-task reconciliation, inline correction proposals, and the project Agent workspace
+are live. The application enforces only `save_content` and `run_audit` decision transitions.
+
 ## 3. What the user decides
 
 The system is automatic except at two points. This is a hard product boundary, not a default.

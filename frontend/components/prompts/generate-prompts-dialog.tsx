@@ -13,11 +13,8 @@ import type { PromptGenerateResponse, Topic } from '@/lib/api/types';
 
 /**
  * AI generation dialog (Generate Prompts & Topics). Collects count + optional
- * target topic, and requires an explicit consent checkbox before the brand
- * profile (name, aliases, competitors, market) is sent to the configured
- * default agent — the backend independently enforces the same gate
- * (`confirm_send_evidence`). Validated suggestions become active portfolio
- * entries; this action never runs or schedules an audit.
+ * target topic. Validated suggestions become active portfolio entries; this
+ * bounded derivation never runs or schedules an audit.
  */
 export function GeneratePromptsDialog({
   open,
@@ -42,7 +39,6 @@ export function GeneratePromptsDialog({
 }>) {
   const [count, setCount] = useState('10');
   const [topicId, setTopicId] = useState<string>(defaultTopicId ?? '');
-  const [confirmed, setConfirmed] = useState(false);
 
   // Sync from the controlled `open` prop, not `handleOpenChange`: the parent
   // can open the dialog without a Dialog-driven open event, and the
@@ -58,17 +54,13 @@ export function GeneratePromptsDialog({
   const parsedCount = Number.parseInt(count, 10);
   const countValid = Number.isFinite(parsedCount) && parsedCount >= 1 && parsedCount <= 20;
 
-  const handleOpenChange = (next: boolean) => {
-    if (!next) setConfirmed(false);
-    onOpenChange(next);
-  };
+  const handleOpenChange = (next: boolean) => onOpenChange(next);
 
   const submit = async () => {
-    if (!confirmed || !countValid) return;
+    if (!countValid) return;
     await onGenerate({
       count: parsedCount,
       topic_id: topicId || undefined,
-      confirm_send_evidence: true,
     });
   };
 
@@ -87,7 +79,7 @@ export function GeneratePromptsDialog({
           <Button
             variant="primary"
             onClick={() => void submit()}
-            disabled={isGenerating || !confirmed || !countValid}
+            disabled={isGenerating || !countValid}
           >
             <Sparkles className="size-4" aria-hidden />
             {isGenerating ? 'Generating…' : 'Generate'}
@@ -127,20 +119,6 @@ export function GeneratePromptsDialog({
               </option>
             ))}
           </select>
-        </label>
-
-        <label className="border-border bg-background-alt flex items-start gap-2 rounded-sm border px-3 py-2 text-sm">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
-            aria-label="Confirm sending brand details to the AI provider"
-            className="focus-ring accent-accent mt-0.5 size-4 shrink-0"
-          />
-          <span className="text-secondary">
-            I understand my brand profile (brand name, aliases, competitors, and market) will be
-            sent to the configured AI provider to generate suggestions.
-          </span>
         </label>
       </div>
     </Dialog>

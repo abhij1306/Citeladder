@@ -373,9 +373,10 @@ class TaskContextPackage(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
     )
-    brief_id: Mapped[uuid.UUID] = mapped_column(
+    brief_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_CONTENT_BRIEF_FK, ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
     task_type: Mapped[str] = mapped_column(String(32))

@@ -7,7 +7,7 @@ provider I/O, regardless of what keys exist in the developer's ``.env``.
 Covers:
   - generate happy path: topics get-or-created, prompts land ``proposed`` /
     ``origin='generated'`` with provenance evidence (invariant 4);
-  - backend-enforced ``confirm_send_evidence`` + count cap (422);
+  - automatic generation without a third decision gate + count cap (422);
   - unconfigured agent -> 503, but foreign set -> 404 first (invariant 5);
   - unparseable model output -> 502;
   - DB-level duplicate dropping across repeat runs (conflict-safe dedupe);
@@ -240,7 +240,7 @@ async def test_generate_persists_provenance_evidence(
 
 
 @pytest.mark.asyncio
-async def test_generate_requires_evidence_confirmation(
+async def test_generate_is_automatic_without_evidence_confirmation_gate(
     client: httpx.AsyncClient, fake_agent: FakeAgent
 ) -> None:
     _, prompt_set_id = await _make_project_and_set(client, "gen3@example.com")
@@ -248,9 +248,9 @@ async def test_generate_requires_evidence_confirmation(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={"count": 3},
     )
-    assert resp.status_code == 422
-    assert resp.json()["detail"]["code"] == "generation_invalid"
-    assert fake_agent.calls == []  # nothing was sent without consent
+    assert resp.status_code == 201
+    assert len(resp.json()["generated"]) == 3
+    assert len(fake_agent.calls) == 1
 
 
 @pytest.mark.asyncio
@@ -325,10 +325,10 @@ async def test_generate_foreign_set_is_404_even_when_unconfigured(
 
 
 @pytest.mark.asyncio
-async def test_generate_invalid_payload_is_422_even_when_unconfigured(
+async def test_generate_valid_payload_reaches_configuration_check(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Validation wins over configuration state (422 before 503)."""
+    """Automatic prompt derivation has no additional consent gate."""
     _, prompt_set_id = await _make_project_and_set(client, "gen7c@example.com")
 
     def _unconfigured() -> None:
@@ -337,10 +337,10 @@ async def test_generate_invalid_payload_is_422_even_when_unconfigured(
     monkeypatch.setattr(prompts_api, "DefaultAgentClient", _unconfigured)
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 3, "confirm_send_evidence": False},
+        json={"count": 3},
     )
-    assert resp.status_code == 422
-    assert resp.json()["detail"]["code"] == "generation_invalid"
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["code"] == "agent_not_configured"
 
 
 @pytest.mark.asyncio

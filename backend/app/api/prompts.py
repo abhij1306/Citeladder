@@ -29,7 +29,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
 from app.api.request_bodies import read_limited_body, read_limited_upload
 from app.api.usage_limits import enforce_workspace_request
-from app.connectors.agent.client import AgentNotConfiguredError, DefaultAgentClient
+from app.connectors.agent.client import AgentNotConfiguredError
+from app.connectors.agent.factory import create_model_gateway as DefaultAgentClient
 from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.abuse import abuse_settings
 from app.core.errors import ApiException
@@ -374,10 +375,9 @@ async def generate_prompts_endpoint(
     """AI topic/prompt generation via the app-level default agent.
 
     Guard order: workspace scope (foreign set -> 404) before anything runs,
-    then confirmation/bounds/topic ownership (422), then agent configuration
+    then bounds/topic ownership (422), then agent configuration
     (503) — an invalid payload is rejected as invalid even when no agent is
-    configured, and the backend enforces ``confirm_send_evidence``, never
-    just the UI. Validated suggestions become active library resources, but
+    configured. Validated suggestions become active library resources, but
     generation never runs or schedules an audit.
     """
     try:

@@ -68,9 +68,6 @@ export const CONTRACT_SCHEMA_MAP = {
   competitorSchema: 'CompetitorResponse',
   commandCenterSchema: 'CommandCenterResponse',
   brandProfileSchema: 'BrandProfileResponse',
-  brandProfileDraftSchema: 'BrandProfileDraft',
-  brandProfileSuggestionSchema: 'BrandProfileSuggestionResponse',
-  brandProfileAcceptResponseSchema: 'BrandProfileAcceptResponse',
   // Prompts / topics
   promptSchema: 'PromptResponse',
   promptSetSchema: 'PromptSetResponse',

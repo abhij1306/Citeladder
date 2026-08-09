@@ -2,6 +2,7 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 import {
   ContentIntelligenceScreen,
@@ -61,6 +62,12 @@ export default function ContentPage() {
         <LayerTabs tabs={TABS} />
         <ContentTabPanel />
       </Suspense>
+      <Link
+        href="/agent?task=explain&objective=Explain%20the%20current%20Content%20strategy%20and%20its%20limitations."
+        className="text-accent-text justify-self-start text-sm font-medium underline-offset-2 hover:underline"
+      >
+        Explain this strategy with the Growth Agent
+      </Link>
     </div>
   );
 }

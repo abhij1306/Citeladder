@@ -185,9 +185,9 @@ class TopicResponse(BaseModel):
 class PromptGenerateRequest(BaseModel):
     """Body for ``POST /prompt-sets/{id}/generate``.
 
-    ``confirm_send_evidence`` must be true — the backend (not just the UI)
-    gates sending brand evidence to the default agent. ``topic_id`` scopes
-    generation to one existing topic.
+    Prompt generation is an automatic bounded derivation. ``topic_id`` scopes
+    generation to one existing topic; running or scheduling measurement remains
+    the separate user decision.
     """
 
     count: int = Field(
@@ -196,7 +196,6 @@ class PromptGenerateRequest(BaseModel):
     topic_id: uuid.UUID | None = None
     intents: list[PromptIntent] = Field(default_factory=list)
     cohort: PromptCohort = "core"
-    confirm_send_evidence: bool = False
 
 
 class PromptGenerateResponse(BaseModel):

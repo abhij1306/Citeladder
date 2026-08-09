@@ -88,8 +88,9 @@ def test_health_route_and_router_stubs_registered() -> None:
     # the fifteenth (15); the products router adds the sixteenth (16); the
     # Opportunities router adds the seventeenth; Billing adds the eighteenth
     # and Commerce adds the nineteenth; audit schedules add the twentieth.
+    # The Growth Agent increments the current mounted-router set to twenty-two.
     from app.main import _ROUTERS
 
     paths = {getattr(route, "path", None) for route in app.routes}
     assert "/health" in paths
-    assert len(_ROUTERS) == 21
+    assert len(_ROUTERS) == 22

@@ -16,7 +16,7 @@ a broader evidence and knowledge platform.
 - Python 3.12, FastAPI app factory, async SQLAlchemy and asyncpg.
 - Pydantic settings and DTOs; all operational and product policy under `app/core/config/*`.
 - PostgreSQL for product data, immutable evidence, projections, and durable task queues.
-- Separate workers for audits, Site Health, content, integrations, analytics, and future agent work.
+- Separate workers for audits, Site Health, content, integrations, analytics, and agent child-task reconciliation.
 - Fernet-encrypted provider/OAuth secrets with least-privilege worker environments.
 - Thin routers under `/api/v1`; domain services own business rules.
 
@@ -49,8 +49,8 @@ not a reason to put business logic in routers, connectors, workers, or generic u
 | Prompts/Audits/Visibility | Shipped | Active/archive prompt portfolio with frozen generation/Demand evidence and manual/scheduled answer-engine measurement |
 | Opportunities | Shipped | One action store and supersede-not-mutate history across all intelligence systems |
 | Commerce catalog/product analysis | Shipped/partial | Specialized identity source consumed by the shared Commerce industry profile |
-| Knowledge domain | Shipped/partial | Entities, assertions, relations, contradiction detection, durable corrections, append-only correction transitions, and inline contradiction decisions ship (16 packs, `education`/`commerce` calibrated). Selective task context remains future work; observed rows stay immutable and corrections overlay them. |
-| Growth Agent domain | Planned | Task runs, typed tools, context packages, and conversations |
+| Knowledge domain | Shipped/partial | Entities, assertions, relations, contradiction detection, durable corrections, append-only correction transitions, inline contradiction decisions, and bounded task context ship (16 packs; only `education`/`commerce` calibrated). Observed rows stay immutable and corrections overlay them. |
+| Growth Agent domain | Shipped | Bounded task runs, typed tools, shared context packages, conversations, decisions, and child-task reconciliation |
 
 ## Canonical data layers
 
@@ -167,7 +167,7 @@ runs or schedules an audit, so a second gate on the prompt buys no safety. Sched
 runs create new immutable audits through the existing queue. Each audit prompt snapshot freezes
 generation evidence so later prompt edits or archival cannot sever its Demand provenance.
 
-## Growth Agent migration
+## Growth Agent runtime
 
 The agent does not call arbitrary internal URLs or query the database directly. A typed tool
 registry wraps domain services. Every substantial task persists:
@@ -180,6 +180,17 @@ registry wraps domain services. Every substantial task persists:
 
 Long-running tool calls return task IDs and converge through persisted state; no database
 transaction or model turn remains open while a crawl, sync, audit, or generation executes.
+
+`domain/agent` owns the versioned task catalog, bounded planner, context selection, result
+validation, and workspace/project authorization. Its registry delegates to the existing Site,
+Content, Demand, Opportunity, prompt, and audit services. `AgentTaskRun` and `AgentTaskStep` carry
+mutable execution state; `AgentToolAttempt` is append-only. The reconciler only projects terminal
+Content child-task state back onto waiting runs and owns no second queue.
+
+The model boundary is `ModelGateway`. Configuration selects either the native OpenAI Responses
+adapter or an OpenAI-compatible adapter; domain code and persisted artifacts do not change.
+Capabilities, safe endpoint host, exact model, versions, usage, latency, and finish/error state are
+recorded. Deterministic tasks still complete when no narration provider is configured.
 
 ## Task queue contract
 

@@ -14,7 +14,6 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.brand_profile import (
-    BRAND_PROFILE_FIELDS,
     BRAND_PROFILE_PRODUCT_MAX_CHARS,
     BRAND_PROFILE_PRODUCTS_MAX_COUNT,
     BRAND_PROFILE_SOURCE_TOKENS,
@@ -43,14 +42,7 @@ def _validate_brand_profile_source(value: str) -> str:
     return value
 
 
-def _validate_brand_profile_field(value: str) -> str:
-    if value not in BRAND_PROFILE_FIELDS:
-        raise ValueError(f"Unknown brand profile field: {value}")
-    return value
-
-
 BrandProfileSource = Annotated[str, AfterValidator(_validate_brand_profile_source)]
-BrandProfileField = Annotated[str, AfterValidator(_validate_brand_profile_field)]
 
 
 # --------------------------------------------------------------------------
@@ -120,8 +112,7 @@ class BrandKnowledgeFields(BaseModel):
     empty defaults (``ProjectCreate``, ``BrandContextRequest``).
     ``BrandProfileUpsert`` deliberately does NOT inherit this: its fields are
     ``| None`` because it is a PARTIAL upsert where "absent" and "cleared" must
-    be distinguishable, and ``BrandProfileDraft`` keeps its own optional
-    variant for the same reason.
+    be distinguishable.
     """
 
     description: str = Field(default="", max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
@@ -164,44 +155,6 @@ class BrandProfileResponse(BaseModel):
     )
     created_at: datetime
     updated_at: datetime
-
-
-class BrandProfileSuggestRequest(BaseModel):
-    confirm_send_evidence: bool = False
-    manual_brand_context: str | None = Field(default=None, max_length=5000)
-
-
-class BrandProfileDraft(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    description: str = Field(default="", max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
-    positioning: str = Field(default="", max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
-    products_services: list[
-        Annotated[str, Field(max_length=BRAND_PROFILE_PRODUCT_MAX_CHARS)]
-    ] = Field(default_factory=list, max_length=BRAND_PROFILE_PRODUCTS_MAX_COUNT)
-    target_audience: str = Field(default="", max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
-
-
-class BrandProfileSuggestionResponse(BaseModel):
-    id: uuid.UUID
-    workspace_id: uuid.UUID
-    project_id: uuid.UUID
-    brand_id: uuid.UUID
-    draft: BrandProfileDraft
-    model_identity: dict[str, str]
-    prompt_template_version: str
-    created_at: datetime
-
-
-class BrandProfileAcceptRequest(BaseModel):
-    accepted_fields: list[BrandProfileField] = Field(default_factory=list)
-    manual_overrides: BrandProfileUpsert = Field(default_factory=BrandProfileUpsert)
-
-
-class BrandProfileAcceptResponse(BaseModel):
-    profile: BrandProfileResponse
-    accepted_fields: list[BrandProfileField] = Field(default_factory=list)
-    skipped_manual_fields: list[BrandProfileField] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------

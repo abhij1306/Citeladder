@@ -1,6 +1,6 @@
 # Growth Agent and Selective Context
 
-> **Status:** canonical implementation plan.
+> **Status:** canonical plan; G0-G5 shipped in Branch 4.
 >
 > **Parent architecture:** [`growth-intelligence-platform.md`](growth-intelligence-platform.md).
 >
@@ -30,21 +30,22 @@ It cannot:
 - overwrite a correction;
 - run an unbounded autonomous loop.
 
-## 2. Existing foundation
+## 2. Shipped foundation
 
 Reuse and deepen:
 
-- `connectors/agent/DefaultAgentClient`, currently env-configured and OpenAI-compatible;
+- provider-neutral `ModelGateway` with native OpenAI Responses, OpenAI-compatible, and fake adapters;
 - `core/config/agent.py` settings and abuse controls;
-- `BrandProfileSuggestion` artifacts, which become the `Correction` proposal path;
-- curated Brand Knowledge UI, which becomes the project-facts surface;
+- the Site-owned inline `Correction` proposal/accept/withdraw path; obsolete
+  `BrandProfileSuggestion` persistence and promotion are removed;
+- the curated `BrandProfile` compatibility editor and Site project-facts surface;
 - prompt-generation JSON parsing, validation, and evidence;
 - content generation queue and immutable attempts;
 - existing domain APIs for Site Health, Content, Integrations, Prompts, Opportunities, and
   Visibility.
 
-Do not turn `DefaultAgentClient` into a domain service. Evolve it into a provider gateway and keep
-task planning, authorization, context, tool execution, and persistence in dedicated owners.
+`DefaultAgentClient` remains an adapter, not a domain service. Task planning, authorization,
+context, tool execution, and persistence live under `domain/agent`.
 
 ## 3. Architecture
 

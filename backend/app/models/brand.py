@@ -105,13 +105,6 @@ class Brand(Base):
         cascade=CASCADE_ALL_DELETE_ORPHAN,
         passive_deletes=True,
     )
-    profile_suggestions: Mapped[list[BrandProfileSuggestion]] = relationship(
-        "BrandProfileSuggestion",
-        back_populates="brand",
-        cascade=CASCADE_ALL_DELETE_ORPHAN,
-        passive_deletes=True,
-        order_by="BrandProfileSuggestion.created_at.desc()",
-    )
     aliases: Mapped[list[BrandAlias]] = relationship(
         "BrandAlias",
         back_populates="brand",
@@ -179,40 +172,6 @@ class BrandProfile(Base):
     )
 
     brand: Mapped[Brand] = relationship("Brand", back_populates="profile")
-
-
-class BrandProfileSuggestion(Base):
-    """Immutable default-agent draft awaiting explicit human acceptance."""
-
-    __tablename__ = "brand_profile_suggestions"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("workspaces.id", ondelete="CASCADE"),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        index=True,
-    )
-    brand_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("brands.id", ondelete="CASCADE"),
-        index=True,
-    )
-    model_identity: Mapped[dict[str, str]] = mapped_column(JSONB)
-    prompt_template_version: Mapped[str] = mapped_column(String(64))
-    input_context_snapshot: Mapped[dict[str, object]] = mapped_column(JSONB)
-    output: Mapped[dict[str, object]] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC)
-    )
-
-    brand: Mapped[Brand] = relationship("Brand", back_populates="profile_suggestions")
 
 
 class BrandAlias(Base):

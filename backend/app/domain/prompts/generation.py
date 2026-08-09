@@ -2,8 +2,7 @@
 #
 # Uses the app-level default agent (``connectors/agent``) — never a measurement
 # engine and never a BYOK measurement key. Brand context is sent to the agent
-# only after the caller has explicitly confirmed (``confirm_send_evidence``,
-# enforced HERE, not just in the UI). Suggestions are persisted with full
+# through the configured application-model gateway. Suggestions persist with full
 # ``generation_evidence`` provenance (invariant 4) via a conflict-safe upsert
 # on the per-set normalized-text hash, so concurrent generations can never
 # double-insert a concept. Validated rows enter the active portfolio directly;
@@ -24,7 +23,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.connectors.agent.client import DefaultAgentClient
+from app.connectors.agent.gateway import ModelGateway
 from app.connectors.web_evidence.brand_evidence import evidence_block_lines
 from app.core.config.projects import PROMPT_INTENTS, PROMPT_ORIGIN_GENERATED
 from app.core.config.prompts import (
@@ -353,15 +352,10 @@ def _resolve_target_topic(prompt_set: PromptSet, payload: Any) -> Topic | None:
 
 
 def _validate_generation_payload(prompt_set: PromptSet, payload: Any) -> Topic | None:
-    """Confirmation + bounds + topic-ownership checks (422 at the API layer).
+    """Bounds + topic-ownership checks (422 at the API layer).
 
     Returns the target topic when ``payload.topic_id`` is set.
     """
-    if not payload.confirm_send_evidence:
-        raise GenerationValidationError(
-            "confirm_send_evidence must be true to send brand evidence to the "
-            "default agent"
-        )
     max_count = prompt_generation_settings.max_count
     if payload.count > max_count:
         raise GenerationValidationError(
@@ -619,7 +613,7 @@ def _generation_brand_context(
 
 def _generation_evidence(
     *,
-    agent: DefaultAgentClient,
+    agent: ModelGateway,
     payload: Any,
     brand_context: dict[str, Any],
     demand_snapshot: DemandSnapshot | None,
@@ -650,7 +644,7 @@ async def generate_prompts(
     workspace_id: uuid.UUID,
     prompt_set_id: uuid.UUID,
     payload: Any,
-    agent: DefaultAgentClient,
+    agent: ModelGateway,
     prompt_set: PromptSet | None = None,
 ) -> tuple[list[Prompt], list[Topic], int]:
     """Generate topic-organized prompt suggestions into the set.

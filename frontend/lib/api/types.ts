@@ -22,11 +22,9 @@ import type {
   providerConnectionStateSchema,
   providerConnectionStatesSchema,
   providerProbeSchema,
-  brandProfileAcceptResponseSchema,
   brandProfileDraftSchema,
   brandProfileSchema,
   brandProfileSourceSchema,
-  brandProfileSuggestionSchema,
   benchmarkModeSchema,
   citationClassificationSchema,
   executionEvidenceSchema,
@@ -211,8 +209,6 @@ export type CommandCenter = z.infer<typeof commandCenterSchema>;
 export type BrandProfileSource = z.infer<typeof brandProfileSourceSchema>;
 export type BrandProfileDraft = z.infer<typeof brandProfileDraftSchema>;
 export type BrandProfile = z.infer<typeof brandProfileSchema>;
-export type BrandProfileSuggestion = z.infer<typeof brandProfileSuggestionSchema>;
-export type BrandProfileAcceptResponse = z.infer<typeof brandProfileAcceptResponseSchema>;
 export type PromptIntent = z.infer<typeof promptIntentSchema>;
 export type Prompt = z.infer<typeof promptSchema>;
 export type PromptStatus = z.infer<typeof promptStatusSchema>;

@@ -9,7 +9,8 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field, ValidationError
 
-from app.connectors.agent.client import AgentNotConfiguredError, DefaultAgentClient
+from app.connectors.agent.client import AgentNotConfiguredError
+from app.connectors.agent.factory import create_model_gateway
 from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.brand_discovery import (
     CAPTURE_METHOD_APPLICATION_MODEL,
@@ -302,7 +303,7 @@ def _research_request(
 
 
 async def _model_research(request):
-    client = DefaultAgentClient()
+    client = create_model_gateway()
     for attempt in range(brand_discovery_settings.synthesis_max_attempts):
         raw = await client.complete_structured_json(
             system=DISCOVERY_RESEARCH_SYSTEM_PROMPT,
