@@ -142,6 +142,16 @@ class SelectionResult:
     cancelled_task_ids: tuple[uuid.UUID, ...]
 
 
+@dataclass(frozen=True)
+class _MembershipDelta:
+    """The in-transaction result of applying one full-set membership change."""
+
+    by_url_id: dict[uuid.UUID, MonitoredSiteUrl]
+    new_memberships: tuple[MonitoredSiteUrl, ...]
+    added_ids: tuple[uuid.UUID, ...]
+    removed_ids: tuple[uuid.UUID, ...]
+
+
 # =========================================================================
 # Loaders / helpers
 # =========================================================================
@@ -372,6 +382,118 @@ async def _cancel_pending_analyze_tasks(
     return [row[0] for row in result.all()]
 
 
+def _apply_membership_delta(
+    *,
+    memberships: list[MonitoredSiteUrl],
+    requested: list[uuid.UUID],
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    profile_id: uuid.UUID,
+    new_version: int,
+    now: datetime,
+) -> _MembershipDelta:
+    """Apply the full-set membership delta without crossing the transaction boundary."""
+    requested_set = set(requested)
+    by_url_id = {membership.site_url_id: membership for membership in memberships}
+    removed_ids: list[uuid.UUID] = []
+    for membership in memberships:
+        if membership.active and membership.site_url_id not in requested_set:
+            membership.active = False
+            membership.deselected_at = now
+            removed_ids.append(membership.site_url_id)
+
+    added_ids: list[uuid.UUID] = []
+    new_memberships: list[MonitoredSiteUrl] = []
+    for site_url_id in requested:
+        existing = by_url_id.get(site_url_id)
+        if existing is None:
+            membership = MonitoredSiteUrl(
+                workspace_id=workspace_id,
+                project_id=project_id,
+                profile_id=profile_id,
+                site_url_id=site_url_id,
+                active=True,
+                selection_source=SELECTION_SOURCE_USER,
+                selecting_membership_id=new_version,
+                selected_at=now,
+            )
+            by_url_id[site_url_id] = membership
+            new_memberships.append(membership)
+            added_ids.append(site_url_id)
+            continue
+
+        was_active = existing.active
+        existing.active = True
+        existing.selection_source = SELECTION_SOURCE_USER
+        existing.deselected_at = None
+        if not was_active:
+            existing.selected_at = now
+            existing.selecting_membership_id = new_version
+            added_ids.append(site_url_id)
+
+    return _MembershipDelta(
+        by_url_id=by_url_id,
+        new_memberships=tuple(new_memberships),
+        added_ids=tuple(added_ids),
+        removed_ids=tuple(removed_ids),
+    )
+
+
+async def _reconcile_active_crawl_tasks(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl | None,
+    project_id: uuid.UUID,
+    site_urls: dict[uuid.UUID, SiteUrl],
+    added_ids: Sequence[uuid.UUID],
+    removed_ids: Sequence[uuid.UUID],
+) -> tuple[tuple[uuid.UUID, ...], tuple[uuid.UUID, ...]]:
+    """Enqueue additions and cooperatively cancel removals for the active crawl."""
+    if crawl is None:
+        return (), ()
+
+    removed_site_urls = dict(site_urls)
+    missing_removed_ids = [
+        site_url_id
+        for site_url_id in removed_ids
+        if site_url_id not in site_urls
+    ]
+    if missing_removed_ids:
+        removed_site_urls.update(
+            await _load_project_site_urls(
+                session, project_id=project_id, ids=missing_removed_ids
+            )
+        )
+    removed_hashes = [
+        removed_site_urls[site_url_id].url_hash
+        for site_url_id in removed_ids
+        if site_url_id in removed_site_urls
+    ]
+    cancelled_ids = await _cancel_pending_analyze_tasks(
+        session, crawl_id=crawl.id, url_hashes=removed_hashes
+    )
+
+    added_hashes = [site_urls[site_url_id].url_hash for site_url_id in added_ids]
+    generations = await _next_generations(
+        session,
+        crawl_id=crawl.id,
+        task_kind=TASK_KIND_ANALYZE,
+        url_hashes=added_hashes,
+    )
+    enqueued_ids: list[uuid.UUID] = []
+    for position, site_url_id in enumerate(added_ids):
+        site_url = site_urls[site_url_id]
+        task = await _enqueue_analyze_task(
+            session,
+            crawl=crawl,
+            site_url=site_url,
+            generation=generations[site_url.url_hash],
+            position=position,
+        )
+        enqueued_ids.append(task.id)
+    return tuple(enqueued_ids), tuple(cancelled_ids)
+
+
 # =========================================================================
 # Atomic full-set replacement
 # =========================================================================
@@ -449,8 +571,7 @@ async def replace_monitored_set(
         session, workspace_id=workspace_id, project_id=project_id
     )
     limit = int(runtime.monitored_url_limit)
-    requested_set = set(requested)
-    new_workspace_total = other_active + len(requested_set)
+    new_workspace_total = other_active + len(set(requested))
     if new_workspace_total > limit:
         # The quota-check's ``currently_used`` reports the true workspace-
         # wide count of active rows (including this project's pre-existing
@@ -467,50 +588,18 @@ async def replace_monitored_set(
 
     # Apply the full-set delta against the project's memberships (locked).
     memberships = await _load_project_memberships(session, project_id=project_id)
-    by_url_id = {m.site_url_id: m for m in memberships}
     now = _utcnow()
     new_version = profile.selection_version + 1
-
-    added_ids: list[uuid.UUID] = []
-    removed_ids: list[uuid.UUID] = []
-
-    # Deactivate previously-active rows omitted from the submitted set. This is
-    # both a user removal AND the allowance-loss deactivation of omitted sample
-    # rows — the row is preserved (never deleted) so evidence survives.
-    for membership in memberships:
-        if membership.active and membership.site_url_id not in requested_set:
-            membership.active = False
-            membership.deselected_at = now
-            removed_ids.append(membership.site_url_id)
-
-    # Activate / (re)activate / convert every requested row to user-managed.
-    # Converting a ``free_sample`` row to ``user`` is the first-allowance
-    # reconciliation done in this same locked transaction.
-    for rid in requested:
-        existing = by_url_id.get(rid)
-        if existing is None:
-            membership = MonitoredSiteUrl(
-                workspace_id=workspace_id,
-                project_id=project_id,
-                profile_id=profile.id,
-                site_url_id=rid,
-                active=True,
-                selection_source=SELECTION_SOURCE_USER,
-                selecting_membership_id=new_version,
-                selected_at=now,
-            )
-            session.add(membership)
-            by_url_id[rid] = membership
-            added_ids.append(rid)
-        else:
-            was_active = existing.active
-            existing.active = True
-            existing.selection_source = SELECTION_SOURCE_USER
-            existing.deselected_at = None
-            if not was_active:
-                existing.selected_at = now
-                existing.selecting_membership_id = new_version
-                added_ids.append(rid)
+    delta = _apply_membership_delta(
+        memberships=memberships,
+        requested=requested,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        profile_id=profile.id,
+        new_version=new_version,
+        now=now,
+    )
+    session.add_all(delta.new_memberships)
 
     profile.selection_version = new_version
     await session.flush()
@@ -518,56 +607,33 @@ async def replace_monitored_set(
     # Active-crawl side effects: enqueue additions (next generation), cancel
     # only pending removals. If there is no active crawl, the selection still
     # persists — later crawls seed it via ``seed_monitored_targets``.
-    enqueued_task_ids: list[uuid.UUID] = []
-    cancelled_task_ids: list[uuid.UUID] = []
     crawl = await _active_crawl(
         session, workspace_id=workspace_id, project_id=project_id
     )
+    enqueued_task_ids, cancelled_task_ids = await _reconcile_active_crawl_tasks(
+        session,
+        crawl=crawl,
+        project_id=project_id,
+        site_urls=site_urls,
+        added_ids=delta.added_ids,
+        removed_ids=delta.removed_ids,
+    )
     if crawl is not None:
-        if removed_ids:
-            removed_hashes = [
-                site_urls[rid].url_hash for rid in removed_ids if rid in site_urls
-            ]
-            # A removed row may not be in ``site_urls`` (it was not requested),
-            # so resolve its hash from its membership's SiteUrl if needed.
-            missing = [rid for rid in removed_ids if rid not in site_urls]
-            if missing:
-                extra = await _load_project_site_urls(
-                    session, project_id=project_id, ids=missing
-                )
-                removed_hashes.extend(row.url_hash for row in extra.values())
-            cancelled_task_ids = await _cancel_pending_analyze_tasks(
-                session, crawl_id=crawl.id, url_hashes=removed_hashes
-            )
-        if added_ids:
-            add_hashes = [site_urls[rid].url_hash for rid in added_ids]
-            generations = await _next_generations(
-                session,
-                crawl_id=crawl.id,
-                task_kind=TASK_KIND_ANALYZE,
-                url_hashes=add_hashes,
-            )
-            for position, rid in enumerate(added_ids):
-                site_url = site_urls[rid]
-                task = await _enqueue_analyze_task(
-                    session,
-                    crawl=crawl,
-                    site_url=site_url,
-                    generation=generations[site_url.url_hash],
-                    position=position,
-                )
-                enqueued_task_ids.append(task.id)
         await session.flush()
 
-    active_ids = tuple(m.site_url_id for m in by_url_id.values() if m.active)
+    active_ids = tuple(
+        membership.site_url_id
+        for membership in delta.by_url_id.values()
+        if membership.active
+    )
     return SelectionResult(
         selection_version=new_version,
         active_ids=active_ids,
-        added_ids=tuple(added_ids),
-        removed_ids=tuple(removed_ids),
+        added_ids=delta.added_ids,
+        removed_ids=delta.removed_ids,
         workspace_used=new_workspace_total,
-        enqueued_task_ids=tuple(enqueued_task_ids),
-        cancelled_task_ids=tuple(cancelled_task_ids),
+        enqueued_task_ids=enqueued_task_ids,
+        cancelled_task_ids=cancelled_task_ids,
     )
 
 

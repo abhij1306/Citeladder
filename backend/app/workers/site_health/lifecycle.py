@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
@@ -137,6 +138,93 @@ def _start_planned_analysis(crawl: SiteCrawl, *, analyze_total: int) -> None:
     """Enter the analysis lifecycle once its first task has been admitted."""
     if analyze_total > 0 and crawl.analysis_status == ANALYSIS_STATUS_PENDING:
         apply_analysis_status(crawl, ANALYSIS_STATUS_RUNNING)
+
+
+@dataclass(frozen=True, slots=True)
+class _TaskSummary:
+    """The task counts that drive one locked lifecycle reconciliation."""
+
+    discover_remaining: int
+    discover_failed: int
+    analyze_remaining: int
+    analyze_total: int
+    analyze_succeeded: int
+    analyze_cancelled: int
+    link_remaining: int
+
+    @classmethod
+    def from_counts(cls, counts: dict[str, int]) -> _TaskSummary:
+        return cls(
+            discover_remaining=counts["discover_non_terminal"],
+            discover_failed=counts["discover_failed"],
+            analyze_remaining=counts["analyze_non_terminal"],
+            analyze_total=counts["analyze_total"],
+            analyze_succeeded=counts["analyze_succeeded"],
+            analyze_cancelled=counts["analyze_cancelled"],
+            link_remaining=counts["link_non_terminal"],
+        )
+
+    @property
+    def analyze_applicable(self) -> int:
+        return self.analyze_total - self.analyze_cancelled
+
+    @property
+    def all_drained(self) -> bool:
+        return not (
+            self.discover_remaining
+            or self.analyze_remaining
+            or self.link_remaining
+        )
+
+
+def _reconcile_discovery_state(
+    crawl: SiteCrawl, summary: _TaskSummary
+) -> tuple[bool, bool]:
+    """Progressively terminalize discovery and return failure classifications."""
+    fully_failed = crawl.discovered_url_count == 0
+    discovery_partial = (
+        crawl.discovered_url_count > 0 and summary.discover_failed > 0
+    )
+    if summary.discover_remaining != 0:
+        return fully_failed, discovery_partial
+    if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
+        status = (
+            DISCOVERY_STATUS_FAILED if fully_failed else DISCOVERY_STATUS_COMPLETED
+        )
+        apply_discovery_status(crawl, status)
+    crawl.inventory_complete = not fully_failed
+    return fully_failed, discovery_partial
+
+
+def _terminalize_analysis_state(
+    crawl: SiteCrawl, *, summary: _TaskSummary, fully_failed: bool
+) -> bool:
+    """Drive the drained analysis sub-state and report whether it changed."""
+    if summary.analyze_total == 0 and crawl.analysis_status == ANALYSIS_STATUS_PENDING:
+        apply_analysis_status(crawl, ANALYSIS_STATUS_RUNNING)
+    if crawl.analysis_status != ANALYSIS_STATUS_RUNNING:
+        return False
+
+    if summary.analyze_total > 0 and summary.analyze_applicable == 0:
+        status = ANALYSIS_STATUS_CANCELLED
+    elif fully_failed:
+        status = ANALYSIS_STATUS_FAILED
+    elif summary.analyze_succeeded == summary.analyze_applicable:
+        status = ANALYSIS_STATUS_COMPLETED
+    elif summary.analyze_succeeded > 0:
+        status = ANALYSIS_STATUS_PARTIALLY_COMPLETED
+    else:
+        status = ANALYSIS_STATUS_FAILED
+    apply_analysis_status(crawl, status)
+    return True
+
+
+def _advance_drained_crawl_to_running(crawl: SiteCrawl) -> None:
+    """Walk a drained active crawl through the legal pre-terminal states."""
+    if not crawl_is_active(crawl) or crawl.status == CRAWL_STATUS_RUNNING:
+        return
+    for step in _RUNNING_PATH.get(crawl.status, ()):
+        apply_crawl_status(crawl, step)
 
 
 def _stop_drained_phases(crawl: SiteCrawl) -> None:
@@ -337,47 +425,9 @@ class CrawlLifecycle:
                 return
 
             counts = await self._task_counts(session, crawl_id)
-            discover_remaining = counts["discover_non_terminal"]
-            analyze_remaining = counts["analyze_non_terminal"]
-            link_remaining = counts["link_non_terminal"]
-            analyze_total = counts["analyze_total"]
-            analyze_succeeded = counts["analyze_succeeded"]
-            analyze_cancelled = counts["analyze_cancelled"]
-            analyze_applicable = analyze_total - analyze_cancelled
-            discover_failed = counts["discover_failed"]
-
-            # ``failed_url_count`` is DERIVED here, not accumulated by the
-            # phases. It used to be a ``+= 1`` in the discover phase only, so a
-            # terminally failed ANALYZE (robots-denied, retries exhausted) never
-            # reached it: a crawl with 3 blocked pages reported 0 failed, and
-            # the dashboard's "Queued = selected - completed - failed - running"
-            # billed all 3 as still pending, forever. Recomputing from the task
-            # table under the crawl's FOR UPDATE lock is both complete (every
-            # kind, every route into a terminal status, including a sweeper
-            # reclaim that never runs a phase finalize) and idempotent, so it
-            # also self-heals a counter that has already drifted.
-            # Counting FAILED tasks would bill one URL twice when both its
-            # discover and its analyze task fail (a blocked page fails at both
-            # stages), which inflated the dashboard's failure count above the
-            # number of URLs the crawl actually holds. The unit is a distinct
-            # URL identity, so count distinct ``url_hash`` over failed tasks of
-            # every kind instead.
-            crawl.failed_url_count = await self._failed_url_count(session, crawl_id)
-            # Same treatment for the analyzed counter: the analyze phase still
-            # increments it live so the progress EVENT carries a fresh number,
-            # but the succeeded-task count is the authority and repairs any
-            # increment lost to a concurrent writer.
-            crawl.analyzed_url_count = analyze_succeeded
-            # ...and for admitted URLs, whose authority is the crawl's own
-            # observation rows (unique per ``(crawl_id, site_url_id)``), so a
-            # URL re-observed across discovery batches is counted once.
-            crawl.admitted_url_count = int(
-                await session.scalar(
-                    select(func.count())
-                    .select_from(SiteUrlObservation)
-                    .where(SiteUrlObservation.crawl_id == crawl_id)
-                )
-                or 0
+            summary = _TaskSummary.from_counts(counts)
+            await self._refresh_derived_counters(
+                session, crawl=crawl, summary=summary
             )
 
             if await self._reconcile_advanced_phase_runs(
@@ -386,133 +436,103 @@ class CrawlLifecycle:
                 await session.commit()
                 return
 
-            # Discovery sub-state: terminalize progressively once discover
-            # tasks drain, independent of analyze/link_check work.
-            fully_failed = crawl.discovered_url_count == 0
-            # Scoped to DISCOVER failures on purpose: this decides whether
-            # *discovery* was partial. Reading the combined counter would flip
-            # it on any analyze failure, which is a different condition (and is
-            # already handled by the analyze clause in the classification).
-            discovery_partial = crawl.discovered_url_count > 0 and discover_failed > 0
-            if discover_remaining == 0:
-                if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
-                    if fully_failed:
-                        apply_discovery_status(crawl, DISCOVERY_STATUS_FAILED)
-                    else:
-                        apply_discovery_status(crawl, DISCOVERY_STATUS_COMPLETED)
-                crawl.inventory_complete = not fully_failed
-
-            # Analysis lifecycle: move pending -> running once any analyze task
-            # exists (work has been admitted), so a later terminal transition
-            # is legal.
-            _start_planned_analysis(crawl, analyze_total=analyze_total)
-
-            all_drained = (
-                discover_remaining == 0
-                and analyze_remaining == 0
-                and link_remaining == 0
+            fully_failed, discovery_partial = _reconcile_discovery_state(
+                crawl, summary
             )
-            if not all_drained:
+            _start_planned_analysis(crawl, analyze_total=summary.analyze_total)
+            if not summary.all_drained:
                 await session.commit()
                 return
 
-            # Every task of every kind is terminal: terminalize analysis + the
-            # overall crawl exactly once.
-            analysis_terminalized = False
-            if analyze_total == 0 and crawl.analysis_status == ANALYSIS_STATUS_PENDING:
-                # An empty analysis plan is a successful, terminal lifecycle,
-                # not a crawl left permanently "pending". Traverse the legal
-                # state machine and persist the corresponding empty snapshot.
-                apply_analysis_status(crawl, ANALYSIS_STATUS_RUNNING)
-            if crawl.analysis_status == ANALYSIS_STATUS_RUNNING:
-                if analyze_total > 0 and analyze_applicable == 0:
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_CANCELLED)
-                elif fully_failed:
-                    # SH-3: an empty analysis plan is only COMPLETED when the
-                    # plan was legitimately empty (e.g. Starter with no
-                    # monitored selection — discovery DID admit URLs). When
-                    # discovery fully failed, ``0 == 0`` applicable would
-                    # report analysis "completed" for a crawl that never
-                    # fetched a single page; the analysis failed with it.
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_FAILED)
-                elif analyze_succeeded == analyze_applicable:
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_COMPLETED)
-                elif analyze_succeeded > 0:
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_PARTIALLY_COMPLETED)
-                else:
-                    apply_analysis_status(crawl, ANALYSIS_STATUS_FAILED)
-                analysis_terminalized = True
-
-            if analysis_terminalized:
-                # v2 P2 (spec §5.3): the crawl_finalize-scoped rules run as a
-                # second evaluation pass here — after analysis terminalization
-                # (all link_check evidence is terminal) and BEFORE the snapshot
-                # so their issues land in the severity/category rollups.
+            if _terminalize_analysis_state(
+                crawl, summary=summary, fully_failed=fully_failed
+            ):
+                # Crawl-finalize rules run after analysis terminalization and
+                # before the snapshot so their issues enter its rollups.
                 await self._run_crawl_finalize_pass(session, crawl=crawl)
                 await self._persist_snapshot(session, crawl=crawl)
 
-            # Every task is drained, so this crawl is finished whatever active
-            # status it is parked in. Terminalizing only from RUNNING stranded
-            # any crawl whose last task drained while it was still
-            # draft/validating/queued (a crawl whose work all failed or was
-            # swept before the worker ever flipped it to RUNNING): it stayed
-            # ACTIVE forever, so the UI kept offering Cancel on a run that had
-            # long since stopped, and the Opportunities refresh was never queued.
-            # The transition table has no queued -> completed edge, so
-            # walk the crawl through its legal intermediate states first.
-            if crawl_is_active(crawl) and crawl.status != CRAWL_STATUS_RUNNING:
-                for step in _RUNNING_PATH.get(crawl.status, ()):
-                    apply_crawl_status(crawl, step)
-
-            if crawl.status == CRAWL_STATUS_RUNNING:
-                crawl.completed_at = _utcnow()
-                failure_summary: dict | None = None
-                if fully_failed:
-                    apply_crawl_status(crawl, CRAWL_STATUS_FAILED)
-                    # SH-2/SH-5 (B1): the failure summary is the single
-                    # humanized source of truth — a stable code + sentence +
-                    # status/attempts projected from the root task's terminal
-                    # fetch attempts. Its message lands on the crawl row; its
-                    # full shape rides the ``crawl.failed`` event payload.
-                    failure_summary = await load_root_failure_summary(
-                        session, crawl=crawl
-                    )
-                    if failure_summary is not None and not crawl.error_message:
-                        crawl.error_message = failure_summary["message"]
-                elif discovery_partial or (
-                    analyze_applicable > 0 and analyze_succeeded < analyze_applicable
-                ):
-                    apply_crawl_status(crawl, CRAWL_STATUS_PARTIALLY_COMPLETED)
-                else:
-                    apply_crawl_status(crawl, CRAWL_STATUS_COMPLETED)
-                if crawl.status == CRAWL_STATUS_FAILED:
-                    # SH-2 (B1): a failed run is NOT a "completed" event — SSE
-                    # and replay consumers get the failure summary instead.
-                    record_crawl_event(
-                        session,
-                        crawl_id=crawl_id,
-                        event_type=EVENT_CRAWL_FAILED,
-                        message="crawl failed",
-                        payload={"status": crawl.status, "failure": failure_summary},
-                        count_disclosure=_count_disclosure(crawl),
-                    )
-                else:
-                    record_crawl_event(
-                        session,
-                        crawl_id=crawl_id,
-                        event_type=EVENT_CRAWL_COMPLETED,
-                        message="crawl completed",
-                        payload={"status": crawl.status},
-                        count_disclosure=_count_disclosure(crawl),
-                    )
-                    await enqueue_opportunity_refresh(
-                        session,
-                        workspace_id=crawl.workspace_id,
-                        project_id=crawl.project_id,
-                        trigger_kind="site_crawl",
-                        trigger_id=crawl.id,
-                    )
+            _advance_drained_crawl_to_running(crawl)
+            await self._terminalize_crawl(
+                session,
+                crawl=crawl,
+                summary=summary,
+                fully_failed=fully_failed,
+                discovery_partial=discovery_partial,
+            )
             await session.commit()
+
+    async def _refresh_derived_counters(
+        self,
+        session: AsyncSession,
+        *,
+        crawl: SiteCrawl,
+        summary: _TaskSummary,
+    ) -> None:
+        """Repair counters from their durable task and observation authorities."""
+        crawl.failed_url_count = await self._failed_url_count(session, crawl.id)
+        crawl.analyzed_url_count = summary.analyze_succeeded
+        crawl.admitted_url_count = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(SiteUrlObservation)
+                .where(SiteUrlObservation.crawl_id == crawl.id)
+            )
+            or 0
+        )
+
+    async def _terminalize_crawl(
+        self,
+        session: AsyncSession,
+        *,
+        crawl: SiteCrawl,
+        summary: _TaskSummary,
+        fully_failed: bool,
+        discovery_partial: bool,
+    ) -> None:
+        """Persist the final crawl status, event, and successful refresh task."""
+        if crawl.status != CRAWL_STATUS_RUNNING:
+            return
+        crawl.completed_at = _utcnow()
+        failure_summary: dict | None = None
+        if fully_failed:
+            apply_crawl_status(crawl, CRAWL_STATUS_FAILED)
+            failure_summary = await load_root_failure_summary(session, crawl=crawl)
+            if failure_summary is not None and not crawl.error_message:
+                crawl.error_message = failure_summary["message"]
+        elif discovery_partial or (
+            summary.analyze_applicable > 0
+            and summary.analyze_succeeded < summary.analyze_applicable
+        ):
+            apply_crawl_status(crawl, CRAWL_STATUS_PARTIALLY_COMPLETED)
+        else:
+            apply_crawl_status(crawl, CRAWL_STATUS_COMPLETED)
+
+        if crawl.status == CRAWL_STATUS_FAILED:
+            record_crawl_event(
+                session,
+                crawl_id=crawl.id,
+                event_type=EVENT_CRAWL_FAILED,
+                message="crawl failed",
+                payload={"status": crawl.status, "failure": failure_summary},
+                count_disclosure=_count_disclosure(crawl),
+            )
+            return
+        record_crawl_event(
+            session,
+            crawl_id=crawl.id,
+            event_type=EVENT_CRAWL_COMPLETED,
+            message="crawl completed",
+            payload={"status": crawl.status},
+            count_disclosure=_count_disclosure(crawl),
+        )
+        await enqueue_opportunity_refresh(
+            session,
+            workspace_id=crawl.workspace_id,
+            project_id=crawl.project_id,
+            trigger_kind="site_crawl",
+            trigger_id=crawl.id,
+        )
 
     async def _reconcile_advanced_phase_runs(
         self,
