@@ -1,7 +1,7 @@
 # Site Intelligence and Knowledge Foundation
 
-> **Status:** S0–S4 delivered and merged (PRs #52, #53, #55). S5 is implemented on
-> `feature/site-intelligence-s5` and awaiting merge.
+> **Status:** S0–S5 delivered and merged (PRs #52, #53, #55, #58). The subsequent
+> Demand, Content, Growth Agent, and shared-interface work landed in PRs #57–#61.
 > This document stays canonical: sections 1–11 describe shipped behaviour,
 > §12 records which slices closed, and [§15](#15-delivery-status-and-open-work) is the
 > authoritative list of what is NOT built. Read §15 before planning work here — the
@@ -424,7 +424,7 @@ behavior, and leave later slices as plans rather than partial hidden implementat
 | S2 — generic knowledge contracts | ✅ complete | #53, #55 |
 | S3 — Education v1 and complete report | ✅ complete | #52, #53 |
 | S4 — Commerce v1 | ✅ complete | #53 |
-| S5 — recrawl comparison and rollout | ✅ implemented, awaiting merge | `feature/site-intelligence-s5` |
+| S5 — recrawl comparison and rollout | ✅ complete | #58 |
 
 The registry ships **16 industry packs**, not the two this plan scoped: `education` and
 `commerce` are the calibrated pair the acceptance work used, and the other fourteen

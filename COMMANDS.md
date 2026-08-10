@@ -251,6 +251,24 @@ uv run mypy
 uv run python -m scripts.check_complexity
 ```
 
+The complexity check enforces fixed defaults of CC 12 per function and 800 LOC per
+module, with narrow checked-in exceptions for existing debt. It has no update or
+rebaseline command. CI compares the policy with the PR base and rejects higher or
+newly added exceptions; new code must fit the defaults.
+
+Pinned advisory audits (not CI gates), run from `backend/`:
+
+```powershell
+uvx --from radon==6.0.1 radon cc app -s -n C
+uvx --from radon==6.0.1 radon mi app -s -n B
+uvx --from vulture==2.16 vulture app --min-confidence 80
+pnpm dlx jscpd@5.0.11 app --format python --min-lines 15 --min-tokens 180 --reporters console
+```
+
+FastAPI decorators, Pydantic validators/fields, SQLAlchemy mappings, and registry
+dispatch are common Vulture false positives. Declarative config and ORM modules are
+poor Radon-MI refactor targets without an independent ownership or behavior problem.
+
 The test suite needs a running PostgreSQL server. It creates and removes a throwaway
 test database and does not use the development database for test data.
 

@@ -13,7 +13,8 @@
 | 1 | `feature/demand-intelligence` | Demand D0-D5 | `merged` | [#57](https://github.com/abhij1306/Citeladder/pull/57) | `0f5915ac5c2e1eb935f72c56e9e745303662614f` |
 | 2 | `feature/site-intelligence-s5` | Corrections, contradiction decisions, Site S5 | `merged` | [#58](https://github.com/abhij1306/Citeladder/pull/58) | `70d5894be96d8bfb0f50c76bb6f83eabb2c4e640` |
 | 3 | `feature/content-intelligence` | Content C0-C5 | `merged` | [#59](https://github.com/abhij1306/Citeladder/pull/59) | `14fcbc511051f8076c817ea1331d5f3bdfccf103` |
-| 4 | `feat/growth-agent-branch-4` | Growth Agent G0-G5 | `ready_to_ship` | [#60](https://github.com/abhij1306/Citeladder/pull/60) | — |
+| 4 | `feat/growth-agent-branch-4` | Growth Agent G0-G5 | `merged` | [#60](https://github.com/abhij1306/Citeladder/pull/60) | `c16a194dbf18b1330649a3c7c6e7d4fa329c75ca` |
+| 5 | — | Shared frontend design-system stabilization | `merged` | [#61](https://github.com/abhij1306/Citeladder/pull/61) | `28977b78c39d7376636b4a692d9879895b47456a` |
 
 Statuses are exact: `not_started | in_progress | ready_to_ship | merged`. A branch starts from
 freshly synchronized `main` only after its predecessor is merged.
@@ -277,8 +278,8 @@ decisions. No generated output becomes a fact and no correction is overwritten.
   `0001_initial.py` upgrade and zero Alembic drift. Every Compose image rebuilds; migration exits
   0; the database, web service, and all nine workers remain running; and `/health` returns 200.
   Pull request [#60](https://github.com/abhij1306/Citeladder/pull/60) passes all nine required
-  checks. SonarCloud passes its quality gate and reports zero open pull-request issues; merge
-  remains pending until shipment completes.
+  checks. SonarCloud passes its quality gate and reports zero open pull-request issues. PR #60
+  merged at `c16a194d`; the shared design-system stabilization followed in PR #61.
 - Gotchas and conflict resolutions: `TaskContextPackage` stays Content-owned and is shared rather
   than duplicated. Corrections remain Site-owned overlays over immutable observations. A roadmap
   groups and explains deterministic priority but never changes rank. Model configuration chooses
@@ -291,10 +292,11 @@ decisions. No generated output becomes a fact and no correction is overwritten.
 
 ## Final branch verification record
 
-For each branch, record exact results for formatting, Ruff, mypy, complexity ratchet, frontend
+For each branch, record exact results for formatting, Ruff, mypy, complexity policy, frontend
 format/lint/type/policy/contract/build checks, documentation and industry-pack validation,
 from-zero migration verification, Compose rebuild/smoke checks, and CI suites. Tighten the
-complexity baseline only for genuine improvements; never use it to admit regression.
+Complexity ceilings may only tighten or disappear; never add or raise an exception to admit a
+regression.
 
 ## Fresh-chat handoff template
 
