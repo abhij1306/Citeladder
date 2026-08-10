@@ -139,13 +139,6 @@ def create_app() -> FastAPI:
     )
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=get_frontend_origins(),
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
     # Applied at ASGI level so limits cover multipart parsing and cache headers
     # cover JSON, downloads, validation errors, and unhandled API errors alike.
     app.add_middleware(RequestBodyLimitMiddleware)
@@ -164,6 +157,16 @@ def create_app() -> FastAPI:
             reset_correlation_id(token)
         response.headers[header_name] = correlation_id
         return response
+
+    # Add CORS last: Starlette wraps middleware in reverse registration order,
+    # so preflight requests bypass the body-limit and response-cache layers.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=get_frontend_origins(),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:

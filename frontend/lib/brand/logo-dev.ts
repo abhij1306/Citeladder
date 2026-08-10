@@ -20,6 +20,14 @@
 
 import { getLogoDevPublishable } from '@/lib/config/env';
 
+function stripTrailingDots(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 46) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
 /**
  * Registrable-ish domain for a site URL, or null when it is not usable.
  *
@@ -37,7 +45,7 @@ export function logoDomain(websiteUrl: string | null | undefined): string | null
     return null;
   }
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
-  const host = parsed.hostname.toLowerCase().replace(/\.+$/, '');
+  const host = stripTrailingDots(parsed.hostname.toLowerCase());
   // Needs a dot and no credentials/IP-literal weirdness to be a real site.
   if (!host.includes('.') || parsed.username || parsed.password) return null;
   return host;

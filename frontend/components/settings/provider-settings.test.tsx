@@ -101,6 +101,9 @@ describe('ProviderSettings', () => {
 
     renderWithProviders(<ProviderSettings />);
     await screen.findByRole('heading', { name: 'ChatGPT' });
+
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('radiogroup')).toBeNull();
   });
 
   it('keeps a saved-but-unprobed key at missing, then connects after a probe', async () => {

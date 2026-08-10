@@ -138,8 +138,8 @@ export function selectionDelta(selection: StagedSelection): SelectionDelta {
   for (const id of selection.committed.siteUrlIds) {
     if (!selection.staged.has(id)) removed.push(id);
   }
-  added.sort();
-  removed.sort();
+  added.sort((a, b) => a.localeCompare(b));
+  removed.sort((a, b) => a.localeCompare(b));
   return { added, removed, dirty: added.length > 0 || removed.length > 0 };
 }
 
@@ -173,7 +173,7 @@ export function toReplacePayload(selection: StagedSelection): {
   expected_selection_version: number;
 } {
   return {
-    site_url_ids: Array.from(selection.staged).sort(),
+    site_url_ids: Array.from(selection.staged).sort((a, b) => a.localeCompare(b)),
     expected_selection_version: selection.committed.version,
   };
 }

@@ -86,10 +86,7 @@ from app.domain.projects.service import (
     project_to_response,
     update_project,
 )
-from app.domain.site_health.planner import (
-    CrawlAlreadyActiveError,
-    CrawlPlanError,
-)
+from app.domain.site_health.planner import CrawlPlanError
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -182,7 +179,7 @@ async def create_project_endpoint(
             workspace_id=workspace_id,
             project_id=project_id,
         )
-    except (CrawlAlreadyActiveError, CrawlPlanError) as exc:
+    except CrawlPlanError as exc:
         await reload_project_after_crawl_failure(exc)
     except Exception:
         await reload_project_after_crawl_failure()
@@ -484,7 +481,7 @@ async def get_command_center_endpoint(
             project=project,
             audit_id=audit_id,
         )
-    except (AnalysisNotFoundError, LookupError) as exc:
+    except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No completed command-center measurement is available",
@@ -506,7 +503,7 @@ async def get_executive_report_endpoint(
             project=project,
             audit_id=audit_id,
         )
-    except (AnalysisNotFoundError, LookupError) as exc:
+    except LookupError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No completed command-center measurement is available",

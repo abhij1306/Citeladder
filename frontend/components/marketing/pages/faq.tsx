@@ -20,13 +20,25 @@ const GROUP_ANCHORS: Record<string, string> = {
   'Account & billing': 'faq-billing',
 };
 
+function fallbackAnchor(heading: string): string {
+  let anchor = '';
+  let needsSeparator = false;
+  for (const character of heading.toLowerCase()) {
+    const isAsciiLetter = character >= 'a' && character <= 'z';
+    const isDigit = character >= '0' && character <= '9';
+    if (isAsciiLetter || isDigit) {
+      if (needsSeparator && anchor) anchor += '-';
+      anchor += character;
+      needsSeparator = false;
+    } else {
+      needsSeparator = true;
+    }
+  }
+  return anchor;
+}
+
 function groupAnchor(group: FaqGroup): string {
-  const fallback = group.heading
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-/, '')
-    .replace(/-$/, '');
-  return GROUP_ANCHORS[group.heading] ?? `faq-${fallback}`;
+  return GROUP_ANCHORS[group.heading] ?? `faq-${fallbackAnchor(group.heading)}`;
 }
 
 // Answers are plain strings from the content module. One inline transform

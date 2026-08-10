@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from fastapi.middleware.cors import CORSMiddleware
 from httpx import ASGITransport
 
 from app.main import app
@@ -29,6 +30,25 @@ async def test_health_echoes_request_id_header() -> None:
         response = await client.get("/health", headers={"X-Request-ID": "abc123"})
     assert response.status_code == 200
     assert response.headers.get("X-Request-ID") == "abc123"
+
+
+@pytest.mark.asyncio
+async def test_cors_is_outermost_and_handles_preflight_before_api_middleware() -> None:
+    assert app.user_middleware[0].cls is CORSMiddleware
+
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        response = await client.options(
+            "/api/v1/provider-catalog",
+            headers={
+                "Origin": "http://127.0.0.1:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:3000"
 
 
 @pytest.mark.asyncio

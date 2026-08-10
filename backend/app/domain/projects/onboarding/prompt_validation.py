@@ -64,7 +64,6 @@ def validate_portfolio(
         prompts,
         brand_terms=brand_terms,
         competitor_terms=competitor_terms,
-        primary_market=primary_market,
     )
     expected_counts = {
         MARKET_VISIBILITY: expected_market_count,
@@ -84,7 +83,7 @@ def validate_portfolio(
     return PromptQualityResult(tuple(accepted), tuple(errors))
 
 
-def _accepted_portfolio_rows(prompts, *, brand_terms, competitor_terms, primary_market):
+def _accepted_portfolio_rows(prompts, *, brand_terms, competitor_terms):
     accepted: list[dict] = []
     accepted_text: list[str] = []
     accepted_brand_relevant_text: list[str] = []
@@ -103,7 +102,6 @@ def _accepted_portfolio_rows(prompts, *, brand_terms, competitor_terms, primary_
             brand_terms=brand_terms,
             competitor_terms=competitor_terms,
             accepted_text=accepted_text,
-            primary_market=primary_market,
         )
         if error:
             errors.append(error)
@@ -135,7 +133,6 @@ def _prompt_error(
     brand_terms,
     competitor_terms,
     accepted_text,
-    primary_market,
 ) -> str:
     if cohort not in {MARKET_VISIBILITY, BRAND_RELEVANT}:
         return f"prompt[{index}].cohort"

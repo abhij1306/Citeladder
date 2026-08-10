@@ -43,6 +43,14 @@ function isMappedIpv4Literal(host: string): boolean {
   return segments.slice(0, marker).every((segment) => segment === '' || /^0+$/.test(segment));
 }
 
+function stripTrailingDots(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 46) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
 export function resolveBackendOrigin(
   configuredValue = process.env.BACKEND_ORIGIN,
   production = process.env.NODE_ENV === 'production',
@@ -67,10 +75,7 @@ export function resolveBackendOrigin(
   }
   // `URL` keeps IPv6 literals bracketed; strip them so one set of comparisons
   // covers both forms.
-  const host = parsed.hostname
-    .toLowerCase()
-    .replace(/[.]+$/, '')
-    .replace(/^\[|\]$/g, '');
+  const host = stripTrailingDots(parsed.hostname.toLowerCase()).replace(/^\[|\]$/g, '');
   if (
     production &&
     (host === 'localhost' ||

@@ -840,7 +840,7 @@ async def get_grouped_issue_history(
     if cursor:
         try:
             values = decode_keyset_cursor(cursor, scope=scope, filters=filters)
-        except (CursorScopeError, ValueError) as exc:
+        except ValueError as exc:
             raise InvalidCursorError("invalid grouped history cursor") from exc
         if len(values) != 1:
             raise InvalidCursorError("invalid grouped history cursor")

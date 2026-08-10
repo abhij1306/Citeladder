@@ -311,7 +311,9 @@ export function diffContract(spec: OpenApiSpec): ContractDiffResult {
     }
     const declared = new Set(keys.declared);
     const missing = keys.required.filter((key) => !properties.has(key));
-    const additive = [...properties].filter((key) => !declared.has(key)).sort();
+    const additive = [...properties]
+      .filter((key) => !declared.has(key))
+      .sort((a, b) => a.localeCompare(b));
     if (missing.length > 0 || additive.length > 0) {
       drifts.push({ schema: name, component, missing, additive });
     }
