@@ -60,6 +60,7 @@ from app.models.site_health import (
     SiteUrl,
 )
 from app.workers.site_health.helpers import _is_crawl_finalize_rule
+from app.workers.site_health.lifecycle import CrawlLifecycle
 from tests.component.site_health_helpers import seed_site_crawl
 from tests.component.site_health_worker_helpers import (
     DEFAULT_SEED_MONITORED_URLS,
@@ -242,7 +243,7 @@ async def test_advanced_controls_do_not_park_a_completed_sample_crawl(
         task.completed_at = datetime.now(UTC)
         await session.commit()
 
-    await _worker(session_factory, {})._reconcile_crawl_status(seed.crawl_id)
+    await CrawlLifecycle(session_factory).reconcile(seed.crawl_id)
 
     async with session_factory() as session:
         crawl = await session.get(SiteCrawl, seed.crawl_id)
@@ -325,8 +326,7 @@ async def test_stolen_lease_does_not_terminalize_crawl(
 
     # This worker directly reconciles: the non-terminal task must keep the
     # crawl active (remaining discover work > 0).
-    worker = _worker(session_factory, {"/": _html([])})
-    await worker._reconcile_crawl_status(seed.crawl_id)
+    await CrawlLifecycle(session_factory).reconcile(seed.crawl_id)
 
     async with session_factory() as session:
         crawl = await session.get(SiteCrawl, seed.crawl_id)

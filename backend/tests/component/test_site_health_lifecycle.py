@@ -29,13 +29,27 @@ from app.core.config.site_health import (
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_RUNNING,
+    DISCOVERY_STATUS_RUNNING,
+    DISCOVERY_STATUS_STOPPED,
+    EVENT_CRAWL_COMPLETED,
+    PHASE_DISCOVERY,
+    PHASE_RUN_COMPLETED,
+    PHASE_RUN_RUNNING,
     SITE_CRAWL_QUEUE_SPEC,
     site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.domain.site_health.service.lifecycle import load_events
-from app.models.site_health import SiteCrawl, SiteCrawlEvent, SiteCrawlTask
+from app.models.analytics import AnalyticsTask
+from app.models.site_health import (
+    SiteCrawl,
+    SiteCrawlEvent,
+    SiteCrawlPhaseRun,
+    SiteCrawlTask,
+    SiteHealthSnapshot,
+)
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.site_health.lifecycle import CrawlLifecycle
 from app.workers.site_health_worker import SiteHealthWorker
 from tests.component.site_health_helpers import seed_site_crawl
 
@@ -221,7 +235,7 @@ async def test_stalled_backstop_ignores_recently_touched_crawls(
         )
         await session.commit()
 
-    reconciled = await _worker(session_factory)._reconcile_stalled_crawls()
+    reconciled = await CrawlLifecycle(session_factory).reconcile_stalled()
 
     assert reconciled == 0
     crawl = await _crawl(session_factory, seed.crawl_id)
@@ -243,7 +257,7 @@ async def test_stalled_backstop_ignores_crawls_with_outstanding_work(
         )
         await session.commit()  # task stays QUEUED
 
-    reconciled = await _worker(session_factory)._reconcile_stalled_crawls()
+    reconciled = await CrawlLifecycle(session_factory).reconcile_stalled()
 
     assert reconciled == 0
     crawl = await _crawl(session_factory, seed.crawl_id)
@@ -269,8 +283,44 @@ async def test_stalled_backstop_ignores_paused_phase_control_crawls(
         )
         await session.commit()
 
-    assert await _worker(session_factory)._reconcile_stalled_crawls() == 0
+    assert await CrawlLifecycle(session_factory).reconcile_stalled() == 0
     assert (await _crawl(session_factory, seed.crawl_id)).status == CRAWL_STATUS_PAUSED
+
+
+@pytest.mark.asyncio
+async def test_advanced_manual_phase_parks_without_terminal_side_effects(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A drained manual phase pauses cleanly and repeated reconciliation is inert."""
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=1)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        task = await session.get(SiteCrawlTask, seed.task_ids[0])
+        assert crawl is not None and task is not None
+        crawl.sample_mode = False
+        crawl.configuration = {"advanced_controls_enabled": True}
+        crawl.discovery_status = DISCOVERY_STATUS_RUNNING
+        crawl.discovered_url_count = 1
+        phase_run = SiteCrawlPhaseRun(workspace_id=seed.workspace_id, crawl_id=seed.crawl_id, phase=PHASE_DISCOVERY, ordinal=1, status=PHASE_RUN_RUNNING, requested_count=1)
+        session.add(phase_run)
+        await session.flush()
+        task.phase_run_id = phase_run.id
+        task.status = TASK_STATUS_SUCCEEDED
+        task.completed_at = datetime.now(UTC)
+        phase_run_id = phase_run.id
+        await session.commit()
+    lifecycle = CrawlLifecycle(session_factory)
+    await lifecycle.reconcile(seed.crawl_id)
+    await lifecycle.reconcile(seed.crawl_id)
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        phase_run = await session.get(SiteCrawlPhaseRun, phase_run_id)
+        assert crawl is not None and crawl.status == CRAWL_STATUS_PAUSED
+        assert crawl.discovery_status == DISCOVERY_STATUS_STOPPED
+        assert phase_run is not None and phase_run.status == PHASE_RUN_COMPLETED
+        assert await session.scalar(select(SiteHealthSnapshot.id).where(SiteHealthSnapshot.crawl_id == seed.crawl_id)) is None
+        assert await session.scalar(select(SiteCrawlEvent.id).where(SiteCrawlEvent.crawl_id == seed.crawl_id, SiteCrawlEvent.event_type == EVENT_CRAWL_COMPLETED)) is None
+        assert await session.scalar(select(AnalyticsTask.id)) is None
 
 
 @pytest.mark.asyncio
@@ -338,7 +388,7 @@ async def test_stalled_backstop_can_be_disabled(
     monkeypatch.setattr(
         site_health_settings, "stalled_crawl_reconcile_seconds", 0.0, raising=False
     )
-    assert await _worker(session_factory)._reconcile_stalled_crawls() == 0
+    assert await CrawlLifecycle(session_factory).reconcile_stalled() == 0
 
     crawl = await _crawl(session_factory, seed.crawl_id)
     assert crawl.status == CRAWL_STATUS_RUNNING
