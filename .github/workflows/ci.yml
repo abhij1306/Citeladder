@@ -78,7 +78,7 @@ jobs:
       - name: Pytest
         # Verbose node ids make an anomalous runner/database stall attributable;
         # faulthandler prints thread stacks if one test exceeds two minutes.
-        run: uv run pytest -vv -o faulthandler_timeout=120
+        run: .venv/bin/python -m pytest -vv -o faulthandler_timeout=120
 
   frontend:
     name: Frontend (vitest, tsc, policy, build)
