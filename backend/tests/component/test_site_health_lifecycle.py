@@ -296,7 +296,8 @@ async def test_advanced_manual_phase_parks_without_terminal_side_effects(
         seed = await seed_site_crawl(session, task_count=1)
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         task = await session.get(SiteCrawlTask, seed.task_ids[0])
-        assert crawl is not None and task is not None
+        assert crawl is not None
+        assert task is not None
         crawl.sample_mode = False
         crawl.configuration = {"advanced_controls_enabled": True}
         crawl.discovery_status = DISCOVERY_STATUS_RUNNING
@@ -322,9 +323,11 @@ async def test_advanced_manual_phase_parks_without_terminal_side_effects(
     async with session_factory() as session:
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         phase_run = await session.get(SiteCrawlPhaseRun, phase_run_id)
-        assert crawl is not None and crawl.status == CRAWL_STATUS_PAUSED
+        assert crawl is not None
+        assert crawl.status == CRAWL_STATUS_PAUSED
         assert crawl.discovery_status == DISCOVERY_STATUS_STOPPED
-        assert phase_run is not None and phase_run.status == PHASE_RUN_COMPLETED
+        assert phase_run is not None
+        assert phase_run.status == PHASE_RUN_COMPLETED
         assert (
             await session.scalar(
                 select(SiteHealthSnapshot.id).where(

@@ -181,12 +181,13 @@ def _reconcile_discovery_state(
     """Progressively terminalize discovery and return failure classifications."""
     fully_failed = crawl.discovered_url_count == 0
     discovery_partial = crawl.discovered_url_count > 0 and summary.discover_failed > 0
-    if summary.discover_remaining != 0:
-        return fully_failed, discovery_partial
-    if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
-        status = DISCOVERY_STATUS_FAILED if fully_failed else DISCOVERY_STATUS_COMPLETED
-        apply_discovery_status(crawl, status)
-    crawl.inventory_complete = not fully_failed
+    if summary.discover_remaining == 0:
+        if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
+            status = (
+                DISCOVERY_STATUS_FAILED if fully_failed else DISCOVERY_STATUS_COMPLETED
+            )
+            apply_discovery_status(crawl, status)
+        crawl.inventory_complete = not fully_failed
     return fully_failed, discovery_partial
 
 

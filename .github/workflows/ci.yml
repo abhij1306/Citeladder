@@ -70,9 +70,9 @@ jobs:
           COMPLEXITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           if [ -n "$COMPLEXITY_BASE_SHA" ] && ! [[ "$COMPLEXITY_BASE_SHA" =~ ^0+$ ]]; then
-            uv run python -m scripts.check_complexity --check-policy-diff "$COMPLEXITY_BASE_SHA"
+            .venv/bin/python -m scripts.check_complexity --check-policy-diff "$COMPLEXITY_BASE_SHA"
           else
-            uv run python -m scripts.check_complexity
+            .venv/bin/python -m scripts.check_complexity
           fi
       - name: Pytest
         run: uv run pytest -q

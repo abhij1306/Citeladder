@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -36,6 +37,7 @@ _BRANCH_NODES = (
 _POLICY_KEYS = {"format_version", "roots", "defaults", "exceptions"}
 _DEFAULT_KEYS = {"max_function_cc", "max_module_loc"}
 _EXCEPTION_KEYS = {"functions", "modules"}
+_BASE_REVISION_PATTERN = re.compile(r"(?:HEAD|[0-9a-fA-F]{40})\Z")
 
 
 class PolicyError(ValueError):
@@ -101,14 +103,7 @@ def _positive_integer(value: object, label: str) -> int:
     return value
 
 
-def validate_policy(raw: object) -> dict[str, Any]:
-    """Validate and return a normalized policy mapping."""
-    if not isinstance(raw, dict) or set(raw) != _POLICY_KEYS:
-        raise PolicyError(f"policy keys must be exactly {sorted(_POLICY_KEYS)}")
-    if raw["format_version"] != 1:
-        raise PolicyError("format_version must be 1")
-
-    roots = raw["roots"]
+def _validate_roots(roots: object) -> None:
     if (
         not isinstance(roots, list)
         or not roots
@@ -117,35 +112,58 @@ def validate_policy(raw: object) -> dict[str, Any]:
     ):
         raise PolicyError("roots must be a non-empty list of unique strings")
 
-    defaults = raw["defaults"]
+
+def _validate_defaults(defaults: object) -> tuple[int, int]:
     if not isinstance(defaults, dict) or set(defaults) != _DEFAULT_KEYS:
         raise PolicyError(f"defaults keys must be exactly {sorted(_DEFAULT_KEYS)}")
-    function_default = _positive_integer(
-        defaults["max_function_cc"], "defaults.max_function_cc"
-    )
-    module_default = _positive_integer(
-        defaults["max_module_loc"], "defaults.max_module_loc"
+    return (
+        _positive_integer(defaults["max_function_cc"], "defaults.max_function_cc"),
+        _positive_integer(defaults["max_module_loc"], "defaults.max_module_loc"),
     )
 
-    exceptions = raw["exceptions"]
+
+def _validate_exception_entries(entries: object, *, kind: str, default: int) -> None:
+    if not isinstance(entries, dict):
+        raise PolicyError(f"exceptions.{kind} must be an object")
+    for name, ceiling in entries.items():
+        if not isinstance(name, str) or not name:
+            raise PolicyError(f"exceptions.{kind} keys must be non-empty strings")
+        parsed_ceiling = _positive_integer(ceiling, f"exceptions.{kind}.{name}")
+        if parsed_ceiling <= default:
+            raise PolicyError(
+                f"exceptions.{kind}.{name} must exceed the default {default}"
+            )
+    if kind == "functions" and any("::" not in name for name in entries):
+        raise PolicyError("function exception keys must use path.py::qualified_name")
+
+
+def _validate_exceptions(
+    exceptions: object, *, function_default: int, module_default: int
+) -> None:
     if not isinstance(exceptions, dict) or set(exceptions) != _EXCEPTION_KEYS:
         raise PolicyError(f"exceptions keys must be exactly {sorted(_EXCEPTION_KEYS)}")
-    for kind, default in (("functions", function_default), ("modules", module_default)):
-        entries = exceptions[kind]
-        if not isinstance(entries, dict):
-            raise PolicyError(f"exceptions.{kind} must be an object")
-        for name, ceiling in entries.items():
-            if not isinstance(name, str) or not name:
-                raise PolicyError(f"exceptions.{kind} keys must be non-empty strings")
-            parsed_ceiling = _positive_integer(ceiling, f"exceptions.{kind}.{name}")
-            if parsed_ceiling <= default:
-                raise PolicyError(
-                    f"exceptions.{kind}.{name} must exceed the default {default}"
-                )
-        if kind == "functions" and any("::" not in name for name in entries):
-            raise PolicyError(
-                "function exception keys must use path.py::qualified_name"
-            )
+    _validate_exception_entries(
+        exceptions["functions"], kind="functions", default=function_default
+    )
+    _validate_exception_entries(
+        exceptions["modules"], kind="modules", default=module_default
+    )
+
+
+def validate_policy(raw: object) -> dict[str, Any]:
+    """Validate and return a normalized policy mapping."""
+    if not isinstance(raw, dict) or set(raw) != _POLICY_KEYS:
+        raise PolicyError(f"policy keys must be exactly {sorted(_POLICY_KEYS)}")
+    if raw["format_version"] != 1:
+        raise PolicyError("format_version must be 1")
+
+    _validate_roots(raw["roots"])
+    function_default, module_default = _validate_defaults(raw["defaults"])
+    _validate_exceptions(
+        raw["exceptions"],
+        function_default=function_default,
+        module_default=module_default,
+    )
 
     return raw
 
@@ -161,16 +179,14 @@ def load_policy(path: Path = POLICY_PATH) -> dict[str, Any]:
     return validate_policy(raw)
 
 
-def check_measurements(
-    measurements: dict[str, dict[str, Any]], policy: dict[str, Any]
+def _measurement_limit_failures(
+    measurements: dict[str, dict[str, Any]],
+    *,
+    defaults: dict[str, int],
+    function_exceptions: dict[str, int],
+    module_exceptions: dict[str, int],
 ) -> list[str]:
-    """Return violations, including obsolete or missing exception targets."""
-    defaults = policy["defaults"]
-    exceptions = policy["exceptions"]
-    function_exceptions: dict[str, int] = exceptions["functions"]
-    module_exceptions: dict[str, int] = exceptions["modules"]
     failures: list[str] = []
-
     for relative_path, module in sorted(measurements.items()):
         loc = module["loc"]
         loc_ceiling = module_exceptions.get(relative_path, defaults["max_module_loc"])
@@ -181,25 +197,74 @@ def check_measurements(
             cc_ceiling = function_exceptions.get(key, defaults["max_function_cc"])
             if complexity > cc_ceiling:
                 failures.append(f"{key}: CC {complexity} exceeds ceiling {cc_ceiling}")
+    return failures
 
-    for relative_path in sorted(module_exceptions):
+
+def _stale_module_exception_failures(
+    measurements: dict[str, dict[str, Any]],
+    *,
+    default: int,
+    exceptions: dict[str, int],
+) -> list[str]:
+    failures: list[str] = []
+    for relative_path in sorted(exceptions):
         module = measurements.get(relative_path)
         if module is None:
             failures.append(f"stale module exception: {relative_path} does not exist")
-        elif module["loc"] <= defaults["max_module_loc"]:
+        elif module["loc"] <= default:
             failures.append(
                 f"stale module exception: {relative_path} is now within the default"
             )
+    return failures
 
-    for key in sorted(function_exceptions):
+
+def _stale_function_exception_failures(
+    measurements: dict[str, dict[str, Any]],
+    *,
+    default: int,
+    exceptions: dict[str, int],
+) -> list[str]:
+    failures: list[str] = []
+    for key in sorted(exceptions):
         relative_path, separator, name = key.partition("::")
         module = measurements.get(relative_path)
         if not separator or module is None or name not in module["functions"]:
             failures.append(f"stale function exception: {key} does not exist")
-        elif module["functions"][name] <= defaults["max_function_cc"]:
+        elif module["functions"][name] <= default:
             failures.append(
                 f"stale function exception: {key} is now within the default"
             )
+    return failures
+
+
+def check_measurements(
+    measurements: dict[str, dict[str, Any]], policy: dict[str, Any]
+) -> list[str]:
+    """Return violations, including obsolete or missing exception targets."""
+    defaults: dict[str, int] = policy["defaults"]
+    exceptions = policy["exceptions"]
+    function_exceptions: dict[str, int] = exceptions["functions"]
+    module_exceptions: dict[str, int] = exceptions["modules"]
+    failures = _measurement_limit_failures(
+        measurements,
+        defaults=defaults,
+        function_exceptions=function_exceptions,
+        module_exceptions=module_exceptions,
+    )
+    failures.extend(
+        _stale_module_exception_failures(
+            measurements,
+            default=defaults["max_module_loc"],
+            exceptions=module_exceptions,
+        )
+    )
+    failures.extend(
+        _stale_function_exception_failures(
+            measurements,
+            default=defaults["max_function_cc"],
+            exceptions=function_exceptions,
+        )
+    )
 
     return failures
 
@@ -234,6 +299,8 @@ def compare_policies(base: dict[str, Any], current: dict[str, Any]) -> list[str]
 
 def policy_at_revision(base_revision: str) -> dict[str, Any] | None:
     """Read the base policy; absence permits the repository's one bootstrap."""
+    if _BASE_REVISION_PATTERN.fullmatch(base_revision) is None:
+        raise PolicyError(f"unknown base revision: {base_revision}")
     revision = subprocess.run(
         ["git", "cat-file", "-e", f"{base_revision}^{{commit}}"],
         cwd=REPOSITORY,

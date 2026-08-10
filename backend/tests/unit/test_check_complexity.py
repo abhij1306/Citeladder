@@ -288,6 +288,18 @@ def test_policy_at_revision_rejects_unknown_revision(
         check_complexity.policy_at_revision("missing")
 
 
+def test_policy_at_revision_rejects_unsafe_revision_before_git(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_run(*args, **kwargs):
+        pytest.fail("unsafe revisions must not reach git")
+
+    monkeypatch.setattr(check_complexity.subprocess, "run", unexpected_run)
+
+    with pytest.raises(check_complexity.PolicyError, match="unknown base revision"):
+        check_complexity.policy_at_revision("HEAD;git status")
+
+
 def test_main_checks_measurements_and_bootstrap_diff(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
