@@ -301,27 +301,37 @@ def policy_at_revision(base_revision: str) -> dict[str, Any] | None:
     """Read the base policy; absence permits the repository's one bootstrap."""
     if _BASE_REVISION_PATTERN.fullmatch(base_revision) is None:
         raise PolicyError(f"unknown base revision: {base_revision}")
+
+    # Keep the OS command itself constant. Object expressions are supplied through
+    # Git's documented batch protocol only after the strict validation above.
     revision = subprocess.run(
-        ["git", "cat-file", "-e", f"{base_revision}^{{commit}}"],
+        ["git", "cat-file", "--batch-check"],
         cwd=REPOSITORY,
+        input=f"{base_revision}^{{commit}}\n".encode(),
         capture_output=True,
-        text=True,
         check=False,
     )
-    if revision.returncode != 0:
+    if revision.returncode != 0 or revision.stdout.rstrip().endswith(b" missing"):
         raise PolicyError(f"unknown base revision: {base_revision}")
+
     result = subprocess.run(
-        ["git", "show", f"{base_revision}:{POLICY_REPOSITORY_PATH}"],
+        ["git", "cat-file", "--batch"],
         cwd=REPOSITORY,
+        input=f"{base_revision}:{POLICY_REPOSITORY_PATH}\n".encode(),
         capture_output=True,
-        text=True,
         check=False,
     )
-    if result.returncode != 0:
+    header, separator, payload = result.stdout.partition(b"\n")
+    if result.returncode != 0 or header.endswith(b" missing"):
         return None
+    header_parts = header.split()
+    if not separator or len(header_parts) != 3 or header_parts[1] != b"blob":
+        raise PolicyError("base policy is not a readable Git blob")
     try:
-        return validate_policy(json.loads(result.stdout))
-    except json.JSONDecodeError as error:
+        size = int(header_parts[2])
+        raw = payload[:size].decode("utf-8")
+        return validate_policy(json.loads(raw))
+    except ValueError as error:
         raise PolicyError(f"base policy contains invalid JSON: {error}") from error
 
 

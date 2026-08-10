@@ -264,8 +264,8 @@ def test_policy_at_revision_permits_bootstrap_when_base_file_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     responses = [
-        subprocess.CompletedProcess([], 0, "", ""),
-        subprocess.CompletedProcess([], 128, "", "missing"),
+        subprocess.CompletedProcess([], 0, b"a" * 40 + b" commit 1\n", b""),
+        subprocess.CompletedProcess([], 0, b"HEAD:path missing\n", b""),
     ]
     monkeypatch.setattr(
         check_complexity.subprocess,
@@ -279,7 +279,7 @@ def test_policy_at_revision_permits_bootstrap_when_base_file_is_missing(
 def test_policy_at_revision_rejects_unknown_revision(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    result = subprocess.CompletedProcess([], 128, "", "unknown")
+    result = subprocess.CompletedProcess([], 0, b"missing missing\n", b"")
     monkeypatch.setattr(
         check_complexity.subprocess, "run", lambda *args, **kwargs: result
     )
