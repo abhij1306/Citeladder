@@ -255,6 +255,190 @@ def _select_latest(
     return sorted(latest.values(), key=lambda row: (row.date, str(row.id)))
 
 
+def _rows_by_currency(
+    rows: Sequence[IntegrationMetricRow], currencies: Mapping[uuid.UUID, str]
+) -> dict[str | None, list[IntegrationMetricRow]]:
+    """Partition the latest rows by their persisted artifact currency."""
+    by_currency: dict[str | None, list[IntegrationMetricRow]] = {}
+    for row in _select_latest(rows):
+        by_currency.setdefault(currencies.get(row.source_artifact_id), []).append(row)
+    return by_currency
+
+
+def _a1_dataset_rows(
+    partition: Sequence[IntegrationMetricRow], dataset: str
+) -> list[IntegrationMetricRow]:
+    """Keep well-formed rows for one A1 dataset within a currency partition."""
+    return [
+        row
+        for row in partition
+        if row.dataset == dataset and _dimension_values(row) is not None
+    ]
+
+
+def _a1_totals(
+    rows: Sequence[IntegrationMetricRow], currency: str
+) -> dict[str, Any]:
+    """Compute source/medium A1 totals for one currency."""
+    return _metric_set(
+        currency=currency,
+        revenue=round(
+            sum(_metric_money(row.metrics, "purchaseRevenue") for row in rows),
+            _MONEY_DECIMALS,
+        ),
+        orders=sum(metric_count(row.metrics, "transactions") for row in rows),
+        sessions=sum(metric_count(row.metrics, "sessions") for row in rows),
+    )
+
+
+def _by_ai_source(
+    rows: Sequence[IntegrationMetricRow], currency: str
+) -> list[dict[str, Any]]:
+    """Aggregate source/medium ecommerce rows by deterministic AI source."""
+    groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        source, medium = _dimension_values(row) or ("", "")
+        ai_source = _classify_source_medium(source, medium)
+        group = groups.setdefault(
+            ai_source, {"revenue": 0.0, "orders": 0, "sessions": 0}
+        )
+        group["revenue"] += _metric_money(row.metrics, "purchaseRevenue")
+        group["orders"] += metric_count(row.metrics, "transactions")
+        group["sessions"] += metric_count(row.metrics, "sessions")
+    result = [
+        {
+            "ai_source": ai_source,
+            "currency": currency,
+            "metrics": _metric_set(
+                currency=currency,
+                revenue=round(group["revenue"], _MONEY_DECIMALS),
+                orders=group["orders"],
+                sessions=group["sessions"],
+            ),
+        }
+        for ai_source, group in groups.items()
+    ]
+    result.sort(key=_source_revenue_sort_key)
+    return result
+
+
+def _add_product_group(
+    groups: dict[tuple[str, str | None], dict[str, Any]],
+    *,
+    sku: str,
+    ai_source: str | None,
+    source_label: str,
+    row: IntegrationMetricRow,
+) -> None:
+    """Accumulate one item-report row into its product/source group."""
+    group = groups.setdefault(
+        (sku, ai_source), {"revenue": 0.0, "orders": 0, "source_labels": set()}
+    )
+    group["source_labels"].add(source_label)
+    group["revenue"] += _metric_money(row.metrics, "itemRevenue")
+    group["orders"] += metric_count(row.metrics, "itemsPurchased")
+
+
+def _by_product(
+    primary_rows: Sequence[IntegrationMetricRow],
+    fallback_rows: Sequence[IntegrationMetricRow],
+    products_by_sku: Mapping[str, uuid.UUID],
+    currency: str,
+) -> list[dict[str, Any]]:
+    """Aggregate primary and reduced-granularity item reports by product."""
+    groups: dict[tuple[str, str | None], dict[str, Any]] = {}
+    for row in primary_rows:
+        sku, source, medium = _dimension_values(row) or ("", "", "")
+        _add_product_group(
+            groups,
+            sku=sku,
+            ai_source=_classify_source_medium(source, medium),
+            source_label=f"{source} / {medium}",
+            row=row,
+        )
+    for row in fallback_rows:
+        sku, channel_group = _dimension_values(row) or ("", "")
+        _add_product_group(
+            groups,
+            sku=sku,
+            ai_source=None,
+            source_label=channel_group,
+            row=row,
+        )
+    result = [
+        {
+            "product_id": (
+                str(product_id) if (product_id := products_by_sku.get(sku)) else None
+            ),
+            "sku": sku,
+            "name": sku,
+            "ai_source": ai_source,
+            "source_label": "; ".join(sorted(group["source_labels"])),
+            "currency": currency,
+            "revenue": round(group["revenue"], _MONEY_DECIMALS),
+            "orders": group["orders"],
+        }
+        for (sku, ai_source), group in groups.items()
+    ]
+    result.sort(
+        key=lambda entry: (-entry["revenue"], entry["sku"], entry["ai_source"] or "~")
+    )
+    return result
+
+
+def _available_a1_row(
+    partition: Sequence[IntegrationMetricRow],
+    products_by_sku: Mapping[str, uuid.UUID],
+    currency: str,
+) -> tuple[dict[str, Any], list[IntegrationMetricRow]]:
+    """Build one available A1 method row and return its folded evidence."""
+    source_medium_rows = _a1_dataset_rows(
+        partition, DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY
+    )
+    primary_rows = _a1_dataset_rows(
+        partition, DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
+    )
+    fallback_rows = _a1_dataset_rows(
+        partition, DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY
+    )
+    reduced = bool(fallback_rows)
+    return (
+        {
+            "method": ATTRIBUTION_METHOD_GA4_PLATFORM,
+            "state": ATTRIBUTION_DATA_STATE_AVAILABLE,
+            "source_granularity": (
+                ATTRIBUTION_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP
+                if reduced
+                else ATTRIBUTION_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM
+            ),
+            "reduced_granularity": reduced,
+            "currency": currency,
+            "coverage_rate": None,
+            "totals": _a1_totals(source_medium_rows, currency),
+            "by_ai_source": _by_ai_source(source_medium_rows, currency),
+            "by_product": _by_product(
+                primary_rows, fallback_rows, products_by_sku, currency
+            ),
+        },
+        source_medium_rows + primary_rows + fallback_rows,
+    )
+
+
+def _no_data_a1_row() -> dict[str, Any]:
+    """The one defensive A1 row for an evidence-free window."""
+    return {
+        "method": ATTRIBUTION_METHOD_GA4_PLATFORM,
+        "state": ATTRIBUTION_DATA_STATE_NO_DATA,
+        "source_granularity": None,
+        "reduced_granularity": False,
+        "currency": None,
+        "coverage_rate": None,
+        "totals": _null_metric_set(None),
+        "by_ai_source": [],
+        "by_product": [],
+    }
+
+
 def build_a1_projection(
     rows: Sequence[IntegrationMetricRow],
     products_by_sku: Mapping[str, uuid.UUID],
@@ -269,169 +453,21 @@ def build_a1_projection(
     (``metadata.currencyCode``) through to each row; a row without a known
     currency lands in the defensive unknown-currency partition.
     """
-    currencies = currency_by_artifact_id or {}
-    latest = _select_latest(rows)
-
-    # Partition the latest rows by their source artifact's ISO currency;
-    # unlike currencies never mix (no FX-rate source exists).
-    by_currency: dict[str | None, list[IntegrationMetricRow]] = {}
-    for row in latest:
-        by_currency.setdefault(currencies.get(row.source_artifact_id), []).append(row)
-
+    by_currency = _rows_by_currency(rows, currency_by_artifact_id or {})
     a1_rows: list[dict[str, Any]] = []
     folded_ids: list[str] = []
     for currency in sorted(code for code in by_currency if code is not None):
-        partition = by_currency[currency]
-        sm_rows = [
-            row
-            for row in partition
-            if row.dataset == DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY
-            and _dimension_values(row) is not None
-        ]
-        item_primary = [
-            row
-            for row in partition
-            if row.dataset == DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
-            and _dimension_values(row) is not None
-        ]
-        item_fallback = [
-            row
-            for row in partition
-            if row.dataset == DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY
-            and _dimension_values(row) is not None
-        ]
-
-        # --- Totals + by-source over the source/medium ecommerce rows ----
-        total_revenue = round(
-            sum(_metric_money(row.metrics, "purchaseRevenue") for row in sm_rows),
-            _MONEY_DECIMALS,
+        a1_row, folded_rows = _available_a1_row(
+            by_currency[currency], products_by_sku, currency
         )
-        total_orders = sum(metric_count(row.metrics, "transactions") for row in sm_rows)
-        total_sessions = sum(metric_count(row.metrics, "sessions") for row in sm_rows)
-        totals = _metric_set(
-            currency=currency,
-            revenue=total_revenue,
-            orders=total_orders,
-            sessions=total_sessions,
-        )
-
-        source_groups: dict[str, dict[str, Any]] = {}
-        for row in sm_rows:
-            source, medium = _dimension_values(row) or ("", "")
-            ai_source = _classify_source_medium(source, medium)
-            group = source_groups.setdefault(
-                ai_source, {"revenue": 0.0, "orders": 0, "sessions": 0}
-            )
-            group["revenue"] += _metric_money(row.metrics, "purchaseRevenue")
-            group["orders"] += metric_count(row.metrics, "transactions")
-            group["sessions"] += metric_count(row.metrics, "sessions")
-        by_ai_source: list[dict[str, Any]] = [
-            {
-                "ai_source": ai_source,
-                "currency": currency,
-                "metrics": _metric_set(
-                    currency=currency,
-                    revenue=round(group["revenue"], _MONEY_DECIMALS),
-                    orders=group["orders"],
-                    sessions=group["sessions"],
-                ),
-            }
-            for ai_source, group in source_groups.items()
-        ]
-        # Revenue desc, then ai_source asc — ``other`` included (revenue
-        # accounting reconciles to the totals; ``other`` is schema-valid).
-        by_ai_source.sort(key=_source_revenue_sort_key)
-
-        # --- Product rows over the item reports ---------------------------
-        product_groups: dict[tuple[str, str | None], dict[str, Any]] = {}
-        for row in item_primary:
-            item_id, source, medium = _dimension_values(row) or ("", "", "")
-            ai_source = _classify_source_medium(source, medium)
-            primary_key = (item_id, ai_source)
-            group = product_groups.setdefault(
-                primary_key, {"revenue": 0.0, "orders": 0, "source_labels": set()}
-            )
-            group["source_labels"].add(f"{source} / {medium}")
-            group["revenue"] += _metric_money(row.metrics, "itemRevenue")
-            group["orders"] += metric_count(row.metrics, "itemsPurchased")
-        for row in item_fallback:
-            item_id, channel_group = _dimension_values(row) or ("", "")
-            # Reduced granularity: never guessed into an AI source; the
-            # channel-group name is the source label.
-            fallback_key = (item_id, None)
-            group = product_groups.setdefault(
-                fallback_key, {"revenue": 0.0, "orders": 0, "source_labels": set()}
-            )
-            group["source_labels"].add(channel_group)
-            group["revenue"] += _metric_money(row.metrics, "itemRevenue")
-            group["orders"] += metric_count(row.metrics, "itemsPurchased")
-        by_product: list[dict[str, Any]] = []
-        for (sku, product_ai_source), group in product_groups.items():
-            matched_product_id = products_by_sku.get(sku)
-            by_product.append(
-                {
-                    "product_id": (
-                        str(matched_product_id)
-                        if matched_product_id is not None
-                        else None
-                    ),
-                    "sku": sku,
-                    "name": sku,
-                    "ai_source": product_ai_source,
-                    "source_label": "; ".join(sorted(group["source_labels"])),
-                    "currency": currency,
-                    "revenue": round(group["revenue"], _MONEY_DECIMALS),
-                    "orders": group["orders"],
-                }
-            )
-        # Revenue desc, then sku asc, then ai_source (None last) asc.
-        by_product.sort(
-            key=lambda entry: (
-                -entry["revenue"],
-                entry["sku"],
-                entry["ai_source"] or "~",
-            )
-        )
-
-        reduced = bool(item_fallback)
-        a1_rows.append(
-            {
-                "method": ATTRIBUTION_METHOD_GA4_PLATFORM,
-                "state": ATTRIBUTION_DATA_STATE_AVAILABLE,
-                "source_granularity": (
-                    ATTRIBUTION_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP
-                    if reduced
-                    else ATTRIBUTION_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM
-                ),
-                "reduced_granularity": reduced,
-                "currency": currency,
-                # A1 coverage is undefined in this scope — null, never a
-                # fabricated ratio.
-                "coverage_rate": None,
-                "totals": totals,
-                "by_ai_source": by_ai_source,
-                "by_product": by_product,
-            }
-        )
-        folded_ids.extend(str(row.id) for row in sm_rows + item_primary + item_fallback)
+        a1_rows.append(a1_row)
+        folded_ids.extend(str(row.id) for row in folded_rows)
 
     if not a1_rows:
         # A built window with NO A1 evidence (or only unknown-currency
         # rows — the defensive partition): one no_data method row with null
         # metrics and empty sections, never fabricated rates or zeros.
-        a1_rows.append(
-            {
-                "method": ATTRIBUTION_METHOD_GA4_PLATFORM,
-                "state": ATTRIBUTION_DATA_STATE_NO_DATA,
-                "source_granularity": None,
-                "reduced_granularity": False,
-                "currency": None,
-                "coverage_rate": None,
-                "totals": _null_metric_set(None),
-                "by_ai_source": [],
-                "by_product": [],
-            }
-        )
+        a1_rows.append(_no_data_a1_row())
 
     return A1Projection(
         metrics={

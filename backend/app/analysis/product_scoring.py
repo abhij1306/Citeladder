@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from app.analysis.normalization import (
     domain_matches,
@@ -364,9 +364,7 @@ def price_relation(
         return None
     if matches:
         return PRICE_RELATION_MATCH
-    catalog_price = entry.price
-    if catalog_price is None:  # unreachable: matches is None above in that case
-        return None
+    catalog_price = cast(float, entry.price)
     if mentioned_value > catalog_price:
         return PRICE_RELATION_HIGHER
     return PRICE_RELATION_LOWER
@@ -934,6 +932,116 @@ def _competitor_co_placement(
     }
 
 
+def _product_entries(config: ProductScoringConfig) -> list[tuple[str, str]]:
+    """Return every configured entry with the score section that owns it."""
+    return [(entry.id, "products") for entry in config.products] + [
+        (entry.id, "competitor_products") for entry in config.competitor_products
+    ]
+
+
+def _product_mentions(
+    scores: list[dict[str, Any]], entries: list[tuple[str, str]]
+) -> dict[str, list[dict[str, Any]]]:
+    """Collect only positive mention signals for each configured entry."""
+    id_key = {
+        "products": "product_id",
+        "competitor_products": "competitor_product_id",
+    }
+    mentions: dict[str, list[dict[str, Any]]] = {
+        entry_id: [] for entry_id, _ in entries
+    }
+    for score in scores:
+        for section, key in id_key.items():
+            for signals in score.get(section) or []:
+                entry_id = str(signals.get(key) or "")
+                if entry_id in mentions and signals.get("mentioned"):
+                    mentions[entry_id].append(signals)
+    return mentions
+
+
+def _rank_metrics(rows: list[dict[str, Any]]) -> tuple[list[Any], dict[str, int]]:
+    """Compute rank values and the complete deterministic bucket distribution."""
+    ranks = [
+        row["rank_position"] for row in rows if row.get("rank_position") is not None
+    ]
+    distribution = {label: 0 for label, _, _ in PRODUCT_RANK_BUCKETS}
+    for rank in ranks:
+        distribution[_rank_bucket(rank)] += 1
+    distribution[PRODUCT_RANK_BUCKET_UNRANKED] = len(rows) - len(ranks)
+    return ranks, distribution
+
+
+def _price_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute price-verification counts and accuracy/mismatch rates."""
+    price_mentions = [row for row in rows if row.get("price_value") is not None]
+    verifiable = [
+        row for row in price_mentions if row.get("price_matches_catalog") is not None
+    ]
+    matches = [row for row in verifiable if row["price_matches_catalog"] is True]
+    relation_counts = _price_relation_counts(rows)
+    verifiable_relations = sum(relation_counts.values())
+    mismatches = sum(
+        relation_counts[relation]
+        for relation in (
+            PRICE_RELATION_HIGHER,
+            PRICE_RELATION_LOWER,
+            PRICE_RELATION_MISMATCH,
+        )
+    )
+    return {
+        "price_mention_count": len(price_mentions),
+        "price_match_count": len(matches),
+        "price_accuracy_rate": (
+            _rate(len(matches), len(verifiable)) if verifiable else None
+        ),
+        "price_relation_counts": relation_counts,
+        "price_mismatch_rate": (
+            round(mismatches / verifiable_relations, 4)
+            if verifiable_relations
+            else None
+        ),
+    }
+
+
+def _win_rate(rows: list[dict[str, Any]]) -> float | None:
+    """Compute the configured rank-one win rate without treating omissions as losses."""
+    denominator_rows = (
+        [row for row in rows if row.get("rank_position") is not None]
+        if PRODUCT_WIN_REQUIRES_ENUMERATION
+        else rows
+    )
+    wins = sum(1 for row in denominator_rows if row.get("rank_position") == 1)
+    return round(wins / len(denominator_rows), 4) if denominator_rows else None
+
+
+def _product_aggregate(
+    *,
+    entry_id: str,
+    section: str,
+    rows: list[dict[str, Any]],
+    total_mentions: int,
+    mentioned_sets: list[set[str]],
+    competitor_identity: dict[str, tuple[str, str]],
+) -> dict[str, Any]:
+    """Build one catalog entry's aggregate while preserving every null distinction."""
+    ranks, distribution = _rank_metrics(rows)
+    aggregate = {
+        "kind": "product" if section == "products" else "competitor_product",
+        "mention_count": len(rows),
+        "sov_share": _rate(len(rows), total_mentions),
+        "avg_rank": round(sum(ranks) / len(ranks), 2) if ranks else None,
+        "rank_distribution": distribution,
+        "win_rate": _win_rate(rows),
+        "attribute_dimension_frequency": _attribute_dimension_frequency(rows),
+        "buyer_destination_mix": _buyer_destination_mix(rows),
+        "competitor_co_placement": _competitor_co_placement(
+            entry_id, mentioned_sets, competitor_identity
+        ),
+    }
+    aggregate.update(_price_metrics(rows))
+    return aggregate
+
+
 def aggregate_product_run(
     scores: list[dict[str, Any]], config: ProductScoringConfig
 ) -> dict[str, dict[str, Any]]:
@@ -946,88 +1054,21 @@ def aggregate_product_run(
     Per-engine breakdowns are computed by the caller grouping executions by
     engine and re-calling this (mirrors ``aggregate_run``).
     """
-    entries: list[tuple[str, str]] = [
-        (entry.id, "products") for entry in config.products
-    ] + [(entry.id, "competitor_products") for entry in config.competitor_products]
-    id_key = {
-        "products": "product_id",
-        "competitor_products": "competitor_product_id",
-    }
-
-    mentions: dict[str, list[dict[str, Any]]] = {
-        entry_id: [] for entry_id, _ in entries
-    }
-    for score in scores:
-        for section in ("products", "competitor_products"):
-            for signals in score.get(section) or []:
-                entry_id = str(signals.get(id_key[section]) or "")
-                if entry_id in mentions and signals.get("mentioned"):
-                    mentions[entry_id].append(signals)
-
+    entries = _product_entries(config)
+    mentions = _product_mentions(scores, entries)
     total_mentions = sum(len(rows) for rows in mentions.values())
     mentioned_sets = _mentioned_id_sets(scores)
     competitor_identity = {
         entry.id: (entry.competitor, entry.name) for entry in config.competitor_products
     }
-    aggregates: dict[str, dict[str, Any]] = {}
-    for entry_id, section in entries:
-        rows = mentions[entry_id]
-        mention_count = len(rows)
-        ranks = [r["rank_position"] for r in rows if r.get("rank_position") is not None]
-        distribution = {label: 0 for label, _, _ in PRODUCT_RANK_BUCKETS}
-        for rank in ranks:
-            distribution[_rank_bucket(rank)] += 1
-        distribution[PRODUCT_RANK_BUCKET_UNRANKED] = mention_count - len(ranks)
-
-        price_mentions = [r for r in rows if r.get("price_value") is not None]
-        verifiable = [
-            r for r in price_mentions if r.get("price_matches_catalog") is not None
-        ]
-        matches = [r for r in verifiable if r["price_matches_catalog"] is True]
-
-        # Win rate: with PRODUCT_WIN_REQUIRES_ENUMERATION the denominator is
-        # only this SKU's mention rows carrying a rank (an enumeration that
-        # omits the SKU is invisible to win rate, not a loss); else every
-        # mention row. Null when the denominator is zero.
-        if PRODUCT_WIN_REQUIRES_ENUMERATION:
-            denominator_rows = [
-                row for row in rows if row.get("rank_position") is not None
-            ]
-        else:
-            denominator_rows = rows
-        wins = sum(1 for row in denominator_rows if row.get("rank_position") == 1)
-        win_rate = round(wins / len(denominator_rows), 4) if denominator_rows else None
-
-        relation_counts = _price_relation_counts(rows)
-        verifiable_relations = sum(relation_counts.values())
-        mismatches = (
-            relation_counts[PRICE_RELATION_HIGHER]
-            + relation_counts[PRICE_RELATION_LOWER]
-            + relation_counts[PRICE_RELATION_MISMATCH]
+    return {
+        entry_id: _product_aggregate(
+            entry_id=entry_id,
+            section=section,
+            rows=mentions[entry_id],
+            total_mentions=total_mentions,
+            mentioned_sets=mentioned_sets,
+            competitor_identity=competitor_identity,
         )
-
-        aggregates[entry_id] = {
-            "kind": "product" if section == "products" else "competitor_product",
-            "mention_count": mention_count,
-            "sov_share": _rate(mention_count, total_mentions),
-            "avg_rank": round(sum(ranks) / len(ranks), 2) if ranks else None,
-            "rank_distribution": distribution,
-            "price_mention_count": len(price_mentions),
-            "price_match_count": len(matches),
-            "price_accuracy_rate": (
-                _rate(len(matches), len(verifiable)) if verifiable else None
-            ),
-            "win_rate": win_rate,
-            "price_relation_counts": relation_counts,
-            "price_mismatch_rate": (
-                round(mismatches / verifiable_relations, 4)
-                if verifiable_relations
-                else None
-            ),
-            "attribute_dimension_frequency": _attribute_dimension_frequency(rows),
-            "buyer_destination_mix": _buyer_destination_mix(rows),
-            "competitor_co_placement": _competitor_co_placement(
-                entry_id, mentioned_sets, competitor_identity
-            ),
-        }
-    return aggregates
+        for entry_id, section in entries
+    }

@@ -75,7 +75,7 @@ from __future__ import annotations
 
 import math
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
@@ -253,7 +253,7 @@ def pearson_coefficient(xs: Sequence[float], ys: Sequence[float]) -> float | Non
     mean_y = sum(ys) / n
     sxx = sum((x - mean_x) ** 2 for x in xs)
     syy = sum((y - mean_y) ** 2 for y in ys)
-    if sxx == 0.0 or syy == 0.0:
+    if math.isclose(sxx, 0.0) or math.isclose(syy, 0.0):
         return None
     sxy = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True))
     return sxy / math.sqrt(sxx * syy)
@@ -294,111 +294,110 @@ def _weighted_mean(pairs: Sequence[tuple[float, int]]) -> float | None:
     return sum(value * weight for value, weight in pairs) / total_weight
 
 
-def build_analytics_projection(
+def _source_sort_key(source: Mapping[str, Any]) -> tuple[int, str]:
+    """Stable descending-session source ordering."""
+    return (-int(source["sessions"]), str(source["ai_source"]))
+
+
+def _referral_metrics(
+    latest: Sequence[ReferralFactInput],
     *,
-    referral_facts: Sequence[ReferralFactInput],
-    visibility_facts: Sequence[VisibilityFactInput],
-    theme_facts: Sequence[ThemeFactInput],
     window_start: date,
     window_end: date,
     granularity: str,
-) -> AnalyticsProjection:
-    """Fold the reduced inputs into one snapshot's metrics + provenance.
-
-    PURE: no DB, no network, no clock — the same inputs always yield
-    byte-identical metrics and provenance (invariants 7 + 9).
-    Latest-``resync_seq`` selection is applied INSIDE so a stale revision
-    can never leak in, and the module docstring documents every formula.
-    """
-    if granularity not in ANALYTICS_SNAPSHOT_GRANULARITIES:
-        raise ValueError(f"unknown analytics granularity: {granularity!r}")
-    if window_end < window_start:
-        raise ValueError("analytics window_end before window_start")
-
-    latest = select_latest_referral_facts(referral_facts)
-    labels = bucket_labels(window_start, window_end, granularity)
-
-    # --- Referral volume / share series + the per-source breakdown -------
+    labels: Sequence[date],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build the referral series and source breakdown from latest facts."""
     bucket_ai: dict[date, int] = {}
     bucket_total: dict[date, int] = {}
-    bucket_measured: dict[date, bool] = {}
+    bucket_measured: set[date] = set()
     source_sessions: dict[str, int] = {}
     window_total = 0
-    for fact in latest:
-        if not (window_start <= fact.occurred_date <= window_end):
-            continue  # defensive: the executor's query already scopes this
-        bucket = bucket_start(fact.occurred_date, granularity)
-        bucket_measured[bucket] = True
-        bucket_total[bucket] = bucket_total.get(bucket, 0) + fact.sessions
-        window_total += fact.sessions
-        if fact.is_ai_referral:
-            bucket_ai[bucket] = bucket_ai.get(bucket, 0) + fact.sessions
-            source_sessions[fact.ai_source] = (
-                source_sessions.get(fact.ai_source, 0) + fact.sessions
+    for referral_fact in latest:
+        if not window_start <= referral_fact.occurred_date <= window_end:
+            continue
+        bucket = bucket_start(referral_fact.occurred_date, granularity)
+        bucket_measured.add(bucket)
+        bucket_total[bucket] = bucket_total.get(bucket, 0) + referral_fact.sessions
+        window_total += referral_fact.sessions
+        if referral_fact.is_ai_referral:
+            bucket_ai[bucket] = bucket_ai.get(bucket, 0) + referral_fact.sessions
+            source_sessions[referral_fact.ai_source] = (
+                source_sessions.get(referral_fact.ai_source, 0) + referral_fact.sessions
             )
 
     referral_volume: list[dict[str, Any]] = []
     referral_share: list[dict[str, Any]] = []
     for label in labels:
-        # The label's natural bucket (the first label may be window-clamped).
         bucket = bucket_start(label, granularity)
-        if not bucket_measured.get(bucket, False):
+        if bucket not in bucket_measured:
             referral_volume.append(series_point(label, None))
             referral_share.append(series_point(label, None))
             continue
         ai_sessions = bucket_ai.get(bucket, 0)
         total_sessions = bucket_total.get(bucket, 0)
         referral_volume.append(series_point(label, ai_sessions))
-        share = ai_sessions / total_sessions if total_sessions > 0 else None
-        referral_share.append(series_point(label, share))
+        referral_share.append(
+            series_point(
+                label,
+                ai_sessions / total_sessions if total_sessions > 0 else None,
+            )
+        )
 
     sources: list[dict[str, Any]] = [
         {
             "ai_source": ai_source,
             "sessions": sessions,
-            "share": (sessions / window_total) if window_total > 0 else None,
+            "share": sessions / window_total if window_total > 0 else None,
         }
         for ai_source, sessions in source_sessions.items()
         if sessions > 0
     ]
-    # Descending by sessions, then ai_source ascending as the stable tiebreak.
-    sources.sort(key=lambda row: (-int(row["sessions"]), str(row["ai_source"])))
+    sources.sort(key=_source_sort_key)
+    return referral_volume, referral_share, sources
 
-    # --- Per-engine visibility series --------------------------------------
+
+def _rounded_weighted_mean(pairs: Sequence[tuple[float, int]]) -> float | None:
+    """Round a defined weighted mean using the projection score convention."""
+    mean = _weighted_mean(pairs)
+    return round(mean, _SCORE_DECIMALS) if mean is not None else None
+
+
+def _engine_visibility_metrics(
+    facts: Sequence[VisibilityFactInput],
+    *,
+    window_start: date,
+    window_end: date,
+    granularity: str,
+    labels: Sequence[date],
+) -> list[dict[str, Any]]:
+    """Build completion-weighted per-engine visibility series."""
     engines = sorted(
         {
             engine
-            for visibility_fact in visibility_facts
-            for engine, _s in visibility_fact.engine_scores
+            for visibility_fact in facts
+            for engine, _score in visibility_fact.engine_scores
         }
     )
     bucket_engine: dict[tuple[date, str], list[tuple[float, int]]] = {}
-    for visibility_fact in visibility_facts:
-        if not (window_start <= visibility_fact.completed_date <= window_end):
-            continue  # defensive: the executor's query already scopes this
+    for visibility_fact in facts:
+        if not window_start <= visibility_fact.completed_date <= window_end:
+            continue
         bucket = bucket_start(visibility_fact.completed_date, granularity)
         for engine, score in visibility_fact.engine_scores:
             bucket_engine.setdefault((bucket, engine), []).append(
                 (score, visibility_fact.total_completed)
             )
-    engine_visibility = [
+    return [
         {
             "logical_engine": engine,
             "series": [
                 series_point(
                     label,
-                    (
-                        round(mean, _SCORE_DECIMALS)
-                        if (
-                            mean := _weighted_mean(
-                                bucket_engine.get(
-                                    (bucket_start(label, granularity), engine),
-                                    [],
-                                )
-                            )
+                    _rounded_weighted_mean(
+                        bucket_engine.get(
+                            (bucket_start(label, granularity), engine), []
                         )
-                        is not None
-                        else None
                     ),
                 )
                 for label in labels
@@ -407,38 +406,52 @@ def build_analytics_projection(
         for engine in engines
     ]
 
-    # --- Correlation (ALWAYS day-aligned, granularity-independent) --------
+
+def _correlation_metric(
+    latest: Sequence[ReferralFactInput],
+    facts: Sequence[VisibilityFactInput],
+    *,
+    window_start: date,
+    window_end: date,
+) -> dict[str, Any]:
+    """Build the always-day-aligned visibility/referral correlation."""
     day_visibility: dict[date, list[tuple[float, int]]] = {}
-    for visibility_fact in visibility_facts:
+    for visibility_fact in facts:
         if window_start <= visibility_fact.completed_date <= window_end:
             day_visibility.setdefault(visibility_fact.completed_date, []).append(
                 (visibility_fact.visibility_score, visibility_fact.total_completed)
             )
     day_ai: dict[date, int] = {}
-    for fact in latest:
-        if fact.is_ai_referral and window_start <= fact.occurred_date <= window_end:
-            day_ai[fact.occurred_date] = (
-                day_ai.get(fact.occurred_date, 0) + fact.sessions
+    for referral_fact in latest:
+        if (
+            referral_fact.is_ai_referral
+            and window_start <= referral_fact.occurred_date <= window_end
+        ):
+            day_ai[referral_fact.occurred_date] = (
+                day_ai.get(referral_fact.occurred_date, 0) + referral_fact.sessions
             )
-    aligned: list[tuple[float, float]] = []
-    for day in sorted(day_visibility):
-        mean = _weighted_mean(day_visibility[day])
-        if mean is None or day not in day_ai:
-            continue
-        aligned.append((mean, float(day_ai[day])))
-    correlation = correlation_summary(aligned)
+    aligned = [
+        (mean, float(day_ai[day]))
+        for day in sorted(day_visibility)
+        if (mean := _weighted_mean(day_visibility[day])) is not None and day in day_ai
+    ]
+    return correlation_summary(aligned)
 
-    # --- Theme rollup (window-level) ---------------------------------------
+
+def _theme_metrics(facts: Sequence[ThemeFactInput]) -> list[dict[str, Any]]:
+    """Build the window-level theme rollup in deterministic key order."""
     theme_groups: dict[tuple[str, str], list[ThemeFactInput]] = {}
-    for theme_fact in theme_facts:
+    for theme_fact in facts:
         theme_groups.setdefault((theme_fact.theme, theme_fact.intent), []).append(
             theme_fact
         )
     themes: list[dict[str, Any]] = []
     for (theme, intent), group in sorted(theme_groups.items()):
         total_completed = len(group)
-        brand_mentions = sum(1 for fact in group if fact.brand_mentioned)
-        competitor_incidences = sum(fact.competitors_mentioned for fact in group)
+        brand_mentions = sum(1 for theme_fact in group if theme_fact.brand_mentioned)
+        competitor_incidences = sum(
+            theme_fact.competitors_mentioned for theme_fact in group
+        )
         mention_volume = brand_mentions + competitor_incidences
         brand_mention_rate = (
             round(brand_mentions / total_completed, _RATE_DECIMALS)
@@ -463,6 +476,51 @@ def build_analytics_projection(
                 ),
             }
         )
+    return themes
+
+
+def build_analytics_projection(
+    *,
+    referral_facts: Sequence[ReferralFactInput],
+    visibility_facts: Sequence[VisibilityFactInput],
+    theme_facts: Sequence[ThemeFactInput],
+    window_start: date,
+    window_end: date,
+    granularity: str,
+) -> AnalyticsProjection:
+    """Fold the reduced inputs into one snapshot's metrics + provenance.
+
+    PURE: no DB, no network, no clock — the same inputs always yield
+    byte-identical metrics and provenance (invariants 7 + 9).
+    Latest-``resync_seq`` selection is applied INSIDE so a stale revision
+    can never leak in, and the module docstring documents every formula.
+    """
+    if granularity not in ANALYTICS_SNAPSHOT_GRANULARITIES:
+        raise ValueError(f"unknown analytics granularity: {granularity!r}")
+    if window_end < window_start:
+        raise ValueError("analytics window_end before window_start")
+
+    latest = select_latest_referral_facts(referral_facts)
+    labels = bucket_labels(window_start, window_end, granularity)
+
+    referral_volume, referral_share, sources = _referral_metrics(
+        latest,
+        window_start=window_start,
+        window_end=window_end,
+        granularity=granularity,
+        labels=labels,
+    )
+    engine_visibility = _engine_visibility_metrics(
+        visibility_facts,
+        window_start=window_start,
+        window_end=window_end,
+        granularity=granularity,
+        labels=labels,
+    )
+    correlation = _correlation_metric(
+        latest, visibility_facts, window_start=window_start, window_end=window_end
+    )
+    themes = _theme_metrics(theme_facts)
 
     return AnalyticsProjection(
         granularity=granularity,
