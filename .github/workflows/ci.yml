@@ -17,6 +17,7 @@ jobs:
   backend:
     name: Backend (ruff, pytest)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
@@ -75,7 +76,9 @@ jobs:
             .venv/bin/python -m scripts.check_complexity
           fi
       - name: Pytest
-        run: uv run pytest -q
+        # Verbose node ids make an anomalous runner/database stall attributable;
+        # faulthandler prints thread stacks if one test exceeds two minutes.
+        run: uv run pytest -vv -o faulthandler_timeout=120
 
   frontend:
     name: Frontend (vitest, tsc, policy, build)
