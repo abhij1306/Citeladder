@@ -461,6 +461,52 @@ class AnalyzePhaseMixin(PhaseSupport):
         site_url_id = await self._resolve_analysis_site_url_id(
             session, crawl=crawl, task=task
         )
+        assessment, evaluations, scores = self._prepare_page_evaluation(
+            crawl=crawl, task=task, facts=facts
+        )
+        site_url = await self._refresh_analyzed_url_state(
+            session,
+            crawl=crawl,
+            site_url_id=site_url_id,
+            artifact_id=artifact_id,
+            facts=facts,
+        )
+        # Pack-governed industry role, classified from the SAME bounded facts.
+        # The pack is compiled once per worker process from the crawl's frozen
+        # manifest, so this call performs no I/O, no hashing, and no model call.
+        role = classify_industry_role(
+            crawl=crawl,
+            facts=facts,
+            page_kind=assessment.page_kind,
+            site_url=site_url,
+        )
+        analysis = self._new_page_analysis(
+            crawl=crawl,
+            site_url_id=site_url_id,
+            artifact_id=artifact_id,
+            assessment=assessment,
+            scores=scores,
+            role=role,
+        )
+        await self._supersede_and_store_analysis(session, analysis=analysis)
+        analysis.source_evaluation_ids = await self._persist_evaluations_and_issues(
+            session,
+            crawl=crawl,
+            analysis=analysis,
+            artifact_id=artifact_id,
+            site_url_id=site_url_id,
+            evaluations=evaluations,
+        )
+        return analysis.id
+
+    def _prepare_page_evaluation(
+        self,
+        *,
+        crawl: SiteCrawl,
+        task: SiteCrawlTask,
+        facts: dict,
+    ):
+        """Classify and score a shallow evaluation-only copy of fetched facts."""
         # Evaluation-time enrichment goes onto a SHALLOW COPY, never the facts
         # dict the caller handed ``_write_artifact``: that dict IS the artifact's
         # ``normalized_facts``, and the persisted evidence must carry only what
@@ -499,6 +545,18 @@ class AnalyzePhaseMixin(PhaseSupport):
             if not _is_crawl_finalize_rule(ev.rule_id)
         ]
         scores = score_analysis(evaluations)
+        return assessment, evaluations, scores
+
+    async def _refresh_analyzed_url_state(
+        self,
+        session: AsyncSession,
+        *,
+        crawl: SiteCrawl,
+        site_url_id: uuid.UUID,
+        artifact_id: uuid.UUID,
+        facts: dict,
+    ) -> SiteUrl | None:
+        """Refresh mutable URL and admitted-observation fields from one fetch."""
         # Refresh the lightweight identity/observation state from the analyze
         # fetch. A Free sample URL is fetched ONLY by its analyze task (no
         # per-URL discover runs), so its admission-time observation row is
@@ -531,16 +589,20 @@ class AnalyzePhaseMixin(PhaseSupport):
             observation.content_type = str(facts.get("content_type") or "")[:128]
             observation.title = str(facts.get("title") or "")[:1024]
             observation.source_artifact_id = artifact_id
-        # Pack-governed industry role, classified from the SAME bounded facts.
-        # The pack is compiled once per worker process from the crawl's frozen
-        # manifest, so this call performs no I/O, no hashing, and no model call.
-        role = classify_industry_role(
-            crawl=crawl,
-            facts=facts,
-            page_kind=assessment.page_kind,
-            site_url=site_url,
-        )
-        analysis = SitePageAnalysis(
+        return site_url
+
+    def _new_page_analysis(
+        self,
+        *,
+        crawl: SiteCrawl,
+        site_url_id: uuid.UUID,
+        artifact_id: uuid.UUID,
+        assessment,
+        scores,
+        role: dict,
+    ) -> SitePageAnalysis:
+        """Build the immutable analysis row before it becomes current."""
+        return SitePageAnalysis(
             workspace_id=crawl.workspace_id,
             project_id=crawl.project_id,
             crawl_id=crawl.id,
@@ -561,6 +623,11 @@ class AnalyzePhaseMixin(PhaseSupport):
             finalized_at=_utcnow(),
             **role,
         )
+
+    async def _supersede_and_store_analysis(
+        self, session: AsyncSession, *, analysis: SitePageAnalysis
+    ) -> None:
+        """Supersede the page's current analysis, then flush its new identity."""
         # Append-only: supersede any earlier current understanding of this PAGE
         # before inserting the new one.
         #
@@ -586,6 +653,17 @@ class AnalyzePhaseMixin(PhaseSupport):
         session.add(analysis)
         await session.flush()
 
+    async def _persist_evaluations_and_issues(
+        self,
+        session: AsyncSession,
+        *,
+        crawl: SiteCrawl,
+        analysis: SitePageAnalysis,
+        artifact_id: uuid.UUID,
+        site_url_id: uuid.UUID,
+        evaluations: list[RuleEvaluation],
+    ) -> list[uuid.UUID]:
+        """Persist each evaluation and its FAIL-only issue snapshot in order."""
         evaluation_ids: list[uuid.UUID] = []
         for ev in evaluations:
             evaluation = SiteRuleEvaluation(
@@ -627,8 +705,7 @@ class AnalyzePhaseMixin(PhaseSupport):
                         rule_version=ev.rule_version,
                     )
                 )
-        analysis.source_evaluation_ids = evaluation_ids
-        return analysis.id
+        return evaluation_ids
 
     async def _resolve_analysis_site_url_id(
         self,

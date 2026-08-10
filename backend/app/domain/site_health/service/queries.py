@@ -10,7 +10,7 @@ issue catalog — the other half of the read surface — lives in ``issues``.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -377,6 +377,145 @@ async def _issue_counts_by_site_url(
     return {row[0]: int(row[1]) for row in rows.all()}
 
 
+def _matching_page_summaries(
+    rows: Sequence[SiteUrl],
+    *,
+    analyses: dict[uuid.UUID, SitePageAnalysis],
+    tasks: dict[uuid.UUID, SiteCrawlTask],
+    monitored_ids: set[uuid.UUID],
+    status: str | None,
+    page_kind: str | None,
+    limit: int,
+    project: Callable[[SiteUrl, SitePageAnalysis | None, str, str | None], dict],
+) -> tuple[list[dict], SiteUrl | None]:
+    """Project matching rows and retain the last scanned key for pagination.
+
+    Status and page-kind are derived from persisted analysis/task state rather
+    than SQL columns.  Keeping their filtering loop shared ensures inventory
+    and pages have identical compound-status semantics and sparse-page cursor
+    behavior.
+    """
+    items: list[dict] = []
+    last_scanned: SiteUrl | None = None
+    for row in rows:
+        last_scanned = row
+        analysis = analyses.get(row.id)
+        presentation_status, error_code = presentation_status_for(
+            analysis=analysis,
+            monitored=row.id in monitored_ids,
+            latest_analyze_task=tasks.get(row.id),
+        )
+        if not _matches_page_status(presentation_status, status):
+            continue
+        if not _page_kind_matches(analysis, page_kind):
+            continue
+        items.append(project(row, analysis, presentation_status, error_code))
+        if len(items) >= limit + 1:
+            break
+    return items, last_scanned
+
+
+def _page_keyset_result(
+    items: list[dict],
+    *,
+    last_scanned: SiteUrl | None,
+    scanned_row_count: int,
+    fetch_size: int,
+    limit: int,
+    sparse_filter: bool,
+    scope: str,
+    filters: dict,
+) -> tuple[list[dict], str | None]:
+    """Trim a page and emit either a matched or sparse-scan cursor.
+
+    A full widened scan that yields too few matches advances at the final
+    scanned key.  That distinction prevents sparse derived filters from
+    repeating an empty window forever.
+    """
+    if len(items) > limit:
+        kept = items[:limit]
+        last_kept = kept[-1]
+        return kept, encode_keyset_cursor(
+            scope=scope,
+            filters=filters,
+            sort_values=[last_kept["normalized_url"], str(last_kept["site_url_id"])],
+        )
+    if sparse_filter and last_scanned is not None and scanned_row_count >= fetch_size:
+        return items, encode_keyset_cursor(
+            scope=scope,
+            filters=filters,
+            sort_values=[last_scanned.normalized_url, str(last_scanned.id)],
+        )
+    return items, None
+
+
+def _inventory_summary_row(
+    row: SiteUrl,
+    analysis: SitePageAnalysis | None,
+    _presentation_status: str,
+    _error_code: str | None,
+    *,
+    monitored_ids: set[uuid.UUID],
+    issue_counts: dict[uuid.UUID, int],
+) -> dict:
+    """Render the bounded inventory projection for one persisted SiteUrl."""
+    return {
+        "site_url_id": row.id,
+        "normalized_url": row.normalized_url,
+        "display_url": row.display_url or row.normalized_url,
+        "title": row.latest_title or None,
+        "content_type": row.latest_content_type or None,
+        "source": row.latest_source_kind or None,
+        "depth": row.depth,
+        "monitored": row.id in monitored_ids,
+        "first_seen_at": _iso(row.first_seen_at),
+        "last_seen_at": _iso(row.last_seen_at),
+        "issue_count": issue_counts.get(row.id, 0) if analysis is not None else None,
+        "page_kind": analysis.page_kind if analysis is not None else None,
+        **_role_summary_fields(analysis),
+        "technical_score": analysis.technical_score if analysis is not None else None,
+        "aeo_score": analysis.aeo_score if analysis is not None else None,
+        "overall_score": analysis.overall_score if analysis is not None else None,
+        "last_audited": _iso(analysis.finalized_at) if analysis is not None else None,
+    }
+
+
+def _pages_summary_row(
+    row: SiteUrl,
+    analysis: SitePageAnalysis | None,
+    presentation_status: str,
+    error_code: str | None,
+    *,
+    crawl_id: uuid.UUID,
+    current_observed_ids: set[uuid.UUID],
+    inherited_crawl_by_url: dict[uuid.UUID, uuid.UUID],
+    monitored_ids: set[uuid.UUID],
+    issue_counts: dict[uuid.UUID, int],
+) -> dict:
+    """Render one persisted page projection, including inherited inventory."""
+    return {
+        "site_url_id": row.id,
+        "crawl_id": (
+            crawl_id
+            if row.id in current_observed_ids
+            else inherited_crawl_by_url.get(row.id, crawl_id)
+        ),
+        "normalized_url": row.normalized_url,
+        "display_url": row.display_url or row.normalized_url,
+        "title": row.latest_title or None,
+        "monitored": row.id in monitored_ids,
+        "analysis_status": presentation_status,
+        "error_code": error_code,
+        "issue_count": issue_counts.get(row.id, 0) if analysis is not None else None,
+        "page_kind": analysis.page_kind if analysis is not None else None,
+        **_role_summary_fields(analysis),
+        "technical_score": analysis.technical_score if analysis is not None else None,
+        "aeo_score": analysis.aeo_score if analysis is not None else None,
+        "overall_score": analysis.overall_score if analysis is not None else None,
+        "last_audited": _iso(analysis.finalized_at) if analysis is not None else None,
+    }
+
+
 # =========================================================================
 # Inventory (keyset (normalized_url, id) over SiteUrl)
 # =========================================================================
@@ -458,82 +597,41 @@ async def get_inventory(
         session, crawl_id=crawl_id, site_url_ids=site_ids
     )
 
-    items: list[dict] = []
-    last_scanned: SiteUrl | None = None
-    for row in rows:
-        last_scanned = row
-        analysis = analyses.get(row.id)
-        pres_status, _code = presentation_status_for(
-            analysis=analysis,
-            monitored=row.id in monitored_ids,
-            latest_analyze_task=tasks.get(row.id),
+    def project_inventory_row(
+        row: SiteUrl,
+        analysis: SitePageAnalysis | None,
+        presentation_status: str,
+        error_code: str | None,
+    ) -> dict:
+        return _inventory_summary_row(
+            row,
+            analysis,
+            presentation_status,
+            error_code,
+            monitored_ids=monitored_ids,
+            issue_counts=issue_counts,
         )
-        # The SAME predicate the pages endpoint uses, so a compound value like
-        # ``error_or_blocked`` filters identically on both surfaces (a plain
-        # ``!=`` here silently matched nothing for it).
-        if not _matches_page_status(pres_status, status):
-            continue
-        if not _page_kind_matches(analysis, page_kind):
-            continue
-        items.append(
-            {
-                "site_url_id": row.id,
-                "normalized_url": row.normalized_url,
-                "display_url": row.display_url or row.normalized_url,
-                "title": row.latest_title or None,
-                "content_type": row.latest_content_type or None,
-                "source": row.latest_source_kind or None,
-                "depth": row.depth,
-                "monitored": row.id in monitored_ids,
-                "first_seen_at": _iso(row.first_seen_at),
-                "last_seen_at": _iso(row.last_seen_at),
-                "issue_count": (
-                    issue_counts.get(row.id, 0) if analysis is not None else None
-                ),
-                "page_kind": analysis.page_kind if analysis is not None else None,
-                **_role_summary_fields(analysis),
-                "technical_score": (
-                    analysis.technical_score if analysis is not None else None
-                ),
-                "aeo_score": (analysis.aeo_score if analysis is not None else None),
-                "overall_score": (
-                    analysis.overall_score if analysis is not None else None
-                ),
-                "last_audited": (
-                    _iso(analysis.finalized_at) if analysis is not None else None
-                ),
-            }
-        )
-        if len(items) >= limit + 1:
-            break
 
-    next_cursor: str | None = None
-    if len(items) > limit:
-        items = items[:limit]
-        last_kept = items[-1]
-        next_cursor = encode_keyset_cursor(
-            scope=scope,
-            filters=filters,
-            sort_values=[
-                last_kept["normalized_url"],
-                str(last_kept["site_url_id"]),
-            ],
-        )
-    elif (
-        (status is not None or page_kind is not None)
-        and last_scanned is not None
-        and len(rows) >= fetch_size
-    ):
-        # A sparse status/page_kind filter can leave a partial (or even empty)
-        # page while more matching rows exist beyond the scanned window. We
-        # fetched a full window, so emit a cursor at the last SCANNED row (not
-        # the last matched one) to guarantee forward progress even when a
-        # window had no matches.
-        next_cursor = encode_keyset_cursor(
-            scope=scope,
-            filters=filters,
-            sort_values=[last_scanned.normalized_url, str(last_scanned.id)],
-        )
+    items, last_scanned = _matching_page_summaries(
+        rows,
+        analyses=analyses,
+        tasks=tasks,
+        monitored_ids=monitored_ids,
+        status=status,
+        page_kind=page_kind,
+        limit=limit,
+        project=project_inventory_row,
+    )
+    items, next_cursor = _page_keyset_result(
+        items,
+        last_scanned=last_scanned,
+        scanned_row_count=len(rows),
+        fetch_size=fetch_size,
+        limit=limit,
+        sparse_filter=over_fetch,
+        scope=scope,
+        filters=filters,
+    )
     return {"items": items, "next_cursor": next_cursor}
 
 
@@ -752,80 +850,44 @@ async def get_pages(
         session, crawl_id=crawl_id, site_url_ids=site_ids
     )
 
-    items: list[dict] = []
-    last_scanned: SiteUrl | None = None
-    for row in rows:
-        analysis = analyses.get(row.id)
-        pres_status, error_code = presentation_status_for(
-            analysis=analysis,
-            monitored=row.id in monitored_ids,
-            latest_analyze_task=tasks.get(row.id),
+    def project_pages_row(
+        row: SiteUrl,
+        analysis: SitePageAnalysis | None,
+        presentation_status: str,
+        error_code: str | None,
+    ) -> dict:
+        return _pages_summary_row(
+            row,
+            analysis,
+            presentation_status,
+            error_code,
+            crawl_id=crawl_id,
+            current_observed_ids=current_observed_ids,
+            inherited_crawl_by_url=inherited_crawl_by_url,
+            monitored_ids=monitored_ids,
+            issue_counts=issue_counts,
         )
-        last_scanned = row
-        if not _matches_page_status(pres_status, status):
-            continue
-        if not _page_kind_matches(analysis, page_kind):
-            continue
-        items.append(
-            {
-                "site_url_id": row.id,
-                "crawl_id": (
-                    crawl_id
-                    if row.id in current_observed_ids
-                    else inherited_crawl_by_url.get(row.id, crawl_id)
-                ),
-                "normalized_url": row.normalized_url,
-                "display_url": row.display_url or row.normalized_url,
-                "title": row.latest_title or None,
-                "monitored": row.id in monitored_ids,
-                "analysis_status": pres_status,
-                "error_code": error_code,
-                "issue_count": (
-                    issue_counts.get(row.id, 0) if analysis is not None else None
-                ),
-                "page_kind": analysis.page_kind if analysis is not None else None,
-                **_role_summary_fields(analysis),
-                "technical_score": (
-                    analysis.technical_score if analysis is not None else None
-                ),
-                "aeo_score": (analysis.aeo_score if analysis is not None else None),
-                "overall_score": (
-                    analysis.overall_score if analysis is not None else None
-                ),
-                "last_audited": (
-                    _iso(analysis.finalized_at) if analysis is not None else None
-                ),
-            }
-        )
-        if len(items) >= limit + 1:
-            break
 
-    next_cursor: str | None = None
-    if len(items) > limit:
-        items = items[:limit]
-        last_kept = items[-1]
-        next_cursor = encode_keyset_cursor(
-            scope=scope,
-            filters=filters,
-            sort_values=[
-                last_kept["normalized_url"],
-                str(last_kept["site_url_id"]),
-            ],
-        )
-    elif (
-        (status is not None or page_kind is not None)
-        and last_scanned is not None
-        and len(rows) >= fetch_size
-    ):
-        # Sparse status/page_kind filter: a full window yielded a partial/empty
-        # page while more matching rows may exist. Advance the cursor to the
-        # last SCANNED row so traversal keeps making progress across empty
-        # windows.
-        next_cursor = encode_keyset_cursor(
-            scope=scope,
-            filters=filters,
-            sort_values=[last_scanned.normalized_url, str(last_scanned.id)],
-        )
+    items, last_scanned = _matching_page_summaries(
+        rows,
+        analyses=analyses,
+        tasks=tasks,
+        monitored_ids=monitored_ids,
+        status=status,
+        page_kind=page_kind,
+        limit=limit,
+        project=project_pages_row,
+    )
+    items, next_cursor = _page_keyset_result(
+        items,
+        last_scanned=last_scanned,
+        scanned_row_count=len(rows),
+        fetch_size=fetch_size,
+        limit=limit,
+        sparse_filter=over_fetch,
+        scope=scope,
+        filters=filters,
+    )
     return {"items": items, "next_cursor": next_cursor, "root_errors": root_errors}
 
 
