@@ -1254,6 +1254,67 @@ async def _create_audit_tasks(
     )
 
 
+def _prompt_configuration_rows(prompts: list[Prompt]) -> list[dict[str, Any]]:
+    """Reduce selected prompts to their frozen configuration fields."""
+    return [
+        {
+            "text": prompt.text or "",
+            "theme": prompt.theme or "",
+            "intent": prompt.intent or "",
+            "cohort": prompt.cohort,
+        }
+        for prompt in prompts
+    ]
+
+
+def _snapshot_objects(
+    *,
+    audit_id: uuid.UUID,
+    prompts: list[Prompt],
+    routes: dict[str, _ResolvedRoute],
+) -> tuple[list[AuditPromptSnapshot], dict[str, AuditEngineSnapshot]]:
+    """Construct immutable prompt and engine snapshots without persistence."""
+    prompt_snapshots = [
+        AuditPromptSnapshot(
+            audit_id=audit_id,
+            prompt_id=prompt.id,
+            prompt_index=index,
+            text=prompt.text or "",
+            theme=prompt.theme or "",
+            intent=prompt.intent or "",
+            cohort=prompt.cohort,
+            generation_evidence=prompt.generation_evidence,
+        )
+        for index, prompt in enumerate(prompts)
+    ]
+    engine_snapshots = {
+        engine: AuditEngineSnapshot(
+            audit_id=audit_id,
+            logical_engine=engine,
+            transport_provider=route.transport_provider,
+            transport_model=route.transport_model,
+            connection_id=route.connection_id,
+            base_url=route.base_url,
+        )
+        for engine, route in routes.items()
+    }
+    return prompt_snapshots, engine_snapshots
+
+
+def _shuffled_slots(
+    *, prompt_count: int, engines: list[str], repetitions: int, seed: str
+) -> list[tuple[int, str, int]]:
+    """Build and deterministically shuffle every prompt/engine/run slot."""
+    slots = [
+        (prompt_index, engine, repetition)
+        for prompt_index in range(prompt_count)
+        for engine in engines
+        for repetition in range(repetitions)
+    ]
+    random.Random(int(seed)).shuffle(slots)
+    return slots
+
+
 async def create_audit(
     session: AsyncSession,
     *,
@@ -1378,15 +1439,7 @@ async def create_audit(
     )
 
     seed = _normalize_seed(random_seed)
-    prompt_rows = [
-        {
-            "text": prompt.text or "",
-            "theme": prompt.theme or "",
-            "intent": prompt.intent or "",
-            "cohort": prompt.cohort,
-        }
-        for prompt in prompts
-    ]
+    prompt_rows = _prompt_configuration_rows(prompts)
     configuration = _frozen_configuration(
         project=project, plan=plan, routes=routes, prompt_rows=prompt_rows
     )
@@ -1413,47 +1466,23 @@ async def create_audit(
     session.add(audit)
     await session.flush()  # assign audit.id
 
-    # Freeze prompt snapshots (immutable copies, invariant 3).
-    prompt_snapshots: list[AuditPromptSnapshot] = []
-    for index, prompt in enumerate(prompts):
-        snapshot = AuditPromptSnapshot(
-            audit_id=audit.id,
-            prompt_id=prompt.id,
-            prompt_index=index,
-            text=prompt.text or "",
-            theme=prompt.theme or "",
-            intent=prompt.intent or "",
-            cohort=prompt.cohort,
-            generation_evidence=prompt.generation_evidence,
-        )
-        session.add(snapshot)
-        prompt_snapshots.append(snapshot)
-
-    # Freeze engine snapshots (provenance triple + connection, invariant 10).
-    engine_snapshots: dict[str, AuditEngineSnapshot] = {}
-    for engine, route in routes.items():
-        engine_snapshot = AuditEngineSnapshot(
-            audit_id=audit.id,
-            logical_engine=engine,
-            transport_provider=route.transport_provider,
-            transport_model=route.transport_model,
-            connection_id=route.connection_id,
-            base_url=route.base_url,
-        )
-        session.add(engine_snapshot)
-        engine_snapshots[engine] = engine_snapshot
+    # Freeze prompt + engine snapshots (immutable provenance, invariants 3 + 10).
+    prompt_snapshots, engine_snapshots = _snapshot_objects(
+        audit_id=audit.id, prompts=prompts, routes=routes
+    )
+    session.add_all(prompt_snapshots)
+    session.add_all(engine_snapshots.values())
     await session.flush()  # assign snapshot ids
 
     # Build every (prompt_index, engine, repetition) slot, then shuffle it
     # deterministically with the stored seed (invariant 9). The same seed
     # reproduces the same order.
-    slots = [
-        (prompt_index, engine, repetition)
-        for prompt_index in range(len(prompts))
-        for engine in engine_list
-        for repetition in range(reps)
-    ]
-    random.Random(int(seed)).shuffle(slots)
+    slots = _shuffled_slots(
+        prompt_count=len(prompts),
+        engines=engine_list,
+        repetitions=reps,
+        seed=seed,
+    )
 
     await _create_audit_tasks(
         session,

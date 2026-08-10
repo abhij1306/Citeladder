@@ -705,10 +705,8 @@ async def get_brief(
     return brief
 
 
-async def build_task_context(
-    session: AsyncSession, *, workspace_id: uuid.UUID, brief_id: uuid.UUID
-) -> tuple[TaskContextPackage, bool]:
-    brief = await get_brief(session, workspace_id=workspace_id, brief_id=brief_id)
+def _render_task_context(brief: ContentBrief) -> tuple[dict[str, Any], list[dict]]:
+    """Select bounded brief evidence and trim facts to the character budget."""
     rendered: dict[str, Any] = {
         "brief": {
             "id": str(brief.id),
@@ -733,41 +731,48 @@ async def build_task_context(
         )
     if len(_canonical(rendered)) > CONTENT_CONTEXT_MAX_CHARS:
         raise ContentConflictError("content_context_budget_exceeded")
-    manifest = {
+    return rendered, omissions
+
+
+def _context_manifest(
+    brief: ContentBrief, rendered: dict[str, Any], omissions: list[dict]
+) -> dict[str, Any]:
+    """Project exact included evidence and policy provenance into a manifest."""
+    allowed_facts = rendered["allowed_facts"]
+    sources = rendered["sources"]
+    return {
         "brief_id": str(brief.id),
         "evidence_hash": brief.evidence_hash,
-        "assertion_ids": [
-            item.get("assertion_id") for item in rendered["allowed_facts"]
-        ],
+        "assertion_ids": [item.get("assertion_id") for item in allowed_facts],
         "source_ids": sorted(
             str(item.get("source_id") or item.get("artifact_id") or "")
-            for item in rendered["sources"]
+            for item in sources
             if item.get("source_id") or item.get("artifact_id")
         ),
         "correction_ids": sorted(
             str(item["correction"].get("id"))
-            for item in rendered["allowed_facts"]
+            for item in allowed_facts
             if isinstance(item.get("correction"), dict) and item["correction"].get("id")
         ),
         "included_counts": {
-            "facts": len(rendered["allowed_facts"]),
-            "sources": len(rendered["sources"]),
+            "facts": len(allowed_facts),
+            "sources": len(sources),
         },
         "omitted_count": len(omissions),
         "policy_version": CONTENT_CONTEXT_POLICY_VERSION,
     }
-    manifest_hash = _hash(
-        {"manifest": manifest, "rendered": rendered, "omissions": omissions}
-    )
-    existing = await session.scalar(
-        select(TaskContextPackage).where(
-            TaskContextPackage.brief_id == brief.id,
-            TaskContextPackage.manifest_hash == manifest_hash,
-        )
-    )
-    if existing is not None:
-        return existing, False
-    package = TaskContextPackage(
+
+
+def _new_task_context_package(
+    *,
+    brief: ContentBrief,
+    rendered: dict[str, Any],
+    omissions: list[dict],
+    manifest: dict[str, Any],
+    manifest_hash: str,
+) -> TaskContextPackage:
+    """Construct the immutable context package without persistence."""
+    return TaskContextPackage(
         id=_stable_id("context", brief.id, manifest_hash),
         workspace_id=brief.workspace_id,
         project_id=brief.project_id,
@@ -779,6 +784,32 @@ async def build_task_context(
         selection_policy_version=CONTENT_CONTEXT_POLICY_VERSION,
         manifest_hash=manifest_hash,
         char_count=len(_canonical(rendered)),
+    )
+
+
+async def build_task_context(
+    session: AsyncSession, *, workspace_id: uuid.UUID, brief_id: uuid.UUID
+) -> tuple[TaskContextPackage, bool]:
+    brief = await get_brief(session, workspace_id=workspace_id, brief_id=brief_id)
+    rendered, omissions = _render_task_context(brief)
+    manifest = _context_manifest(brief, rendered, omissions)
+    manifest_hash = _hash(
+        {"manifest": manifest, "rendered": rendered, "omissions": omissions}
+    )
+    existing = await session.scalar(
+        select(TaskContextPackage).where(
+            TaskContextPackage.brief_id == brief.id,
+            TaskContextPackage.manifest_hash == manifest_hash,
+        )
+    )
+    if existing is not None:
+        return existing, False
+    package = _new_task_context_package(
+        brief=brief,
+        rendered=rendered,
+        omissions=omissions,
+        manifest=manifest,
+        manifest_hash=manifest_hash,
     )
     session.add(package)
     return await _commit_context(

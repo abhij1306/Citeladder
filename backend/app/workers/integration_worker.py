@@ -39,7 +39,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from typing import Protocol
+from typing import Protocol, cast
 
 import httpx
 from sqlalchemy import select
@@ -288,6 +288,109 @@ def _provider_datasets(
         else DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
     )
     return [template for template in templates if template.dataset != omitted]
+
+
+@dataclass(frozen=True)
+class _NextDatasetPage:
+    """The next durable paging position after a successfully written page."""
+
+    start_row: int
+    page_cursor: str | None
+    complete: bool
+
+
+@dataclass(frozen=True)
+class _LastDatasetArtifact:
+    """The latest page's durable paging fields for one dataset."""
+
+    start_row: int
+    row_count: int
+    snapshot: dict
+    payload: dict
+
+
+def _next_dataset_page(
+    *,
+    cursor_mode: bool,
+    page_info: dict | None,
+    start_row: int,
+    raw_row_count: int,
+    page_size: int,
+) -> _NextDatasetPage:
+    """Derive completion and the next logical position from a written page."""
+    if cursor_mode:
+        assert page_info is not None  # validated before the artifact write
+        if not page_info["hasNextPage"]:
+            return _NextDatasetPage(start_row, None, complete=True)
+        return _NextDatasetPage(
+            start_row + raw_row_count,
+            page_info["endCursor"],
+            complete=False,
+        )
+    if raw_row_count < page_size:
+        return _NextDatasetPage(start_row, None, complete=True)
+    return _NextDatasetPage(start_row + page_size, None, complete=False)
+
+
+def _dataset_resume_from_artifacts(
+    rows: Sequence[tuple[dict | None, int, dict | None]],
+    *,
+    cursor_mode: bool,
+    page_size: int,
+) -> _DatasetResume:
+    """Derive a dataset's durable resume position from immutable artifacts."""
+    if not rows:
+        return _DatasetResume(start_row=0, page_cursor=None, complete=False)
+    latest = _latest_dataset_artifact(rows)
+    if cursor_mode:
+        return _cursor_resume_from_artifact(latest)
+    return _offset_resume_from_artifact(latest, page_size=page_size)
+
+
+def _latest_dataset_artifact(
+    rows: Sequence[tuple[dict | None, int, dict | None]],
+) -> _LastDatasetArtifact:
+    """Select the latest durable page by its logical start row."""
+    latest = _LastDatasetArtifact(0, 0, {}, {})
+    for query_snapshot, row_count, payload in rows:
+        snapshot = query_snapshot or {}
+        snapshot_start = int(snapshot.get("startRow") or 0)
+        if snapshot_start >= latest.start_row:
+            latest = _LastDatasetArtifact(
+                snapshot_start,
+                row_count,
+                snapshot,
+                payload if isinstance(payload, dict) else {},
+            )
+    return latest
+
+
+def _cursor_resume_from_artifact(latest: _LastDatasetArtifact) -> _DatasetResume:
+    """Derive cursor resume state from the latest durable cursor page."""
+    page_info = latest.payload.get("pageInfo")
+    if not (isinstance(page_info, dict) and page_info.get("hasNextPage") is True):
+        return _DatasetResume(start_row=0, page_cursor=None, complete=True)
+    next_cursor = latest.snapshot.get("nextPageCursor")
+    if not isinstance(next_cursor, str) or not next_cursor:
+        raise _MalformedProviderPageError(
+            "durable cursor page is missing its nextPageCursor"
+        )
+    return _DatasetResume(
+        start_row=latest.start_row + latest.row_count,
+        page_cursor=next_cursor,
+        complete=False,
+    )
+
+
+def _offset_resume_from_artifact(
+    latest: _LastDatasetArtifact, *, page_size: int
+) -> _DatasetResume:
+    """Derive offset resume state from the latest durable offset page."""
+    if latest.row_count < page_size:
+        return _DatasetResume(start_row=0, page_cursor=None, complete=True)
+    return _DatasetResume(
+        start_row=latest.start_row + page_size, page_cursor=None, complete=False
+    )
 
 
 class IntegrationWorker(DrainableWorkerMixin):
@@ -905,19 +1008,17 @@ class IntegrationWorker(DrainableWorkerMixin):
             )
             if not wrote:
                 return False
-            if cursor_mode:
-                assert page_info is not None  # validated above
-                if not page_info["hasNextPage"]:
-                    return True
-                page_cursor = page_info["endCursor"]
-                # Logical offset for bookkeeping/resume ordering only.
-                start_row += page.raw_row_count
-                continue
-            # Terminate on the RAW provider count: a full page whose
-            # normalization dropped malformed rows is not the last page.
-            if page.raw_row_count < page_size:
+            next_page = _next_dataset_page(
+                cursor_mode=cursor_mode,
+                page_info=page_info,
+                start_row=start_row,
+                raw_row_count=page.raw_row_count,
+                page_size=page_size,
+            )
+            if next_page.complete:
                 return True
-            start_row += page_size
+            start_row = next_page.start_row
+            page_cursor = next_page.page_cursor
 
     @staticmethod
     def _validated_cursor_page_info(page: _ClientPage) -> dict:
@@ -1009,44 +1110,10 @@ class IntegrationWorker(DrainableWorkerMixin):
                     )
                 )
             ).all()
-        if not rows:
-            return _DatasetResume(start_row=0, page_cursor=None, complete=False)
-        last_start_row = 0
-        last_row_count = 0
-        last_snapshot: dict = {}
-        last_payload: dict = {}
-        for query_snapshot, row_count, payload in rows:
-            snapshot = query_snapshot or {}
-            snapshot_start = int(snapshot.get("startRow") or 0)
-            if snapshot_start >= last_start_row:
-                last_start_row = snapshot_start
-                last_row_count = row_count
-                last_snapshot = snapshot
-                last_payload = payload if isinstance(payload, dict) else {}
-        if cursor_mode:
-            page_info = last_payload.get("pageInfo")
-            has_next = (
-                isinstance(page_info, dict) and page_info.get("hasNextPage") is True
-            )
-            if not has_next:
-                return _DatasetResume(start_row=0, page_cursor=None, complete=True)
-            next_cursor = last_snapshot.get("nextPageCursor")
-            if not isinstance(next_cursor, str) or not next_cursor:
-                # Unreachable through the write path (validation precedes
-                # persistence): a continuing page always carries its next
-                # cursor. Corrupted durable state fails loud, never guesses.
-                raise _MalformedProviderPageError(
-                    "durable cursor page is missing its nextPageCursor"
-                )
-            return _DatasetResume(
-                start_row=last_start_row + last_row_count,
-                page_cursor=next_cursor,
-                complete=False,
-            )
-        if last_row_count < page_size:
-            return _DatasetResume(start_row=0, page_cursor=None, complete=True)
-        return _DatasetResume(
-            start_row=last_start_row + page_size, page_cursor=None, complete=False
+        return _dataset_resume_from_artifacts(
+            cast(Sequence[tuple[dict | None, int, dict | None]], rows),
+            cursor_mode=cursor_mode,
+            page_size=page_size,
         )
 
     async def _still_owned(self, run_id: uuid.UUID) -> bool:

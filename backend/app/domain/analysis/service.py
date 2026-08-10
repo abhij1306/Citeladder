@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import overload
 
@@ -1052,6 +1052,19 @@ class _RateAccumulator:
         return round(self.weighted / self.weight, 4)
 
 
+@dataclass
+class _BucketAccumulators:
+    """Mutable pure-fold state for one compatible trend bucket."""
+
+    visibility: _RateAccumulator = field(default_factory=_RateAccumulator)
+    brand_rate: _RateAccumulator = field(default_factory=_RateAccumulator)
+    owned_rate: _RateAccumulator = field(default_factory=_RateAccumulator)
+    response_sov: _RateAccumulator = field(default_factory=_RateAccumulator)
+    mention_counts: dict[str, int] = field(default_factory=dict)
+    rankings: dict[str, _RankingAccumulator] = field(default_factory=dict)
+    brand_names: set[str] = field(default_factory=set)
+
+
 def _validate_engine_and_range(
     *,
     logical_engine: str | None,
@@ -1469,64 +1482,86 @@ def _bucket_provenance(bucket: list[_TrendSource]) -> list[ModelProvenance]:
     )
 
 
-def _fold_bucket(key: datetime, bucket: list[_TrendSource]) -> VisibilityTrendPoint:
-    logical_engine = bucket[0].logical_engine
-    visibility = _RateAccumulator()
-    brand_rate = _RateAccumulator()
-    owned_rate = _RateAccumulator()
-    response_sov = _RateAccumulator()
-    # Summed persisted mention counts across the bucket (mention-level SOV +
-    # ranking counts sum before division — never an average of shares).
-    mention_counts: dict[str, int] = {}
-    rankings: dict[str, _RankingAccumulator] = {}
-    brand_names: set[str] = set()
+def _stored_mention_count(counts: dict, name: str) -> int:
+    return int(counts.get(name, 0) or 0)
 
-    for source in bucket:
-        metrics = source.metrics
-        completions = source.total_completed
-        visibility.add(source.visibility_score, completions)
-        brand_rate.add(metrics.get("brand_mention_rate"), completions)
-        owned_rate.add(metrics.get("owned_citation_rate"), completions)
-        response_sov.add(_response_sov(metrics), completions)
 
-        sov = metrics.get("share_of_voice") or {}
-        counts = sov.get("mention_counts") or {}
-        brand_name = _brand_name(counts, metrics)
-        brand_names.add(brand_name)
-        competitor_mention = metrics.get("competitor_mention_rate") or {}
-        competitor_citation = metrics.get("competitor_citation_rate") or {}
+def _accumulate_bucket_ranking(
+    accumulators: _BucketAccumulators,
+    *,
+    name: str,
+    is_brand: bool,
+    mention_count: int,
+    mention_rate: float | None,
+    citation_rate: float | None,
+    completions: int,
+) -> None:
+    _accumulate_entity(
+        accumulators.rankings,
+        name=name,
+        is_brand=is_brand,
+        mention_count=mention_count,
+        mention_rate=mention_rate,
+        citation_rate=citation_rate,
+        completions=completions,
+    )
+    accumulators.mention_counts[name] = (
+        accumulators.mention_counts.get(name, 0) + mention_count
+    )
 
-        _accumulate_entity(
-            rankings,
-            name=brand_name,
-            is_brand=True,
-            mention_count=int(counts.get(brand_name, 0) or 0),
-            mention_rate=metrics.get("brand_mention_rate"),
-            citation_rate=metrics.get("owned_citation_rate"),
+
+def _accumulate_bucket_source(
+    accumulators: _BucketAccumulators, source: _TrendSource
+) -> None:
+    """Add one persisted source without substituting for unknown rates."""
+    metrics = source.metrics
+    completions = source.total_completed
+    accumulators.visibility.add(source.visibility_score, completions)
+    accumulators.brand_rate.add(metrics.get("brand_mention_rate"), completions)
+    accumulators.owned_rate.add(metrics.get("owned_citation_rate"), completions)
+    accumulators.response_sov.add(_response_sov(metrics), completions)
+
+    sov = metrics.get("share_of_voice") or {}
+    counts = sov.get("mention_counts") or {}
+    brand_name = _brand_name(counts, metrics)
+    accumulators.brand_names.add(brand_name)
+    _accumulate_bucket_ranking(
+        accumulators,
+        name=brand_name,
+        is_brand=True,
+        mention_count=_stored_mention_count(counts, brand_name),
+        mention_rate=metrics.get("brand_mention_rate"),
+        citation_rate=metrics.get("owned_citation_rate"),
+        completions=completions,
+    )
+
+    competitor_mention = metrics.get("competitor_mention_rate") or {}
+    competitor_citation = metrics.get("competitor_citation_rate") or {}
+    for name in competitor_mention:
+        _accumulate_bucket_ranking(
+            accumulators,
+            name=name,
+            is_brand=False,
+            mention_count=_stored_mention_count(counts, name),
+            mention_rate=competitor_mention.get(name),
+            citation_rate=competitor_citation.get(name),
             completions=completions,
         )
-        mention_counts[brand_name] = mention_counts.get(brand_name, 0) + int(
-            counts.get(brand_name, 0) or 0
-        )
-        for name in competitor_mention:
-            _accumulate_entity(
-                rankings,
-                name=name,
-                is_brand=False,
-                mention_count=int(counts.get(name, 0) or 0),
-                mention_rate=competitor_mention.get(name),
-                citation_rate=competitor_citation.get(name),
-                completions=completions,
-            )
-            mention_counts[name] = mention_counts.get(name, 0) + int(
-                counts.get(name, 0) or 0
-            )
 
-    total_mentions = sum(mention_counts.values())
-    ranking_rows = _fold_ranking_rows(rankings, mention_counts, total_mentions)
+
+def _fold_bucket(key: datetime, bucket: list[_TrendSource]) -> VisibilityTrendPoint:
+    logical_engine = bucket[0].logical_engine
+    accumulators = _BucketAccumulators()
+    for source in bucket:
+        _accumulate_bucket_source(accumulators, source)
+
+    total_mentions = sum(accumulators.mention_counts.values())
+    ranking_rows = _fold_ranking_rows(
+        accumulators.rankings, accumulators.mention_counts, total_mentions
+    )
     # Aggregate every brand key seen in the bucket for mention-level SOV so a
     # brand rename across snapshots does not undercount brand share.
-    brand_keys = brand_names or {"Brand"}
+    brand_keys = accumulators.brand_names or {"Brand"}
 
     # Every source in the bucket shares one folding identity by construction.
     measurement_mode, transport_model, retrieval_enabled = _identity_of(bucket[0])
@@ -1534,12 +1569,12 @@ def _fold_bucket(key: datetime, bucket: list[_TrendSource]) -> VisibilityTrendPo
         audit_id=None,
         completed_at=key,
         logical_engine=logical_engine,
-        visibility_score=visibility.value(),
-        brand_mention_rate=brand_rate.value(),
-        owned_citation_rate=owned_rate.value(),
+        visibility_score=accumulators.visibility.value(),
+        brand_mention_rate=accumulators.brand_rate.value(),
+        owned_citation_rate=accumulators.owned_rate.value(),
         sov=VisibilityTrendSov(
-            response=response_sov.value(),
-            mention=_mention_sov_of(mention_counts, brand_keys),
+            response=accumulators.response_sov.value(),
+            mention=_mention_sov_of(accumulators.mention_counts, brand_keys),
         ),
         rankings=ranking_rows,
         sentiment=None,

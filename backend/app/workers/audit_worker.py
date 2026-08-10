@@ -32,8 +32,7 @@ import logging
 import time
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -51,13 +50,10 @@ from app.analysis.service import (
 )
 from app.connectors.answer_engines.contracts import (
     AnswerEngineRequest,
-    AnswerEngineResponse,
 )
 from app.connectors.answer_engines.errors import ProviderError
 from app.connectors.answer_engines.factory import build_adapter
 from app.connectors.answer_engines.http_client import aclose_shared_clients
-from app.connectors.answer_engines.normalization import normalized_usage_dict
-from app.core.config import settings
 from app.core.config.audits import (
     ATTEMPT_STATUS_FAILED,
     ATTEMPT_STATUS_SUCCEEDED,
@@ -69,11 +65,6 @@ from app.core.config.audits import (
     AUDIT_STATUS_RUNNING,
     AUDIT_TERMINAL_STATUSES,
     CAPACITY_OUTCOME_FAILED,
-    CAPACITY_OUTCOME_RATE_LIMITED,
-    CAPACITY_OUTCOME_SUCCEEDED,
-    CREDENTIAL_KIND_BYOK,
-    CREDENTIAL_KIND_FUNDED,
-    ERROR_NO_CONNECTION,
     ERROR_RUN_DEADLINE,
     EVENT_AUDIT_RUNNING,
     EVENT_TASK_CAPACITY_WAIT,
@@ -85,7 +76,6 @@ from app.core.config.audits import (
     TASK_STATUS_RUNNING,
     TASK_STATUS_SUCCEEDED,
     TASK_TERMINAL_STATUSES,
-    MeasurementModePolicy,
     audit_settings,
     max_run_seconds_from_configuration,
     measurement_policy_from_configuration,
@@ -99,14 +89,8 @@ from app.core.config.costs import (
 )
 from app.core.config.provider_catalog import (
     ERROR_AUTH,
-    ERROR_INVALID_SURFACE,
     ERROR_PARSE,
-    ERROR_RATE_LIMIT,
-    ERROR_TIMEOUT,
     RETRYABLE_ERRORS,
-    is_active_transport,
-    is_endpoint_approved,
-    route_policy,
 )
 from app.core.config.task_queue import DEFAULT_MAX_DRAIN_BATCHES
 from app.core.database import SessionLocal
@@ -136,9 +120,61 @@ from app.orchestration.provider_capacity import (
     acquire_provider_capacity,
     release_provider_capacity,
 )
+from app.workers import audit_worker_support as _support
 from app.workers.drain import DrainableWorkerMixin
 
 logger = logging.getLogger("app.workers.audit_worker")
+
+# Compatibility re-exports for worker-level tests and existing private callers.
+CallAttempt = _support.CallAttempt
+_ExecutionContext = _support.ExecutionContext
+_FrozenFunding = _support.FrozenFunding
+_apply_response_to_task = _support.apply_response_to_task
+_build_artifact = _support.build_artifact
+_build_call_request = _support.build_call_request
+_build_request = _support.build_request
+_build_request_snapshot = _support.build_request_snapshot
+_capacity_outcome = _support.capacity_outcome
+_capacity_request = _support.capacity_request
+_capacity_wait_payload = _support.capacity_wait_payload
+_drain_horizon_seconds = _support.drain_horizon_seconds
+_frozen_connection_id_from = _support.frozen_connection_id_from
+_frozen_funding_from = _support.frozen_funding_from
+_raw_finish_reason = _support.raw_finish_reason
+_serialize_citations = _support.serialize_citations
+_serialize_search_events = _support.serialize_search_events
+_terminal_rejection = _support.terminal_rejection
+_utcnow = _support.utcnow
+_warn_if_provider_pacing_unbounded = _support.warn_if_provider_pacing_unbounded
+assert_worker_pool_capacity = _support.assert_worker_pool_capacity
+pace_provider_request = _support.pace_provider_request
+
+__all__ = [
+    "AuditWorker",
+    "CallAttempt",
+    "_ExecutionContext",
+    "_FrozenFunding",
+    "_apply_response_to_task",
+    "_build_artifact",
+    "_build_call_request",
+    "_build_request",
+    "_build_request_snapshot",
+    "_capacity_outcome",
+    "_capacity_request",
+    "_capacity_wait_payload",
+    "_drain_horizon_seconds",
+    "_frozen_connection_id_from",
+    "_frozen_funding_from",
+    "_raw_finish_reason",
+    "_serialize_citations",
+    "_serialize_search_events",
+    "_terminal_rejection",
+    "_utcnow",
+    "_warn_if_provider_pacing_unbounded",
+    "assert_worker_pool_capacity",
+    "call_provider_once",
+    "pace_provider_request",
+]
 
 # Statuses a task may hold while the PRE-CALL writers act on it. The row is
 # still `leased` (not `running`) until provider capacity is held, so the
@@ -147,509 +183,15 @@ logger = logging.getLogger("app.workers.audit_worker")
 TASK_PRE_CALL_STATUSES = frozenset({TASK_STATUS_LEASED, TASK_STATUS_RUNNING})
 
 
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
-
-
-def _drain_horizon_seconds() -> float:
-    """How long a one-shot drain waits for a parked row to become claimable.
-
-    Covers the transient states a drain itself creates — the concurrency
-    capacity park (``capacity_concurrency_retry_seconds``) — plus one poll
-    interval of slack. One owner so the wait budget and the soon-claimable
-    check can never drift apart (invariant 2).
-    """
-    return audit_settings.capacity_concurrency_retry_seconds + max(
-        0.05, audit_settings.poll_interval_seconds
-    )
-
-
-# --- Request pacing (per transport, across concurrent tasks in this process) --
-_provider_pacing_locks: dict[str, asyncio.Lock] = {}
-_provider_last_request_started: dict[str, float] = {}
-
-
-async def pace_provider_request(transport_provider: str) -> None:
-    """Space provider request starts per transport to respect rate limits.
-
-    Mainly protects Gemini's low per-minute quota. A no-op when
-    ``min_request_interval_seconds`` is 0 (the default).
-    """
-    interval = max(0.0, audit_settings.min_request_interval_seconds)
-    if interval <= 0:
-        return
-    lock = _provider_pacing_locks.setdefault(transport_provider, asyncio.Lock())
-    async with lock:
-        last_started = _provider_last_request_started.get(transport_provider)
-        if last_started is not None:
-            remaining = interval - (time.monotonic() - last_started)
-            if remaining > 0:
-                await asyncio.sleep(remaining)
-        _provider_last_request_started[transport_provider] = time.monotonic()
-
-
-@dataclass
-class CallAttempt:
-    """The outcome of ONE actual provider call (a success or a failure).
-
-    ``call_provider_once`` returns exactly one of these per real call, so the
-    persistence path appends one immutable ``ProviderAttempt`` per actual
-    provider call (invariant 3) — never a collapsed summary.
-    """
-
-    response: AnswerEngineResponse | None
-    error: ProviderError | None
-
-    @property
-    def succeeded(self) -> bool:
-        return self.response is not None
-
-
 async def call_provider_once(
     adapter, request: AnswerEngineRequest, *, timeout_seconds: float
 ) -> CallAttempt:
-    """Make ONE provider call for ONE queue attempt (the sole-call contract).
-
-    The queue's retry/backoff is the ONLY retry loop (bounded by the frozen
-    ``task.max_attempts``); this function never retries, so one external call
-    maps to exactly one queue attempt, one ``ProviderAttempt`` row, and one
-    billable ledger unit. Request pacing and the hard per-call ceiling are
-    preserved: a stalled call (hung socket, redirect loop) can never run past
-    the frozen ``timeout_seconds`` — ``asyncio.wait_for`` guards the HTTP
-    client independently of the client timeout.
-    """
-    try:
-        await pace_provider_request(adapter.transport_provider)
-        response = await asyncio.wait_for(
-            adapter.execute(request),
-            timeout=timeout_seconds,
-        )
-        return CallAttempt(response=response, error=None)
-    except TimeoutError:
-        return CallAttempt(
-            response=None,
-            error=ProviderError(
-                f"provider call exceeded timeout_seconds ({timeout_seconds}s)",
-                error_code=ERROR_TIMEOUT,
-                retryable=True,
-            ),
-        )
-    except ProviderError as exc:
-        return CallAttempt(response=None, error=exc)
-
-
-@dataclass(frozen=True, slots=True)
-class _FrozenFunding:
-    """The planner-frozen funded reservation one task bills against.
-
-    Opaque ids only (invariant 6): the reservation id the worker bills and
-    the billing account the capacity pools key on. Never a credential.
-    """
-
-    reservation_id: uuid.UUID
-    billing_account_id: uuid.UUID | None
-
-
-def _frozen_connection_id_from(route_snapshot: dict | None) -> uuid.UUID | None:
-    """The planner-frozen concrete connection id off a task's route snapshot.
-
-    Opaque identity only (invariant 6) — the worker LOADS this connection; it
-    never re-resolves or falls back to another credential.
-    """
-    frozen = (route_snapshot or {}).get("connection_id")
-    return uuid.UUID(str(frozen)) if frozen else None
-
-
-def _frozen_funding_from(route_snapshot: dict | None) -> _FrozenFunding | None:
-    """Read the frozen funding block off a task's route snapshot.
-
-    The planner writes the block in the same transaction as the reservation
-    itself (no funded task is claimable without it). A task with no block —
-    every BYOK task — returns None and never touches the ledger.
-    """
-    funding = (route_snapshot or {}).get("funding") or {}
-    reservation = funding.get("reservation_id")
-    if not reservation:
-        return None
-    account = funding.get("funding_account_id")
-    return _FrozenFunding(
-        reservation_id=uuid.UUID(str(reservation)),
-        billing_account_id=uuid.UUID(str(account)) if account else None,
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class _ExecutionContext:
-    """Everything ONE attempt needs, loaded + frozen BEFORE any provider I/O.
-
-    Plain values only (no ORM rows), so nothing lazy-loads after the short
-    load session closes. ``attempt_number`` is the persisted
-    ``task.attempt_count + 1`` — the identity of the single call this queue
-    attempt will make.
-    """
-
-    task_id: uuid.UUID
-    audit_id: uuid.UUID
-    logical_engine: str
-    transport_provider: str
-    transport_model: str
-    prompt_text: str
-    system_instruction: str
-    configuration: dict
-    policy: MeasurementModePolicy
-    base_url: str
-    attempt_number: int
-    connection_id: uuid.UUID | None
-    connection_active: bool
-    api_key_encrypted: str
-    funding: _FrozenFunding | None
-
-
-def _terminal_rejection(context: _ExecutionContext) -> tuple[str, str] | None:
-    """The (code, detail) for a task that must fail BEFORE any provider I/O.
-
-    A frozen task on a retired transport, a missing/inactive connection, or an
-    unapproved endpoint fails terminally before key decryption, capacity
-    acquisition, and any network call (invariant 6/10) — no external call is
-    made, so no ledger unit is billed either.
-    """
-    if not is_active_transport(context.transport_provider):
-        return (
-            ERROR_INVALID_SURFACE,
-            "transport provider is retired and not executable",
-        )
-    if context.connection_id is None or not context.connection_active:
-        return (ERROR_NO_CONNECTION, "provider connection missing or inactive")
-    if not is_endpoint_approved(context.transport_provider, context.base_url):
-        return (ERROR_INVALID_SURFACE, "provider endpoint is not approved")
-    return None
-
-
-def _build_call_request(
-    context: _ExecutionContext,
-) -> tuple[AnswerEngineRequest, dict]:
-    """The adapter request + provenance snapshot from the FROZEN policy only."""
-    request = _build_request(
-        prompt_text=context.prompt_text,
-        system_instruction=context.system_instruction,
-        transport_model=context.transport_model,
-        logical_engine=context.logical_engine,
-        measurement_mode=str(context.configuration.get("measurement_mode") or ""),
-        policy=context.policy,
-    )
-    snapshot = _build_request_snapshot(
-        logical_engine=context.logical_engine,
-        transport_provider=context.transport_provider,
-        transport_model=context.transport_model,
-        request=request,
-        configuration=context.configuration,
-        answer_instruction=context.policy.answer_instruction,
-    )
-    return request, snapshot
-
-
-def _capacity_request(context: _ExecutionContext) -> CapacityRequest:
-    """This attempt's capacity demand, keyed by its credential kind.
-
-    Funded tasks draw the funded-global + funded-account pools (the account
-    comes from the frozen funding block); BYOK draws transport + connection.
-    """
-    if context.funding is not None:
-        return CapacityRequest(
-            task_id=context.task_id,
-            attempt_number=context.attempt_number,
-            logical_engine=context.logical_engine,
-            transport_provider=context.transport_provider,
-            credential_kind=CREDENTIAL_KIND_FUNDED,
-            billing_account_id=context.funding.billing_account_id,
-        )
-    return CapacityRequest(
-        task_id=context.task_id,
-        attempt_number=context.attempt_number,
-        logical_engine=context.logical_engine,
-        transport_provider=context.transport_provider,
-        credential_kind=CREDENTIAL_KIND_BYOK,
-        connection_id=context.connection_id,
-    )
-
-
-def _capacity_wait_payload(
-    *, task_id: uuid.UUID, attempt_number: int, decision: CapacityDecision
-) -> dict:
-    """The ``task.capacity_wait`` event body: opaque ids + retry timing only.
-
-    Invariant 6 — no prompt text, no credential, no provider response. Split
-    out so the park path stays a lock/record/hand-off shell.
-    """
-    return {
-        "task_id": str(task_id),
-        "attempt": attempt_number,
-        "code": decision.code,
-        "pool_kind": decision.pool_kind,
-        "available_at": (
-            decision.available_at.isoformat()
-            if decision.available_at is not None
-            else ""
-        ),
-        "retry_after_seconds": decision.retry_after_seconds or 0.0,
-    }
-
-
-def _capacity_outcome(attempt: CallAttempt) -> CapacityOutcome:
-    """Map one finished call to its capacity release outcome.
-
-    A provider 429/rate-limit releases as ``rate_limited`` with the
-    provider-advised (untrusted, clamped downstream) Retry-After hint so every
-    drawn pool observes the shared cooldown; anything else is a plain release.
-    """
-    if attempt.succeeded:
-        return CapacityOutcome(kind=CAPACITY_OUTCOME_SUCCEEDED)
-    error = attempt.error
-    if error is not None and error.error_code == ERROR_RATE_LIMIT:
-        return CapacityOutcome(
-            kind=CAPACITY_OUTCOME_RATE_LIMITED,
-            retry_after_seconds=error.retry_after_seconds,
-        )
-    return CapacityOutcome(kind=CAPACITY_OUTCOME_FAILED)
-
-
-def _build_request_snapshot(
-    *,
-    logical_engine: str,
-    transport_provider: str,
-    transport_model: str,
-    request: AnswerEngineRequest,
-    configuration: dict,
-    answer_instruction: str,
-) -> dict:
-    """What determined the request. Proves statelessness; never the key/brand.
-
-    Records the visible prompt, the resolved model + provenance triple, the
-    neutral system instruction, locale, and the FROZEN measurement policy the
-    call executed under (output cap, timeout, retrieval, reasoning pin, and the
-    answer-shaping addendum) — enough to reproduce the call exactly. The
-    brand/competitor list and the API key are intentionally excluded
-    (invariant 6): no credential ever reaches a snapshot.
-    """
-    return {
-        "logical_engine": logical_engine,
-        "transport_provider": transport_provider,
-        "transport_model": transport_model,
-        "model": request.model,
-        "prompt": request.prompt,
-        "system_instruction": request.system_instruction,
-        "stateless": True,
-        "benchmark_mode": configuration.get("benchmark_mode", ""),
-        "measurement_mode": configuration.get("measurement_mode", ""),
-        "country_code": configuration.get("country_code", ""),
-        "language_code": configuration.get("language_code", ""),
-        "retrieval_enabled": request.retrieval_enabled,
-        "max_output_tokens": request.max_output_tokens,
-        "timeout_seconds": request.timeout_seconds,
-        "reasoning_effort": request.reasoning_effort,
-        "answer_instruction": answer_instruction,
-    }
-
-
-def _build_request(
-    *,
-    prompt_text: str,
-    system_instruction: str,
-    transport_model: str,
-    logical_engine: str,
-    measurement_mode: str,
-    policy: MeasurementModePolicy,
-) -> AnswerEngineRequest:
-    """Build the adapter request from the FROZEN policy only (invariant 9).
-
-    Every policy field is passed explicitly; a request cannot exist without a
-    frozen route policy.
-    """
-    return AnswerEngineRequest(
-        prompt=prompt_text,
-        system_instruction=system_instruction,
-        model=transport_model,
-        timeout_seconds=policy.timeout_seconds,
-        retrieval_enabled=policy.retrieval_enabled,
-        max_output_tokens=policy.max_output_tokens,
-        reasoning_effort=route_policy(
-            logical_engine, measurement_mode
-        ).reasoning_effort,
-    )
-
-
-def _serialize_search_events(response: AnswerEngineResponse) -> list[dict]:
-    return [
-        {
-            "sequence": event.sequence,
-            "query": event.query,
-            "call_id": event.call_id,
-            "call_sequence": event.call_sequence,
-            "query_sequence": event.query_sequence,
-        }
-        for event in response.search_events
-    ]
-
-
-def _serialize_citations(response: AnswerEngineResponse) -> list[dict]:
-    """One row per distinct source URL (collapse per-span duplicates).
-
-    Grounded providers cite the same source once per supported text span; the
-    UI and later scoring want one row per distinct source. Keeps the first
-    occurrence and re-numbers ``ordinal`` densely. Scoring/classification is
-    deferred to B6.
-    """
-    seen: set = set()
-    deduped: list[dict] = []
-    for citation in response.citations:
-        url = str(citation.url or "").strip()
-        key = url or (citation.domain, citation.title)
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(
-            {
-                "ordinal": len(deduped),
-                "url": citation.url,
-                "domain": citation.domain,
-                "title": citation.title,
-                "start_index": citation.start_index,
-                "end_index": citation.end_index,
-                "cited_text": citation.cited_text,
-            }
-        )
-    return deduped
-
-
-def _raw_finish_reason(response: AnswerEngineResponse) -> str | None:
-    """The provider's own finish token, or NULL when it sent none.
-
-    Never a fabricated spelling: an absent/empty provider token stays null so a
-    reader can tell "the provider said nothing" apart from a real value. The
-    canonical mapped enum lives alongside it and is what gates read.
-    """
-    return response.raw_finish_reason or None
-
-
-def _build_artifact(
-    *,
-    audit_id: uuid.UUID,
-    task_id: uuid.UUID,
-    response: AnswerEngineResponse,
-    search_events: list[dict],
-    citations: list[dict],
-) -> RawResponseArtifact:
-    """The immutable evidence row for one provider call (invariant 3).
-
-    Written once and never mutated. Usage is serialized from the TYPED contract,
-    so an unknown counter persists as null rather than a measured zero.
-    """
-    return RawResponseArtifact(
-        audit_id=audit_id,
-        task_id=task_id,
-        logical_engine=response.logical_engine,
-        transport_provider=response.transport_provider,
-        transport_model=response.transport_model,
-        answer_text=response.answer_text,
-        search_used=response.search_used,
-        search_events=search_events,
-        citations=citations,
-        provider_metadata=dict(response.provider_metadata),
-        usage=normalized_usage_dict(response.normalized_usage),
-        finish_reason=response.finish_reason,
-        raw_finish_reason=_raw_finish_reason(response),
-        latency_ms=response.latency_ms,
-    )
-
-
-def _apply_response_to_task(
-    task: AuditTask,
-    *,
-    response: AnswerEngineResponse,
-    request_snapshot: dict,
-    search_events: list[dict],
-    citations: list[dict],
-    artifact_id: uuid.UUID,
-) -> None:
-    """Project the just-persisted artifact onto the queue row (invariant 4).
-
-    A convenience denormalization pointing at ``artifact_id`` as its source; the
-    canonical finish reason is copied verbatim because gates read ONLY that
-    value, never the provider's raw token.
-    """
-    task.answer_text = response.answer_text
-    task.search_used = response.search_used
-    task.search_events = search_events
-    task.citations = citations
-    task.result_artifact_id = artifact_id
-    task.request_snapshot = request_snapshot
-    task.provider_metadata = dict(response.provider_metadata)
-    task.finish_reason = response.finish_reason
-    task.raw_finish_reason = _raw_finish_reason(response)
-    task.latency_ms = response.latency_ms
-    task.error_code = ""
-    task.error_detail = ""
-
-
-def assert_worker_pool_capacity() -> None:
-    """Fail fast at startup when the engine pool cannot cover peak demand.
-
-    Every session here is short-lived (never held across provider I/O), but a
-    batch of ``worker_max_inflight`` tasks plus their heartbeat loops can
-    check out up to ``worker_db_sessions_per_task`` connections per task at
-    once, and the sweeper/claim/audit-state paths need
-    ``operational_headroom`` more. When the configured pool
-    (``pool_size + max_overflow``) is smaller than that peak, every batch
-    queues on connection checkout (bounded by ``pool_timeout``) — so the
-    worker REFUSES to start rather than degrading silently. Raises before the
-    process loop; the fix is always a config rebalance (invariant 1).
-    """
-    capacity = settings.db_pool_size + settings.db_max_overflow
-    demand = (
-        max(1, audit_settings.worker_max_inflight)
-        * audit_settings.worker_db_sessions_per_task
-        + audit_settings.operational_headroom
-    )
-    if capacity < demand:
-        raise RuntimeError(
-            "db pool undersized for audit worker: "
-            f"db_pool_size + db_max_overflow = {capacity} < "
-            f"worker_max_inflight ({audit_settings.worker_max_inflight}) * "
-            f"worker_db_sessions_per_task "
-            f"({audit_settings.worker_db_sessions_per_task}) + "
-            f"operational_headroom ({audit_settings.operational_headroom}) = "
-            f"{demand}; raise DB_POOL_SIZE/DB_MAX_OVERFLOW or lower the "
-            "worker demand knobs"
-        )
-
-
-def _warn_if_provider_pacing_unbounded() -> None:
-    """Surface the provider-rate-limit risk of the concurrency defaults.
-
-    The sibling of ``assert_worker_pool_capacity``, for the ceiling the worker
-    does NOT control. ``worker_concurrency`` bounds in-flight tasks, but nothing here
-    bounds tokens-per-minute at the provider: with pacing off, N slots can start
-    N calls against the same transport at once. Grounded answers carry the web
-    search results back in as input (measured ~16k input tokens per Claude call),
-    so the burst is large enough to 429 on a low tier.
-
-    Deliberately a warning rather than a non-zero default interval: spacing every
-    start would serialize the pool's ramp-up and undo the throughput the
-    pipelined pump exists for. Operators who need pacing set
-    ``AUDIT_MIN_REQUEST_INTERVAL_SECONDS``; this makes the exposure visible
-    instead of leaving it to the config comment.
-    """
-    concurrency = max(1, audit_settings.worker_concurrency)
-    interval = max(0.0, audit_settings.min_request_interval_seconds)
-    if interval > 0 or concurrency <= 1:
-        return
-    logger.warning(
-        "provider request pacing is disabled; concurrent calls may hit provider "
-        "rate limits (set AUDIT_MIN_REQUEST_INTERVAL_SECONDS to spread starts)",
-        extra={
-            "worker_concurrency": concurrency,
-            "min_request_interval_seconds": interval,
-        },
+    """Compatibility seam that keeps worker-level pacing monkeypatchable."""
+    return await _support.call_provider_once(
+        adapter,
+        request,
+        timeout_seconds=timeout_seconds,
+        pace_request=pace_provider_request,
     )
 
 

@@ -312,6 +312,29 @@ async def _resolve_source[SourceT: Audit | SiteCrawl](
 # =========================================================================
 # Evidence loading (bounded, deterministic truncation order)
 # =========================================================================
+def _visibility_credits(
+    citations: list[Citation], mentions: list[CompetitorMention]
+) -> tuple[dict[uuid.UUID, int], dict[uuid.UUID, set[str]]]:
+    """Fold owned citations and competitor identities by analysis."""
+    owned_counts: dict[uuid.UUID, int] = {}
+    competitor_names: dict[uuid.UUID, set[str]] = {}
+    for citation in citations:
+        if citation.is_owned:
+            owned_counts[citation.analysis_id] = (
+                owned_counts.get(citation.analysis_id, 0) + 1
+            )
+        if citation.matched_competitor:
+            competitor_names.setdefault(citation.analysis_id, set()).add(
+                citation.matched_competitor
+            )
+    for mention in mentions:
+        if mention.competitor_name:
+            competitor_names.setdefault(mention.analysis_id, set()).add(
+                mention.competitor_name
+            )
+    return owned_counts, competitor_names
+
+
 async def _load_visibility_evidence(
     session: AsyncSession, *, workspace_id: uuid.UUID, audit: Audit
 ) -> tuple[VisibilityEvidence, MetricSnapshot | None]:
@@ -346,15 +369,6 @@ async def _load_visibility_evidence(
                 )
             ).all()
         )
-        for citation in citations:
-            if citation.is_owned:
-                owned_counts[citation.analysis_id] = (
-                    owned_counts.get(citation.analysis_id, 0) + 1
-                )
-            if citation.matched_competitor:
-                competitor_names.setdefault(citation.analysis_id, set()).add(
-                    citation.matched_competitor
-                )
         mentions = list(
             (
                 await session.scalars(
@@ -366,11 +380,7 @@ async def _load_visibility_evidence(
                 )
             ).all()
         )
-        for mention in mentions:
-            if mention.competitor_name:
-                competitor_names.setdefault(mention.analysis_id, set()).add(
-                    mention.competitor_name
-                )
+        owned_counts, competitor_names = _visibility_credits(citations, mentions)
 
     snapshots = list(
         (

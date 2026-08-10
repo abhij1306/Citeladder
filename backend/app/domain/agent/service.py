@@ -23,6 +23,7 @@ from app.core.config.agent import (
     AGENT_RESULT_VALIDATOR_VERSION,
     AGENT_TASK_POLICIES,
     TOOL_KIND_AUTOMATIC,
+    AgentTaskPolicy,
     default_agent_settings,
 )
 from app.domain.agent.context import build_agent_context
@@ -135,6 +136,44 @@ async def get_conversation(
     return row, messages
 
 
+def _new_task_run(
+    *,
+    workspace_id: uuid.UUID,
+    user_id: uuid.UUID,
+    payload: AgentTaskSubmit,
+    project: Project,
+    conversation: AgentConversation | None,
+    policy: AgentTaskPolicy,
+    idempotency_key: str,
+    fingerprint: str,
+    gateway: ModelGateway | None,
+) -> AgentTaskRun:
+    capability_snapshot = gateway.capabilities().as_dict() if gateway else {}
+    return AgentTaskRun(
+        workspace_id=workspace_id,
+        project_id=project.id,
+        user_id=user_id,
+        conversation_id=conversation.id if conversation else None,
+        parent_run_id=payload.parent_run_id,
+        idempotency_key=idempotency_key,
+        request_fingerprint=fingerprint,
+        task_type=payload.task_type,
+        objective=payload.objective.strip(),
+        requested_outputs=payload.requested_outputs or list(policy.requested_outputs),
+        task_policy_version=AGENT_POLICY_VERSION,
+        allowed_tools=list(policy.allowed_tools),
+        resource_scope=payload.resource_scope,
+        industry_pack_id=project.industry_pack_id,
+        status="validating",
+        provider_adapter=gateway.adapter_name if gateway else "deterministic",
+        endpoint_host=gateway.base_url_host if gateway else "",
+        model=gateway.model if gateway else "bounded-projection-v1",
+        capability_snapshot=capability_snapshot,
+        instruction_version=AGENT_INSTRUCTION_VERSION,
+        skill_version=AGENT_PLANNER_VERSION,
+    )
+
+
 async def submit_task(
     session: AsyncSession,
     *,
@@ -172,29 +211,16 @@ async def submit_task(
     )
     if existing is not None:
         return existing, False
-    capability_snapshot = gateway.capabilities().as_dict() if gateway else {}
-    run = AgentTaskRun(
+    run = _new_task_run(
         workspace_id=workspace_id,
-        project_id=project.id,
         user_id=user_id,
-        conversation_id=conversation.id if conversation else None,
-        parent_run_id=payload.parent_run_id,
+        payload=payload,
+        project=project,
+        conversation=conversation,
+        policy=policy,
         idempotency_key=normalized_key,
-        request_fingerprint=fingerprint,
-        task_type=payload.task_type,
-        objective=payload.objective.strip(),
-        requested_outputs=payload.requested_outputs or list(policy.requested_outputs),
-        task_policy_version=AGENT_POLICY_VERSION,
-        allowed_tools=list(policy.allowed_tools),
-        resource_scope=payload.resource_scope,
-        industry_pack_id=project.industry_pack_id,
-        status="validating",
-        provider_adapter=gateway.adapter_name if gateway else "deterministic",
-        endpoint_host=gateway.base_url_host if gateway else "",
-        model=gateway.model if gateway else "bounded-projection-v1",
-        capability_snapshot=capability_snapshot,
-        instruction_version=AGENT_INSTRUCTION_VERSION,
-        skill_version=AGENT_PLANNER_VERSION,
+        fingerprint=fingerprint,
+        gateway=gateway,
     )
     session.add(run)
     replay = await _flush_or_replay(

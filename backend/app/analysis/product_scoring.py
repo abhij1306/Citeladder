@@ -106,6 +106,47 @@ def _match_aliases(*parts: Any) -> tuple[str, ...]:
     return tuple(aliases)
 
 
+def _owned_product_aliases(item: dict[str, Any]) -> tuple[str, ...]:
+    """Combine an owned product's frozen identity and variant aliases."""
+    variants = [
+        variant for variant in (item.get("variants") or []) if isinstance(variant, dict)
+    ]
+    return _match_aliases(
+        item.get("name"),
+        item.get("sku"),
+        item.get("aliases") or [],
+        [variant.get("name") for variant in variants],
+        [variant.get("sku") for variant in variants],
+    )
+
+
+def _owned_product_entry(item: dict[str, Any]) -> ProductEntry:
+    """Build one owned-product matcher from the frozen audit catalog."""
+    attributes = dict(item.get("attributes") or {})
+    return ProductEntry(
+        id=str(item.get("id") or ""),
+        sku=str(item.get("sku") or ""),
+        name=str(item.get("name") or ""),
+        aliases=_owned_product_aliases(item),
+        price=_as_price(item.get("price")),
+        currency=str(item.get("currency") or "").strip().upper(),
+        attributes=attributes,
+        category=str(attributes.get("category") or "").strip().casefold(),
+    )
+
+
+def _competitor_product_entry(item: dict[str, Any]) -> CompetitorProductEntry:
+    """Build one competitor-product matcher from the frozen audit catalog."""
+    return CompetitorProductEntry(
+        id=str(item.get("id") or ""),
+        competitor=str(item.get("competitor_name") or ""),
+        name=str(item.get("name") or ""),
+        aliases=_match_aliases(item.get("name"), item.get("aliases") or []),
+        price=_as_price(item.get("price")),
+        currency=str(item.get("currency") or "").strip().upper(),
+    )
+
+
 @dataclass(frozen=True)
 class ProductScoringConfig:
     products: tuple[ProductEntry, ...] = field(default_factory=tuple)
@@ -128,43 +169,14 @@ class ProductScoringConfig:
         key frozen via ``project_scoring_identity`` (mirrors
         ``ScoringConfig.from_project``).
         """
-        products = []
-        for item in config.get("products") or []:
-            variants = [v for v in (item.get("variants") or []) if isinstance(v, dict)]
-            attributes = dict(item.get("attributes") or {})
-            products.append(
-                ProductEntry(
-                    id=str(item.get("id") or ""),
-                    sku=str(item.get("sku") or ""),
-                    name=str(item.get("name") or ""),
-                    aliases=_match_aliases(
-                        item.get("name"),
-                        item.get("sku"),
-                        item.get("aliases") or [],
-                        [v.get("name") for v in variants],
-                        [v.get("sku") for v in variants],
-                    ),
-                    price=_as_price(item.get("price")),
-                    currency=str(item.get("currency") or "").strip().upper(),
-                    attributes=attributes,
-                    category=str(attributes.get("category") or "").strip().casefold(),
-                )
-            )
-        competitor_products = []
-        for item in config.get("competitor_products") or []:
-            competitor_products.append(
-                CompetitorProductEntry(
-                    id=str(item.get("id") or ""),
-                    competitor=str(item.get("competitor_name") or ""),
-                    name=str(item.get("name") or ""),
-                    aliases=_match_aliases(item.get("name"), item.get("aliases") or []),
-                    price=_as_price(item.get("price")),
-                    currency=str(item.get("currency") or "").strip().upper(),
-                )
-            )
         return cls(
-            products=tuple(products),
-            competitor_products=tuple(competitor_products),
+            products=tuple(
+                _owned_product_entry(item) for item in config.get("products") or []
+            ),
+            competitor_products=tuple(
+                _competitor_product_entry(item)
+                for item in config.get("competitor_products") or []
+            ),
             owned_domains=tuple(
                 str(domain) for domain in (config.get("owned_domains") or [])
             ),

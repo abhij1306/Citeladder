@@ -90,6 +90,164 @@ def _clean(value: object, *, max_chars: int) -> str:
     return text[:max_chars]
 
 
+type _ContextRow = tuple[SitePageAnalysis, SiteFetchArtifact, SiteUrl]
+
+
+@dataclass(frozen=True)
+class _ContextProjection:
+    pages: list[dict]
+    site_url_ids: list[str]
+    artifact_ids: list[str]
+    content_hashes: list[str]
+    fetched_ats: list[str | None]
+    extractor_version: str
+    analyzer_version: str
+    total_chars: int
+
+
+def _is_homepage(site_url: SiteUrl, *, root_url: str, root_host: str) -> bool:
+    normalized = site_url.normalized_url
+    if root_url and normalized.rstrip("/") == root_url.rstrip("/"):
+        return True
+    if not root_host:
+        return False
+    stripped = re.sub(r"^https?://", "", normalized).rstrip("/")
+    return stripped == root_host
+
+
+def _context_sort_key(
+    entry: _ContextRow,
+    *,
+    root_url: str,
+    root_host: str,
+    monitored_ids: set[uuid.UUID],
+) -> tuple[int, str, str]:
+    _analysis, _artifact, site_url = entry
+    if _is_homepage(site_url, root_url=root_url, root_host=root_host):
+        tier = 0
+    elif site_url.id in monitored_ids:
+        tier = 1
+    else:
+        tier = 2
+    return tier, site_url.normalized_url, str(site_url.id)
+
+
+def _ordered_usable_rows(
+    rows: list[_ContextRow],
+    *,
+    root_url: str,
+    root_host: str,
+    monitored_ids: set[uuid.UUID],
+) -> list[_ContextRow]:
+    """Filter and deterministically prioritize persisted page evidence."""
+    usable = [entry for entry in rows if entry[1].normalized_facts]
+    usable.sort(
+        key=lambda entry: _context_sort_key(
+            entry,
+            root_url=root_url,
+            root_host=root_host,
+            monitored_ids=monitored_ids,
+        )
+    )
+    return usable[:CONTENT_CONTEXT_MAX_PAGES]
+
+
+def _page_block(artifact: SiteFetchArtifact, site_url: SiteUrl) -> dict:
+    """Project one artifact into the allowlisted, field-bounded page shape."""
+    facts = artifact.normalized_facts or {}
+    headings = facts.get("headings") or {}
+    body = facts.get("body") or {}
+    return {
+        "final_url": _clean(
+            artifact.final_url or site_url.normalized_url,
+            max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS,
+        ),
+        "title": _clean(facts.get("title"), max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS),
+        "meta_description": _clean(
+            facts.get("meta_description"),
+            max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS,
+        ),
+        "h1": [
+            _clean(heading, max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS)
+            for heading in (headings.get("h1_texts") or [])[:CONTEXT_MAX_H1]
+        ],
+        "h2": [
+            _clean(heading, max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS)
+            for heading in (headings.get("h2_texts") or [])[:CONTEXT_MAX_H2]
+        ],
+        "body_text": _clean(
+            body.get("text"), max_chars=CONTENT_CONTEXT_PER_PAGE_BODY_CHARS
+        ),
+    }
+
+
+def _page_char_count(page: dict) -> int:
+    return sum(
+        len(value) if isinstance(value, str) else sum(len(item) for item in value)
+        for value in page.values()
+    )
+
+
+def _bounded_projection(rows: list[_ContextRow]) -> _ContextProjection:
+    """Apply the exact total budget and collect matching page provenance."""
+    pages: list[dict] = []
+    site_url_ids: list[str] = []
+    artifact_ids: list[str] = []
+    content_hashes: list[str] = []
+    fetched_ats: list[str | None] = []
+    extractor_version = ""
+    analyzer_version = ""
+    total_chars = 0
+    for analysis, artifact, site_url in rows:
+        page = _page_block(artifact, site_url)
+        page_chars = _page_char_count(page)
+        if total_chars + page_chars > CONTENT_CONTEXT_MAX_CHARS:
+            break
+        total_chars += page_chars
+        pages.append(page)
+        site_url_ids.append(str(site_url.id))
+        artifact_ids.append(str(artifact.id))
+        content_hashes.append(artifact.content_hash or "")
+        fetched_at = artifact.fetched_at
+        fetched_ats.append(fetched_at.isoformat() if fetched_at else None)
+        extractor_version = extractor_version or artifact.extractor_version
+        analyzer_version = analyzer_version or analysis.analyzer_version
+    return _ContextProjection(
+        pages=pages,
+        site_url_ids=site_url_ids,
+        artifact_ids=artifact_ids,
+        content_hashes=content_hashes,
+        fetched_ats=fetched_ats,
+        extractor_version=extractor_version,
+        analyzer_version=analyzer_version,
+        total_chars=total_chars,
+    )
+
+
+def _included_context(
+    crawl: SiteCrawl, projection: _ContextProjection
+) -> WebsiteContext:
+    summary = {
+        "crawl_id": str(crawl.id),
+        "crawl_completed_at": (
+            crawl.completed_at.isoformat() if crawl.completed_at else None
+        ),
+        "extractor_version": projection.extractor_version,
+        "analyzer_version": projection.analyzer_version,
+        "page_count": len(projection.pages),
+        "char_count": projection.total_chars,
+        "site_url_ids": projection.site_url_ids,
+        "artifact_ids": projection.artifact_ids,
+        "content_hashes": projection.content_hashes,
+        "fetched_at": projection.fetched_ats,
+    }
+    return WebsiteContext(
+        status=CONTEXT_STATUS_INCLUDED,
+        pages=projection.pages,
+        summary=summary,
+    )
+
+
 async def _newest_usable_crawl(
     session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
 ) -> SiteCrawl | None:
@@ -150,14 +308,6 @@ async def build_website_context(
             .where(_facts_usable())
         )
     ).all()
-    usable = [
-        (analysis, artifact, site_url)
-        for analysis, artifact, site_url in rows
-        if artifact.normalized_facts
-    ]
-    if not usable:
-        return WebsiteContext(status=CONTEXT_STATUS_UNAVAILABLE)
-
     # Active monitored membership for this project (inactive rows ignored).
     monitored_ids = set(
         (
@@ -168,98 +318,13 @@ async def build_website_context(
             )
         ).all()
     )
-
-    def _is_homepage(site_url: SiteUrl) -> bool:
-        normalized = site_url.normalized_url
-        if root_url and normalized.rstrip("/") == root_url.rstrip("/"):
-            return True
-        if root_host:
-            stripped = re.sub(r"^https?://", "", normalized).rstrip("/")
-            return stripped == root_host
-        return False
-
-    def _sort_key(entry: tuple) -> tuple:
-        _analysis, _artifact, site_url = entry
-        if _is_homepage(site_url):
-            tier = 0
-        elif site_url.id in monitored_ids:
-            tier = 1
-        else:
-            tier = 2
-        # Ties broken by normalized_url then id — fully deterministic.
-        return (tier, site_url.normalized_url, str(site_url.id))
-
-    usable.sort(key=_sort_key)
-    usable = usable[:CONTENT_CONTEXT_MAX_PAGES]
-
-    pages: list[dict] = []
-    site_url_ids: list[str] = []
-    artifact_ids: list[str] = []
-    content_hashes: list[str] = []
-    fetched_ats: list[str | None] = []
-    extractor_version = ""
-    analyzer_version = ""
-    total_chars = 0
-    for analysis, artifact, site_url in usable:
-        facts = artifact.normalized_facts or {}
-        headings = facts.get("headings") or {}
-        body = facts.get("body") or {}
-        page = {
-            "final_url": _clean(
-                artifact.final_url or site_url.normalized_url,
-                max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS,
-            ),
-            "title": _clean(
-                facts.get("title"), max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS
-            ),
-            "meta_description": _clean(
-                facts.get("meta_description"),
-                max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS,
-            ),
-            "h1": [
-                _clean(h, max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS)
-                for h in (headings.get("h1_texts") or [])[:CONTEXT_MAX_H1]
-            ],
-            "h2": [
-                _clean(h, max_chars=CONTENT_CONTEXT_FIELD_MAX_CHARS)
-                for h in (headings.get("h2_texts") or [])[:CONTEXT_MAX_H2]
-            ],
-            "body_text": _clean(
-                body.get("text"), max_chars=CONTENT_CONTEXT_PER_PAGE_BODY_CHARS
-            ),
-        }
-        page_chars = sum(
-            len(v) if isinstance(v, str) else sum(len(s) for s in v)
-            for v in page.values()
-        )
-        # Total budget: drop trailing pages (deterministic order) once hit.
-        if total_chars + page_chars > CONTENT_CONTEXT_MAX_CHARS:
-            break
-        total_chars += page_chars
-        pages.append(page)
-        site_url_ids.append(str(site_url.id))
-        artifact_ids.append(str(artifact.id))
-        content_hashes.append(artifact.content_hash or "")
-        fetched_at = artifact.fetched_at
-        fetched_ats.append(fetched_at.isoformat() if fetched_at else None)
-        extractor_version = extractor_version or artifact.extractor_version
-        analyzer_version = analyzer_version or analysis.analyzer_version
-
-    if not pages:
+    ordered_rows = _ordered_usable_rows(
+        [(analysis, artifact, site_url) for analysis, artifact, site_url in rows],
+        root_url=root_url,
+        root_host=root_host,
+        monitored_ids=monitored_ids,
+    )
+    projection = _bounded_projection(ordered_rows)
+    if not projection.pages:
         return WebsiteContext(status=CONTEXT_STATUS_UNAVAILABLE)
-
-    summary = {
-        "crawl_id": str(crawl.id),
-        "crawl_completed_at": (
-            crawl.completed_at.isoformat() if crawl.completed_at else None
-        ),
-        "extractor_version": extractor_version,
-        "analyzer_version": analyzer_version,
-        "page_count": len(pages),
-        "char_count": total_chars,
-        "site_url_ids": site_url_ids,
-        "artifact_ids": artifact_ids,
-        "content_hashes": content_hashes,
-        "fetched_at": fetched_ats,
-    }
-    return WebsiteContext(status=CONTEXT_STATUS_INCLUDED, pages=pages, summary=summary)
+    return _included_context(crawl, projection)

@@ -514,31 +514,20 @@ def _body_text(root: Any, *, max_chars: int) -> dict[str, Any]:
     return {"text": text, "word_count": word_count}
 
 
-def _links_and_assets(
+def _is_internal_asset(url: str, *, base_host: str) -> bool:
+    try:
+        host = urlsplit(url).hostname
+    except Exception:
+        return False
+    if host is None:
+        return True
+    return bool(base_host) and host.lower() == base_host.lower()
+
+
+def _anchor_assets(
     root: Any, *, base_host: str, max_links: int
-) -> dict[str, list[dict]]:
-    """Collect bounded anchors + img/script/stylesheet assets in document order.
-
-    Each entry carries the raw ``url`` (bounded), the ``kind``, an
-    ``is_internal`` heuristic (same host as the final URL when both are
-    absolute), and, for anchors, the ``rel`` + bounded anchor text. Bounded by
-    ``max_links`` PER kind so the persisted facts stay small.
-    """
+) -> list[dict[str, Any]]:
     anchors: list[dict] = []
-    images: list[dict] = []
-    scripts: list[dict] = []
-    stylesheets: list[dict] = []
-
-    def _internal(url: str) -> bool:
-        try:
-            host = urlsplit(url).hostname
-        except Exception:
-            return False
-        if host is None:
-            # A relative URL is same-origin by definition.
-            return True
-        return bool(base_host) and host.lower() == base_host.lower()
-
     try:
         for anchor in root.iter("a"):
             if len(anchors) >= max_links:
@@ -550,48 +539,49 @@ def _links_and_assets(
                 {
                     "kind": LINK_KIND_ANCHOR,
                     "url": href[:_MAX_URL_CHARS],
-                    "is_internal": _internal(href),
+                    "is_internal": _is_internal_asset(href, base_host=base_host),
                     "rel": (anchor.get("rel") or "")[:128],
                     "anchor_text": _text(anchor)[:_MAX_ANCHOR_TEXT_CHARS],
                 }
             )
     except Exception:
         pass
+    return anchors
 
+
+def _simple_assets(
+    root: Any,
+    *,
+    tag: str,
+    attribute: str,
+    kind: str,
+    base_host: str,
+    max_links: int,
+) -> list[dict[str, Any]]:
+    assets: list[dict[str, Any]] = []
     try:
-        for img in root.iter("img"):
-            if len(images) >= max_links:
+        for node in root.iter(tag):
+            if len(assets) >= max_links:
                 break
-            src = (img.get("src") or "").strip()
-            if not src:
+            url = (node.get(attribute) or "").strip()
+            if not url:
                 continue
-            images.append(
+            assets.append(
                 {
-                    "kind": LINK_KIND_IMAGE,
-                    "url": src[:_MAX_URL_CHARS],
-                    "is_internal": _internal(src),
+                    "kind": kind,
+                    "url": url[:_MAX_URL_CHARS],
+                    "is_internal": _is_internal_asset(url, base_host=base_host),
                 }
             )
     except Exception:
         pass
+    return assets
 
-    try:
-        for script in root.iter("script"):
-            if len(scripts) >= max_links:
-                break
-            src = (script.get("src") or "").strip()
-            if not src:
-                continue
-            scripts.append(
-                {
-                    "kind": LINK_KIND_SCRIPT,
-                    "url": src[:_MAX_URL_CHARS],
-                    "is_internal": _internal(src),
-                }
-            )
-    except Exception:
-        pass
 
+def _stylesheet_assets(
+    root: Any, *, base_host: str, max_links: int
+) -> list[dict[str, Any]]:
+    stylesheets: list[dict[str, Any]] = []
     try:
         for link in root.iter("link"):
             if len(stylesheets) >= max_links:
@@ -606,17 +596,43 @@ def _links_and_assets(
                 {
                     "kind": LINK_KIND_STYLESHEET,
                     "url": href[:_MAX_URL_CHARS],
-                    "is_internal": _internal(href),
+                    "is_internal": _is_internal_asset(href, base_host=base_host),
                 }
             )
     except Exception:
         pass
+    return stylesheets
+
+
+def _links_and_assets(
+    root: Any, *, base_host: str, max_links: int
+) -> dict[str, list[dict]]:
+    """Collect bounded anchors + assets independently in document order.
+
+    Every kind retains its own partial-facts boundary and ``max_links`` cap.
+    """
 
     return {
-        "anchors": anchors,
-        "images": images,
-        "scripts": scripts,
-        "stylesheets": stylesheets,
+        "anchors": _anchor_assets(root, base_host=base_host, max_links=max_links),
+        "images": _simple_assets(
+            root,
+            tag="img",
+            attribute="src",
+            kind=LINK_KIND_IMAGE,
+            base_host=base_host,
+            max_links=max_links,
+        ),
+        "scripts": _simple_assets(
+            root,
+            tag="script",
+            attribute="src",
+            kind=LINK_KIND_SCRIPT,
+            base_host=base_host,
+            max_links=max_links,
+        ),
+        "stylesheets": _stylesheet_assets(
+            root, base_host=base_host, max_links=max_links
+        ),
     }
 
 
@@ -701,17 +717,9 @@ def _delivery_facts(
     }
 
 
-def _author_and_dates(
-    root: Any, structured_data: dict[str, Any], article_meta: dict[str, str]
-) -> tuple[str, dict[str, str]]:
-    """Author byline + published/modified dates (bounded, precedence-ordered).
-
-    Author precedence: JSON-LD ``author`` -> ``<meta name="author">`` ->
-    ``article:author``. Date precedence: JSON-LD
-    ``datePublished``/``dateModified`` -> ``article:published_time`` /
-    ``article:modified_time`` -> the first ``<time datetime>``. The first
-    non-empty value wins at each level (deterministic).
-    """
+def _structured_author_and_dates(
+    structured_data: dict[str, Any],
+) -> tuple[str, str, str]:
     author = ""
     published = ""
     modified = ""
@@ -722,23 +730,40 @@ def _author_and_dates(
             published = str(block.get("date_published") or "").strip()
         if not modified:
             modified = str(block.get("date_modified") or "").strip()
-    if not author:
-        author = _meta_content(root, name="author").strip()
-    if not author:
-        author = (article_meta.get("article:author") or "").strip()
-    if not published:
-        published = (article_meta.get("article:published_time") or "").strip()
-    if not modified:
-        modified = (article_meta.get("article:modified_time") or "").strip()
-    if not published:
-        try:
-            for node in root.xpath("//time[@datetime]"):
-                candidate = (node.get("datetime") or "").strip()
-                if candidate:
-                    published = candidate
-                    break
-        except Exception:
-            pass
+    return author, published, modified
+
+
+def _first_declared_time(root: Any) -> str:
+    try:
+        for node in root.xpath("//time[@datetime]"):
+            candidate = (node.get("datetime") or "").strip()
+            if candidate:
+                return candidate
+    except Exception:
+        pass
+    return ""
+
+
+def _author_and_dates(
+    root: Any, structured_data: dict[str, Any], article_meta: dict[str, str]
+) -> tuple[str, dict[str, str]]:
+    """Author byline + published/modified dates (bounded, precedence-ordered)."""
+    structured_author, structured_published, structured_modified = (
+        _structured_author_and_dates(structured_data)
+    )
+    author = (
+        structured_author
+        or _meta_content(root, name="author").strip()
+        or (article_meta.get("article:author") or "").strip()
+    )
+    published = (
+        structured_published
+        or (article_meta.get("article:published_time") or "").strip()
+        or _first_declared_time(root)
+    )
+    modified = (
+        structured_modified or (article_meta.get("article:modified_time") or "").strip()
+    )
     return (
         author[:_MAX_AUTHOR_CHARS],
         {
