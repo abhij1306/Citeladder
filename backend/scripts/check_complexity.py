@@ -322,7 +322,10 @@ def policy_at_revision(base_revision: str) -> dict[str, Any] | None:
         check=False,
     )
     header, separator, payload = result.stdout.partition(b"\n")
-    if result.returncode != 0 or header.endswith(b" missing"):
+    if result.returncode != 0:
+        detail = result.stderr.decode("utf-8", errors="replace").strip()
+        raise PolicyError(f"could not read base policy from Git: {detail}")
+    if header.endswith(b" missing"):
         return None
     header_parts = header.split()
     if not separator or len(header_parts) != 3 or header_parts[1] != b"blob":

@@ -288,6 +288,23 @@ def test_policy_at_revision_rejects_unknown_revision(
         check_complexity.policy_at_revision("missing")
 
 
+def test_policy_at_revision_fails_closed_when_git_cannot_read_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = [
+        subprocess.CompletedProcess([], 0, b"a" * 40 + b" commit 1\n", b""),
+        subprocess.CompletedProcess([], 128, b"", b"fatal: object read failed"),
+    ]
+    monkeypatch.setattr(
+        check_complexity.subprocess,
+        "run",
+        lambda *args, **kwargs: responses.pop(0),
+    )
+
+    with pytest.raises(check_complexity.PolicyError, match="fatal: object read failed"):
+        check_complexity.policy_at_revision("HEAD")
+
+
 def test_policy_at_revision_rejects_unsafe_revision_before_git(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -309,6 +326,32 @@ def test_main_checks_measurements_and_bootstrap_diff(
 
     assert check_complexity.main(["--check-policy-diff", "HEAD"]) == 0
     assert "complexity policy ok" in capsys.readouterr().out
+
+
+def test_main_rejects_policy_relaxation_from_base(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    current = _policy()
+    base = _policy()
+    current["defaults"]["max_function_cc"] = 13
+    monkeypatch.setattr(check_complexity, "load_policy", lambda: current)
+    monkeypatch.setattr(check_complexity, "collect", lambda **kwargs: _measurements())
+    monkeypatch.setattr(check_complexity, "policy_at_revision", lambda revision: base)
+
+    assert check_complexity.main(["--check-policy-diff", "HEAD"]) == 1
+    assert "default max_function_cc increased 12 -> 13" in capsys.readouterr().err
+
+
+def test_main_reports_policy_load_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail_load() -> dict:
+        raise check_complexity.PolicyError("invalid policy fixture")
+
+    monkeypatch.setattr(check_complexity, "load_policy", fail_load)
+
+    assert check_complexity.main([]) == 1
+    assert "complexity policy error: invalid policy fixture" in capsys.readouterr().err
 
 
 def test_main_returns_failure_for_policy_violation(

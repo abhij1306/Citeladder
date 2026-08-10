@@ -294,7 +294,7 @@ decisions. No generated output becomes a fact and no correction is overwritten.
 
 For each branch, record exact results for formatting, Ruff, mypy, complexity policy, frontend
 format/lint/type/policy/contract/build checks, documentation and industry-pack validation,
-from-zero migration verification, Compose rebuild/smoke checks, and CI suites. Tighten the
+from-zero migration verification, Compose rebuild/smoke checks, and CI suites.
 Complexity ceilings may only tighten or disappear; never add or raise an exception to admit a
 regression.
 
