@@ -16,14 +16,15 @@ from __future__ import annotations
 
 import time
 import uuid
+from typing import Any
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analysis.site_health.page_kinds import classify
+from app.analysis.site_health.page_kinds import PageKindAssessment, classify
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import RuleEvaluation, evaluate_all
-from app.analysis.site_health.scoring import score_analysis
+from app.analysis.site_health.scoring import AnalysisScores, score_analysis
 from app.connectors.web_evidence.fetcher import FetchError, FetchRequest
 from app.core.config.site_health import (
     ANALYZER_VERSION,
@@ -504,8 +505,8 @@ class AnalyzePhaseMixin(PhaseSupport):
         *,
         crawl: SiteCrawl,
         task: SiteCrawlTask,
-        facts: dict,
-    ):
+        facts: dict[str, Any],
+    ) -> tuple[PageKindAssessment, list[RuleEvaluation], AnalysisScores]:
         """Classify and score a shallow evaluation-only copy of fetched facts."""
         # Evaluation-time enrichment goes onto a SHALLOW COPY, never the facts
         # dict the caller handed ``_write_artifact``: that dict IS the artifact's
@@ -597,9 +598,9 @@ class AnalyzePhaseMixin(PhaseSupport):
         crawl: SiteCrawl,
         site_url_id: uuid.UUID,
         artifact_id: uuid.UUID,
-        assessment,
-        scores,
-        role: dict,
+        assessment: PageKindAssessment,
+        scores: AnalysisScores,
+        role: dict[str, Any],
     ) -> SitePageAnalysis:
         """Build the immutable analysis row before it becomes current."""
         return SitePageAnalysis(

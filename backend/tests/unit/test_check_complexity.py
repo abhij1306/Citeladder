@@ -243,9 +243,7 @@ def test_policy_diff_allows_only_reductions_and_removals() -> None:
             "new function exception is forbidden",
         ),
         (
-            lambda policy: policy["exceptions"]["modules"].update(
-                {"app/new.py": 900}
-            ),
+            lambda policy: policy["exceptions"]["modules"].update({"app/new.py": 900}),
             "new module exception is forbidden",
         ),
     ],
@@ -294,9 +292,7 @@ def test_main_checks_measurements_and_bootstrap_diff(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(check_complexity, "load_policy", _policy)
-    monkeypatch.setattr(
-        check_complexity, "collect", lambda **kwargs: _measurements()
-    )
+    monkeypatch.setattr(check_complexity, "collect", lambda **kwargs: _measurements())
     monkeypatch.setattr(check_complexity, "policy_at_revision", lambda revision: None)
 
     assert check_complexity.main(["--check-policy-diff", "HEAD"]) == 0

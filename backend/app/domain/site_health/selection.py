@@ -454,9 +454,7 @@ async def _reconcile_active_crawl_tasks(
 
     removed_site_urls = dict(site_urls)
     missing_removed_ids = [
-        site_url_id
-        for site_url_id in removed_ids
-        if site_url_id not in site_urls
+        site_url_id for site_url_id in removed_ids if site_url_id not in site_urls
     ]
     if missing_removed_ids:
         removed_site_urls.update(

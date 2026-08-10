@@ -301,7 +301,14 @@ async def test_advanced_manual_phase_parks_without_terminal_side_effects(
         crawl.configuration = {"advanced_controls_enabled": True}
         crawl.discovery_status = DISCOVERY_STATUS_RUNNING
         crawl.discovered_url_count = 1
-        phase_run = SiteCrawlPhaseRun(workspace_id=seed.workspace_id, crawl_id=seed.crawl_id, phase=PHASE_DISCOVERY, ordinal=1, status=PHASE_RUN_RUNNING, requested_count=1)
+        phase_run = SiteCrawlPhaseRun(
+            workspace_id=seed.workspace_id,
+            crawl_id=seed.crawl_id,
+            phase=PHASE_DISCOVERY,
+            ordinal=1,
+            status=PHASE_RUN_RUNNING,
+            requested_count=1,
+        )
         session.add(phase_run)
         await session.flush()
         task.phase_run_id = phase_run.id
@@ -318,8 +325,23 @@ async def test_advanced_manual_phase_parks_without_terminal_side_effects(
         assert crawl is not None and crawl.status == CRAWL_STATUS_PAUSED
         assert crawl.discovery_status == DISCOVERY_STATUS_STOPPED
         assert phase_run is not None and phase_run.status == PHASE_RUN_COMPLETED
-        assert await session.scalar(select(SiteHealthSnapshot.id).where(SiteHealthSnapshot.crawl_id == seed.crawl_id)) is None
-        assert await session.scalar(select(SiteCrawlEvent.id).where(SiteCrawlEvent.crawl_id == seed.crawl_id, SiteCrawlEvent.event_type == EVENT_CRAWL_COMPLETED)) is None
+        assert (
+            await session.scalar(
+                select(SiteHealthSnapshot.id).where(
+                    SiteHealthSnapshot.crawl_id == seed.crawl_id
+                )
+            )
+            is None
+        )
+        assert (
+            await session.scalar(
+                select(SiteCrawlEvent.id).where(
+                    SiteCrawlEvent.crawl_id == seed.crawl_id,
+                    SiteCrawlEvent.event_type == EVENT_CRAWL_COMPLETED,
+                )
+            )
+            is None
+        )
         assert await session.scalar(select(AnalyticsTask.id)) is None
 
 

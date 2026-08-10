@@ -193,6 +193,13 @@ describe('toReplacePayload (client claims no authority)', () => {
     expect(payload.site_url_ids).toEqual([A, B].sort());
     expect(payload.expected_selection_version).toBe(9);
   });
+
+  it('uses locale-independent machine ordering for deltas and payloads', () => {
+    let s = initStagedSelection(committed([], 1));
+    s = setManyStaged(s, ['ä-id', 'z-id', 'A-id'], true);
+    expect(selectionDelta(s).added).toEqual(['A-id', 'z-id', 'ä-id']);
+    expect(toReplacePayload(s).site_url_ids).toEqual(['A-id', 'z-id', 'ä-id']);
+  });
 });
 
 describe('rebaseOnServer (stale-revision recovery)', () => {

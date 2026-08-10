@@ -276,9 +276,7 @@ def _a1_dataset_rows(
     ]
 
 
-def _a1_totals(
-    rows: Sequence[IntegrationMetricRow], currency: str
-) -> dict[str, Any]:
+def _a1_totals(rows: Sequence[IntegrationMetricRow], currency: str) -> dict[str, Any]:
     """Compute source/medium A1 totals for one currency."""
     return _metric_set(
         currency=currency,
@@ -395,12 +393,8 @@ def _available_a1_row(
     source_medium_rows = _a1_dataset_rows(
         partition, DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY
     )
-    primary_rows = _a1_dataset_rows(
-        partition, DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
-    )
-    fallback_rows = _a1_dataset_rows(
-        partition, DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY
-    )
+    primary_rows = _a1_dataset_rows(partition, DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY)
+    fallback_rows = _a1_dataset_rows(partition, DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY)
     reduced = bool(fallback_rows)
     return (
         {

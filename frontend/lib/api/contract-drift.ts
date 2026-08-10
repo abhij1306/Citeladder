@@ -291,6 +291,12 @@ export type ContractDiffResult = {
   failures: string[];
 };
 
+function compareMachineKeys(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 /** Diff every mapped schema against the spec. Pure — testable offline. */
 export function diffContract(spec: OpenApiSpec): ContractDiffResult {
   const drifts: ContractDrift[] = [];
@@ -311,9 +317,7 @@ export function diffContract(spec: OpenApiSpec): ContractDiffResult {
     }
     const declared = new Set(keys.declared);
     const missing = keys.required.filter((key) => !properties.has(key));
-    const additive = [...properties]
-      .filter((key) => !declared.has(key))
-      .sort((a, b) => a.localeCompare(b));
+    const additive = [...properties].filter((key) => !declared.has(key)).sort(compareMachineKeys);
     if (missing.length > 0 || additive.length > 0) {
       drifts.push({ schema: name, component, missing, additive });
     }

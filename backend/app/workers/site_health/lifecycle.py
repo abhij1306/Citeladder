@@ -171,9 +171,7 @@ class _TaskSummary:
     @property
     def all_drained(self) -> bool:
         return not (
-            self.discover_remaining
-            or self.analyze_remaining
-            or self.link_remaining
+            self.discover_remaining or self.analyze_remaining or self.link_remaining
         )
 
 
@@ -182,15 +180,11 @@ def _reconcile_discovery_state(
 ) -> tuple[bool, bool]:
     """Progressively terminalize discovery and return failure classifications."""
     fully_failed = crawl.discovered_url_count == 0
-    discovery_partial = (
-        crawl.discovered_url_count > 0 and summary.discover_failed > 0
-    )
+    discovery_partial = crawl.discovered_url_count > 0 and summary.discover_failed > 0
     if summary.discover_remaining != 0:
         return fully_failed, discovery_partial
     if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
-        status = (
-            DISCOVERY_STATUS_FAILED if fully_failed else DISCOVERY_STATUS_COMPLETED
-        )
+        status = DISCOVERY_STATUS_FAILED if fully_failed else DISCOVERY_STATUS_COMPLETED
         apply_discovery_status(crawl, status)
     crawl.inventory_complete = not fully_failed
     return fully_failed, discovery_partial
@@ -426,9 +420,7 @@ class CrawlLifecycle:
 
             counts = await self._task_counts(session, crawl_id)
             summary = _TaskSummary.from_counts(counts)
-            await self._refresh_derived_counters(
-                session, crawl=crawl, summary=summary
-            )
+            await self._refresh_derived_counters(session, crawl=crawl, summary=summary)
 
             if await self._reconcile_advanced_phase_runs(
                 session, crawl=crawl, counts=counts
@@ -436,9 +428,7 @@ class CrawlLifecycle:
                 await session.commit()
                 return
 
-            fully_failed, discovery_partial = _reconcile_discovery_state(
-                crawl, summary
-            )
+            fully_failed, discovery_partial = _reconcile_discovery_state(crawl, summary)
             _start_planned_analysis(crawl, analyze_total=summary.analyze_total)
             if not summary.all_drained:
                 await session.commit()

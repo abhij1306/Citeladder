@@ -299,6 +299,7 @@ def test_pearson_perfect_and_negative_and_zero_variance() -> None:
     # Zero variance on either axis: undefined -> None, never a number.
     assert pearson_coefficient([1, 1, 1], [2, 4, 6]) is None
     assert pearson_coefficient([1, 2, 3], [5, 5, 5]) is None
+    assert pearson_coefficient([1, 1 + 1e-8, 1 + 2e-8], [2, 4, 6]) is None
     assert pearson_coefficient([], []) is None
     with pytest.raises(ValueError, match="equal lengths"):
         pearson_coefficient([1, 2], [1])

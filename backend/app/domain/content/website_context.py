@@ -296,18 +296,17 @@ async def build_website_context(
     root_host = (profile.root_host if profile else "") or ""
 
     # All analysed pages of the crawl with their artifacts + URL identities.
-    rows = (
-        await session.execute(
-            select(SitePageAnalysis, SiteFetchArtifact, SiteUrl)
-            .join(
-                SiteFetchArtifact,
-                SiteFetchArtifact.id == SitePageAnalysis.artifact_id,
-            )
-            .join(SiteUrl, SiteUrl.id == SitePageAnalysis.site_url_id)
-            .where(SitePageAnalysis.crawl_id == crawl.id)
-            .where(_facts_usable())
+    analysis_rows = await session.execute(
+        select(SitePageAnalysis, SiteFetchArtifact, SiteUrl)
+        .join(
+            SiteFetchArtifact,
+            SiteFetchArtifact.id == SitePageAnalysis.artifact_id,
         )
-    ).all()
+        .join(SiteUrl, SiteUrl.id == SitePageAnalysis.site_url_id)
+        .where(SitePageAnalysis.crawl_id == crawl.id)
+        .where(_facts_usable())
+    )
+    rows = analysis_rows.tuples().all()
     # Active monitored membership for this project (inactive rows ignored).
     monitored_ids = set(
         (
@@ -319,7 +318,7 @@ async def build_website_context(
         ).all()
     )
     ordered_rows = _ordered_usable_rows(
-        [(analysis, artifact, site_url) for analysis, artifact, site_url in rows],
+        list(rows),
         root_url=root_url,
         root_host=root_host,
         monitored_ids=monitored_ids,

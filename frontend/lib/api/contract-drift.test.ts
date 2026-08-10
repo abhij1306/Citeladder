@@ -102,6 +102,18 @@ describe('diffContract', () => {
     expect(result.warnings[0]).toContain('brand_new_field');
   });
 
+  it('orders additive machine keys independently of the runtime locale', () => {
+    const auditKeys = declaredKeysFor('auditSchema');
+    const properties = Object.fromEntries(
+      [...(auditKeys?.declared ?? []), 'ä_field', 'z_field', 'A_field'].map((key) => [key, {}]),
+    );
+    const result = diffContract(
+      specWith({ ...realComponentsExcept(['AuditResponse']), AuditResponse: { properties } }),
+    );
+    const drift = result.drifts.find((entry) => entry.schema === 'auditSchema');
+    expect(drift?.additive).toEqual(['A_field', 'z_field', 'ä_field']);
+  });
+
   it('does NOT fail when an absent-tolerant (defaulted) field is missing', () => {
     const auditKeys = declaredKeysFor('auditSchema');
     const properties = Object.fromEntries(

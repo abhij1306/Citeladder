@@ -626,9 +626,7 @@ def detect_product_rank(answer_text: str, match_offset: int) -> int | None:
     return None
 
 
-# --------------------------------------------------------------------------
 # Per-execution scoring + run aggregation
-# --------------------------------------------------------------------------
 def _entry_signals(
     *,
     entry: ProductEntry | CompetitorProductEntry,
@@ -971,10 +969,12 @@ def _product_mentions(
     return mentions
 
 
-def _rank_metrics(rows: list[dict[str, Any]]) -> tuple[list[Any], dict[str, int]]:
+def _rank_metrics(rows: list[dict[str, Any]]) -> tuple[list[int], dict[str, int]]:
     """Compute rank values and the complete deterministic bucket distribution."""
-    ranks = [
-        row["rank_position"] for row in rows if row.get("rank_position") is not None
+    ranks: list[int] = [
+        cast(int, row["rank_position"])
+        for row in rows
+        if row.get("rank_position") is not None
     ]
     distribution = {label: 0 for label, _, _ in PRODUCT_RANK_BUCKETS}
     for rank in ranks:

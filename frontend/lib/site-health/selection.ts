@@ -36,6 +36,12 @@ export type StagedSelection = {
   readonly staged: ReadonlySet<string>;
 };
 
+function compareMachineIds(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 /** Additions/removals of the staged set relative to the committed baseline. */
 export type SelectionDelta = {
   readonly added: readonly string[];
@@ -138,8 +144,8 @@ export function selectionDelta(selection: StagedSelection): SelectionDelta {
   for (const id of selection.committed.siteUrlIds) {
     if (!selection.staged.has(id)) removed.push(id);
   }
-  added.sort((a, b) => a.localeCompare(b));
-  removed.sort((a, b) => a.localeCompare(b));
+  added.sort(compareMachineIds);
+  removed.sort(compareMachineIds);
   return { added, removed, dirty: added.length > 0 || removed.length > 0 };
 }
 
@@ -173,7 +179,7 @@ export function toReplacePayload(selection: StagedSelection): {
   expected_selection_version: number;
 } {
   return {
-    site_url_ids: Array.from(selection.staged).sort((a, b) => a.localeCompare(b)),
+    site_url_ids: Array.from(selection.staged).sort(compareMachineIds),
     expected_selection_version: selection.committed.version,
   };
 }

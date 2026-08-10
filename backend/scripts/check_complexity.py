@@ -129,9 +129,7 @@ def validate_policy(raw: object) -> dict[str, Any]:
 
     exceptions = raw["exceptions"]
     if not isinstance(exceptions, dict) or set(exceptions) != _EXCEPTION_KEYS:
-        raise PolicyError(
-            f"exceptions keys must be exactly {sorted(_EXCEPTION_KEYS)}"
-        )
+        raise PolicyError(f"exceptions keys must be exactly {sorted(_EXCEPTION_KEYS)}")
     for kind, default in (("functions", function_default), ("modules", module_default)):
         entries = exceptions[kind]
         if not isinstance(entries, dict):
@@ -175,22 +173,14 @@ def check_measurements(
 
     for relative_path, module in sorted(measurements.items()):
         loc = module["loc"]
-        loc_ceiling = module_exceptions.get(
-            relative_path, defaults["max_module_loc"]
-        )
+        loc_ceiling = module_exceptions.get(relative_path, defaults["max_module_loc"])
         if loc > loc_ceiling:
-            failures.append(
-                f"{relative_path}: LOC {loc} exceeds ceiling {loc_ceiling}"
-            )
+            failures.append(f"{relative_path}: LOC {loc} exceeds ceiling {loc_ceiling}")
         for name, complexity in module["functions"].items():
             key = f"{relative_path}::{name}"
-            cc_ceiling = function_exceptions.get(
-                key, defaults["max_function_cc"]
-            )
+            cc_ceiling = function_exceptions.get(key, defaults["max_function_cc"])
             if complexity > cc_ceiling:
-                failures.append(
-                    f"{key}: CC {complexity} exceeds ceiling {cc_ceiling}"
-                )
+                failures.append(f"{key}: CC {complexity} exceeds ceiling {cc_ceiling}")
 
     for relative_path in sorted(module_exceptions):
         module = measurements.get(relative_path)

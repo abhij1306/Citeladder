@@ -135,6 +135,7 @@ _CLASSIFICATION_BATCH_SIZE = 1000
 _RATE_DECIMALS = 4
 _SCORE_DECIMALS = 2
 _CORRELATION_DECIMALS = 6
+_VARIANCE_EPSILON = 1e-12
 
 
 # --- Pure projection inputs (the executor reduces ORM rows to these) ---------
@@ -253,7 +254,9 @@ def pearson_coefficient(xs: Sequence[float], ys: Sequence[float]) -> float | Non
     mean_y = sum(ys) / n
     sxx = sum((x - mean_x) ** 2 for x in xs)
     syy = sum((y - mean_y) ** 2 for y in ys)
-    if math.isclose(sxx, 0.0) or math.isclose(syy, 0.0):
+    if math.isclose(sxx, 0.0, rel_tol=0.0, abs_tol=_VARIANCE_EPSILON) or math.isclose(
+        syy, 0.0, rel_tol=0.0, abs_tol=_VARIANCE_EPSILON
+    ):
         return None
     sxy = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True))
     return sxy / math.sqrt(sxx * syy)
