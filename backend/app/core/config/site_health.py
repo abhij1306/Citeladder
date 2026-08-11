@@ -21,6 +21,185 @@ from typing import TYPE_CHECKING, Final
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Explicit self-aliases preserve the long-standing config API while the
+# implementation lives in the focused crawl-policy owner.
+from app.core.config.site_health_crawl_policy import (
+    AUTOMATIC_MONITOR_LIMIT_KEY as AUTOMATIC_MONITOR_LIMIT_KEY,
+)
+from app.core.config.site_health_crawl_policy import (
+    CORPUS_DISPOSITION_ANALYZE as CORPUS_DISPOSITION_ANALYZE,
+)
+from app.core.config.site_health_crawl_policy import (
+    CORPUS_DISPOSITION_EXCLUDE as CORPUS_DISPOSITION_EXCLUDE,
+)
+from app.core.config.site_health_crawl_policy import (
+    CORPUS_DISPOSITION_INVENTORY_ONLY as CORPUS_DISPOSITION_INVENTORY_ONLY,
+)
+from app.core.config.site_health_crawl_policy import (
+    CORPUS_DISPOSITION_VERSION as CORPUS_DISPOSITION_VERSION,
+)
+from app.core.config.site_health_crawl_policy import (
+    CORPUS_DISPOSITIONS as CORPUS_DISPOSITIONS,
+)
+from app.core.config.site_health_crawl_policy import (
+    DISCOVERY_MODE_FULL as DISCOVERY_MODE_FULL,
+)
+from app.core.config.site_health_crawl_policy import (
+    DISCOVERY_MODE_SAMPLE as DISCOVERY_MODE_SAMPLE,
+)
+from app.core.config.site_health_crawl_policy import (
+    DISPOSITION_REASON_DOCUMENT as DISPOSITION_REASON_DOCUMENT,
+)
+from app.core.config.site_health_crawl_policy import (
+    DISPOSITION_REASON_HTML_CONTENT as DISPOSITION_REASON_HTML_CONTENT,
+)
+from app.core.config.site_health_crawl_policy import (
+    DISPOSITION_REASON_UNSUPPORTED_MEDIA as DISPOSITION_REASON_UNSUPPORTED_MEDIA,
+)
+from app.core.config.site_health_crawl_policy import (
+    DOCUMENT_MEDIA_TYPES as DOCUMENT_MEDIA_TYPES,
+)
+from app.core.config.site_health_crawl_policy import (
+    FRONTIER_ADMITTED as FRONTIER_ADMITTED,
+)
+from app.core.config.site_health_crawl_policy import (
+    FRONTIER_PENDING as FRONTIER_PENDING,
+)
+from app.core.config.site_health_crawl_policy import (
+    INDUSTRY_PACK_MANIFEST_KEY as INDUSTRY_PACK_MANIFEST_KEY,
+)
+from app.core.config.site_health_crawl_policy import (
+    INPUT_MODE_AUTO as INPUT_MODE_AUTO,
+)
+from app.core.config.site_health_crawl_policy import (
+    INPUT_MODE_DISCOVERY_SEEDS as INPUT_MODE_DISCOVERY_SEEDS,
+)
+from app.core.config.site_health_crawl_policy import (
+    INPUT_MODE_EXACT_URLS as INPUT_MODE_EXACT_URLS,
+)
+from app.core.config.site_health_crawl_policy import (
+    INPUT_MODES as INPUT_MODES,
+)
+from app.core.config.site_health_crawl_policy import (
+    INVENTORY_DOCUMENT_EXTENSIONS as INVENTORY_DOCUMENT_EXTENSIONS,
+)
+from app.core.config.site_health_crawl_policy import (
+    INVENTORY_SOURCE_CRAWL_IDS_KEY as INVENTORY_SOURCE_CRAWL_IDS_KEY,
+)
+from app.core.config.site_health_crawl_policy import (
+    ITEM_KIND_DOCUMENT as ITEM_KIND_DOCUMENT,
+)
+from app.core.config.site_health_crawl_policy import (
+    ITEM_KIND_HTML_PAGE as ITEM_KIND_HTML_PAGE,
+)
+from app.core.config.site_health_crawl_policy import (
+    ITEM_KIND_OTHER as ITEM_KIND_OTHER,
+)
+from app.core.config.site_health_crawl_policy import (
+    PHASE_ANALYSIS as PHASE_ANALYSIS,
+)
+from app.core.config.site_health_crawl_policy import (
+    PHASE_DISCOVERY as PHASE_DISCOVERY,
+)
+from app.core.config.site_health_crawl_policy import (
+    PHASE_RUN_COMPLETED as PHASE_RUN_COMPLETED,
+)
+from app.core.config.site_health_crawl_policy import (
+    PHASE_RUN_FAILED as PHASE_RUN_FAILED,
+)
+from app.core.config.site_health_crawl_policy import (
+    PHASE_RUN_RUNNING as PHASE_RUN_RUNNING,
+)
+from app.core.config.site_health_crawl_policy import (
+    PHASE_RUN_STATUSES as PHASE_RUN_STATUSES,
+)
+from app.core.config.site_health_crawl_policy import (
+    PHASE_RUN_STOPPED as PHASE_RUN_STOPPED,
+)
+from app.core.config.site_health_crawl_policy import (
+    PHASES as PHASES,
+)
+from app.core.config.site_health_crawl_policy import (
+    SAMPLE_DISCOVERY_URL_CAP as SAMPLE_DISCOVERY_URL_CAP,
+)
+from app.core.config.site_health_crawl_policy import (
+    SAMPLE_URL_LIMIT as SAMPLE_URL_LIMIT,
+)
+from app.core.config.site_health_crawl_policy import (
+    SELECTION_SOURCE_BOOTSTRAP as SELECTION_SOURCE_BOOTSTRAP,
+)
+from app.core.config.site_health_crawl_policy import (
+    SELECTION_SOURCE_FREE_SAMPLE as SELECTION_SOURCE_FREE_SAMPLE,
+)
+from app.core.config.site_health_crawl_policy import (
+    SELECTION_SOURCE_USER as SELECTION_SOURCE_USER,
+)
+from app.core.config.site_health_crawl_policy import (
+    SELECTION_SOURCES as SELECTION_SOURCES,
+)
+from app.core.config.site_health_crawl_policy import (
+    TEMPORAL_STATE_CURRENT as TEMPORAL_STATE_CURRENT,
+)
+from app.core.config.site_health_crawl_policy import (
+    TEMPORAL_STATE_FUTURE as TEMPORAL_STATE_FUTURE,
+)
+from app.core.config.site_health_crawl_policy import (
+    TEMPORAL_STATE_HISTORICAL as TEMPORAL_STATE_HISTORICAL,
+)
+from app.core.config.site_health_crawl_policy import (
+    TEMPORAL_STATE_UNKNOWN as TEMPORAL_STATE_UNKNOWN,
+)
+from app.core.config.site_health_crawl_policy import (
+    TEMPORAL_STATES as TEMPORAL_STATES,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_ADMISSION_POLICY_VERSION as URL_ADMISSION_POLICY_VERSION,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_DUPLICATE as URL_EXCLUSION_DUPLICATE,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_HARD_ASSET as URL_EXCLUSION_HARD_ASSET,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_HARD_PATH as URL_EXCLUSION_HARD_PATH,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_HARD_QUERY as URL_EXCLUSION_HARD_QUERY,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_INVALID as URL_EXCLUSION_INVALID,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_NARROWED as URL_EXCLUSION_NARROWED,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_OUT_OF_SCOPE as URL_EXCLUSION_OUT_OF_SCOPE,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_PAGE_KIND as URL_EXCLUSION_PAGE_KIND,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_EXCLUSION_TRACKING as URL_EXCLUSION_TRACKING,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_HARD_EXCLUSION_EXTENSIONS as URL_HARD_EXCLUSION_EXTENSIONS,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_HARD_EXCLUSION_PATH_PATTERNS as URL_HARD_EXCLUSION_PATH_PATTERNS,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_HARD_EXCLUSION_QUERY_KEYS as URL_HARD_EXCLUSION_QUERY_KEYS,
+)
+from app.core.config.site_health_crawl_policy import (
+    URL_VALUE_PRIORITIES as URL_VALUE_PRIORITIES,
+)
+from app.core.config.site_health_crawl_policy import (
+    SiteHealthRuntimePolicy as SiteHealthRuntimePolicy,
+)
+from app.core.config.site_health_crawl_policy import (
+    runtime_policy_for_allowance as _runtime_policy_for_allowance,
+)
 from app.core.config.task_queue import (
     ERROR_MAX_ATTEMPTS,
     PostgresQueueSpec,
@@ -115,337 +294,6 @@ _PROJECT_ROOT = _BASE_DIR.parent
 if TYPE_CHECKING:
     # Type-only: config never imports a model at runtime (circular import).
     from app.models.site_health import SiteCrawlTask
-
-# =========================================================================
-# Neutral Site Health runtime policy (no commercial capability vocabulary)
-# =========================================================================
-# A workspace's Site Health behavior is a RUNTIME PROJECTION of the resolved
-# ``monitored_urls`` entitlement allowance (see domain/entitlements). This
-# module owns only the neutral mapping knobs (invariant 1); it never stores or
-# matches a plan display name or a commercial capability key.
-#
-# Mapping (frozen plan):
-#   - zero / no allowance -> SAMPLE discovery capped at the neutral sample
-#     limit, zero selectable monitored URLs, no count disclosure;
-#   - positive allowance  -> FULL progressive discovery, that exact monitored
-#     URL limit, count disclosure enabled.
-DISCOVERY_MODE_SAMPLE: Final = "sample"
-DISCOVERY_MODE_FULL: Final = "full"
-
-# Internal frozen-configuration key for full-inventory continuity. A fresh
-# analysis/recrawl remains a distinct evidence run, but its dashboard may read
-# the admitted URL sets from these earlier full-discovery crawls so discovered
-# URLs do not disappear while the new crawl is still re-discovering them.
-INVENTORY_SOURCE_CRAWL_IDS_KEY: Final = "inventory_source_crawl_ids"
-
-# Marks a product-owned onboarding crawl. The discovery pipeline uses the
-# frozen value to auto-monitor and analyze the first bounded set of pages.
-AUTOMATIC_MONITOR_LIMIT_KEY: Final = "automatic_monitor_limit"
-
-# Neutral sample cap DEFAULT. The operative value is env-overridable via
-# ``SiteHealthSettings.sample_url_limit`` (``SITE_HEALTH_SAMPLE_URL_LIMIT``) so
-# development can lift it without a code change; ``runtime_policy_for_allowance``
-# always reads the live settings. The constant remains as the settings default
-# and as the static column default on the runtime model.
-SAMPLE_URL_LIMIT: Final = 10
-
-# Sample-mode INVENTORY cap — deliberately decoupled from the analysis budget
-# above.
-#
-# These used to be the same number, which made "how many URLs do we know about"
-# and "how many URLs do we deep-analyze" one decision: discovery stopped dead at
-# 10 because admitting a URL and monitoring it for analysis were the same act.
-# The inventory is cheap (an identity row + an observation row, no fetch), the
-# analysis is not, so the crawl now keeps mapping the site up to this soft cap
-# while only ``sample_url_limit`` URLs are ever analyzed. "Soft" is accurate:
-# admission happens in batches, so a batch that straddles the cap lands slightly
-# over it rather than being split mid-batch.
-SAMPLE_DISCOVERY_URL_CAP: Final = 200
-
-# =========================================================================
-# Value-aware URL admission (frozen per crawl)
-# =========================================================================
-# These are deliberately URL-only rules: they run before a queue row or a
-# transport request exists.  Reason codes are safe to expose in previews and
-# events; no rule includes a URL, credential, or provider detail.
-URL_ADMISSION_POLICY_VERSION: Final = "sh-url-admission-1"
-INPUT_MODE_AUTO: Final = "auto"
-INPUT_MODE_EXACT_URLS: Final = "exact_urls"
-INPUT_MODE_DISCOVERY_SEEDS: Final = "discovery_seeds"
-INPUT_MODES: Final[frozenset[str]] = frozenset(
-    {INPUT_MODE_AUTO, INPUT_MODE_EXACT_URLS, INPUT_MODE_DISCOVERY_SEEDS}
-)
-URL_EXCLUSION_HARD_PATH: Final = "hard_excluded_path"
-URL_EXCLUSION_HARD_ASSET: Final = "hard_excluded_asset"
-URL_EXCLUSION_HARD_QUERY: Final = "hard_excluded_query"
-URL_EXCLUSION_OUT_OF_SCOPE: Final = "out_of_scope"
-URL_EXCLUSION_NARROWED: Final = "narrowed"
-URL_EXCLUSION_INVALID: Final = "invalid_url"
-URL_EXCLUSION_DUPLICATE: Final = "duplicate"
-URL_EXCLUSION_PAGE_KIND: Final = "page_kind_filtered"
-URL_EXCLUSION_TRACKING: Final = "tracking_url"
-
-# --- Corpus disposition (Site Intelligence §4) ---------------------------
-# Every discovered URL gets a versioned disposition. These are DISTINCT
-# states, not a confidence gradient: ``inventory_only`` means "known and
-# counted, deliberately not deep-analyzed", which is what keeps a document or
-# a utility page visible in coverage without paying analysis cost for it.
-# ``exclude`` means confidently irrelevant/unsafe. An UNCERTAIN URL is never
-# silently discarded — it stays ``inventory_only``.
-CORPUS_DISPOSITION_ANALYZE: Final = "analyze"
-CORPUS_DISPOSITION_INVENTORY_ONLY: Final = "inventory_only"
-CORPUS_DISPOSITION_EXCLUDE: Final = "exclude"
-CORPUS_DISPOSITIONS: Final[frozenset[str]] = frozenset(
-    {
-        CORPUS_DISPOSITION_ANALYZE,
-        CORPUS_DISPOSITION_INVENTORY_ONLY,
-        CORPUS_DISPOSITION_EXCLUDE,
-    }
-)
-DISPOSITION_REASON_HTML_CONTENT: Final = "html_content"
-DISPOSITION_REASON_DOCUMENT: Final = "document"
-DISPOSITION_REASON_UNSUPPORTED_MEDIA: Final = "unsupported_media"
-CORPUS_DISPOSITION_VERSION: Final = "sh-disposition-1"
-
-# Crawl-configuration key holding the exact frozen industry-pack manifest
-# (catalog version, pack id/version, content hash, classifier version). Frozen
-# once at crawl creation and never re-resolved from live project settings.
-INDUSTRY_PACK_MANIFEST_KEY: Final = "industry_pack_manifest"
-
-# Corpus item kinds (kernel spec ``CorpusItem.item_kind``).
-ITEM_KIND_HTML_PAGE: Final = "html_page"
-ITEM_KIND_DOCUMENT: Final = "document"
-ITEM_KIND_OTHER: Final = "other"
-
-# Temporal state of an item's evidence. ``unknown`` is a real state, never a
-# stand-in for ``current``: historical evidence must not silently overwrite a
-# current assertion just because it carries a value.
-TEMPORAL_STATE_CURRENT: Final = "current"
-TEMPORAL_STATE_HISTORICAL: Final = "historical"
-TEMPORAL_STATE_FUTURE: Final = "future"
-TEMPORAL_STATE_UNKNOWN: Final = "unknown"
-TEMPORAL_STATES: Final[frozenset[str]] = frozenset(
-    {
-        TEMPORAL_STATE_CURRENT,
-        TEMPORAL_STATE_HISTORICAL,
-        TEMPORAL_STATE_FUTURE,
-        TEMPORAL_STATE_UNKNOWN,
-    }
-)
-URL_HARD_EXCLUSION_PATH_PATTERNS: Final[tuple[str, ...]] = (
-    r"(?:^|/)(?:login|log-in|signin|sign-in|register|signup|sign-up)(?:/|$)",
-    r"(?:^|/)(?:account|profile|admin|wp-admin|dashboard)(?:/|$)",
-    r"(?:^|/)(?:cart|basket|checkout|payment|payments|order|orders|wishlist)(?:/|$)",
-    r"(?:^|/)(?:search|tag|tags|author|authors|feed)(?:/|$)",
-    r"(?:^|/)(?:viewcart|searchsuggestion)(?:/|$)",
-    r"(?:^|/)(?:preview|print|share)(?:/|$)",
-)
-URL_HARD_EXCLUSION_QUERY_KEYS: Final[frozenset[str]] = frozenset(
-    {
-        "q",
-        "query",
-        "s",
-        "search",
-        "filter",
-        "filters",
-        "facet",
-        "sort",
-        "page",
-        "paged",
-        "preview",
-    }
-)
-# Documents that carry real business knowledge (prospectuses, fee schedules,
-# policies, disclosures). These are NOT hard exclusions: they are admitted to
-# the corpus INVENTORY as ``item_kind=document`` so coverage and history stay
-# truthful, even though the HTML analyzer never runs on them. Extraction is a
-# separate, bounded decision — see ``DOCUMENT_MEDIA_TYPES``.
-INVENTORY_DOCUMENT_EXTENSIONS: Final[frozenset[str]] = frozenset(
-    {
-        ".pdf",
-        ".doc",
-        ".docx",
-        ".ppt",
-        ".pptx",
-        ".xls",
-        ".xlsx",
-    }
-)
-DOCUMENT_MEDIA_TYPES: Final[frozenset[str]] = frozenset(
-    {
-        "application/pdf",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.ms-powerpoint",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    }
-)
-# Genuinely unsafe or contentless assets. A document extension deliberately
-# does NOT appear here: excluding a prospectus from the inventory would drop
-# the very evidence an education/commerce pack needs to answer fee, policy,
-# and curriculum questions.
-URL_HARD_EXCLUSION_EXTENSIONS: Final[frozenset[str]] = frozenset(
-    {
-        ".zip",
-        ".gz",
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".gif",
-        ".webp",
-        ".svg",
-        ".ico",
-        ".css",
-        ".js",
-        ".mjs",
-        ".xml",
-        ".json",
-        ".csv",
-        ".txt",
-        ".mp3",
-        ".mp4",
-        ".webm",
-        ".woff",
-        ".woff2",
-        ".ttf",
-        ".eot",
-        # Remaining archives and installers. Without these an ``.exe`` or
-        # ``.tar.gz`` link was admitted as an ordinary page, and the crawler
-        # spent an analysis slot fetching a binary the HTML analyzer can never
-        # read — a scheduled, guaranteed failure.
-        ".tar",
-        ".bz2",
-        ".7z",
-        ".rar",
-        ".exe",
-        ".msi",
-        ".dmg",
-        ".pkg",
-        ".apk",
-        ".deb",
-        ".rpm",
-    }
-)
-# Higher values are more valuable.  Used only for deterministic frontier
-# ordering/preview grouping; it never changes an already-frozen crawl.
-URL_VALUE_PRIORITIES: Final[dict[str, int]] = {
-    "root": 100,
-    "product": 90,
-    "comparison": 85,
-    "service": 80,
-    "local": 80,
-    "category": 70,
-    "pricing": 70,
-    "article": 60,
-    "guide": 60,
-    "faq": 60,
-    "docs": 60,
-    "trust": 40,
-    "other": 20,
-}
-
-# Development-only resumable phase controls.  The values are operational
-# ceilings, not product-tier entitlements, and are frozen into each crawl.
-PHASE_DISCOVERY: Final = "discovery"
-PHASE_ANALYSIS: Final = "analysis"
-PHASES: Final[frozenset[str]] = frozenset({PHASE_DISCOVERY, PHASE_ANALYSIS})
-PHASE_RUN_RUNNING: Final = "running"
-PHASE_RUN_STOPPED: Final = "stopped"
-PHASE_RUN_COMPLETED: Final = "completed"
-PHASE_RUN_FAILED: Final = "failed"
-PHASE_RUN_STATUSES: Final[frozenset[str]] = frozenset(
-    {PHASE_RUN_RUNNING, PHASE_RUN_STOPPED, PHASE_RUN_COMPLETED, PHASE_RUN_FAILED}
-)
-FRONTIER_PENDING: Final = "pending"
-FRONTIER_ADMITTED: Final = "admitted"
-
-
-class SiteHealthRuntimePolicy:
-    """The neutral crawl policy projected from a resolved allowance.
-
-    Immutable, value-typed record of exactly how a workspace crawls. Built by
-    ``runtime_policy_for_allowance`` so there is one owner for the
-    allowance-to-policy mapping. ``count_disclosure`` gates whether
-    total/frontier/overflow counts may ever leave the backend (zero allowance
-    = never; positive = yes).
-    """
-
-    __slots__ = (
-        "discovery_mode",
-        "discovery_url_cap",
-        "sample_url_limit",
-        "monitored_url_limit",
-        "allows_user_selection",
-        "count_disclosure",
-    )
-
-    def __init__(
-        self,
-        *,
-        discovery_mode: str,
-        discovery_url_cap: int | None,
-        sample_url_limit: int,
-        monitored_url_limit: int,
-        allows_user_selection: bool,
-        count_disclosure: bool,
-    ) -> None:
-        self.discovery_mode = discovery_mode
-        # None means "no hard discovery cap" (full inventory). Sample mode caps
-        # at the sample limit.
-        self.discovery_url_cap = discovery_url_cap
-        self.sample_url_limit = sample_url_limit
-        self.monitored_url_limit = monitored_url_limit
-        self.allows_user_selection = allows_user_selection
-        self.count_disclosure = count_disclosure
-
-
-def runtime_policy_for_allowance(
-    monitored_urls_allowance: int,
-) -> SiteHealthRuntimePolicy:
-    """Map a resolved ``monitored_urls`` allowance to the crawl policy.
-
-    Fail-closed: a zero/negative allowance yields the sample policy with zero
-    selectable monitored URLs and no count disclosure. Limits reflect the LIVE
-    ``SITE_HEALTH_*`` settings. The resolved policy is frozen onto the runtime
-    row (updated in place — it is a projection, never a commercial source of
-    truth) and onto ``SiteCrawl.configuration`` at creation (invariant 9).
-
-    Sample mode's inventory cap is deliberately DECOUPLED from its analysis
-    budget: discovery keeps mapping the site up to
-    ``sample_discovery_url_cap`` while only ``sample_url_limit`` URLs ever get a
-    monitored membership and an analyze task (see SAMPLE_DISCOVERY_URL_CAP).
-    """
-    settings = site_health_settings
-    if monitored_urls_allowance > 0:
-        return SiteHealthRuntimePolicy(
-            discovery_mode=DISCOVERY_MODE_FULL,
-            discovery_url_cap=None,
-            sample_url_limit=0,
-            monitored_url_limit=monitored_urls_allowance,
-            allows_user_selection=True,
-            count_disclosure=True,
-        )
-    return SiteHealthRuntimePolicy(
-        discovery_mode=DISCOVERY_MODE_SAMPLE,
-        # Inventory cap, NOT the analysis budget — see SAMPLE_DISCOVERY_URL_CAP.
-        discovery_url_cap=settings.sample_discovery_url_cap,
-        sample_url_limit=settings.sample_url_limit,
-        monitored_url_limit=0,
-        allows_user_selection=False,
-        count_disclosure=False,
-    )
-
-
-# Selection source: a monitored row is either user-managed or a system-managed
-# Free sample membership.
-SELECTION_SOURCE_USER: Final = "user"
-SELECTION_SOURCE_FREE_SAMPLE: Final = "free_sample"
-SELECTION_SOURCE_BOOTSTRAP: Final = "bootstrap"
-SELECTION_SOURCES: Final[frozenset[str]] = frozenset(
-    {SELECTION_SOURCE_USER, SELECTION_SOURCE_FREE_SAMPLE, SELECTION_SOURCE_BOOTSTRAP}
-)
 
 # =========================================================================
 # Lifecycle state vocabularies (normative — plan Persistence contract)
@@ -2606,6 +2454,15 @@ class SiteHealthSettings(BaseSettings):
 
 
 site_health_settings = SiteHealthSettings()
+
+
+def runtime_policy_for_allowance(
+    monitored_urls_allowance: int,
+) -> SiteHealthRuntimePolicy:
+    """Resolve the runtime policy using the live Site Health settings."""
+    return _runtime_policy_for_allowance(
+        monitored_urls_allowance, settings=site_health_settings
+    )
 
 
 def _site_crawl_task_model() -> type[SiteCrawlTask]:

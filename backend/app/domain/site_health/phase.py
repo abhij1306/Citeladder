@@ -68,6 +68,21 @@ def _has_real_scores(score_summary: dict | None) -> bool:
     return score_summary is not None and score_summary.get("overall_score") is not None
 
 
+def _is_active_analysis(crawl: SiteCrawl, has_monitored_selection: bool) -> bool:
+    """Whether an active crawl is already committed to analysis work."""
+    return has_monitored_selection and crawl.analysis_status in (
+        "pending",
+        ANALYSIS_STATUS_RUNNING,
+    )
+
+
+def _phase_for_parked_crawl(crawl: SiteCrawl, selection_mode: bool) -> SiteHealthPhase:
+    """A parked inventory is selectable only when it contains admitted URLs."""
+    if selection_mode and (crawl.admitted_url_count or 0) > 0:
+        return "selection"
+    return "terminal"
+
+
 def resolve_phase(
     crawl: SiteCrawl | None,
     *,
@@ -104,9 +119,7 @@ def resolve_phase(
     # everyone else dead-ends.
     if crawl.status in _PARKED_STATUSES:
         # `admitted_url_count` is projected to the client as `visible_url_count`.
-        if selection_mode and (crawl.admitted_url_count or 0) > 0:
-            return "selection"
-        return "terminal"
+        return _phase_for_parked_crawl(crawl, selection_mode)
 
     # Everything below is an ACTIVE crawl (draft/validating/queued/running).
     #
@@ -116,10 +129,7 @@ def resolve_phase(
     # `analysis_status` merely lags at 'pending' until the worker's first
     # reconcile. Resolving that to 'discovering'/'selection' is what bounced the
     # screen back to the URL list right after "Start analysis" / "Re-crawl".
-    if has_monitored_selection and crawl.analysis_status in (
-        "pending",
-        ANALYSIS_STATUS_RUNNING,
-    ):
+    if _is_active_analysis(crawl, has_monitored_selection):
         return "analyzing"
 
     if crawl.discovery_status not in TERMINAL_DISCOVERY:

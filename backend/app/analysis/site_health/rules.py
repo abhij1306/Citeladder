@@ -411,6 +411,30 @@ def _missing_paths(block: dict, paths: tuple[str, ...]) -> list[str]:
     return [path for path in paths if path not in present]
 
 
+def _schema_property_candidates(
+    blocks: list[dict], expectation: PageKindSchemaExpectation, *, recommended: bool
+) -> list[tuple[dict, tuple[str, ...], list[str]]]:
+    """Pair expected blocks with their contract and already-computed gaps."""
+    candidates = []
+    for block in blocks:
+        paths = expectation.properties_for(
+            str(block.get("type") or ""), recommended=recommended
+        )
+        if paths:
+            candidates.append((block, paths, _missing_paths(block, paths)))
+    return candidates
+
+
+def _has_shallow_microdata(
+    candidates: list[tuple[dict, tuple[str, ...], list[str]]],
+) -> bool:
+    return any(
+        str(block.get("syntax") or "") == "microdata"
+        and not (block.get("props_present") or [])
+        for block, _paths, _missing in candidates
+    )
+
+
 def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict]:
     """Shared body for the required/recommended schema-property rules.
 
@@ -427,24 +451,15 @@ def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict
     if not blocks:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
 
-    candidates = [
-        (
-            block,
-            expectation.properties_for(
-                str(block.get("type") or ""), recommended=recommended
-            ),
-        )
-        for block in blocks
-    ]
-    candidates = [(block, paths) for block, paths in candidates if paths]
+    candidates = _schema_property_candidates(
+        blocks, expectation, recommended=recommended
+    )
     if not candidates:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": f"no_{label}_properties"}
 
-    block, paths = min(
-        candidates,
-        key=lambda candidate: len(_missing_paths(candidate[0], candidate[1])),
+    block, paths, best_missing = min(
+        candidates, key=lambda candidate: len(candidate[2])
     )
-    best_missing = _missing_paths(block, paths)
     evidence = {
         "page_kind": expectation.page_kind,
         "schema_type": str(block.get("type") or ""),
@@ -453,11 +468,7 @@ def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict
         "missing": best_missing,
         "checked_blocks": len(candidates),
     }
-    if best_missing and any(
-        str(block.get("syntax") or "") == "microdata"
-        and not (block.get("props_present") or [])
-        for block, _paths in candidates
-    ):
+    if best_missing and _has_shallow_microdata(candidates):
         # Microdata extraction is shallow (no per-property walk): a failing
         # block with empty props_present may be fully marked up in the HTML.
         # Record the limitation so the UI can explain the finding.

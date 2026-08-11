@@ -1048,18 +1048,26 @@ def _unavailable_limitation(tool_name: str) -> str:
     return f"{label} is not available yet."
 
 
+def _available_tool_names(tool_results: list[dict[str, Any]]) -> list[str]:
+    return [
+        str(item["tool"])
+        for item in tool_results
+        if isinstance(item.get("output"), dict)
+        and item["output"].get("state") == "available"
+    ]
+
+
+def _pluralized(count: int, singular: str) -> str:
+    return singular if count == 1 else f"{singular}s"
+
+
 def _result_summary(
     *,
     tool_results: list[dict[str, Any]],
     artifacts: list[dict[str, Any]],
     roadmap: dict[str, Any] | None,
 ) -> tuple[str, str]:
-    available_tools = [
-        str(item["tool"])
-        for item in tool_results
-        if isinstance(item.get("output"), dict)
-        and item["output"].get("state") == "available"
-    ]
+    available_tools = _available_tool_names(tool_results)
     if not available_tools and not artifacts:
         return (
             "There is no project evidence available yet, so I cannot give you a "
@@ -1070,9 +1078,9 @@ def _result_summary(
     roadmap_items = list(roadmap.get("items") or []) if roadmap else []
     if roadmap_items:
         count = len(roadmap_items)
-        noun = "action" if count == 1 else "actions"
         return (
-            f"I found {count} ranked {noun} in the current project evidence.",
+            f"I found {count} ranked {_pluralized(count, 'action')} "
+            "in the current project evidence.",
             "Start with the first ranked action, then measure the result after the "
             "next crawl or sync.",
         )
@@ -1081,7 +1089,7 @@ def _result_summary(
         count = len(artifacts)
         return (
             f"The task created {count} "
-            f"{('artifact' if count == 1 else 'artifacts')} from the current "
+            f"{_pluralized(count, 'artifact')} from the current "
             "project evidence.",
             "Review the result before approving any follow-up action.",
         )

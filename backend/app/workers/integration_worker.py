@@ -1387,9 +1387,10 @@ class IntegrationWorker(DrainableWorkerMixin):
     async def _heartbeat_loop(
         self, run_id: uuid.UUID
     ) -> None:  # pragma: no cover - timing loop
-        interval = max(1.0, integration_settings.heartbeat_interval_seconds)
         while True:
-            await asyncio.sleep(interval)
+            await asyncio.sleep(
+                max(1.0, integration_settings.heartbeat_interval_seconds)
+            )
             try:
                 await self._queue.heartbeat(task_id=run_id, owner=self.owner)
             except asyncio.CancelledError:
@@ -1402,12 +1403,6 @@ class IntegrationWorker(DrainableWorkerMixin):
                     "heartbeat failed; retrying", extra={"sync_run_id": str(run_id)}
                 )
 
-
-def main() -> None:  # pragma: no cover - process entrypoint
-    configure_logging()
-    worker = IntegrationWorker()
-    asyncio.run(worker.run_forever())
-
-
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    configure_logging()
+    asyncio.run(IntegrationWorker().run_forever())

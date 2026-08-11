@@ -761,11 +761,7 @@ async def _store_frontier_candidates(
     configuration: dict,
 ) -> None:
     """Persist admissible candidates before applying the current batch budget."""
-    eligible = [
-        candidate
-        for candidate in _ordered_unique_candidates(candidates)
-        if _candidate_allowed(crawl, candidate, configuration)
-    ]
+    eligible = _eligible_frontier_candidates(crawl, candidates, configuration)
     if not eligible:
         return
     existing_count = int(
@@ -785,46 +781,77 @@ async def _store_frontier_candidates(
     # limit. Keep both the duplicate lookup and INSERT bounded by the existing
     # admission batch policy so large sitemap inventories remain progressive.
     batch_size = max(int(site_health_settings.admission_batch_size), 1)
-    existing_hashes: set[str] = set()
-    for candidate_batch in batched(eligible, batch_size):
-        existing_hashes.update(
-            (
-                await session.scalars(
-                    select(SiteDiscoveryFrontier.url_hash).where(
-                        SiteDiscoveryFrontier.crawl_id == crawl.id,
-                        SiteDiscoveryFrontier.url_hash.in_(
-                            [candidate.url_hash for candidate in candidate_batch]
-                        ),
-                    )
-                )
-            ).all()
-        )
+    existing_hashes = await _existing_frontier_hashes(
+        session, crawl_id=crawl.id, candidates=eligible, batch_size=batch_size
+    )
     admitted_candidates = [
         candidate for candidate in eligible if candidate.url_hash not in existing_hashes
     ][:remaining_capacity]
     if not admitted_candidates:
         return
-    for candidate_batch in batched(admitted_candidates, batch_size):
+    await _insert_frontier_candidates(
+        session, crawl=crawl, candidates=admitted_candidates, batch_size=batch_size
+    )
+
+
+def _eligible_frontier_candidates(
+    crawl: SiteCrawl, candidates: list[FrontierCandidate], configuration: dict
+) -> list[FrontierCandidate]:
+    return [
+        candidate
+        for candidate in _ordered_unique_candidates(candidates)
+        if _candidate_allowed(crawl, candidate, configuration)
+    ]
+
+
+async def _existing_frontier_hashes(
+    session: AsyncSession,
+    *,
+    crawl_id: uuid.UUID,
+    candidates: list[FrontierCandidate],
+    batch_size: int,
+) -> set[str]:
+    hashes: set[str] = set()
+    for candidate_batch in batched(candidates, batch_size):
+        existing = await session.scalars(
+            select(SiteDiscoveryFrontier.url_hash).where(
+                SiteDiscoveryFrontier.crawl_id == crawl_id,
+                SiteDiscoveryFrontier.url_hash.in_(
+                    [candidate.url_hash for candidate in candidate_batch]
+                ),
+            )
+        )
+        hashes.update(existing.all())
+    return hashes
+
+
+async def _insert_frontier_candidates(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    candidates: list[FrontierCandidate],
+    batch_size: int,
+) -> None:
+    for candidate_batch in batched(candidates, batch_size):
+        values = [
+            {
+                "workspace_id": crawl.workspace_id,
+                "crawl_id": crawl.id,
+                "normalized_url": candidate.url,
+                "url_hash": candidate.url_hash,
+                "depth": candidate.depth,
+                "source_kind": candidate.source_kind,
+                "value_kind": candidate.value_kind,
+                "value_priority": candidate.value_priority,
+                "parent_position": candidate.parent_position,
+                "link_ordinal": candidate.link_ordinal,
+                "status": FRONTIER_PENDING,
+            }
+            for candidate in candidate_batch
+        ]
         await session.execute(
             pg_insert(SiteDiscoveryFrontier)
-            .values(
-                [
-                    {
-                        "workspace_id": crawl.workspace_id,
-                        "crawl_id": crawl.id,
-                        "normalized_url": candidate.url,
-                        "url_hash": candidate.url_hash,
-                        "depth": candidate.depth,
-                        "source_kind": candidate.source_kind,
-                        "value_kind": candidate.value_kind,
-                        "value_priority": candidate.value_priority,
-                        "parent_position": candidate.parent_position,
-                        "link_ordinal": candidate.link_ordinal,
-                        "status": FRONTIER_PENDING,
-                    }
-                    for candidate in candidate_batch
-                ]
-            )
+            .values(values)
             .on_conflict_do_nothing(index_elements=["crawl_id", "url_hash"])
         )
 
