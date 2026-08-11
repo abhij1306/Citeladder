@@ -396,20 +396,20 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
 
 
 @pytest.mark.asyncio
-async def test_analyze_persists_page_kind_classifier_and_v2_versions(
+async def test_analyze_persists_page_kind_classifier_and_current_versions(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     """v2 P1: the analyze task classifies the page, injects page_kind into
-    the facts before rule evaluation, and stamps the P1 versions on the
-    persisted rows (sh-analyzer-2 / sh-scoring-2 / sh-classifier-2)."""
+    the facts before rule evaluation, and stamps the current versions on the
+    persisted rows."""
     from app.core.config.site_health import (
         CLASSIFIER_VERSION,
     )
 
     assert (ANALYZER_VERSION, SCORING_VERSION, CLASSIFIER_VERSION) == (
-        "sh-analyzer-2",
+        "sh-analyzer-3",
         "sh-scoring-2",
-        "sh-classifier-2",
+        "sh-classifier-3",
     )
 
     seed, _site_url_id, _task_id = await _seed_analyze_ready(
@@ -429,8 +429,8 @@ async def test_analyze_persists_page_kind_classifier_and_v2_versions(
         ).scalar_one()
         # The /blog/ path pattern classified the page as an article.
         assert analysis.page_kind == "article"
-        assert analysis.classifier_version == "sh-classifier-2"
-        assert analysis.analyzer_version == "sh-analyzer-2"
+        assert analysis.classifier_version == "sh-classifier-3"
+        assert analysis.analyzer_version == "sh-analyzer-3"
         assert analysis.scoring_version == "sh-scoring-2"
 
         # The bounded classifier evidence persisted WITH the row (it used to
@@ -588,12 +588,12 @@ async def test_analyze_injects_site_facts_on_root_analysis_only(
             )
 
         # Root: the injected stance blocks GPTBot -> the stance rule FAILS;
-        # llms.txt is present -> PASS. Provenance is sh-rules-2.
+        # llms.txt is present -> PASS. Provenance is the current rule catalog.
         stance = await _eval("technical.ai_crawler_access", root_analysis.id)
         assert stance is not None
         assert stance.outcome == RULE_OUTCOME_FAIL
         assert stance.evidence["blocked"] == ["GPTBot"]
-        assert stance.rule_version == RULE_CATALOG_VERSION == "sh-rules-2"
+        assert stance.rule_version == RULE_CATALOG_VERSION == "sh-rules-3"
         llms = await _eval("aeo.llms_txt_present", root_analysis.id)
         assert llms is not None
         assert llms.outcome == RULE_OUTCOME_PASS

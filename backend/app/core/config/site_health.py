@@ -874,7 +874,7 @@ EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 # bounded fact fields: author/dates/outbound_domains/landmarks/
 # question_heading_ratio/expand_gated_ratio/hreflang_alternates/
 # first_answer_text/inline_script_chars/h3 texts, plus wider structured-data
-# recognition) and RULE_CATALOG (the expanded 33-rule sh-rules-2 catalog);
+# recognition) and RULE_CATALOG (the page-kind-scoped 33-rule catalog);
 # SCORING stays sh-scoring-2 (formula unchanged; weight-0 rules score through
 # the existing formula) and CLASSIFIER stays sh-classifier-1.
 # sh-extractor-3 adds the industry-role classifier facts (cta_text /
@@ -887,11 +887,11 @@ EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 # purpose: the first acceptance corpus publishes zero structured data, so a
 # knowledge layer that could only read JSON-LD would find nothing on a real
 # site and report an empty knowledge model as if it were an empty business.
-EXTRACTOR_VERSION: Final = "sh-extractor-4"
-ANALYZER_VERSION: Final = "sh-analyzer-2"
-RULE_CATALOG_VERSION: Final = "sh-rules-2"
+EXTRACTOR_VERSION: Final = "sh-extractor-5"
+ANALYZER_VERSION: Final = "sh-analyzer-3"
+RULE_CATALOG_VERSION: Final = "sh-rules-3"
 SCORING_VERSION: Final = "sh-scoring-2"
-CLASSIFIER_VERSION: Final = "sh-classifier-2"
+CLASSIFIER_VERSION: Final = "sh-classifier-3"
 
 # =========================================================================
 # Page-type classification (v2 P1 — spec §5.1)
@@ -994,26 +994,44 @@ HOMEPAGE_PATH_EQUIVALENTS: Final[frozenset[str]] = frozenset(
     }
 )
 
-# Signal 2: ordered URL path patterns — FIRST MATCH WINS. Each entry is
-# (page_kind, regex) matched with re.match against the normalized path
-# (lowercase, trailing slashes stripped). Initial table per spec §5.1.
+# Signal 2: ordered URL path patterns. Each expression captures its semantic
+# path segment in group 1. The classifier chooses the match nearest the root,
+# then uses this table order as a deterministic tie-breaker. This handles
+# common nested routes such as ``/resources/guides/...`` and
+# ``/company/contact-us`` without allowing a deeper segment to override the
+# page's primary route family.
 PAGE_KIND_PATH_PATTERNS: Final[tuple[tuple[str, str], ...]] = (
-    # ``guides`` is deliberately NOT here: first match wins, so listing it made
-    # /guides an article and left PAGE_KIND_GUIDE's own pattern unreachable for
-    # the plural form while /guide classified correctly.
-    (PAGE_KIND_ARTICLE, r"^/(blog|news)(/|$)"),
-    (PAGE_KIND_PRODUCT, r"^/(products?|p|shop)(/|$)"),
-    (PAGE_KIND_CATEGORY, r"^/(category|collections)(/|$)"),
-    (PAGE_KIND_SERVICE, r"^/(services?|solutions?)(/|$)"),
-    (PAGE_KIND_LOCAL, r"^/(locations?|stores?|offices?)(/|$)"),
-    (PAGE_KIND_GUIDE, r"^/(guides?|how-to)(/|$)"),
-    (PAGE_KIND_COMPARISON, r"^/(compare|comparison|vs)(/|$)"),
-    (PAGE_KIND_PRICING, r"^/pricing(/|$)"),
-    (PAGE_KIND_DOCS, r"^/(docs|reference)(/|$)"),
-    (PAGE_KIND_FAQ, r"^/(faq|help)(/|$)"),
-    (PAGE_KIND_ABOUT_CONTACT, r"^/(about|contact)(/|$)"),
-    (PAGE_KIND_CASE_STUDY_REVIEW, r"^/(case-studies|reviews?|testimonials?)(/|$)"),
-    (PAGE_KIND_TRUST_POLICY, r"^/(privacy|terms|security|trust|policies?)(/|$)"),
+    (PAGE_KIND_ARTICLE, r"^/(?:[^/]+/)*?(blogs?|news|articles?)(/|$)"),
+    (PAGE_KIND_PRODUCT, r"^/(?:[^/]+/)*?(products?|p|shop)(/|$)"),
+    (
+        PAGE_KIND_CATEGORY,
+        r"^/(?:[^/]+/)*?(category|categories|collections?|catalog)(/|$)",
+    ),
+    (PAGE_KIND_SERVICE, r"^/(?:[^/]+/)*?(services?|solutions?)(/|$)"),
+    (PAGE_KIND_LOCAL, r"^/(?:[^/]+/)*?(locations?|stores?|offices?)(/|$)"),
+    (PAGE_KIND_GUIDE, r"^/(?:[^/]+/)*?(guides?|how-to|tutorials?)(/|$)"),
+    (
+        PAGE_KIND_COMPARISON,
+        r"^/(?:[^/]+/)*?(compare|comparisons?|vs)(/|$)",
+    ),
+    (PAGE_KIND_PRICING, r"^/(?:[^/]+/)*?(pricing|plans)(/|$)"),
+    (
+        PAGE_KIND_DOCS,
+        r"^/(?:[^/]+/)*?(docs|documentation|reference|api)(/|$)",
+    ),
+    (PAGE_KIND_FAQ, r"^/(?:[^/]+/)*?(faqs?|help|support)(/|$)"),
+    (
+        PAGE_KIND_ABOUT_CONTACT,
+        r"^/(?:[^/]+/)*?(about|about-us|contact|contact-us)(/|$)",
+    ),
+    (
+        PAGE_KIND_CASE_STUDY_REVIEW,
+        r"^/(?:[^/]+/)*?(case-study|case-studies|reviews?|testimonials?)(/|$)",
+    ),
+    (
+        PAGE_KIND_TRUST_POLICY,
+        r"^/(?:[^/]+/)*?(privacy|privacy-policy|terms|terms-of-service|security|trust|policies?|legal)(/|$)",
+    ),
 )
 
 # Signal 3: content/heading heuristics. Evaluated in a fixed sub-order
@@ -1086,17 +1104,22 @@ PAGE_KIND_DATE_PATTERN: Final = (
 # NOTE: the sh-extractor-2 parser recognizes the full
 # STRUCTURED_DATA_RECOGNIZED_TYPES set into
 # facts["structured_data"]["types"], so every type below can fire.
+# Ordered from the most page-specific types to the most general. JSON-LD can
+# legitimately declare multiple types; explicit priority is more stable and
+# meaningful than choosing whichever type sorts first alphabetically.
 PAGE_KIND_SCHEMA_TYPE_MAP: Final[dict[str, str]] = {
-    "Article": PAGE_KIND_ARTICLE,
-    "BlogPosting": PAGE_KIND_ARTICLE,
-    "NewsArticle": PAGE_KIND_ARTICLE,
-    "Product": PAGE_KIND_PRODUCT,
     "FAQPage": PAGE_KIND_FAQ,
-    "TechArticle": PAGE_KIND_DOCS,
-    "Service": PAGE_KIND_SERVICE,
+    "Product": PAGE_KIND_PRODUCT,
+    "CollectionPage": PAGE_KIND_CATEGORY,
+    "ContactPage": PAGE_KIND_ABOUT_CONTACT,
     "LocalBusiness": PAGE_KIND_LOCAL,
+    "Service": PAGE_KIND_SERVICE,
     "HowTo": PAGE_KIND_GUIDE,
     "Review": PAGE_KIND_CASE_STUDY_REVIEW,
+    "TechArticle": PAGE_KIND_DOCS,
+    "NewsArticle": PAGE_KIND_ARTICLE,
+    "BlogPosting": PAGE_KIND_ARTICLE,
+    "Article": PAGE_KIND_ARTICLE,
 }
 
 # Signal names (recorded as bounded evidence: classified_by + signals).
@@ -1121,6 +1144,10 @@ PAGE_KIND_CONFIDENCE_THRESHOLD: Final = 0.5
 # Applicability token prefix for page-type-scoped rules (spec §5.2):
 # ``page_kind:<type>`` resolves against ``facts["page_kind"]``.
 PAGE_KIND_APPLICABILITY_PREFIX: Final = "page_kind:"
+# Page-kind scope that requires an HTML response but does not require visible
+# server-rendered body content. Schema and markup rules use this: a JS shell may
+# still carry useful head markup even when its body needs browser rendering.
+PAGE_KIND_HTML_APPLICABILITY_PREFIX: Final = "page_kind_html:"
 # Page-kind scope that ALSO requires server-rendered content. A content-reading
 # rule must keep the JS-shell guard: on a client-rendered shell the body is
 # empty, so "no question headings" would report the absence of something we
@@ -1129,7 +1156,11 @@ PAGE_KIND_APPLICABILITY_PREFIX: Final = "page_kind:"
 PAGE_KIND_CONTENT_APPLICABILITY_PREFIX: Final = "page_kind_content:"
 
 
-def _page_kinds(*kinds: str, reads_content: bool = False) -> str:
+def _page_kinds(
+    *kinds: str,
+    requires_html: bool = False,
+    reads_content: bool = False,
+) -> str:
     """Build a ``page_kind:a|b|c`` applicability key.
 
     A rule that names its page kinds is only evaluated on those kinds; on every
@@ -1138,14 +1169,16 @@ def _page_kinds(*kinds: str, reads_content: bool = False) -> str:
     page for missing Product/offers markup — the complaint that every page kind
     got the same generic checklist.
 
-    ``reads_content=True`` additionally requires server-rendered content, for
-    rules that inspect body text rather than markup.
+    ``requires_html=True`` preserves the HTML-response guard for rules that
+    inspect markup. ``reads_content=True`` additionally preserves the
+    server-rendered-body guard for rules that inspect visible content.
     """
-    prefix = (
-        PAGE_KIND_CONTENT_APPLICABILITY_PREFIX
-        if reads_content
-        else PAGE_KIND_APPLICABILITY_PREFIX
-    )
+    if reads_content:
+        prefix = PAGE_KIND_CONTENT_APPLICABILITY_PREFIX
+    elif requires_html:
+        prefix = PAGE_KIND_HTML_APPLICABILITY_PREFIX
+    else:
+        prefix = PAGE_KIND_APPLICABILITY_PREFIX
     return f"{prefix}{'|'.join(kinds)}"
 
 
@@ -1251,6 +1284,8 @@ class PageKindSchemaExpectation:
         "expected_types",
         "required_properties",
         "recommended_properties",
+        "required_properties_by_type",
+        "recommended_properties_by_type",
     )
 
     def __init__(
@@ -1260,11 +1295,37 @@ class PageKindSchemaExpectation:
         expected_types: tuple[str, ...],
         required_properties: tuple[str, ...],
         recommended_properties: tuple[str, ...],
+        required_properties_by_type: dict[str, tuple[str, ...]] | None = None,
+        recommended_properties_by_type: dict[str, tuple[str, ...]] | None = None,
     ) -> None:
         self.page_kind = page_kind
         self.expected_types = expected_types
         self.required_properties = required_properties
         self.recommended_properties = recommended_properties
+        self.required_properties_by_type = dict(required_properties_by_type or {})
+        self.recommended_properties_by_type = dict(
+            recommended_properties_by_type or {}
+        )
+
+    def properties_for(
+        self, schema_type: str, *, recommended: bool
+    ) -> tuple[str, ...]:
+        """Return the property contract for one allowed schema type.
+
+        A page kind may accept structurally different schema alternatives.
+        For example, a guide can use ``HowTo.name`` or ``Article.headline``.
+        Applying one shared property list to both types produces false issues,
+        so explicit per-type overrides take precedence over the common default.
+        """
+        overrides = (
+            self.recommended_properties_by_type
+            if recommended
+            else self.required_properties_by_type
+        )
+        fallback = (
+            self.recommended_properties if recommended else self.required_properties
+        )
+        return overrides.get(schema_type, fallback)
 
 
 # Per-type expected schema.org types + required/recommended property splits
@@ -1276,6 +1337,10 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
         expected_types=("Organization", "WebSite"),
         required_properties=("name", "url"),
         recommended_properties=("sameAs", "logo"),
+        # ``sameAs`` and ``logo`` describe the Organization identity, not the
+        # WebSite node. A valid WebSite-only block must not fail an
+        # Organization-specific recommendation.
+        recommended_properties_by_type={"WebSite": ()},
     ),
     PAGE_KIND_ARTICLE: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_ARTICLE,
@@ -1298,6 +1363,9 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
         expected_types=("BreadcrumbList", "CollectionPage", "ItemList"),
         required_properties=("itemListElement",),
         recommended_properties=(),
+        # CollectionPage is a WebPage and does not itself have to expose
+        # itemListElement; its own identity is the bounded contract here.
+        required_properties_by_type={"CollectionPage": ("name",)},
     ),
     PAGE_KIND_PRICING: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_PRICING,
@@ -1325,6 +1393,10 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
         expected_types=("Organization", "LocalBusiness", "ContactPage"),
         required_properties=("name",),
         recommended_properties=("contactPoint", "address"),
+        # ContactPage describes the page. Contact details may live in a
+        # separate Organization/LocalBusiness node and should not be demanded
+        # on the ContactPage object itself.
+        recommended_properties_by_type={"ContactPage": ()},
     ),
     PAGE_KIND_SERVICE: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_SERVICE,
@@ -1343,18 +1415,28 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
         expected_types=("HowTo", "Article"),
         required_properties=("name",),
         recommended_properties=("step", "image"),
+        required_properties_by_type={"Article": ("headline",)},
+        recommended_properties_by_type={
+            "Article": ("image", "dateModified"),
+        },
     ),
     PAGE_KIND_COMPARISON: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_COMPARISON,
         expected_types=("Article", "ItemList"),
         required_properties=("name",),
         recommended_properties=("itemListElement",),
+        required_properties_by_type={
+            "Article": ("headline",),
+            "ItemList": ("itemListElement",),
+        },
+        recommended_properties_by_type={"Article": ("dateModified",)},
     ),
     PAGE_KIND_CASE_STUDY_REVIEW: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_CASE_STUDY_REVIEW,
         expected_types=("Article", "Review"),
         required_properties=("name",),
         recommended_properties=("author", "datePublished"),
+        required_properties_by_type={"Article": ("headline",)},
     ),
     PAGE_KIND_TRUST_POLICY: PageKindSchemaExpectation(
         page_kind=PAGE_KIND_TRUST_POLICY,
@@ -1377,7 +1459,20 @@ PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
 SCHEMA_PROPERTY_PATHS: Final[frozenset[str]] = frozenset(
     path
     for expectation in PAGE_KIND_EXPECTED_SCHEMA.values()
-    for path in (expectation.required_properties + expectation.recommended_properties)
+    for paths in (
+        expectation.required_properties,
+        expectation.recommended_properties,
+        *expectation.required_properties_by_type.values(),
+        *expectation.recommended_properties_by_type.values(),
+    )
+    for path in paths
+)
+
+# A schema contract is meaningful only after deterministic page-kind
+# classification selected a real structural type. ``other`` is an abstention,
+# not a WebPage verdict; page-type schema rules fail closed for it.
+PAGE_KIND_SCHEMA_ANALYSIS_KINDS: Final[tuple[str, ...]] = tuple(
+    page_kind for page_kind in PAGE_KINDS if page_kind != PAGE_KIND_OTHER
 )
 
 # =========================================================================
@@ -1452,7 +1547,7 @@ class SiteHealthRule:
         self.display_label_variants = dict(display_label_variants or {})
 
 
-# The rule catalog (sh-rules-2 — v2 P2, spec §5.3). Defined here so the
+# The rule catalog (sh-rules-3 — page-kind/schema scope). Defined here so the
 # catalog has one owner and a stable version (invariant 1). The v1 set is kept
 # with one deliberate rename: ``aeo.sufficient_text`` became
 # ``technical.thin_content`` — the per-type-minimum word-count check belongs
@@ -1546,7 +1641,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_STRUCTURED_DATA,
         severity=SEVERITY_MEDIUM,
         weight=3.0,
-        applicability_key="has_html",
+        applicability_key=_page_kinds(
+            *PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
+            requires_html=True,
+        ),
         description="Page includes JSON-LD or microdata structured data.",
         remediation="Add schema.org structured data (JSON-LD preferred).",
         display_label="Missing structured data",
@@ -1714,7 +1812,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_STRUCTURED_DATA,
         severity=SEVERITY_HIGH,
         weight=3.0,
-        applicability_key="has_html",
+        applicability_key=_page_kinds(
+            *PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
+            requires_html=True,
+        ),
         description=(
             "Structured data includes a schema.org type expected for the "
             "classified page type."
@@ -1732,7 +1833,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_STRUCTURED_DATA,
         severity=SEVERITY_HIGH,
         weight=3.0,
-        applicability_key="has_html",
+        applicability_key=_page_kinds(
+            *PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
+            requires_html=True,
+        ),
         description=(
             "Expected-type structured data carries every required property "
             "for the page type."
@@ -1747,7 +1851,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_STRUCTURED_DATA,
         severity=SEVERITY_LOW,
         weight=0.5,
-        applicability_key="has_html",
+        applicability_key=_page_kinds(
+            *PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
+            requires_html=True,
+        ),
         description=(
             "Expected-type structured data carries the recommended properties "
             "for the page type."
@@ -1762,7 +1869,10 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_STRUCTURED_DATA,
         severity=SEVERITY_MEDIUM,
         weight=1.5,
-        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
+        applicability_key=_page_kinds(
+            *PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
+            reads_content=True,
+        ),
         description=(
             "Structured-data names match the visible <title>/h1 content "
             "(bounded cross-check)."
@@ -1861,7 +1971,16 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_MEDIUM,
         weight=2.0,
-        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
+        applicability_key=_page_kinds(
+            PAGE_KIND_ARTICLE,
+            PAGE_KIND_FAQ,
+            PAGE_KIND_GUIDE,
+            PAGE_KIND_DOCS,
+            PAGE_KIND_SERVICE,
+            PAGE_KIND_COMPARISON,
+            PAGE_KIND_CASE_STUDY_REVIEW,
+            reads_content=True,
+        ),
         description=(
             "The first block under the first heading is a substantive "
             "answer/definitional paragraph."

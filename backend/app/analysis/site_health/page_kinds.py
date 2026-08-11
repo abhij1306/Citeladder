@@ -12,7 +12,7 @@
 #   1. root path            -> homepage (deterministic special case;
 #                              HOMEPAGE_PATH_EQUIVALENTS covers locale roots /
 #                              index variants; unlisted paths fall through)
-#   2. URL path patterns    -> PAGE_KIND_PATH_PATTERNS, ordered, first match
+#   2. URL path patterns    -> nearest semantic segment, config order on ties
 #   3. content heuristics   -> question-heading ratio (faq) / price + cart
 #                              markers (product) / byline + date (article)
 #   4. structured-data types -> PAGE_KIND_SCHEMA_TYPE_MAP
@@ -225,14 +225,13 @@ def _content_heuristic(facts: dict) -> dict[str, Any] | None:
 def _schema_suggestion(facts: dict) -> tuple[str | None, str | None]:
     """Signal 4: (suggested page_kind, matched schema type) or (None, None).
 
-    Iterates the (sorted) structured-data type names so the first mapped
-    type is deterministic.
+    Uses the explicit config order (most specific to most general), rather
+    than alphabetical ordering, when a JSON-LD object declares multiple types.
     """
     structured = _mapping(facts.get("structured_data"))
-    types = sorted(_str_sequence(structured.get("types")))
-    for schema_type in types:
-        page_kind = _config.PAGE_KIND_SCHEMA_TYPE_MAP.get(schema_type)
-        if page_kind is not None:
+    types = set(_str_sequence(structured.get("types")))
+    for schema_type, page_kind in _config.PAGE_KIND_SCHEMA_TYPE_MAP.items():
+        if schema_type in types:
             return page_kind, schema_type
     return None, None
 
@@ -339,17 +338,24 @@ def _classification_signals(
             )
         )
 
-    # Signal 2 — ordered path patterns, first match wins.
-    for page_kind, pattern in _PATH_PATTERNS:
-        if pattern.match(path):
-            matched.append(
-                _signal(
-                    _config.PAGE_KIND_SIGNAL_PATH_PATTERN,
-                    page_kind,
-                    pattern.pattern,
-                )
+    # Signal 2 — choose the semantic segment nearest the root. Config order is
+    # the deterministic tie-breaker if two patterns identify the same segment.
+    # This preserves ``/blog/products/...`` as article while correctly finding
+    # nested route families such as ``/resources/guides/...``.
+    path_matches: list[tuple[int, int, str, re.Pattern[str]]] = []
+    for priority, (page_kind, pattern) in enumerate(_PATH_PATTERNS):
+        match = pattern.match(path)
+        if match is not None:
+            path_matches.append((match.start(1), priority, page_kind, pattern))
+    if path_matches:
+        _position, _priority, page_kind, pattern = min(path_matches)
+        matched.append(
+            _signal(
+                _config.PAGE_KIND_SIGNAL_PATH_PATTERN,
+                page_kind,
+                pattern.pattern,
             )
-            break
+        )
 
     # Signal 3 — content/heading heuristics.
     heuristic = _content_heuristic(facts)

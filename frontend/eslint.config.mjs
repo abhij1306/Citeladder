@@ -29,7 +29,7 @@ const eslintConfig = [
       // Constant binary expressions (e.g. always-truthy assertions) are dead
       // logic — flag them as an error.
       'no-constant-binary-expression': 'error',
-      // Tailwind v4 generates EVERY utility family from every `@theme` token,
+      // Tailwind v4 generates EVERY utility family from every theme token,
       // so `--color-subtle` / `--color-muted` / `--color-secondary` (the
       // Gray-500/600/700 TEXT inks) silently yield usable `bg-*` utilities.
       // `bg-subtle` painted the page-kind score expansion as a dark slate panel

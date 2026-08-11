@@ -129,16 +129,23 @@ def test_path_patterns_classify_each_type(url: str, expected: str) -> None:
     assert assessment.classified_by == PAGE_KIND_SIGNAL_PATH_PATTERN
 
 
-def test_path_pattern_first_match_wins_in_config_order() -> None:
-    # /blog/pricing matches both the article (blog) and pricing patterns;
-    # the article entry is earlier in the ordered config table.
-    assessment = classify("https://example.com/blog/pricing", _facts())
-    assert assessment.page_kind == "article"
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        ("/blog/pricing", "article"),
+        ("/pricing/blog", "pricing"),
+        ("/resources/guides/getting-started", "guide"),
+        ("/company/contact-us", "about_contact"),
+        ("/legal/privacy-policy", "trust_policy"),
+    ],
+)
+def test_path_pattern_uses_nearest_semantic_segment(path: str, expected: str) -> None:
+    assessment = classify(f"https://example.com{path}", _facts())
+    assert assessment.page_kind == expected
 
 
-def test_path_pattern_does_not_match_unanchored_segments() -> None:
-    # Patterns are anchored at the path root: "/x/blog" is not /blog/.
-    assessment = classify("https://example.com/x/blog", _facts())
+def test_path_pattern_requires_a_complete_semantic_segment() -> None:
+    assessment = classify("https://example.com/x/blog-post", _facts())
     assert assessment.page_kind == "other"
 
 
@@ -157,7 +164,7 @@ def test_path_pattern_outranks_schema_on_conflict() -> None:
 
 def test_question_heading_ratio_classifies_faq() -> None:
     facts = _facts(h2_texts=_question_h2s(4, total=5))
-    assessment = classify("https://example.com/support", facts)
+    assessment = classify("https://example.com/answers", facts)
     assert assessment.page_kind == "faq"
     assert assessment.classified_by == PAGE_KIND_SIGNAL_CONTENT_HEURISTIC
 
@@ -165,18 +172,18 @@ def test_question_heading_ratio_classifies_faq() -> None:
 def test_faq_requires_minimum_heading_count() -> None:
     # 2/2 question headings is a perfect ratio but below the minimum count.
     facts = _facts(h2_texts=_question_h2s(2, total=2))
-    assert classify("https://example.com/support", facts).page_kind == "other"
+    assert classify("https://example.com/answers", facts).page_kind == "other"
 
 
 def test_faq_requires_question_ratio() -> None:
     # 1 question of 4 headings is below the config ratio.
     facts = _facts(h2_texts=_question_h2s(1, total=4))
-    assert classify("https://example.com/support", facts).page_kind == "other"
+    assert classify("https://example.com/answers", facts).page_kind == "other"
 
 
 def test_question_word_prefix_counts_as_question_form() -> None:
     facts = _facts(h2_texts=["How it works", "Why choose us", "What you get"])
-    assert classify("https://example.com/support", facts).page_kind == "faq"
+    assert classify("https://example.com/answers", facts).page_kind == "faq"
 
 
 def test_price_and_cart_markers_classify_product() -> None:
@@ -232,6 +239,8 @@ def test_content_heuristic_outranks_schema_on_conflict() -> None:
         ("Product", "product"),
         ("FAQPage", "faq"),
         ("TechArticle", "docs"),
+        ("CollectionPage", "category"),
+        ("ContactPage", "about_contact"),
     ],
 )
 def test_schema_types_map_to_page_types(schema_type: str, expected: str) -> None:
@@ -251,14 +260,13 @@ def test_unmapped_schema_type_does_not_classify() -> None:
     assert assessment.schema_suggested_type is None
 
 
-def test_multiple_schema_types_first_mapped_in_sorted_order_wins() -> None:
+def test_multiple_schema_types_use_explicit_specificity_order() -> None:
     assessment = classify(
         "https://example.com/anything",
         _facts(schema_types=["Product", "Article"]),
     )
-    # Sorted type names put Article first.
-    assert assessment.page_kind == "article"
-    assert assessment.schema_suggested_type == "article"
+    assert assessment.page_kind == "product"
+    assert assessment.schema_suggested_type == "product"
 
 
 # --- Confidence, threshold, evidence, determinism ----------------------------

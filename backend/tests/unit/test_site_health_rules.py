@@ -166,6 +166,7 @@ _EDITORIAL_RULE_IDS = {
     "aeo.author_present",
     "aeo.date_present",
     "aeo.outbound_citations",
+    "aeo.answer_first",
     "aeo.question_headings",
 }
 
@@ -860,7 +861,8 @@ def test_schema_property_rules_record_microdata_shallow_extraction():
 
 
 def test_schema_recommended_present_not_applicable_when_none_recommended():
-    # The ``other`` expectation recommends nothing.
+    # ``other`` is a classification abstention, not a WebPage verdict. Schema
+    # rules fail closed instead of assigning it a guessed contract.
     block = {
         "type": "WebPage",
         "syntax": "json-ld",
@@ -870,7 +872,43 @@ def test_schema_recommended_present_not_applicable_when_none_recommended():
     facts = _html_facts(page_kind="other", structured_data=_sd([block]))
     ev = _outcome(facts, "aeo.schema_recommended_present")
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
-    assert ev.evidence["reason"] == "no_recommended_properties"
+    assert ev.evidence["reason"] == "other_page_kind"
+
+
+def test_schema_properties_follow_the_actual_allowed_schema_type():
+    article = {
+        "type": "Article",
+        "syntax": "json-ld",
+        "name": "Install Acme",
+        "props_present": ["headline", "image", "dateModified"],
+    }
+    guide = _html_facts(page_kind="guide", structured_data=_sd([article]))
+
+    required = _outcome(guide, "aeo.schema_required_valid")
+    recommended = _outcome(guide, "aeo.schema_recommended_present")
+
+    assert required.outcome == RULE_OUTCOME_PASS
+    assert required.evidence["schema_type"] == "Article"
+    assert required.evidence["required"] == ["headline"]
+    assert recommended.outcome == RULE_OUTCOME_PASS
+    assert recommended.evidence["recommended"] == ["image", "dateModified"]
+
+
+def test_website_does_not_receive_organization_recommendations():
+    website = {
+        "type": "WebSite",
+        "syntax": "json-ld",
+        "name": "Acme",
+        "props_present": ["name", "url"],
+    }
+    homepage = _html_facts(structured_data=_sd([website]))
+
+    assert _outcome(homepage, "aeo.schema_required_valid").outcome == (
+        RULE_OUTCOME_PASS
+    )
+    recommended = _outcome(homepage, "aeo.schema_recommended_present")
+    assert recommended.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert recommended.evidence["reason"] == "no_recommended_properties"
 
 
 def test_schema_matches_content():
@@ -896,8 +934,7 @@ def test_schema_matches_content_not_applicable_without_names():
     assert ev.evidence["reason"] == "no_schema_names"
 
 
-def test_schema_rules_fall_back_to_other_expectation_without_page_type():
-    # No page_kind fact: the ``other`` expectation (WebPage, required name).
+def test_schema_rules_fail_closed_without_a_classified_page_type():
     block = {
         "type": "WebPage",
         "syntax": "json-ld",
@@ -905,17 +942,38 @@ def test_schema_rules_fall_back_to_other_expectation_without_page_type():
         "props_present": ["name"],
     }
     facts = _html_facts(page_kind=None, structured_data=_sd([block]))
-    assert _outcome(facts, "aeo.schema_expected_for_type").outcome == (
-        RULE_OUTCOME_PASS
-    )
-    assert _outcome(facts, "aeo.schema_required_valid").outcome == (RULE_OUTCOME_PASS)
+    for rule_id in (
+        "aeo.structured_data_present",
+        "aeo.schema_expected_for_type",
+        "aeo.schema_required_valid",
+        "aeo.schema_recommended_present",
+        "aeo.schema_matches_content",
+    ):
+        evaluation = _outcome(facts, rule_id)
+        assert evaluation.outcome == RULE_OUTCOME_NOT_APPLICABLE
+        assert evaluation.evidence["reason"] == "other_page_kind"
+
+
+def test_page_kind_schema_rules_preserve_the_html_guard():
+    facts = _html_facts(has_html=False, page_kind="product")
+    for rule_id in (
+        "aeo.structured_data_present",
+        "aeo.schema_expected_for_type",
+        "aeo.schema_required_valid",
+        "aeo.schema_recommended_present",
+    ):
+        evaluation = _outcome(facts, rule_id)
+        assert evaluation.outcome == RULE_OUTCOME_NOT_APPLICABLE
+        assert evaluation.evidence["reason"] == "no_html"
 
 
 # --- v2 P2: citability rules -------------------------------------------------
 
 
 def test_author_present():
-    assert _outcome(_article_facts(), "aeo.author_present").outcome == (RULE_OUTCOME_PASS)
+    assert _outcome(_article_facts(), "aeo.author_present").outcome == (
+        RULE_OUTCOME_PASS
+    )
     ev = _outcome(_article_facts(author=""), "aeo.author_present")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["present"] is False
@@ -1000,21 +1058,23 @@ def test_organization_identity():
 
 
 def test_answer_first():
-    assert _outcome(_html_facts(), "aeo.answer_first").outcome == RULE_OUTCOME_PASS
-    short = _outcome(_html_facts(first_answer_text="Too short."), "aeo.answer_first")
+    assert _outcome(_article_facts(), "aeo.answer_first").outcome == RULE_OUTCOME_PASS
+    short = _outcome(
+        _article_facts(first_answer_text="Too short."), "aeo.answer_first"
+    )
     assert short.outcome == RULE_OUTCOME_FAIL
     assert short.evidence["answer_word_count"] == 2
     assert short.evidence["minimum_words"] == ANSWER_FIRST_MIN_WORDS
     # Exactly at the minimum passes.
     exactly = " ".join(f"w{i}" for i in range(ANSWER_FIRST_MIN_WORDS))
     assert (
-        _outcome(_html_facts(first_answer_text=exactly), "aeo.answer_first").outcome
+        _outcome(_article_facts(first_answer_text=exactly), "aeo.answer_first").outcome
         == RULE_OUTCOME_PASS
     )
 
 
 def test_answer_first_not_applicable_without_headings():
-    facts = _html_facts(
+    facts = _article_facts(
         headings={"h1_count": 0, "counts": {}, "h1_texts": [], "h2_texts": []}
     )
     ev = _outcome(facts, "aeo.answer_first")

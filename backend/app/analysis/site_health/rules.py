@@ -1,4 +1,4 @@
-# Deterministic rule evaluation (Task 5; expanded to sh-rules-2 in v2 P2).
+# Deterministic rule evaluation (Task 5; page-kind scoped in sh-rules-3).
 #
 # Evaluates the config-owned ``SITE_HEALTH_RULES`` catalog against a page-facts
 # dict (produced by ``parser.extract_page_facts``) into one ``RuleEvaluation``
@@ -38,6 +38,7 @@ from app.core.config.site_health import (
     PAGE_KIND_APPLICABILITY_PREFIX,
     PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
     PAGE_KIND_EXPECTED_SCHEMA,
+    PAGE_KIND_HTML_APPLICABILITY_PREFIX,
     PAGE_KIND_OTHER,
     PAGE_KIND_PROFILES,
     QUESTION_HEADINGS_MIN_RATIO,
@@ -422,28 +423,40 @@ def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict
     """
     label = "recommended" if recommended else "required"
     expectation = _expectation_for(facts)
-    paths = (
-        expectation.recommended_properties
-        if recommended
-        else expectation.required_properties
-    )
-    if not paths:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": f"no_{label}_properties"}
     blocks = _expected_blocks(facts, expectation)
     if not blocks:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
-    best_missing = min((_missing_paths(block, paths) for block in blocks), key=len)
+
+    candidates = [
+        (
+            block,
+            expectation.properties_for(
+                str(block.get("type") or ""), recommended=recommended
+            ),
+        )
+        for block in blocks
+    ]
+    candidates = [(block, paths) for block, paths in candidates if paths]
+    if not candidates:
+        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": f"no_{label}_properties"}
+
+    block, paths = min(
+        candidates,
+        key=lambda candidate: len(_missing_paths(candidate[0], candidate[1])),
+    )
+    best_missing = _missing_paths(block, paths)
     evidence = {
         "page_kind": expectation.page_kind,
+        "schema_type": str(block.get("type") or ""),
         "expected_types": list(expectation.expected_types),
         label: list(paths),
         "missing": best_missing,
-        "checked_blocks": len(blocks),
+        "checked_blocks": len(candidates),
     }
     if best_missing and any(
         str(block.get("syntax") or "") == "microdata"
         and not (block.get("props_present") or [])
-        for block in blocks
+        for block, _paths in candidates
     ):
         # Microdata extraction is shallow (no per-property walk): a failing
         # block with empty props_present may be fully marked up in the HTML.
@@ -822,6 +835,13 @@ def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
         if not applies:
             return False, reason
         return _observed_content(facts)
+    if key.startswith(PAGE_KIND_HTML_APPLICABILITY_PREFIX):
+        applies, reason = _page_kind_scope(
+            key, PAGE_KIND_HTML_APPLICABILITY_PREFIX, facts
+        )
+        if not applies:
+            return False, reason
+        return bool(facts.get("has_html")), "no_html"
     if key.startswith(PAGE_KIND_APPLICABILITY_PREFIX):
         return _page_kind_scope(key, PAGE_KIND_APPLICABILITY_PREFIX, facts)
     if key == APPLICABILITY_SITE_ROOT:

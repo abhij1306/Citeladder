@@ -105,6 +105,30 @@ def test_structured_data_extraction_and_validation():
     assert set(block["present"]) == {"name", "url"}
 
 
+def test_jsonld_type_array_keeps_every_recognized_type():
+    body = b"""
+    <html><head><title>Widget guide</title>
+      <script type="application/ld+json">
+        {
+          "@type": ["UnregisteredExtension", "Article", "HowTo"],
+          "headline": "Widget guide",
+          "name": "Widget guide",
+          "author": {"name": "Jane Doe"},
+          "datePublished": "2026-08-11",
+          "step": [{"name": "Start"}]
+        }
+      </script>
+    </head><body><h1>Widget guide</h1></body></html>
+    """
+    structured_data = _facts(body)["structured_data"]
+
+    assert structured_data["types"] == ["Article", "HowTo"]
+    assert [block["type"] for block in structured_data["blocks"]] == [
+        "Article",
+        "HowTo",
+    ]
+
+
 def test_links_and_assets_classification():
     facts = _facts(_FULL_PAGE)
     links = facts["links"]
@@ -347,12 +371,10 @@ _V2_PAGE = b"""
 """
 
 
-def test_extractor_version_is_sh_extractor_4():
-    # Pin the provenance stamp (config-derived everywhere else). sh-extractor-4
-    # adds the knowledge-layer facts (contact_points / money_mentions) on top of
-    # sh-extractor-3's industry-role classifier facts.
-    assert EXTRACTOR_VERSION == "sh-extractor-4"
-    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-4"
+def test_extractor_version_is_sh_extractor_5():
+    # sh-extractor-5 preserves every recognized token from multi-typed JSON-LD.
+    assert EXTRACTOR_VERSION == "sh-extractor-5"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-5"
 
 
 # --- sh-extractor-3: industry-role classifier facts -------------------------

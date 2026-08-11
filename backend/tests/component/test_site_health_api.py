@@ -55,6 +55,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
 )
 from app.domain.site_health.phase_control import start_discovery
+from app.domain.site_health.service.issues import issue_group_id
 from app.models.project import Project
 from app.models.site_health import (
     MonitoredSiteUrl,
@@ -585,7 +586,6 @@ async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:
 
     # url_a + url_b get analyzed (classified article / product — v2 P1);
     # url_b gets a failing rule -> issue.
-    canonical_issue_id: uuid.UUID | None = None
     for su, with_issue, page_kind in (
         (url_a, False, "article"),
         (url_b, True, "product"),
@@ -707,7 +707,6 @@ async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:
             )
             session.add(issue)
             await session.flush()
-            canonical_issue_id = issue.id
 
     session.add(
         SiteCrawlEvent(
@@ -730,14 +729,13 @@ async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:
     )
     await session.commit()
 
-    assert canonical_issue_id is not None
     return Scenario(
         workspace_id=workspace.id,
         project_id=project.id,
         crawl_id=crawl.id,
         monitored_url_id=url_a.id,
         issue_url_id=url_b.id,
-        canonical_issue_id=canonical_issue_id,
+        canonical_issue_id=issue_group_id(crawl.id, "technical.title_present"),
     )
 
 
@@ -1512,10 +1510,9 @@ async def test_issue_detail_canonicalizes_non_representative_member_id(
 ) -> None:
     """Item 4: a non-representative issue id resolves to the canonical group.
 
-    Two issues share a rule (title_present) on two URLs. The earliest by
-    (created_at, id) is canonical. Requesting the LATER member's id must return
-    the same canonical detail (same id, both affected URLs), not a distinct
-    projection.
+    Two issues share a rule on two URLs. Requesting either occurrence UUID must
+    resolve to the deterministic ``(crawl, rule)`` group UUID and the same
+    affected-URL projection.
     """
     await _register(client, "canon@example.com")
     async with session_factory() as session:
@@ -1538,7 +1535,7 @@ async def test_issue_detail_canonicalizes_non_representative_member_id(
         await session.commit()
     headers = {"X-Workspace-Id": str(scn.workspace_id)}
 
-    # Request the LATER member id: the detail canonicalizes to the earliest id.
+    # Request the later member id: detail canonicalizes to the group id.
     detail = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/issues/{member_id}",
         headers=headers,
@@ -1557,9 +1554,8 @@ async def test_grouped_issues_canonical_id_stable_under_filters(
 ) -> None:
     """Item 4: the grouped-issue canonical id does not move when filters apply.
 
-    Adding a same-rule issue on url_c must not change the group's canonical id
-    (earliest unfiltered (created_at, id)), whether unfiltered or filtered to a
-    single affected URL.
+    Adding a same-rule issue on url_c must not change the deterministic group
+    id, whether unfiltered or filtered to a single affected URL.
     """
     await _register(client, "stable@example.com")
     async with session_factory() as session:
@@ -1590,8 +1586,8 @@ async def test_grouped_issues_canonical_id_stable_under_filters(
     assert groups[0]["id"] == str(scn.canonical_issue_id)
     assert groups[0]["affected_url_count"] == 2
 
-    # Filter to only url_c (which is NOT the canonical row's URL): the canonical
-    # id is unchanged (computed unfiltered), only the affected count narrows.
+    # Filter to only url_c: the group id is unchanged, only the affected count
+    # narrows.
     filtered = await client.get(
         f"/api/v1/site-crawls/{scn.crawl_id}/issues?site_url_id={url_c_id}",
         headers=headers,

@@ -14,7 +14,7 @@
 # rules own required/recommended validation for them, spec §5.2).
 #
 # Enrichment (P2): each recognized JSON-LD block also carries bounded,
-# pre-extracted fields the sh-rules-2 checks read — ``name``, ``author``,
+# pre-extracted fields the page-type schema checks read — ``name``, ``author``,
 # ``date_published``, ``date_modified``, ``same_as``, and ``props_present``
 # (the config ``SCHEMA_PROPERTY_PATHS`` set present on the object, incl.
 # dotted one-level paths like ``offers.price``).
@@ -57,15 +57,9 @@ _MAX_SAME_AS_CHARS = site_health_config.SITE_HEALTH_MAX_SAME_AS_CHARS
 def _clean_type(value: Any) -> str:
     """Normalize a schema.org ``@type`` token to its bare type name.
 
-    Accepts ``"Article"``, ``"http://schema.org/Article"``, or a list whose
-    first entry is a type; returns ``""`` for anything unrecognized.
+    Accepts ``"Article"`` or ``"http://schema.org/Article"`` and returns
+    ``""`` for values that are not scalar type tokens.
     """
-    if isinstance(value, list):
-        for item in value:
-            cleaned = _clean_type(item)
-            if cleaned:
-                return cleaned
-        return ""
     if not isinstance(value, str):
         return ""
     token = value.strip()
@@ -79,6 +73,22 @@ def _clean_type(value: Any) -> str:
     if "#" in token:
         token = token.rsplit("#", 1)[-1]
     return token
+
+
+def _clean_types(value: Any) -> tuple[str, ...]:
+    """Normalize every unique type declared by one schema object.
+
+    Multi-typed JSON-LD is valid. Keeping only the first token could discard a
+    recognized ``Product`` or ``Article`` merely because an unfamiliar type
+    appeared before it in the array.
+    """
+    values = value if isinstance(value, list) else [value]
+    cleaned_types: list[str] = []
+    for item in values:
+        cleaned = _clean_type(item)
+        if cleaned and cleaned not in cleaned_types:
+            cleaned_types.append(cleaned)
+    return tuple(cleaned_types)
 
 
 def _iter_jsonld_objects(node: Any, depth: int = 0):
@@ -228,33 +238,35 @@ def _product_enrichment(obj: dict) -> dict[str, Any]:
     }
 
 
-def _validate_object(obj: dict) -> dict | None:
-    """Validate one JSON-LD object against the recognized-type set.
+def _validate_objects(obj: dict) -> tuple[dict, ...]:
+    """Validate every recognized type declared by one JSON-LD object.
 
-    Returns a bounded fact dict (``type`` + required/present/missing property
-    lists + a ``valid`` flag + the P2 enrichment fields) for a RECOGNIZED
-    type, or ``None`` when the object carries no recognized ``@type`` (so
-    callers only record understood types).
+    Returns one bounded fact dict per recognized type (``type`` +
+    required/present/missing property lists + a ``valid`` flag + enrichment),
+    or an empty tuple when the object carries no recognized ``@type``.
     """
-    schema_type = _clean_type(obj.get("@type"))
-    if not schema_type or schema_type not in (
-        STRUCTURED_DATA_RECOGNIZED_TYPES | PRODUCT_RECOGNIZED_SCHEMA_TYPES
-    ):
-        return None
-    # v1 back-compat: only the v1 map's types carry a required-property
-    # contract; newly recognized types validate with an empty contract.
-    required = STRUCTURED_DATA_REQUIRED_PROPERTIES.get(schema_type, ())
-    present = _present_properties(obj, required)
-    missing = [prop for prop in required if prop not in present]
-    return {
-        "type": schema_type,
-        "syntax": "json-ld",
-        "required": list(required),
-        "present": present,
-        "missing": missing,
-        "valid": not missing,
-        **_enrichment(obj),
-    }
+    recognized = STRUCTURED_DATA_RECOGNIZED_TYPES | PRODUCT_RECOGNIZED_SCHEMA_TYPES
+    facts: list[dict] = []
+    for schema_type in _clean_types(obj.get("@type")):
+        if schema_type not in recognized:
+            continue
+        # v1 back-compat: only the v1 map's types carry a required-property
+        # contract; newly recognized types validate with an empty contract.
+        required = STRUCTURED_DATA_REQUIRED_PROPERTIES.get(schema_type, ())
+        present = _present_properties(obj, required)
+        missing = [prop for prop in required if prop not in present]
+        facts.append(
+            {
+                "type": schema_type,
+                "syntax": "json-ld",
+                "required": list(required),
+                "present": present,
+                "missing": missing,
+                "valid": not missing,
+                **_enrichment(obj),
+            }
+        )
+    return tuple(facts)
 
 
 def parse_jsonld_blocks(raw_blocks: list[str], *, max_blocks: int) -> list[dict]:
@@ -283,8 +295,9 @@ def parse_jsonld_blocks(raw_blocks: list[str], *, max_blocks: int) -> list[dict]
         for obj in _iter_jsonld_objects(parsed):
             if len(facts) >= max_blocks:
                 break
-            fact = _validate_object(obj)
-            if fact is not None:
+            for fact in _validate_objects(obj):
+                if len(facts) >= max_blocks:
+                    break
                 facts.append(fact)
     return facts
 
