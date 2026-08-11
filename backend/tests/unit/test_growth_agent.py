@@ -16,7 +16,11 @@ from app.core.config.agent import (
 )
 from app.domain.agent import context as agent_context
 from app.domain.agent import service as agent_service
-from app.domain.agent.service import _build_plan, _validate_result
+from app.domain.agent.service import (
+    _build_plan,
+    _public_narrative_text,
+    _validate_result,
+)
 from app.domain.agent.tools import (
     TOOL_DEFINITIONS,
     _bounded_result,
@@ -106,6 +110,53 @@ def test_tool_result_boundary_redacts_and_bounds_nested_values(
     assert "do-not-return" not in serialized
     assert _serialized_chars(result) <= 240
     assert result["truncated"] is True
+
+
+def test_ranked_opportunity_budget_keeps_actionable_roadmap_items() -> None:
+    definition = TOOL_DEFINITIONS["opportunities.read_ranked"]
+    items = [
+        {
+            "id": str(uuid.uuid4()),
+            "rank": rank,
+            "priority_score": 100 - rank,
+            "severity": "high",
+            "type": "site",
+            "title": f"Action {rank}",
+            "remediation": "Make the evidence-backed change and measure it.",
+            "target_key": f"target-{rank}",
+            "target_url": f"https://example.com/{rank}",
+        }
+        for rank in range(1, definition.maximum_result_items + 1)
+    ]
+
+    result = _bounded_result(
+        {
+            "state": "available",
+            "items": items,
+            "truncated": True,
+            "artifact_refs": [
+                {"kind": "opportunity", "id": item["id"]} for item in items
+            ],
+        },
+        maximum_items=definition.maximum_result_items,
+    )
+
+    assert definition.maximum_result_items == 10
+    assert result["items"] == items
+    assert "reason" not in result
+    assert len(agent_service._roadmap_view(result)["items"]) == 10
+
+
+def test_public_narrative_rejects_internal_ids() -> None:
+    assert _public_narrative_text("Improve the pricing page.") == (
+        "Improve the pricing page."
+    )
+    assert (
+        _public_narrative_text(
+            "Use evidence 28f6952b-1483-4a2d-b53a-cbd37f9f1f4a first."
+        )
+        == ""
+    )
 
 
 @pytest.mark.parametrize("invalid_limit", [0, -1])

@@ -1,6 +1,6 @@
 export const ENGINES = {
   openai: { label: 'OpenAI', tile: 'bg-foreground' },
-  claude: { label: 'Claude', tile: 'bg-secondary' },
+  claude: { label: 'Claude', tile: 'bg-brand-claude' },
   gemini: { label: 'Gemini', tile: 'bg-accent' },
 } as const;
 

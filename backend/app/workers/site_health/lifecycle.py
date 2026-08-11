@@ -82,6 +82,8 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
     TASK_TERMINAL_STATUSES,
 )
+from app.core.config.traffic import TRAFFIC_GRANULARITY_DAY
+from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
 from app.domain.opportunities.service import enqueue_opportunity_refresh
 from app.domain.site_health.failure import load_root_failure_summary
 from app.domain.site_health.normalization import canonical_identity
@@ -105,6 +107,7 @@ from app.models.site_health import (
     SiteUrl,
     SiteUrlObservation,
 )
+from app.models.traffic import TrafficSnapshot
 
 logger = logging.getLogger("app.workers.site_health.lifecycle")
 
@@ -132,6 +135,39 @@ _RUNNING_PATH: Final[dict[str, tuple[str, ...]]] = {
 def _count_disclosure(crawl: SiteCrawl) -> bool:
     """Free crawls never disclose absolute counts in event payloads."""
     return not crawl.sample_mode
+
+
+async def _enqueue_post_crawl_refresh(
+    session: AsyncSession, *, crawl: SiteCrawl
+) -> None:
+    """Refresh Demand when Traffic exists, otherwise refresh Opportunities."""
+    traffic = await session.scalar(
+        select(TrafficSnapshot)
+        .where(
+            TrafficSnapshot.workspace_id == crawl.workspace_id,
+            TrafficSnapshot.project_id == crawl.project_id,
+            TrafficSnapshot.granularity == TRAFFIC_GRANULARITY_DAY,
+        )
+        .order_by(TrafficSnapshot.window_end.desc(), TrafficSnapshot.created_at.desc())
+        .limit(1)
+    )
+    if traffic is not None:
+        await enqueue_demand_snapshot_refresh(
+            session,
+            workspace_id=crawl.workspace_id,
+            project_id=crawl.project_id,
+            window_start=traffic.window_start,
+            window_end=traffic.window_end,
+            source_revision=f"site:{crawl.id}",
+        )
+        return
+    await enqueue_opportunity_refresh(
+        session,
+        workspace_id=crawl.workspace_id,
+        project_id=crawl.project_id,
+        trigger_kind="site_crawl",
+        trigger_id=crawl.id,
+    )
 
 
 def _start_planned_analysis(crawl: SiteCrawl, *, analyze_total: int) -> None:
@@ -179,15 +215,23 @@ def _reconcile_discovery_state(
     crawl: SiteCrawl, summary: _TaskSummary
 ) -> tuple[bool, bool]:
     """Progressively terminalize discovery and return failure classifications."""
-    fully_failed = crawl.discovered_url_count == 0
-    discovery_partial = crawl.discovered_url_count > 0 and summary.discover_failed > 0
+    discovery_failed = crawl.discovered_url_count == 0
+    # A recrawl can still produce fresh analyses from the persistent monitored
+    # set when its root discovery request is blocked. That is useful partial
+    # evidence, not a fully failed crawl. Classifying it as FAILED discarded
+    # the downstream Opportunities refresh even after every selected page was
+    # analyzed successfully.
+    fully_failed = discovery_failed and summary.analyze_succeeded == 0
+    discovery_partial = summary.discover_failed > 0 and not fully_failed
     if summary.discover_remaining == 0:
         if crawl.discovery_status == DISCOVERY_STATUS_RUNNING:
             status = (
-                DISCOVERY_STATUS_FAILED if fully_failed else DISCOVERY_STATUS_COMPLETED
+                DISCOVERY_STATUS_FAILED
+                if discovery_failed
+                else DISCOVERY_STATUS_COMPLETED
             )
             apply_discovery_status(crawl, status)
-        crawl.inventory_complete = not fully_failed
+        crawl.inventory_complete = not discovery_failed
     return fully_failed, discovery_partial
 
 
@@ -463,7 +507,7 @@ class CrawlLifecycle:
         """Repair counters from their durable task and observation authorities."""
         crawl.failed_url_count = await self._failed_url_count(session, crawl.id)
         crawl.analyzed_url_count = summary.analyze_succeeded
-        crawl.admitted_url_count = int(
+        observed_url_count = int(
             await session.scalar(
                 select(func.count())
                 .select_from(SiteUrlObservation)
@@ -471,6 +515,13 @@ class CrawlLifecycle:
             )
             or 0
         )
+        # Admission is ahead of observation for full crawls: a parent page
+        # reserves and queues child identities before those children are
+        # fetched. Replacing the live admission counter with the smaller
+        # observation count reopened the requested budget after every task,
+        # allowing each sibling to enqueue another full batch. The persisted
+        # counter is monotonic; observations can repair it upward, never down.
+        crawl.admitted_url_count = max(crawl.admitted_url_count, observed_url_count)
 
     async def _terminalize_crawl(
         self,
@@ -517,13 +568,7 @@ class CrawlLifecycle:
             payload={"status": crawl.status},
             count_disclosure=_count_disclosure(crawl),
         )
-        await enqueue_opportunity_refresh(
-            session,
-            workspace_id=crawl.workspace_id,
-            project_id=crawl.project_id,
-            trigger_kind="site_crawl",
-            trigger_id=crawl.id,
-        )
+        await _enqueue_post_crawl_refresh(session, crawl=crawl)
 
     async def _reconcile_advanced_phase_runs(
         self,

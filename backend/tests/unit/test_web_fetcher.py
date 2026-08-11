@@ -24,7 +24,11 @@ from app.connectors.web_evidence.contracts import (
     FetchResult,
     ResolvedTarget,
 )
-from app.connectors.web_evidence.fetcher import SecureFetcher, redact_headers
+from app.connectors.web_evidence.fetcher import (
+    SecureFetcher,
+    is_bot_block_result,
+    redact_headers,
+)
 from app.core.config.site_health import SiteHealthSettings
 
 _PUBLIC_IP = "93.184.216.34"
@@ -58,6 +62,37 @@ def _html_response(
     if content_encoding is not None:
         headers["content-encoding"] = content_encoding
     return httpx.Response(status, headers=headers, stream=_ByteStream(body))
+
+
+def _result(body: bytes, *, status_code: int = 200) -> FetchResult:
+    return FetchResult(
+        requested_url="https://example.com/",
+        final_url="https://example.com/",
+        status_code=status_code,
+        redacted_headers={},
+        content_type="text/html",
+        http_version="HTTP/1.1",
+        body=body,
+        wire_bytes=len(body),
+        decoded_bytes=len(body),
+        ttfb_ms=1,
+        latency_ms=1,
+    )
+
+
+def test_challenge_script_appended_to_real_document_is_not_a_bot_block() -> None:
+    body = (
+        b"<html><main><article><h1>Privacy Policy</h1><p>Real content.</p>"
+        b"</article></main><script src='/cdn-cgi/challenge-platform/x.js'>"
+        b"</script></html>"
+    )
+    assert is_bot_block_result(_result(body)) is False
+
+
+def test_challenge_interstitial_remains_a_bot_block() -> None:
+    assert is_bot_block_result(
+        _result(b"<html><title>Just a moment...</title><div>cf-chl</div></html>")
+    ) is True
 
 
 class _FakeResolver:

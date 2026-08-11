@@ -59,6 +59,7 @@ from app.core.config.site_health import (
     INVENTORY_DOCUMENT_EXTENSIONS,
     ITEM_KIND_DOCUMENT,
     ITEM_KIND_HTML_PAGE,
+    SITE_HEALTH_MAX_URL_CHARS,
     TRACKING_QUERY_PARAMS,
     URL_EXCLUSION_HARD_ASSET,
     URL_EXCLUSION_HARD_PATH,
@@ -226,6 +227,8 @@ def classify_url_admission(
         if _has_tracking_query(parts.query):
             return UrlAdmission(False, None, URL_EXCLUSION_TRACKING, "other", 0)
         canonical = canonicalize(resolved)
+        if len(canonical) > SITE_HEALTH_MAX_URL_CHARS:
+            return UrlAdmission(False, None, URL_EXCLUSION_INVALID, "other", 0)
     except UrlPolicyError:
         return UrlAdmission(False, None, URL_EXCLUSION_INVALID, "other", 0)
     kind = page_value_kind(canonical)

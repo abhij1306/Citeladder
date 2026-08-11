@@ -12,18 +12,18 @@ import type { useSiteHealthScreen } from '@/lib/site-health/use-site-health-scre
 import type { SiteHealthEntitlement } from '@/lib/api/types';
 import type { PhaseMutation } from '@/components/site-health/phase-controls';
 
-const EMPTY_URL_SELECTION: ReadonlySet<string> = new Set();
-
 /**
  * The canonical Site Health dashboard layout.
  *
  * ONE composed screen that stays mounted through the entire discover → select
- * → analyze → scored lifecycle: the controls, a compact status/progress row,
- * the page inventory, and secondary score diagnostics. Phase changes update each section's DATA and
+ * → analyze → scored lifecycle. Phase changes update each section's DATA and
  * mode — they never swap the layout for a different panel, so starting,
  * cancelling, or finishing a crawl visibly updates the screen the user is
  * already on. (The per-URL crawl detail view and the issues screen remain the
  * only other screens in the flow.)
+ *
+ * Reading order is answer-first: where the crawl stands, what you can do next,
+ * the scores, then the URL inventory as the drill-down.
  */
 export function SiteHealthDashboardLayout({
   screen,
@@ -48,20 +48,14 @@ export function SiteHealthDashboardLayout({
     startPending,
     cancelMutation,
     cancelCrawl,
-    startCrawl,
   } = screen;
-  const [urlSelection, setUrlSelection] = useState<{
-    crawlId: string | undefined;
-    ids: Set<string>;
-  }>({ crawlId: crawl?.id, ids: new Set() });
   const [lastPhaseMutation, setLastPhaseMutation] = useState<PhaseMutation | null>(null);
-  const selectedUrlIds =
-    urlSelection.crawlId === crawl?.id ? urlSelection.ids : EMPTY_URL_SELECTION;
 
   return (
-    <div className="grid gap-6" data-testid="site-health-canonical">
-      {/* Keep the current state and actions first. Score and crawler diagnostics
-          are reference material, not prerequisites for working with URLs. */}
+    // `min-w-0` so a wide table inside a section scrolls in its own wrapper
+    // instead of widening this column (and every ancestor) to its max-content.
+    <div className="grid min-w-0 gap-6" data-testid="site-health-canonical">
+      {/* Where the crawl stands. */}
       <StatusStrip
         crawl={crawl}
         phase={phase}
@@ -73,30 +67,19 @@ export function SiteHealthDashboardLayout({
         selectedError={projectSelectedError}
       />
 
+      {/* What you can do about it: continue discovery, run an analysis batch,
+          re-crawl. */}
       <PhaseControls
         screen={screen}
-        selectedUrlIds={selectedUrlIds}
         lastMutation={lastPhaseMutation}
         onMutationStart={setLastPhaseMutation}
         onRecrawl={onRecrawl}
       />
 
-      <InventorySection
-        mode={inventoryMode}
-        crawl={crawl}
-        entitlement={entitlement}
-        projectId={projectId}
-        active={active}
-        onCancel={cancelCrawl}
-        cancelPending={cancelMutation.isPending}
-        onStartAnalysis={startCrawl}
-        // Disabled while the create request is in flight so a second click can
-        // never fire a duplicate. There is no post-success gap to cover: the
-        // create writes the new crawl into the dashboard cache itself.
-        startPending={startPending}
-      />
-
-      {/* Secondary diagnostics follow the URL workspace. */}
+      {/* Scores come BEFORE the URL inventory. They are the crawl-level answer
+          ("how healthy is this site") and the inventory is the drill-down;
+          rendering them underneath a 25-row table put the headline result
+          three screens down and made it look as though scoring had vanished. */}
       <ScoreSection
         crawl={crawl}
         dashboard={dashboardQuery.data}
@@ -109,31 +92,18 @@ export function SiteHealthDashboardLayout({
         selectedTotal={projectSelectedTotal}
       />
 
-      <PageKindScores
-        key={crawl?.id ?? 'no-crawl'}
+      <PageKindScores crawl={crawl} dashboard={dashboardQuery.data} />
+
+      <InventorySection
+        mode={inventoryMode}
         crawl={crawl}
-        dashboard={dashboardQuery.data}
-        selectedUrlIds={selectedUrlIds}
-        onSelectionChange={(ids) => setUrlSelection({ crawlId: crawl?.id, ids })}
-        onReanalyze={
-          entitlement.advanced_controls_enabled
-            ? (siteUrlIds) => {
-                const selectionVersion = screen.monitoredQuery.data?.selection_version;
-                if (!crawl || selectionVersion === undefined || siteUrlIds.length === 0) return;
-                setLastPhaseMutation('startAnalysis');
-                screen.startAnalysisMutation.mutate({
-                  crawlId: crawl.id,
-                  input: {
-                    requested_url_count: siteUrlIds.length,
-                    site_url_ids: siteUrlIds,
-                    expected_selection_version: selectionVersion,
-                  },
-                });
-              }
-            : undefined
-        }
-        reanalyzePending={screen.startAnalysisMutation.isPending}
+        entitlement={entitlement}
+        projectId={projectId}
+        active={active}
+        onCancel={cancelCrawl}
+        cancelPending={cancelMutation.isPending}
       />
+
       <SiteFactsPanel crawl={crawl} dashboard={dashboardQuery.data} />
     </div>
   );

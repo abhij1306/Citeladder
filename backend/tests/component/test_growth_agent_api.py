@@ -83,6 +83,10 @@ async def test_roadmap_run_freezes_context_and_replays_idempotently(
     ]
     assert len(payload["steps"]) == 4
     assert all(step["status"] == "completed" for step in payload["steps"])
+    assert payload["result"]["conclusion"] == (
+        "There is no project evidence available yet, so I cannot give you a "
+        "grounded answer."
+    )
     replay = await client.post(
         "/api/v1/agent/tasks", json=body, headers={"Idempotency-Key": "roadmap-1"}
     )

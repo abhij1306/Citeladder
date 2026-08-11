@@ -21,6 +21,7 @@ import {
   severityBadgeValue,
   severityLabel,
 } from '@/lib/site-health/issues';
+import { pageDisplayTitle } from '@/lib/site-health/status';
 import { cn } from '@/lib/utils';
 
 const ISSUE_LIMIT = 25;
@@ -244,6 +245,18 @@ function IssueCard({ issue, crawlId }: Readonly<{ issue: SiteIssue; crawlId: str
 
         <div className="grid gap-1">
           <h3 className="text-foreground text-heading-sm">{issueTitle(issue)}</h3>
+          {/* Which page TYPES this issue actually reaches. A product-schema
+              finding that only touches product pages and a title finding that
+              touches everything are very different pieces of work, and the
+              count alone does not tell them apart. */}
+          {issue.page_kinds.length > 0 ? (
+            <span className="flex flex-wrap items-center gap-1">
+              <span className="text-2xs text-muted">Affects</span>
+              {issue.page_kinds.map((kind) => (
+                <PageKindBadge key={kind} pageKind={kind} />
+              ))}
+            </span>
+          ) : null}
         </div>
 
         {issue.remediation ? (
@@ -281,15 +294,19 @@ function IssueCard({ issue, crawlId }: Readonly<{ issue: SiteIssue; crawlId: str
                   <li key={url.site_url_id} className="px-3 py-2">
                     <Link
                       href={`/site-health/crawls/${crawlId}/pages/${url.site_url_id}`}
-                      className="hover:text-accent flex flex-col gap-0.5"
+                      className="hover:text-accent flex min-w-0 flex-col gap-0.5"
                     >
-                      <span className="flex items-center gap-2">
-                        <span className="text-foreground text-sm font-medium">
-                          {url.title ?? url.display_url}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="text-foreground truncate text-sm font-medium">
+                          {pageDisplayTitle(url.title, url.display_url)}
                         </span>
                         <PageKindBadge pageKind={url.page_kind} />
                       </span>
-                      <span className="mono text-2xs text-muted">{url.display_url}</span>
+                      {/* Unbreakable single-token URLs are truncated rather
+                          than allowed to widen the panel. */}
+                      <span className="mono text-2xs text-muted truncate" title={url.display_url}>
+                        {url.display_url}
+                      </span>
                     </Link>
                   </li>
                 ))}

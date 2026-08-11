@@ -36,6 +36,7 @@ from app.core.config.site_health import (
     EXPAND_GATED_MAX_RATIO,
     META_DESCRIPTION_LENGTH_BAND,
     PAGE_KIND_APPLICABILITY_PREFIX,
+    PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
     PAGE_KIND_EXPECTED_SCHEMA,
     PAGE_KIND_OTHER,
     PAGE_KIND_PROFILES,
@@ -764,6 +765,38 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
 }
 
 
+def _observed_content(facts: dict) -> tuple[bool, str]:
+    """Content-reading rules need content we actually RECEIVED.
+
+    On a client-rendered shell the body is empty, so asserting "missing H1",
+    "thin content" or "no outbound citations" would be reporting the absence of
+    something we never had a chance to see — six derived findings, each scoring
+    against the page, for one real problem. ``aeo.server_rendered_content``
+    owns that problem and stays applicable (it is ``has_html``), so the shell is
+    still reported once, at HIGH, with its remediation.
+    """
+    if not facts.get("has_html"):
+        return False, "no_html"
+    is_shell, _evidence = _server_render_signals(facts)
+    return not is_shell, "content_not_server_rendered"
+
+
+def _page_kind_scope(key: str, prefix: str, facts: dict) -> tuple[bool, str]:
+    """``<prefix><type>[|<type>...]`` resolved against ``facts["page_kind"]``.
+
+    The token names every type the check is MEANT for, so a product page is
+    never asked for an author byline and an FAQ is never asked for
+    Product/offers markup. An absent or unknown page type is inapplicable
+    (fail-closed) — we do not guess which checklist a page we could not
+    classify should answer for.
+    """
+    profile = _profile_for(facts)
+    if profile is None:
+        return False, "other_page_kind"
+    allowed = {token for token in key[len(prefix) :].split("|") if token}
+    return profile.page_kind in allowed, "other_page_kind"
+
+
 def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
     """``(applicable, skip_reason)`` for one rule against ``facts``.
 
@@ -778,29 +811,19 @@ def _applicability(rule: SiteHealthRule, facts: dict) -> tuple[bool, str]:
     if key == "has_html":
         return bool(facts.get("has_html")), "no_html"
     if key == APPLICABILITY_OBSERVED_CONTENT:
-        # Content-reading rules need content we actually RECEIVED. On a
-        # client-rendered shell the body is empty, so asserting "missing H1",
-        # "thin content" or "no outbound citations" would be reporting the
-        # absence of something we never had a chance to see — six derived
-        # findings, each scoring against the page, for one real problem.
-        # ``aeo.server_rendered_content`` is the rule that owns that problem
-        # and it stays applicable (it is ``has_html``), so the shell is still
-        # reported once, at HIGH, with its remediation.
-        if not facts.get("has_html"):
-            return False, "no_html"
-        is_shell, _evidence = _server_render_signals(facts)
-        return not is_shell, "content_not_server_rendered"
-    if key.startswith(PAGE_KIND_APPLICABILITY_PREFIX):
-        # page_kind:<type> tokens resolve against facts["page_kind"]: the
-        # token must name exactly the page's (known) type. An absent/unknown
-        # page type — or a token naming any other type — is inapplicable
-        # (fail-closed).
-        profile = _profile_for(facts)
-        applies = (
-            profile is not None
-            and key == f"{PAGE_KIND_APPLICABILITY_PREFIX}{profile.page_kind}"
+        return _observed_content(facts)
+    if key.startswith(PAGE_KIND_CONTENT_APPLICABILITY_PREFIX):
+        # Page-kind scope AND the shell guard. Order matters only for the skip
+        # reason: an article we could not render should say "we could not see
+        # this page's content", not "wrong page kind".
+        applies, reason = _page_kind_scope(
+            key, PAGE_KIND_CONTENT_APPLICABILITY_PREFIX, facts
         )
-        return applies, "other_page_kind"
+        if not applies:
+            return False, reason
+        return _observed_content(facts)
+    if key.startswith(PAGE_KIND_APPLICABILITY_PREFIX):
+        return _page_kind_scope(key, PAGE_KIND_APPLICABILITY_PREFIX, facts)
     if key == APPLICABILITY_SITE_ROOT:
         # Site-level rules apply only inside the crawl root's own analysis,
         # where the worker injected facts["site"] from the crawl's

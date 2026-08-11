@@ -34,7 +34,6 @@ from app.core.config.integrations import (
     DATASET_GSC_PAGE_DAILY,
     DATASET_GSC_QUERY_DAILY,
     DATASET_GSC_QUERY_PAGE_DAILY,
-    DATASET_GSC_SEARCH_APPEARANCE_DAILY,
     ERROR_UNMAPPED_PROPERTY,
     EVENT_INTEGRATION_SYNC_FINISHED,
     GRANT_STATUS_CONNECTED,
@@ -216,9 +215,9 @@ async def test_derivation_provenance_on_every_row(session_factory, db_session) -
     await db_session.refresh(run)
     assert run.status == TASK_STATUS_SUCCEEDED
     artifacts = await _run_artifacts(db_session, run.id)
-    assert len(artifacts) == 6  # one page for each registered GSC report family
+    assert len(artifacts) == 5  # one page for each provider-compatible family
     rows = await _run_metric_rows(db_session, run.id)
-    assert len(rows) == 6
+    assert len(rows) == 5
 
     artifact_ids = {artifact.id for artifact in artifacts}
     for row in rows:
@@ -242,7 +241,6 @@ async def test_derivation_provenance_on_every_row(session_factory, db_session) -
         DATASET_GSC_QUERY_PAGE_DAILY: (
             "admissions | https://example.com/admissions | 2026-07-21"
         ),
-        DATASET_GSC_SEARCH_APPEARANCE_DAILY: "WEB | 2026-07-21",
         DATASET_GSC_DEVICE_DAILY: "MOBILE | 2026-07-21",
         DATASET_GSC_COUNTRY_DAILY: "ind | 2026-07-21",
     }
@@ -277,7 +275,7 @@ async def test_unmapped_property_fails_run(session_factory, db_session) -> None:
     assert run.completed_at is not None
     # The raw import landed (immutable evidence retained) but NOTHING was
     # derived or projected: the property was never guessed.
-    assert len(await _run_artifacts(db_session, run.id)) == 6
+    assert len(await _run_artifacts(db_session, run.id)) == 5
     assert await _run_metric_rows(db_session, run.id) == []
     assert list((await db_session.scalars(select(AnalyticsTask))).all()) == []
     events = list(
@@ -305,7 +303,7 @@ async def test_resync_writes_new_rows_old_retained(session_factory, db_session) 
     rows0 = await _run_metric_rows(db_session, run0.id)
     artifacts0 = await _run_artifacts(db_session, run0.id)
     hashes0 = {artifact.id: artifact.payload_hash for artifact in artifacts0}
-    assert len(rows0) == 6
+    assert len(rows0) == 5
     assert {row.resync_seq for row in rows0} == {0}
 
     # The completed window re-syncs at resync_seq 1 (I5 allocation).
@@ -316,7 +314,7 @@ async def test_resync_writes_new_rows_old_retained(session_factory, db_session) 
     assert run1.status == TASK_STATUS_SUCCEEDED
 
     rows1 = await _run_metric_rows(db_session, run1.id)
-    assert len(rows1) == 6
+    assert len(rows1) == 5
     assert {row.resync_seq for row in rows1} == {1}
 
     # Old rows + old artifacts are retained, never mutated (invariant 3):
@@ -343,7 +341,7 @@ async def test_resync_writes_new_rows_old_retained(session_factory, db_session) 
         )
     )
     grouped = (await db_session.execute(identity)).all()
-    assert len(grouped) == 12  # six report identities x two revisions
+    assert len(grouped) == 10  # five report identities x two revisions
     seqs = {row.resync_seq for row in grouped}
     assert seqs == {0, 1}
     for artifact in artifacts0:
@@ -377,8 +375,8 @@ async def test_derivation_replay_is_a_dedup_noop(session_factory, db_session) ->
         await session.commit()
     # The transform still maps every payload row, but the insert conflicts
     # on the identity tuple and lands NOTHING twice.
-    assert derived.metric_row_count == 6
-    assert len(await _run_metric_rows(db_session, run.id)) == 6
+    assert derived.metric_row_count == 5
+    assert len(await _run_metric_rows(db_session, run.id)) == 5
 
 
 @pytest.mark.asyncio

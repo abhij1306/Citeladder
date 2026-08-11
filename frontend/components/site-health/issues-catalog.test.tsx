@@ -17,6 +17,7 @@ function issue(overrides: Partial<SiteIssue> = {}): SiteIssue {
     id: ISSUE_A,
     crawl_id: CRAWL,
     rule_id: 'aeo.website_schema',
+    page_kinds: [],
     dimension: 'aeo',
     category: 'schema',
     severity: 'high',
@@ -229,5 +230,41 @@ describe('IssuesCatalog', () => {
     // (already fetched above), so no new request is issued — seenCursors
     // stays at the two requests already made.
     expect(seenCursors).toEqual([null, 'cursor-page-2']);
+  });
+
+  it('shows which page types an issue affects, and says nothing when it spans none', async () => {
+    // The product question this answers: a Product/offers finding scoped to
+    // product pages is different work from a title finding that touches every
+    // page, and the affected-page COUNT alone cannot tell them apart.
+    mswServer.use(
+      http.get(`/api/v1/site-crawls/${CRAWL}/issues`, () =>
+        HttpResponse.json({
+          items: [issue({ page_kinds: ['product', 'category'] })],
+          next_cursor: null,
+          summary,
+        }),
+      ),
+    );
+
+    renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
+
+    // Scoped to the badge row: the page-kind filter <select> also lists every
+    // type label as an <option>.
+    const affects = (await screen.findByText('Affects')).parentElement!;
+    expect(within(affects).getByText('Product')).toBeInTheDocument();
+    expect(within(affects).getByText('Category')).toBeInTheDocument();
+  });
+
+  it('omits the page-type row for an issue with no classified pages', async () => {
+    mswServer.use(
+      http.get(`/api/v1/site-crawls/${CRAWL}/issues`, () =>
+        HttpResponse.json({ items: [issue({ page_kinds: [] })], next_cursor: null, summary }),
+      ),
+    );
+
+    renderWithProviders(<IssuesCatalog crawlId={CRAWL} />);
+
+    expect(await screen.findByText('WebSite schema is missing')).toBeInTheDocument();
+    expect(screen.queryByText('Affects')).not.toBeInTheDocument();
   });
 });

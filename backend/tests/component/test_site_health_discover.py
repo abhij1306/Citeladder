@@ -926,6 +926,97 @@ async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
 
 
 @pytest.mark.asyncio
+async def test_sitemap_attempt_limit_includes_failed_child_documents(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A large blocked sitemap tree cannot monopolize the crawl worker."""
+    monkeypatch.setattr(site_health_settings, "max_sitemap_documents", 5)
+    monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 0.0)
+    root = "https://example.com/"
+    seed = await _seed_root_discover(session_factory, root=root)
+    child_refs = "".join(
+        f"<sitemap><loc>https://example.com/child-{index}.xml</loc></sitemap>"
+        for index in range(100)
+    )
+    sitemap_index = f"<sitemapindex>{child_refs}</sitemapindex>".encode()
+    pages: dict[str, bytes | tuple[bytes, dict[str, str]]] = {
+        "/robots.txt": b"Sitemap: https://example.com/index.xml\n",
+        "/index.xml": (sitemap_index, {"content-type": "application/xml"}),
+        "/": _html([]),
+    }
+    requests: list[tuple[str, str]] = []
+
+    worker = _worker(session_factory, pages, requests=requests)
+    await worker.run_until_idle()
+
+    sitemap_requests = [
+        path
+        for method, path in requests
+        if method == "GET" and (path == "/index.xml" or path.startswith("/child-"))
+    ]
+    assert sitemap_requests == [
+        "/index.xml",
+        "/child-0.xml",
+        "/child-1.xml",
+        "/child-2.xml",
+        "/child-3.xml",
+    ]
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert crawl.status == CRAWL_STATUS_COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_requested_page_limit_stays_closed_while_children_are_unobserved(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reconciliation cannot reopen a full crawl's reserved URL budget."""
+    monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 0.0)
+    root = "https://example.com/"
+    seed = await _seed_root_discover(session_factory, root=root)
+    first_level = [f"https://example.com/page-{index}" for index in range(30)]
+    second_level = [f"https://example.com/deep-{index}" for index in range(30)]
+    pages = {"/": _html(first_level)}
+    pages.update({f"/page-{index}": _html(second_level) for index in range(30)})
+    pages.update({f"/deep-{index}": _html([]) for index in range(30)})
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        # The production planner reserves the root as the first admission.
+        crawl.admitted_url_count = 1
+        crawl.discovery_requested_count = 10
+        crawl.configuration = {
+            **dict(crawl.configuration or {}),
+            "requested_page_limit": 10,
+        }
+        await session.commit()
+
+    worker = _worker(session_factory, pages)
+    await worker.run_until_idle()
+
+    async with session_factory() as session:
+        discover_count = int(
+            await session.scalar(
+                select(func.count())
+                .select_from(SiteCrawlTask)
+                .where(
+                    SiteCrawlTask.crawl_id == seed.crawl_id,
+                    SiteCrawlTask.task_kind == TASK_KIND_DISCOVER,
+                )
+            )
+            or 0
+        )
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert discover_count == 10
+        assert crawl.admitted_url_count == 10
+        assert crawl.status == CRAWL_STATUS_COMPLETED
+
+
+@pytest.mark.asyncio
 async def test_plain_fetch_persists_one_attempt_row(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

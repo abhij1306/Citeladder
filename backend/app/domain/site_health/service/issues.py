@@ -337,11 +337,19 @@ async def get_issues(
             ],
         )
 
+    # Which PAGE TYPES each group actually affects. One aggregate for the
+    # whole page of groups, not a query per row: the issue list is the screen
+    # where "is this relevant to my product pages or my articles?" is the first
+    # question, and a rule group can legitimately span several types.
+    page_kinds_by_rule = await _page_kinds_for_rules(
+        session, crawl_id=crawl_id, rule_ids=[g.rule_id for g in window]
+    )
     items = [
         {
             "id": g.canonical_id,
             "crawl_id": crawl_id,
             "rule_id": g.rule_id,
+            "page_kinds": page_kinds_by_rule.get(g.rule_id, []),
             "dimension": g.dimension,
             "category": g.category,
             "severity": g.severity,
@@ -370,6 +378,35 @@ async def get_issues(
     )
     summary = await _issues_summary(session, clauses=summary_clauses)
     return {"items": items, "next_cursor": next_cursor, "summary": summary}
+
+
+async def _page_kinds_for_rules(
+    session: AsyncSession,
+    *,
+    crawl_id: uuid.UUID,
+    rule_ids: list[str],
+) -> dict[str, list[str]]:
+    """Distinct page types affected by each of ``rule_ids`` in this crawl.
+
+    Scoped to the rule ids actually on the requested page so the cost tracks
+    the window, not the whole catalog. Unclassified analyses contribute no
+    type rather than an "unknown" bucket.
+    """
+    if not rule_ids:
+        return {}
+    rows = await session.execute(
+        select(
+            SiteIssue.rule_id,
+            func.array_agg(func.distinct(SitePageAnalysis.page_kind)),
+        )
+        .join(SitePageAnalysis, SitePageAnalysis.id == SiteIssue.analysis_id)
+        .where(SiteIssue.crawl_id == crawl_id, SiteIssue.rule_id.in_(rule_ids))
+        .group_by(SiteIssue.rule_id)
+    )
+    return {
+        rule_id: sorted(str(t) for t in (types or []) if t)
+        for rule_id, types in rows.all()
+    }
 
 
 async def issue_group_page_kinds(

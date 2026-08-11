@@ -145,10 +145,29 @@ def _html_facts(**overrides):
     return facts
 
 
+def _article_facts(**overrides):
+    """The healthy fixture as an ARTICLE.
+
+    The citability/extractability rules are scoped to editorial page kinds now
+    (`page_kind:article|guide|...`), so exercising them on the default homepage
+    fixture would only ever assert that they are inapplicable.
+    """
+    return _html_facts(page_kind="article", **overrides)
+
+
 def _outcome(facts, rule_id):
     rule = rule_for(rule_id)
     assert rule is not None
     return evaluate_rule(rule, facts)
+
+
+# Editorial-only rules: N/A on the healthy HOMEPAGE fixture by design.
+_EDITORIAL_RULE_IDS = {
+    "aeo.author_present",
+    "aeo.date_present",
+    "aeo.outbound_citations",
+    "aeo.question_headings",
+}
 
 
 def test_all_rules_pass_on_healthy_page():
@@ -156,9 +175,10 @@ def test_all_rules_pass_on_healthy_page():
     evals = evaluate_all(facts)
     assert {e.rule_id for e in evals} == {r.rule_id for r in SITE_HEALTH_RULES}
     for e in evals:
-        if e.rule_id in _CRAWL_FINALIZE_RULE_IDS:
-            # crawl_finalize rules are never applicable in the per-page pass
-            # (the finalize-writer owns their rows).
+        if e.rule_id in _CRAWL_FINALIZE_RULE_IDS | _EDITORIAL_RULE_IDS:
+            # crawl_finalize rules are owned by the finalize-writer; the
+            # editorial rules are scoped to article/guide/docs page kinds and
+            # this fixture is a homepage.
             assert e.outcome == RULE_OUTCOME_NOT_APPLICABLE, e.rule_id
         else:
             assert e.outcome == RULE_OUTCOME_PASS, e.rule_id
@@ -269,7 +289,7 @@ def _js_shell_facts():
     Modelled on the page that exposed this — 4,874 bytes of bootstrap with a
     title and meta description but zero body text and zero headings.
     """
-    return _html_facts(
+    return _article_facts(
         headings={"h1_count": 0, "counts": {"h1": 0, "h2": 0}},
         body={"word_count": 0, "text": ""},
         inline_script_chars=1269,
@@ -895,31 +915,31 @@ def test_schema_rules_fall_back_to_other_expectation_without_page_type():
 
 
 def test_author_present():
-    assert _outcome(_html_facts(), "aeo.author_present").outcome == (RULE_OUTCOME_PASS)
-    ev = _outcome(_html_facts(author=""), "aeo.author_present")
+    assert _outcome(_article_facts(), "aeo.author_present").outcome == (RULE_OUTCOME_PASS)
+    ev = _outcome(_article_facts(author=""), "aeo.author_present")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["present"] is False
 
 
 def test_date_present():
-    assert _outcome(_html_facts(), "aeo.date_present").outcome == RULE_OUTCOME_PASS
+    assert _outcome(_article_facts(), "aeo.date_present").outcome == RULE_OUTCOME_PASS
     # Either date alone suffices.
     assert (
         _outcome(
-            _html_facts(dates={"published": "2026-01-15", "modified": ""}),
+            _article_facts(dates={"published": "2026-01-15", "modified": ""}),
             "aeo.date_present",
         ).outcome
         == RULE_OUTCOME_PASS
     )
     assert (
         _outcome(
-            _html_facts(dates={"published": "", "modified": "2026-06-01"}),
+            _article_facts(dates={"published": "", "modified": "2026-06-01"}),
             "aeo.date_present",
         ).outcome
         == RULE_OUTCOME_PASS
     )
     ev = _outcome(
-        _html_facts(dates={"published": "", "modified": ""}), "aeo.date_present"
+        _article_facts(dates={"published": "", "modified": ""}), "aeo.date_present"
     )
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["has_published"] is False
@@ -927,17 +947,17 @@ def test_date_present():
 
 
 def test_outbound_citations():
-    assert _outcome(_html_facts(), "aeo.outbound_citations").outcome == (
+    assert _outcome(_article_facts(), "aeo.outbound_citations").outcome == (
         RULE_OUTCOME_PASS
     )
     # No outbound domains at all -> fail.
     assert (
-        _outcome(_html_facts(outbound_domains=[]), "aeo.outbound_citations").outcome
+        _outcome(_article_facts(outbound_domains=[]), "aeo.outbound_citations").outcome
         == RULE_OUTCOME_FAIL
     )
     # Social-only outbound links (incl. subdomains) do not count as citations.
     ev = _outcome(
-        _html_facts(outbound_domains=["twitter.com", "m.facebook.com"]),
+        _article_facts(outbound_domains=["twitter.com", "m.facebook.com"]),
         "aeo.outbound_citations",
     )
     assert ev.outcome == RULE_OUTCOME_FAIL
@@ -1003,10 +1023,10 @@ def test_answer_first_not_applicable_without_headings():
 
 
 def test_question_headings():
-    assert _outcome(_html_facts(), "aeo.question_headings").outcome == (
+    assert _outcome(_article_facts(), "aeo.question_headings").outcome == (
         RULE_OUTCOME_PASS
     )
-    ev = _outcome(_html_facts(question_heading_ratio=0.0), "aeo.question_headings")
+    ev = _outcome(_article_facts(question_heading_ratio=0.0), "aeo.question_headings")
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["question_heading_ratio"] == 0.0
     assert ev.evidence["minimum_ratio"] == QUESTION_HEADINGS_MIN_RATIO
@@ -1059,3 +1079,71 @@ def test_no_expand_gating():
     )
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["max_ratio"] == EXPAND_GATED_MAX_RATIO
+
+
+# =========================================================================
+# Page-type scoped applicability (multi-kind `page_kind:a|b|c` tokens)
+# =========================================================================
+# The product complaint these pin: every page kind used to be handed the same
+# generic checklist, so a product page was reported for a missing author
+# byline and a homepage for missing question-form headings. A rule that does
+# not apply to a page kind must resolve NOT_APPLICABLE — which is a different
+# statement from FAIL, and only the former keeps it out of the issue list.
+_EDITORIAL_ONLY = ("aeo.author_present", "aeo.outbound_citations")
+
+
+def test_editorial_citability_rules_do_not_apply_to_commercial_pages():
+    for page_kind in ("product", "category", "pricing", "trust_policy", "homepage"):
+        # Strip the very signals the rules look for, so a still-applicable rule
+        # would FAIL rather than pass by accident.
+        facts = _html_facts(
+            page_kind=page_kind, author="", dates={}, outbound_domains=[]
+        )
+        for rule_id in _EDITORIAL_ONLY:
+            outcome = _outcome(facts, rule_id)
+            assert outcome.outcome == RULE_OUTCOME_NOT_APPLICABLE, (
+                f"{rule_id} must not apply to a {page_kind} page"
+            )
+
+
+def test_editorial_citability_rules_still_evaluate_on_articles():
+    facts = _html_facts(page_kind="article", author="", outbound_domains=[])
+    for rule_id in _EDITORIAL_ONLY:
+        assert _outcome(facts, rule_id).outcome == RULE_OUTCOME_FAIL
+
+
+def test_published_date_applies_to_docs_but_not_to_a_product_page():
+    missing_dates = {"dates": {}, "structured_data": {"count": 0, "blocks": []}}
+    assert (
+        _outcome(
+            _html_facts(page_kind="docs", **missing_dates), "aeo.date_present"
+        ).outcome
+        == RULE_OUTCOME_FAIL
+    )
+    assert (
+        _outcome(
+            _html_facts(page_kind="product", **missing_dates), "aeo.date_present"
+        ).outcome
+        == RULE_OUTCOME_NOT_APPLICABLE
+    )
+
+
+def test_question_headings_apply_to_answer_pages_only():
+    facts = _html_facts(question_heading_ratio=0.0)
+    for page_kind in ("faq", "guide", "docs", "article"):
+        assert (
+            _outcome({**facts, "page_kind": page_kind}, "aeo.question_headings").outcome
+            == RULE_OUTCOME_FAIL
+        )
+    for page_kind in ("homepage", "product", "category"):
+        assert (
+            _outcome({**facts, "page_kind": page_kind}, "aeo.question_headings").outcome
+            == RULE_OUTCOME_NOT_APPLICABLE
+        )
+
+
+def test_multi_kind_token_still_fails_closed_on_an_unclassified_page():
+    # No page kind means we could not classify the page. We do not guess which
+    # checklist it should answer for.
+    facts = _html_facts(page_kind=None, author="")
+    assert _outcome(facts, "aeo.author_present").outcome == RULE_OUTCOME_NOT_APPLICABLE

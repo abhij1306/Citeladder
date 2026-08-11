@@ -13,10 +13,15 @@ import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config.analytics import (
+    ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
+    ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+)
 from app.core.config.site_health import (
     ANALYSIS_STATUS_COMPLETED,
     ANALYSIS_STATUS_FAILED,
     ANALYSIS_STATUS_PENDING,
+    ANALYSIS_STATUS_RUNNING,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,
@@ -45,6 +50,7 @@ from app.core.config.task_queue import (
 )
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.snapshot import persist_crawl_snapshot
+from app.models.analytics import AnalyticsTask
 from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,
@@ -59,8 +65,12 @@ from app.models.site_health import (
     SiteRuleEvaluation,
     SiteUrl,
 )
+from app.models.traffic import TrafficSnapshot
 from app.workers.site_health.helpers import _is_crawl_finalize_rule
-from app.workers.site_health.lifecycle import CrawlLifecycle
+from app.workers.site_health.lifecycle import (
+    CrawlLifecycle,
+    _enqueue_post_crawl_refresh,
+)
 from tests.component.site_health_helpers import seed_site_crawl
 from tests.component.site_health_worker_helpers import (
     DEFAULT_SEED_MONITORED_URLS,
@@ -274,6 +284,115 @@ async def test_partial_failure_terminalizes_crawl_as_partially_completed(
         # Discovery still terminalizes as completed (some inventory exists).
         assert crawl.discovery_status == DISCOVERY_STATUS_COMPLETED
         assert crawl.inventory_complete is True
+
+
+@pytest.mark.asyncio
+async def test_recrawl_root_failure_keeps_successful_monitored_analysis(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A blocked root must not discard successful recrawl evidence."""
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=0)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        crawl.discovery_status = DISCOVERY_STATUS_RUNNING
+        crawl.analysis_status = ANALYSIS_STATUS_RUNNING
+        now = datetime.now(UTC)
+        root_url = "https://example.com/"
+        monitored_url = "https://example.com/monitored"
+        session.add_all(
+            [
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    task_kind=TASK_KIND_DISCOVER,
+                    requested_url=root_url,
+                    url_hash=canonical_identity(root_url)[1],
+                    generation=0,
+                    idempotency_key=f"{seed.crawl_id}:discover:blocked-root:0",
+                    status=TASK_STATUS_FAILED,
+                    randomized_position=0,
+                    completed_at=now,
+                ),
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    task_kind=TASK_KIND_ANALYZE,
+                    requested_url=monitored_url,
+                    url_hash=canonical_identity(monitored_url)[1],
+                    generation=0,
+                    idempotency_key=f"{seed.crawl_id}:analyze:monitored:0",
+                    status=TASK_STATUS_SUCCEEDED,
+                    randomized_position=1,
+                    completed_at=now,
+                ),
+            ]
+        )
+        await session.commit()
+
+    await CrawlLifecycle(session_factory).reconcile(seed.crawl_id)
+
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert crawl.status == CRAWL_STATUS_PARTIALLY_COMPLETED
+        assert crawl.discovery_status == DISCOVERY_STATUS_FAILED
+        assert crawl.analysis_status == ANALYSIS_STATUS_COMPLETED
+        assert crawl.inventory_complete is False
+        assert await session.scalar(
+            select(func.count())
+            .select_from(SiteHealthSnapshot)
+            .where(SiteHealthSnapshot.crawl_id == seed.crawl_id)
+        ) == 1
+        assert await session.scalar(
+            select(func.count())
+            .select_from(AnalyticsTask)
+            .where(
+                AnalyticsTask.project_id == seed.project_id,
+                AnalyticsTask.task_kind
+                == ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+            )
+        ) == 1
+
+
+@pytest.mark.asyncio
+async def test_completed_crawl_refreshes_demand_when_traffic_exists(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=0)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        session.add(
+            TrafficSnapshot(
+                workspace_id=seed.workspace_id,
+                project_id=seed.project_id,
+                window_start=datetime(2025, 1, 1, tzinfo=UTC).date(),
+                window_end=datetime(2025, 1, 28, tzinfo=UTC).date(),
+                granularity="day",
+                metrics={},
+                source_metric_row_ids=[],
+                source_artifact_ids=[],
+            )
+        )
+        await session.flush()
+
+        await _enqueue_post_crawl_refresh(session, crawl=crawl)
+        await session.commit()
+
+    async with session_factory() as session:
+        tasks = list(
+            (
+                await session.scalars(
+                    select(AnalyticsTask).where(
+                        AnalyticsTask.project_id == seed.project_id
+                    )
+                )
+            ).all()
+        )
+        assert [task.task_kind for task in tasks] == [
+            ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH
+        ]
 
 
 @pytest.mark.asyncio

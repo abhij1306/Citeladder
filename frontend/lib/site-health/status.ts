@@ -203,9 +203,21 @@ export function canShowDiscoveredTotal(
   return entitlement.count_disclosure && !crawl.sample_mode && crawl.total_url_count !== null;
 }
 
-/** Which phase of the Site Health flow to render for the active crawl. */
+/**
+ * Which phase of the Site Health flow to render.
+ *
+ * RESOLVED SERVER-SIDE (backend/app/domain/site_health/phase.py) and read off
+ * the dashboard projection. `'resolving'` is the one value the server never
+ * sends: it means the dashboard request itself has not landed yet.
+ */
 export type SiteHealthPhase =
-  'resolving' | 'empty' | 'discovering' | 'selection' | 'analyzing' | 'dashboard' | 'terminal';
+  | 'resolving'
+  | 'empty'
+  | 'discovering'
+  | 'selection'
+  | 'analyzing'
+  | 'dashboard'
+  | 'terminal';
 
 /**
  * Fingerprint of everything on a crawl that means "progress happened".
@@ -239,187 +251,6 @@ export function crawlProgressVersion(
     crawl.failed_count,
     crawl.updated_at ?? '',
   ].join('|');
-}
-
-/** True when the crawl produced score data (a dashboard-worthy summary). */
-export function hasScoreData(crawl: Pick<SiteCrawl, 'score_summary'>): boolean {
-  return crawl.score_summary != null;
-}
-
-/**
- * Resolve the screen phase for the active crawl with an EXPLICIT, deterministic
- * precedence. The order below is the single source of truth — each clause is
- * mutually exclusive and evaluated top-to-bottom, so there is exactly one
- * outcome per crawl shape (no duplicated local flags in the components):
- *
- *   0. any input not yet settled      → 'resolving'
- *   1. no crawl                       → 'empty'
- *   2. completed / partially_completed → 'dashboard'
- *   3. failed with NOTHING analyzed and no overall score → 'terminal' (SH-2/B1:
- *      a fully-failed crawl persists a PRESENT-but-null-score summary via
- *      persist_empty=True, so the score-data probe at 5 alone misroutes it to
- *      the dashboard — this clause must precede it. Placement AFTER 2 protects
- *      a legitimately completed empty-plan crawl, which persists the same
- *      null-score summary shape, from regressing to terminal.)
- *   4. cancelled WITH score data       → 'dashboard' (labelled Cancelled, keeps
- *      partial scores + inventory, offers Recrawl)
- *   5. any other crawl WITH score data → 'dashboard' (results already exist)
- *   6. failed WITHOUT data             → 'terminal'
- *   7. cancelled WITHOUT data:
- *        - selection mode + discovered URLs → 'selection' (inventory persists through
- *          a cancel; the user stages a monitored set and re-crawls)
- *        - otherwise                   → 'terminal' (nothing to show)
- *   8. paused crawl                     → 'selection' when its inventory can
- *      resume, otherwise 'terminal'. A stopped analysis must never keep
- *      rendering as live merely because the monitored set still exists.
- *   9. ACTIVE crawl + committed monitored set + pending/running analysis
- *      → 'analyzing'. Every
- *      crawl created while a monitored set exists is seeded with its analyze
- *      tasks at creation, and a selection commit enqueues into the active
- *      crawl — so this crawl IS an analysis run even while re-discovery
- *      streams. Resolving it to 'discovering'/'selection' is what bounced the
- *      screen back to the URL list after "Start analysis" / "Re-crawl".
- *  10. discovery still running         → 'discovering'
- *  11. analysis running                → 'analyzing'
- *  12. selection mode + analysis pending → 'selection'
- *  13. otherwise (sample auto-analysis) → 'analyzing'
- */
-export function resolveSiteHealthPhase(
-  /** The crawl, `null` for "settled: no crawl", `undefined` for "not settled". */
-  crawl:
-    | Pick<
-        SiteCrawl,
-        | 'status'
-        | 'discovery_status'
-        | 'analysis_status'
-        | 'score_summary'
-        | 'visible_url_count'
-        | 'analyzed_count'
-      >
-    | null
-    | undefined,
-  /**
-   * The neutral access mode, or `null` while the entitlement has not settled.
-   * `'full'` means the account has a monitored allowance and stages its
-   * own set; `'sample'` means the server picks. This is a capability, never a
-   * plan name — a zero-allowance account fails closed to `'sample'`.
-   */
-  accessMode: SiteHealthEntitlement['access_mode'] | null,
-  /**
-   * True when the project has at least one ACTIVE monitored URL committed;
-   * `null` while the monitored query has not settled.
-   */
-  hasMonitoredSelection: boolean | null = false,
-): SiteHealthPhase {
-  // 0. TOTAL over loading state. This resolution reads three independently
-  // resolving queries; resolving against whichever landed first and correcting
-  // afterwards is what made the phase visibly flip (and what the `crawlStarting`
-  // flag used to paper over). An unsettled input has exactly one honest
-  // answer — "not yet" — so say that instead of guessing.
-  if (crawl === undefined || accessMode === null || hasMonitoredSelection === null) {
-    return 'resolving';
-  }
-
-  // 1. Nothing yet.
-  if (!crawl) return 'empty';
-
-  // 2–5. Any crawl that produced score data renders the dashboard — including a
-  // cancelled-with-data run (labelled Cancelled by the dashboard itself) and a
-  // still-running crawl once a projection lands. Completed always qualifies.
-  if (crawl.status === 'completed' || crawl.status === 'partially_completed') return 'dashboard';
-
-  // 3. SH-2 (B1): a fully-failed crawl persists a PRESENT-but-null-score
-  // summary (persist_empty=True), which hasScoreData reads as dashboard-worthy
-  // — that is the production shape that hid every failed crawl behind an empty
-  // dashboard. Probe the failure shape explicitly: nothing analyzed AND no
-  // overall score means there is nothing to dashboard. A failed crawl WITH
-  // real partial scores (analyzed pages / an overall score) falls through to
-  // the score-data clause and keeps its dashboard.
-  if (
-    crawl.status === 'failed' &&
-    crawl.analyzed_count === 0 &&
-    (crawl.score_summary?.overall_score ?? null) === null
-  ) {
-    return 'terminal';
-  }
-
-  if (hasScoreData(crawl)) return 'dashboard';
-
-  // 6. Failed with no data — explicit stopped card, never an active-looking view.
-  if (crawl.status === 'failed') return 'terminal';
-
-  // 7. Cancelled with no data: selection mode keeps the discovered inventory (
-  // survives a cancel and re-seeds the next crawl); everyone else dead-ends.
-  if (crawl.status === 'cancelled') {
-    return accessMode === 'full' && crawl.visible_url_count > 0 ? 'selection' : 'terminal';
-  }
-
-  // 8. A paused crawl has no live work. The monitored set survives specifically
-  // so the user can adjust or restart it; it is not evidence that analysis is
-  // still running. Treating it as active is why Stop analysis appeared to do
-  // nothing even after the backend had cancelled every phase task.
-  if (crawl.status === 'paused') {
-    return accessMode === 'full' && crawl.visible_url_count > 0 ? 'selection' : 'terminal';
-  }
-
-  // 9. Every remaining status is ACTIVE (draft/validating/queued/running). An
-  // active crawl for a project with a committed monitored set is an analysis
-  // run from the moment it is created: the planner seeds the monitored set's
-  // analyze tasks at crawl creation, and a selection commit enqueues analyze
-  // tasks into the active crawl immediately — `analysis_status` merely lags
-  // ('pending' until the worker's first reconcile). A STOPPED sub-state is
-  // deliberately excluded: the monitored set persists after Stop and cannot
-  // by itself prove that analysis is live. Resolving the pending shape to
-  // 'discovering'/'selection' is what bounced the screen back to the URL list
-  // right after "Start analysis" / "Re-crawl".
-  if (
-    hasMonitoredSelection &&
-    (crawl.analysis_status === 'pending' || crawl.analysis_status === 'running')
-  ) {
-    return 'analyzing';
-  }
-
-  // 10. Discovery still running.
-  if (!TERMINAL_DISCOVERY.has(crawl.discovery_status)) return 'discovering';
-
-  // 11–13. Discovery done. A sample-mode account auto-analyzes its server-
-  // selected sample; a selection-mode account stages a monitored set unless
-  // analysis has already started.
-  if (crawl.analysis_status === 'running') return 'analyzing';
-  if (accessMode === 'full') return 'selection';
-  return 'analyzing';
-}
-
-/**
- * The single primary control the canonical screen's header offers for a phase.
- * Start/cancel is available from the same place at every point in the flow —
- * the header, never a per-panel button that appears and disappears:
- *   - 'start':   no crawl yet (or nothing usable) — "Start discovery";
- *   - 'cancel':  a crawl is actively discovering/analyzing — "Cancel";
- *   - 'recrawl': terminal-with-results — "Re-crawl now";
- *   - 'none':    the selection section owns the next step ("Start analysis").
- */
-export type PrimaryAction = 'start' | 'cancel' | 'recrawl' | 'none';
-
-export function primaryActionForPhase(phase: SiteHealthPhase, active: boolean): PrimaryAction {
-  switch (phase) {
-    case 'empty':
-      return 'start';
-    case 'terminal':
-      return 'recrawl';
-    case 'discovering':
-    case 'analyzing':
-      return active ? 'cancel' : 'none';
-    case 'selection':
-      // An ACTIVE crawl parked in selection can still be cancelled. A paused
-      // or cancelled crawl keeps Re-crawl visible instead of leaving the page
-      // with no way to acquire fresh evidence.
-      return active ? 'cancel' : 'recrawl';
-    case 'dashboard':
-      return active ? 'cancel' : 'recrawl';
-    default:
-      return 'none';
-  }
 }
 
 /**
@@ -614,6 +445,32 @@ export function statusLabel(status: string): string {
 export function formatScore(score: number | null): string {
   if (score === null || Number.isNaN(score)) return PLACEHOLDER;
   return `${Math.round(score * 10) / 10}`;
+}
+
+/**
+ * The label for a page row: its `<title>`, or the URL's last path segment.
+ *
+ * Repeating the whole URL as the title (the previous fallback) gave the row two
+ * identical lines and let one long query string dominate the table. The last
+ * segment is the part that actually distinguishes one page from its siblings,
+ * so an untitled page reads as `/boys-shorts-aged-8-16` above its full URL.
+ * The site root — and any URL we cannot parse — keeps the display URL, which is
+ * the only meaningful thing left to say about it.
+ */
+export function pageDisplayTitle(title: string | null, displayUrl: string): string {
+  const trimmed = title?.trim();
+  if (trimmed) return trimmed;
+  let pathname: string;
+  try {
+    ({ pathname } = new URL(displayUrl));
+  } catch {
+    return displayUrl;
+  }
+  // Query strings and fragments are already excluded by `pathname`; a trailing
+  // slash would otherwise yield an empty final segment.
+  const segments = pathname.split('/').filter(Boolean);
+  const last = segments.at(-1);
+  return last ? `/${last}` : displayUrl;
 }
 
 /** Format a nullable issue count; null (unanalysed) renders the placeholder. */

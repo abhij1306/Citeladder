@@ -53,8 +53,6 @@ export function InventorySection({
   active,
   onCancel,
   cancelPending,
-  onStartAnalysis,
-  startPending,
 }: Readonly<{
   mode: InventoryMode;
   crawl: SiteCrawl | null;
@@ -65,9 +63,6 @@ export function InventorySection({
   /** Cancels the active discovery/analysis crawl from the inventory controls. */
   onCancel: () => void;
   cancelPending: boolean;
-  /** Starts a fresh crawl that seeds the committed monitored set. */
-  onStartAnalysis: () => void;
-  startPending: boolean;
 }>) {
   let content: ReactNode;
   if (mode === 'none' || !crawl) {
@@ -94,13 +89,11 @@ export function InventorySection({
         entitlement={entitlement}
         projectId={projectId}
         // A cancelled crawl keeps its discovered inventory but can no longer
-        // run analysis itself — selections persist, and "Start analysis"
-        // launches a fresh crawl that seeds them as analyze tasks.
+        // run analysis itself — selections persist, and the phase controls'
+        // "Re-crawl site" launches a fresh crawl that seeds them.
         crawlInactive={!active}
         onCancel={onCancel}
         cancelPending={cancelPending}
-        onStartAnalysis={onStartAnalysis}
-        startPending={startPending}
       />
     );
   } else {
@@ -115,7 +108,7 @@ export function InventorySection({
   }
 
   return (
-    <div className="grid gap-2" data-testid="inventory-section">
+    <div className="grid min-w-0 gap-2" data-testid="inventory-section">
       {content}
     </div>
   );
@@ -170,7 +163,15 @@ function DiscoveringInventory({
           {rows.map((row) => (
             <TableRow key={row.site_url_id}>
               <TableCell>
-                <span className="mono text-foreground text-xs">{row.display_url}</span>
+                {/* Clamped for the same reason as the scored table: a long
+                    query-string URL is one unbreakable token and would size
+                    the column to its full width. */}
+                <span
+                  className="mono text-foreground block max-w-[40rem] truncate text-xs"
+                  title={row.display_url}
+                >
+                  {row.display_url}
+                </span>
               </TableCell>
               <TableCell className="text-secondary text-xs">
                 {row.source ? statusLabel(row.source) : '—'}

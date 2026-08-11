@@ -44,12 +44,14 @@ from app.connectors.web_evidence.url_policy import (
 )
 from app.core.config.site_health import (
     ANALYZER_VERSION,
+    AUTOMATIC_MONITOR_LIMIT_KEY,
     CLASSIFIER_VERSION,
     CODE_ADVANCED_CONTROLS_UNAVAILABLE,
     CODE_CRAWL_ALREADY_ACTIVE,
     CODE_DISCOVERY_LIMIT_EXCEEDED,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_DRAFT,
+    CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_QUEUED,
     CRAWL_STATUS_VALIDATING,
     DISCOVERY_MODE_SAMPLE,
@@ -58,7 +60,6 @@ from app.core.config.site_health import (
     EVENT_CRAWL_CREATED,
     EVENT_CRAWL_QUEUED,
     EXTRACTOR_VERSION,
-    INDUSTRY_PACK_MANIFEST_KEY,
     INPUT_MODE_AUTO,
     INPUT_MODE_EXACT_URLS,
     INPUT_MODES,
@@ -81,11 +82,8 @@ from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,
 )
+from app.domain.site_health.discovery import add_automatic_root
 from app.domain.site_health.entitlements import lock_runtime
-from app.domain.site_health.industry_pack import (
-    freeze_pack_manifest,
-    resolve_project_pack_id,
-)
 from app.domain.site_health.inventory_scope import freeze_inventory_lineage
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.selection import seed_monitored_targets
@@ -193,11 +191,16 @@ async def _load_project(
 
 
 async def _has_active_crawl(session: AsyncSession, *, project_id: uuid.UUID) -> bool:
+    # A paused advanced-control crawl has no live tasks and the frontend
+    # deliberately offers "Re-crawl site" for it. Treating that parked record
+    # as a conflicting live crawl made the button deterministically return
+    # 409. Running/queued work still remains single-crawl-per-project.
+    conflicting_statuses = CRAWL_ACTIVE_STATUSES - {CRAWL_STATUS_PAUSED}
     existing = await session.scalar(
         select(func.count())
         .select_from(SiteCrawl)
         .where(SiteCrawl.project_id == project_id)
-        .where(SiteCrawl.status.in_(list(CRAWL_ACTIVE_STATUSES)))
+        .where(SiteCrawl.status.in_(list(conflicting_statuses)))
     )
     return bool(existing and existing > 0)
 
@@ -314,6 +317,8 @@ def _frozen_configuration(
         "rule_catalog_version": RULE_CATALOG_VERSION,
         "scoring_version": SCORING_VERSION,
     }
+    if input_mode == INPUT_MODE_AUTO and not advanced_controls_enabled:
+        configuration[AUTOMATIC_MONITOR_LIMIT_KEY] = requested_page_limit
     return configuration
 
 
@@ -644,9 +649,6 @@ async def create_crawl(
     # Freeze the EXACT industry pack once, here. Resolving it per page (or at
     # read time) would let a later project-settings change silently reinterpret
     # this crawl's analyses under a different pack.
-    pack_manifest_snapshot = freeze_pack_manifest(resolve_project_pack_id(project))
-    if pack_manifest_snapshot is not None:
-        configuration[INDUSTRY_PACK_MANIFEST_KEY] = pack_manifest_snapshot
 
     # Keep a full-inventory project's earlier discovered URLs visible while
     # a new analysis crawl re-discovers the site. The lineage references
@@ -726,6 +728,8 @@ async def create_crawl(
     # URLs get fresh analyze tasks so their facts/scores refresh. On a first
     # crawl there is no monitored set yet, so this is a no-op.
     await seed_monitored_targets(session, crawl=crawl)
+    if mode == INPUT_MODE_AUTO and not site_health_settings.advanced_controls_enabled:
+        await add_automatic_root(session, crawl)
 
     # Drive the lifecycle through the guarded state machine (invariant 9).
     apply_crawl_status(crawl, CRAWL_STATUS_VALIDATING)
@@ -821,9 +825,6 @@ async def create_page_rerun_crawl(
     project = await _load_project(
         session, workspace_id=workspace_id, project_id=project_id
     )
-    rerun_pack_manifest = freeze_pack_manifest(resolve_project_pack_id(project))
-    if rerun_pack_manifest is not None:
-        configuration[INDUSTRY_PACK_MANIFEST_KEY] = rerun_pack_manifest
     seed = _normalize_seed(random_seed)
 
     crawl = SiteCrawl(

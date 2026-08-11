@@ -179,6 +179,8 @@ def test_is_admissible_combines_scope_and_narrowing():
     [
         ("https://example.com/login", "hard_excluded_path"),
         ("https://example.com/checkout/confirm", "hard_excluded_path"),
+        ("https://example.com/viewcart?marketplace=store", "hard_excluded_path"),
+        ("https://example.com/searchsuggestion", "hard_excluded_path"),
         ("https://example.com/assets/logo.png", "hard_excluded_asset"),
         ("https://example.com/products/widget?filter=blue", "hard_excluded_query"),
         ("https://example.com/products/widget?utm_source=mail", "tracking_url"),
@@ -193,6 +195,17 @@ def test_value_aware_admission_hard_exclusions_are_not_overridable(url, reason):
     )
     assert not decision.accepted
     assert decision.reason_code == reason
+
+
+def test_admission_rejects_urls_too_long_for_persistence():
+    decision = classify_url_admission(
+        "https://example.com/products/widget?context=" + ("x" * 2048),
+        root_registrable_domain="example.com",
+    )
+
+    assert not decision.accepted
+    assert decision.canonical_url is None
+    assert decision.reason_code == "invalid_url"
 
 
 @pytest.mark.parametrize(

@@ -104,13 +104,6 @@ from app.models.integrations import (
     IntegrationPropertyMapping,
     IntegrationSyncRun,
 )
-from app.models.knowledge import (
-    Correction,
-    CorrectionTransition,
-    KnowledgeAssertion,
-    KnowledgeEntity,
-    KnowledgeRelation,
-)
 from app.models.opportunity import (
     Opportunity,
     OpportunityGuidance,
@@ -218,11 +211,6 @@ __all__ = [
     "IntegrationImportArtifact",
     "IntegrationMetricRow",
     "IntegrationOAuthGrant",
-    "KnowledgeAssertion",
-    "Correction",
-    "CorrectionTransition",
-    "KnowledgeEntity",
-    "KnowledgeRelation",
     "JourneyDefinition",
     "JourneyDefinitionVersion",
     "IntegrationOAuthState",

@@ -205,16 +205,10 @@ function ConversationMessages({
               >
                 <p className="whitespace-pre-wrap">{message.content}</p>
                 {message.citations.length ? (
-                  <details className="mt-2 text-xs opacity-80">
-                    <summary className="cursor-pointer">
-                      Evidence · {message.citations.length}
-                    </summary>
-                    <ul className="mt-1 grid gap-1 break-all">
-                      {message.citations.map((citation) => (
-                        <li key={citation}>{citation}</li>
-                      ))}
-                    </ul>
-                  </details>
+                  <p className="mt-2 text-xs opacity-80">
+                    Grounded in {message.citations.length}{' '}
+                    {message.citations.length === 1 ? 'project evidence source' : 'project evidence sources'}
+                  </p>
                 ) : null}
               </div>
             </li>

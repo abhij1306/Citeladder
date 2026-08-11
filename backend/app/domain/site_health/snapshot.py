@@ -41,12 +41,6 @@ from app.core.config.site_health import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     SCORING_VERSION,
 )
-from app.domain.site_health.comparison import build_snapshot_comparison
-from app.domain.site_health.intelligence import (
-    build_intelligence_projection,
-    projection_version,
-)
-from app.domain.site_health.knowledge import build_crawl_knowledge
 from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,
@@ -203,34 +197,8 @@ async def persist_crawl_snapshot(
         or 0
     )
 
-    # Derive this crawl's typed knowledge, then score coverage/journeys/
-    # dimensions from it — both BEFORE the snapshot insert, so the immutable row
-    # carries the complete projection rather than being backfilled later. Both
-    # steps are idempotent (deterministic row IDs + ``ON CONFLICT DO NOTHING``),
-    # which matters because terminalization is reachable from the worker and
-    # from a cooperative cancel.
-    knowledge_result = await build_crawl_knowledge(session, crawl=crawl)
-    projection = await build_intelligence_projection(
-        session, crawl=crawl, knowledge_result=knowledge_result
-    )
     analyzer_version = crawl.analyzer_version or ANALYZER_VERSION
     scoring_version = crawl.scoring_version or SCORING_VERSION
-    intelligence_version = projection_version()
-    prior_snapshot_id, comparison = await build_snapshot_comparison(
-        session,
-        crawl=crawl,
-        intelligence=projection.payload,
-        analyzer_version=analyzer_version,
-        scoring_version=scoring_version,
-        intelligence_version=intelligence_version,
-        scores={
-            "technical_score": aggregate.technical_score,
-            "aeo_score": aggregate.aeo_score,
-            "overall_score": aggregate.overall_score,
-            "analyzed_url_count": aggregate.analyzed_url_count,
-            "issue_count": issue_total,
-        },
-    )
 
     # One immutable snapshot per crawl. ``ON CONFLICT DO NOTHING`` makes this
     # safe if the worker and a cancel both reach terminalization (the earliest
@@ -239,12 +207,6 @@ async def persist_crawl_snapshot(
     await session.execute(
         pg_insert(SiteHealthSnapshot)
         .values(
-            intelligence=projection.payload,
-            # Every projection input, not the dimension formula alone — a new
-            # knowledge extractor changed the payload under an unchanged stamp.
-            intelligence_version=intelligence_version,
-            prior_snapshot_id=prior_snapshot_id,
-            comparison=comparison,
             workspace_id=crawl.workspace_id,
             project_id=crawl.project_id,
             crawl_id=crawl.id,
@@ -277,27 +239,5 @@ async def persist_crawl_snapshot(
         # v2 P1: per-page-type breakdown (type -> analyzed count + mean
         # technical/aeo/overall). Missing/errored URLs never appear here.
         "by_page_kind": by_page_kind,
-        # The composite is deliberately carried WITH its coverage. A caller that
-        # renders one without the other is reporting a number whose denominator
-        # it cannot see, which is the exact failure the full-denominator rule
-        # exists to prevent.
-        "intelligence": _intelligence_summary(projection.payload),
     }
     return True
-
-
-def _intelligence_summary(payload: dict) -> dict:
-    """The headline numbers for the crawl list, always paired with coverage."""
-    dimensions = payload.get("dimensions") or {}
-    coverage = payload.get("coverage") or {}
-    knowledge = payload.get("knowledge") or {}
-    return {
-        "packed": bool(payload.get("packed")),
-        "composite_score": dimensions.get("composite_score"),
-        "composite_coverage": dimensions.get("composite_coverage"),
-        "question_answered_ratio": coverage.get("answered_ratio"),
-        "question_denominator": coverage.get("denominator", 0),
-        "entity_count": knowledge.get("entity_count", 0),
-        "assertion_count": knowledge.get("assertion_count", 0),
-        "contradiction_count": knowledge.get("contradiction_count", 0),
-    }

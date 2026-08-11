@@ -9,7 +9,6 @@ import { mutationNoticeForError } from '@/lib/api/mutation-notice';
 import { useProjectContext } from '@/lib/project/project-context';
 import { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
 import { CrawlIntakeDialog } from '@/components/site-health/crawl-intake-dialog';
-import { SiteIntelligenceWorkspace } from '@/components/site-intelligence/workspace';
 import { useState } from 'react';
 
 /**
@@ -33,8 +32,7 @@ export function SiteHealthScreen() {
     entitlementQuery,
     dashboardQuery,
     phase,
-    primaryAction,
-    active,
+    crawl,
     stalled,
     startPending,
     createMutation,
@@ -95,56 +93,34 @@ export function SiteHealthScreen() {
     return <ScreenSkeleton label={label} />;
   }
 
-  const primaryButton = (() => {
-    switch (primaryAction) {
-      case 'start':
-        return (
-          <Button size="sm" onClick={() => setIntakeOpen(true)} disabled={startPending}>
-            {startPending ? 'Starting…' : 'Start discovery'}
-          </Button>
-        );
-      case 'cancel':
-        // Cancellation lives beside the active inventory/table controls, not
-        // in the global page header.
-        return null;
-      case 'recrawl':
-        // Advanced workspaces keep this beside the phase controls where users
-        // manage crawl work. Sample-mode screens have no phase-controls card,
-        // so the header remains their recrawl owner.
-        if (entitlementQuery.data?.advanced_controls_enabled) return null;
-        return (
-          <Button size="sm" onClick={() => setIntakeOpen(true)} disabled={startPending || active}>
-            {startPending
-              ? 'Starting…'
-              : phase === 'terminal'
-                ? 'Start a new crawl'
-                : 'Re-crawl now'}
-          </Button>
-        );
-      default:
-        return null;
-    }
-  })();
-
-  const headerActions =
-    primaryButton || phase === 'dashboard' ? (
-      <div className="flex items-center gap-2">
-        {phase === 'dashboard' ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => runExport('csv', 'pages')}
-            disabled={exporting}
-          >
-            {exporting ? 'Exporting…' : 'Export'}
-          </Button>
-        ) : null}
-        {primaryButton}
-      </div>
-    ) : null;
+  // Two header controls, on simple rules rather than a phase switch:
+  //
+  //  - Export, whenever a crawl exists. It was gated on `phase === 'dashboard'`,
+  //    so a cancelled or still-running crawl offered no way to take the rows
+  //    already collected — exactly when a user most wants them.
+  //  - Start discovery, only when there is no crawl to act on. Once one exists,
+  //    every crawl action (continue discovery, analyze, re-crawl) lives
+  //    together in the phase-controls card rather than being split between
+  //    there and the page header.
+  const headerActions = crawl ? (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => runExport('csv', 'pages')}
+        disabled={exporting}
+      >
+        {exporting ? 'Exporting…' : 'Export'}
+      </Button>
+    </div>
+  ) : (
+    <Button size="sm" onClick={() => setIntakeOpen(true)} disabled={startPending}>
+      {startPending ? 'Starting…' : 'Start discovery'}
+    </Button>
+  );
 
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-6">
       <ScreenHeader actions={headerActions} />
 
       {exportError ? <Alert tone="danger">{exportError}</Alert> : null}
@@ -180,20 +156,16 @@ export function SiteHealthScreen() {
         onStart={startCrawl}
       />
 
-      {/* The workspace owns panel selection; the existing dashboard IS the
-          Pages panel, so the inventory/score screen a user already knows stays
-          exactly where it was rather than being rebuilt beside it. */}
-      <SiteIntelligenceWorkspace
+      {/* ONE screen. The Site Intelligence workspace used to wrap this whole
+          dashboard as its "Pages" tab — the old screen nested inside the new
+          one, two live information architectures over the same crawl. The
+          workspace and its five panels are deleted; Site Health is Site
+          Health, and issues live on the Issues screen. */}
+      <SiteHealthDashboardLayout
+        screen={screen}
+        entitlement={entitlementQuery.data!}
         projectId={projectId}
-        crawlId={screen.crawl?.id}
-        pagesPanel={
-          <SiteHealthDashboardLayout
-            screen={screen}
-            entitlement={entitlementQuery.data!}
-            projectId={projectId}
-            onRecrawl={() => setIntakeOpen(true)}
-          />
-        }
+        onRecrawl={() => setIntakeOpen(true)}
       />
     </div>
   );

@@ -43,8 +43,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
         <aside className="border-border-subtle bg-sidebar relative z-1 hidden w-[var(--sidebar-width)] shrink-0 flex-col border-r transition-[width] md:flex">
           {/* Logo row — matches topbar height */}
           <div className="border-border-subtle flex h-[var(--topbar-height)] shrink-0 items-center gap-3 border-b px-4">
-            <LogoMark size={20} />
-            <span className="text-foreground font-display text-heading-sm font-semibold">
+            <LogoMark size={16} />
+            <span className="text-foreground font-display text-heading-sm font-bold">
               CiteLadder
             </span>
           </div>
@@ -70,8 +70,8 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
               className="flex shrink-0 items-center gap-2 md:hidden"
               aria-label="CiteLadder command center"
             >
-              <LogoMark size={20} />
-              <span className="font-display text-foreground font-semibold">CiteLadder</span>
+              <LogoMark size={16} />
+              <span className="font-display text-foreground font-bold">CiteLadder</span>
             </Link>
             <div aria-hidden className="hidden md:block" />
             <div className="min-w-0 flex-1 md:w-full md:max-w-105 md:justify-self-center">
@@ -84,7 +84,13 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             id="main"
             className="content-scroll safe-bottom min-h-0 flex-1 overflow-y-auto pb-20 md:pb-0"
           >
-            <div className="mx-auto grid w-full max-w-[var(--content-max-width)] gap-[var(--card-gap)] p-[var(--content-gutter)]">
+            {/* `grid-cols-[minmax(0,1fr)]`, not the implicit `auto` track: an
+                implicit track is max-content-sized, so any descendant that
+                cannot shrink (an unbreakable URL, a wide table) widened the
+                whole content column and pushed the page header's action
+                buttons out past the viewport. The explicit 0-minimum column
+                keeps overflow inside whichever scroll container owns it. */}
+            <div className="mx-auto grid w-full max-w-[var(--content-max-width)] grid-cols-[minmax(0,1fr)] gap-[var(--card-gap)] p-[var(--content-gutter)]">
               <PageHeader />
               {children}
             </div>

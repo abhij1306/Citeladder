@@ -154,17 +154,6 @@ AGENT_TASK_POLICIES: Final[dict[str, AgentTaskPolicy]] = {
                 "audits.read_schedules",
             ),
         ),
-        AgentTaskPolicy(
-            "propose_correction",
-            "Propose correction",
-            (
-                "Prepare an evidence-linked correction for inline acceptance in "
-                "Project Facts."
-            ),
-            ("knowledge.propose_correction",),
-            required_scope=("target_ref", "corrected_value", "reason"),
-            requested_outputs=("correction_proposal", "answer"),
-        ),
     )
 }
 

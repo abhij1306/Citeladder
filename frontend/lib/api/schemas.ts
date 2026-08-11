@@ -1027,34 +1027,6 @@ export const cursorPageSchema = <T extends z.ZodTypeAny>(item: T) =>
 // The exact frozen pack identity an understanding was produced under. Shown in
 // the "why this role?" disclosure so a result is always attributable to one
 // reviewed pack version rather than to "the classifier" in general.
-export const industryRoleManifestSchema = responseObject({
-  catalog_version: z.string(),
-  pack_id: z.string(),
-  pack_version: z.string(),
-  pack_content_hash: z.string(),
-  classifier_version: z.string(),
-});
-
-// Pack-governed industry role for one page. Role IDs are pack-defined strings
-// (`education.admissions_overview`), never a fixed frontend enum: a new pack
-// must not require a frontend release, and an unrecognized ID must render as
-// its raw ID rather than as an invented label.
-export const industryRoleSchema = responseObject({
-  role_id: z.string().nullable(),
-  score: z.number().nullable(),
-  winner_margin: z.number().nullable(),
-  confidence_band: z.string(),
-  secondary_role_ids: z.array(z.string()),
-  // Non-null only for an EXECUTED abstention (the classifier ran and declined).
-  abstention_reason: z.string().nullable(),
-  temporal_state: z.string(),
-  corpus_disposition: z.string(),
-  evidence: z.array(z.record(z.string(), z.unknown())),
-  alternatives: z.array(z.record(z.string(), z.unknown())),
-  conflicts: z.array(z.record(z.string(), z.unknown())),
-  manifest: industryRoleManifestSchema,
-});
-
 // Nullable analysis-summary fields shared by inventory rows and analyzed-page
 // summary rows (null until analysis completes for that URL). `page_kind`
 // joins them: it is stamped by the analysis classifier, so an unanalyzed row
@@ -1070,10 +1042,6 @@ const analysisSummaryFields = {
   // a fixed enum, so they stay plain strings — the UI must never title-case an
   // unknown namespaced ID as though it were a reviewed label. Absent entirely
   // when the pack classifier never ran for the row.
-  industry_role_id: z.string().nullable().optional(),
-  role_abstention_reason: z.string().nullable().optional(),
-  industry_role_confidence: z.string().optional(),
-  corpus_disposition: z.string().optional(),
 };
 
 // One lightweight inventory row. Ordering is URL-only. The analysis summary
@@ -1174,6 +1142,8 @@ export const siteIssueSchema = responseObject({
   id: uuid(),
   crawl_id: uuid(),
   rule_id: z.string(),
+  // Page TYPES this group affects. Pack-free page-kind ids, sorted.
+  page_kinds: z.array(z.string()),
   dimension: issueDimensionSchema,
   category: z.string(),
   severity: issueSeveritySchema,
@@ -1305,7 +1275,6 @@ export const pageDetailSchema = responseObject({
   // Pack-governed industry role. `null` = the pack classifier never ran.
   // A present object with `role_id: null` plus an `abstention_reason` is an
   // EXECUTED abstention — a different fact, rendered differently.
-  industry_role: industryRoleSchema.nullable().optional(),
   facts: pageFactsSchema,
   delivery: deliveryFactsSchema,
   issues: z.array(siteIssueSchema),
@@ -1366,6 +1335,12 @@ export const siteHealthDashboardSchema = responseObject({
   project_id: uuid(),
   crawl: siteCrawlSchema.nullable(),
   score_summary: siteScoreSummarySchema.nullable(),
+  // THE screen phase, resolved server-side. The client renders this; it does
+  // not re-derive it from crawl statuses + entitlement + monitored counts.
+  phase: z.enum(['empty', 'discovering', 'selection', 'analyzing', 'dashboard', 'terminal']),
+  // Null until the crawl terminalizes; content verification compares a
+  // published revision against a later snapshot.
+  snapshot_id: uuid().nullable(),
   quota: monitoredQuotaSchema,
   // B3: same root-failure projection as the pages response — the failed
   // crawl's dashboard renders the failure block without a second fetch.
@@ -1684,8 +1659,6 @@ export const contentInventoryItemSchema = responseObject({
   site_url_id: uuid(),
   canonical_url: z.string(),
   page_kind: z.string(),
-  industry_role_id: z.string().nullable(),
-  temporal_state: z.string(),
   purpose: jsonRecordSchema,
   coverage: jsonRecordSchema,
   evidence: jsonRecordSchema,

@@ -35,7 +35,6 @@ from app.core.config.content_intelligence import (
 )
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
 from app.domain.site_health.normalization import canonical_identity
-from app.domain.site_health.service.intelligence import get_knowledge_assertions
 from app.models.content import (
     ContentBrief,
     ContentGeneration,
@@ -111,13 +110,12 @@ async def _latest_site_snapshot(
         .where(
             SiteHealthSnapshot.workspace_id == workspace_id,
             SiteHealthSnapshot.project_id == project_id,
-            SiteHealthSnapshot.intelligence.is_not(None),
         )
         .order_by(SiteHealthSnapshot.created_at.desc(), SiteHealthSnapshot.id.desc())
         .limit(1)
     )
     if snapshot is None:
-        raise ContentConflictError("site_intelligence_unavailable")
+        raise ContentConflictError("site_snapshot_unavailable")
     return snapshot
 
 
@@ -138,12 +136,6 @@ async def recompute_strategy(
         .order_by(DemandSnapshot.created_at.desc(), DemandSnapshot.id.desc())
         .limit(1)
     )
-    intelligence = dict(site.intelligence or {})
-    manifest = dict(intelligence.get("manifest") or {})
-    pack_id = str(manifest.get("pack_id") or "")
-    if pack_id not in {"education", "commerce"}:
-        raise ContentConflictError("content_pack_uncalibrated")
-
     source_hash = _hash(
         {
             "site_snapshot_id": str(site.id),
@@ -164,9 +156,13 @@ async def recompute_strategy(
     await _persist_inventory(
         session, workspace_id=workspace_id, project_id=project_id, snapshot=site
     )
-    coverage = dict(intelligence.get("coverage") or {})
-    questions = list(coverage.get("questions") or [])
-    priorities = _question_priorities(questions, demand)
+    # Question coverage and its priority ranking came from the Site
+    # Intelligence projection, which is deleted. The inventory above is the
+    # part built from Site Health evidence (one row per analyzed page, grouped
+    # by page kind) and it still runs; the question program is empty until a
+    # replacement evidence source exists.
+    coverage: dict = {}
+    priorities: list[dict] = []
     inventory_summary = await _inventory_summary(
         session, workspace_id=workspace_id, project_id=project_id, snapshot_id=site.id
     )
@@ -176,7 +172,6 @@ async def recompute_strategy(
         site=site,
         demand=demand,
         source_hash=source_hash,
-        manifest=manifest,
         coverage=coverage,
         priorities=priorities,
         inventory_summary=inventory_summary,
@@ -191,7 +186,6 @@ def _new_strategy(
     site: SiteHealthSnapshot,
     demand: DemandSnapshot | None,
     source_hash: str,
-    manifest: dict,
     coverage: dict,
     priorities: list[dict],
     inventory_summary: dict,
@@ -203,8 +197,6 @@ def _new_strategy(
         site_snapshot_id=site.id,
         demand_snapshot_id=demand.id if demand else None,
         source_hash=source_hash,
-        industry_pack_id=str(manifest.get("pack_id") or ""),
-        industry_pack_version=str(manifest.get("pack_version") or ""),
         inventory_summary=inventory_summary,
         coverage=coverage,
         priorities=priorities,
@@ -303,8 +295,6 @@ def _inventory_value(
         "site_url_id": site_url.id,
         "canonical_url": site_url.normalized_url,
         "page_kind": analysis.page_kind,
-        "industry_role_id": analysis.industry_role_id,
-        "temporal_state": analysis.temporal_state,
         "purpose": {
             "title": str(facts.get("title") or "")[:512],
             "headings": _inventory_headings(facts),
@@ -321,7 +311,6 @@ def _inventory_value(
         "source_versions": {
             "analyzer": analysis.analyzer_version,
             "classifier": analysis.classifier_version,
-            "pack": analysis.industry_pack_version,
         },
     }
 
@@ -347,8 +336,6 @@ async def _upsert_inventory(
         for name in (
             "canonical_url",
             "page_kind",
-            "industry_role_id",
-            "temporal_state",
             "purpose",
             "coverage",
             "evidence",
@@ -380,45 +367,15 @@ async def _inventory_summary(
             )
         ).all()
     )
-    by_role: dict[str, int] = {}
-    by_state: dict[str, int] = {}
+    # Grouped by PAGE KIND. This grouped by pack-assigned industry role until
+    # that classifier was deleted; page kind is the taxonomy the product
+    # actually reasons about (a product page and an FAQ page are audited
+    # differently), so it is the honest grouping for a content inventory too.
+    by_page_kind: dict[str, int] = {}
     for row in rows:
-        role = row.industry_role_id or "unclassified"
-        by_role[role] = by_role.get(role, 0) + 1
-        by_state[row.temporal_state] = by_state.get(row.temporal_state, 0) + 1
-    return {"total": len(rows), "by_role": by_role, "by_temporal_state": by_state}
-
-
-def _question_priorities(
-    questions: list[dict], demand: DemandSnapshot | None
-) -> list[dict]:
-    state_weight = {
-        "conflicting": 100,
-        "unsupported": 90,
-        "missing": 80,
-        "answered_weak": 60,
-        "historical_only": 55,
-        "match_unverified": 40,
-        "unavailable_evidence": 20,
-    }
-    demand_boost = 10 if demand and (demand.summary or {}).get("signal_count", 0) else 0
-    priorities = []
-    for question in questions:
-        state = str(question.get("state") or "unavailable_evidence")
-        score = state_weight.get(state)
-        if score is None:
-            continue
-        priorities.append(
-            {
-                "question_id": str(question.get("question_id") or ""),
-                "state": state,
-                "score": score + demand_boost,
-                "action": "create_faq" if state == "missing" else "review_evidence",
-                "reason": str(question.get("reason") or state),
-                "source_ids": list(question.get("source_assertion_ids") or []),
-            }
-        )
-    return sorted(priorities, key=lambda item: (-item["score"], item["question_id"]))
+        kind = row.page_kind or "unclassified"
+        by_page_kind[kind] = by_page_kind.get(kind, 0) + 1
+    return {"total": len(rows), "by_page_kind": by_page_kind}
 
 
 async def latest_strategy(
@@ -502,7 +459,6 @@ async def create_faq_brief(
     target = {
         "url": target_url,
         "question_id": question_id,
-        "industry_role_ids": list(question.get("applicable_role_ids") or []),
     }
     identity_hash = _hash(
         {
@@ -557,21 +513,22 @@ async def _brief_evidence(
     strategy: ContentStrategySnapshot,
     question: dict,
 ) -> dict:
-    assertion_projection = await get_knowledge_assertions(
-        session,
-        workspace_id=workspace_id,
-        project_id=project_id,
-        limit=CONTENT_CONTEXT_MAX_FACTS,
-    )
-    allowed, prohibited = _partition_facts(
-        list(assertion_projection.get("items") or [])
-    )
+    """Brief evidence envelope.
+
+    ``allowed_facts`` / ``prohibited_claims`` / ``source_refs`` are EMPTY.
+    They were populated from Site Intelligence knowledge assertions, which no
+    longer exist. The keys are retained because persisted briefs and the
+    generation prompt both read this shape; an empty allow-list means the
+    generator has no grounded facts to cite rather than being handed unverified
+    ones. Restoring grounded facts needs a new evidence source — see
+    docs/plans/site-health-debt-audit.md.
+    """
     return {
         "site_snapshot_id": str(strategy.site_snapshot_id),
         "question": question,
-        "allowed_facts": allowed,
-        "prohibited_claims": prohibited,
-        "source_refs": _source_refs(allowed),
+        "allowed_facts": [],
+        "prohibited_claims": [],
+        "source_refs": [],
     }
 
 
@@ -613,8 +570,6 @@ def _new_content_brief(
             {"type": "question_observed", "question_id": question_id},
             {"type": "visible_answer_observed", "question_id": question_id},
         ],
-        industry_pack_id=strategy.industry_pack_id,
-        industry_pack_version=strategy.industry_pack_version,
         brief_builder_version=CONTENT_BRIEF_BUILDER_VERSION,
         evidence_hash=evidence_hash,
     )
@@ -639,38 +594,6 @@ async def _commit_brief(
         return winner, False
     await session.refresh(brief)
     return brief, True
-
-
-def _partition_facts(items: list[dict]) -> tuple[list[dict], list[dict]]:
-    allowed: list[dict] = []
-    prohibited: list[dict] = []
-    for item in items:
-        state = (
-            "conflicting"
-            if item.get("contradiction_group_id")
-            else str(item.get("temporal_state") or "current")
-        )
-        fact = {
-            "assertion_id": str(item.get("id") or ""),
-            "subject": item.get("subject") or {},
-            "predicate_id": str(item.get("predicate_id") or ""),
-            "value": item.get("effective_value", item.get("value")),
-            "state": state,
-            "evidence_refs": list(item.get("evidence_refs") or []),
-            "correction": item.get("correction"),
-        }
-        (prohibited if state in BLOCKING_FACT_STATES else allowed).append(fact)
-    return allowed, prohibited
-
-
-def _source_refs(facts: list[dict]) -> list[dict]:
-    by_id: dict[str, dict] = {}
-    for fact in facts:
-        for ref in fact.get("evidence_refs") or []:
-            source_id = str(ref.get("source_id") or ref.get("artifact_id") or "")
-            if source_id:
-                by_id[source_id] = dict(ref)
-    return [by_id[key] for key in sorted(by_id)][:CONTENT_CONTEXT_MAX_SOURCES]
 
 
 async def list_briefs(
@@ -718,7 +641,6 @@ def _render_task_context(brief: ContentBrief) -> tuple[dict[str, Any], list[dict
         "allowed_facts": list(brief.allowed_facts)[:CONTENT_CONTEXT_MAX_FACTS],
         "prohibited_claims": list(brief.prohibited_claims),
         "sources": list(brief.source_refs)[:CONTENT_CONTEXT_MAX_SOURCES],
-        "pack": {"id": brief.industry_pack_id, "version": brief.industry_pack_version},
     }
     omissions: list[dict] = []
     while (

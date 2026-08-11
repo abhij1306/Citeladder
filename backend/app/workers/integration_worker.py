@@ -80,6 +80,7 @@ from app.core.config.integrations import (
     INTEGRATION_PROVIDER_GA4,
     INTEGRATION_PROVIDER_SHOPIFY,
     INTEGRATION_QUEUE_SPEC,
+    INTEGRATION_SYNC_EXCLUDED_DATASETS,
     PAGING_MODE_CURSOR,
     IntegrationDatasetTemplate,
     integration_settings,
@@ -278,6 +279,7 @@ def _provider_datasets(
         template
         for template in INTEGRATION_DATASET_TEMPLATES.values()
         if template.provider == provider
+        and template.dataset not in INTEGRATION_SYNC_EXCLUDED_DATASETS
     ]
     if provider != INTEGRATION_PROVIDER_GA4:
         return templates

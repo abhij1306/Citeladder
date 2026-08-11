@@ -237,6 +237,7 @@ URL_HARD_EXCLUSION_PATH_PATTERNS: Final[tuple[str, ...]] = (
     r"(?:^|/)(?:account|profile|admin|wp-admin|dashboard)(?:/|$)",
     r"(?:^|/)(?:cart|basket|checkout|payment|payments|order|orders|wishlist)(?:/|$)",
     r"(?:^|/)(?:search|tag|tags|author|authors|feed)(?:/|$)",
+    r"(?:^|/)(?:viewcart|searchsuggestion)(?:/|$)",
     r"(?:^|/)(?:preview|print|share)(?:/|$)",
 )
 URL_HARD_EXCLUSION_QUERY_KEYS: Final[frozenset[str]] = frozenset(
@@ -1120,6 +1121,32 @@ PAGE_KIND_CONFIDENCE_THRESHOLD: Final = 0.5
 # Applicability token prefix for page-type-scoped rules (spec §5.2):
 # ``page_kind:<type>`` resolves against ``facts["page_kind"]``.
 PAGE_KIND_APPLICABILITY_PREFIX: Final = "page_kind:"
+# Page-kind scope that ALSO requires server-rendered content. A content-reading
+# rule must keep the JS-shell guard: on a client-rendered shell the body is
+# empty, so "no question headings" would report the absence of something we
+# never received. Scoping such a rule by page kind alone silently dropped that
+# guard and reinstated the six-findings-for-one-problem cascade.
+PAGE_KIND_CONTENT_APPLICABILITY_PREFIX: Final = "page_kind_content:"
+
+
+def _page_kinds(*kinds: str, reads_content: bool = False) -> str:
+    """Build a ``page_kind:a|b|c`` applicability key.
+
+    A rule that names its page kinds is only evaluated on those kinds; on every
+    other kind it is INAPPLICABLE, which is different from failing. This is what
+    stops a product page being reported for a missing author byline and an FAQ
+    page for missing Product/offers markup — the complaint that every page kind
+    got the same generic checklist.
+
+    ``reads_content=True`` additionally requires server-rendered content, for
+    rules that inspect body text rather than markup.
+    """
+    prefix = (
+        PAGE_KIND_CONTENT_APPLICABILITY_PREFIX
+        if reads_content
+        else PAGE_KIND_APPLICABILITY_PREFIX
+    )
+    return f"{prefix}{'|'.join(kinds)}"
 
 
 class PageKindProfile:
@@ -1753,7 +1780,16 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_MEDIUM,
         weight=1.5,
-        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
+        # Editorial page kinds only. A byline is a citability signal for
+        # authored writing; demanding one on a product, category, pricing or
+        # policy page reports a "problem" that page should never solve.
+        applicability_key=_page_kinds(
+            PAGE_KIND_ARTICLE,
+            PAGE_KIND_GUIDE,
+            PAGE_KIND_CASE_STUDY_REVIEW,
+            PAGE_KIND_COMPARISON,
+            reads_content=True,
+        ),
         description="Page exposes an author byline (schema, meta, or article:author).",
         remediation="Add an author byline (JSON-LD author or meta name=author).",
         display_label="Missing author byline",
@@ -1765,7 +1801,17 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_MEDIUM,
         weight=1.5,
-        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
+        # Same editorial set as the byline, plus docs: a reader needs to know
+        # how current documentation is. Evergreen commercial pages (product,
+        # category, pricing, about) carry no such expectation.
+        applicability_key=_page_kinds(
+            PAGE_KIND_ARTICLE,
+            PAGE_KIND_GUIDE,
+            PAGE_KIND_CASE_STUDY_REVIEW,
+            PAGE_KIND_COMPARISON,
+            PAGE_KIND_DOCS,
+            reads_content=True,
+        ),
         description="Page exposes a published or modified date.",
         remediation=(
             "Add machine-readable dates (JSON-LD datePublished/dateModified, "
@@ -1780,7 +1826,15 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CITABILITY,
         severity=SEVERITY_LOW,
         weight=1.0,
-        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
+        # Citing external sources is an expectation of research-style content.
+        # A product or category page linking out is not a goal.
+        applicability_key=_page_kinds(
+            PAGE_KIND_ARTICLE,
+            PAGE_KIND_GUIDE,
+            PAGE_KIND_CASE_STUDY_REVIEW,
+            PAGE_KIND_COMPARISON,
+            reads_content=True,
+        ),
         description="Page links out to at least one non-social external domain.",
         remediation="Cite authoritative external sources relevant to the content.",
         display_label="No outbound citations",
@@ -1822,7 +1876,16 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         category=CATEGORY_CONTENT,
         severity=SEVERITY_LOW,
         weight=1.0,
-        applicability_key=APPLICABILITY_OBSERVED_CONTENT,
+        # Question-form headings are the SHAPE of an answer page. A homepage,
+        # product or category page is not written as questions and should not
+        # be scored as though it failed to be.
+        applicability_key=_page_kinds(
+            PAGE_KIND_FAQ,
+            PAGE_KIND_GUIDE,
+            PAGE_KIND_DOCS,
+            PAGE_KIND_ARTICLE,
+            reads_content=True,
+        ),
         description="Page uses question-form h2/h3 headings.",
         remediation="Phrase section headings as the questions users ask.",
         display_label="No question-form headings",
@@ -2081,10 +2144,16 @@ class SiteHealthSettings(BaseSettings):
     )
 
     # --- Neutral sample policy (dev-tunable) ---
-    # Production remains the intentionally small automatic crawl.  Local/dev
-    # environments may opt into the guided controls explicitly; callers never
-    # infer this from a request header or a plan name.
-    advanced_controls_enabled: bool = False
+    # Continue-discovery / analyze-batch ARE the product, so they default ON.
+    #
+    # This defaulted to False, and with it off `PhaseControls` renders nothing:
+    # there was no way to continue discovery or start an analysis batch
+    # anywhere in the UI, and the API answered 422 if you found one. A boolean
+    # that silently removes the primary workflow is a trapdoor, not a feature
+    # flag. Tiering belongs on `access_mode`, which already exists and is
+    # resolved from real entitlements; this switch remains only so a
+    # deployment can deliberately fall back to the small automatic crawl.
+    advanced_controls_enabled: bool = True
     automatic_page_limit: int = SAMPLE_URL_LIMIT
     max_requested_page_limit: int = 500
     max_discovery_urls: int = 50_000

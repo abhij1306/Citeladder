@@ -57,7 +57,6 @@ describe('PhaseControls', () => {
     render(
       <PhaseControls
         screen={siteHealthScreen as never}
-        selectedUrlIds={new Set()}
         lastMutation={null}
         onMutationStart={onMutationStart}
         onRecrawl={vi.fn()}
@@ -107,7 +106,6 @@ describe('PhaseControls', () => {
     render(
       <PhaseControls
         screen={siteHealthScreen as never}
-        selectedUrlIds={new Set()}
         lastMutation={null}
         onMutationStart={vi.fn()}
         onRecrawl={vi.fn()}
@@ -149,7 +147,6 @@ describe('PhaseControls', () => {
       startPending: false,
     };
     const props = {
-      selectedUrlIds: new Set<string>(),
       lastMutation: null,
       onMutationStart: vi.fn(),
       onRecrawl: vi.fn(),

@@ -622,7 +622,20 @@ export function TrafficScreen() {
     return (
       <div className="grid gap-6">
         {syncBanner}
-        <TrafficEmptyState hasConnections={connections.length > 0} />
+        {syncMutation.isError ? (
+          <Alert tone="danger">{errorMessage(syncMutation.error)}</Alert>
+        ) : null}
+        {syncOutcome === 'failed' ? (
+          <Alert tone="warning">
+            Sync finished with errors. Check Settings → Integrations for the provider error, then
+            try again.
+          </Alert>
+        ) : null}
+        <TrafficEmptyState
+          hasConnections={connections.length > 0}
+          syncing={syncing || syncMutation.isPending}
+          onSyncNow={() => syncMutation.mutate()}
+        />
       </div>
     );
   }

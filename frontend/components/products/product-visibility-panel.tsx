@@ -62,7 +62,7 @@ const RANK_SEGMENT_CLASS: Record<(typeof RANK_BUCKET_ORDER)[number], string> = {
   top_2_3: 'bg-info',
   top_4_5: 'bg-warning',
   rank_6_plus: 'bg-danger',
-  unranked: 'bg-muted',
+  unranked: 'bg-border-bold',
 };
 
 /** Exact v1 mixed-version alert copy (analyzer v1 recorded no direction). */

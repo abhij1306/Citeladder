@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import UTC, datetime
@@ -47,7 +48,10 @@ from app.models.content import ContentGeneration, TaskContextPackage
 from app.models.project import Project
 
 logger = logging.getLogger(__name__)
-_INVALID_CORRECTION_TARGET = "correction proposal target is invalid"
+_UUID_PATTERN = re.compile(
+    r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-"
+    r"[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b"
+)
 
 
 class AgentNotFoundError(LookupError):
@@ -329,55 +333,6 @@ async def confirm_decision(
     return await get_task_run(
         session, workspace_id=workspace_id, project_id=project_id, run_id=run_id
     )
-
-
-async def accept_correction_proposal(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    run_id: uuid.UUID,
-    user_id: uuid.UUID,
-    reason: str,
-):
-    """Turn one agent proposal into the existing inline Correction artifact."""
-    run = await _locked_run(
-        session, workspace_id=workspace_id, project_id=project_id, run_id=run_id
-    )
-    step = await session.scalar(
-        select(AgentTaskStep).where(
-            AgentTaskStep.task_run_id == run.id,
-            AgentTaskStep.tool_name == "knowledge.propose_correction",
-            AgentTaskStep.status == "completed",
-        )
-    )
-    proposal = step.output if step is not None else None
-    if not isinstance(proposal, dict) or proposal.get("state") != "proposed":
-        raise AgentValidationError("task has no correction proposal to accept")
-    assert step is not None
-    if proposal.get("accepted_correction_id"):
-        raise AgentConflictError("correction proposal was already accepted")
-    target_ref = proposal.get("target_ref")
-    if not isinstance(target_ref, dict):
-        raise AgentValidationError(_INVALID_CORRECTION_TARGET)
-    target_kind, target_id = _correction_target(target_ref)
-    correction = await _create_site_correction(
-        session,
-        workspace_id=workspace_id,
-        project_id=project_id,
-        user_id=user_id,
-        target_kind=target_kind,
-        target_id=target_id,
-        proposal=proposal,
-        reason=reason,
-    )
-    step.output = {
-        **proposal,
-        "state": "accepted",
-        "accepted_correction_id": str(correction.id),
-    }
-    await session.commit()
-    return correction
 
 
 async def cancel_task(
@@ -995,7 +950,9 @@ async def _narrate(
         system=(
             "You are CiteLadder's bounded Growth Agent. Explain only the supplied "
             "persisted tool results. Do not change ranks, infer causality, or cite "
-            "an ID outside the allowlist."
+            "an ID outside the allowlist. Put IDs only in the citations array; "
+            "never include UUIDs or internal identifiers in conclusion, "
+            "limitations, or next_step."
         ),
         user=json.dumps(
             {
@@ -1020,11 +977,21 @@ async def _narrate(
         for value in narrative.get("citations") or []
         if str(value) in allowed_citations
     ]
+    conclusion = _public_narrative_text(narrative.get("conclusion"))
+    next_step = _public_narrative_text(narrative.get("next_step"))
+    narrative_limitations = [
+        text
+        for value in narrative.get("limitations") or []
+        if (text := _public_narrative_text(value))
+    ]
+    limitations = list(
+        dict.fromkeys([*list(result["limitations"]), *narrative_limitations])
+    )
     return {
         **result,
-        "conclusion": result["conclusion"],
-        "limitations": result["limitations"],
-        "next_step": result["next_step"],
+        "conclusion": conclusion or result["conclusion"],
+        "limitations": limitations,
+        "next_step": next_step or result["next_step"],
         "citations": citations or result["citations"],
         "_provider_adapter": response.provider_adapter,
         "_endpoint_host": response.endpoint_host,
@@ -1034,8 +1001,14 @@ async def _narrate(
     }
 
 
+def _public_narrative_text(value: Any) -> str:
+    """Reject model prose that leaks internal UUIDs into the conversation."""
+    text = str(value or "").strip()
+    return "" if _UUID_PATTERN.search(text) else text
+
+
 def _result_from_steps(
-    steps: list[AgentTaskStep], *, conclusion: str = "The bounded task completed."
+    steps: list[AgentTaskStep], *, conclusion: str | None = None
 ) -> dict[str, Any]:
     tool_results: list[dict[str, Any]] = [
         {"tool": step.tool_name, "status": step.status, "output": step.output}
@@ -1044,20 +1017,81 @@ def _result_from_steps(
     ]
     citations, artifacts, unavailable = _result_evidence(tool_results)
     roadmap = _result_roadmap(tool_results)
+    summary, next_step = _result_summary(
+        tool_results=tool_results,
+        artifacts=artifacts,
+        roadmap=roadmap,
+    )
     return {
-        "conclusion": conclusion,
+        "conclusion": conclusion or summary,
         "tool_results": tool_results,
         "roadmap": roadmap,
-        "limitations": [f"{name} is unavailable" for name in unavailable],
+        "limitations": [_unavailable_limitation(name) for name in unavailable],
         "artifacts_created": artifacts,
         "decisions_remaining": [
             step.tool_kind for step in steps if step.status == "awaiting_user"
         ],
-        "next_step": (
-            "Inspect the cited evidence and continue with the highest-ranked action."
-        ),
+        "next_step": next_step,
         "citations": citations,
     }
+
+
+_TOOL_LABELS = {
+    "site.read_snapshot": "Site crawl evidence",
+    "content.read_strategy": "Content strategy",
+    "demand.read_snapshot": "Demand evidence",
+    "opportunities.read_ranked": "Ranked opportunities",
+}
+
+
+def _unavailable_limitation(tool_name: str) -> str:
+    label = _TOOL_LABELS.get(tool_name, tool_name.replace(".", " ").replace("_", " "))
+    return f"{label} is not available yet."
+
+
+def _result_summary(
+    *,
+    tool_results: list[dict[str, Any]],
+    artifacts: list[dict[str, Any]],
+    roadmap: dict[str, Any] | None,
+) -> tuple[str, str]:
+    available_tools = [
+        str(item["tool"])
+        for item in tool_results
+        if isinstance(item.get("output"), dict)
+        and item["output"].get("state") == "available"
+    ]
+    if not available_tools and not artifacts:
+        return (
+            "There is no project evidence available yet, so I cannot give you a "
+            "grounded answer.",
+            "Finish a Site crawl or sync a connected Traffic source, then ask again.",
+        )
+
+    roadmap_items = list(roadmap.get("items") or []) if roadmap else []
+    if roadmap_items:
+        count = len(roadmap_items)
+        noun = "action" if count == 1 else "actions"
+        return (
+            f"I found {count} ranked {noun} in the current project evidence.",
+            "Start with the first ranked action, then measure the result after the "
+            "next crawl or sync.",
+        )
+
+    if artifacts:
+        count = len(artifacts)
+        return (
+            f"The task created {count} "
+            f"{('artifact' if count == 1 else 'artifacts')} from the current "
+            "project evidence.",
+            "Review the result before approving any follow-up action.",
+        )
+
+    labels = [_TOOL_LABELS.get(name, name) for name in available_tools]
+    return (
+        f"I reviewed the available {' and '.join(labels)}.",
+        "Review the current evidence and choose the next measurable action.",
+    )
 
 
 def _result_evidence(
@@ -1402,62 +1436,6 @@ async def _flush_or_replay(
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
-
-
-def _optional_uuid_value(value: object) -> uuid.UUID | None:
-    if value in (None, ""):
-        return None
-    return _parse_correction_uuid(value, "correction scope identifier is invalid")
-
-
-def _correction_target(target_ref: dict[str, Any]) -> tuple[str, uuid.UUID]:
-    target_kind = str(target_ref.get("kind") or target_ref.get("target_kind") or "")
-    target_id = target_ref.get("id") or target_ref.get("target_id")
-    if target_kind not in {"entity", "assertion", "relation"} or target_id is None:
-        raise AgentValidationError(_INVALID_CORRECTION_TARGET)
-    return target_kind, _parse_correction_uuid(target_id, _INVALID_CORRECTION_TARGET)
-
-
-def _parse_correction_uuid(value: object, message: str) -> uuid.UUID:
-    try:
-        return uuid.UUID(str(value))
-    except ValueError as exc:
-        raise AgentValidationError(message) from exc
-
-
-async def _create_site_correction(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    user_id: uuid.UUID,
-    target_kind: str,
-    target_id: uuid.UUID,
-    proposal: dict[str, Any],
-    reason: str,
-):
-    try:
-        return await site_service.create_correction(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            actor_user_id=user_id,
-            target_kind=target_kind,
-            target_id=target_id,
-            value=proposal.get("corrected_value"),
-            effective_scope=str(proposal.get("effective_scope") or "project"),
-            effective_scope_id=_optional_uuid_value(proposal.get("effective_scope_id")),
-            effective_from=None,
-            effective_to=None,
-            value_metadata={},
-            reason=reason,
-        )
-    except site_service.CorrectionNotFoundError as exc:
-        raise AgentNotFoundError(str(exc)) from exc
-    except site_service.CorrectionValidationError as exc:
-        raise AgentValidationError(str(exc)) from exc
-    except site_service.CorrectionConflictError as exc:
-        raise AgentConflictError(str(exc)) from exc
 
 
 def _run_values(run: AgentTaskRun) -> dict[str, Any]:

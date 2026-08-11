@@ -254,8 +254,6 @@ class ContentInventoryItem(Base):
     )
     canonical_url: Mapped[str] = mapped_column(String(2048))
     page_kind: Mapped[str] = mapped_column(String(24))
-    industry_role_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    temporal_state: Mapped[str] = mapped_column(String(16))
     purpose: Mapped[dict] = mapped_column(JSONB, default=dict)
     coverage: Mapped[dict] = mapped_column(JSONB, default=dict)
     evidence: Mapped[dict] = mapped_column(JSONB, default=dict)
@@ -293,8 +291,6 @@ class ContentStrategySnapshot(Base):
         nullable=True,
     )
     source_hash: Mapped[str] = mapped_column(String(64))
-    industry_pack_id: Mapped[str] = mapped_column(String(64))
-    industry_pack_version: Mapped[str] = mapped_column(String(32))
     inventory_summary: Mapped[dict] = mapped_column(JSONB, default=dict)
     coverage: Mapped[dict] = mapped_column(JSONB, default=dict)
     priorities: Mapped[list] = mapped_column(JSONB, default=list)
@@ -345,8 +341,6 @@ class ContentBrief(Base):
     prohibited_claims: Mapped[list] = mapped_column(JSONB, default=list)
     source_refs: Mapped[list] = mapped_column(JSONB, default=list)
     verification_criteria: Mapped[list] = mapped_column(JSONB, default=list)
-    industry_pack_id: Mapped[str] = mapped_column(String(64))
-    industry_pack_version: Mapped[str] = mapped_column(String(32))
     brief_builder_version: Mapped[str] = mapped_column(String(32))
     evidence_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(

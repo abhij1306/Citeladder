@@ -15,12 +15,12 @@ import {
 import { scoreTextClass } from '@/components/ui/score-band';
 import { cn } from '@/lib/utils';
 import type { PageSummary } from '@/lib/api/types';
-import { IndustryRoleBadge } from '@/components/site-health/industry-role-badge';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import {
   formatAudited,
   formatIssueCount,
   formatScore,
+  pageDisplayTitle,
   pageStatusBadgeValue,
   statusLabel,
 } from '@/lib/site-health/status';
@@ -73,7 +73,7 @@ export function PagesTable({
             // shortcut, not a substitute for the row.
             tabIndex={0}
             role="link"
-            aria-label={page.title ?? page.display_url}
+            aria-label={pageDisplayTitle(page.title, page.display_url)}
             onClick={() => openPage(page.site_url_id)}
             onKeyDown={(event) => {
               if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -86,24 +86,29 @@ export function PagesTable({
             <TableCell numeric className="mono text-muted text-xs">
               {index + 1}
             </TableCell>
+            {/* A URL is one unbreakable token, so an untruncated cell takes its
+                full max-content width and shoves every following column off
+                screen — one tracking-parameter URL was enough to make the
+                table unreadable. Both lines are clamped to a fixed column and
+                carry the full value as a title tooltip. */}
+            {/* The clamp lives on the inner box, not the `<td>`: under the
+                default `table-layout: auto` browsers treat `max-width` on a
+                cell as advisory and size the column to content anyway. */}
             <TableCell>
-              <span className="flex flex-col">
-                <span className="text-foreground font-medium">
-                  {page.title ?? page.display_url}
+              <span className="flex max-w-[26rem] min-w-0 flex-col">
+                <span
+                  className="text-foreground truncate font-medium"
+                  title={pageDisplayTitle(page.title, page.display_url)}
+                >
+                  {pageDisplayTitle(page.title, page.display_url)}
                 </span>
-                <span className="mono text-2xs text-muted">{page.display_url}</span>
+                <span className="mono text-2xs text-muted truncate" title={page.display_url}>
+                  {page.display_url}
+                </span>
               </span>
             </TableCell>
             <TableCell>
-              {/* Generic kind and pack role are separate vocabularies, so they
-                  stack rather than replacing one another. */}
-              <span className="flex flex-col items-start gap-1">
-                <PageKindBadge pageKind={page.page_kind} />
-                <IndustryRoleBadge
-                  roleId={page.industry_role_id}
-                  abstentionReason={page.role_abstention_reason}
-                />
-              </span>
+              <PageKindBadge pageKind={page.page_kind} />
             </TableCell>
             <TableCell>
               <Badge variant="status" value={pageStatusBadgeValue(page.analysis_status)}>

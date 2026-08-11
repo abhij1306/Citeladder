@@ -1,0 +1,133 @@
+# The Site Health screen phase — resolved ONCE, on the server.
+#
+# This used to live in the browser (`frontend/lib/site-health/status.ts`) as a
+# 14-clause ordered precedence chain over six independently-loading inputs:
+# `crawl.status` (9 values), `discovery_status` (7), `analysis_status` (7),
+# the phase-run statuses, the resolved access mode, and whether the project had
+# a committed monitored set. Three of those arrived from three separate HTTP
+# requests, so the client resolved against whichever landed first and corrected
+# itself afterwards — which is what made the screen visibly flip between the URL
+# list and the analysis view. Each such incident added another clause.
+#
+# The server holds all six inputs in one transaction, so it can answer once.
+# The client renders what it is told and has no precedence rules of its own.
+from __future__ import annotations
+
+from typing import Final, Literal
+
+from app.core.config.site_health import (
+    ANALYSIS_STATUS_RUNNING,
+    CRAWL_STATUS_CANCELLED,
+    CRAWL_STATUS_COMPLETED,
+    CRAWL_STATUS_FAILED,
+    CRAWL_STATUS_PARTIALLY_COMPLETED,
+    CRAWL_STATUS_PAUSED,
+    DISCOVERY_STATUS_CANCELLED,
+    DISCOVERY_STATUS_COMPLETED,
+    DISCOVERY_STATUS_FAILED,
+    DISCOVERY_STATUS_SAMPLE_COMPLETED,
+    DISCOVERY_STATUS_STOPPED,
+)
+from app.models.site_health import SiteCrawl
+
+SiteHealthPhase = Literal[
+    "empty",
+    "discovering",
+    "selection",
+    "analyzing",
+    "dashboard",
+    "terminal",
+]
+
+#: Discovery has no more live work in any of these states.
+TERMINAL_DISCOVERY: Final[frozenset[str]] = frozenset(
+    {
+        DISCOVERY_STATUS_COMPLETED,
+        DISCOVERY_STATUS_SAMPLE_COMPLETED,
+        DISCOVERY_STATUS_FAILED,
+        DISCOVERY_STATUS_CANCELLED,
+        DISCOVERY_STATUS_STOPPED,
+    }
+)
+
+#: A parked crawl keeps its inventory but has no live work.
+_PARKED_STATUSES: Final[frozenset[str]] = frozenset(
+    {CRAWL_STATUS_CANCELLED, CRAWL_STATUS_PAUSED}
+)
+
+
+def _has_real_scores(score_summary: dict | None) -> bool:
+    """True when the summary carries an actual score, not just a shell.
+
+    A fully-failed crawl persists a PRESENT-but-null-score summary
+    (``persist_empty=True``), so ``score_summary is not None`` alone reads that
+    shape as dashboard-worthy — the bug that hid every failed crawl behind an
+    empty dashboard. Requiring a non-null ``overall_score`` distinguishes them
+    without a separate failure probe.
+    """
+    return score_summary is not None and score_summary.get("overall_score") is not None
+
+
+def resolve_phase(
+    crawl: SiteCrawl | None,
+    *,
+    score_summary: dict | None,
+    selection_mode: bool,
+    has_monitored_selection: bool,
+) -> SiteHealthPhase:
+    """Resolve the screen phase for ``crawl``.
+
+    :param score_summary: the crawl's projected summary, if any.
+    :param selection_mode: the account stages its own monitored set (a positive
+        monitored allowance). A zero-allowance account fails closed to the
+        server-picked sample, which auto-analyzes.
+    :param has_monitored_selection: the PROJECT has at least one active
+        monitored URL committed.
+    """
+    if crawl is None:
+        return "empty"
+
+    # Finished, or finished with holes — the dashboard is the answer either way.
+    if crawl.status in (CRAWL_STATUS_COMPLETED, CRAWL_STATUS_PARTIALLY_COMPLETED):
+        return "dashboard"
+
+    # Real partial scores outrank a failure: a crawl that analyzed something
+    # before dying still has a dashboard worth showing.
+    if _has_real_scores(score_summary):
+        return "dashboard"
+
+    if crawl.status == CRAWL_STATUS_FAILED:
+        return "terminal"
+
+    # Parked (cancelled/paused) with nothing scored. The discovered inventory
+    # survives, so a selection-mode account can restage it and re-crawl;
+    # everyone else dead-ends.
+    if crawl.status in _PARKED_STATUSES:
+        # `admitted_url_count` is projected to the client as `visible_url_count`.
+        if selection_mode and (crawl.admitted_url_count or 0) > 0:
+            return "selection"
+        return "terminal"
+
+    # Everything below is an ACTIVE crawl (draft/validating/queued/running).
+    #
+    # A project with a committed monitored set is an analysis run from the
+    # moment the crawl is created: the planner seeds the analyze tasks at
+    # creation and a selection commit enqueues into the active crawl, so
+    # `analysis_status` merely lags at 'pending' until the worker's first
+    # reconcile. Resolving that to 'discovering'/'selection' is what bounced the
+    # screen back to the URL list right after "Start analysis" / "Re-crawl".
+    if has_monitored_selection and crawl.analysis_status in (
+        "pending",
+        ANALYSIS_STATUS_RUNNING,
+    ):
+        return "analyzing"
+
+    if crawl.discovery_status not in TERMINAL_DISCOVERY:
+        return "discovering"
+
+    if crawl.analysis_status == ANALYSIS_STATUS_RUNNING:
+        return "analyzing"
+
+    # Discovery is done with no analysis in flight: a selection-mode account
+    # stages its monitored set; a sample account auto-analyzes.
+    return "selection" if selection_mode else "analyzing"

@@ -1,7 +1,7 @@
 import { useId } from 'react';
 
 /** A rounded inverted L with one central step line. */
-export function LogoMark({ size = 20 }: Readonly<{ size?: number }>) {
+export function LogoMark({ size = 16 }: Readonly<{ size?: number }>) {
   const depthFilterId = useId().replaceAll(':', '');
 
   return (

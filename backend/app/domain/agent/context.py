@@ -20,7 +20,6 @@ from app.core.config.agent import (
 )
 from app.models.content import ContentStrategySnapshot, TaskContextPackage
 from app.models.demand import DemandSnapshot
-from app.models.knowledge import Correction
 from app.models.opportunity import Opportunity
 from app.models.site_health import SiteHealthSnapshot
 
@@ -55,20 +54,6 @@ async def build_agent_context(
     site = await _latest(session, SiteHealthSnapshot, workspace_id, project_id)
     content = await _latest(session, ContentStrategySnapshot, workspace_id, project_id)
     demand = await _latest(session, DemandSnapshot, workspace_id, project_id)
-    corrections = list(
-        (
-            await session.scalars(
-                select(Correction)
-                .where(
-                    Correction.workspace_id == workspace_id,
-                    Correction.project_id == project_id,
-                    Correction.state == "active",
-                )
-                .order_by(Correction.created_at.desc(), Correction.id.desc())
-                .limit(AGENT_CONTEXT_MAX_ITEMS)
-            )
-        ).all()
-    )
     opportunities = list(
         (
             await session.scalars(
@@ -89,7 +74,6 @@ async def build_agent_context(
         site=site,
         content=content,
         demand=demand,
-        corrections=corrections,
         opportunities=opportunities,
     )
     rendered, truncations = _enforce_budgets(rendered)
@@ -97,7 +81,6 @@ async def build_agent_context(
         site=site,
         content=content,
         demand=demand,
-        corrections=corrections,
         opportunities=opportunities,
         truncations=truncations,
     )
@@ -146,23 +129,10 @@ def _rendered_context(
     site: SiteHealthSnapshot | None,
     content: ContentStrategySnapshot | None,
     demand: DemandSnapshot | None,
-    corrections: list[Correction],
     opportunities: list[Opportunity],
 ) -> dict[str, Any]:
-    site_intelligence = _redact(site.intelligence or {}) if site else None
     return {
         "task": {"type": task_type, "scope": _redact(resource_scope)},
-        "corrections": [
-            {
-                "id": str(row.id),
-                "target_kind": row.target_kind,
-                "target_ref": _redact(row.target_ref),
-                "corrected_value": _redact(row.corrected_value),
-                "effective_scope": row.effective_scope,
-                "reason": _redacted_text(row.reason),
-            }
-            for row in corrections
-        ],
         "site": (
             {
                 "snapshot_id": str(site.id),
@@ -175,8 +145,6 @@ def _rendered_context(
                     "selected_urls": site.selected_url_count,
                     "analyzed_urls": site.analyzed_url_count,
                 },
-                "intelligence": site_intelligence,
-                "comparison": _redact(site.comparison),
             }
             if site
             else None
@@ -227,33 +195,25 @@ def _manifest(
     site: SiteHealthSnapshot | None,
     content: ContentStrategySnapshot | None,
     demand: DemandSnapshot | None,
-    corrections: list[Correction],
     opportunities: list[Opportunity],
     truncations: dict[str, int],
 ) -> dict[str, Any]:
-    pack = ((site.intelligence or {}).get("pack_manifest") or {}) if site else {}
     selected = {
         "site_snapshot_ids": [str(site.id)] if site else [],
         "content_strategy_ids": [str(content.id)] if content else [],
         "demand_snapshot_ids": [str(demand.id)] if demand else [],
-        "correction_ids": [str(row.id) for row in corrections],
         "opportunity_ids": [str(row.id) for row in opportunities],
     }
     return {
         "policy_version": AGENT_CONTEXT_POLICY_VERSION,
-        "industry_pack": {
-            "id": str(pack.get("pack_id") or ""),
-            "version": str(pack.get("pack_version") or ""),
-            "content_hash": str(pack.get("content_hash") or ""),
-        },
         "selected": selected,
         "quality": {
             "eligible_count": sum(len(value) for value in selected.values()),
             "selected_count": sum(len(value) for value in selected.values()),
             "omitted_count": sum(truncations.values()),
             "stale_count": 0,
-            "contradictory_count": _contradiction_count(site),
-            "correction_count": len(corrections),
+            "contradictory_count": 0,
+            "correction_count": 0,
             "derived_count": len(opportunities)
             + int(site is not None)
             + int(demand is not None),
@@ -262,16 +222,6 @@ def _manifest(
             "reranker_version": "none",
         },
     }
-
-
-def _contradiction_count(site: SiteHealthSnapshot | None) -> int:
-    if site is None or not isinstance(site.intelligence, dict):
-        return 0
-    knowledge = site.intelligence.get("knowledge")
-    if not isinstance(knowledge, dict):
-        return 0
-    value = knowledge.get("contradiction_count", 0)
-    return value if isinstance(value, int) and value >= 0 else 0
 
 
 def _omissions(

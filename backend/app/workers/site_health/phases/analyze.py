@@ -40,7 +40,6 @@ from app.core.config.site_health import (
     TASK_KIND_LINK_CHECK,
 )
 from app.domain.site_health.discovery import _enqueue_task as _enqueue_discovery_task
-from app.domain.site_health.industry_pack import classify_industry_role
 from app.domain.site_health.selection import evaluate_task_guard, lease_is_owned
 from app.domain.site_health.state_events import record_crawl_event
 from app.models.site_health import (
@@ -472,22 +471,12 @@ class AnalyzePhaseMixin(PhaseSupport):
             artifact_id=artifact_id,
             facts=facts,
         )
-        # Pack-governed industry role, classified from the SAME bounded facts.
-        # The pack is compiled once per worker process from the crawl's frozen
-        # manifest, so this call performs no I/O, no hashing, and no model call.
-        role = classify_industry_role(
-            crawl=crawl,
-            facts=facts,
-            page_kind=assessment.page_kind,
-            site_url=site_url,
-        )
         analysis = self._new_page_analysis(
             crawl=crawl,
             site_url_id=site_url_id,
             artifact_id=artifact_id,
             assessment=assessment,
             scores=scores,
-            role=role,
         )
         await self._supersede_and_store_analysis(session, analysis=analysis)
         analysis.source_evaluation_ids = await self._persist_evaluations_and_issues(
@@ -600,7 +589,6 @@ class AnalyzePhaseMixin(PhaseSupport):
         artifact_id: uuid.UUID,
         assessment: PageKindAssessment,
         scores: AnalysisScores,
-        role: dict[str, Any],
     ) -> SitePageAnalysis:
         """Build the immutable analysis row before it becomes current."""
         return SitePageAnalysis(
@@ -622,7 +610,6 @@ class AnalyzePhaseMixin(PhaseSupport):
             page_kind_evidence=assessment.to_evidence(),
             source_artifact_ids=[artifact_id],
             finalized_at=_utcnow(),
-            **role,
         )
 
     async def _supersede_and_store_analysis(

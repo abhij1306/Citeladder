@@ -7,6 +7,7 @@ import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
 import { ProjectProvider } from '@/lib/project/project-context';
 import { SiteHealthScreen } from './site-health-screen';
+import type { SiteHealthDashboard } from '@/lib/api/types';
 
 // The analyzing/scored inventory modes render PagesTable (clickable rows) and
 // the Site Intelligence workspace (panel state mirrored to the URL); stub
@@ -145,7 +146,16 @@ function inventoryRow(id: string, url: string) {
   };
 }
 
-function mockRoutes(crawlOverrides: Record<string, unknown> = {}) {
+/**
+ * `phase` is a SERVER field now (backend/app/domain/site_health/phase.py), so
+ * each test states the phase it is exercising instead of arranging a crawl
+ * shape and hoping the client re-derives the one it meant. Phase RESOLUTION is
+ * covered by tests/unit/test_site_health_phase.py; these are rendering tests.
+ */
+function mockRoutes(
+  crawlOverrides: Record<string, unknown> = {},
+  phase: SiteHealthDashboard['phase'] = 'dashboard',
+) {
   mswServer.use(
     http.get('/api/v1/projects', () => HttpResponse.json([project])),
     http.post('/api/v1/projects/:id/logos/refresh', () => HttpResponse.json(project)),
@@ -155,6 +165,8 @@ function mockRoutes(crawlOverrides: Record<string, unknown> = {}) {
         project_id: PROJECT,
         crawl: crawl(crawlOverrides),
         score_summary: null,
+        phase,
+        snapshot_id: null,
         quota: { used: 3, limit: 50 },
         root_errors: [],
         phase_runs: { discovery: null, analysis: null },
@@ -226,7 +238,7 @@ describe('SiteHealthScreen — loading failures', () => {
 
 describe('SiteHealthScreen — terminal states on the canonical screen', () => {
   it('renders an explicit terminal notice (not the active-progress UI) for a failed crawl', async () => {
-    mockRoutes({ status: 'failed', error_message: 'Robots.txt denied crawling.' });
+    mockRoutes({ status: 'failed', error_message: 'Robots.txt denied crawling.' }, 'terminal');
 
     renderScreen();
 
@@ -234,8 +246,9 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     expect(
       await screen.findByText(/Robots\.txt denied crawling\. Re-crawl to try again\./),
     ).toBeInTheDocument();
-    // The header offers the restart — the screen itself stays the dashboard.
-    expect(screen.getByRole('button', { name: 'Start a new crawl' })).toBeInTheDocument();
+    // The restart lives with the other crawl actions in the phase controls;
+    // the screen itself stays the dashboard.
+    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeInTheDocument();
     // No redundant Cancel control for an already-stopped crawl.
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
     // The score section stays mounted with placeholders (no screen swap).
@@ -249,29 +262,32 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     // phase resolution must probe the failure shape (nothing analyzed AND no
     // overall score) and land on the terminal card with the API-projected
     // failure reason instead.
-    mockRoutes({
-      status: 'failed',
-      analysis_status: 'failed',
-      analyzed_count: 0,
-      score_summary: {
-        overall_score: null,
-        technical_score: null,
-        aeo_score: null,
-        selected_count: 0,
+    mockRoutes(
+      {
+        status: 'failed',
+        analysis_status: 'failed',
         analyzed_count: 0,
-        issue_count: 0,
-        scoring_version: 's1',
-        by_page_kind: {},
+        score_summary: {
+          overall_score: null,
+          technical_score: null,
+          aeo_score: null,
+          selected_count: 0,
+          analyzed_count: 0,
+          issue_count: 0,
+          scoring_version: 's1',
+          by_page_kind: {},
+        },
+        failure_summary: {
+          code: 'http_5xx',
+          message: 'The site returned HTTP 500 after 3 attempts',
+          attempts: 3,
+          status_code: 500,
+          target_url: 'https://acme.com/',
+        },
+        error_message: 'The site returned HTTP 500 after 3 attempts',
       },
-      failure_summary: {
-        code: 'http_5xx',
-        message: 'The site returned HTTP 500 after 3 attempts',
-        attempts: 3,
-        status_code: 500,
-        target_url: 'https://acme.com/',
-      },
-      error_message: 'The site returned HTTP 500 after 3 attempts',
-    });
+      'terminal',
+    );
 
     renderScreen();
 
@@ -282,7 +298,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
         /The site returned HTTP 500 after 3 attempts\. The site is having server trouble/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Start a new crawl' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeInTheDocument();
   });
 
   it('renders the root-failure block on the Errors & Blocked tab for a failed crawl (B3)', async () => {
@@ -290,12 +306,15 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     // the pages response as `root_errors` and renders as a distinct
     // NON-clickable block above the (empty) table.
     const user = userEvent.setup();
-    mockRoutes({
-      status: 'failed',
-      analysis_status: 'failed',
-      analyzed_count: 0,
-      error_message: 'The site returned HTTP 404 for the start URL',
-    });
+    mockRoutes(
+      {
+        status: 'failed',
+        analysis_status: 'failed',
+        analyzed_count: 0,
+        error_message: 'The site returned HTTP 404 for the start URL',
+      },
+      'terminal',
+    );
     mswServer.use(
       http.get(`/api/v1/site-crawls/${CRAWL}/pages`, () =>
         HttpResponse.json({
@@ -330,7 +349,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
   });
 
   it('shows generic terminal copy for a cancelled crawl with NOTHING discovered', async () => {
-    mockRoutes({ status: 'cancelled', error_message: '', visible_url_count: 0 });
+    mockRoutes({ status: 'cancelled', error_message: '', visible_url_count: 0 }, 'terminal');
 
     renderScreen();
 
@@ -343,7 +362,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     // Cancelling discovery must NOT dead-end the discovered URLs: the
     // inventory persists server-side, so the inventory section switches to
     // selection mode with a cancellation notice instead of a terminal card.
-    mockRoutes({ status: 'cancelled', error_message: '', visible_url_count: 3 });
+    mockRoutes({ status: 'cancelled', error_message: '', visible_url_count: 3 }, 'selection');
     mswServer.use(
       http.get(`/api/v1/site-crawls/${CRAWL}/inventory`, () =>
         HttpResponse.json({
@@ -368,12 +387,15 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
 
   it('offers Cancel beside the inventory controls while a crawl is discovering', async () => {
     let hiddenPagesRequests = 0;
-    mockRoutes({
-      status: 'running',
-      discovery_status: 'running',
-      analysis_status: 'pending',
-      score_summary: null,
-    });
+    mockRoutes(
+      {
+        status: 'running',
+        discovery_status: 'running',
+        analysis_status: 'pending',
+        score_summary: null,
+      },
+      'discovering',
+    );
     mswServer.use(
       http.get(`/api/v1/site-crawls/${CRAWL}/pages`, () => {
         hiddenPagesRequests += 1;
@@ -386,10 +408,10 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     // Wait for the screen to settle past the initial loading skeleton.
     await waitFor(() => expect(screen.queryByText(/Discovering pages/)).toBeInTheDocument());
     // Active controls live with the discovered-page table, not in the global
-    // page header. Re-crawl only appears for a settled dashboard/terminal run.
+    // page header. Re-crawl is present but disabled while the crawl runs.
     const cancel = screen.getByRole('button', { name: 'Cancel' });
     expect(screen.getByTestId('inventory-section')).toContainElement(cancel);
-    expect(screen.queryByRole('button', { name: /Re-crawl now/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeDisabled();
     expect(hiddenPagesRequests).toBe(0);
   });
 
@@ -421,6 +443,8 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
             score_summary: summary,
           }),
           score_summary: summary,
+          phase: 'dashboard',
+          snapshot_id: null,
           quota: { used: 4, limit: 50 },
           root_errors: [],
           phase_runs: { discovery: null, analysis: null },
@@ -441,8 +465,8 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     const breakdown = screen.getByTestId('page-kind-scores');
     expect(breakdown).toBeInTheDocument();
     expect(within(breakdown).getByText('Article')).toBeInTheDocument();
-    // The header offers Re-crawl for a terminal-with-data dashboard.
-    expect(screen.getByRole('button', { name: /Re-crawl now/ })).toBeInTheDocument();
+    // Re-crawl is offered for a terminal-with-data dashboard.
+    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeInTheDocument();
     // Not the bare terminal notice.
     expect(
       screen.queryByText('This crawl was cancelled before it produced results.'),
@@ -482,6 +506,9 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
       score_summary: null,
       completed_at: null,
     });
+    // `phase` is a server field now, so the mutable server state carries it and
+    // each transition below sets the phase that transition actually produces.
+    let serverPhase: SiteHealthDashboard['phase'] = 'discovering';
     const monitored: Array<Record<string, unknown>> = [];
 
     mswServer.use(
@@ -492,6 +519,8 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
           project_id: PROJECT,
           crawl: serverCrawl,
           score_summary: serverCrawl.score_summary,
+          phase: serverPhase,
+          snapshot_id: null,
           quota: { used: monitored.length, limit: 50 },
           root_errors: [],
           phase_runs: { discovery: null, analysis: null },
@@ -535,6 +564,9 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
           score_summary: null,
           completed_at: null,
         });
+        // Cancelled with a discovered inventory and a monitored allowance:
+        // the user restages the set rather than dead-ending.
+        serverPhase = 'selection';
         return HttpResponse.json(serverCrawl);
       }),
       http.post('/api/v1/site-crawls', async ({ request }) => {
@@ -551,6 +583,9 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
           score_summary: null,
           completed_at: null,
         });
+        // A recrawl for a project with a committed monitored set IS an
+        // analysis run from creation, even while discovery re-scans.
+        serverPhase = 'analyzing';
         createBody = await request.json();
         return HttpResponse.json(serverCrawl);
       }),
@@ -581,16 +616,21 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
     ).toBeInTheDocument();
     expect(screen.getByTestId('site-health-canonical')).toBe(canonical);
 
-    // Step 3 — stage + save a monitored page, then start the analysis.
+    // Step 3 — stage + save a monitored page, then re-crawl. A cancelled crawl
+    // cannot enqueue analyze tasks, so running the saved set means a fresh
+    // crawl seeded with it: "Re-crawl site" in the phase controls. (The
+    // selection panel used to carry a second, identically-labelled "Start
+    // analysis" that did the same thing.)
     await user.click(await screen.findByLabelText('Monitor https://acme.com/pricing'));
     await user.click(screen.getByRole('button', { name: /Save selection/ }));
-    const startAnalysis = screen.getByRole('button', { name: 'Start analysis' });
-    await waitFor(() => expect(startAnalysis).toBeEnabled());
-    await user.click(startAnalysis);
+    const recrawl = screen.getByRole('button', { name: 'Re-crawl site' });
+    await waitFor(() => expect(recrawl).toBeEnabled());
+    await user.click(recrawl);
+    await user.click(await screen.findByRole('button', { name: 'Start crawl' }));
 
-    // The direct action must send the typed default payload, not React's
-    // click event (which would fail before the request reached this handler).
-    await waitFor(() => expect(createBody).toEqual({ project_id: PROJECT }));
+    // The intake dialog must send the typed payload, not React's click event
+    // (which would fail before the request reached this handler).
+    await waitFor(() => expect(createBody).toMatchObject({ project_id: PROJECT }));
 
     // The screen moves FORWARD to the analysis view in place — it must never
     // bounce back to the selection list (the reported regression), even though
@@ -612,10 +652,11 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
       analysis_status: 'completed',
       score_summary: summary,
     });
+    serverPhase = 'dashboard';
     await queryClient.invalidateQueries();
 
     expect(await screen.findByText('71 / 100')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Re-crawl now/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeInTheDocument();
     expect(screen.getByTestId('site-health-canonical')).toBe(canonical);
     // The score section that showed placeholders during analysis is the same
     // mounted section now showing real data.

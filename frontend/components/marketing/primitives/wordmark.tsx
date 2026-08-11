@@ -10,7 +10,7 @@ export function Wordmark({ className }: Readonly<{ className?: string }>) {
         className,
       )}
     >
-      <LogoMark size={20} />
+      <LogoMark size={16} />
       CiteLadder
     </span>
   );

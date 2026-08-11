@@ -9,8 +9,6 @@ import pytest
 from app.core.config.content_intelligence import CONTENT_SKILL_CATALOG
 from app.domain.content.intelligence import (
     ContentValidationBlockedError,
-    _partition_facts,
-    _question_priorities,
     _validate_visible_schema_parity,
     validate_output,
 )
@@ -37,8 +35,6 @@ def _brief(*, question: str = "What are the admission requirements?") -> Content
         prohibited_claims=[],
         source_refs=[],
         verification_criteria=[],
-        industry_pack_id="education",
-        industry_pack_version="1.0.0",
         brief_builder_version="content-brief-v1",
         evidence_hash="b" * 64,
     )
@@ -67,52 +63,6 @@ def _context(brief: ContentBrief) -> TaskContextPackage:
         manifest_hash="c" * 64,
         char_count=100,
     )
-
-
-def test_priorities_are_deterministic_and_keep_gap_states_distinct() -> None:
-    questions = [
-        {"question_id": "fees", "state": "missing"},
-        {"question_id": "dates", "state": "conflicting"},
-        {"question_id": "history", "state": "historical_only"},
-        {"question_id": "complete", "state": "complete"},
-    ]
-
-    first = _question_priorities(questions, None)
-    second = _question_priorities(list(reversed(questions)), None)
-
-    assert first == second
-    assert [item["question_id"] for item in first] == ["dates", "fees", "history"]
-    assert {item["state"] for item in first} == {
-        "conflicting",
-        "missing",
-        "historical_only",
-    }
-
-
-def test_corrections_are_effective_values_without_mutating_observed_values() -> None:
-    items = [
-        {
-            "id": "assertion-1",
-            "predicate_id": "school.founded",
-            "value": 1999,
-            "effective_value": 2001,
-            "temporal_state": "current",
-            "correction": {"id": "correction-1", "replacement_value": 2001},
-        },
-        {
-            "id": "assertion-2",
-            "predicate_id": "school.fees",
-            "value": "unknown",
-            "contradiction_group_id": "conflict-1",
-        },
-    ]
-
-    allowed, prohibited = _partition_facts(items)
-
-    assert allowed[0]["value"] == 2001
-    assert items[0]["value"] == 1999
-    assert allowed[0]["correction"]["id"] == "correction-1"
-    assert prohibited[0]["state"] == "conflicting"
 
 
 def test_validator_blocks_invented_sensitive_claims_and_unselected_links() -> None:
@@ -166,21 +116,6 @@ def test_validator_accepts_context_bound_education_answer() -> None:
 
     assert status == "passed"
     assert all(item["passed"] for item in checks)
-
-
-def test_validator_fails_closed_when_required_question_has_no_label() -> None:
-    brief = _brief()
-    brief.requirements = {"questions": [{"question_id": "admissions.requirements"}]}
-
-    status, checks = validate_output(
-        output_text="Contact the admissions team.", brief=brief, context=_context(brief)
-    )
-
-    assert status == "blocked"
-    required = next(
-        item for item in checks if item["check_id"].startswith("required_question:")
-    )
-    assert required["passed"] is False
 
 
 def test_faq_schema_requires_exact_visible_question_and_answer_parity() -> None:

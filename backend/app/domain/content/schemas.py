@@ -156,8 +156,6 @@ class ContentStrategyResponse(BaseModel):
     site_snapshot_id: uuid.UUID
     demand_snapshot_id: uuid.UUID | None = None
     source_hash: str
-    industry_pack_id: str
-    industry_pack_version: str
     inventory_summary: dict
     coverage: dict
     priorities: list
@@ -177,8 +175,6 @@ class ContentInventoryResponse(BaseModel):
     site_url_id: uuid.UUID
     canonical_url: str
     page_kind: str
-    industry_role_id: str | None = None
-    temporal_state: str
     purpose: dict
     coverage: dict
     evidence: dict
@@ -211,8 +207,6 @@ class ContentBriefResponse(BaseModel):
     prohibited_claims: list
     source_refs: list
     verification_criteria: list
-    industry_pack_id: str
-    industry_pack_version: str
     brief_builder_version: str
     evidence_hash: str
     created_at: datetime

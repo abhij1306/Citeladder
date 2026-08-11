@@ -31,13 +31,11 @@ from app.domain.agent.schemas import (
     ConversationCreate,
     ConversationDetail,
     ConversationItem,
-    CorrectionProposalAccept,
 )
 from app.domain.agent.service import (
     AgentConflictError,
     AgentNotFoundError,
     AgentValidationError,
-    accept_correction_proposal,
     cancel_task,
     confirm_decision,
     create_conversation,
@@ -50,8 +48,6 @@ from app.domain.agent.service import (
     task_runs_projection,
 )
 from app.domain.agent.tools import tool_catalog
-from app.domain.site_health.api_schemas import CorrectionItem
-from app.domain.site_health.service import correction_payload
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -282,26 +278,3 @@ async def cancel_task_endpoint(
         raise _error(exc) from exc
 
 
-@router.post(
-    "/tasks/{run_id}/correction",
-    status_code=status.HTTP_201_CREATED,
-)
-async def accept_correction_proposal_endpoint(
-    run_id: uuid.UUID,
-    payload: CorrectionProposalAccept,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-    project_id: Annotated[uuid.UUID, Query()],
-) -> CorrectionItem:
-    try:
-        correction = await accept_correction_proposal(
-            session,
-            workspace_id=ctx.workspace_id,
-            project_id=project_id,
-            run_id=run_id,
-            user_id=ctx.user.id,
-            reason=payload.reason,
-        )
-    except (AgentNotFoundError, AgentValidationError, AgentConflictError) as exc:
-        raise _error(exc) from exc
-    return CorrectionItem.model_validate(correction_payload(correction))

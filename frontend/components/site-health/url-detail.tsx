@@ -19,15 +19,12 @@ import { queryKeys } from '@/lib/api/query-keys';
 import { siteHealthMutations, siteHealthQueries } from '@/lib/api/site-health';
 import type {
   DeliveryFacts,
-  IndustryRole,
   PageDetail,
   RerunPageResponse,
   SiteIssue,
 } from '@/lib/api/types';
-import { IndustryRoleBadge } from '@/components/site-health/industry-role-badge';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { ICONS } from '@/lib/icons';
-import { abstentionLabel } from '@/lib/site-health/industry-roles';
 import {
   pageKindLabel,
   readPageKindEvidence,
@@ -43,6 +40,7 @@ import {
 import {
   PLACEHOLDER,
   formatAudited,
+  pageDisplayTitle,
   pageStatusBadgeValue,
   statusLabel,
 } from '@/lib/site-health/status';
@@ -138,7 +136,9 @@ export function UrlDetail({
         <span className="px-1.5" aria-hidden>
           /
         </span>
-        <span className="text-secondary">{detail.title ?? detail.display_url}</span>
+        <span className="text-secondary break-all">
+          {pageDisplayTitle(detail.title, detail.display_url)}
+        </span>
       </nav>
 
       <HeaderCard
@@ -230,8 +230,6 @@ function HeaderCard({
   const [evidenceOpen, setEvidenceOpen] = useState(false);
   // Null when the pack classifier never ran for this page: the whole Industry
   // Role row is then absent rather than showing an empty one.
-  const industryRole = detail.industry_role ?? null;
-  const [roleOpen, setRoleOpen] = useState(false);
   const rerun = useMutation({
     ...siteHealthMutations.rerunPage(),
     onSuccess: async (result) => {
@@ -254,8 +252,13 @@ function HeaderCard({
     <Card>
       <CardContent className="grid gap-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="grid gap-1">
-            <h1 className={displayHeadingLgClasses}>{detail.title ?? detail.display_url}</h1>
+          {/* `min-w-0` + `break-all`: a page with no <title> falls back to its
+              URL, which is one unbreakable token — untreated it widened the
+              header past the card and pushed Re-audit off screen. */}
+          <div className="grid min-w-0 gap-1">
+            <h1 className={cn(displayHeadingLgClasses, 'break-all')}>
+              {pageDisplayTitle(detail.title, detail.display_url)}
+            </h1>
           </div>
           <Button
             size="sm"
@@ -273,13 +276,13 @@ function HeaderCard({
           </Button>
         </div>
         <div className="text-secondary flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-          <span className="flex items-center gap-1.5">
+          <span className="flex min-w-0 items-center gap-1.5">
             <Label>URL</Label>
             <a
               href={detail.display_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="mono text-accent-text hover:underline"
+              className="mono text-accent-text min-w-0 break-all hover:underline"
             >
               {detail.display_url}
             </a>
@@ -315,36 +318,6 @@ function HeaderCard({
               </button>
             ) : null}
           </span>
-          {industryRole ? (
-            <span className="flex items-center gap-1.5">
-              <Label>Industry Role</Label>
-              <IndustryRoleBadge
-                roleId={industryRole.role_id}
-                abstentionReason={industryRole.abstention_reason}
-              />
-              <button
-                type="button"
-                aria-expanded={roleOpen}
-                aria-controls="industry-role-evidence"
-                aria-label="Why this role?"
-                onClick={() => setRoleOpen((open) => !open)}
-                className="text-accent-text inline-flex items-center gap-1 text-xs font-medium"
-              >
-                {roleOpen ? (
-                  <ChevronDown className="size-3" aria-hidden />
-                ) : (
-                  <ChevronRight className="size-3" aria-hidden />
-                )}
-                Why this role?
-                {industryRole.conflicts.length > 0 ? (
-                  <span
-                    className="bg-warning ms-0.5 inline-block size-1.25 rounded-full"
-                    aria-hidden
-                  />
-                ) : null}
-              </button>
-            </span>
-          ) : null}
           <span className="flex items-center gap-1.5">
             <Label>Last Audit</Label>
             <span>{formatAudited(detail.last_audited)}</span>
@@ -359,7 +332,6 @@ function HeaderCard({
         {pageKindEvidence && evidenceOpen ? (
           <PageKindEvidencePanel evidence={pageKindEvidence} finalPageKind={detail.page_kind} />
         ) : null}
-        {industryRole && roleOpen ? <IndustryRolePanel role={industryRole} /> : null}
       </CardContent>
     </Card>
   );
@@ -530,99 +502,6 @@ function PageKindEvidencePanel({
             type.
           </span>
           <span className="mono ms-auto">{evidence.classifierVersion}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * The expanded "why this role?" disclosure. Shows the pack verdict, the
- * abstention reason when the classifier declined, competing candidates, and
- * the exact frozen pack version the result came from — so a role is always
- * attributable to one reviewed pack rather than to "the classifier".
- */
-function IndustryRolePanel({ role }: Readonly<{ role: IndustryRole }>) {
-  const WarningIcon = ICONS.warning;
-  const alternativeKeyOccurrences = new Map<string, number>();
-  return (
-    <div id="industry-role-evidence">
-      <div className="border-border-subtle bg-background-alt grid gap-3 rounded-lg border p-3">
-        <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-          <span className="grid gap-0.5">
-            <Label>Role</Label>
-            <span className="mono text-foreground text-sm font-medium">
-              {role.role_id ?? PLACEHOLDER}
-            </span>
-          </span>
-          <span className="grid gap-0.5">
-            <Label>Score</Label>
-            <span className="mono text-foreground text-sm font-medium">
-              {role.score === null ? PLACEHOLDER : role.score.toFixed(2)}
-              {role.winner_margin === null ? null : (
-                <span className="text-muted font-medium">
-                  {' '}
-                  / {role.winner_margin.toFixed(2)} margin
-                </span>
-              )}
-            </span>
-          </span>
-          <span className="grid gap-0.5">
-            <Label>Confidence</Label>
-            <span className="mono text-foreground text-sm font-medium">
-              {role.confidence_band || PLACEHOLDER}
-            </span>
-          </span>
-          <span className="grid gap-0.5">
-            <Label>Temporal state</Label>
-            <span className="mono text-foreground text-sm font-medium">
-              {role.temporal_state || PLACEHOLDER}
-            </span>
-          </span>
-        </div>
-
-        {role.abstention_reason ? (
-          <div
-            role="note"
-            className="border-warning-border bg-warning-bg text-warning-text flex items-start gap-2 rounded-sm border px-3 py-2 text-sm"
-          >
-            <WarningIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <div>{abstentionLabel(role.abstention_reason)}</div>
-          </div>
-        ) : null}
-
-        {role.alternatives.length > 0 ? (
-          <div className="grid gap-1">
-            <Label>Other candidates</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {role.alternatives.map((alternative) => {
-                const candidateId =
-                  typeof alternative.role_id === 'string' && alternative.role_id
-                    ? alternative.role_id
-                    : null;
-                const signature = candidateId
-                  ? `candidate:${JSON.stringify(candidateId)}`
-                  : `alternative:${JSON.stringify(alternative)}`;
-                const occurrence = alternativeKeyOccurrences.get(signature) ?? 0;
-                alternativeKeyOccurrences.set(signature, occurrence + 1);
-                return (
-                  <Badge key={`${signature}:${occurrence}`}>
-                    {String(alternative.role_id ?? PLACEHOLDER)}
-                  </Badge>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="text-2xs text-muted flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span>
-            Roles come from the industry pack frozen onto this crawl; a later pack release never
-            changes an existing result.
-          </span>
-          <span className="mono ms-auto">
-            {role.manifest.pack_id}@{role.manifest.pack_version}
-          </span>
         </div>
       </div>
     </div>

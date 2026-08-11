@@ -173,9 +173,5 @@ class AgentCapabilities(_StrictModel):
     tool_catalog: list[ToolCatalogItem]
 
 
-class CorrectionProposalAccept(_StrictModel):
-    reason: str = Field(min_length=1, max_length=512)
-
-
 class PriorityOverrideWithdraw(_StrictModel):
     reason: str = Field(min_length=1, max_length=512)

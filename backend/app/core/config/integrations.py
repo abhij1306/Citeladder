@@ -463,6 +463,14 @@ DATASET_GSC_QUERY_PAGE_DAILY: Final = "gsc_query_page_daily"
 DATASET_GSC_SEARCH_APPEARANCE_DAILY: Final = "gsc_search_appearance_daily"
 DATASET_GSC_DEVICE_DAILY: Final = "gsc_device_daily"
 DATASET_GSC_COUNTRY_DAILY: Final = "gsc_country_daily"
+# Search Console rejects ``searchAppearance`` when it is grouped with any
+# other dimension, including the date required by our daily metric-row
+# contract. Keep the template registered so historical rows remain readable,
+# but do not issue a request that the provider deterministically rejects and
+# thereby discard the five valid GSC report families in the same sync.
+INTEGRATION_SYNC_EXCLUDED_DATASETS: Final[frozenset[str]] = frozenset(
+    {DATASET_GSC_SEARCH_APPEARANCE_DAILY}
+)
 DATASET_GA4_CHANNEL_DAILY: Final = "ga4_channel_daily"
 DATASET_GA4_SOURCE_MEDIUM_DAILY: Final = "ga4_source_medium_daily"
 DATASET_GA4_REFERRER_DAILY: Final = "ga4_referrer_daily"

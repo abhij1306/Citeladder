@@ -237,8 +237,6 @@ def _skill_definition(brief: ContentBrief, skill_id: str) -> ContentSkillDefinit
     definition = CONTENT_SKILL_CATALOG.get(skill_id)
     if definition is None or brief.kind not in definition["brief_kinds"]:
         raise ValueError("content_skill_incompatible")
-    if brief.industry_pack_id not in definition["packs"]:
-        raise ValueError("content_skill_pack_incompatible")
     _require_supported_output(definition)
     return definition
 

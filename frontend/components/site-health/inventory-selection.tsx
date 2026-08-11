@@ -44,9 +44,9 @@ import { PAGE_LIMIT } from '@/lib/site-health/status';
  *
  * Also serves a CANCELLED crawl (`crawlInactive`): the discovered inventory
  * survives a cancel, so the user can still browse it and stage/commit a
- * monitored set — but analysis tasks only enqueue into an active crawl, so a
- * "Start analysis" action (a fresh crawl that seeds the persisted selection)
- * is offered instead of the implicit in-crawl analysis.
+ * monitored set. Running that set is not this panel's job — analysis tasks
+ * only enqueue into an active crawl, and starting one is "Re-crawl site" in
+ * the phase controls.
  */
 export function InventorySelection({
   crawl,
@@ -55,8 +55,6 @@ export function InventorySelection({
   crawlInactive = false,
   onCancel,
   cancelPending = false,
-  onStartAnalysis,
-  startPending = false,
 }: Readonly<{
   crawl: SiteCrawl;
   entitlement: SiteHealthEntitlement;
@@ -65,9 +63,6 @@ export function InventorySelection({
   crawlInactive?: boolean;
   onCancel?: () => void;
   cancelPending?: boolean;
-  /** Starts a fresh crawl that seeds the committed monitored set (re-analysis). */
-  onStartAnalysis?: () => void;
-  startPending?: boolean;
 }>) {
   const [filters, setFilters] = useState<InventoryFilters>(emptyInventoryFilters);
   const pager = useCursorStack();
@@ -280,27 +275,12 @@ export function InventorySelection({
                     : commitCtaLabel(effectiveSelection, entitlement.monitored_url_limit)
                   : 'Analyze pages'}
             </Button>
-            {crawlInactive && onStartAnalysis ? (
-              // A cancelled crawl cannot enqueue analyze tasks, so analysis is
-              // a fresh crawl: it re-discovers and seeds the COMMITTED
-              // monitored set. Enabled once a committed (saved) set exists and
-              // no unsaved edits are pending.
-              <Button
-                size="sm"
-                // `onStartAnalysis` accepts no DOM event. Calling it through a
-                // zero-argument wrapper prevents React's click event from
-                // becoming the create-crawl mutation payload.
-                onClick={() => onStartAnalysis()}
-                disabled={
-                  startPending ||
-                  !effectiveSelection ||
-                  delta?.dirty ||
-                  effectiveSelection.committed.siteUrlIds.size === 0
-                }
-              >
-                {startPending ? 'Starting…' : 'Start analysis'}
-              </Button>
-            ) : null}
+            {/* No second "Start analysis" here. A cancelled crawl cannot
+                enqueue analyze tasks, so analysis means a fresh crawl seeded
+                with the committed set — which is exactly what "Re-crawl site"
+                in the phase controls does. Two identically-labelled buttons
+                that both created a crawl was the ambiguity; this panel's job
+                ends at saving the selection. */}
           </div>
         </div>
       </CardContent>

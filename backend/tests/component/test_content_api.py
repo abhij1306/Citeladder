@@ -174,7 +174,7 @@ async def test_content_intelligence_empty_state_and_workspace_isolation(
         "/api/v1/content/strategy/recompute", params={"project_id": project_id}
     )
     assert unavailable.status_code == 409
-    assert unavailable.json()["detail"] == "site_intelligence_unavailable"
+    assert unavailable.json()["detail"] == "site_snapshot_unavailable"
 
     await _register(client, "content-intelligence-outsider@example.com")
     hidden = await client.get(

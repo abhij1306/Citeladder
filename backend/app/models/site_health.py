@@ -893,17 +893,14 @@ class SitePageAnalysis(Base):
     """The single page-understanding owner (append-only; DTO ``PageUnderstanding``).
 
     Carries the Technical/AEO/overall scores, the analysis status, the
-    analyzer/scoring versions, the generic ``page_kind``, the pack-governed
-    ``industry_role``, and the source evaluation/artifact ID arrays for full
-    provenance.
+    analyzer/scoring versions, the generic ``page_kind``, and the source
+    evaluation/artifact ID arrays for full provenance.
 
-    APPEND-ONLY, keyed by ``(artifact_id, analyzer_version, pack_id,
-    pack_version)`` with one ``is_current`` row per artifact. Recomputing the
-    same artifact under a NEW analyzer or pack version writes a NEW row rather
-    than mutating the old one — which is exactly what recrawl comparison needs,
-    and what stops a pack upgrade from silently reinterpreting history. A read
-    API renders the frozen versions on the row it loads and never re-resolves
-    the current pack.
+    APPEND-ONLY, keyed by ``(artifact_id, analyzer_version)`` with one
+    ``is_current`` row per artifact. Recomputing the same artifact under a NEW
+    analyzer version writes a NEW row rather than mutating the old one, so a
+    re-analysis never silently reinterprets history. A read API renders the
+    frozen version on the row it loads.
 
     ``PageUnderstanding`` is this row's API/DTO name, NOT a second table.
     """
@@ -911,13 +908,11 @@ class SitePageAnalysis(Base):
     __tablename__ = "site_page_analyses"
     __table_args__ = (
         # The append-only identity. ``artifact_id`` alone is deliberately NOT
-        # unique any more: one artifact legitimately has several analyses, one
-        # per (analyzer, pack) version pair.
+        # unique: one artifact legitimately has several analyses, one per
+        # analyzer version.
         UniqueConstraint(
             "artifact_id",
             "analyzer_version",
-            "industry_pack_id",
-            "industry_pack_version",
             name="uq_site_page_analysis_version",
         ),
         # One current row per artifact, enforced by the database rather than by
@@ -978,46 +973,6 @@ class SitePageAnalysis(Base):
     page_kind_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     # --- Pack-governed industry role (independent of page_kind) ----------
-    # ``page_kind`` answers what the page structurally IS; ``industry_role``
-    # answers what job it performs in the active industry. They are separate
-    # vocabularies: an Education program page may be page_kind=article while
-    # industry_role=education.program_detail.
-    #
-    # Three states, and ``role_abstention_reason`` is NOT NULL with a ``""``
-    # default, so the discriminator is empty vs non-empty, never NULL:
-    #
-    #   - ``industry_role_id`` set                      -> a selected role;
-    #   - NULL role, NON-EMPTY abstention reason        -> an EXECUTED
-    #     abstention (the classifier ran and declined);
-    #   - NULL role, EMPTY ("") abstention reason       -> the pack classifier
-    #     never ran for this row.
-    #
-    # Collapsing the last two into one state is what would let "we did not
-    # look" read as "there is nothing here".
-    industry_role_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    industry_role_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    industry_role_margin: Mapped[float | None] = mapped_column(Float, nullable=True)
-    industry_role_confidence: Mapped[str] = mapped_column(String(16), default="")
-    role_abstention_reason: Mapped[str] = mapped_column(String(32), default="")
-    # Bounded evidence/alternatives/conflicts + secondary roles.
-    industry_role_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    secondary_role_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    # The EXACT frozen pack manifest this row was produced under. Empty strings
-    # (never NULL) for an unpacked analysis keep the append-only unique key
-    # usable — Postgres treats NULLs in a unique constraint as distinct, which
-    # would let duplicate unpacked rows accumulate.
-    industry_pack_id: Mapped[str] = mapped_column(String(64), default="")
-    industry_pack_version: Mapped[str] = mapped_column(String(32), default="")
-    pack_content_hash: Mapped[str] = mapped_column(String(64), default="")
-    catalog_version: Mapped[str] = mapped_column(String(32), default="")
-    role_classifier_version: Mapped[str] = mapped_column(String(64), default="")
-    # Corpus/temporal state carried onto the understanding for report grouping.
-    corpus_disposition: Mapped[str] = mapped_column(
-        String(16), default=CORPUS_DISPOSITION_ANALYZE
-    )
-    temporal_state: Mapped[str] = mapped_column(
-        String(16), default=TEMPORAL_STATE_UNKNOWN
-    )
     # Exactly one live row per artifact (see the partial unique index above).
     is_current: Mapped[bool] = mapped_column(Boolean, default=True)
 
@@ -1256,12 +1211,6 @@ class SiteHealthSnapshot(Base):
         PGUUID(as_uuid=True),
         ForeignKey(_FK_SITE_CRAWL, ondelete=_ON_DELETE_CASCADE),
     )
-    prior_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("site_health_snapshots.id", ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-        index=True,
-    )
     selected_url_count: Mapped[int] = mapped_column(Integer, default=0)
     analyzed_url_count: Mapped[int] = mapped_column(Integer, default=0)
     technical_score: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -1282,19 +1231,6 @@ class SiteHealthSnapshot(Base):
     )
     analyzer_version: Mapped[str] = mapped_column(String(32), default="")
     scoring_version: Mapped[str] = mapped_column(String(32), default="")
-    # The versioned Site Intelligence projection (plan §10): frozen pack
-    # manifest, corpus/disposition counts, knowledge counts, per-question
-    # coverage, journey stage coverage, and the six dimension scores with their
-    # coverage. Bounded (a few KB) and stored WHOLE, which is what lets every
-    # read endpoint render persisted state without re-resolving a pack,
-    # re-scoring, or refetching. ``None`` on a snapshot written before this
-    # projection existed — distinct from a projection that ran and found
-    # nothing.
-    intelligence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    intelligence_version: Mapped[str] = mapped_column(String(32), default="")
-    # Frozen S5 diff over the immediately preceding compatible snapshot. A
-    # mismatch is persisted with its explicit reason rather than compared.
-    comparison: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

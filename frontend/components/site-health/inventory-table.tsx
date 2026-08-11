@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import type { InventoryRow } from '@/lib/api/types';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
+import { pageDisplayTitle } from '@/lib/site-health/status';
 
 /** The cursor-paginated inventory rows with per-row monitored checkboxes. */
 export function InventoryTable({
@@ -47,9 +48,19 @@ export function InventoryTable({
               />
             </TableCell>
             <TableCell>
-              <span className="flex flex-col">
-                <span className="text-foreground font-medium">{row.title ?? row.display_url}</span>
-                <span className="mono text-2xs text-muted">{row.display_url}</span>
+              {/* Clamped on the inner box (a `<td>` max-width is advisory under
+                  `table-layout: auto`): a URL is one unbreakable token and
+                  would otherwise size the column to its full length. */}
+              <span className="flex max-w-[32rem] min-w-0 flex-col">
+                <span
+                  className="text-foreground truncate font-medium"
+                  title={pageDisplayTitle(row.title, row.display_url)}
+                >
+                  {pageDisplayTitle(row.title, row.display_url)}
+                </span>
+                <span className="mono text-2xs text-muted truncate" title={row.display_url}>
+                  {row.display_url}
+                </span>
               </span>
             </TableCell>
             <TableCell>

@@ -16,7 +16,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config.site_health import site_health_settings
-from app.core.config.site_intelligence import MAX_CORRECTION_REASON_CHARS
+from app.domain.site_health.phase import SiteHealthPhase
 
 # Presentation-status literals (superset of the persisted page-analysis states,
 # adding the mockup-facing `not_selected` / `error` / `blocked` / `cancelled`).
@@ -291,10 +291,6 @@ class InventoryRow(_Model):
     # Same bounded role projection PageSummary carries. Inventory rows are
     # built by the same row builder, so without these the extra keys would fail
     # ``_Model`` validation for any packed analysis.
-    industry_role_id: str | None = None
-    role_abstention_reason: str | None = None
-    industry_role_confidence: str = ""
-    corpus_disposition: str = ""
     technical_score: float | None
     aeo_score: float | None
     overall_score: float | None
@@ -350,10 +346,6 @@ class PageSummary(_Model):
     # Bounded role projection for list rows: the id, why it abstained, and the
     # corpus disposition. Full evidence/alternatives/conflicts stay on the
     # detail projection so a page of rows never carries kilobytes of evidence.
-    industry_role_id: str | None = None
-    role_abstention_reason: str | None = None
-    industry_role_confidence: str = ""
-    corpus_disposition: str = ""
     technical_score: float | None
     aeo_score: float | None
     overall_score: float | None
@@ -414,6 +406,11 @@ class SiteIssue(_Model):
     id: uuid.UUID
     crawl_id: uuid.UUID
     rule_id: str
+    # The page TYPES this group affects, sorted. A group can legitimately span
+    # several (a title rule applies everywhere) or exactly one (a Product/offers
+    # rule only reaches product pages) — which is the distinction the issue list
+    # exists to make visible.
+    page_kinds: list[str] = []
     dimension: IssueDimension
     category: str
     severity: IssueSeverity
@@ -453,40 +450,6 @@ class LinkReference(_Model):
     target_artifact_id: uuid.UUID | None
 
 
-class IndustryRoleManifest(_Model):
-    """The exact frozen pack identity an understanding was produced under."""
-
-    catalog_version: str = ""
-    pack_id: str = ""
-    pack_version: str = ""
-    pack_content_hash: str = ""
-    classifier_version: str = ""
-
-
-class IndustryRole(_Model):
-    """Pack-governed role projection, rendered from persisted state only.
-
-    ``role_id is None`` together with a non-null ``abstention_reason`` is an
-    EXECUTED abstention: the classifier ran on this page and declined to
-    commit. The whole object is null (see ``PageDetail.industry_role``) when the
-    pack classifier never ran. Those are different facts and the UI must be
-    able to tell them apart.
-    """
-
-    role_id: str | None = None
-    score: float | None = None
-    winner_margin: float | None = None
-    confidence_band: str = ""
-    secondary_role_ids: list[str] = []
-    abstention_reason: str | None = None
-    temporal_state: str = ""
-    corpus_disposition: str = ""
-    evidence: list[dict] = []
-    alternatives: list[dict] = []
-    conflicts: list[dict] = []
-    manifest: IndustryRoleManifest = IndustryRoleManifest()
-
-
 class PageDetail(_Model):
     site_url_id: uuid.UUID
     crawl_id: uuid.UUID
@@ -504,7 +467,6 @@ class PageDetail(_Model):
     page_kind_evidence: dict | None = None
     # Pack-governed industry role. None when the pack classifier never ran
     # (unpacked project, or an analysis written before the pack was frozen).
-    industry_role: IndustryRole | None = None
     technical_score: float | None
     aeo_score: float | None
     overall_score: float | None
@@ -639,6 +601,14 @@ class DashboardResponse(_Model):
     project_id: uuid.UUID
     crawl: CrawlResponse | None
     score_summary: ScoreSummary | None
+    # THE screen phase, resolved server-side from the crawl, the entitlement,
+    # and the project's monitored set at one instant (app/domain/site_health/
+    # phase.py). The client renders this; it does not re-derive it.
+    phase: SiteHealthPhase
+    # The crawl's immutable aggregate snapshot (one per crawl); null until the
+    # crawl terminalizes. Content verification compares a published revision
+    # against a later snapshot and reads this handle.
+    snapshot_id: uuid.UUID | None = None
     quota: MonitoredQuota
     # B3: same root-failure projection as the pages response, so the failed
     # crawl's dashboard can render the failure block without a second fetch.
@@ -653,403 +623,3 @@ class SiteHealthError(_Model):
     currently_used: int | None = None
     expected_selection_version: int | None = None
     current_selection_version: int | None = Field(default=None)
-
-
-# =========================================================================
-# Site Intelligence (S2/S3 projection)
-# =========================================================================
-# Every model below renders the projection FROZEN onto the snapshot at crawl
-# finalization. Nullable numbers are load-bearing: ``None`` means "not
-# measurable", which is a different fact from ``0.0`` ("measured, and it is
-# zero"). A DTO that coerced one into the other would turn an incomplete crawl
-# into a failing site.
-CoverageState = Literal[
-    "answered_strong",
-    "answered_weak",
-    "missing",
-    "conflicting",
-    "unsupported",
-    "historical_only",
-    "unavailable_evidence",
-    "not_applicable",
-]
-
-
-class QuestionCoverageItem(_Model):
-    question_id: str
-    label: str
-    state: CoverageState
-    journey_stage_id: str
-    reason: str
-    satisfied_predicate_ids: list[str] = []
-    missing_predicate_ids: list[str] = []
-    answering_role_ids: list[str] = []
-
-
-class QuestionCoverageBlock(_Model):
-    # ``None`` when the pack declares no applicable question — never 0.0, which
-    # would read as total failure.
-    answered_ratio: float | None = None
-    denominator: int = 0
-    counts: dict[str, int] = {}
-    questions: list[QuestionCoverageItem] = []
-
-
-class JourneyStageBlock(_Model):
-    stage_id: str
-    label: str
-    order: int
-    role_coverage: float
-    question_coverage: float | None = None
-    present_role_ids: list[str] = []
-    missing_role_ids: list[str] = []
-    answered_question_ids: list[str] = []
-    gap_question_ids: list[str] = []
-    # Outcome -> ``unavailable`` until Demand Intelligence supplies events.
-    outcomes: dict[str, str] = {}
-
-
-class JourneyBlock(_Model):
-    journey_id: str
-    label: str
-    stages: list[JourneyStageBlock] = []
-    role_coverage: float = 0.0
-    question_coverage: float | None = None
-    version: str = ""
-
-
-class DimensionComponentBlock(_Model):
-    component_id: str
-    label: str
-    # ``None`` == the crawl could not observe this component at all.
-    score: float | None = None
-
-
-class DimensionBlock(_Model):
-    dimension_id: str
-    label: str
-    score: float
-    coverage: float
-    components: list[DimensionComponentBlock] = []
-
-
-class DimensionsBlock(_Model):
-    # ``None`` only when no projection exists; a real projection always reports
-    # over all six dimensions.
-    composite_score: float | None = None
-    composite_coverage: float | None = None
-    dimensions: list[DimensionBlock] = []
-
-
-class KnowledgeSummaryBlock(_Model):
-    entity_count: int = 0
-    assertion_count: int = 0
-    relation_count: int = 0
-    contradiction_count: int = 0
-    pages_considered: int = 0
-    pages_contributing: int = 0
-    entity_type_ids: list[str] = []
-    # Named reasons a fact could not be produced — report copy, not log noise.
-    warnings: list[str] = []
-
-
-class CorpusBlock(_Model):
-    by_disposition: dict[str, int] = {}
-    by_item_kind: dict[str, int] = {}
-    discovered: int = 0
-    analyzable: int = 0
-    inventory_only: int = 0
-    documents: int = 0
-
-
-class IntelligenceCrawlRef(_Model):
-    id: str
-    status: str
-    root_url: str
-    created_at: str | None = None
-
-
-class ComparisonChangeSet(_Model):
-    before_count: int
-    after_count: int
-    added_count: int
-    removed_count: int
-    changed_count: int
-    changes: list[dict[str, Any]] = []
-    truncated: bool
-
-
-class ComparisonBoundedChanges(_Model):
-    changed_count: int
-    changes: list[dict[str, Any]] = []
-    truncated: bool
-
-
-class ComparisonDimensions(ComparisonBoundedChanges):
-    composite_score_delta: float | None = None
-    composite_coverage_delta: float | None = None
-
-
-class ComparisonCoverage(_Model):
-    answered_ratio_delta: float | None = None
-    denominator_before: int
-    denominator_after: int
-
-
-class ComparisonScores(_Model):
-    technical_delta: float | None = None
-    aeo_delta: float | None = None
-    overall_delta: float | None = None
-    analyzed_url_delta: float | None = None
-    issue_count_delta: float | None = None
-
-
-class ActionResolutionTarget(_Model):
-    site_url_id: str
-    target_key: str
-    source_rule_id: str
-    prior_issue_id: str
-    current_evaluation_id: str | None = None
-    current_outcome: str
-    observed_pass: bool
-
-
-class ActionResolutionItem(_Model):
-    opportunity_rule_id: str
-    state: Literal["verified", "partial", "unresolved"]
-    verified_targets: int
-    target_count: int
-    targets: list[ActionResolutionTarget] = []
-    truncated: bool
-
-
-class ActionResolutionSet(_Model):
-    total: int
-    state_counts: dict[str, int]
-    items: list[ActionResolutionItem] = []
-    truncated: bool
-
-
-class SnapshotComparison(_Model):
-    version: str
-    available: bool
-    reason: str | None = None
-    prior_snapshot_id: str | None = None
-    prior_crawl_id: str | None = None
-    facts: ComparisonChangeSet | None = None
-    rules: ComparisonChangeSet | None = None
-    questions: ComparisonBoundedChanges | None = None
-    journeys: ComparisonBoundedChanges | None = None
-    dimensions: ComparisonDimensions | None = None
-    coverage: ComparisonCoverage | None = None
-    scores: ComparisonScores | None = None
-    action_resolutions: ActionResolutionSet | None = None
-
-
-class IntelligenceOverviewResponse(_Model):
-    # ``False`` when the crawl has produced no snapshot yet. Distinct from
-    # ``packed=False``, which means a snapshot exists and no pack applied.
-    available: bool
-    reason: str | None = None
-    packed: bool = False
-    manifest: dict[str, str] | None = None
-    crawl: IntelligenceCrawlRef
-    snapshot_id: str | None = None
-    prior_snapshot_id: str | None = None
-    comparison: SnapshotComparison | None = None
-    corpus: CorpusBlock = CorpusBlock()
-    knowledge: KnowledgeSummaryBlock = KnowledgeSummaryBlock()
-    coverage: QuestionCoverageBlock = QuestionCoverageBlock()
-    journeys: list[JourneyBlock] = []
-    dimensions: DimensionsBlock = DimensionsBlock()
-    versions: dict[str, str] = {}
-
-
-class EvidenceRef(_Model):
-    source_kind: str
-    source_id: str
-    # Source-type-specific and deliberately open (url, content hash, page,
-    # offsets). ``Any`` rather than ``object`` so pydantic serializes the
-    # payload as-is instead of warning its way through an opaque type.
-    locator: dict[str, Any] = {}
-
-
-class KnowledgeManifest(_Model):
-    pack_id: str
-    pack_version: str
-    extractor_version: str
-
-
-class KnowledgeEntityItem(_Model):
-    id: str
-    entity_type_id: str
-    identity_key: str
-    canonical_name: str
-    aliases: list[str] = []
-    identifiers: dict[str, str] = {}
-    review_state: str
-    evidence_page_count: int = 0
-    evidence_refs: list[EvidenceRef] = []
-    manifest: KnowledgeManifest
-    effective_value: dict[str, Any]
-    correction: CorrectionItem | None = None
-
-
-class KnowledgeEntityPage(_Model):
-    crawl_id: str
-    total: int
-    items: list[KnowledgeEntityItem] = []
-
-
-class AssertionSubject(_Model):
-    id: str
-    entity_type_id: str
-    canonical_name: str
-
-
-class KnowledgeAssertionItem(_Model):
-    id: str
-    predicate_id: str
-    value_type: str
-    raw_value: str
-    normalized_value: str
-    numeric_value: float | None = None
-    unit: str = ""
-    currency: str = ""
-    scope: dict[str, str] = {}
-    # False = a pack-required qualifier was never evidenced. Such a claim must
-    # not be read as scoped, so the reader is told rather than left to guess.
-    scope_complete: bool = True
-    temporal_state: str
-    effective_from: str | None = None
-    effective_to: str | None = None
-    derivation_method: str = ""
-    confidence: float | None = None
-    review_state: str
-    # Null means nothing disputes this claim — NOT that a dispute was resolved.
-    contradiction_group_id: str | None = None
-    evidence_refs: list[EvidenceRef] = []
-    subject: AssertionSubject
-    effective_value: dict[str, Any]
-    correction: CorrectionItem | None = None
-
-
-class KnowledgeAssertionPage(_Model):
-    crawl_id: str
-    total: int
-    items: list[KnowledgeAssertionItem] = []
-
-
-class ContradictionGroup(_Model):
-    contradiction_group_id: str
-    predicate_id: str
-    scope: dict[str, str] = {}
-    subject: AssertionSubject
-    resolution_state: str
-    correction: CorrectionItem | None = None
-    # ALL sides. A reader who sees one cannot tell what the dispute is.
-    sides: list[KnowledgeAssertionItem] = []
-
-
-class ContradictionPage(_Model):
-    crawl_id: str
-    total: int
-    items: list[ContradictionGroup] = []
-
-
-class CorrectionCreateRequest(_Model):
-    target_kind: Literal["entity", "assertion", "relation"]
-    target_id: uuid.UUID
-    value: str | float | bool | dict[str, Any]
-    effective_scope: Literal["project", "entity"] = "project"
-    effective_scope_id: uuid.UUID | None = None
-    effective_from: datetime | None = None
-    effective_to: datetime | None = None
-    unit: str = ""
-    currency: str = ""
-    reason: str = Field(min_length=1, max_length=MAX_CORRECTION_REASON_CHARS)
-
-
-class CorrectionWithdrawRequest(_Model):
-    reason: str = Field(min_length=1, max_length=MAX_CORRECTION_REASON_CHARS)
-
-
-class CorrectionTransitionItem(_Model):
-    id: str
-    sequence: int
-    transition_type: Literal["created", "withdrawn"]
-    actor_user_id: str
-    reason: str
-    snapshot: dict[str, Any]
-    created_at: str
-
-
-class CorrectionItem(_Model):
-    id: str
-    target_kind: str
-    target_ref: dict[str, Any]
-    target_field: str
-    source_crawl_id: str
-    source_target_id: str
-    derived_value: dict[str, Any]
-    corrected_value: dict[str, Any]
-    value_type: str
-    effective_scope: Literal["project", "entity"]
-    effective_scope_ref: dict[str, Any]
-    effective_from: str | None = None
-    effective_to: str | None = None
-    author_user_id: str
-    reason: str
-    state: Literal["active", "withdrawn"]
-    withdrawn_at: str | None = None
-    created_at: str
-    transitions: list[CorrectionTransitionItem] = []
-
-
-class CorrectionPage(_Model):
-    total: int
-    items: list[CorrectionItem] = []
-
-
-class RelationEndpoint(_Model):
-    name: str
-    entity_type_id: str
-
-
-class KnowledgeRelationItem(_Model):
-    id: str
-    relation_type_id: str
-    temporal_state: str
-    source: RelationEndpoint
-    target: RelationEndpoint
-    evidence_refs: list[EvidenceRef] = []
-    effective_value: dict[str, Any]
-    correction: CorrectionItem | None = None
-
-
-class KnowledgeRelationPage(_Model):
-    crawl_id: str
-    total: int
-    items: list[KnowledgeRelationItem] = []
-
-
-class SchemaTypeSummary(_Model):
-    type: str
-    pages: int
-    valid: int
-    invalid: int
-
-
-class SchemaInvalidPage(_Model):
-    site_url_id: str
-    url: str
-    type: str
-    missing: list[str] = []
-
-
-class SchemaGraphResponse(_Model):
-    crawl_id: str
-    analyzed_pages: int
-    pages_with_schema: int
-    types: list[SchemaTypeSummary] = []
-    invalid: list[SchemaInvalidPage] = []

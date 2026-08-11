@@ -9,7 +9,6 @@ from typing import Final, TypedDict
 class ContentSkillDefinition(TypedDict):
     version: str
     brief_kinds: list[str]
-    packs: list[str]
     output_format: str
     required_sections: list[str]
     directive: str
@@ -63,7 +62,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "faq_visible": {
         "version": "1.0.0",
         "brief_kinds": ["faq"],
-        "packs": ["education", "commerce"],
         "output_format": "markdown",
         "required_sections": ["questions_and_answers"],
         "directive": (
@@ -73,7 +71,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "faq_jsonld": {
         "version": "1.0.0",
         "brief_kinds": ["faq_schema"],
-        "packs": ["education", "commerce"],
         "output_format": "jsonld",
         "required_sections": ["mainEntity"],
         "directive": (
@@ -83,7 +80,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "answer_first": {
         "version": "1.0.0",
         "brief_kinds": ["section", "new_page"],
-        "packs": ["education", "commerce"],
         "output_format": "markdown",
         "required_sections": ["answer", "support"],
         "directive": (
@@ -93,7 +89,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "page_refresh": {
         "version": "1.0.0",
         "brief_kinds": ["page_refresh", "consolidation"],
-        "packs": ["education", "commerce"],
         "output_format": "markdown",
         "required_sections": ["replacement_content"],
         "directive": "Refresh the target without changing unsupported facts or intent.",
@@ -101,7 +96,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "comparison": {
         "version": "1.0.0",
         "brief_kinds": ["comparison"],
-        "packs": ["education", "commerce"],
         "output_format": "markdown",
         "required_sections": ["criteria", "limitations"],
         "directive": "Compare only evidenced criteria and state unknowns explicitly.",
@@ -109,7 +103,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "guide": {
         "version": "1.0.0",
         "brief_kinds": ["guide"],
-        "packs": ["education", "commerce"],
         "output_format": "markdown",
         "required_sections": ["answer", "next_steps"],
         "directive": "Write an evidence-led decision guide with practical next steps.",
@@ -117,7 +110,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "education_admissions": {
         "version": "1.0.0",
         "brief_kinds": ["section", "new_page", "faq"],
-        "packs": ["education"],
         "output_format": "markdown",
         "required_sections": ["requirements", "process", "next_step"],
         "directive": (
@@ -127,7 +119,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "education_program": {
         "version": "1.0.0",
         "brief_kinds": ["section", "new_page", "guide"],
-        "packs": ["education"],
         "output_format": "markdown",
         "required_sections": ["program", "evidence", "next_step"],
         "directive": (
@@ -137,7 +128,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "commerce_category": {
         "version": "1.0.0",
         "brief_kinds": ["category", "guide", "faq"],
-        "packs": ["commerce"],
         "output_format": "markdown",
         "required_sections": ["selection_guidance", "limitations"],
         "directive": (
@@ -147,7 +137,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "commerce_pdp": {
         "version": "1.0.0",
         "brief_kinds": ["pdp", "section", "faq"],
-        "packs": ["commerce"],
         "output_format": "markdown",
         "required_sections": ["summary", "specifications", "limitations"],
         "directive": (
@@ -157,7 +146,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "commerce_policy": {
         "version": "1.0.0",
         "brief_kinds": ["policy", "faq"],
-        "packs": ["commerce"],
         "output_format": "markdown",
         "required_sections": ["policy", "exceptions", "next_step"],
         "directive": (
@@ -167,7 +155,6 @@ CONTENT_SKILL_CATALOG: Final[Mapping[str, ContentSkillDefinition]] = {
     "internal_links": {
         "version": "1.0.0",
         "brief_kinds": ["internal_links"],
-        "packs": ["education", "commerce"],
         "output_format": "markdown",
         "required_sections": ["links"],
         "directive": (

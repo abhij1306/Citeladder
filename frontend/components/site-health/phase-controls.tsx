@@ -135,20 +135,17 @@ function AnalysisControl({
   crawlId,
   phaseRun,
   running,
-  selectedUrlIds,
   onMutationStart,
 }: Readonly<{
   screen: SiteHealthScreen;
   crawlId: string;
   phaseRun: PhaseRun | null | undefined;
   running: boolean;
-  selectedUrlIds: ReadonlySet<string>;
   onMutationStart: (mutation: PhaseMutation) => void;
 }>) {
   const [count, setCount] = useState(String(SITE_HEALTH_DEFAULT_PHASE_BATCH_SIZE));
   const batch = positiveInteger(count);
   const selectionVersion = screen.monitoredQuery.data?.selection_version;
-  const selectionTooLarge = batch !== null && selectedUrlIds.size > batch;
   const starting = screen.startAnalysisMutation.isPending;
   const stopping = screen.stopAnalysisMutation.isPending;
 
@@ -164,7 +161,10 @@ function AnalysisControl({
       crawlId,
       input: {
         requested_url_count: batch,
-        site_url_ids: [...selectedUrlIds],
+        // No explicit id list: the batch analyzes the next `batch` monitored
+        // URLs the server has not reached yet. Hand-picking rows was only
+        // reachable from the page-kind accordion, which is gone.
+        site_url_ids: [],
         expected_selection_version: selectionVersion,
       },
     });
@@ -187,7 +187,7 @@ function AnalysisControl({
             min={1}
             value={count}
             onChange={(event) => setCount(event.target.value)}
-            aria-invalid={batch === null || selectionTooLarge}
+            aria-invalid={batch === null}
             disabled={running || starting || stopping}
           />
         </label>
@@ -204,37 +204,23 @@ function AnalysisControl({
           <Button
             className="min-w-36 shrink-0"
             onClick={start}
-            disabled={
-              batch === null ||
-              selectionTooLarge ||
-              selectionVersion === undefined ||
-              starting ||
-              stopping
-            }
+            disabled={batch === null || selectionVersion === undefined || starting || stopping}
           >
             {starting ? 'Starting…' : 'Start analysis'}
           </Button>
         )}
       </div>
-      {selectedUrlIds.size > 0 ? (
-        <p className="text-muted text-xs">{selectedUrlIds.size} checked URLs will run first.</p>
-      ) : null}
-      {selectionTooLarge ? (
-        <Alert tone="warning">Increase the analysis batch to include every checked URL.</Alert>
-      ) : null}
     </section>
   );
 }
 
 export function PhaseControls({
   screen,
-  selectedUrlIds,
   lastMutation,
   onMutationStart,
   onRecrawl,
 }: Readonly<{
   screen: SiteHealthScreen;
-  selectedUrlIds: ReadonlySet<string>;
   lastMutation: PhaseMutation | null;
   onMutationStart: (mutation: PhaseMutation) => void;
   onRecrawl: () => void;
@@ -246,7 +232,12 @@ export function PhaseControls({
   const analysisRunning =
     crawl?.analysis_status === 'running' || phaseRuns?.analysis?.status === 'running';
 
-  if (!crawl || !screen.entitlementQuery.data?.advanced_controls_enabled) return null;
+  // Only "there is no crawl yet" hides these controls. They used to also be
+  // gated on `advanced_controls_enabled`, which defaulted off — so continuing
+  // discovery and starting an analysis batch, the two things this screen
+  // exists to do, were absent with no explanation. See the note on
+  // `advanced_controls_enabled` in backend config/site_health.py.
+  if (!crawl) return null;
 
   const mutationErrors = {
     startDiscovery: screen.startDiscoveryMutation.error,
@@ -294,7 +285,6 @@ export function PhaseControls({
             crawlId={crawl.id}
             phaseRun={phaseRuns?.analysis}
             running={analysisRunning}
-            selectedUrlIds={selectedUrlIds}
             onMutationStart={onMutationStart}
           />
         </div>

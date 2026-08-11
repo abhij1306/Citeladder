@@ -134,7 +134,8 @@ export const AI_SOURCE_FILL: Record<AiSource, string> = {
   claude: 'bg-run-analyzing',
   copilot: 'bg-info',
   google_ai_overview: 'bg-warning',
-  other: 'bg-subtle',
+  // Neutral chart swatch from the border scale, NOT the `subtle` text ink.
+  other: 'bg-border-bold',
 };
 
 /**

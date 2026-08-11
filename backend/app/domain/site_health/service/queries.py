@@ -247,53 +247,6 @@ async def _monitored_site_url_ids(
     return {row[0] for row in rows.all()}
 
 
-def _role_summary_fields(analysis) -> dict:
-    """Bounded role fields for a LIST row (never the full evidence payload)."""
-    if analysis is None or not analysis.industry_pack_id:
-        return {}
-    return {
-        "industry_role_id": analysis.industry_role_id,
-        "role_abstention_reason": analysis.role_abstention_reason or None,
-        "industry_role_confidence": analysis.industry_role_confidence or "",
-        "corpus_disposition": analysis.corpus_disposition or "",
-    }
-
-
-def _industry_role(analysis) -> dict | None:
-    """Project the persisted role columns, or ``None`` when never classified.
-
-    Reads persisted state only: it never loads a pack, re-resolves a project
-    setting, or reclassifies. The frozen manifest on the row is what a historical
-    analysis is rendered under, so a later catalog release cannot retroactively
-    change what an old crawl reported.
-    """
-    if analysis is None or not analysis.industry_pack_id:
-        return None
-    evidence = analysis.industry_role_evidence or {}
-    return {
-        "role_id": analysis.industry_role_id,
-        "score": analysis.industry_role_score,
-        "winner_margin": analysis.industry_role_margin,
-        "confidence_band": analysis.industry_role_confidence or "",
-        "secondary_role_ids": list(analysis.secondary_role_ids or []),
-        # "" on the row means the classifier committed to a role; the API
-        # exposes that as null so only a real abstention carries a reason.
-        "abstention_reason": analysis.role_abstention_reason or None,
-        "temporal_state": analysis.temporal_state or "",
-        "corpus_disposition": analysis.corpus_disposition or "",
-        "evidence": list(evidence.get("evidence") or []),
-        "alternatives": list(evidence.get("alternatives") or []),
-        "conflicts": list(evidence.get("conflicts") or []),
-        "manifest": {
-            "catalog_version": analysis.catalog_version or "",
-            "pack_id": analysis.industry_pack_id or "",
-            "pack_version": analysis.industry_pack_version or "",
-            "pack_content_hash": analysis.pack_content_hash or "",
-            "classifier_version": analysis.role_classifier_version or "",
-        },
-    }
-
-
 async def _latest_analysis_by_site_url(
     session: AsyncSession,
     *,
@@ -472,7 +425,6 @@ def _inventory_summary_row(
         "last_seen_at": _iso(row.last_seen_at),
         "issue_count": issue_counts.get(row.id, 0) if analysis is not None else None,
         "page_kind": analysis.page_kind if analysis is not None else None,
-        **_role_summary_fields(analysis),
         "technical_score": analysis.technical_score if analysis is not None else None,
         "aeo_score": analysis.aeo_score if analysis is not None else None,
         "overall_score": analysis.overall_score if analysis is not None else None,
@@ -508,7 +460,6 @@ def _pages_summary_row(
         "error_code": error_code,
         "issue_count": issue_counts.get(row.id, 0) if analysis is not None else None,
         "page_kind": analysis.page_kind if analysis is not None else None,
-        **_role_summary_fields(analysis),
         "technical_score": analysis.technical_score if analysis is not None else None,
         "aeo_score": analysis.aeo_score if analysis is not None else None,
         "overall_score": analysis.overall_score if analysis is not None else None,
@@ -1012,7 +963,6 @@ async def get_page_detail(
         "page_kind_evidence": (
             analysis.page_kind_evidence if analysis is not None else None
         ),
-        "industry_role": _industry_role(analysis),
         "technical_score": (analysis.technical_score if analysis is not None else None),
         "aeo_score": analysis.aeo_score if analysis is not None else None,
         "overall_score": (analysis.overall_score if analysis is not None else None),

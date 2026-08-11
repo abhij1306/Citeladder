@@ -577,6 +577,7 @@ describe('siteIssueSchema + siteHealthErrorSchema', () => {
       id: UUID,
       crawl_id: UUID2,
       rule_id: 'meta.title.missing',
+      page_kinds: ['article', 'guide'],
       dimension: 'aeo' as const,
       category: 'metadata',
       severity: 'high' as const,
@@ -587,7 +588,12 @@ describe('siteIssueSchema + siteHealthErrorSchema', () => {
       rule_version: 'r1',
       created_at: '2026-07-15T00:00:00Z',
     };
-    expect(strictValidate(siteIssueSchema, issue, 'issue').severity).toBe('high');
+    const parsed = strictValidate(siteIssueSchema, issue, 'issue');
+    expect(parsed.severity).toBe('high');
+    // The page types a grouped issue reaches ride the list row: "which of my
+    // page types does this actually affect" is the first question on the
+    // Issues screen, and the affected COUNT cannot answer it.
+    expect(parsed.page_kinds).toEqual(['article', 'guide']);
   });
 
   it('accepts a quota error carrying limit + currently_used', () => {

@@ -42,7 +42,6 @@ from app.core.config.integrations import (
     DATASET_GSC_PAGE_DAILY,
     DATASET_GSC_QUERY_DAILY,
     DATASET_GSC_QUERY_PAGE_DAILY,
-    DATASET_GSC_SEARCH_APPEARANCE_DAILY,
     ERROR_GRANT_AUTH_FAILED,
     ERROR_PAYLOAD_TOO_LARGE,
     ERROR_PROVIDER_API,
@@ -394,7 +393,7 @@ async def test_fixture_import_writes_immutable_artifacts(
     assert run.completed_at is not None
 
     artifacts = await _artifacts(db_session, run.id)
-    assert len(artifacts) == 7  # two URL pages plus five one-page families
+    assert len(artifacts) == 6  # two URL pages plus four one-page families
     by_dataset: dict[str, list[IntegrationImportArtifact]] = {}
     for artifact in artifacts:
         by_dataset.setdefault(artifact.dataset, []).append(artifact)
@@ -403,7 +402,6 @@ async def test_fixture_import_writes_immutable_artifacts(
             DATASET_GSC_PAGE_DAILY,
             DATASET_GSC_QUERY_DAILY,
             DATASET_GSC_QUERY_PAGE_DAILY,
-            DATASET_GSC_SEARCH_APPEARANCE_DAILY,
             DATASET_GSC_DEVICE_DAILY,
             DATASET_GSC_COUNTRY_DAILY,
         }
@@ -429,7 +427,6 @@ async def test_fixture_import_writes_immutable_artifacts(
         DATASET_GSC_QUERY_PAGE_DAILY: (
             "admissions | https://example.com/admissions | 2026-07-21"
         ),
-        DATASET_GSC_SEARCH_APPEARANCE_DAILY: "WEB | 2026-07-21",
         DATASET_GSC_DEVICE_DAILY: "MOBILE | 2026-07-21",
         DATASET_GSC_COUNTRY_DAILY: "ind | 2026-07-21",
     }
@@ -483,8 +480,8 @@ async def test_fixture_import_writes_immutable_artifacts(
     ]
     finished = events[-1]
     assert finished.payload["sync_run_id"] == str(run.id)
-    assert finished.payload["row_count"] == 8
-    assert finished.payload["metric_row_count"] == 8
+    assert finished.payload["row_count"] == 7
+    assert finished.payload["metric_row_count"] == 7
 
     tasks = list((await db_session.scalars(select(AnalyticsTask))).all())
     ingest_tasks = [
@@ -506,7 +503,7 @@ async def test_fixture_import_writes_immutable_artifacts(
 
     # The fresh (non-expired) access token was used; no refresh happened.
     assert fake.token_calls == []
-    assert fake.gsc_auth == ["Bearer access-token-1"] * 7
+    assert fake.gsc_auth == ["Bearer access-token-1"] * 6
 
 
 @pytest.mark.asyncio
@@ -556,7 +553,7 @@ async def test_two_workers_one_grant_exactly_one_remote_refresh(
     # The grant row lock serialized the refresh: exactly ONE remote call.
     assert len(fake.token_calls) == 1
     # Both workers then used the fresh token for every provider call.
-    assert fake.gsc_auth == ["Bearer fresh-access-token"] * 12
+    assert fake.gsc_auth == ["Bearer fresh-access-token"] * 10
 
     for run_id in (run_a.id, run_b.id):
         run = await db_session.get(IntegrationSyncRun, run_id)
@@ -882,11 +879,10 @@ async def test_retry_resumes_from_durable_artifacts(
             (("page", "date"), 2),
             (("query", "date"), 0),
             (("query", "page", "date"), 0),
-            (("searchAppearance", "date"), 0),
             (("device", "date"), 0),
             (("country", "date"), 0),
         ]
     )
     artifacts = await _artifacts(db_session, run.id)
-    assert len(artifacts) == 7
-    assert len({artifact.id for artifact in artifacts}) == 7
+    assert len(artifacts) == 6
+    assert len({artifact.id for artifact in artifacts}) == 6

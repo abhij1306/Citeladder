@@ -58,6 +58,7 @@ from app.domain.site_health.service.queries import (
     _failure_summary_for,
     _root_errors_for,
 )
+from app.domain.site_health.phase import resolve_phase
 from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.domain.site_health.state_events import (
     InvalidSiteCrawlTransition,
@@ -72,6 +73,7 @@ from app.models.site_health import (
     SiteCrawlEvent,
     SiteCrawlPhaseRun,
     SiteCrawlTask,
+    SiteHealthSnapshot,
     SitePageAnalysis,
 )
 
@@ -375,6 +377,32 @@ async def get_dashboard(
     failure_summary, root_errors, counters, phase_runs = await _dashboard_crawl_details(
         session, crawl
     )
+    score_summary = _score_summary(crawl) if crawl is not None else None
+    # The screen phase is resolved HERE, once, from every input at the same
+    # instant — see app/domain/site_health/phase.py for why it is not the
+    # client's job. `used` above is workspace-wide (it backs the quota), so the
+    # selection probe counts this PROJECT's active monitored rows instead.
+    project_monitored = await session.scalar(
+        select(func.count())
+        .select_from(MonitoredSiteUrl)
+        .where(
+            MonitoredSiteUrl.workspace_id == workspace_id,
+            MonitoredSiteUrl.project_id == project_id,
+            MonitoredSiteUrl.active.is_(True),
+        )
+    )
+    # The crawl's immutable aggregate snapshot id (one per crawl). Content
+    # verification compares a published revision against a LATER site snapshot
+    # and needs this handle; it used to read it off the Site Intelligence
+    # overview, which is gone. The snapshot is a Site Health artifact, so it
+    # belongs on the Site Health projection.
+    snapshot_id = (
+        await session.scalar(
+            select(SiteHealthSnapshot.id).where(SiteHealthSnapshot.crawl_id == crawl.id)
+        )
+        if crawl is not None
+        else None
+    )
     return {
         "project_id": project_id,
         "crawl": (
@@ -386,7 +414,14 @@ async def get_dashboard(
             if crawl is not None
             else None
         ),
-        "score_summary": _score_summary(crawl) if crawl is not None else None,
+        "score_summary": score_summary,
+        "snapshot_id": snapshot_id,
+        "phase": resolve_phase(
+            crawl,
+            score_summary=score_summary,
+            selection_mode=int(runtime.monitored_url_limit) > 0,
+            has_monitored_selection=int(project_monitored or 0) > 0,
+        ),
         "quota": {
             "used": int(used or 0),
             "limit": int(runtime.monitored_url_limit),

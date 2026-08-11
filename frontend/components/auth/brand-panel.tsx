@@ -18,10 +18,10 @@ export function AuthWordmark({
       )}
     >
       <span className="inline-flex shrink-0">
-        <LogoMark size={20} />
+        <LogoMark size={16} />
       </span>
       <span
-        className={cn('font-display font-semibold tracking-tight', compact ? 'text-lg' : 'text-xl')}
+        className={cn('font-display font-bold tracking-tight', compact ? 'text-lg' : 'text-xl')}
       >
         CiteLadder
       </span>

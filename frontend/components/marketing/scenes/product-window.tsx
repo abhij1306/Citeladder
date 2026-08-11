@@ -148,8 +148,8 @@ export function ProductWindow() {
         <div className="flex min-w-0 flex-col">
           <header className="border-border-subtle bg-panel flex h-13 shrink-0 items-center gap-3 border-b px-3 sm:px-4">
             <div className="flex items-center gap-2 lg:hidden">
-              <LogoMark size={20} />
-              <span className="font-display text-foreground hidden text-sm font-semibold sm:inline">
+              <LogoMark size={16} />
+              <span className="font-display text-foreground hidden text-sm font-bold sm:inline">
                 CiteLadder
               </span>
             </div>
@@ -204,8 +204,8 @@ function PreviewSidebar({ activeItem }: Readonly<{ activeItem: NavItemLabel }>) 
   return (
     <aside className="border-border-subtle bg-sidebar hidden border-r lg:flex lg:flex-col">
       <div className="border-border-subtle flex h-13 items-center gap-2.5 border-b px-4">
-        <LogoMark size={20} />
-        <span className="font-display text-foreground text-sm font-semibold">CiteLadder</span>
+        <LogoMark size={16} />
+        <span className="font-display text-foreground text-sm font-bold">CiteLadder</span>
       </div>
       <div className="border-border-subtle border-b p-2">
         <div className="hover:bg-background-alt flex items-center gap-2 rounded-sm px-2 py-1.5">

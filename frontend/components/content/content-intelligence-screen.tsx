@@ -14,7 +14,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Input, Textarea } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ContentSkill } from '@/lib/api/content';
-import { siteIntelligenceQueries } from '@/lib/api/site-intelligence';
+import { siteHealthQueries } from '@/lib/api/site-health';
 import type { ContentBrief, ContentRevision } from '@/lib/api/types';
 import { useContentIntelligence } from '@/lib/content/use-content-intelligence';
 import { useActiveProject } from '@/lib/project/project-context';
@@ -292,9 +292,7 @@ function InventoryPanel({ content }: Readonly<{ content: ContentHook }>) {
                 </p>
                 <p className="text-muted mt-1 truncate text-xs">{item.canonical_url}</p>
               </div>
-              <LabeledValue label="Role" value={item.industry_role_id ?? 'Unclassified'} />
               <LabeledValue label="Kind" value={item.page_kind} />
-              <Badge>{item.temporal_state}</Badge>
             </li>
           ))}
         </ul>
@@ -572,14 +570,17 @@ function VerificationPanel({
   content,
   projectId,
 }: Readonly<{ content: ContentHook; projectId: string }>) {
-  const overviewQuery = useQuery(siteIntelligenceQueries.overview(projectId));
+  // The latest crawl's aggregate snapshot, read off the Site Health dashboard.
+  // This used to come from the Site Intelligence overview; the snapshot is a
+  // Site Health artifact and that surface is gone.
+  const dashboardQuery = useQuery(siteHealthQueries.dashboard(projectId));
   if (
     content.verificationsQuery.isLoading ||
     content.revisionsQuery.isLoading ||
-    overviewQuery.isLoading
+    dashboardQuery.isLoading
   )
     return <LoadingPanel />;
-  const latestSiteSnapshotId = overviewQuery.data?.snapshot_id;
+  const latestSiteSnapshotId = dashboardQuery.data?.snapshot_id ?? undefined;
   const claims = (content.revisionsQuery.data ?? []).filter(
     (item) => item.state === 'published_claimed',
   );

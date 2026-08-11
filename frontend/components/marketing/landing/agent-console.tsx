@@ -528,7 +528,7 @@ function Bubble({ entry, thinking = false }: Readonly<{ entry: Entry; thinking?:
                 key={dot}
                 className={cn(
                   'size-1.5 animate-pulse rounded-full',
-                  fromAgent ? 'bg-subtle' : 'bg-inverse/70',
+                  fromAgent ? 'bg-border-bold' : 'bg-inverse/70',
                 )}
                 style={{ animationDelay: `${dot * 160}ms` }}
               />

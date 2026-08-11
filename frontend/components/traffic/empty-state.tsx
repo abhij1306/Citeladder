@@ -18,22 +18,32 @@ import { EmptyState } from '@/components/ui/empty-state';
  */
 export function TrafficEmptyState({
   hasConnections = false,
-}: Readonly<{ hasConnections?: boolean }>) {
+  syncing = false,
+  onSyncNow,
+}: Readonly<{
+  hasConnections?: boolean;
+  syncing?: boolean;
+  onSyncNow?: () => void;
+}>) {
   return (
     <EmptyState
       icon={Plug}
-      heading={hasConnections ? 'Your first sync is on its way' : 'Connect search data'}
+      heading={hasConnections ? 'Sync your traffic data' : 'Connect search data'}
       description={
         hasConnections
-          ? 'Results appear here once the first sync completes.'
+          ? 'Your connection is ready. Run a sync to import Search Console and Analytics data.'
           : 'Connect Search Console or Google Analytics 4 to see organic and AI-driven traffic.'
       }
       action={
-        <Button asChild variant={hasConnections ? 'secondary' : 'primary'} size="md">
-          <Link href="/settings?tab=integrations">
-            {hasConnections ? 'Open integrations' : 'Connect an integration'}
-          </Link>
-        </Button>
+        hasConnections && onSyncNow ? (
+          <Button onClick={onSyncNow} disabled={syncing} size="md">
+            {syncing ? 'Syncing…' : 'Sync now'}
+          </Button>
+        ) : (
+          <Button asChild size="md">
+            <Link href="/settings?tab=integrations">Connect an integration</Link>
+          </Button>
+        )
       }
     />
   );

@@ -39,6 +39,7 @@ from app.models.site_health import SiteHealthSnapshot
 
 TOOL_VERSION: Final = "1.0.0"
 MAX_TOOL_RESULT_ITEMS: Final = 50
+MAX_ROADMAP_ITEMS: Final = 10
 _SENSITIVE_KEY_PARTS: Final = frozenset(
     {
         "authorization",
@@ -142,6 +143,7 @@ TOOL_DEFINITIONS: Final[dict[str, AgentToolDefinition]] = {
             "opportunities",
             TOOL_KIND_AUTOMATIC,
             "Read deterministic opportunity priority order.",
+            maximum_result_items=MAX_ROADMAP_ITEMS,
         ),
         AgentToolDefinition(
             "audits.read_schedules",
@@ -155,12 +157,6 @@ TOOL_DEFINITIONS: Final[dict[str, AgentToolDefinition]] = {
             TOOL_KIND_RUN_AUDIT,
             "Create a recurring answer-engine audit schedule.",
             external_effect=True,
-        ),
-        AgentToolDefinition(
-            "knowledge.propose_correction",
-            "knowledge",
-            TOOL_KIND_AUTOMATIC,
-            "Prepare an inline correction proposal.",
         ),
     )
 }
@@ -237,12 +233,9 @@ async def _site_snapshot(
             "selected_urls": row.selected_url_count,
             "analyzed_urls": row.analyzed_url_count,
         },
-        "intelligence": row.intelligence or {},
-        "comparison": row.comparison,
         "versions": {
             "analyzer": row.analyzer_version,
             "scoring": row.scoring_version,
-            "intelligence": row.intelligence_version,
         },
         "artifact_refs": [{"kind": "site_snapshot", "id": str(row.id)}],
     }
@@ -410,11 +403,11 @@ async def _ranked_opportunities(
                     Opportunity.superseded_at.is_(None),
                 )
                 .order_by(Opportunity.priority_score.desc(), Opportunity.id.asc())
-                .limit(MAX_TOOL_RESULT_ITEMS + 1)
+                .limit(MAX_ROADMAP_ITEMS + 1)
             )
         ).all()
     )
-    emitted = rows[:MAX_TOOL_RESULT_ITEMS]
+    emitted = rows[:MAX_ROADMAP_ITEMS]
     items = [
         {
             "id": str(row.id),
@@ -426,8 +419,6 @@ async def _ranked_opportunities(
             "remediation": row.remediation,
             "target_key": row.target_key,
             "target_url": row.target_url,
-            "evidence": row.evidence or {},
-            "source_refs": _opportunity_source_refs(row),
         }
         for index, row in enumerate(emitted, start=1)
     ]
@@ -435,7 +426,7 @@ async def _ranked_opportunities(
         "state": "available" if items else "unavailable",
         "ordering": "priority_score_desc_then_id",
         "items": items,
-        "truncated": len(rows) > MAX_TOOL_RESULT_ITEMS,
+        "truncated": len(rows) > MAX_ROADMAP_ITEMS,
         "artifact_refs": [{"kind": "opportunity", "id": item["id"]} for item in items],
     }
 
@@ -526,25 +517,6 @@ async def _prompt_candidates(
     }
 
 
-async def _correction_proposal(
-    _context: ToolExecutionContext, payload: dict[str, Any]
-) -> dict[str, Any]:
-    await asyncio.sleep(0)
-    target_ref = payload.get("target_ref")
-    if not isinstance(target_ref, dict):
-        raise ValueError("target_ref is required")
-    return {
-        "state": "proposed",
-        "target_ref": target_ref,
-        "corrected_value": payload.get("corrected_value"),
-        "effective_scope": payload.get("effective_scope", "project"),
-        "effective_scope_id": payload.get("effective_scope_id"),
-        "reason": _required_string(payload, "reason"),
-        "acceptance_surface": "project_facts_inline",
-        "artifact_refs": list(payload.get("evidence_refs") or []),
-    }
-
-
 def _optional_uuid(value: object) -> uuid.UUID | None:
     if value in (None, ""):
         return None
@@ -563,18 +535,6 @@ def _required_string(payload: dict[str, Any], key: str) -> str:
     if not value:
         raise ValueError(f"{key} is required")
     return value
-
-
-def _opportunity_source_refs(row: Opportunity) -> list[dict[str, str]]:
-    refs: list[dict[str, str]] = []
-    for kind, values in (
-        ("analysis", row.source_analysis_ids),
-        ("site_issue", row.source_issue_ids),
-        ("metric", row.source_metric_ids),
-        ("traffic", row.source_traffic_ids),
-    ):
-        refs.extend({"kind": kind, "id": str(value)} for value in values or [])
-    return refs
 
 
 def _bounded_result(value: dict[str, Any], *, maximum_items: int) -> dict[str, Any]:
@@ -661,7 +621,6 @@ _EXECUTORS: Final[dict[str, ToolExecutor]] = {
     "opportunities.read_ranked": _ranked_opportunities,
     "audits.read_schedules": _read_schedules,
     "audits.schedule": _schedule_audit,
-    "knowledge.propose_correction": _correction_proposal,
 }
 
 

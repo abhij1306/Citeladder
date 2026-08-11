@@ -136,7 +136,19 @@ def is_bot_block_result(result: FetchResult) -> bool:
     if not _BOT_BLOCK_MARKER_BYTES:
         return False
     prefix = result.body[:BOT_BLOCK_MARKER_SCAN_BYTES].lower()
-    return any(marker in prefix for marker in _BOT_BLOCK_MARKER_BYTES)
+    has_marker = any(marker in prefix for marker in _BOT_BLOCK_MARKER_BYTES)
+    if not has_marker:
+        return False
+    # Cloudflare can append its challenge bootstrap script to an otherwise
+    # complete, indexable 200 response. Treating the marker alone as terminal
+    # discarded real policy/content pages from Cube27. A genuine interstitial
+    # does not contain a semantic article/main document with its own heading.
+    meaningful_document = (
+        200 <= result.status_code < 300
+        and b"<h1" in prefix
+        and (b"<main" in prefix or b"<article" in prefix)
+    )
+    return not meaningful_document
 
 
 def redact_headers(headers: httpx.Headers | dict) -> dict[str, str]:

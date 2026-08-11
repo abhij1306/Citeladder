@@ -296,16 +296,13 @@ describe('TrafficScreen — empty + bounded-miss states', () => {
     expect(screen.queryByTestId('pages-table')).not.toBeInTheDocument();
   });
 
-  it('switches the empty-state copy when connections already exist', async () => {
+  it('offers a first sync when connections already exist', async () => {
     mockDashboard(emptyPayload);
     mockConnections([connection()]);
     renderWithProviders(<TrafficScreen />);
 
-    expect(await screen.findByText('Your first sync is on its way')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open integrations' })).toHaveAttribute(
-      'href',
-      '/settings?tab=integrations',
-    );
+    expect(await screen.findByText('Sync your traffic data')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sync now' })).toBeEnabled();
   });
 
   it('shows the honest no-snapshot note when a bounded range matches no persisted window', async () => {

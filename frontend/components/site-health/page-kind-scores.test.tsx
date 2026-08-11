@@ -26,6 +26,8 @@ function dashboard(scoreSummary: SiteScoreSummary | null): SiteHealthDashboard {
     project_id: PROJECT,
     crawl: null,
     score_summary: scoreSummary,
+    phase: 'dashboard',
+    snapshot_id: null,
     quota: { used: 4, limit: 50 },
     root_errors: [],
     phase_runs: { discovery: null, analysis: null },

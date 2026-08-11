@@ -22,14 +22,17 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_health import (
+    AUTOMATIC_MONITOR_LIMIT_KEY,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_COMPLETED,
+    CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_RUNNING,
     INITIAL_TASK_GENERATION,
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
     SELECTION_SOURCE_FREE_SAMPLE,
     SELECTION_SOURCE_USER,
     TASK_KIND_ANALYZE,
+    site_health_settings,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
@@ -766,6 +769,55 @@ async def test_create_recrawl_freezes_prior_inventory_lineage(
 
     assert recrawl.configuration is not None
     assert recrawl.configuration[INVENTORY_SOURCE_CRAWL_IDS_KEY] == [str(prior_id)]
+
+
+@pytest.mark.asyncio
+async def test_create_recrawl_does_not_conflict_with_parked_paused_crawl(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The automatic budget + automatic root seed only apply on the non-advanced
+    # path, so pin the flag rather than inheriting whatever the default is —
+    # this used to pass only because `advanced_controls_enabled` defaulted off.
+    monkeypatch.setattr(site_health_settings, "advanced_controls_enabled", False)
+    async with session_factory() as session:
+        seed = await _seed_workspace(session, projects=[{"name": "a", "url_count": 1}])
+        proj = seed.projects[0]
+        paused = SiteCrawl(
+            workspace_id=seed.workspace_id,
+            project_id=proj.project_id,
+            profile_id=proj.profile_id,
+            status=CRAWL_STATUS_PAUSED,
+            root_url="https://example.com/",
+            random_seed="1",
+        )
+        session.add(paused)
+        await session.commit()
+        paused_id = paused.id
+
+    async with session_factory() as session:
+        recrawl = await create_crawl(
+            session,
+            workspace_id=seed.workspace_id,
+            project_id=proj.project_id,
+        )
+
+    assert recrawl.id != paused_id
+    assert recrawl.status in CRAWL_ACTIVE_STATUSES
+    assert recrawl.configuration is not None
+    assert (
+        recrawl.configuration[AUTOMATIC_MONITOR_LIMIT_KEY]
+        == site_health_settings.automatic_page_limit
+    )
+    async with session_factory() as session:
+        root_analysis = await session.scalar(
+            select(SiteCrawlTask).where(
+                SiteCrawlTask.crawl_id == recrawl.id,
+                SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+                SiteCrawlTask.requested_url == "https://example.com/",
+            )
+        )
+    assert root_analysis is not None
 
 
 @pytest.mark.asyncio

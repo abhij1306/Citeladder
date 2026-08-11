@@ -600,11 +600,17 @@ class DiscoverPhaseMixin(PhaseSupport):
         files: list[str] = []
         queue: list[tuple[str, int]] = [(seed, 0) for seed in seeds]
         queued = {seed for seed in seeds}
+        attempted: set[str] = set()
         async with self._new_fetcher() as fetcher:
-            while queue and len(files) < settings.max_sitemap_documents:
+            while queue and len(attempted) < settings.max_sitemap_documents:
                 url, depth = queue.pop(0)
-                if url in files:
+                if url in attempted:
                     continue
+                # Bound network attempts, not only successful documents. A
+                # sitemap index can contain thousands of stale or blocked
+                # children; counting only successful responses lets one root
+                # discovery monopolize every crawl worker indefinitely.
+                attempted.add(url)
                 authority = _authority_key(url)
                 if authority:
                     policy, _, _ = await self._ensure_robots_policy(authority)
