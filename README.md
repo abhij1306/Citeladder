@@ -2,12 +2,12 @@
 
 # CiteLadder
 
-<strong>The growth operating system for businesses whose knowledge is scattered across old sites, documents, teams, and vendors.</strong>
+<strong>The growth operating system for businesses whose website, content, and demand evidence is scattered across tools.</strong>
 
 [Architecture](docs/architecture.md) · [Backend](docs/backend-architecture.md) · [Frontend](docs/frontend-architecture.md) · [Invariants](docs/invariants.md) · [Plans](docs/plans/) · [Development](docs/DEVELOPMENT.md)
 
 <p align="center">
-  CiteLadder is an evidence-grounded growth intelligence platform. It unifies website understanding, project knowledge, content improvement, demand and marketing evidence, and AI visibility into one project-scoped system — and runs itself, asking you only to save content and to schedule audits.
+  CiteLadder is an evidence-grounded growth intelligence platform. It unifies website analysis, content improvement, demand evidence, and AI visibility into one project-scoped system.
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <code>Growth Intelligence</code> · <code>Site Intelligence</code> · <code>Content Intelligence</code> · <code>Demand Intelligence</code> · <code>Growth Agent</code> · <code>Industry Packs</code> · <code>AEO</code> · <code>GEO</code> · <code>AI Visibility</code> · <code>Evidence-Grounded</code> · <code>Open Source</code>
+  <code>Growth Intelligence</code> · <code>Site Health</code> · <code>Content Intelligence</code> · <code>Demand Intelligence</code> · <code>Growth Agent</code> · <code>AEO</code> · <code>GEO</code> · <code>AI Visibility</code> · <code>Evidence-Grounded</code> · <code>Open Source</code>
 </p>
 
 </div>
@@ -33,7 +33,7 @@
 ## What CiteLadder does
 
 Most growth tooling answers one question and leaves the evidence behind. CiteLadder answers four
-connected questions over one governed knowledge system:
+connected questions over one governed evidence system:
 
 1. **What does this business currently say and prove?**
 2. **What is missing, weak, contradictory, stale, or hard to discover?**
@@ -41,8 +41,8 @@ connected questions over one governed knowledge system:
 4. **What should the business improve, create, and measure next?**
 
 The durable differentiator is not the crawler, the dashboard, or the chat box. It is a
-project-specific, evidence-backed knowledge system that compounds through every crawl, import,
-review, generation, audit, and verified outcome.
+project-specific evidence trail that compounds through every crawl, import,
+generation, audit, and later measurement.
 
 <a id="product-architecture"></a>
 ## Product architecture
@@ -51,7 +51,7 @@ Four layers. Three own data; the fourth is how you talk to them.
 
 | Layer | Owns |
 |---|---|
-| **Site Intelligence** | Crawls and understands pages and documents, builds project knowledge, detects industry-specific gaps, and verifies changes after recrawl |
+| **Site Health** | Crawls the owned site, classifies pages structurally, and applies page-type-correct schema and content checks |
 | **Content Intelligence** | Turns verified gaps into strategies, briefs, drafts, and post-publication verification |
 | **Demand Intelligence** | Connects GSC, GA4, journeys, prompts, AI Visibility, and later paid marketing evidence to decide what improves next |
 | **Growth Agent** | Explains and orchestrates bounded tasks through typed tools, selective context, and reproducible provenance |
@@ -72,51 +72,26 @@ The system runs itself. You are asked exactly twice:
 | **Generate and save content** | Content is the only durable outward-facing output. You choose what to generate, edit it, and decide what to keep. |
 | **Run and schedule audits** | Crawls, syncs, and answer-engine audits cost money and hit external systems. You choose when they run. |
 
-Everything else — crawling on schedule, classification, knowledge extraction, contradiction
-detection, gap detection, demand signals, prompt generation, prioritization, roadmaps — happens
-without asking. Every automatic output is a recomputable projection over immutable evidence that
-records exactly what produced it, so a wrong answer is corrected and recomputed rather than
-pre-authorized.
-
-Where a derived fact is wrong, you **correct** it in place. A correction is durable, attributable,
-withdrawable, and outranks anything derived later.
+Everything else — bounded crawling, structural page classification, deterministic
+analysis, demand signals, prompt generation, prioritization, and roadmaps — may
+run automatically within configured limits. Every output records its source and
+version so stale analysis can be recomputed rather than silently reinterpreted.
 
 <a id="durable-differentiator"></a>
-## The knowledge system
+## The evidence system
 
 ```text
 immutable evidence
-  + versioned, recomputable project facts
-  + durable user corrections
-  + a versioned industry knowledge pack
+  + versioned page-kind analysis
+  + persisted demand and content projections
+  + explicit user decisions
 ```
 
-Persistence means **observed**, never **true**. Facts are derived automatically and stay current; a
-correction is the one thing that survives recomputation. Generated content never becomes a fact on
-its own.
-
-Industry packs define page roles, entities, assertions, journeys, customer questions, proof
-requirements, schema expectations, gap rules, briefs, prompts, and evaluation fixtures. Customer
-facts stay workspace- and project-scoped and never become shared pack truth automatically.
-
-<details>
-<summary><strong>Industry pack maturity</strong> — what is real today</summary>
-
-<br />
-
-| Tier | Packs | Meaning |
-|---|---|---|
-| **Validated candidates** | Education, Commerce | Ready for controlled shadow evaluation. Not automatically authoritative production findings. |
-| **Foundation packs** | General Business + 13 industry families | Complete definitions and fixtures, but no representative domain calibration yet. |
-| **Project overlays** | per project | Versioned, project-scoped, and never alter a shared pack or another customer's knowledge. |
-
-Composition is **one primary pack plus reviewed capabilities** and optional project overlays — see
-[`EXTENSION_CONTRACT.md`](backend/app/core/config/industry_packs/EXTENSION_CONTRACT.md).
-
-A business with two genuine industry identities has no composition path yet; the forward-compatible
-mechanism is recorded in [`docs/architecture.md`](docs/architecture.md) §6.
-
-</details>
+Persistence means **observed**, never automatically true. Site Health keeps
+immutable acquisition evidence and versioned analysis. Generated content never
+becomes a fact on its own. The former industry-pack and knowledge-kernel runtime
+was removed during simplification; page analysis now uses a small generic
+structural taxonomy with page-type-specific schema and content rules.
 
 <a id="first-complete-workflow"></a>
 ## The improvement loop
@@ -192,16 +167,13 @@ runbook: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 | Document | What it covers |
 |---|---|
-| [`Agents.md`](Agents.md) | Mandatory implementation rules and the task-specific document map |
+| [`AGENTS.md`](AGENTS.md) | Mandatory implementation rules and the task-specific document map |
 | [`docs/documentation-index.md`](docs/documentation-index.md) | Complete active documentation authority map |
 | [`docs/architecture.md`](docs/architecture.md) | Canonical target product architecture |
 | [`docs/invariants.md`](docs/invariants.md) | The review-blocking rules |
 | [`docs/plans/growth-intelligence-platform.md`](docs/plans/growth-intelligence-platform.md) | Program architecture and delivery order |
-| [`docs/plans/knowledge-kernel-and-industry-pack-spec.md`](docs/plans/knowledge-kernel-and-industry-pack-spec.md) | Knowledge contracts, persistence, and pack lifecycle |
-| [`docs/plans/frontend-growth-intelligence.md`](docs/plans/frontend-growth-intelligence.md) | App, landing, and website migration plan |
+| [`docs/site-health.md`](docs/site-health.md) | Site crawl, page kinds, schema contracts, rules, and issues |
 | [`docs/design.md`](docs/design.md) | Design tokens, screen geometry, and the insight object |
-| [`backend/app/core/config/industry_packs/README.md`](backend/app/core/config/industry_packs/README.md) | Canonical industry catalog, runtime library, maturity, evaluation, and extension policy |
-| [`docs/plans/codex-site-intelligence-wiring-handoff.md`](docs/plans/codex-site-intelligence-wiring-handoff.md) | Next gated slice for production persistence and wiring |
 
 Everything under [`docs/archive/`](docs/archive/) is historical and is **not** an implementation
 authority.
@@ -212,8 +184,7 @@ authority.
 ```text
 frontend/                              Next.js application
 backend/app/                           FastAPI modular monolith and workers
-backend/app/core/config/industry_packs/
-                                       canonical executable industry knowledge catalog
+backend/app/core/config/site_health.py page-kind, crawl, rule, and scoring policy
 migrations/versions/0001_initial.py    pre-launch canonical database baseline
 docs/plans/                            active target implementation plans
 docs/evaluations/                      evaluation corpora, provenance, and labels
@@ -228,7 +199,6 @@ docs/archive/                          historical plans and superseded context
 python docs/validate_documentation.py
 
 # Backend, from backend/
-uv run python -m app.core.config.industry_packs.validate
 uv run pytest tests/unit/test_<area>.py tests/component/test_<area>.py -q
 uv run ruff check <changed paths>
 

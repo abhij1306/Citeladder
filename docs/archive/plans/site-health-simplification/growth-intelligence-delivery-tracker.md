@@ -3,7 +3,7 @@
 > **Status:** active implementation handoff.
 >
 > **Authority:** tracks delivery only. Product and implementation decisions remain in the
-> canonical [Demand](demand-intelligence.md), [Site](site-intelligence-primary-product.md),
+> canonical [Demand](demand-intelligence.md), [Site](../site-health.md),
 > [Content](content-intelligence.md), and [Growth Agent](growth-agent.md) plans.
 
 ## Branch sequence
@@ -108,10 +108,12 @@ evidence and windows; reads make no external calls; unavailable is never rendere
   misleading boundary. Workspace authorization remains enforced on reads and writes. No D0-D5
   acceptance item is deferred.
 
-## Branch 2 — Site Intelligence complete
+## Branch 2 — Site Intelligence historical delivery
 
-Canonical sources: [Site Intelligence](site-intelligence-primary-product.md) and the
-[knowledge kernel](knowledge-kernel-and-industry-pack-spec.md).
+This section records what PR #58 shipped at the time. The runtime it describes
+was later removed by the 2026-08 Site Health simplification. The current owner
+is [Site Health](../site-health.md); the superseded plans are preserved in the
+[archive](../archive/plans/site-health-simplification/).
 
 - [x] Durable corrections and append-only transitions.
 - [x] Inline contradiction decisions with all observed evidence preserved.

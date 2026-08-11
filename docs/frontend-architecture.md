@@ -1,140 +1,82 @@
 # CiteLadder frontend architecture
 
 > **Status:** current frontend authority
-> **Framework:** Next.js App Router and TypeScript
-> **Product hierarchy:** four layers — Site, Content, Demand Intelligence, and the Growth Agent
-> **User decisions:** save content; run and schedule audits. No other blocking UI exists.
+> **Framework:** Next.js App Router, TypeScript, TanStack Query, Zod
 
-The frontend is a projection and workflow layer over workspace-scoped backend contracts. It owns
-interaction, validation, accessibility, navigation, and local ephemeral state; it does not own
-business truth, scoring, knowledge, authorization, or lifecycle decisions.
+The frontend projects workspace-scoped backend contracts. It owns navigation,
+interaction, accessibility, validation, and local ephemeral state; it does not
+own scoring, page classification, lifecycle truth, or authorization.
 
 ## Core rules
 
-- The browser calls relative `/api/*`; Next.js rewrites to server-only `BACKEND_ORIGIN`.
-- Server data uses TanStack Query; forms use typed inputs and Zod-backed validation.
-- Responses are validated through the shared API-contract layer. Additive unknown response keys
-  follow the existing tolerant policy; missing or invalid declared fields fail visibly.
-- IDs are UUIDs and the active workspace/project context is always explicit.
-- No production screen falls back to mock data or silently computes a backend metric.
-- Only live navigation items render; future work is not represented by disabled placeholders.
+- Browser calls use relative `/api/*`; Next.js rewrites to server-only
+  `BACKEND_ORIGIN`.
+- Server data uses TanStack Query and shared Zod response schemas.
+- IDs and active workspace/project context are explicit.
+- No production screen falls back to mock data or computes a backend metric.
+- Only live destinations render; future work is not shown as disabled UI.
+- Long-running state comes from persisted backend projections. Polling may be
+  accelerated by events but is never replaced by ephemeral client state.
 
-## Target information architecture
+## Site surfaces
 
-The sidebar teaches the product through Workspace plus the three intelligence-system headings.
-Each heading contains its live primary workspaces; sub-surfaces inside a workspace are tabs on
-that route, never nested sidebar children. Group heading, destination, then in-page tab is the
-maximum depth. The screen geometry every route uses is owned by [`design.md`](design.md).
+The site area has exactly three destinations:
 
-Existing `/site-health`, `/traffic`, `/analytics`, `/prompt-research`, `/prompts`, `/visibility`,
-and `/runs` deep links stay usable through the migration. `/issues` and `/opportunities` remain
-direct Site Intelligence destinations while their artifact-specific views also appear
-contextually inside the Website workspace. Consolidating either direct destination requires a
-later explicit authority change and permanent redirect; it is not implied by this migration.
+| Route | Purpose |
+|---|---|
+| `/site-health` | Crawl lifecycle, score summary, scores by page kind, URL inventory |
+| `/issues` | Grouped issue catalog with severity, affected pages, and page-kind scope |
+| `/opportunities` | Persisted prioritized actions |
 
-The migration order lives in
-[`plans/frontend-growth-intelligence.md`](plans/frontend-growth-intelligence.md).
+The former multi-panel Site Intelligence workspace is removed. Do not nest a
+second site workspace, knowledge panel, journey panel, correction workflow, or
+comparison surface inside these routes.
 
-The shipped `/demand` workspace has Overview, Search Demand, Journeys, Prompts, AI Visibility, and
-Evidence panels. It reads immutable Demand projections, renders structured join/key-event
-coverage, exposes persisted report-family capability state, and links to the existing owning
-workflows.
+The backend owns the current Site Health phase. The client renders the provided
+phase and action availability instead of reconstructing a cross-product of
+crawl, discovery, analysis, and phase-run states.
 
-The Site Intelligence Overview renders persisted compatible-recrawl movement and evidence-only
-action resolution. Its Knowledge panel keeps every contradictory observation visible and offers
-an inline correction/withdrawal control with a required reason; there is no modal approval queue
-or review inbox.
+## Page-kind UX
 
-The shipped `/agent` workspace is a conversation-first surface over governed tasks. It reads and
-creates durable project-scoped conversations, appends each message through a backend-catalog task,
-and polls long-running progress. The composer never exposes task IDs, raw scope JSON, provider
-configuration, or terminal task telemetry: completed work appears once as the assistant reply.
-Context-dependent task intent arrives through links from its owning workspace; a missing source is
-explained in product language. `DecisionPrompt` remains closed to `save-content` and `run-audit`.
-Site, Content, and Demand artifacts remain independently operable.
+The API-contract schema owns the page-kind vocabulary. Shared helpers in
+`frontend/lib/site-health/page-kinds.ts` provide labels, stable ordering, and a
+defensive parser for classifier evidence.
 
-## Current route ownership
+Pages and URL detail show the persisted structural kind. The detail disclosure
+may explain the winning signal, schema suggestion, alternatives, conflicts,
+confidence, and `other` reason. It never reclassifies in the browser.
 
-| Route family | Current purpose | Target placement |
-|---|---|---|
-| `/projects`, `/knowledge-base` | Project state and curated profile | Project command centre and Business Knowledge |
-| `/site-health`, `/issues`, `/opportunities` | Crawl, pages, rules, issues, ranked persisted opportunities | Site Intelligence |
-| `/content` | Strategy, Inventory, Briefs, Drafts, Revisions, Verification | Content Intelligence |
-| `/traffic`, `/analytics` | First-party projections | Demand Intelligence |
-| `/prompt-research`, `/prompts` | Prompt creation/review | Demand Intelligence |
-| `/visibility`, `/runs` | Answer-engine measurement/evidence | Demand Intelligence |
-| `/products` | Catalog and product visibility | Commerce views backed by shared Site/Content/Demand contracts |
-| `/agent` | Conversation history, message composer, live task progress, assistant replies, and roadmap | Growth Agent |
-| `/providers`, `/settings` | Connections, billing, integrations | Shared project/workspace settings |
+Issue groups show affected page-kind badges so a product-schema issue is visibly
+different from a universal title or delivery issue. Not-applicable evaluations
+do not appear as passes or issues.
+
+## Other route ownership
+
+| Route family | Owner |
+|---|---|
+| `/content` | Content Intelligence |
+| `/demand`, `/traffic`, `/analytics` | Demand Intelligence |
+| `/prompt-research`, `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
+| `/products` | Commerce specialization |
+| `/agent` | Growth Agent conversations and bounded task progress |
+| `/providers`, `/settings` | Shared workspace/project configuration |
 
 ## Data and query ownership
 
-Each domain has one API module, one query-key owner, and one set of shared schemas/types. Queries
-are enabled only for the visible panel when possible. A shared artifact selected in one workspace
-uses the same server ID and cache identity in contextual drawers and agent actions.
+Each domain has one API module, one query-key owner, and shared schemas/types.
+Queries are enabled only when their surface is visible where practical. A
+shared artifact uses the same server ID and cache identity everywhere.
 
-Polling remains the authoritative progress path for long-running tasks. SSE or streaming may
-accelerate invalidation and presentation but never replaces persisted task state.
-
-## Evidence and knowledge UX
-
-- Every conclusion can open persisted evidence.
-- Observed, derived, corrected, historical, conflicting, unknown, unavailable, and excluded states
-  have distinct text labels and are never communicated by colour alone.
-- Context drawers show included sources and important omissions.
-- Derived facts are corrected inline. A correction shows its author and timestamp, survives
-  recomputation, and can be withdrawn to restore the derived value. Replacement is
-  withdraw-then-create rather than an in-place edit. There is no approval card and no review inbox.
-- Industry role classification shows winning signals, alternatives, confidence, pack and version,
-  and any correction.
-- Composites render over the full denominator with coverage beside them; never renormalize over
-  only the observed dimensions.
-
-## Content workflow
-
-```text
-insight
-  -> verified facts and limitations
-  -> frozen brief
-  -> generated draft
-  -> automatic validation, with unsupported claims blocked
-  -> user edits
-  -> SAVE            <- the user decision in this layer
-  -> export or publication claim
-  -> later recrawl verification
-```
-
-Everything before `SAVE` is automatic. There is no `in_review` or `approved` state: the user who
-generates is the user who edits and saves. Visible content and any mirroring structured data are
-separate outputs, and markup cannot be saved when it does not match the visible content.
-
-FAQ is one worked example of this flow, not a required first slice.
-
-The shipped `/content` route renders six URL-addressable panels: **Strategy**, **Inventory**,
-**Briefs**, **Drafts**, **Revisions**, and **Verification**. Strategy and inventory expose the
-persisted source denominator, states, priorities, limitations, and pack scope. Briefs can be
-created from automatically eligible missing questions. Drafts retains the advanced custom-task
-composer while brief-driven results expose automatic validation and a Start revision action.
-Revisions display their current revalidation state and cannot save while blocked. Verification
-records publication as a claim first and compares only later persisted evidence; it never labels
-an association causal.
-
-## Mobile and accessibility
-
-Full workflows must remain possible on mobile. Tables become labelled records; filters and
-evidence use accessible sheets; reorderable actions expose keyboard/touch controls. Tabs render
-one panel at a time and mirror meaningful state to the URL. Focus, errors, loading, empty,
-reduced-motion, forced-colour, and touch states are required.
-
-## Design owner
-
-[`design.md`](design.md) and `frontend/app/globals.css` own the shared light-only semantic system.
-Components use existing primitives and semantic tokens. Product screens prioritize current state,
-next actions, and evidence before secondary detail.
+Unknown, unavailable, zero, historical, conflicting, excluded, and
+not-applicable states retain distinct labels and are never communicated by
+color alone.
 
 ## Verification
 
-Use focused Vitest/Testing Library tests, API contract drift checks, policy/design guards, TypeScript
-checks, build, and targeted Playwright flows. A screen is not complete when it works only with
-happy-path data; null, unavailable, conflict, partial coverage, authorization, retry, and mobile
-states are part of the contract.
+Use pnpm only:
+
+```bash
+pnpm test -- <file>
+pnpm lint
+pnpm build
+```

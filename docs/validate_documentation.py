@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE_PREFIX = "docs/archive/"
 
 ACTIVE_EXACT = {
-    "Agents.md",
+    "AGENTS.md",
     "COMMANDS.md",
     "CONTRIBUTING.md",
     "README.md",
@@ -44,15 +44,9 @@ ACTIVE_EXACT = {
     "docs/site-health.md",
     "docs/validate_documentation.py",
     "docs/plans/growth-intelligence-platform.md",
-    "docs/plans/growth-intelligence-delivery-tracker.md",
-    "docs/plans/site-intelligence-primary-product.md",
     "docs/plans/content-intelligence.md",
     "docs/plans/demand-intelligence.md",
     "docs/plans/growth-agent.md",
-    "docs/plans/knowledge-kernel-and-industry-pack-spec.md",
-    "docs/plans/codex-site-intelligence-wiring-handoff.md",
-    "docs/plans/frontend-growth-intelligence.md",
-    "docs/plans/industry-packs/README.md",
 }
 ACTIVE_PREFIXES = (
     "docs/evaluations/",
@@ -220,8 +214,8 @@ def validate() -> list[Issue]:
         required_fragments = (
             "architecture.md",
             "growth-intelligence-platform.md",
-            "../backend/app/core/config/industry_packs/README.md",
-            "codex-site-intelligence-wiring-handoff.md",
+            "site-health.md",
+            "site-health-simplification",
         )
         for required in required_fragments:
             if required not in index_text:

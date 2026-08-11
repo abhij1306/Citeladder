@@ -1,126 +1,151 @@
-# Site Health: shipped foundation for Site Intelligence
+# Site Health runtime
 
-> **Current owner:** `backend/app/domain/site_health`, `analysis/site_health`, Site Health workers,
-> and the `/site-health` frontend
-> **Target owner:** Site Intelligence, as specified in
-> [`plans/site-intelligence-primary-product.md`](plans/site-intelligence-primary-product.md)
+> **Status:** current authority for the crawler, page analysis, issues, and
+> site-facing product surfaces.
 
-Site Health is the existing first-party crawler and deterministic issue engine. It remains the
-only owner of URL discovery, secure acquisition, crawl tasks, immutable fetch attempts/artifacts,
-normalized HTML facts, rule evaluations, issues, snapshots, exports, and page/crawl projections.
-The Site Intelligence implementation extends this subsystem; it does not create a new crawler or
-parallel page-analysis pipeline.
+Site Health is CiteLadder's only owner of URL discovery, secure acquisition,
+immutable fetch evidence, normalized page facts, structural page-kind
+classification, deterministic rule evaluation, scores, grouped issues,
+snapshots, exports, and site-derived opportunities.
 
-## Current guarantees
+The user-facing area has three pages:
 
-- workspace-scoped UUID resources and projection-only reads;
-- config-owned URL admission, acquisition, parser, classifier, rule, and scoring versions;
-- SSRF-safe acquisition with validated redirects, resource bounds, robots handling, and redacted
-  diagnostics;
-- PostgreSQL queue leases, heartbeats, retries, cancellation, and persisted events;
-- immutable fetch artifacts and attempt provenance;
-- deterministic generic page classification and page-level rule evaluation;
-- grouped issues, per-URL evidence/history, snapshots, and authenticated exports;
-- explicit null/unavailable states rather than fabricated scores.
+1. **Site Health** — crawl lifecycle, scores by page kind, and URL inventory.
+2. **Issues** — grouped findings with affected page-kind badges.
+3. **Opportunities** — persisted prioritized actions.
 
-## Required corrections before Site Intelligence — shipped
+The removed Site Intelligence workspace and industry-pack/knowledge subsystems
+must not be reintroduced as parallel owners.
 
-All seven are implemented:
-
-1. Terminal crawl/discovery/analysis state agrees with drained task state. A drained crawl with no
-   RUNNING phase-run row now terminalizes its phase sub-states instead of parking PAUSED while
-   `analysis_status` stayed `running`. Automatic sample crawls also bypass manual phase parking:
-   once their bounded analysis and link checks drain, they persist a score snapshot and complete
-   even when development-only advanced controls are enabled.
-2. Stop/continue controls are idempotent. `_pause_if_idle` settles both sub-states from the
-   outstanding-task count, so a second Stop (or a stop after the phase already drained) cannot
-   leave a RUNNING phase no task backs.
-3. A URL failure is counted once: `failed_url_count` counts DISTINCT failed `url_hash` across
-   discover+analyze rather than summing per-kind task failures.
-4. The acquisition ladder is `secure_httpx -> curl_cffi -> patchright`. ScraperAPI is fully
-   removed — rung, settings, and columns.
-   The local Docker stack enables the pinned curl-cffi recovery rung so ordinary 403 challenge
-   responses can escalate; Patchright remains an explicit image/runtime opt-in.
-5. Corpus disposition (`analyze` | `inventory_only` | `exclude`) is first-class on `SiteUrl` with
-   its reason, version, and `item_kind`.
-6. `page_type` is split: `page_kind` (generic structural) and `industry_role_id` (pack-governed)
-   are separate columns with independent vocabularies and evidence.
-7. Supported documents (PDF/Office) are admitted to corpus inventory as `item_kind=document` with
-   `inventory_only` disposition, so they count toward coverage without entering the HTML analyzer.
-
-## Target evidence flow
+## Pipeline
 
 ```text
-seed, sitemap, links, uploads, catalog
-  -> URL/document inventory
-  -> analyze | inventory_only | exclude
-  -> safe acquisition or document extraction
-  -> immutable normalized artifact
-  -> page kind + industry role
-  -> entities, assertions, questions, sections, schema, journey support
-  -> deterministic findings and grouped actions
-  -> Site Intelligence snapshot/report
-  -> recrawl comparison and verification
+seed + sitemap + internal links
+  -> URL admission and corpus disposition
+  -> secure_httpx -> curl_cffi -> patchright acquisition ladder
+  -> immutable fetch attempt and artifact
+  -> bounded normalized HTML/delivery/structured-data facts
+  -> deterministic page_kind assessment
+  -> page-kind-scoped rule evaluations and scores
+  -> grouped issues, snapshot, exports, opportunities
 ```
 
-The active industry profile contributes role checks and expectations but never bypasses URL safety,
-workspace authorization, evidence immutability, or deterministic hard validation.
+Read endpoints only render persisted projections. They never crawl, classify,
+repair lifecycle state, or call a model.
 
-## Page classification
+## Crawl guarantees
 
-Classification uses configured URL, title, headings, visible content, forms/CTAs, internal-link
-context, media type, and structured-data signals. Structured data is optional evidence; missing
-schema is itself a possible gap after role classification.
+- URL safety and redirect targets are validated at the acquisition boundary.
+- Discovery and analysis use PostgreSQL tasks with leases, retries,
+  heartbeats, idempotent terminalization, and cancellation.
+- Fetch attempts and artifacts are append-only; secrets and unsafe response
+  headers are never persisted.
+- `analyze`, `inventory_only`, and `exclude` dispositions stay distinct.
+- Supported documents may remain inventory-only and never enter the HTML rule
+  evaluator.
+- The screen phase is resolved once by the backend. Worker bookkeeping states
+  are not independently reinterpreted by the frontend.
 
-`SitePageAnalysis` stores `page_kind`, `industry_role_id`, the exact frozen pack manifest (catalog
-version, pack id/version, content hash, classifier version), confidence, winner margin,
-alternatives, conflicts, and bounded signal evidence.
+## Page-kind classification
 
-The row is append-only, keyed by `(artifact_id, analyzer_version, industry_pack_id,
-industry_pack_version)` with a partial unique index enforcing one `is_current` row per artifact.
-Recomputing under a new pack version writes a NEW row; it never mutates the old one, which is what
-recrawl comparison needs and what stops a pack upgrade from reinterpreting history.
+Every analyzed HTML page receives one of:
 
-Three role states stay distinct and must not be collapsed:
+```text
+homepage, article, product, category, pricing, docs, faq,
+about_contact, service, local, guide, comparison,
+case_study_review, trust_policy, other
+```
 
-- **selected** — a role id with score, margin, and confidence band;
-- **executed abstention** — `industry_role_id IS NULL` WITH `role_abstention_reason` (the
-  classifier ran and declined: `schema_only`, `ambiguous_margin`, `below_minimum_score`, …);
-- **never ran** — no pack frozen on the crawl, so the API returns `industry_role: null` entirely.
+Classification is pure, deterministic, bounded, and versioned. Signals run in
+this priority order:
 
-"We did not look" and "we looked and could not tell" are different facts, and only the second is
-evidence about the page.
+1. root/homepage path equivalence;
+2. the semantic URL path segment nearest the root;
+3. bounded visible-content heuristics for FAQ, product, and article pages;
+4. explicitly prioritized recognized schema types.
 
-Column and field names differ deliberately and are not interchangeable. The stored column is
-`SitePageAnalysis.industry_role_id`. The page-detail API exposes an `industry_role` OBJECT (role id,
-score, margin, confidence band, secondary roles, abstention reason, evidence, and the frozen
-manifest) whose `role_id` field carries that column; list projections carry the bare
-`industry_role_id` instead, so a page of rows never ships kilobytes of evidence. The object being
-`null` is the "never ran" state; `role_id` being null inside a present object is an executed
-abstention.
+Path/content evidence outranks schema because schema is a page's claim about
+itself. Letting that claim select the contract used to validate it would make
+schema analysis circular. Conflicts, alternatives, confidence, winning signal,
+and schema suggestion persist on `SitePageAnalysis.page_kind_evidence`.
 
-Pack resolution happens ONCE at crawl creation and freezes into `SiteCrawl.configuration`. Read
-endpoints render the frozen manifest and never re-resolve a pack. An unknown or ambiguous industry
-label leaves the project unpacked rather than falling back to `general_business`.
+Nested route families such as `/resources/guides/...`,
+`/company/contact-us`, and `/legal/privacy-policy` are recognized. Exact path
+segments are required, so a slug such as `/blog-post` does not accidentally
+become the `blog` route family.
 
-## Documents
+`other` is an abstention. It is not treated as a proven `WebPage`, and
+page-kind-specific rules are not scored for it.
 
-Separate policies govern:
+## Structured-data extraction and schema contracts
 
-- unsafe/unsupported hard exclusions;
-- inventory-supported document types;
-- document types eligible for bounded extraction;
-- project/pack disposition and temporal state.
+The bounded extractor reads JSON-LD graphs and shallow microdata. It normalizes
+schema.org URL types, retains every recognized token from a multi-typed
+`@type` array, extracts only config-owned property paths, and skips malformed
+blocks without failing the page.
 
-A historical fee PDF can remain useful evidence while being prohibited from supplying current fee
-truth without review. Extraction coverage and source coordinates are explicit.
+`PAGE_KIND_EXPECTED_SCHEMA` owns allowed schema alternatives and their required
+and recommended property contracts. Properties are resolved for the actual
+schema type used, not once for the whole page kind. For example:
 
-## APIs and compatibility
+- a guide may use `HowTo.name` or `Article.headline`;
+- `WebSite` does not inherit `Organization.sameAs`/`logo` recommendations;
+- `CollectionPage` is not incorrectly required to carry
+  `BreadcrumbList.itemListElement`;
+- Article and ItemList alternatives on comparison pages use their own fields.
 
-Existing crawl, pages, issues, detail, events, monitored URL, Site Health projection, and export
-routes remain compatible during migration. New Site Intelligence reads project only persisted
-snapshots and evidence. No read route crawls, classifies, calls a model, or repairs lifecycle state.
+Schema rules require both a classified non-`other` page kind and an HTML
+response. Content-parity rules additionally require visible server-rendered
+body content.
 
-The detailed visibility-era runtime reference is archived at
-`archive/subsystems/site-health-detailed-runtime-reference.md`; use it only for historical
-comparison and verify every implementation claim against code.
+## Rule applicability
+
+Not-applicable is different from pass and is excluded from scoring.
+
+- Technical delivery, indexability, metadata, and rendering rules remain
+  broadly applicable where their source evidence exists.
+- Schema presence/type/property rules apply only to classified page kinds.
+- Author and citation rules apply only to authored editorial types.
+- Date rules also include documentation.
+- Question-heading rules apply to FAQ, guide, docs, and article pages.
+- Answer-first structure applies to article, FAQ, guide, docs, service,
+  comparison, and case-study/review pages.
+- Product offer and visible/schema parity rules apply only to product pages.
+
+A JS shell receives one server-rendering finding. Rules that need unseen body
+content remain not-applicable instead of producing a cascade of fabricated
+missing-content issues.
+
+## Provenance
+
+`SitePageAnalysis` is append-only per artifact and analyzer version. Rule rows
+carry rule version and exact source IDs. Any change to extraction,
+classification, analysis semantics, or the rule catalog must bump its config
+version so an old artifact is never silently reinterpreted as the same result.
+
+Grouped issue IDs are deterministic UUID5 values derived from the crawl and
+rule. Filtering or adding another occurrence cannot change the group URL;
+legacy occurrence IDs remain accepted by the detail endpoint.
+
+Current versions are owned in `backend/app/core/config/site_health.py`; tests
+pin persistence and replay behavior.
+
+## Known boundary
+
+The simplification removed the former knowledge assertion source used to ground
+content briefs. Content generation currently receives an empty fact/source
+envelope. Replacing that source requires a separate product decision; Site
+Health analysis must not invent durable facts merely to fill it.
+
+## Focused verification
+
+From `backend/`:
+
+```bash
+uv run pytest tests/unit/test_site_health_page_kinds.py \
+  tests/unit/test_site_health_parser.py \
+  tests/unit/test_site_health_rules.py \
+  tests/component/test_site_health_analyze.py \
+  tests/component/test_site_health_discover.py -q
+uv run ruff check app/analysis/site_health app/core/config/site_health.py
+```

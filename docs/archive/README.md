@@ -18,9 +18,11 @@ A document belongs here when one or more of these conditions applies:
 
 ## Current authorities
 
-Start from [`../README.md`](../README.md). The only active product plans are the six documents
-listed there. When useful historical material is promoted back into the product, restate it in the
-current owner with current contracts and tests; do not make runtime code depend on this archive.
+Start from [`../README.md`](../README.md) and
+[`../documentation-index.md`](../documentation-index.md). When useful historical
+material is promoted back into the product, restate it in the current owner
+with current contracts and tests; do not make runtime code depend on this
+archive.
 
 ## Archive layout
 
@@ -30,6 +32,10 @@ current owner with current contracts and tests; do not make runtime code depend 
 - `subsystems/` — detailed runtime references replaced by concise current owners.
 - `audits/` — dated repository audits.
 - `operations/` — dated or deployment-specific operational records.
+
+`plans/site-health-simplification/` preserves the removed Site Intelligence,
+knowledge-kernel, industry-pack, and 2026-08 simplification handoff/audit plans.
+The active replacement is [`../site-health.md`](../site-health.md).
 
 The archive may contain broken links that reflect its historical repository layout. Active-doc
 link validation intentionally excludes archive internals.
