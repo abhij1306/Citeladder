@@ -111,8 +111,8 @@ function StripContent({
   if (phase === 'resolving') return null;
 
   if (!crawl || phase === 'empty') {
-    // Midnight empty state (Phase D6): mono eyebrow + display heading. The
-    // primary action (Start discovery) stays in the page header above.
+    // Direct component callers retain an empty-state fallback. The canonical
+    // layout owns the actionable first-crawl placeholder.
     return (
       <Card>
         <CardContent className="grid justify-items-center gap-3 py-10 text-center">

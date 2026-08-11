@@ -2107,17 +2107,13 @@ class SiteHealthSettings(BaseSettings):
     )
 
     # --- Neutral sample policy (dev-tunable) ---
-    # Continue-discovery / analyze-batch ARE the product, so they default ON.
-    #
-    # This defaulted to False, and with it off `PhaseControls` renders nothing:
-    # there was no way to continue discovery or start an analysis batch
-    # anywhere in the UI, and the API answered 422 if you found one. A boolean
-    # that silently removes the primary workflow is a trapdoor, not a feature
-    # flag. Tiering belongs on `access_mode`, which already exists and is
-    # resolved from real entitlements; this switch remains only so a
-    # deployment can deliberately fall back to the small automatic crawl.
-    advanced_controls_enabled: bool = True
-    automatic_page_limit: int = SAMPLE_URL_LIMIT
+    # Manual seed, page-kind, and oversized crawl controls are development-only.
+    # The standard product path is one bounded, progressively analyzed crawl.
+    advanced_controls_enabled: bool = False
+    # Standard user-initiated crawls discover at most 500 pages. Development
+    # advanced controls may explicitly request more, up to the separate
+    # 50,000-URL internal ceilings below.
+    automatic_page_limit: int = 500
     max_requested_page_limit: int = 500
     max_discovery_urls: int = 50_000
     max_analysis_urls: int = 50_000
@@ -2151,10 +2147,13 @@ class SiteHealthSettings(BaseSettings):
     # Global in-process concurrent fetch ceiling for the Site Health worker.
     global_concurrency: int = 8
     # Per-host concurrent fetch ceiling.
-    per_host_concurrency: int = 2
+    per_host_concurrency: int = 6
     # Minimum delay between requests to the same host (politeness); robots
-    # crawl-delay overrides upward.
-    per_host_delay_seconds: float = 0.5
+    # crawl-delay overrides upward. A 150 ms floor permits roughly six request
+    # starts per second on a responsive owned site without turning that rate
+    # into a promise; fetch latency, retries, parsing, and declared crawl-delay
+    # still determine observed throughput.
+    per_host_delay_seconds: float = 0.15
     # Default crawl delay applied when robots does not specify one.
     default_crawl_delay_seconds: float = 0.0
     # Cap on any robots-declared crawl delay we will honor.

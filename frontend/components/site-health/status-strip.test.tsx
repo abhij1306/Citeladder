@@ -241,8 +241,8 @@ describe('StatusStrip — lifecycle content', () => {
   });
 
   it('freezes behind a starting notice while a fresh crawl create is in flight', () => {
-    // The in-flight "Start analysis" window: the old crawl's phase must not
-    // stay in view while the create is running — a single notice covers it.
+    // The old crawl's phase must not stay in view while a new crawl is being
+    // created — a single notice covers the in-flight window.
     renderStrip({ startPending: true, phase: 'selection', crawl: crawl({ status: 'cancelled' }) });
 
     expect(screen.getByText(/Starting a fresh crawl/)).toBeInTheDocument();

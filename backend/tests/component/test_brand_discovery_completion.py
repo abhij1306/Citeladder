@@ -182,10 +182,9 @@ async def test_reaper_persists_blocking_code_and_deduplicated_warning(
 
 
 @pytest.mark.asyncio
-async def test_completion_is_atomic_idempotent_scoped_and_site_health_tolerant(
+async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_health(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     await _register(client, "complete-owner@example.com")
     async with session_factory() as session:
@@ -203,10 +202,6 @@ async def test_completion_is_atomic_idempotent_scoped_and_site_health_tolerant(
         await session.commit()
         discovery_id = discovery.id
 
-    async def deferred(*_args, **_kwargs):
-        raise RuntimeError("site health unavailable")
-
-    monkeypatch.setattr(onboarding_service, "start_initial_site_review", deferred)
     response = await client.post(
         f"/api/v1/brand-discoveries/{discovery_id}/complete",
         headers={"Idempotency-Key": "complete-1"},
@@ -215,7 +210,7 @@ async def test_completion_is_atomic_idempotent_scoped_and_site_health_tolerant(
     assert response.status_code == 201, response.text
     completed = response.json()
     assert completed["crawl_id"] is None
-    assert completed["warnings"] == ["site_health_deferred"]
+    assert completed["warnings"] == []
 
     replay = await client.post(
         f"/api/v1/brand-discoveries/{discovery_id}/complete",

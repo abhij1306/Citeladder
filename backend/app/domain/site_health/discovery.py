@@ -551,8 +551,21 @@ async def _automatic_remaining(session: AsyncSession, crawl: SiteCrawl) -> int |
     requested = int((crawl.configuration or {}).get(AUTOMATIC_MONITOR_LIMIT_KEY) or 0)
     if requested <= 0:
         return await _sample_remaining(session, crawl) if crawl.sample_mode else None
-    await session.scalar(
-        select(SiteCrawl.id).where(SiteCrawl.id == crawl.id).with_for_update()
+    runtime = await session.scalar(
+        select(WorkspaceSiteHealthRuntime)
+        .where(WorkspaceSiteHealthRuntime.workspace_id == crawl.workspace_id)
+        .with_for_update()
+    )
+    if runtime is None:
+        return 0
+    entitlement_limit = int(
+        runtime.sample_url_limit if crawl.sample_mode else runtime.monitored_url_limit
+    )
+    active_memberships = await session.scalar(
+        select(func.count(MonitoredSiteUrl.id)).where(
+            MonitoredSiteUrl.workspace_id == crawl.workspace_id,
+            MonitoredSiteUrl.active.is_(True),
+        )
     )
     used_by_crawl = await session.scalar(
         select(func.count(func.distinct(SiteCrawlTask.url_hash))).where(
@@ -560,11 +573,17 @@ async def _automatic_remaining(session: AsyncSession, crawl: SiteCrawl) -> int |
             SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
         )
     )
-    return max(0, requested - int(used_by_crawl or 0))
+    return max(
+        0,
+        min(
+            requested - int(used_by_crawl or 0),
+            entitlement_limit - int(active_memberships or 0),
+        ),
+    )
 
 
 async def add_automatic_root(session: AsyncSession, crawl: SiteCrawl) -> None:
-    """Persist and queue analysis for the onboarding crawl root."""
+    """Persist and queue analysis for a user-initiated automatic crawl root."""
     remaining = await _automatic_remaining(session, crawl)
     if remaining is None or remaining <= 0:
         return
@@ -717,7 +736,11 @@ async def _record_admission(
             phase_run_id=phase_run_id,
         )
         return
-    if progress.remaining is not None and progress.remaining > 0:
+    if (
+        candidate.analyzable
+        and progress.remaining is not None
+        and progress.remaining > 0
+    ):
         newly_activated, _newly_observed = await _add_free_sample(
             session,
             crawl=crawl,

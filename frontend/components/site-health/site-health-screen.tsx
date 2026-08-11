@@ -8,8 +8,6 @@ import { ScreenHeader, ScreenSkeleton } from '@/components/site-health/screen-st
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
 import { useProjectContext } from '@/lib/project/project-context';
 import { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
-import { CrawlIntakeDialog } from '@/components/site-health/crawl-intake-dialog';
-import { useState } from 'react';
 
 /**
  * Site Health screen container (Slice 7).
@@ -25,7 +23,6 @@ import { useState } from 'react';
 export function SiteHealthScreen() {
   const { activeProject, isLoading: projectLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
-  const [intakeOpen, setIntakeOpen] = useState(false);
 
   const screen = useSiteHealthScreen(projectId);
   const {
@@ -33,6 +30,7 @@ export function SiteHealthScreen() {
     dashboardQuery,
     phase,
     crawl,
+    active,
     stalled,
     startPending,
     createMutation,
@@ -93,15 +91,9 @@ export function SiteHealthScreen() {
     return <ScreenSkeleton label={label} />;
   }
 
-  // Two header controls, on simple rules rather than a phase switch:
-  //
-  //  - Export, whenever a crawl exists. It was gated on `phase === 'dashboard'`,
-  //    so a cancelled or still-running crawl offered no way to take the rows
-  //    already collected — exactly when a user most wants them.
-  //  - Start discovery, only when there is no crawl to act on. Once one exists,
-  //    every crawl action (continue discovery, analyze, re-crawl) lives
-  //    together in the phase-controls card rather than being split between
-  //    there and the page header.
+  // A crawl has one contextual action. Before the first run it lives in the
+  // empty-state card; afterwards the header changes from Stop to Run new crawl
+  // solely from the persisted crawl status. Export remains secondary.
   const headerActions = crawl ? (
     <div className="flex items-center gap-2">
       <Button
@@ -112,12 +104,22 @@ export function SiteHealthScreen() {
       >
         {exporting ? 'Exporting…' : 'Export'}
       </Button>
+      {active ? (
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={cancelCrawl}
+          disabled={cancelMutation.isPending}
+        >
+          {cancelMutation.isPending ? 'Stopping…' : 'Stop crawl'}
+        </Button>
+      ) : (
+        <Button size="sm" onClick={() => startCrawl()} disabled={startPending}>
+          {startPending ? 'Starting…' : 'Run new crawl'}
+        </Button>
+      )}
     </div>
-  ) : (
-    <Button size="sm" onClick={() => setIntakeOpen(true)} disabled={startPending}>
-      {startPending ? 'Starting…' : 'Start discovery'}
-    </Button>
-  );
+  ) : undefined;
 
   return (
     <div className="grid min-w-0 gap-6">
@@ -134,7 +136,7 @@ export function SiteHealthScreen() {
       ) : null}
       {cancelMutation.isError ? (
         <MutationNotice
-          notice={mutationNoticeForError(cancelMutation.error, { action: 'cancel the crawl' })}
+          notice={mutationNoticeForError(cancelMutation.error, { action: 'stop the crawl' })}
           onRetry={cancelCrawl}
         />
       ) : null}
@@ -148,14 +150,6 @@ export function SiteHealthScreen() {
           collected so far are shown below — refresh to check again, or start a new crawl.
         </Alert>
       ) : null}
-      <CrawlIntakeDialog
-        projectId={projectId}
-        open={intakeOpen}
-        advancedControlsEnabled={Boolean(entitlementQuery.data?.advanced_controls_enabled)}
-        onClose={() => setIntakeOpen(false)}
-        onStart={startCrawl}
-      />
-
       {/* ONE screen. The Site Intelligence workspace used to wrap this whole
           dashboard as its "Pages" tab — the old screen nested inside the new
           one, two live information architectures over the same crawl. The
@@ -165,7 +159,6 @@ export function SiteHealthScreen() {
         screen={screen}
         entitlement={entitlementQuery.data!}
         projectId={projectId}
-        onRecrawl={() => setIntakeOpen(true)}
       />
     </div>
   );

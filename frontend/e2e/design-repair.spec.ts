@@ -263,9 +263,7 @@ function siteCrawl(analysisStatus: 'running' | 'stopped') {
   };
 }
 
-test('Site Health keeps crawl controls and URLs above diagnostics while analysis stops', async ({
-  page,
-}) => {
+test('Site Health keeps its single crawl action and URLs above diagnostics', async ({ page }) => {
   let analysisStatus: 'running' | 'stopped' = 'running';
   const dashboard = () => ({
     project_id: PROJECT_ID,
@@ -346,50 +344,36 @@ test('Site Health keeps crawl controls and URLs above diagnostics while analysis
   await page.route(`**/api/v1/projects/${PROJECT_ID}/site-health`, (route) =>
     route.fulfill({ json: dashboard() }),
   );
-  await page.route(`**/api/v1/site-crawls/${CRAWL_ID}/analysis/stop`, async (route) => {
+  await page.route(`**/api/v1/site-crawls/${CRAWL_ID}/cancel`, async (route) => {
     await new Promise<void>((resolve) => {
       setTimeout(resolve, 300);
     });
     analysisStatus = 'stopped';
-    await route.fulfill({
-      json: {
-        crawl: siteCrawl('stopped'),
-        phase_run: null,
-        created_new_crawl: false,
-        selection_version: 1,
-        scheduled_count: 0,
-      },
-    });
+    await route.fulfill({ json: siteCrawl('stopped') });
   });
 
   await page.goto('/site-health');
-  const controls = page.getByTestId('site-health-phase-controls');
-  await expect(controls).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Re-crawl site' })).toBeVisible();
+  const stopCrawl = page.getByRole('button', { name: 'Stop crawl' });
+  await expect(stopCrawl).toBeVisible();
+  await expect(page.getByText('Start discovery')).toHaveCount(0);
+  await expect(page.getByText('Start analysis')).toHaveCount(0);
   const urlWorkspace = page.getByRole('button', { name: 'Monitored' });
   await expect(urlWorkspace).toBeVisible();
   await expect(page.getByText('Crawler details')).toBeVisible();
 
-  const controlsTop = await controls.evaluate((element) => element.getBoundingClientRect().top);
   const inventoryTop = await urlWorkspace.evaluate(
     (element) => element.getBoundingClientRect().top,
   );
   const crawlerTop = await page
     .getByText('AI crawler access')
     .evaluate((element) => element.getBoundingClientRect().top);
-  expect(controlsTop).toBeLessThan(inventoryTop);
   expect(inventoryTop).toBeLessThan(crawlerTop);
 
-  await page.getByRole('button', { name: 'Stop analysis' }).click();
+  await stopCrawl.click();
   await expect(page.getByRole('button', { name: 'Stopping…' })).toBeVisible();
-  await expect(controls).toBeVisible();
-  await expect(controls.getByRole('button', { name: 'Start analysis' })).toBeVisible();
-  await expect(controls).toBeVisible();
   await expect(
     page.getByTestId('inventory-section').getByText('https://acme.example/', { exact: true }),
   ).toBeVisible();
-  const recrawl = page.getByRole('button', { name: 'Re-crawl site' });
-  await expect(recrawl).toBeEnabled();
-  await recrawl.click();
-  await expect(page.getByRole('dialog', { name: 'Choose pages to crawl' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Run new crawl' })).toBeEnabled();
+  await expect(page.getByRole('dialog', { name: 'Choose pages to crawl' })).toHaveCount(0);
 });

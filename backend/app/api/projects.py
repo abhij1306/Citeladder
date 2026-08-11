@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import re
 import uuid
 from collections.abc import Awaitable, Callable
@@ -51,7 +50,6 @@ from app.domain.command_center.report import render_executive_pdf
 from app.domain.command_center.schemas import CommandCenterResponse
 from app.domain.command_center.service import get_command_center
 from app.domain.entitlements.enforcement import OccupancyError
-from app.domain.projects.activation import start_initial_site_review
 from app.domain.projects.brand_profile import (
     BrandProfileNotFoundError,
     brand_profile_to_response,
@@ -86,12 +84,8 @@ from app.domain.projects.service import (
     project_to_response,
     update_project,
 )
-from app.domain.site_health.planner import CrawlPlanError
 
 router = APIRouter(prefix="/projects", tags=["projects"])
-
-logger = logging.getLogger(__name__)
-
 
 async def _map_occupancy[T](call: Callable[[], Awaitable[T]]) -> T:
     """Run one occupancy-gated mutation, mapping a denial to the coded 403.
@@ -141,48 +135,13 @@ async def list_projects_endpoint(
 async def create_project_endpoint(
     payload: ProjectCreate, ctx: _WorkspaceDep, session: _SessionDep
 ) -> ProjectResponse:
-    # Keep scalar identities before an optional crawl rollback expires ORM rows
-    # held by the request context.
-    workspace_id = ctx.workspace_id
     project = await _map_occupancy(
-        lambda: create_project(session, workspace_id=workspace_id, payload=payload)
-    )
-    project_id = project.id
-
-    # A Free Site Health crawl is part of the first-run experience. The project
-    # was committed by `create_project` before this independent queue operation,
-    # so a bad root, entitlement problem, or transient queue failure cannot undo
-    # the user's newly-created project. The Dashboard exposes a queued crawl as
-    # running and a worker-finalized one as ready/failed.
-    async def reload_project_after_crawl_failure(
-        skipped_crawl_error: BaseException | None = None,
-    ) -> None:
-        nonlocal project
-        await session.rollback()
-        if skipped_crawl_error is not None:
-            logger.info(
-                "onboarding_site_health_queue_skipped",
-                exc_info=skipped_crawl_error,
-            )
-        else:
-            logger.exception(
-                "onboarding_site_health_queue_failed",
-                extra={"project_id": str(project_id)},
-            )
-        project = await get_project(
-            session, workspace_id=workspace_id, project_id=project_id
-        )
-
-    try:
-        await start_initial_site_review(
+        lambda: create_project(
             session,
-            workspace_id=workspace_id,
-            project_id=project_id,
+            workspace_id=ctx.workspace_id,
+            payload=payload,
         )
-    except CrawlPlanError as exc:
-        await reload_project_after_crawl_failure(exc)
-    except Exception:
-        await reload_project_after_crawl_failure()
+    )
     return project_to_response(project)
 
 

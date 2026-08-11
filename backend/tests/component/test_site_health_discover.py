@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import httpx
@@ -46,7 +47,7 @@ from app.core.config.task_queue import (
 )
 from app.domain.site_health.discovery import _store_frontier_candidates
 from app.domain.site_health.normalization import canonical_identity
-from app.domain.site_health.schemas import FrontierCandidate
+from app.domain.site_health.schemas import AdmissionResult, FrontierCandidate
 from app.domain.site_health.service import presentation_status_for
 from app.models.site_health import (
     MonitoredSiteUrl,
@@ -79,6 +80,92 @@ from tests.component.site_health_worker_helpers import (
     _seed_runtime,
     _worker,
 )
+
+
+@pytest.mark.asyncio
+async def test_worker_reuses_and_closes_secure_http_client(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(site_health_settings, "browser_enabled", False)
+    worker = SiteHealthWorker(
+        session_factory=session_factory,
+        resolver=_FakeResolver(),
+        transport=httpx.MockTransport(lambda _request: httpx.Response(204)),
+    )
+
+    first = worker._new_fetcher()
+    async with first:
+        shared_client = first._client
+    second = worker._new_fetcher()
+
+    assert second._client is shared_client
+    assert not shared_client.is_closed
+    await second.aclose()
+    assert not shared_client.is_closed
+
+    await worker.aclose()
+    assert shared_client.is_closed
+
+
+@pytest.mark.asyncio
+async def test_sitemap_observations_use_bounded_bulk_statements(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    batch_size = 3
+    monkeypatch.setattr(site_health_settings, "admission_batch_size", batch_size)
+    worker = SiteHealthWorker(session_factory=session_factory)
+    candidates: list[FrontierCandidate] = []
+    site_url_ids: dict[str, str] = {}
+    for ordinal in range(batch_size * 2 + 1):
+        url = f"https://example.com/from-sitemap-{ordinal}"
+        canonical, url_hash = canonical_identity(url)
+        candidates.append(
+            FrontierCandidate(
+                url=canonical,
+                url_hash=url_hash,
+                depth=1,
+                source_kind=OBSERVATION_SOURCE_SITEMAP,
+                parent_position=0,
+                link_ordinal=ordinal,
+            )
+        )
+        site_url_ids[url_hash] = str(uuid.uuid4())
+
+    class RecordingSession:
+        def __init__(self) -> None:
+            self.statements = []
+
+        async def execute(self, statement):
+            self.statements.append(statement)
+
+    session = RecordingSession()
+    crawl = SimpleNamespace(
+        id=uuid.uuid4(), workspace_id=uuid.uuid4(), project_id=uuid.uuid4()
+    )
+    await worker._write_sitemap_observations(
+        session,
+        crawl=crawl,
+        candidates=candidates,
+        admission=AdmissionResult(
+            admitted=len(candidates),
+            sample_capped=False,
+            site_url_ids=site_url_ids,
+        ),
+        phase_run_id=None,
+    )
+
+    assert len(session.statements) == 3
+    persisted_urls = []
+    for statement in session.statements:
+        params = statement.compile().params
+        persisted_urls.extend(
+            value
+            for key, value in params.items()
+            if key.startswith("final_url_m")
+        )
+    assert persisted_urls == [candidate.url for candidate in candidates]
 
 
 @pytest.mark.asyncio

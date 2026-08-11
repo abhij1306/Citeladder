@@ -26,7 +26,7 @@ import {
 } from '@/lib/site-health/filters';
 import {
   allStaged,
-  commitCtaLabel,
+  selectionCtaLabel,
   setManyStaged,
   toggleStaged,
 } from '@/lib/site-health/selection';
@@ -43,26 +43,20 @@ import { PAGE_LIMIT } from '@/lib/site-health/status';
  * owns only the inventory pagination/filters and layout.
  *
  * Also serves a CANCELLED crawl (`crawlInactive`): the discovered inventory
- * survives a cancel, so the user can still browse it and stage/commit a
- * monitored set. Running that set is not this panel's job — analysis tasks
- * only enqueue into an active crawl, and starting one is "Re-crawl site" in
- * the phase controls.
+ * survives a stop, so the user can still browse it and save a monitored set
+ * before running a new crawl.
  */
 export function InventorySelection({
   crawl,
   entitlement,
   projectId,
   crawlInactive = false,
-  onCancel,
-  cancelPending = false,
 }: Readonly<{
   crawl: SiteCrawl;
   entitlement: SiteHealthEntitlement;
   projectId: string;
   /** True when the crawl is terminal (cancelled) — analysis needs a new crawl. */
   crawlInactive?: boolean;
-  onCancel?: () => void;
-  cancelPending?: boolean;
 }>) {
   const [filters, setFilters] = useState<InventoryFilters>(emptyInventoryFilters);
   const pager = useCursorStack();
@@ -139,25 +133,14 @@ export function InventorySelection({
             </span>
           </div>
           {quota ? (
-            <div className="flex items-center gap-3">
-              <span
-                className={cn(
-                  'mono text-sm font-medium',
-                  quota.overLimit ? 'text-danger-text' : 'text-secondary',
-                )}
-              >
-                {quota.staged} of {quota.limit} selected
-              </span>
-              {!crawlInactive && onCancel ? (
-                <Button variant="destructive" size="sm" onClick={onCancel} disabled={cancelPending}>
-                  {cancelPending ? 'Cancelling…' : 'Cancel'}
-                </Button>
-              ) : null}
-            </div>
-          ) : !crawlInactive && onCancel ? (
-            <Button variant="destructive" size="sm" onClick={onCancel} disabled={cancelPending}>
-              {cancelPending ? 'Cancelling…' : 'Cancel'}
-            </Button>
+            <span
+              className={cn(
+                'mono text-sm font-medium',
+                quota.overLimit ? 'text-danger-text' : 'text-secondary',
+              )}
+            >
+              {quota.staged} of {quota.limit} selected
+            </span>
           ) : null}
         </div>
 
@@ -272,15 +255,9 @@ export function InventorySelection({
                 : effectiveSelection
                   ? crawlInactive
                     ? `Save selection (${effectiveSelection.staged.size} of ${entitlement.monitored_url_limit})`
-                    : commitCtaLabel(effectiveSelection, entitlement.monitored_url_limit)
-                  : 'Analyze pages'}
+                    : selectionCtaLabel(effectiveSelection, entitlement.monitored_url_limit)
+                  : 'Save selection'}
             </Button>
-            {/* No second "Start analysis" here. A cancelled crawl cannot
-                enqueue analyze tasks, so analysis means a fresh crawl seeded
-                with the committed set — which is exactly what "Re-crawl site"
-                in the phase controls does. Two identically-labelled buttons
-                that both created a crawl was the ambiguity; this panel's job
-                ends at saving the selection. */}
           </div>
         </div>
       </CardContent>

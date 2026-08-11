@@ -867,7 +867,7 @@ async def test_sample_recrawl_allowance_only_decrements_on_new_activation(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("sample_mode", [False, True])
-async def test_onboarding_auto_analysis_stops_at_ten_across_batches(
+async def test_automatic_analysis_stops_at_frozen_limit_across_batches(
     session_factory: async_sessionmaker[AsyncSession],
     sample_mode: bool,
 ) -> None:
@@ -878,7 +878,14 @@ async def test_onboarding_auto_analysis_stops_at_ten_across_batches(
         seed = await seed_site_crawl(
             session, task_count=1, root_url="https://example.com/"
         )
-        await _seed_runtime(session, seed.workspace_id, monitored_urls=50)
+        # Keep the runtime projection consistent with the crawl mode. A sample
+        # crawl belongs to the zero-allowance policy; a positive allowance
+        # produces a full crawl in production.
+        await _seed_runtime(
+            session,
+            seed.workspace_id,
+            monitored_urls=0 if sample_mode else 50,
+        )
         await session.commit()
         await _configure_crawl(
             session,

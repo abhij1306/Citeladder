@@ -191,10 +191,9 @@ async def _load_project(
 
 
 async def _has_active_crawl(session: AsyncSession, *, project_id: uuid.UUID) -> bool:
-    # A paused advanced-control crawl has no live tasks and the frontend
-    # deliberately offers "Re-crawl site" for it. Treating that parked record
-    # as a conflicting live crawl made the button deterministically return
-    # 409. Running/queued work still remains single-crawl-per-project.
+    # A paused advanced-control crawl has no live tasks, so the product may
+    # start a fresh crawl from that parked record. Running/queued work still
+    # remains single-crawl-per-project.
     conflicting_statuses = CRAWL_ACTIVE_STATUSES - {CRAWL_STATUS_PAUSED}
     existing = await session.scalar(
         select(func.count())
@@ -317,8 +316,15 @@ def _frozen_configuration(
         "rule_catalog_version": RULE_CATALOG_VERSION,
         "scoring_version": SCORING_VERSION,
     }
-    if input_mode == INPUT_MODE_AUTO and not advanced_controls_enabled:
-        configuration[AUTOMATIC_MONITOR_LIMIT_KEY] = requested_page_limit
+    if input_mode == INPUT_MODE_AUTO:
+        entitlement_limit = (
+            int(runtime.sample_url_limit)
+            if _is_sample_mode(runtime)
+            else int(runtime.monitored_url_limit)
+        )
+        configuration[AUTOMATIC_MONITOR_LIMIT_KEY] = min(
+            int(requested_page_limit or 0), entitlement_limit
+        )
     return configuration
 
 
@@ -334,12 +340,9 @@ def _controls_for_request(
     raw_seeds = list(seed_urls or [])
     selected_types = list(page_kinds or [])
     _validate_control_values(mode, raw_seeds, selected_types)
-    if (
-        _advanced_controls_requested(
-            mode, requested_page_limit, raw_seeds, selected_types
-        )
-        and not site_health_settings.advanced_controls_enabled
-    ):
+    if _advanced_controls_requested(
+        mode, raw_seeds, selected_types
+    ) and not site_health_settings.advanced_controls_enabled:
         raise CrawlPlanError(
             "advanced crawl controls are unavailable",
             code=CODE_ADVANCED_CONTROLS_UNAVAILABLE,
@@ -365,26 +368,24 @@ def _validate_control_values(
 
 def _advanced_controls_requested(
     mode: str,
-    requested_page_limit: int | None,
     raw_seeds: list[str],
     selected_types: list[str],
 ) -> bool:
-    return (
-        mode != INPUT_MODE_AUTO
-        or requested_page_limit is not None
-        or bool(raw_seeds)
-        or bool(selected_types)
-    )
+    return mode != INPUT_MODE_AUTO or bool(raw_seeds) or bool(selected_types)
 
 
 def _resolved_page_limit(requested_page_limit: int | None) -> int:
     limit = (
         requested_page_limit
-        if site_health_settings.advanced_controls_enabled
-        and requested_page_limit is not None
+        if requested_page_limit is not None
         else site_health_settings.automatic_page_limit
     )
-    if limit <= 0 or limit > site_health_settings.max_discovery_urls:
+    maximum = (
+        site_health_settings.max_discovery_urls
+        if site_health_settings.advanced_controls_enabled
+        else site_health_settings.max_requested_page_limit
+    )
+    if limit <= 0 or limit > maximum:
         raise CrawlPlanError(
             "requested_page_limit is outside the allowed range",
             code=CODE_DISCOVERY_LIMIT_EXCEEDED,
@@ -728,7 +729,7 @@ async def create_crawl(
     # URLs get fresh analyze tasks so their facts/scores refresh. On a first
     # crawl there is no monitored set yet, so this is a no-op.
     await seed_monitored_targets(session, crawl=crawl)
-    if mode == INPUT_MODE_AUTO and not site_health_settings.advanced_controls_enabled:
+    if mode == INPUT_MODE_AUTO:
         await add_automatic_root(session, crawl)
 
     # Drive the lifecycle through the guarded state machine (invariant 9).

@@ -157,9 +157,15 @@ desktop).
 - Recommendations show impact, deterministic priority factors, affected scope,
   status, and links to persisted evidence. Do not invent confidence, effort,
   ownership, or causality.
-- Site Health puts crawl controls and the URL inventory before crawler-bot,
-  file, and page-kind diagnostics. Primary phase and re-crawl actions stay
-  visible; secondary diagnostics collapse without hiding those actions.
+- Site Health puts its crawl control and URL inventory before crawler-bot,
+  file, and page-kind diagnostics. The one contextual crawl action stays
+  visible while secondary diagnostics collapse.
+- That contextual action is **Run new crawl** before or after a run and **Stop
+  crawl** while the persisted crawl is active. **Export** is secondary;
+  discovery and analysis are not separate user actions. Before a first run, use
+  the actionable empty placeholder. During discovery, keep the first ten
+  persisted inventory rows visible and enrich them in place as analysis
+  arrives. Remediation subtitles use persisted remediation text.
 - Mobile retains every critical action. Tables become labelled records; filters
   and evidence use full-height sheets.
 

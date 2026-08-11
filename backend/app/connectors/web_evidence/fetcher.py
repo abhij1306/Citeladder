@@ -308,6 +308,7 @@ class SecureFetcher:
         *,
         resolver: DnsResolver,
         transport: httpx.AsyncBaseTransport | None = None,
+        client: httpx.AsyncClient | None = None,
         settings=site_health_settings,
         browser_transport: AcquisitionTransport | None = None,
         curl_transport: AcquisitionTransport | None = None,
@@ -350,14 +351,35 @@ class SecureFetcher:
             self._owns_browser_transport = True
         # In production we pin the IP ourselves, so the transport must never
         # re-resolve or read the host environment (invariant: trust_env=False).
-        self._client = httpx.AsyncClient(
+        self._owns_client = client is None
+        self._client = client or self.build_client(
+            transport=transport,
+            settings=settings,
+            user_agent=user_agent,
+        )
+        self._pin_ip = transport is None
+
+    @staticmethod
+    def build_client(
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+        settings=site_health_settings,
+        user_agent: str = SITE_HEALTH_USER_AGENT,
+    ) -> httpx.AsyncClient:
+        """Build the secure HTTP session used by one fetcher or worker.
+
+        Keeping construction here prevents a pooled worker client from
+        drifting from the connector's security boundary. Redirects remain
+        manual, environment proxies stay disabled, and production requests
+        still carry the per-request pinned-IP/SNI extensions.
+        """
+        return httpx.AsyncClient(
             transport=transport,
             follow_redirects=False,
             trust_env=False,
             timeout=httpx.Timeout(settings.request_timeout_seconds),
             headers={"user-agent": user_agent},
         )
-        self._pin_ip = transport is None
 
     async def __aenter__(self) -> SecureFetcher:
         return self
@@ -371,11 +393,12 @@ class SecureFetcher:
         Each teardown runs in a ``finally`` so an earlier failure cannot strand
         a later one — the browser rung owns OS PROCESSES, not just sockets, and
         leaving one to garbage collection strands a headless browser per
-        fetcher. An INJECTED transport belongs to the caller (it is commonly
-        shared across fetchers) and is deliberately left running.
+        fetcher. An injected client belongs to the caller and is deliberately
+        left running so its connection pool can be reused by later tasks.
         """
         try:
-            await self._client.aclose()
+            if self._owns_client:
+                await self._client.aclose()
         finally:
             try:
                 if self._owns_curl_transport and self._curl_transport is not None:

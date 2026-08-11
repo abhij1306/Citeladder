@@ -127,8 +127,8 @@ def resolve_phase(
     # moment the crawl is created: the planner seeds the analyze tasks at
     # creation and a selection commit enqueues into the active crawl, so
     # `analysis_status` merely lags at 'pending' until the worker's first
-    # reconcile. Resolving that to 'discovering'/'selection' is what bounced the
-    # screen back to the URL list right after "Start analysis" / "Re-crawl".
+    # reconcile. Resolving it as discovery/selection would bounce the screen
+    # back to the URL list immediately after a new crawl starts.
     if _is_active_analysis(crawl, has_monitored_selection):
         return "analyzing"
 

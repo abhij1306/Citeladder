@@ -916,23 +916,30 @@ class DiscoverPhaseMixin(PhaseSupport):
         site_url_id)`` — a richer discover-path observation wins if it ran
         first.
         """
+        rows: list[dict] = []
         for candidate in candidates:
             site_url_id = admission.site_url_ids.get(candidate.url_hash)
             if site_url_id is None:
                 continue
+            rows.append(
+                {
+                    "workspace_id": crawl.workspace_id,
+                    "project_id": crawl.project_id,
+                    "crawl_id": crawl.id,
+                    "site_url_id": site_url_id,
+                    "phase_run_id": phase_run_id,
+                    "source_kind": OBSERVATION_SOURCE_SITEMAP,
+                    "depth": candidate.depth,
+                    "observed_url": candidate.url,
+                    "final_url": candidate.url,
+                }
+            )
+
+        batch_size = max(int(site_health_settings.admission_batch_size), 1)
+        for offset in range(0, len(rows), batch_size):
             await session.execute(
                 pg_insert(SiteUrlObservation)
-                .values(
-                    workspace_id=crawl.workspace_id,
-                    project_id=crawl.project_id,
-                    crawl_id=crawl.id,
-                    site_url_id=site_url_id,
-                    phase_run_id=phase_run_id,
-                    source_kind=OBSERVATION_SOURCE_SITEMAP,
-                    depth=candidate.depth,
-                    observed_url=candidate.url,
-                    final_url=candidate.url,
-                )
+                .values(rows[offset : offset + batch_size])
                 .on_conflict_do_nothing(index_elements=["crawl_id", "site_url_id"])
             )
 

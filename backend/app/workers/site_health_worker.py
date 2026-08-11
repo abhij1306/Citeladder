@@ -34,6 +34,7 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -206,6 +207,10 @@ class SiteHealthWorker(
         self._robots_locks: dict[str, asyncio.Lock] = {}
         # One browser process per WORKER, not per task (see ``_new_fetcher``).
         self._browser_transport: PatchrightTransport | None = None
+        # One secure httpx session per worker. Reusing it restores HTTP
+        # keep-alive and TLS pooling without changing the per-request DNS,
+        # pinned-IP, manual-redirect, robots, or host-gate boundaries.
+        self._http_client: httpx.AsyncClient | None = None
 
     def _new_fetcher(self) -> SecureFetcher:
         """Build a fetcher with the worker's injected transport seams.
@@ -213,9 +218,10 @@ class SiteHealthWorker(
         The resolver and httpx transport are injected together so offline
         tests never touch the network.
 
-        The browser rung is created ONCE per worker and injected, never left to
-        the fetcher. ``_new_fetcher`` runs per task, and a fetcher-owned
-        transport would launch and tear down a Chromium PROCESS for every page —
+        The browser rung and secure httpx client are created ONCE per worker
+        and injected, never left to the fetcher. ``_new_fetcher`` runs per
+        task, and a fetcher-owned transport would launch and tear down a
+        Chromium PROCESS for every page —
         seconds of startup per URL, and a leaked process for any fetcher whose
         close path did not run. Injected transports are not closed by the
         fetcher (see ``SecureFetcher.aclose``), so ``aclose`` below owns it.
@@ -223,8 +229,15 @@ class SiteHealthWorker(
         return SecureFetcher(
             resolver=self._resolver,
             transport=self._transport,
+            client=self._shared_http_client(),
             browser_transport=self._shared_browser_transport(),
         )
+
+    def _shared_http_client(self) -> httpx.AsyncClient:
+        """Return the worker's live secure connection pool."""
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = SecureFetcher.build_client(transport=self._transport)
+        return self._http_client
 
     def _shared_browser_transport(self) -> PatchrightTransport | None:
         """The worker's one browser transport, created on first use."""
@@ -234,12 +247,12 @@ class SiteHealthWorker(
             self._browser_transport = PatchrightTransport(settings=site_health_settings)
         return self._browser_transport
 
-    async def _close_transport(self, transport: PatchrightTransport) -> None:
-        """Close ``transport``, absorbing whatever a dying browser raises."""
+    async def _close_resource(self, resource, *, name: str) -> None:
+        """Close a shared worker resource without masking worker shutdown."""
         try:
-            await transport.aclose()
+            await resource.aclose()
         except Exception:  # noqa: BLE001
-            logger.warning("browser transport teardown failed", exc_info=True)
+            logger.warning("%s teardown failed", name, exc_info=True)
 
     async def aclose(self) -> None:
         """Release the worker's shared OS-level resources.
@@ -250,17 +263,32 @@ class SiteHealthWorker(
         raise here would replace the reason the worker is shutting down with a
         footnote about cleanup, and the transport is dropped either way.
         """
-        transport, self._browser_transport = self._browser_transport, None
-        if transport is None:
+        resources = [
+            (self._http_client, "http client"),
+            (self._browser_transport, "browser transport"),
+        ]
+        self._http_client = None
+        self._browser_transport = None
+        resources = [
+            (resource, name)
+            for resource, name in resources
+            if resource is not None
+        ]
+        if not resources:
             return
         # ``CancelledError`` derives from ``BaseException``, so the guard in
-        # ``_close_transport`` cannot see it: a cancel landing while the close
+        # ``_close_resource`` cannot see it: a cancel landing while the close
         # is in flight would abandon a live Chromium process for the
         # container's lifetime — exactly what ``run_forever``'s ``finally``
         # exists to prevent. Shield the close from that cancel, then wait it
         # out so the process is actually gone before the cancellation resumes
         # unwinding; the cancellation itself is re-raised, never swallowed.
-        closing = asyncio.create_task(self._close_transport(transport))
+        closing = asyncio.gather(
+            *(
+                self._close_resource(resource, name=name)
+                for resource, name in resources
+            )
+        )
         try:
             await asyncio.shield(closing)
         except asyncio.CancelledError:

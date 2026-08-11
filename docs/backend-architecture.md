@@ -55,6 +55,22 @@ page-understanding row. It stores scores, analyzer/scoring versions,
 `page_kind`, classifier version/evidence, and source IDs. It is append-only per
 artifact/analyzer version with one current row.
 
+A Site Health crawl is created only by the explicit user **Run new crawl**
+action. Discovery and analysis remain durable internal phases: admitted pages
+are progressively and automatically enqueued for analysis while discovery is
+running, subject to the entitlement/runtime allowance frozen on that crawl.
+The product control surface has no separate discovery or analysis start action.
+
+The standard production crawl freezes a 500-page requested limit. Advanced
+input and the 50,000 discovery/analysis ceilings are development-only config;
+they are not a production UI contract or a throughput claim. The Site Health
+worker owns one secure reusable HTTP client for its lifetime, while each request
+continues to enforce the connector's DNS, pinned-IP, redirect, robots, scope,
+and host-gate controls. Sitemap observation inserts are bounded batched writes.
+The default host-gate concurrency and start spacing permit at least six request
+starts per second on a responsive host, while robots crawl-delay overrides
+upward and observed throughput remains workload-dependent.
+
 The analysis sequence is fixed:
 
 ```text

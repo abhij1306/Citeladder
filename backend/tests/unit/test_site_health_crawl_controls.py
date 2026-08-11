@@ -39,9 +39,63 @@ def test_production_controls_keep_the_automatic_page_limit(monkeypatch):
         page_kinds=None,
     )
     assert mode == "auto"
-    assert limit == 10
+    assert limit == 500
     assert seeds == []
     assert page_kinds == []
+
+
+def test_production_page_limit_accepts_500_and_rejects_501(monkeypatch):
+    monkeypatch.setattr(
+        "app.domain.site_health.planner.site_health_settings.advanced_controls_enabled",
+        False,
+    )
+
+    assert _controls_for_request(
+        input_mode=None,
+        requested_page_limit=500,
+        seed_urls=None,
+        page_kinds=None,
+    )[1] == 500
+    with pytest.raises(CrawlPlanError, match="outside the allowed range"):
+        _controls_for_request(
+            input_mode=None,
+            requested_page_limit=501,
+            seed_urls=None,
+            page_kinds=None,
+        )
+    with pytest.raises(CrawlPlanError, match="outside the allowed range"):
+        _controls_for_request(
+            input_mode=None,
+            requested_page_limit=0,
+            seed_urls=None,
+            page_kinds=None,
+        )
+
+
+def test_development_page_limit_retains_internal_ceiling(monkeypatch):
+    monkeypatch.setattr(
+        "app.domain.site_health.planner.site_health_settings.advanced_controls_enabled",
+        True,
+    )
+
+    assert _controls_for_request(
+        input_mode=None,
+        requested_page_limit=50_000,
+        seed_urls=None,
+        page_kinds=None,
+    )[1] == 50_000
+    with pytest.raises(CrawlPlanError, match="outside the allowed range"):
+        _controls_for_request(
+            input_mode=None,
+            requested_page_limit=50_001,
+            seed_urls=None,
+            page_kinds=None,
+        )
+
+
+def test_default_host_policy_allows_six_starts_per_second():
+    assert site_health_settings.per_host_concurrency >= 6
+    assert site_health_settings.per_host_delay_seconds <= 1 / 6
 
 
 def test_phase_request_counts_must_be_positive_and_bounded():

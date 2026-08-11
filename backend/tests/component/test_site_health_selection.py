@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_health import (
     AUTOMATIC_MONITOR_LIMIT_KEY,
+    CORPUS_DISPOSITION_INVENTORY_ONLY,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_PAUSED,
@@ -39,6 +40,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_QUEUED,
     TASK_STATUS_RUNNING,
 )
+from app.domain.site_health.discovery import admit_candidates
 from app.domain.site_health.entitlements import (
     resolve_runtime,
     runtime_allows_monitored_analysis,
@@ -47,6 +49,7 @@ from app.domain.site_health.planner import (
     CrawlAlreadyActiveError,
     create_crawl,
 )
+from app.domain.site_health.schemas import FrontierCandidate
 from app.domain.site_health.selection import (
     MonitoringNotAllowedError,
     QuotaExceededError,
@@ -776,9 +779,8 @@ async def test_create_recrawl_does_not_conflict_with_parked_paused_crawl(
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The automatic budget + automatic root seed only apply on the non-advanced
-    # path, so pin the flag rather than inheriting whatever the default is —
-    # this used to pass only because `advanced_controls_enabled` defaulted off.
+    # The standard crawl freezes the public 500-page discovery bound while its
+    # automatic analysis allowance remains entitlement-safe.
     monkeypatch.setattr(site_health_settings, "advanced_controls_enabled", False)
     async with session_factory() as session:
         seed = await _seed_workspace(session, projects=[{"name": "a", "url_count": 1}])
@@ -805,10 +807,8 @@ async def test_create_recrawl_does_not_conflict_with_parked_paused_crawl(
     assert recrawl.id != paused_id
     assert recrawl.status in CRAWL_ACTIVE_STATUSES
     assert recrawl.configuration is not None
-    assert (
-        recrawl.configuration[AUTOMATIC_MONITOR_LIMIT_KEY]
-        == site_health_settings.automatic_page_limit
-    )
+    assert recrawl.discovery_requested_count == 500
+    assert recrawl.configuration[AUTOMATIC_MONITOR_LIMIT_KEY] == 50
     async with session_factory() as session:
         root_analysis = await session.scalar(
             select(SiteCrawlTask).where(
@@ -818,6 +818,63 @@ async def test_create_recrawl_does_not_conflict_with_parked_paused_crawl(
             )
         )
     assert root_analysis is not None
+
+
+@pytest.mark.asyncio
+async def test_standard_crawl_progressively_enqueues_analyzable_pages(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        seed = await _seed_workspace(session, projects=[{"name": "a", "url_count": 0}])
+        project = seed.projects[0]
+
+    async with session_factory() as session:
+        crawl = await create_crawl(
+            session,
+            workspace_id=seed.workspace_id,
+            project_id=project.project_id,
+        )
+        crawl_id = crawl.id
+
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, crawl_id)
+        assert crawl is not None
+        await admit_candidates(
+            session,
+            crawl=crawl,
+            candidates=[
+                FrontierCandidate(
+                    url="https://example.com/page-a",
+                    url_hash=_url_hash("https://example.com/page-a"),
+                    depth=1,
+                    source_kind="link",
+                ),
+                FrontierCandidate(
+                    url="https://example.com/guide.pdf",
+                    url_hash=_url_hash("https://example.com/guide.pdf"),
+                    depth=1,
+                    source_kind="link",
+                    disposition=CORPUS_DISPOSITION_INVENTORY_ONLY,
+                ),
+            ],
+            enqueue_children=False,
+        )
+        await session.commit()
+
+    async with session_factory() as session:
+        analyzed_urls = set(
+            await session.scalars(
+                select(SiteCrawlTask.requested_url).where(
+                    SiteCrawlTask.crawl_id == crawl_id,
+                    SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+                )
+            )
+        )
+
+    assert analyzed_urls == {
+        "https://example.com/",
+        "https://example.com/page-a",
+    }
 
 
 @pytest.mark.asyncio

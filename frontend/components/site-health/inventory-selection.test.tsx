@@ -105,7 +105,7 @@ describe('InventorySelection', () => {
     const checkbox = await screen.findByLabelText('Monitor https://acme.com/a');
     await user.click(checkbox);
 
-    const commit = screen.getByRole('button', { name: /analyze 1 of 50 pages/i });
+    const commit = screen.getByRole('button', { name: /save selection \(1 of 50\)/i });
     await user.click(commit);
 
     await waitFor(() => expect(putBody).toHaveBeenCalledTimes(1));
@@ -145,13 +145,13 @@ describe('InventorySelection', () => {
     );
 
     await user.click(await screen.findByLabelText('Monitor https://acme.com/a'));
-    await user.click(screen.getByRole('button', { name: /analyze 1 of 50 pages/i }));
+    await user.click(screen.getByRole('button', { name: /save selection \(1 of 50\)/i }));
 
     // The stale notice appears and the user's edit is preserved for resubmit.
     expect(
       await screen.findByText(/merged your edits onto the latest version/i),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /analyze 1 of 50 pages/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /save selection \(1 of 50\)/i })).toBeEnabled();
   });
 
   it('wires the page-kind filter as a server param, set and cleared', async () => {

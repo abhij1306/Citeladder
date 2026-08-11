@@ -9,7 +9,7 @@ import {
   siteHealthQueries,
   type CreateCrawlInput,
 } from '@/lib/api/site-health';
-import type { PhaseMutationResponse, SiteCrawl, SiteHealthDashboard } from '@/lib/api/types';
+import type { SiteCrawl } from '@/lib/api/types';
 import {
   downloadCrawlExport,
   type ExportFormat,
@@ -130,91 +130,29 @@ export function useSiteHealthScreen(projectId: string | null) {
 
   const createMutation = useMutation({
     ...siteHealthMutations.createCrawl(),
-    onSuccess: (created) => {
+    onSuccess: async () => {
       if (!projectId) return;
-      // Hand the screen its NEW crawl in the same tick the create resolves.
-      // Without this the dashboard kept returning the PREVIOUS crawl until a
-      // refetch landed, so the phase re-resolved against a stale (often
-      // terminal) crawl and bounced the UI back to the selection list right
-      // after "Start analysis" — the bug the `crawlStarting` flag and a
-      // `createMutation.reset()` effect used to mask. Fixing the input retires
-      // both. Same-shape write as the cancel mutation below.
-      queryClient.setQueryData<SiteHealthDashboard>(
-        queryKeys.siteHealth.dashboard(projectId),
-        (prev) => (prev ? { ...prev, crawl: created } : prev),
-      );
-      queryClient.invalidateQueries({ queryKey: queryKeys.siteHealth.dashboard(projectId) });
+      // The create response is a crawl row, while this screen is driven by the
+      // backend's crawl + phase projection. Keep the mutation pending until
+      // that complete projection refetches; partially replacing only `crawl`
+      // would temporarily combine a new run with the previous run's phase.
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.siteHealth.dashboard(projectId),
+      });
     },
   });
   const cancelMutation = useMutation({
     ...siteHealthMutations.cancelCrawl(),
-    onSuccess: (updated) => {
-      if (projectId) {
-        queryClient.setQueryData(queryKeys.siteHealth.dashboard(projectId), {
-          ...dashboardQuery.data,
-          crawl: updated,
-        });
-        queryClient.invalidateQueries({ queryKey: queryKeys.siteHealth.dashboard(projectId) });
-      }
+    onSuccess: async () => {
+      if (!projectId) return;
+      // Cancellation also changes the server-owned phase. Refresh the whole
+      // projection atomically instead of pairing the terminal crawl row with
+      // an active phase in the client cache.
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.siteHealth.dashboard(projectId),
+      });
     },
   });
-  const applyPhaseResult = (result: PhaseMutationResponse) => {
-    if (!projectId) return;
-    queryClient.setQueryData<SiteHealthDashboard>(
-      queryKeys.siteHealth.dashboard(projectId),
-      (previous) =>
-        previous
-          ? {
-              ...previous,
-              crawl: result.crawl,
-              phase_runs: result.created_new_crawl
-                ? {
-                    discovery: null,
-                    analysis: result.phase_run?.phase === 'analysis' ? result.phase_run : null,
-                  }
-                : result.phase_run
-                  ? {
-                      ...previous.phase_runs,
-                      [result.phase_run.phase]: result.phase_run,
-                    }
-                  : previous.phase_runs,
-            }
-          : previous,
-    );
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.siteHealth.monitored(projectId),
-    });
-  };
-  const pauseDashboardRefresh = async () => {
-    if (!projectId) return;
-    // A poll started before the click can otherwise land after the mutation
-    // response and overwrite the new phase with stale data. Cancelling that
-    // request keeps the start/stop button stable until the next scheduled poll.
-    await queryClient.cancelQueries({
-      queryKey: queryKeys.siteHealth.dashboard(projectId),
-    });
-  };
-  const startDiscoveryMutation = useMutation({
-    ...siteHealthMutations.startDiscovery(),
-    onMutate: pauseDashboardRefresh,
-    onSuccess: applyPhaseResult,
-  });
-  const stopDiscoveryMutation = useMutation({
-    ...siteHealthMutations.stopDiscovery(),
-    onMutate: pauseDashboardRefresh,
-    onSuccess: applyPhaseResult,
-  });
-  const startAnalysisMutation = useMutation({
-    ...siteHealthMutations.startAnalysis(),
-    onMutate: pauseDashboardRefresh,
-    onSuccess: applyPhaseResult,
-  });
-  const stopAnalysisMutation = useMutation({
-    ...siteHealthMutations.stopAnalysis(),
-    onMutate: pauseDashboardRefresh,
-    onSuccess: applyPhaseResult,
-  });
-
   const startCrawl = (input?: CreateCrawlInput) =>
     projectId && createMutation.mutate(input ?? { project_id: projectId });
   const cancelCrawl = () => crawl && cancelMutation.mutate(crawl.id);
@@ -222,9 +160,9 @@ export function useSiteHealthScreen(projectId: string | null) {
   // A create is genuinely in flight: the button says "Starting…" and a second
   // click cannot fire a duplicate. Scoped to the create's own project so a
   // sticky mutation from another project (after a project switch) can never
-  // disable this screen's control. This is ONLY the request window — the
-  // post-success gap that `crawlStarting` also covered no longer exists, since
-  // `onSuccess` writes the new crawl straight into the dashboard cache.
+  // disable this screen's control. The mutation stays pending through the
+  // server-projection refetch, so there is no post-success duplicate-click
+  // gap and no separate client-only `crawlStarting` state.
   const startPending =
     createMutation.isPending && createMutation.variables?.project_id === projectId;
 
@@ -256,10 +194,6 @@ export function useSiteHealthScreen(projectId: string | null) {
     startPending,
     createMutation,
     cancelMutation,
-    startDiscoveryMutation,
-    stopDiscoveryMutation,
-    startAnalysisMutation,
-    stopAnalysisMutation,
     startCrawl,
     cancelCrawl,
     runExport,

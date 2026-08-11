@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CursorPager } from '@/components/ui/cursor-pager';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,8 +33,7 @@ import { PAGE_LIMIT, statusLabel, type InventoryMode } from '@/lib/site-health/s
  * ONE persistent region that renders the crawl's pages through the whole
  * lifecycle — the rows enrich in place instead of the screen swapping:
  *   - 'discovering': read-only rows streaming in as discovery finds them;
- *   - 'selectable':  Starter monitored-set staging (checkboxes + commit +
- *                    Start analysis) via `InventorySelection`;
+ *   - 'selectable':  monitored-set staging via `InventorySelection`;
  *   - 'scored':      the tabbed (monitored / all / errors) page browser used
  *                    BOTH while analysis runs and after it finishes — statuses
  *                    move queued → running → completed and scores fill in on
@@ -51,8 +49,6 @@ export function InventorySection({
   entitlement,
   projectId,
   active,
-  onCancel,
-  cancelPending,
 }: Readonly<{
   mode: InventoryMode;
   crawl: SiteCrawl | null;
@@ -60,9 +56,6 @@ export function InventorySection({
   projectId: string;
   /** True while the crawl is non-terminal (keeps inventory/pages polling). */
   active: boolean;
-  /** Cancels the active discovery/analysis crawl from the inventory controls. */
-  onCancel: () => void;
-  cancelPending: boolean;
 }>) {
   let content: ReactNode;
   if (mode === 'none' || !crawl) {
@@ -74,14 +67,7 @@ export function InventorySection({
       </Card>
     );
   } else if (mode === 'discovering') {
-    content = (
-      <DiscoveringInventory
-        crawl={crawl}
-        active={active}
-        onCancel={onCancel}
-        cancelPending={cancelPending}
-      />
-    );
+    content = <DiscoveringInventory crawl={crawl} />;
   } else if (mode === 'selectable') {
     content = (
       <InventorySelection
@@ -89,22 +75,12 @@ export function InventorySection({
         entitlement={entitlement}
         projectId={projectId}
         // A cancelled crawl keeps its discovered inventory but can no longer
-        // run analysis itself — selections persist, and the phase controls'
-        // "Re-crawl site" launches a fresh crawl that seeds them.
+        // run analysis itself — selections persist into the next crawl.
         crawlInactive={!active}
-        onCancel={onCancel}
-        cancelPending={cancelPending}
       />
     );
   } else {
-    content = (
-      <ScoredInventory
-        crawl={crawl}
-        active={active}
-        onCancel={onCancel}
-        cancelPending={cancelPending}
-      />
-    );
+    content = <ScoredInventory crawl={crawl} active={active} />;
   }
 
   return (
@@ -119,17 +95,7 @@ export function InventorySection({
  * crawl). The first page keeps polling so new URLs stream in; deeper pages
  * stay stable under keyset (normalized_url, id) ordering.
  */
-function DiscoveringInventory({
-  crawl,
-  active,
-  onCancel,
-  cancelPending,
-}: Readonly<{
-  crawl: SiteCrawl;
-  active: boolean;
-  onCancel: () => void;
-  cancelPending: boolean;
-}>) {
+function DiscoveringInventory({ crawl }: Readonly<{ crawl: SiteCrawl }>) {
   const pager = useCursorStack();
   // No timer here: the screen polls the crawl once and invalidates this query's
   // FIRST page when the crawl actually moved (`invalidateCrawlViews`). Deeper
@@ -186,14 +152,7 @@ function DiscoveringInventory({
   return (
     <Card>
       <CardContent className="grid gap-2">
-        <div className="flex items-center justify-between gap-3">
-          <Label>Pages discovered so far</Label>
-          {active ? (
-            <Button variant="destructive" size="sm" onClick={onCancel} disabled={cancelPending}>
-              {cancelPending ? 'Cancelling…' : 'Cancel'}
-            </Button>
-          ) : null}
-        </div>
+        <Label>Pages discovered so far</Label>
         {body}
         <div className="flex flex-wrap items-center justify-between gap-3">
           {crawl.status === 'running' || crawl.status === 'queued' ? (
@@ -239,13 +198,9 @@ const TABS: ReadonlyArray<{ key: TabKey; label: string; params: PagesParams }> =
 function ScoredInventory({
   crawl,
   active,
-  onCancel,
-  cancelPending,
 }: Readonly<{
   crawl: SiteCrawl;
   active: boolean;
-  onCancel: () => void;
-  cancelPending: boolean;
 }>) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<TabKey>('monitored');
@@ -281,14 +236,6 @@ function ScoredInventory({
       limit: PAGE_LIMIT,
     }),
   );
-  const refetchActivePages = pagesQuery.refetch;
-  const lastProgressRef = useRef(crawl.updated_at);
-  useEffect(() => {
-    if (pager.cursor || lastProgressRef.current === crawl.updated_at) return;
-    lastProgressRef.current = crawl.updated_at;
-    void refetchActivePages();
-  }, [crawl.updated_at, pager.cursor, refetchActivePages]);
-
   const prefetchTab = (nextTab: (typeof TABS)[number]) => {
     void queryClient.prefetchQuery(
       siteHealthQueries.pages(crawl.id, {
@@ -358,11 +305,6 @@ function ScoredInventory({
           </div>
           <div className="mb-1 ml-auto flex items-center gap-2">
             <PageKindSelect value={pageKind} onChange={selectPageKind} />
-            {active ? (
-              <Button variant="destructive" size="sm" onClick={onCancel} disabled={cancelPending}>
-                {cancelPending ? 'Cancelling…' : 'Cancel'}
-              </Button>
-            ) : null}
           </div>
         </div>
 

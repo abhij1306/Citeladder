@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   allStaged,
-  commitCtaLabel,
+  selectionCtaLabel,
   committedFromResponse,
   initStagedSelection,
   isStaged,
@@ -219,7 +219,7 @@ describe('rebaseOnServer (stale-revision recovery)', () => {
   });
 });
 
-describe('allStaged + commitCtaLabel + missingMonitored', () => {
+describe('allStaged + selectionCtaLabel + missingMonitored', () => {
   it('allStaged is true only when every id on the page is staged', () => {
     let s = initStagedSelection(committed([A]));
     expect(allStaged(s, [A, B])).toBe(false);
@@ -228,11 +228,11 @@ describe('allStaged + commitCtaLabel + missingMonitored', () => {
     expect(allStaged(s, [])).toBe(false);
   });
 
-  it('commitCtaLabel reflects staged count and the entitlement limit', () => {
+  it('selectionCtaLabel reflects staged count and the entitlement limit', () => {
     let s = initStagedSelection(committed([]));
     s = setManyStaged(s, [A, B], true);
-    expect(commitCtaLabel(s, 50)).toBe('Analyze 2 of 50 pages');
-    expect(commitCtaLabel(s, 10)).toBe('Analyze 2 of 10 pages');
+    expect(selectionCtaLabel(s, 50)).toBe('Save selection (2 of 50)');
+    expect(selectionCtaLabel(s, 10)).toBe('Save selection (2 of 10)');
   });
 
   it('missingMonitored finds active monitored ids absent from the inventory', () => {

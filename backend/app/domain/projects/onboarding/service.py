@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -25,7 +24,6 @@ from app.core.config.brand_discovery import (
     brand_discovery_settings,
 )
 from app.core.config.prompts import ONBOARDING_PROMPT_SET_NAME
-from app.domain.projects.activation import start_initial_site_review
 from app.domain.projects.discovery_schemas import (
     BrandDiscoveryComplete,
     BrandDiscoveryCreate,
@@ -62,7 +60,6 @@ from app.models.prompt import Prompt, PromptSet, Topic
 from app.models.site_health import SiteCrawl
 
 IDEMPOTENCY_KEY_REQUIRED = "Idempotency-Key is required"
-logger = logging.getLogger(__name__)
 
 
 class BrandDiscoveryError(ValueError):
@@ -506,33 +503,4 @@ async def complete_discovery(
     )
     await session.commit()
 
-    crawl: SiteCrawl | None = None
-    try:
-        crawl = await start_initial_site_review(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-        )
-        row = await get_discovery(
-            session,
-            workspace_id=workspace_id,
-            discovery_id=discovery_id,
-            for_update=True,
-        )
-        row.initial_crawl_id = crawl.id
-        await session.commit()
-    except Exception:
-        logger.exception(
-            "Initial Site Health review deferred after onboarding",
-            extra={"discovery_id": str(discovery_id), "project_id": str(project_id)},
-        )
-        await session.rollback()
-        row = await get_discovery(
-            session,
-            workspace_id=workspace_id,
-            discovery_id=discovery_id,
-            for_update=True,
-        )
-        row.warnings = list(dict.fromkeys([*row.warnings, "site_health_deferred"]))
-        await session.commit()
-    return row, crawl
+    return row, None

@@ -236,6 +236,50 @@ describe('SiteHealthScreen — loading failures', () => {
   });
 });
 
+describe('SiteHealthScreen — before the first crawl', () => {
+  it('shows one Run new crawl placeholder instead of empty metrics', async () => {
+    const user = userEvent.setup();
+    let createBody: unknown = null;
+    mockRoutes();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/site-health`, () =>
+        HttpResponse.json({
+          project_id: PROJECT,
+          crawl: null,
+          score_summary: null,
+          phase: 'empty',
+          snapshot_id: null,
+          quota: { used: 0, limit: 50 },
+          root_errors: [],
+          phase_runs: { discovery: null, analysis: null },
+        }),
+      ),
+      http.post('/api/v1/site-crawls', async ({ request }) => {
+        createBody = await request.json();
+        return HttpResponse.json(
+          crawl({
+            status: 'queued',
+            discovery_status: 'pending',
+            analysis_status: 'pending',
+            completed_at: null,
+          }),
+        );
+      }),
+    );
+
+    renderScreen();
+
+    expect(await screen.findByText('Run your first site crawl')).toBeVisible();
+    expect(screen.queryByTestId('score-section')).not.toBeInTheDocument();
+    const runButtons = screen.getAllByRole('button', { name: 'Run new crawl' });
+    expect(runButtons).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
+
+    await user.click(runButtons[0]);
+    await waitFor(() => expect(createBody).toEqual({ project_id: PROJECT }));
+  });
+});
+
 describe('SiteHealthScreen — terminal states on the canonical screen', () => {
   it('renders an explicit terminal notice (not the active-progress UI) for a failed crawl', async () => {
     mockRoutes({ status: 'failed', error_message: 'Robots.txt denied crawling.' }, 'terminal');
@@ -246,11 +290,8 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     expect(
       await screen.findByText(/Robots\.txt denied crawling\. Re-crawl to try again\./),
     ).toBeInTheDocument();
-    // The restart lives with the other crawl actions in the phase controls;
-    // the screen itself stays the dashboard.
-    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeInTheDocument();
-    // No redundant Cancel control for an already-stopped crawl.
-    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run new crawl' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop crawl' })).not.toBeInTheDocument();
     // The score section stays mounted with placeholders (no screen swap).
     expect(screen.getByTestId('score-section')).toBeInTheDocument();
   });
@@ -298,7 +339,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
         /The site returned HTTP 500 after 3 attempts\. The site is having server trouble/,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run new crawl' })).toBeInTheDocument();
   });
 
   it('renders the root-failure block on the Errors & Blocked tab for a failed crawl (B3)', async () => {
@@ -379,13 +420,13 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     ).toBeInTheDocument();
     // The persisted inventory row itself is visible and selectable.
     expect(await screen.findByLabelText('Monitor https://acme.com/pricing')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Start analysis' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /analysis/i })).not.toBeInTheDocument();
     expect(
       screen.queryByText('This crawl was cancelled before it produced results.'),
     ).not.toBeInTheDocument();
   });
 
-  it('offers Cancel beside the inventory controls while a crawl is discovering', async () => {
+  it('offers one Stop crawl action in the header while a crawl is discovering', async () => {
     let hiddenPagesRequests = 0;
     mockRoutes(
       {
@@ -407,11 +448,9 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
 
     // Wait for the screen to settle past the initial loading skeleton.
     await waitFor(() => expect(screen.queryByText(/Discovering pages/)).toBeInTheDocument());
-    // Active controls live with the discovered-page table, not in the global
-    // page header. Re-crawl is present but disabled while the crawl runs.
-    const cancel = screen.getByRole('button', { name: 'Cancel' });
-    expect(screen.getByTestId('inventory-section')).toContainElement(cancel);
-    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeDisabled();
+    const stop = screen.getByRole('button', { name: 'Stop crawl' });
+    expect(screen.getByTestId('inventory-section')).not.toContainElement(stop);
+    expect(screen.queryByRole('button', { name: 'Run new crawl' })).not.toBeInTheDocument();
     expect(hiddenPagesRequests).toBe(0);
   });
 
@@ -465,8 +504,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     const breakdown = screen.getByTestId('page-kind-scores');
     expect(breakdown).toBeInTheDocument();
     expect(within(breakdown).getByText('Article')).toBeInTheDocument();
-    // Re-crawl is offered for a terminal-with-data dashboard.
-    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run new crawl' })).toBeInTheDocument();
     // Not the bare terminal notice.
     expect(
       screen.queryByText('This crawl was cancelled before it produced results.'),
@@ -475,7 +513,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
 });
 
 describe('SiteHealthScreen — canonical single-screen flow (regression)', () => {
-  it('walks discover → cancel → select → start analysis → finish without ever swapping the screen', async () => {
+  it('walks discover → stop → select → new crawl → finish without swapping the screen', async () => {
     // The reported bug: each lifecycle step replaced the whole panel (cancel
     // showed a URL-list screen, starting analysis bounced back to that list,
     // finishing jumped to a separate dashboard). This walks the exact
@@ -610,26 +648,19 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
 
     // Step 2 — cancel from the header. The SAME screen shifts to selection
     // mode (inventory persists), no navigation, no terminal dead-end.
-    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await user.click(screen.getByRole('button', { name: 'Stop crawl' }));
     expect(
       await screen.findByText(/Discovery cancelled — found pages are kept/),
     ).toBeInTheDocument();
     expect(screen.getByTestId('site-health-canonical')).toBe(canonical);
 
-    // Step 3 — stage + save a monitored page, then re-crawl. A cancelled crawl
-    // cannot enqueue analyze tasks, so running the saved set means a fresh
-    // crawl seeded with it: "Re-crawl site" in the phase controls. (The
-    // selection panel used to carry a second, identically-labelled "Start
-    // analysis" that did the same thing.)
+    // Step 3 — stage + save a monitored page, then run a fresh crawl directly.
     await user.click(await screen.findByLabelText('Monitor https://acme.com/pricing'));
     await user.click(screen.getByRole('button', { name: /Save selection/ }));
-    const recrawl = screen.getByRole('button', { name: 'Re-crawl site' });
+    const recrawl = screen.getByRole('button', { name: 'Run new crawl' });
     await waitFor(() => expect(recrawl).toBeEnabled());
     await user.click(recrawl);
-    await user.click(await screen.findByRole('button', { name: 'Start crawl' }));
 
-    // The intake dialog must send the typed payload, not React's click event
-    // (which would fail before the request reached this handler).
     await waitFor(() => expect(createBody).toMatchObject({ project_id: PROJECT }));
 
     // The screen moves FORWARD to the analysis view in place — it must never
@@ -656,7 +687,7 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
     await queryClient.invalidateQueries();
 
     expect(await screen.findByText('71 / 100')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Re-crawl site' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run new crawl' })).toBeInTheDocument();
     expect(screen.getByTestId('site-health-canonical')).toBe(canonical);
     // The score section that showed placeholders during analysis is the same
     // mounted section now showing real data.

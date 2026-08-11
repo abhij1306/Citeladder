@@ -31,7 +31,7 @@ import { titleCaseStatus } from '@/lib/utils';
 export const PLACEHOLDER = '—';
 
 /** Rows per cursor page across the Site Health inventory/pages lists. */
-export const PAGE_LIMIT = 25;
+export const PAGE_LIMIT = 10;
 
 /** Poll cadence for the Site Health screen's active-crawl queries. */
 export const POLL_INTERVAL_MS = 4_000;

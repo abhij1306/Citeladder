@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Label } from '@/components/ui/typography';
 import { siteHealthQueries, type IssuesParams } from '@/lib/api/site-health';
 import type { IssueDimension, SiteIssue } from '@/lib/api/types';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
@@ -245,6 +244,9 @@ function IssueCard({ issue, crawlId }: Readonly<{ issue: SiteIssue; crawlId: str
 
         <div className="grid gap-1">
           <h3 className="text-foreground text-heading-sm">{issueTitle(issue)}</h3>
+          {issue.remediation ? (
+            <p className="text-secondary text-sm whitespace-pre-line">{issue.remediation}</p>
+          ) : null}
           {/* Which page TYPES this issue actually reaches. A product-schema
               finding that only touches product pages and a title finding that
               touches everything are very different pieces of work, and the
@@ -258,13 +260,6 @@ function IssueCard({ issue, crawlId }: Readonly<{ issue: SiteIssue; crawlId: str
             </span>
           ) : null}
         </div>
-
-        {issue.remediation ? (
-          <div className="border-border-subtle bg-background-alt rounded-lg border p-3">
-            <Label className="mb-1 block">Remediation</Label>
-            <p className="text-secondary text-sm whitespace-pre-line">{issue.remediation}</p>
-          </div>
-        ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={toggleExpanded} aria-expanded={expanded}>

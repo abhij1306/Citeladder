@@ -25,6 +25,7 @@ from app.core.config.brand_logos import BRAND_LOGO_STATUS_READY
 from app.core.config.entitlements import KEY_PROJECT_SLOTS, KEY_PROMPT_SLOTS
 from app.domain.entitlements.types import GrantSpec
 from app.models.brand import Brand, BrandLogoAsset, Competitor
+from app.models.site_health import SiteCrawl
 from tests.component.occupancy_helpers import seed_occupancy_grants
 
 
@@ -59,6 +60,7 @@ def _project_payload(**overrides: object) -> dict:
 @pytest.mark.asyncio
 async def test_create_project_persists_normalized_identity(
     client: httpx.AsyncClient,
+    db_session: AsyncSession,
 ) -> None:
     await _register(client, "p1@example.com")
     resp = await client.post("/api/v1/projects", json=_project_payload())
@@ -75,6 +77,7 @@ async def test_create_project_persists_normalized_identity(
     assert body["competitors"][0]["logo_url"] is None
     assert "-" in body["competitors"][0]["id"]
     assert body["prompt_sets"] == []
+    assert await db_session.scalar(select(SiteCrawl).limit(1)) is None
 
     # Round-trips on GET.
     got = await client.get(f"/api/v1/projects/{body['id']}")

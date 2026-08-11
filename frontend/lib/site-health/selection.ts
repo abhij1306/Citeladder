@@ -207,8 +207,8 @@ export function allStaged(selection: StagedSelection, siteUrlIds: readonly strin
 }
 
 /** Human-readable "Analyze N of LIMIT pages" CTA label. */
-export function commitCtaLabel(selection: StagedSelection, limit: number): string {
-  return `Analyze ${selection.staged.size} of ${limit} pages`;
+export function selectionCtaLabel(selection: StagedSelection, limit: number): string {
+  return `Save selection (${selection.staged.size} of ${limit})`;
 }
 
 /** Committed monitored ids that no longer appear in the inventory (missing). */

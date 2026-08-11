@@ -67,7 +67,10 @@ Every model judgement records confidence, model, and template version.
 
 ## 10. Automation stays bounded
 
-Configured acquisition, classification, deterministic analysis, opportunity
+Site Health acquisition begins only from an explicit user **Run new crawl**
+decision. Its durable discovery and deterministic analysis phases may then
+progress automatically, but analysis admission remains bounded by the frozen
+entitlement/runtime allowance. Other configured classification, opportunity
 creation, demand imports, prompt generation, and scheduled measurement may run
 automatically. Explicit user decisions are required for content save/publish
 claims, external mutations, prompt activation, billing changes, and any future

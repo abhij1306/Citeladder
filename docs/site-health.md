@@ -20,7 +20,7 @@ must not be reintroduced as parallel owners.
 ## Pipeline
 
 ```text
-seed + sitemap + internal links
+explicit user Run new crawl -> seed + sitemap + internal links
   -> URL admission and corpus disposition
   -> secure_httpx -> curl_cffi -> patchright acquisition ladder
   -> immutable fetch attempt and artifact
@@ -35,11 +35,24 @@ repair lifecycle state, or call a model.
 
 ## Crawl guarantees
 
+- A crawl begins only when the user explicitly chooses **Run new crawl**.
+  Discovery and analysis are durable internal phases of that one crawl, not
+  separately user-startable operations.
 - URL safety and redirect targets are validated at the acquisition boundary.
 - Discovery and analysis use PostgreSQL tasks with leases, retries,
   heartbeats, idempotent terminalization, and cancellation.
+- As admissible pages arrive, analysis is automatically enqueued and progresses
+  alongside discovery. The frozen entitlement/runtime allowance still bounds
+  which pages may be analyzed; discovery never turns an unentitled inventory
+  row into analysis work.
 - Sitemap frontier lookups and inserts use bounded batches; a full configured
   sitemap cannot exceed PostgreSQL driver parameter limits.
+- Sitemap observations are also written in bounded batches. A worker reuses its
+  secure HTTP connection pool while retaining the same per-request DNS,
+  pinned-IP, redirect, robots, and host-gate checks.
+- The default host gate no longer imposes a sub-six-starts-per-second policy
+  ceiling on a responsive owned site. Robots directives, response latency,
+  retries, parsing, and persistence still determine actual crawl throughput.
 - Fetch attempts and artifacts are append-only; secrets and unsafe response
   headers are never persisted.
 - `analyze`, `inventory_only`, and `exclude` dispositions stay distinct.
@@ -47,6 +60,26 @@ repair lifecycle state, or call a model.
   evaluator.
 - The screen phase is resolved once by the backend. Worker bookkeeping states
   are not independently reinterpreted by the frontend.
+
+## Crawl controls, limits, and progressive UI
+
+The production path is one standard crawl: its frozen requested-page cap and
+default are **500**. Advanced input, seed, page-kind, and oversized limits are
+development-only; when enabled there, the separate discovery and analysis
+ceilings are **50,000**. These are configuration-owned operational bounds, not
+throughput promises.
+
+Before any crawl, Site Health shows one empty placeholder with **Run new
+crawl**. Once a crawl exists, the header exposes one contextual primary control:
+**Stop crawl** while its persisted status is active, otherwise **Run new
+crawl**. **Export** is secondary. There are no separate user controls for
+discovery or analysis.
+
+The inventory stays mounted as the crawl progresses. During discovery it shows
+the first ten persisted rows as they arrive; once scoring is available, those
+same persisted rows enrich in place rather than moving the user to a separate
+analysis screen. Issue/remediation copy uses the persisted remediation text as
+its subtitle, so the UI does not manufacture a second recommendation.
 
 ## Page-kind classification
 

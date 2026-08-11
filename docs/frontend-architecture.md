@@ -36,6 +36,17 @@ The backend owns the current Site Health phase. The client renders the provided
 phase and action availability instead of reconstructing a cross-product of
 crawl, discovery, analysis, and phase-run states.
 
+Before the first crawl, `/site-health` renders one actionable empty placeholder
+with **Run new crawl**, rather than empty metrics or an intake workflow. After a
+crawl exists, its header has one contextual primary control: **Stop crawl** for
+an active persisted crawl, otherwise **Run new crawl**. **Export** is the
+secondary action. The client exposes no separate discovery or analysis buttons.
+
+The inventory remains mounted and progressive: discovery renders the first ten
+persisted rows as they arrive, and rows later receive their analysis status and
+scores in place. The Issues surface uses persisted remediation copy as the
+remediation subtitle; it does not generate a browser-side recommendation.
+
 ## Page-kind UX
 
 The API-contract schema owns the page-kind vocabulary. Shared helpers in
