@@ -44,12 +44,15 @@ from app.core.config.task_queue import (
     TASK_STATUS_QUEUED,
     TASK_STATUS_SUCCEEDED,
 )
+from app.domain.site_health.discovery import _store_frontier_candidates
 from app.domain.site_health.normalization import canonical_identity
+from app.domain.site_health.schemas import FrontierCandidate
 from app.domain.site_health.service import presentation_status_for
 from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,
     SiteCrawlTask,
+    SiteDiscoveryFrontier,
     SiteFetchArtifact,
     SiteFetchAttempt,
     SiteHealthSnapshot,
@@ -162,7 +165,6 @@ async def test_full_allowance_discover_admits_children_and_completes(
             .all()
         )
         assert all(h == "example.com" for h in hosts)
-
         # Immutable evidence written for each fetched URL.
         obs_count = await session.scalar(
             select(func.count())
@@ -223,6 +225,53 @@ async def test_full_allowance_discover_admits_children_and_completes(
             .all()
         )
         assert attempt_numbers and all(n == 1 for n in attempt_numbers)
+
+
+@pytest.mark.asyncio
+async def test_large_sitemap_frontier_is_persisted_in_bounded_batches(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A default-sized sitemap cannot exceed asyncpg's bind-parameter cap."""
+    candidate_count = site_health_settings.max_sitemap_admitted_urls
+    assert candidate_count >= 5_000
+
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=0)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        crawl.configuration = {
+            "root_registrable_domain": "example.com",
+            "max_frontier_urls": candidate_count,
+        }
+        candidates = []
+        for ordinal in range(candidate_count):
+            url = f"https://example.com/catalog/item-{ordinal}"
+            canonical, url_hash = canonical_identity(url)
+            candidates.append(
+                FrontierCandidate(
+                    url=canonical,
+                    url_hash=url_hash,
+                    depth=1,
+                    source_kind=OBSERVATION_SOURCE_SITEMAP,
+                    parent_position=0,
+                    link_ordinal=ordinal,
+                )
+            )
+
+        await _store_frontier_candidates(
+            session,
+            crawl=crawl,
+            candidates=candidates,
+            configuration=dict(crawl.configuration),
+        )
+        await session.commit()
+
+        stored = await session.scalar(
+            select(func.count())
+            .select_from(SiteDiscoveryFrontier)
+            .where(SiteDiscoveryFrontier.crawl_id == crawl.id)
+        )
+        assert stored == candidate_count
 
 
 @pytest.mark.asyncio

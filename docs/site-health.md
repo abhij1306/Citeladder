@@ -38,6 +38,8 @@ repair lifecycle state, or call a model.
 - URL safety and redirect targets are validated at the acquisition boundary.
 - Discovery and analysis use PostgreSQL tasks with leases, retries,
   heartbeats, idempotent terminalization, and cancellation.
+- Sitemap frontier lookups and inserts use bounded batches; a full configured
+  sitemap cannot exceed PostgreSQL driver parameter limits.
 - Fetch attempts and artifacts are append-only; secrets and unsafe response
   headers are never persisted.
 - `analyze`, `inventory_only`, and `exclude` dispositions stay distinct.

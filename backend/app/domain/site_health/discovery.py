@@ -31,6 +31,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from itertools import batched
 
 from lxml import etree
 from lxml import html as lxml_html
@@ -778,45 +779,54 @@ async def _store_frontier_candidates(
     remaining_capacity = max(_frontier_limit(crawl, configuration) - existing_count, 0)
     if remaining_capacity == 0:
         return
-    existing_hashes = set(
-        (
-            await session.scalars(
-                select(SiteDiscoveryFrontier.url_hash).where(
-                    SiteDiscoveryFrontier.crawl_id == crawl.id,
-                    SiteDiscoveryFrontier.url_hash.in_(
-                        [candidate.url_hash for candidate in eligible]
-                    ),
+    # asyncpg rejects statements with more than 32,767 bind parameters. A
+    # sitemap can legitimately contribute the configured 5,000 URLs at once;
+    # one ten-column multi-row INSERT for that set already exceeds the driver
+    # limit. Keep both the duplicate lookup and INSERT bounded by the existing
+    # admission batch policy so large sitemap inventories remain progressive.
+    batch_size = max(int(site_health_settings.admission_batch_size), 1)
+    existing_hashes: set[str] = set()
+    for candidate_batch in batched(eligible, batch_size):
+        existing_hashes.update(
+            (
+                await session.scalars(
+                    select(SiteDiscoveryFrontier.url_hash).where(
+                        SiteDiscoveryFrontier.crawl_id == crawl.id,
+                        SiteDiscoveryFrontier.url_hash.in_(
+                            [candidate.url_hash for candidate in candidate_batch]
+                        ),
+                    )
                 )
-            )
-        ).all()
-    )
+            ).all()
+        )
     admitted_candidates = [
         candidate for candidate in eligible if candidate.url_hash not in existing_hashes
     ][:remaining_capacity]
     if not admitted_candidates:
         return
-    await session.execute(
-        pg_insert(SiteDiscoveryFrontier)
-        .values(
-            [
-                {
-                    "workspace_id": crawl.workspace_id,
-                    "crawl_id": crawl.id,
-                    "normalized_url": candidate.url,
-                    "url_hash": candidate.url_hash,
-                    "depth": candidate.depth,
-                    "source_kind": candidate.source_kind,
-                    "value_kind": candidate.value_kind,
-                    "value_priority": candidate.value_priority,
-                    "parent_position": candidate.parent_position,
-                    "link_ordinal": candidate.link_ordinal,
-                    "status": FRONTIER_PENDING,
-                }
-                for candidate in admitted_candidates
-            ]
+    for candidate_batch in batched(admitted_candidates, batch_size):
+        await session.execute(
+            pg_insert(SiteDiscoveryFrontier)
+            .values(
+                [
+                    {
+                        "workspace_id": crawl.workspace_id,
+                        "crawl_id": crawl.id,
+                        "normalized_url": candidate.url,
+                        "url_hash": candidate.url_hash,
+                        "depth": candidate.depth,
+                        "source_kind": candidate.source_kind,
+                        "value_kind": candidate.value_kind,
+                        "value_priority": candidate.value_priority,
+                        "parent_position": candidate.parent_position,
+                        "link_ordinal": candidate.link_ordinal,
+                        "status": FRONTIER_PENDING,
+                    }
+                    for candidate in candidate_batch
+                ]
+            )
+            .on_conflict_do_nothing(index_elements=["crawl_id", "url_hash"])
         )
-        .on_conflict_do_nothing(index_elements=["crawl_id", "url_hash"])
-    )
 
 
 async def _pending_frontier(
