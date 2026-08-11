@@ -9,7 +9,7 @@ import uuid
 import pytest
 from pydantic import ValidationError
 
-from app.core.config.site_health import site_health_settings
+from app.core.config.site_health import SiteHealthSettings, site_health_settings
 from app.core.config.site_health_page_profiles import PAGE_PROFILE_RULE_VERSION
 from app.domain.site_health import discovery
 from app.domain.site_health.api_schemas import (
@@ -96,6 +96,17 @@ def test_development_page_limit_retains_internal_ceiling(monkeypatch):
 def test_default_host_policy_allows_six_starts_per_second():
     assert site_health_settings.per_host_concurrency >= 6
     assert site_health_settings.per_host_delay_seconds <= 1 / 6
+
+
+def test_automatic_page_limit_must_fit_public_maximum():
+    with pytest.raises(
+        ValidationError,
+        match="automatic_page_limit must not exceed max_requested_page_limit",
+    ):
+        SiteHealthSettings(
+            automatic_page_limit=501,
+            max_requested_page_limit=500,
+        )
 
 
 def test_phase_request_counts_must_be_positive_and_bounded():

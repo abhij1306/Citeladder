@@ -2341,6 +2341,19 @@ class SiteHealthSettings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _validate_page_limit_relationships(self) -> SiteHealthSettings:
+        """Keep defaults inside their public and internal ceilings."""
+        if self.automatic_page_limit > self.max_requested_page_limit:
+            raise ValueError(
+                "automatic_page_limit must not exceed max_requested_page_limit"
+            )
+        if self.max_requested_page_limit > self.max_discovery_urls:
+            raise ValueError(
+                "max_requested_page_limit must not exceed max_discovery_urls"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _validate_acquisition_ladder(self) -> SiteHealthSettings:
         """Keep fallback behavior bounded, server-owned, and reproducible."""
         if not self.acquisition_policy_version.strip():

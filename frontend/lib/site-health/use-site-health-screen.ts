@@ -136,9 +136,16 @@ export function useSiteHealthScreen(projectId: string | null) {
       // backend's crawl + phase projection. Keep the mutation pending until
       // that complete projection refetches; partially replacing only `crawl`
       // would temporarily combine a new run with the previous run's phase.
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.siteHealth.dashboard(projectId),
-      });
+      // Automatic admission also adds the root to the monitored set, so its
+      // project-scoped count must refresh in the same pending window.
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.siteHealth.dashboard(projectId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.siteHealth.monitored(projectId),
+        }),
+      ]);
     },
   });
   const cancelMutation = useMutation({
