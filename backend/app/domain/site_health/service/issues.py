@@ -469,6 +469,7 @@ async def get_issue_detail(
             SiteIssue.workspace_id == workspace_id,
         )
     )
+    rule_id: str | None
     if row is not None:
         rule_id = row.rule_id
     else:
@@ -491,8 +492,8 @@ async def get_issue_detail(
             ),
             None,
         )
-        if rule_id is None:
-            raise SiteHealthNotFoundError("Issue not found")
+    if rule_id is None:
+        raise SiteHealthNotFoundError("Issue not found")
 
     # Canonicalize to the stable representative row for the rule group (the
     # earliest issue by (created_at, id)) so a non-representative member id

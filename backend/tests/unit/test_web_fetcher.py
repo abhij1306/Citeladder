@@ -90,9 +90,12 @@ def test_challenge_script_appended_to_real_document_is_not_a_bot_block() -> None
 
 
 def test_challenge_interstitial_remains_a_bot_block() -> None:
-    assert is_bot_block_result(
-        _result(b"<html><title>Just a moment...</title><div>cf-chl</div></html>")
-    ) is True
+    assert (
+        is_bot_block_result(
+            _result(b"<html><title>Just a moment...</title><div>cf-chl</div></html>")
+        )
+        is True
+    )
 
 
 class _FakeResolver:

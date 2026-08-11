@@ -339,20 +339,25 @@ async def test_recrawl_root_failure_keeps_successful_monitored_analysis(
         assert crawl.discovery_status == DISCOVERY_STATUS_FAILED
         assert crawl.analysis_status == ANALYSIS_STATUS_COMPLETED
         assert crawl.inventory_complete is False
-        assert await session.scalar(
-            select(func.count())
-            .select_from(SiteHealthSnapshot)
-            .where(SiteHealthSnapshot.crawl_id == seed.crawl_id)
-        ) == 1
-        assert await session.scalar(
-            select(func.count())
-            .select_from(AnalyticsTask)
-            .where(
-                AnalyticsTask.project_id == seed.project_id,
-                AnalyticsTask.task_kind
-                == ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(SiteHealthSnapshot)
+                .where(SiteHealthSnapshot.crawl_id == seed.crawl_id)
             )
-        ) == 1
+            == 1
+        )
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(AnalyticsTask)
+                .where(
+                    AnalyticsTask.project_id == seed.project_id,
+                    AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+                )
+            )
+            == 1
+        )
 
 
 @pytest.mark.asyncio

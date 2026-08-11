@@ -276,5 +276,3 @@ async def cancel_task_endpoint(
         return AgentTaskRunItem.model_validate(await task_run_projection(session, run))
     except (AgentNotFoundError, AgentValidationError, AgentConflictError) as exc:
         raise _error(exc) from exc
-
-

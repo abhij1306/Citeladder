@@ -58,7 +58,6 @@ from app.core.config.site_health import (
     SAMPLE_URL_LIMIT,
     SELECTION_SOURCE_USER,
     TASK_KIND_DISCOVER,
-    TEMPORAL_STATE_UNKNOWN,
     site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED

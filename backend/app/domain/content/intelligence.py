@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.connectors.web_evidence.url_policy import UrlPolicyError
 from app.core.config.content_intelligence import (
     AUTOMATIC_BRIEF_STATES,
-    BLOCKING_FACT_STATES,
     CONTENT_ARTIFACT_LIST_LIMIT,
     CONTENT_BRIEF_BUILDER_VERSION,
     CONTENT_CONTEXT_MAX_CHARS,
@@ -212,7 +211,7 @@ def _new_strategy(
         source_versions={
             "projection": CONTENT_PROJECTION_VERSION,
             "strategy": CONTENT_STRATEGY_VERSION,
-            "site_intelligence": site.intelligence_version,
+            "site_intelligence": site.analyzer_version,
             "demand_formula": demand.formula_version if demand else "",
         },
     )
@@ -1343,7 +1342,10 @@ def _new_verification(
             if revision.publication_claimed_at
             else None,
             "site_snapshot_created_at": snapshot.created_at.isoformat(),
-            "site_comparison": snapshot.comparison,
+            # Site Health no longer owns a comparison projection. Retain the
+            # stable response shape while making the unavailable observation
+            # explicit rather than fabricating a comparison.
+            "site_comparison": None,
             "demand_comparison": demand.comparison if demand else None,
             "causality": "descriptive_only",
         },

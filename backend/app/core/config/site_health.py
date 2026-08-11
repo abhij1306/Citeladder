@@ -1303,13 +1303,9 @@ class PageKindSchemaExpectation:
         self.required_properties = required_properties
         self.recommended_properties = recommended_properties
         self.required_properties_by_type = dict(required_properties_by_type or {})
-        self.recommended_properties_by_type = dict(
-            recommended_properties_by_type or {}
-        )
+        self.recommended_properties_by_type = dict(recommended_properties_by_type or {})
 
-    def properties_for(
-        self, schema_type: str, *, recommended: bool
-    ) -> tuple[str, ...]:
+    def properties_for(self, schema_type: str, *, recommended: bool) -> tuple[str, ...]:
         """Return the property contract for one allowed schema type.
 
         A page kind may accept structurally different schema alternatives.

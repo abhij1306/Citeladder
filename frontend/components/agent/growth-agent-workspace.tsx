@@ -207,7 +207,9 @@ function ConversationMessages({
                 {message.citations.length ? (
                   <p className="mt-2 text-xs opacity-80">
                     Grounded in {message.citations.length}{' '}
-                    {message.citations.length === 1 ? 'project evidence source' : 'project evidence sources'}
+                    {message.citations.length === 1
+                      ? 'project evidence source'
+                      : 'project evidence sources'}
                   </p>
                 ) : null}
               </div>

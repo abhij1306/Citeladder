@@ -17,12 +17,7 @@ import { Label, displayHeadingLgClasses } from '@/components/ui/typography';
 import { ApiError } from '@/lib/api/errors';
 import { queryKeys } from '@/lib/api/query-keys';
 import { siteHealthMutations, siteHealthQueries } from '@/lib/api/site-health';
-import type {
-  DeliveryFacts,
-  PageDetail,
-  RerunPageResponse,
-  SiteIssue,
-} from '@/lib/api/types';
+import type { DeliveryFacts, PageDetail, RerunPageResponse, SiteIssue } from '@/lib/api/types';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { ICONS } from '@/lib/icons';
 import {

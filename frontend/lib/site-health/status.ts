@@ -211,13 +211,7 @@ export function canShowDiscoveredTotal(
  * sends: it means the dashboard request itself has not landed yet.
  */
 export type SiteHealthPhase =
-  | 'resolving'
-  | 'empty'
-  | 'discovering'
-  | 'selection'
-  | 'analyzing'
-  | 'dashboard'
-  | 'terminal';
+  'resolving' | 'empty' | 'discovering' | 'selection' | 'analyzing' | 'dashboard' | 'terminal';
 
 /**
  * Fingerprint of everything on a crawl that means "progress happened".

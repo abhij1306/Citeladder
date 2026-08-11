@@ -338,18 +338,12 @@ async def _visibility_audits(
     )
 
 
-def _question_rows(snapshot: SiteHealthSnapshot | None) -> list[dict[str, Any]]:
-    if snapshot is None or not snapshot.intelligence:
-        return []
-    coverage = snapshot.intelligence.get("coverage")
-    if not isinstance(coverage, dict):
-        return []
-    questions = coverage.get("questions")
-    return (
-        [row for row in questions if isinstance(row, dict)]
-        if isinstance(questions, list)
-        else []
-    )
+def _question_rows(_snapshot: SiteHealthSnapshot | None) -> list[dict[str, Any]]:
+    # Question coverage belonged to the removed Site Intelligence projection.
+    # Site Health snapshots intentionally contain only persisted crawl metrics,
+    # so no question-gap signals are inferred until an owned evidence source is
+    # introduced.
+    return []
 
 
 def _source_material(
@@ -454,7 +448,7 @@ def _snapshot_row(
         journey_version_ids=sorted(str(row.id) for row in journeys),
         coverage={
             "search": "observed" if traffic else "unavailable",
-            "site": "observed" if site and site.intelligence else "unavailable",
+            "site": "observed" if site else "unavailable",
             "journeys": "configured" if journeys else "unavailable",
             "visibility": "observed" if audits else "unavailable",
             "page_identity": page_identity,

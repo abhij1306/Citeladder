@@ -822,7 +822,7 @@ async def create_page_rerun_crawl(
     # reanalyzed page came back UNPACKED — no industry role, no knowledge, no
     # provenance — so rerunning a page to check a fix silently discarded the
     # very classification the fix was meant to change.
-    project = await _load_project(
+    await _load_project(
         session, workspace_id=workspace_id, project_id=project_id
     )
     seed = _normalize_seed(random_seed)

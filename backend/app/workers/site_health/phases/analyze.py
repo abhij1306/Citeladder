@@ -464,7 +464,7 @@ class AnalyzePhaseMixin(PhaseSupport):
         assessment, evaluations, scores = self._prepare_page_evaluation(
             crawl=crawl, task=task, facts=facts
         )
-        site_url = await self._refresh_analyzed_url_state(
+        await self._refresh_analyzed_url_state(
             session,
             crawl=crawl,
             site_url_id=site_url_id,

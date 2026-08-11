@@ -36,7 +36,6 @@ from app.domain.agent.tools import (
     execute_tool,
 )
 from app.domain.content.service import cancel_generation
-from app.domain.site_health import service as site_service
 from app.models.agent import (
     AgentConversation,
     AgentMessage,

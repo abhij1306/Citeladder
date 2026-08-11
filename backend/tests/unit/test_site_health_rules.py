@@ -1059,9 +1059,7 @@ def test_organization_identity():
 
 def test_answer_first():
     assert _outcome(_article_facts(), "aeo.answer_first").outcome == RULE_OUTCOME_PASS
-    short = _outcome(
-        _article_facts(first_answer_text="Too short."), "aeo.answer_first"
-    )
+    short = _outcome(_article_facts(first_answer_text="Too short."), "aeo.answer_first")
     assert short.outcome == RULE_OUTCOME_FAIL
     assert short.evidence["answer_word_count"] == 2
     assert short.evidence["minimum_words"] == ANSWER_FIRST_MIN_WORDS

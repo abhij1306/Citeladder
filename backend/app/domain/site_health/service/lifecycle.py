@@ -42,6 +42,7 @@ from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,
 )
 from app.domain.opportunities.service import enqueue_opportunity_refresh
+from app.domain.site_health.phase import resolve_phase
 from app.domain.site_health.service.common import (
     _CRAWL_NOT_FOUND,
     SiteHealthNotFoundError,
@@ -58,7 +59,6 @@ from app.domain.site_health.service.queries import (
     _failure_summary_for,
     _root_errors_for,
 )
-from app.domain.site_health.phase import resolve_phase
 from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.domain.site_health.state_events import (
     InvalidSiteCrawlTransition,
