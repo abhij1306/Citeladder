@@ -107,6 +107,7 @@ async def test_login_skips_billing_repair_when_bootstrap_is_complete(
         id="11111111-1111-4111-8111-111111111111",
         is_active=True,
         hashed_password="hash",
+        session_version=0,
     )
     repair = AsyncMock()
     session = SimpleNamespace(commit=AsyncMock())
@@ -121,13 +122,17 @@ async def test_login_skips_billing_repair_when_bootstrap_is_complete(
         AsyncMock(return_value=True),
     )
     monkeypatch.setattr(auth_service, "ensure_user_billing", repair)
-    monkeypatch.setattr(auth_service, "create_access_token", lambda _user_id: "token")
+    monkeypatch.setattr(
+        auth_service,
+        "create_access_token",
+        lambda _user_id, *, token_version: f"token-{token_version}",
+    )
 
     result = await auth_service.authenticate_user(
         session, "user@example.com", "password"
     )
 
-    assert result == ("token", user)
+    assert result == ("token-0", user)
     repair.assert_not_awaited()
     session.commit.assert_not_awaited()
 
