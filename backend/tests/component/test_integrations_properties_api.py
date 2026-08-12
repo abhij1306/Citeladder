@@ -34,6 +34,7 @@ from app.models.integrations import (
 )
 from app.models.project import OwnedDomain, Project
 from app.models.workspace import Workspace
+from tests.component.auth_helpers import register_and_login as _register
 
 _BASE = "/api/v1/integrations"
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "integrations"
@@ -54,19 +55,6 @@ async def _seed_project(db_session, *, workspace_id: uuid.UUID) -> Project:
     db_session.add(OwnedDomain(project_id=project.id, domain="example.com"))
     await db_session.commit()
     return project
-
-
-async def _register(client: httpx.AsyncClient, email: str) -> None:
-    resp = await client.post(
-        "/api/v1/auth/register",
-        json={"email": email, "password": "password123"},
-    )
-    assert resp.status_code == 202
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"email": email, "password": "password123"},
-    )
-    assert login_response.status_code == 200
 
 
 async def _workspace_id(db_session) -> uuid.UUID:

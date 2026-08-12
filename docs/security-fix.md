@@ -74,8 +74,9 @@ change must use an additive migration with an explicit backfill and downgrade.
 ## Verification record
 
 - Focused backend security/auth/workspace/browser/export/provisioning tests:
-  `78 passed`.
-- Frontend registration test: `3 passed`.
+  `78 passed`; the shared component-auth fixture refactor then passed all `151`
+  affected component tests.
+- Frontend registration/login tests: `8 passed`.
 - Changed-path Ruff, `mypy app`, and complexity-policy checks: passed.
 - Frontend ESLint, TypeScript, architecture/design policy, and production build:
   passed.

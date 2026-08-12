@@ -32,6 +32,7 @@ from app.models.integrations import (
     IntegrationOAuthGrant,
 )
 from app.models.workspace import Workspace
+from tests.component.auth_helpers import register_and_login as _register
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "integrations"
 _BASE = "/api/v1/integrations"
@@ -58,19 +59,6 @@ _TEST_KEYS = {"connection_id", "status", "error_code", "detail", "tested_at"}
 
 def _fixture(name: str) -> dict:
     return json.loads((_FIXTURES / name).read_text())
-
-
-async def _register(client: httpx.AsyncClient, email: str) -> None:
-    resp = await client.post(
-        "/api/v1/auth/register",
-        json={"email": email, "password": "password123"},
-    )
-    assert resp.status_code == 202
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"email": email, "password": "password123"},
-    )
-    assert login_response.status_code == 200
 
 
 async def _workspace_id(db_session) -> uuid.UUID:

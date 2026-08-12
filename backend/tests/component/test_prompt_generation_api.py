@@ -35,6 +35,7 @@ from app.domain.audits.planner import AuditValidationError, create_audit, list_t
 from app.domain.entitlements.types import GrantSpec
 from app.models.prompt import Prompt
 from tests.component.audit_helpers import seed_audit_fixtures
+from tests.component.auth_helpers import register_and_login as _register
 from tests.component.occupancy_helpers import seed_occupancy_grants
 
 VALID_AGENT_RESPONSE = json.dumps(
@@ -86,19 +87,6 @@ def fake_agent(monkeypatch: pytest.MonkeyPatch) -> FakeAgent:
     agent = FakeAgent()
     monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
     return agent
-
-
-async def _register(client: httpx.AsyncClient, email: str) -> None:
-    resp = await client.post(
-        "/api/v1/auth/register",
-        json={"email": email, "password": "password123"},
-    )
-    assert resp.status_code == 202
-    login_response = await client.post(
-        "/api/v1/auth/login",
-        json={"email": email, "password": "password123"},
-    )
-    assert login_response.status_code == 200
 
 
 def _project_payload(**overrides: object) -> dict:

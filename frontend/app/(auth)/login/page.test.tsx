@@ -9,8 +9,10 @@ import { renderWithProviders } from '@/test/render';
 // next/navigation is not available in jsdom — stub the router so we can assert
 // on the post-success redirect.
 const replace = vi.fn();
+const searchParams = new URLSearchParams();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace, push: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => searchParams,
 }));
 
 import LoginPage from './page';
@@ -28,10 +30,18 @@ beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => {
   mswServer.resetHandlers();
   replace.mockReset();
+  searchParams.delete('registered');
 });
 afterAll(() => mswServer.close());
 
 describe('LoginPage', () => {
+  it('confirms successful registration before sign in', () => {
+    searchParams.set('registered', '1');
+    renderWithProviders(<LoginPage />);
+
+    expect(screen.getByText(/your account is ready/i)).toBeInTheDocument();
+  });
+
   it('renders Google sign-in and email sign-in paths with divider', () => {
     renderWithProviders(<LoginPage />);
 

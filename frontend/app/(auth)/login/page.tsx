@@ -1,6 +1,8 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 
 import { AuthEmailField, AuthFormShell, AuthPasswordField } from '@/components/auth/auth-form';
@@ -8,7 +10,12 @@ import { authApi } from '@/lib/api/auth';
 import { authErrorMessage, loginFormSchema, type LoginFormValues } from '@/lib/auth/forms';
 import { useAuthMutation } from '@/lib/auth/use-auth-mutation';
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const description =
+    searchParams.get('registered') === '1'
+      ? 'Your account is ready. Sign in to continue.'
+      : 'Welcome back! Please sign in to continue.';
   const {
     register,
     handleSubmit,
@@ -24,7 +31,7 @@ export default function LoginPage() {
   return (
     <AuthFormShell
       title="Sign in"
-      description="Welcome back! Please sign in to continue."
+      description={description}
       error={mutation.isError ? authErrorMessage(mutation.error) : undefined}
       onSubmit={handleSubmit(submit)}
       pending={isSubmitting || mutation.isPending}
@@ -43,5 +50,13 @@ export default function LoginPage() {
         placeholder="••••••••"
       />
     </AuthFormShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
