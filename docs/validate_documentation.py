@@ -39,6 +39,7 @@ ACTIVE_EXACT = {
     "docs/frontend-architecture.md",
     "docs/integrations-traffic-analytics.md",
     "docs/invariants.md",
+    "docs/security-fix.md",
     "docs/operations/aws-hosting-runbook.md",
     "docs/operations/razorpay-and-demo-owner-requirements.md",
     "docs/site-health.md",

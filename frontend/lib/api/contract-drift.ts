@@ -59,6 +59,7 @@ const CONTRACT_SCHEMAS: Record<string, unknown> = { ...schemas };
 export const CONTRACT_SCHEMA_MAP = {
   // Auth / workspace / shell
   authResponseSchema: 'AuthResponse',
+  registrationResponseSchema: 'RegistrationResponse',
   sessionUserSchema: 'SessionUser',
   workspaceSchema: 'WorkspaceResponse',
   productTourSchema: 'ProductTourResponse',

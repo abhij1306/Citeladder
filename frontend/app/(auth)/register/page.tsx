@@ -1,14 +1,16 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 
 import { AuthEmailField, AuthFormShell, AuthPasswordField } from '@/components/auth/auth-form';
 import { authApi } from '@/lib/api/auth';
 import { authErrorMessage, registerFormSchema, type RegisterFormValues } from '@/lib/auth/forms';
-import { useAuthMutation } from '@/lib/auth/use-auth-mutation';
 
 export default function RegisterPage() {
+  const router = useRouter();
   const {
     register,
     handleSubmit,
@@ -17,9 +19,12 @@ export default function RegisterPage() {
     resolver: zodResolver(registerFormSchema),
     defaultValues: { email: '', password: '', confirmPassword: '' },
   });
-  const { mutation, submit } = useAuthMutation((values: RegisterFormValues) =>
-    authApi.register(values.email, values.password),
-  );
+  const mutation = useMutation({
+    mutationFn: (values: RegisterFormValues) => authApi.register(values.email, values.password),
+    onSuccess: () => router.replace('/login?registered=1'),
+  });
+  const submit = (values: RegisterFormValues) =>
+    mutation.mutateAsync(values).catch(() => undefined);
 
   return (
     <AuthFormShell

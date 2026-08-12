@@ -4,10 +4,12 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.product_tour import PRODUCT_TOUR_VERSION
+from app.core.config.workspaces import MAX_WORKSPACES_PER_USER
+from app.domain.abuse.service import lock_subject
 from app.domain.billing.bootstrap import ensure_user_billing
 from app.domain.workspaces.schemas import ProductTourResponse, ProductTourUpdate
 from app.models.user import User
@@ -15,6 +17,14 @@ from app.models.workspace import ProductTourStatus, Workspace, WorkspaceMember
 
 # Roles a member can hold within a workspace. The creator is the owner.
 WORKSPACE_ROLE_OWNER = "owner"
+
+
+class WorkspaceLimitExceededError(ValueError):
+    """The account already owns or belongs to the maximum tenant roots."""
+
+    def __init__(self, *, limit: int) -> None:
+        super().__init__(f"Workspace limit of {limit} reached")
+        self.limit = limit
 
 
 def product_tour_response(member: WorkspaceMember) -> ProductTourResponse:
@@ -122,6 +132,17 @@ async def create_workspace(
     session: AsyncSession, user: User, name: str
 ) -> tuple[Workspace, WorkspaceMember]:
     """Create a workspace and add ``user`` as its owner."""
+    await lock_subject(session, namespace="workspace.create", subject=user.id)
+    current = await session.scalar(
+        select(func.count(WorkspaceMember.id))
+        .join(Workspace, Workspace.id == WorkspaceMember.workspace_id)
+        .where(
+            WorkspaceMember.user_id == user.id,
+            Workspace.is_system.is_(False),
+        )
+    )
+    if int(current or 0) >= MAX_WORKSPACES_PER_USER:
+        raise WorkspaceLimitExceededError(limit=MAX_WORKSPACES_PER_USER)
     workspace = Workspace(name=name)
     session.add(workspace)
     await session.flush()
@@ -148,6 +169,7 @@ async def ensure_personal_workspace(
     member of at least one workspace. Flushes but does not commit — the caller
     owns the transaction boundary.
     """
+    await lock_subject(session, namespace="workspace.create", subject=user.id)
     existing = await session.execute(
         select(WorkspaceMember.id).where(WorkspaceMember.user_id == user.id).limit(1)
     )

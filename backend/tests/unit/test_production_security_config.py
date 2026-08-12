@@ -21,6 +21,7 @@ def _production_settings(**updates: object) -> Settings:
             f"postgresql+asyncpg://citeladder:{_VALID}db@database.example.com/citeladder"
         ),
         "db_ssl_mode": "require",
+        "trusted_proxy_cidrs": "10.0.0.0/16",
     }
     values.update(updates)
     return settings.model_copy(update=values)
@@ -57,6 +58,26 @@ def test_duplicated_secrets_and_database_password_are_rejected() -> None:
 def test_production_requires_database_tls() -> None:
     issues = validate_production_security(_production_settings(db_ssl_mode="disable"))
     assert "db_ssl_mode must be require in production" in issues
+
+
+def test_production_requires_valid_trusted_proxy_networks() -> None:
+    missing = validate_production_security(_production_settings(trusted_proxy_cidrs=""))
+    invalid = validate_production_security(
+        _production_settings(trusted_proxy_cidrs="not-a-network")
+    )
+    assert "trusted_proxy_cidrs must be configured in production" in missing
+    assert "trusted_proxy_cidrs must contain valid IP networks" in invalid
+
+
+@pytest.mark.parametrize("catch_all", ["0.0.0.0/0", "::/0"])
+def test_production_rejects_catch_all_trusted_proxy_networks(
+    catch_all: str,
+) -> None:
+    issues = validate_production_security(
+        _production_settings(trusted_proxy_cidrs=catch_all)
+    )
+    assert "trusted_proxy_cidrs must not contain catch-all networks" in issues
+    assert "trusted_proxy_cidrs must be configured in production" in issues
 
 
 def test_dev_test_login_platform_gate_defaults_false() -> None:

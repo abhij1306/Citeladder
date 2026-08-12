@@ -18,7 +18,12 @@ async def _register(client: httpx.AsyncClient) -> None:
         "/api/v1/auth/register",
         json={"email": "commerce-intelligence@example.com", "password": "password123"},
     )
-    assert response.status_code == 201
+    assert response.status_code == 202
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "commerce-intelligence@example.com", "password": "password123"},
+    )
+    assert login_response.status_code == 200
 
 
 async def _project(client: httpx.AsyncClient) -> dict:

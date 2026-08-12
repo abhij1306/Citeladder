@@ -11,7 +11,7 @@ import { hasPendingIntent } from '@/lib/billing/pending-pricing-intent';
 import { PRICING_RESUME_QUERY_PARAM, PRICING_RETURN_PATH } from '@/lib/config/billing';
 
 /**
- * Shared login/register mutation wiring (F4): on success, prime the `me` cache
+ * Login mutation wiring (F4): on success, prime the `me` cache
  * with the returned user and route directly to the right authed screen — no
  * marketing-landing bounce. The project list is fetched through the query
  * client (so it lands in the `projects.list` cache for the app shell) and
@@ -28,7 +28,7 @@ export function useAuthMutation<TValues>(mutationFn: (values: TValues) => Promis
   const mutation = useMutation({
     mutationFn,
     onSuccess: async (user: SessionUser) => {
-      // Login/register is an identity boundary. Remove the previous account's
+      // Login is an identity boundary. Remove the previous account's
       // requests, cache, active workspace header, and project selection before
       // the newly-confirmed identity is seeded.
       await clearAccountScopedClientState(queryClient);

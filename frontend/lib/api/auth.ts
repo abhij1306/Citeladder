@@ -3,13 +3,27 @@
  * the transport. Every response passes through `strictValidate`.
  */
 import { apiClient, type ApiRequestOptions } from './client';
-import { authResponseSchema, oauthStartResponseSchema, strictValidate } from './schemas';
-import type { AuthResponse, OAuthProvider, OAuthStartResponse } from './types';
+import {
+  authResponseSchema,
+  oauthStartResponseSchema,
+  registrationResponseSchema,
+  strictValidate,
+} from './schemas';
+import type {
+  AuthResponse,
+  OAuthProvider,
+  OAuthStartResponse,
+  RegistrationResponse,
+} from './types';
 
 export const authApi = {
   register: async (email: string, password: string, options?: ApiRequestOptions) => {
-    const res = await apiClient.post<AuthResponse>('/auth/register', { email, password }, options);
-    return strictValidate(authResponseSchema, res, 'auth.register').user;
+    const res = await apiClient.post<RegistrationResponse>(
+      '/auth/register',
+      { email, password },
+      options,
+    );
+    return strictValidate(registrationResponseSchema, res, 'auth.register');
   },
   login: async (email: string, password: string, options?: ApiRequestOptions) => {
     const res = await apiClient.post<AuthResponse>('/auth/login', { email, password }, options);

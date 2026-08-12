@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_access_token, hash_password, verify_password
@@ -21,10 +22,6 @@ from app.models.user import User
 logger = logging.getLogger("app.auth")
 
 
-class EmailAlreadyRegisteredError(ValueError):
-    """Raised when registering an email that already exists."""
-
-
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
     result = await session.execute(select(User).where(User.email == email.lower()))
     return result.scalar_one_or_none()
@@ -32,20 +29,29 @@ async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
 
 async def register_user(
     session: AsyncSession, email: str, password: str, role: str = "user"
-) -> User:
+) -> User | None:
     """Create a user, then auto-create a workspace + membership for them.
 
     Commits once so the user, workspace, and membership land atomically.
     """
+    # Hash before the lookup so existing and new addresses pay the same
+    # intentionally expensive password-hashing cost.
+    password_hash = hash_password(password)
     if await get_user_by_email(session, email) is not None:
-        raise EmailAlreadyRegisteredError("Email already registered")
+        return None
     user = User(
         email=email.lower(),
-        hashed_password=hash_password(password),
+        hashed_password=password_hash,
         role=role,
     )
     session.add(user)
-    await session.flush()
+    try:
+        await session.flush()
+    except IntegrityError:
+        # A concurrent registration may win after our lookup. Keep the public
+        # response indistinguishable and leave the session usable.
+        await session.rollback()
+        return None
     workspace = await ensure_personal_workspace(session, user)
     await ensure_user_billing(
         session,
@@ -90,4 +96,4 @@ async def authenticate_user(
             "auth.workspace_autocreated",
             extra={"user_id": str(user.id), "workspace_id": str(created.id)},
         )
-    return create_access_token(str(user.id)), user
+    return create_access_token(str(user.id), token_version=user.session_version), user

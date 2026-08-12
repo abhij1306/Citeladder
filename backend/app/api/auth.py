@@ -11,6 +11,7 @@
 #   - Path=/: sent to the whole same-origin API surface.
 from __future__ import annotations
 
+import ipaddress
 import logging
 from typing import Annotated
 
@@ -18,15 +19,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.core.config import settings
+from app.core.config import settings, trusted_proxy_networks
 from app.core.config.abuse import abuse_settings
 from app.domain.abuse.service import UsageLimitExceededError, enforce_and_commit
-from app.domain.auth.schemas import AuthResponse, Credentials, SessionUser
-from app.domain.auth.service import (
-    EmailAlreadyRegisteredError,
-    authenticate_user,
-    register_user,
+from app.domain.auth.schemas import (
+    AuthResponse,
+    Credentials,
+    RegistrationResponse,
+    SessionUser,
 )
+from app.domain.auth.service import authenticate_user, register_user
 from app.models.user import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -79,21 +81,39 @@ async def _enforce_limit(
 
 
 def _trusted_client_identity(request: Request) -> str:
-    """Return the ASGI peer identity, never an attacker-supplied header."""
-    return request.client.host if request.client is not None else "unavailable"
+    """Recover the first untrusted hop only when the direct peer is trusted."""
+    peer = request.client.host if request.client is not None else "unavailable"
+    try:
+        peer_ip = ipaddress.ip_address(peer)
+        trusted = trusted_proxy_networks(settings.trusted_proxy_cidrs)
+    except ValueError:
+        return peer
+    if not trusted or not any(peer_ip in network for network in trusted):
+        return peer
+
+    forwarded = request.headers.get("x-forwarded-for")
+    if not forwarded:
+        return peer
+    for value in reversed(forwarded.split(",")):
+        try:
+            candidate = ipaddress.ip_address(value.strip())
+        except ValueError:
+            return peer
+        if not any(candidate in network for network in trusted):
+            return candidate.compressed
+    return peer
 
 
 @router.post(
     "/register",
-    response_model=AuthResponse,
-    status_code=status.HTTP_201_CREATED,
+    response_model=RegistrationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def register(
     payload: Credentials,
     request: Request,
-    response: Response,
     session: Annotated[AsyncSession, Depends(get_db)],
-) -> AuthResponse:
+) -> RegistrationResponse:
     await _enforce_limit(
         session,
         subject_kind="client",
@@ -102,21 +122,10 @@ async def register(
         limit=abuse_settings.register_client_limit,
         window=abuse_settings.register_window_seconds,
     )
-    try:
-        await register_user(session, payload.email, payload.password)
-    except EmailAlreadyRegisteredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    # Log the user straight in: mint a token + workspace exists from register.
-    authenticated = await authenticate_user(session, payload.email, payload.password)
-    if authenticated is None:  # pragma: no cover - impossible post-register
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-        )
-    token, user = authenticated
-    _set_session_cookie(response, token)
-    return AuthResponse(user=SessionUser.model_validate(user))
+    await register_user(session, payload.email, payload.password)
+    return RegistrationResponse(
+        message="If the address is eligible, the account is ready. Sign in to continue."
+    )
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -157,7 +166,13 @@ async def login(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response) -> Response:
+async def logout(
+    response: Response,
+    user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
+    user.session_version += 1
+    await session.commit()
     response.delete_cookie(settings.session_cookie_name, path="/")
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

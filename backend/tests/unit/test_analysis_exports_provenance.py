@@ -202,6 +202,16 @@ class TestCsvProvenance:
         assert "mode" not in header
         assert "measurement_mode" in header
 
+    def test_every_cell_neutralizes_spreadsheet_formulas(self) -> None:
+        audit = _audit()
+        task = _task(audit.id, request_snapshot=None)
+        task.prompt_text = '  =HYPERLINK("https://attacker.invalid")'
+        task.error_code = "@SUM(1+1)"
+
+        _, records = _csv_records(audit_to_csv(audit, [task]))
+        assert records[0]["prompt_text"] == "'" + task.prompt_text
+        assert records[0]["error_code"] == "'" + task.error_code
+
 
 class TestMarkdownProvenance:
     def test_methodology_identifies_measurement_mode(self) -> None:

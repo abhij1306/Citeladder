@@ -49,6 +49,7 @@ async def get_current_user(
     try:
         payload = decode_access_token(session_token)
         user_id = uuid.UUID(str(payload["sub"]))
+        token_version = int(payload["ver"])
     # decode_access_token failures raise TokenDecodeError, a ValueError
     # subclass (app/core/security.py) — covered here together with a missing
     # "sub" claim (KeyError) and a malformed UUID (ValueError).
@@ -72,6 +73,10 @@ async def get_current_user(
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
+        )
+    if token_version != user.session_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session no longer valid"
         )
     return user
 

@@ -43,11 +43,35 @@ utilities for convenience.
 | Commerce | Catalog/product specialization |
 | Growth Agent | Conversations, bounded task runs, typed tools, child-task reconciliation |
 
+## Authentication and tenant creation
+
+Registration always returns the same `202 RegistrationResponse` for new and
+existing addresses and never creates a browser session; the caller signs in
+explicitly. Login JWTs carry the user's persisted `session_version`. Logout
+increments that version before deleting the cookie, invalidating every token
+issued under the previous version.
+
+Authentication abuse limits identify clients from `X-Forwarded-For` only when
+the direct ASGI peer belongs to `TRUSTED_PROXY_CIDRS`; the chain is walked from
+the trusted edge toward the first untrusted address. Production startup fails
+closed when the trusted-proxy networks are missing or invalid. The AWS deployer
+places frontend proxy tasks in dedicated subnets and injects only those subnet
+CIDRs. Catch-all IPv4 and IPv6 networks are rejected.
+
+User-created workspaces are transaction-serialized per account and capped by
+the config-owned `MAX_WORKSPACES_PER_USER`. The personal workspace counts
+toward the cap; excess creates return `workspace_limit_exceeded`.
+
 ## Site Health
 
 `connectors/web_evidence` is the only website acquisition boundary. The ladder
 is `secure_httpx -> curl_cffi -> patchright`, gated by config-owned evidence and
 resource limits.
+
+Patchright enforces both limits independently: Chromium CDP network events
+account for cumulative response bytes during acquisition, while rendered DOM
+serialization enforces the decoded-document cap before HTML crosses the driver
+boundary.
 
 Site Health owns crawl, URL, task, attempt, artifact, evaluation, analysis,
 issue, snapshot, event, and export persistence. `SitePageAnalysis` is the one

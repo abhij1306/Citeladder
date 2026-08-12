@@ -67,6 +67,26 @@ _BLOCKED_RESOURCE_TYPES = frozenset({"image", "media", "font"})
 _MIN_NAVIGATION_TIMEOUT_MS = 1_000
 
 
+class _BrowserWireBudget:
+    """Cumulative network-byte budget driven by Chromium CDP events."""
+
+    def __init__(self, limit: int) -> None:
+        self.limit = limit
+        self.total = 0
+        self.exceeded = asyncio.Event()
+
+    def observe(self, event: dict[str, Any]) -> None:
+        encoded = event.get("encodedDataLength")
+        decoded = event.get("dataLength")
+        value = (
+            encoded if isinstance(encoded, (int, float)) and encoded > 0 else decoded
+        )
+        if isinstance(value, (int, float)) and value > 0:
+            self.total += int(value)
+            if self.total > self.limit:
+                self.exceeded.set()
+
+
 def _load_patchright() -> ModuleType:
     """Import Patchright, or fail closed with the standard unavailable token."""
 
@@ -377,7 +397,6 @@ class PatchrightTransport:
         """Navigate, wait for readiness, and return the rendered document."""
 
         validate_resolved_target(target)
-        del max_wire_bytes  # the rendered DOM is bounded by the decoded cap only
         started = time.monotonic()
 
         # Session setup runs INSIDE the guarded flow. A driver that cannot open
@@ -391,6 +410,10 @@ class PatchrightTransport:
             try:
                 page = await context.new_page()
                 await self._guard_requests(page, target=target)
+                wire_budget = _BrowserWireBudget(max_wire_bytes)
+                cdp = await context.new_cdp_session(page)
+                await cdp.send("Network.enable")
+                cdp.on("Network.dataReceived", wire_budget.observe)
             except Exception as exc:  # noqa: BLE001
                 raise FetchError(
                     "browser session could not be prepared",
@@ -402,13 +425,39 @@ class PatchrightTransport:
             navigation_budget = min(
                 timeout_seconds, self._settings.browser_navigation_timeout_seconds
             )
-            response = await self._navigate(page, target, navigation_budget)
-            # Readiness shares the caller's deadline rather than extending it:
-            # navigation + readiness must not exceed the budget the fetcher
-            # allotted this rung, or a slow page silently doubles the timeout.
-            elapsed = time.monotonic() - started
-            await self._wait_for_readiness(page, remaining=timeout_seconds - elapsed)
-            body = await self._rendered_body(page, max_decoded_bytes)
+
+            async def acquire() -> tuple[Any, bytes]:
+                response = await self._navigate(page, target, navigation_budget)
+                # Readiness shares the caller's deadline rather than extending it.
+                elapsed = time.monotonic() - started
+                await self._wait_for_readiness(
+                    page, remaining=timeout_seconds - elapsed
+                )
+                return response, await self._rendered_body(page, max_decoded_bytes)
+
+            acquisition = asyncio.create_task(acquire())
+            over_budget = asyncio.create_task(wire_budget.exceeded.wait())
+            try:
+                await asyncio.wait(
+                    {acquisition, over_budget}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if wire_budget.exceeded.is_set():
+                    raise FetchError(
+                        "browser response exceeded the wire cap",
+                        error_code=ERROR_RESPONSE_TOO_LARGE,
+                    )
+                response, body = await acquisition
+            finally:
+                acquisition.cancel()
+                over_budget.cancel()
+                await asyncio.gather(
+                    acquisition, over_budget, return_exceptions=True
+                )
+            if wire_budget.exceeded.is_set():
+                raise FetchError(
+                    "browser response exceeded the wire cap",
+                    error_code=ERROR_RESPONSE_TOO_LARGE,
+                )
             headers = dict(response.headers) if response is not None else {}
             status = int(response.status) if response is not None else 200
             final_url = str(page.url or target.url)
@@ -421,7 +470,7 @@ class PatchrightTransport:
                 content_type=_content_type(headers) or "text/html",
                 http_version="",
                 body=body,
-                wire_bytes=len(body),
+                wire_bytes=wire_budget.total,
                 decoded_bytes=len(body),
                 ttfb_ms=None,
                 latency_ms=latency_ms,

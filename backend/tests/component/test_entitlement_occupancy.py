@@ -277,7 +277,12 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
         "/api/v1/auth/register",
         json={"email": "occ-gen@example.com", "password": "password123"},
     )
-    assert resp.status_code == 201
+    assert resp.status_code == 202
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "occ-gen@example.com", "password": "password123"},
+    )
+    assert login_response.status_code == 200
     project = (
         await client.post(
             "/api/v1/projects",

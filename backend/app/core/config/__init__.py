@@ -1,6 +1,7 @@
 # Centralized application settings (invariant 1: all config lives here).
 from __future__ import annotations
 
+import ipaddress
 import logging
 from pathlib import Path
 from typing import Literal
@@ -53,6 +54,14 @@ class Settings(BaseSettings):
     )
     # Comma-separated explicit CORS origins; overrides frontend_url expansion.
     frontend_origins: str = ""
+    # Comma-separated networks whose direct peers may supply a proxy chain.
+    # Production traffic reaches the private API through Next.js/ALB, so auth
+    # abuse controls must recover the first untrusted address without trusting
+    # forwarding headers from arbitrary peers.
+    trusted_proxy_cidrs: str = Field(
+        default="",
+        validation_alias=AliasChoices("TRUSTED_PROXY_CIDRS", "trusted_proxy_cidrs"),
+    )
 
     # --- Auth / crypto (invariant 6) ---
     jwt_secret_key: str = Field(
@@ -315,6 +324,35 @@ def encryption_key_configured(candidate: Settings) -> bool:
     return bool(value) and value not in _INSECURE_DEFAULTS
 
 
+def trusted_proxy_networks(
+    value: str,
+) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+    """Parse and normalize the configured direct-proxy networks."""
+    return tuple(
+        ipaddress.ip_network(candidate.strip(), strict=False)
+        for candidate in value.split(",")
+        if candidate.strip()
+    )
+
+
+def _trusted_proxy_problems(value: str) -> list[str]:
+    try:
+        networks = trusted_proxy_networks(value)
+    except ValueError:
+        return [
+            "trusted_proxy_cidrs must contain valid IP networks",
+            "trusted_proxy_cidrs must be configured in production",
+        ]
+    if any(network.prefixlen == 0 for network in networks):
+        return [
+            "trusted_proxy_cidrs must not contain catch-all networks",
+            "trusted_proxy_cidrs must be configured in production",
+        ]
+    if not networks:
+        return ["trusted_proxy_cidrs must be configured in production"]
+    return []
+
+
 def _dev_gate_problems(candidate: Settings) -> list[str]:
     """The dev-test login's platform-credential escape hatch is a development/
     test-only tool: enabled anywhere else it is a hard deployment failure."""
@@ -348,6 +386,7 @@ def validate_production_security(candidate: Settings) -> list[str]:
         issues.append("database password must be independent of application secrets")
     if candidate.db_ssl_mode != "require":
         issues.append("db_ssl_mode must be require in production")
+    issues.extend(_trusted_proxy_problems(candidate.trusted_proxy_cidrs))
     issues.extend(_dev_gate_problems(candidate))
     return issues
 

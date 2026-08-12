@@ -397,9 +397,12 @@ function Register-TaskDefinition {
 }
 
 function Get-NetworkConfiguration {
-  param([object]$Config)
+  param(
+    [object]$Config,
+    [string[]]$SubnetIds
+  )
 
-  $subnets = $Config.privateSubnetIds -join ","
+  $subnets = $SubnetIds -join ","
   return "awsvpcConfiguration={subnets=[$subnets],securityGroups=[$($Config.ecsSecurityGroupId)],assignPublicIp=DISABLED}"
 }
 
@@ -428,20 +431,73 @@ function Validate-AwsInputs {
     [string]$Region
   )
 
-  $subnetArguments = @("ec2", "describe-subnets", "--subnet-ids") + @($Config.privateSubnetIds) + @("--region", $Region)
+  $privateSubnetIds = @($Config.privateSubnetIds)
+  $proxySubnetIds = @($Config.frontendProxySubnetIds)
+  $overlap = @($proxySubnetIds | Where-Object { $_ -in $privateSubnetIds })
+  if ($overlap.Count -gt 0) {
+    throw "frontendProxySubnetIds must be dedicated and not overlap privateSubnetIds"
+  }
+
+  $allSubnetIds = @($privateSubnetIds + $proxySubnetIds)
+  $subnetArguments = @("ec2", "describe-subnets", "--subnet-ids") + $allSubnetIds + @("--region", $Region)
   $subnets = Invoke-AwsJson -Arguments $subnetArguments
-  if ($subnets.Subnets.Count -ne $Config.privateSubnetIds.Count) {
-    throw "AWS did not return every configured private subnet"
+  if ($subnets.Subnets.Count -ne $allSubnetIds.Count) {
+    throw "AWS did not return every configured private or frontend proxy subnet"
   }
   foreach ($subnet in $subnets.Subnets) {
     if ($subnet.VpcId -ne $Config.vpcId) {
-      throw "Private subnet $($subnet.SubnetId) is not in vpcId $($Config.vpcId)"
+      throw "Subnet $($subnet.SubnetId) is not in vpcId $($Config.vpcId)"
     }
+  }
+
+  $proxyCidrs = @(
+    $subnets.Subnets |
+      Where-Object { $_.SubnetId -in $proxySubnetIds } |
+      ForEach-Object { [string]$_.CidrBlock } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      Sort-Object -Unique
+  )
+  if ($proxyCidrs.Count -ne $proxySubnetIds.Count) {
+    throw "Every frontend proxy subnet must expose one IPv4 CIDR"
   }
 
   $securityGroup = Invoke-AwsJson -Arguments @("ec2", "describe-security-groups", "--group-ids", $Config.ecsSecurityGroupId, "--region", $Region)
   if ($securityGroup.SecurityGroups.Count -ne 1 -or $securityGroup.SecurityGroups[0].VpcId -ne $Config.vpcId) {
     throw "ecsSecurityGroupId does not belong to vpcId $($Config.vpcId)"
+  }
+  $apiIngressPermissions = @(
+    $securityGroup.SecurityGroups[0].IpPermissions |
+      Where-Object {
+        $_.IpProtocol -eq "-1" -or (
+          $_.IpProtocol -eq "tcp" -and
+          [int]$_.FromPort -le 8000 -and
+          [int]$_.ToPort -ge 8000
+        )
+      }
+  )
+  $apiIngressCidrs = @(
+    $apiIngressPermissions |
+      ForEach-Object { $_.IpRanges } |
+      ForEach-Object { [string]$_.CidrIp } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      Sort-Object -Unique
+  )
+  $nonCidrApiSources = @(
+    $apiIngressPermissions |
+      Where-Object {
+        @($_.Ipv6Ranges).Count -gt 0 -or
+        @($_.PrefixListIds).Count -gt 0 -or
+        @($_.UserIdGroupPairs).Count -gt 0
+      }
+  )
+  $unexpectedApiIngress = @($apiIngressCidrs | Where-Object { $_ -notin $proxyCidrs })
+  $missingApiIngress = @($proxyCidrs | Where-Object { $_ -notin $apiIngressCidrs })
+  if (
+    $nonCidrApiSources.Count -gt 0 -or
+    $unexpectedApiIngress.Count -gt 0 -or
+    $missingApiIngress.Count -gt 0
+  ) {
+    throw "ecsSecurityGroupId TCP 8000 ingress must exactly match frontend proxy subnet CIDRs"
   }
 
   $targetGroup = Invoke-AwsJson -Arguments @("elbv2", "describe-target-groups", "--target-group-arns", $Config.frontendTargetGroupArn, "--region", $Region)
@@ -461,6 +517,7 @@ function Validate-AwsInputs {
   foreach ($secret in $SecretMap.PSObject.Properties) {
     Invoke-Aws -Arguments @("secretsmanager", "describe-secret", "--secret-id", [string]$secret.Value, "--region", $Region) | Out-Null
   }
+  return $proxyCidrs
 }
 
 function Wait-Service {
@@ -500,7 +557,7 @@ function Ensure-Service {
   }
 
   if ($exists) {
-    Invoke-Aws -Arguments @("ecs", "update-service", "--cluster", $ClusterName, "--service", $ServiceName, "--task-definition", $TaskDefinitionArn, "--desired-count", [string]$DesiredCount, "--service-connect-configuration", $ServiceConnectConfiguration, "--deployment-configuration", "deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100", "--force-new-deployment", "--region", $Region) | Out-Null
+    Invoke-Aws -Arguments @("ecs", "update-service", "--cluster", $ClusterName, "--service", $ServiceName, "--task-definition", $TaskDefinitionArn, "--desired-count", [string]$DesiredCount, "--network-configuration", $NetworkConfiguration, "--service-connect-configuration", $ServiceConnectConfiguration, "--deployment-configuration", "deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100", "--force-new-deployment", "--region", $Region) | Out-Null
   }
   else {
     $arguments = @("ecs", "create-service", "--cluster", $ClusterName, "--service-name", $ServiceName, "--task-definition", $TaskDefinitionArn, "--desired-count", [string]$DesiredCount, "--launch-type", "FARGATE", "--network-configuration", $NetworkConfiguration, "--service-connect-configuration", $ServiceConnectConfiguration, "--deployment-configuration", "deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100", "--region", $Region)
@@ -588,6 +645,9 @@ if ($config.environment -eq "production" -and ([uri]$config.frontendUrl).Scheme 
 if ($config.privateSubnetIds.Count -lt 2) {
   throw "privateSubnetIds must contain at least two subnets"
 }
+if ($config.frontendProxySubnetIds.Count -lt 2) {
+  throw "frontendProxySubnetIds must contain at least two subnets"
+}
 if ((Get-DesiredCount -Config $config -Name "integration-dispatcher") -ne 1) {
   throw "integration-dispatcher must have desired count exactly 1"
 }
@@ -597,7 +657,10 @@ $account = Invoke-AwsJson -Arguments @("sts", "get-caller-identity", "--region",
 $accountId = [string]$account.Account
 $region = [string]$config.awsRegion
 $registry = "{0}.dkr.ecr.{1}.amazonaws.com" -f $accountId, $region
-Validate-AwsInputs -Config $config -SecretMap $secretMap -Region $region
+$trustedProxyCidrs = @(Validate-AwsInputs -Config $config -SecretMap $secretMap -Region $region) -join ","
+if ([string]::IsNullOrWhiteSpace($trustedProxyCidrs)) {
+  throw "The frontend proxy subnets must expose trusted IPv4 CIDRs"
+}
 
 if ([string]::IsNullOrWhiteSpace($ImageTag)) {
   $ImageTag = ((& git rev-parse --short=12 HEAD 2>$null) | Out-String).Trim()
@@ -612,7 +675,8 @@ if ($ImageTag -eq "latest") {
 $backendImage = "{0}/{1}:{2}" -f $registry, $config.backendRepository, $ImageTag
 $frontendImage = "{0}/{1}:{2}" -f $registry, $config.frontendRepository, $ImageTag
 $servicePrefix = "{0}-{1}" -f $config.projectName, $config.environment
-$networkConfiguration = Get-NetworkConfiguration -Config $config
+$backendNetworkConfiguration = Get-NetworkConfiguration -Config $config -SubnetIds $config.privateSubnetIds
+$frontendNetworkConfiguration = Get-NetworkConfiguration -Config $config -SubnetIds $config.frontendProxySubnetIds
 $generatedDirectory = Join-Path $PSScriptRoot "generated"
 $logRetentionDays = [int](Get-RequiredProperty -Object $config -Name "logRetentionDays")
 
@@ -672,6 +736,7 @@ $backendEnvironment = @(
   [ordered]@{ name = "APP_ENV"; value = [string]$config.environment },
   [ordered]@{ name = "FRONTEND_URL"; value = [string]$config.frontendUrl },
   [ordered]@{ name = "FRONTEND_ORIGINS"; value = [string]$config.frontendOrigins },
+  [ordered]@{ name = "TRUSTED_PROXY_CIDRS"; value = $trustedProxyCidrs },
   [ordered]@{ name = "DB_SSL_MODE"; value = "require" },
   [ordered]@{ name = "DB_POOL_SIZE"; value = [string](Get-RequiredProperty -Object $config -Name "dbPoolSize") },
   [ordered]@{ name = "DB_MAX_OVERFLOW"; value = [string](Get-RequiredProperty -Object $config -Name "dbMaxOverflow") },
@@ -816,18 +881,18 @@ $serviceConnectClient = @{
   namespace = [string]$config.serviceConnectNamespaceArn
 } | ConvertTo-Json -Depth 10 -Compress
 
-Run-Migration -ClusterName $config.clusterName -TaskDefinitionArn $registered["migrate"] -NetworkConfiguration $networkConfiguration -Region $region
+Run-Migration -ClusterName $config.clusterName -TaskDefinitionArn $registered["migrate"] -NetworkConfiguration $backendNetworkConfiguration -Region $region
 
 $apiService = "$servicePrefix-api"
 $frontendService = "$servicePrefix-frontend"
 
-Ensure-Service -ClusterName $config.clusterName -ServiceName $apiService -TaskDefinitionArn $registered["api"] -DesiredCount (Get-DesiredCount -Config $config -Name "api") -Region $region -NetworkConfiguration $networkConfiguration -ServiceConnectConfiguration $serviceConnectApi
+Ensure-Service -ClusterName $config.clusterName -ServiceName $apiService -TaskDefinitionArn $registered["api"] -DesiredCount (Get-DesiredCount -Config $config -Name "api") -Region $region -NetworkConfiguration $backendNetworkConfiguration -ServiceConnectConfiguration $serviceConnectApi
 
-Ensure-Service -ClusterName $config.clusterName -ServiceName $frontendService -TaskDefinitionArn $registered["frontend"] -DesiredCount (Get-DesiredCount -Config $config -Name "frontend") -Region $region -NetworkConfiguration $networkConfiguration -ServiceConnectConfiguration $serviceConnectClient -TargetGroupArn $config.frontendTargetGroupArn -ContainerName "frontend" -ContainerPort 3000
+Ensure-Service -ClusterName $config.clusterName -ServiceName $frontendService -TaskDefinitionArn $registered["frontend"] -DesiredCount (Get-DesiredCount -Config $config -Name "frontend") -Region $region -NetworkConfiguration $frontendNetworkConfiguration -ServiceConnectConfiguration $serviceConnectClient -TargetGroupArn $config.frontendTargetGroupArn -ContainerName "frontend" -ContainerPort 3000
 
 foreach ($spec in $workerSpecs) {
   $serviceName = "$servicePrefix-$($spec.Name)"
-  Ensure-Service -ClusterName $config.clusterName -ServiceName $serviceName -TaskDefinitionArn $registered[$spec.Name] -DesiredCount (Get-DesiredCount -Config $config -Name $spec.Name) -Region $region -NetworkConfiguration $networkConfiguration -ServiceConnectConfiguration $serviceConnectClient
+  Ensure-Service -ClusterName $config.clusterName -ServiceName $serviceName -TaskDefinitionArn $registered[$spec.Name] -DesiredCount (Get-DesiredCount -Config $config -Name $spec.Name) -Region $region -NetworkConfiguration $backendNetworkConfiguration -ServiceConnectConfiguration $serviceConnectClient
 }
 
 Write-Host ""

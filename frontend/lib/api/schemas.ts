@@ -54,10 +54,10 @@ export const sessionUserSchema = responseObject({
   updated_at: z.string(),
 });
 
-// register/login/me all return the authenticated user wrapped as
-// `{ user: SessionUser }` (backend `AuthResponse`); the JWT rides the HttpOnly
-// cookie, never the body. Fail loud on any extra key.
+// Login/me return the authenticated user; registration deliberately returns
+// only an enumeration-safe acknowledgement and never creates a session.
 export const authResponseSchema = responseObject({ user: sessionUserSchema });
+export const registrationResponseSchema = responseObject({ message: z.string() });
 
 // OAuth start scaffold (Phase B backend): a configured provider answers
 // `{ authorize_url, state, session_nonce }`; unconfigured providers answer

@@ -83,7 +83,12 @@ async def _register_and_seed(
         "/api/v1/auth/register",
         json={"email": email, "password": "password123"},
     )
-    assert reg.status_code == 201
+    assert reg.status_code == 202
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "password123"},
+    )
+    assert login_response.status_code == 200
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=2)
         user = await session.scalar(select(User).where(User.email == email))

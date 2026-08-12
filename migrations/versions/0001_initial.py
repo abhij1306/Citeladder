@@ -81,6 +81,7 @@ def upgrade() -> None:
         sa.Column("hashed_password", sa.String(length=255), nullable=False),
         sa.Column("role", sa.String(length=20), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False),
+        sa.Column("session_version", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),

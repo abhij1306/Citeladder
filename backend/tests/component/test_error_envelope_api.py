@@ -48,7 +48,12 @@ async def _register(client: httpx.AsyncClient, email: str = _EMAIL) -> None:
         "/api/v1/auth/register",
         json={"email": email, "password": "password123"},
     )
-    assert resp.status_code == 201
+    assert resp.status_code == 202
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "password123"},
+    )
+    assert login_response.status_code == 200
 
 
 async def _project(client: httpx.AsyncClient, name: str = "Envelope Co") -> dict:
@@ -91,14 +96,14 @@ async def test_legacy_http_exception_router_normalized_by_shim(
 ) -> None:
     """Unmigrated routers (auth) keep working via the compatibility shim."""
     await _register(client)
-    dupe = await client.post(
-        "/api/v1/auth/register",
-        json={"email": _EMAIL, "password": "password123"},
+    invalid = await client.post(
+        "/api/v1/auth/login",
+        json={"email": _EMAIL, "password": "wrong-password"},
     )
-    assert dupe.status_code == 400
-    body = dupe.json()
+    assert invalid.status_code == 401
+    body = invalid.json()
     assert isinstance(body["detail"], str)  # legacy string detail preserved
-    _assert_envelope(body, code="bad_request", retryable=False)
+    _assert_envelope(body, code="unauthorized", retryable=False)
     assert body["error"]["message"] == body["detail"]
 
 

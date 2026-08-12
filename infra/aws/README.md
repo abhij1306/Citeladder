@@ -37,9 +37,14 @@ Install and configure:
 - Docker Desktop;
 - PowerShell 7 (`pwsh`);
 - an existing AWS VPC in the target region;
-- at least two private ECS subnets in different Availability Zones;
-- an ECS security group with no inbound rules and egress to RDS, AWS endpoints,
-  and the required external providers through the approved network path;
+- at least two private backend/worker ECS subnets in different Availability
+  Zones;
+- at least two dedicated frontend proxy subnets in different Availability
+  Zones, disjoint from the backend/worker subnets;
+- an ECS security group whose TCP 8000 ingress exactly matches the frontend
+  proxy subnet CIDRs, plus the frontend's ALB-to-3000 rule, with egress to RDS,
+  AWS endpoints, and the required external providers through the approved
+  network path;
 - an RDS PostgreSQL 16 instance in isolated subnets, with its security group allowing
   TCP 5432 from the ECS security group;
 - an ECS task execution role that can pull the two ECR repositories, write CloudWatch
@@ -93,6 +98,13 @@ The frontend origin must be the public app origin, not the API origin:
 
 `backendOrigin` is used at frontend build time for the server-only Next.js rewrite.
 The browser still calls relative `/api/*` URLs.
+
+The deploy script places frontend tasks only in `frontendProxySubnetIds` and
+derives `TRUSTED_PROXY_CIDRS` only from those subnets' IPv4 CIDRs. It verifies
+that TCP 8000 ingress matches the same CIDR set exactly. FastAPI accepts
+`X-Forwarded-For` for authentication rate-limit identity only from those direct
+proxy peers; production startup rejects an empty, invalid, or catch-all trust
+set.
 
 ## Validate without changing AWS
 

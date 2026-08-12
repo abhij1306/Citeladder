@@ -28,13 +28,19 @@ class SessionUser(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    """Response for register/login/me — the authenticated user only.
+    """Response for login/me — the authenticated user only.
 
     The JWT is delivered out-of-band in the HttpOnly session cookie, never
     in the response body.
     """
 
     user: SessionUser
+
+
+class RegistrationResponse(BaseModel):
+    """Enumeration-safe acknowledgement; registration never creates a session."""
+
+    message: str
 
 
 class OAuthProviderInfo(BaseModel):

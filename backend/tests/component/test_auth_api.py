@@ -1,18 +1,21 @@
 """Component tests for the auth + workspace API (httpx ASGITransport).
 
 Covers the B2 acceptance:
-  - register/login sets the auth cookie;
+  - registration is generic and sessionless; login sets the auth cookie;
   - a workspace is auto-created on first login and the user is a member;
   - cross-workspace access is rejected (403/404).
 """
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 import pytest
 
 from app.core.config import settings
 from app.core.config.abuse import abuse_settings
+from app.domain.workspaces import service as workspace_service
 
 COOKIE = settings.session_cookie_name
 
@@ -20,25 +23,28 @@ COOKIE = settings.session_cookie_name
 async def _register(
     client: httpx.AsyncClient, email: str, password: str = "password123"
 ):
-    return await client.post(
+    response = await client.post(
         "/api/v1/auth/register", json={"email": email, "password": password}
     )
+    login = await client.post(
+        "/api/v1/auth/login", json={"email": email, "password": password}
+    )
+    assert login.status_code == 200
+    return response
 
 
 @pytest.mark.asyncio
-async def test_register_sets_cookie_and_returns_user(client: httpx.AsyncClient) -> None:
-    resp = await _register(client, "alice@example.com")
-    assert resp.status_code == 201
-    body = resp.json()
-    assert body["user"]["email"] == "alice@example.com"
-    # UUID id, no password ever returned.
-    assert "-" in body["user"]["id"]
-    assert "password" not in body["user"]
-    assert "hashed_password" not in body["user"]
-    assert COOKIE in resp.cookies
-    # Cookie is HttpOnly.
-    set_cookie = resp.headers.get("set-cookie", "")
-    assert "httponly" in set_cookie.lower()
+async def test_register_is_generic_and_does_not_create_session(
+    client: httpx.AsyncClient,
+) -> None:
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "alice@example.com", "password": "password123"},
+    )
+    assert resp.status_code == 202
+    assert set(resp.json()) == {"message"}
+    assert COOKIE not in resp.cookies
+    assert (await client.get("/api/v1/auth/me")).status_code == 401
 
 
 @pytest.mark.asyncio
@@ -46,7 +52,7 @@ async def test_login_sets_cookie_and_workspace_autocreated(
     client: httpx.AsyncClient,
 ) -> None:
     await _register(client, "bob@example.com")
-    # Fresh client cookies aside, login via a clean jar.
+    client.cookies.clear()
     resp = await client.post(
         "/api/v1/auth/login",
         json={"email": "bob@example.com", "password": "password123"},
@@ -77,18 +83,31 @@ async def test_me_requires_auth(client: httpx.AsyncClient) -> None:
 @pytest.mark.asyncio
 async def test_logout_clears_session(client: httpx.AsyncClient) -> None:
     await _register(client, "dave@example.com")
+    old_token = client.cookies[COOKIE]
     assert (await client.get("/api/v1/auth/me")).status_code == 200
     logout = await client.post("/api/v1/auth/logout")
     assert logout.status_code == 204
     client.cookies.clear()
     assert (await client.get("/api/v1/auth/me")).status_code == 401
+    client.cookies.set(COOKIE, old_token)
+    assert (await client.get("/api/v1/auth/me")).status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_duplicate_registration_rejected(client: httpx.AsyncClient) -> None:
-    assert (await _register(client, "dup@example.com")).status_code == 201
-    dup = await _register(client, "dup@example.com")
-    assert dup.status_code == 400
+async def test_duplicate_registration_is_indistinguishable(
+    client: httpx.AsyncClient,
+) -> None:
+    first = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "dup@example.com", "password": "password123"},
+    )
+    duplicate = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "dup@example.com", "password": "wrong-password"},
+    )
+    assert duplicate.status_code == first.status_code == 202
+    assert duplicate.json() == first.json()
+    assert duplicate.headers.get("set-cookie") == first.headers.get("set-cookie")
 
 
 @pytest.mark.asyncio
@@ -149,6 +168,38 @@ async def test_create_and_list_workspaces(client: httpx.AsyncClient) -> None:
     # personal auto-created workspace + the new one.
     assert "Acme" in names
     assert len(listing.json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_workspace_creation_enforces_account_cap(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(workspace_service, "MAX_WORKSPACES_PER_USER", 2)
+    await _register(client, "workspace-cap@example.com")
+    assert (
+        await client.post("/api/v1/workspaces", json={"name": "Second"})
+    ).status_code == 201
+
+    blocked = await client.post("/api/v1/workspaces", json={"name": "Third"})
+    assert blocked.status_code == 403
+    assert blocked.json()["detail"]["code"] == "workspace_limit_exceeded"
+    assert blocked.json()["detail"]["limit"] == 2
+    assert blocked.json()["error"]["details"] == {"limit": 2}
+
+
+@pytest.mark.asyncio
+async def test_concurrent_workspace_creates_cannot_overrun_cap(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(workspace_service, "MAX_WORKSPACES_PER_USER", 2)
+    await _register(client, "workspace-cap-race@example.com")
+
+    first, second = await asyncio.gather(
+        client.post("/api/v1/workspaces", json={"name": "Racer A"}),
+        client.post("/api/v1/workspaces", json={"name": "Racer B"}),
+    )
+    assert sorted((first.status_code, second.status_code)) == [201, 403]
+    assert len((await client.get("/api/v1/workspaces")).json()) == 2
 
 
 @pytest.mark.asyncio

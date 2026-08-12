@@ -151,3 +151,6 @@ these routes: `url_hard_excluded`, `url_out_of_scope`,
 They use the existing `{ code, message, request_id, details? }` envelope; details
 contain only safe validation or aggregate information and never secrets, raw HTML,
 or provider request headers.
+
+Workspace creation additionally uses `workspace_limit_exceeded` with a safe
+`limit` detail when the account has reached the configured tenant-root cap.

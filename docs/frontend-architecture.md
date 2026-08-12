@@ -72,6 +72,14 @@ do not appear as passes or issues.
 | `/agent` | Growth Agent conversations and bounded task progress |
 | `/providers`, `/settings` | Shared workspace/project configuration |
 
+## Authentication flow
+
+Registration consumes only the generic `RegistrationResponse` acknowledgement
+and redirects to `/login?registered=1`. It does not seed the authenticated-user
+cache or assume that registration created a session. Login remains the sole
+email/password flow that receives a session and performs the account-scoped
+cache transition.
+
 ## Data and query ownership
 
 Each domain has one API module, one query-key owner, and shared schemas/types.

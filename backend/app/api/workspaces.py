@@ -12,6 +12,8 @@ from app.api.deps import (
     get_db,
     require_workspace_member,
 )
+from app.core.config.workspaces import CODE_WORKSPACE_LIMIT_EXCEEDED
+from app.core.errors import ApiException
 from app.domain.workspaces.schemas import (
     ProductTourResponse,
     ProductTourUpdate,
@@ -19,6 +21,7 @@ from app.domain.workspaces.schemas import (
     WorkspaceResponse,
 )
 from app.domain.workspaces.service import (
+    WorkspaceLimitExceededError,
     create_workspace,
     list_workspaces_for_user,
     product_tour_response,
@@ -53,7 +56,15 @@ async def create_workspace_endpoint(
     user: Annotated[User, Depends(get_current_user)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> WorkspaceResponse:
-    workspace, member = await create_workspace(session, user, payload.name)
+    try:
+        workspace, member = await create_workspace(session, user, payload.name)
+    except WorkspaceLimitExceededError as exc:
+        raise ApiException.coded(
+            status.HTTP_403_FORBIDDEN,
+            CODE_WORKSPACE_LIMIT_EXCEEDED,
+            str(exc),
+            details={"limit": exc.limit},
+        ) from exc
     return WorkspaceResponse(
         id=workspace.id,
         name=workspace.name,

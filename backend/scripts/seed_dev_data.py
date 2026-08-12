@@ -73,7 +73,7 @@ from app.core.config.provider_catalog import (
 from app.core.database import SessionLocal
 from app.core.security import encrypt_secret
 from app.domain.audits.planner import create_audit
-from app.domain.auth.service import EmailAlreadyRegisteredError, register_user
+from app.domain.auth.service import register_user
 from app.domain.billing.bootstrap import ensure_user_billing
 from app.domain.entitlements.grants import issue_override_bundle
 from app.domain.entitlements.types import GrantSpec
@@ -583,9 +583,8 @@ async def seed() -> None:
 
     # 1. Demo user + personal workspace (via the real auth service).
     async with SessionLocal() as session:
-        try:
-            user = await register_user(session, DEMO_EMAIL, DEMO_PASSWORD)
-        except EmailAlreadyRegisteredError:
+        user = await register_user(session, DEMO_EMAIL, DEMO_PASSWORD)
+        if user is None:
             user = (
                 await session.execute(select(User).where(User.email == DEMO_EMAIL))
             ).scalar_one()

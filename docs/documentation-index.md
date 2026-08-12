@@ -31,6 +31,7 @@ listed here must prove a current operational purpose or move to the archive.
 | [`frontend-architecture.md`](frontend-architecture.md) | Frontend ownership, API contracts, and routes |
 | [`invariants.md`](invariants.md) | Hard cross-cutting runtime invariants |
 | [`api-error-contract.md`](api-error-contract.md) | Canonical API error envelope |
+| [`security-fix.md`](security-fix.md) | 2026-08 security boundary and deployment compatibility reference |
 | [`design.md`](design.md) | UI tokens, geometry, and interaction rules |
 | [`integrations-traffic-analytics.md`](integrations-traffic-analytics.md) | Integration and traffic evidence contracts |
 | [`commerce-intelligence.md`](commerce-intelligence.md) | Commerce specialization boundary |

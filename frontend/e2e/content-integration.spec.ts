@@ -37,12 +37,16 @@ test.beforeEach(() => {
 
 const PROMPT_BOX = /describe the website content/i;
 
-/** Register (auto-login via HttpOnly cookie) + create a project via the real API. */
+/** Register, explicitly sign in, then create a project via the real API. */
 async function seedAccount(page: Page, email: string, projectName: string): Promise<string> {
   const register = await page.request.post('/api/v1/auth/register', {
     data: { email, password: 'password123' },
   });
-  expect(register.status(), await register.text()).toBe(201);
+  expect(register.status(), await register.text()).toBe(202);
+  const login = await page.request.post('/api/v1/auth/login', {
+    data: { email, password: 'password123' },
+  });
+  expect(login.status(), await login.text()).toBe(200);
   const project = await page.request.post('/api/v1/projects', {
     data: {
       name: projectName,

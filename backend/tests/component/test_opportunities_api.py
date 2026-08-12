@@ -41,7 +41,12 @@ async def _register(client: httpx.AsyncClient, email: str = _EMAIL) -> None:
         "/api/v1/auth/register",
         json={"email": email, "password": "password123"},
     )
-    assert reg.status_code == 201
+    assert reg.status_code == 202
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "password123"},
+    )
+    assert login_response.status_code == 200
 
 
 def _headers(scn: Scenario) -> dict[str, str]:

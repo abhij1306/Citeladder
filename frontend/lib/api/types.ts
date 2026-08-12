@@ -14,6 +14,7 @@ import type {
   auditSchema,
   auditStatusSchema,
   authResponseSchema,
+  registrationResponseSchema,
   connectionTestResultSchema,
   competitorSchema,
   measurementModeSchema,
@@ -196,6 +197,7 @@ import type {
 
 export type SessionUser = z.infer<typeof sessionUserSchema>;
 export type AuthResponse = z.infer<typeof authResponseSchema>;
+export type RegistrationResponse = z.infer<typeof registrationResponseSchema>;
 // OAuth provider ids are a request-input union (not a response payload), so
 // they stay a plain literal type rather than a `z.infer`.
 export type OAuthProvider = 'google' | 'github' | 'apple';

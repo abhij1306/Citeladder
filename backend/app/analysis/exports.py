@@ -16,6 +16,7 @@ import io
 import json
 from typing import Any
 
+from app.analysis.csv_cells import csv_cell
 from app.domain.audits.schemas import (
     ModelProvenance,
     execution_frozen_provenance,
@@ -94,44 +95,39 @@ def audit_to_csv(audit: Audit, tasks: list[AuditTask]) -> str:
             c.get("domain") for c in (task.citations or []) if c.get("domain")
         ]
         measurement_mode, retrieval_enabled = _row_provenance(audit, task)
-        writer.writerow(
-            {
-                "audit_id": str(audit.id),
-                "prompt_index": task.prompt_index,
-                "prompt_text": task.prompt_text,
-                "repetition": task.repetition,
-                "randomized_position": task.randomized_position,
-                "logical_engine": task.logical_engine,
-                "transport_model": task.transport_model,
-                "measurement_mode": measurement_mode,
-                "retrieval_enabled": _csv_bool(retrieval_enabled),
-                "status": task.status,
-                "search_used": task.search_used,
-                "search_query_count": score.get("search_query_count", 0),
-                "search_queries": _join(queries),
-                "prompt_class": score.get("prompt_class", ""),
-                "prompt_contains_brand": score.get("prompt_contains_brand", False),
-                "prompt_contains_competitor": score.get(
-                    "prompt_contains_competitor", False
-                ),
-                "brand_mentioned": score.get("brand_mentioned", False),
-                "brand_injected_in_search": score.get(
-                    "brand_injected_in_search", False
-                ),
-                "owned_domain_cited": score.get("owned_domain_cited", False),
-                "owned_citation_count": score.get("owned_citation_count", 0),
-                "unintended_domain_cited": score.get("unintended_domain_cited", False),
-                "citation_count": score.get("citation_count", 0),
-                "citation_domains": _join(citation_domains),
-                "competitors_mentioned": _join(score.get("competitors_mentioned")),
-                "competitor_domains_cited": _join(
-                    score.get("competitor_domains_cited")
-                ),
-                "fanout_features": _join(score.get("fanout_features")),
-                "latency_ms": task.latency_ms,
-                "error_code": task.error_code,
-            }
-        )
+        row = {
+            "audit_id": str(audit.id),
+            "prompt_index": task.prompt_index,
+            "prompt_text": task.prompt_text,
+            "repetition": task.repetition,
+            "randomized_position": task.randomized_position,
+            "logical_engine": task.logical_engine,
+            "transport_model": task.transport_model,
+            "measurement_mode": measurement_mode,
+            "retrieval_enabled": _csv_bool(retrieval_enabled),
+            "status": task.status,
+            "search_used": task.search_used,
+            "search_query_count": score.get("search_query_count", 0),
+            "search_queries": _join(queries),
+            "prompt_class": score.get("prompt_class", ""),
+            "prompt_contains_brand": score.get("prompt_contains_brand", False),
+            "prompt_contains_competitor": score.get(
+                "prompt_contains_competitor", False
+            ),
+            "brand_mentioned": score.get("brand_mentioned", False),
+            "brand_injected_in_search": score.get("brand_injected_in_search", False),
+            "owned_domain_cited": score.get("owned_domain_cited", False),
+            "owned_citation_count": score.get("owned_citation_count", 0),
+            "unintended_domain_cited": score.get("unintended_domain_cited", False),
+            "citation_count": score.get("citation_count", 0),
+            "citation_domains": _join(citation_domains),
+            "competitors_mentioned": _join(score.get("competitors_mentioned")),
+            "competitor_domains_cited": _join(score.get("competitor_domains_cited")),
+            "fanout_features": _join(score.get("fanout_features")),
+            "latency_ms": task.latency_ms,
+            "error_code": task.error_code,
+        }
+        writer.writerow({key: csv_cell(value) for key, value in row.items()})
     return buffer.getvalue()
 
 

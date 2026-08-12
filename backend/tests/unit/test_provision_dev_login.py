@@ -75,3 +75,39 @@ def test_run_fails_when_written_credentials_do_not_authenticate(
         asyncio.run(provision_dev_login._run(user.email, "wrong-password", 100))
 
     dispose_engine.assert_awaited_once()
+
+
+def test_run_rejects_non_admin_returned_by_registration_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user, _session, dispose_engine = _arrange_existing_login(monkeypatch)
+    user.role = "user"
+    get_user = AsyncMock(side_effect=[None, user])
+    monkeypatch.setattr(provision_dev_login, "get_user_by_email", get_user)
+    monkeypatch.setattr(
+        provision_dev_login, "register_user", AsyncMock(return_value=None)
+    )
+
+    with pytest.raises(RuntimeError, match="not an admin account"):
+        asyncio.run(provision_dev_login._run(user.email, "password123", 100))
+
+    dispose_engine.assert_awaited_once()
+
+
+def test_run_preserves_missing_user_failure_after_registration_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user, _session, dispose_engine = _arrange_existing_login(monkeypatch)
+    monkeypatch.setattr(
+        provision_dev_login,
+        "get_user_by_email",
+        AsyncMock(side_effect=[None, None]),
+    )
+    monkeypatch.setattr(
+        provision_dev_login, "register_user", AsyncMock(return_value=None)
+    )
+
+    with pytest.raises(RuntimeError, match="registration did not persist"):
+        asyncio.run(provision_dev_login._run(user.email, "password123", 100))
+
+    dispose_engine.assert_awaited_once()

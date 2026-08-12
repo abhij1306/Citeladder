@@ -109,7 +109,12 @@ async def test_endpoints_serve_projections_over_http(
         "/api/v1/auth/register",
         json={"email": email, "password": "password123"},
     )
-    assert reg.status_code == 201
+    assert reg.status_code == 202
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "password123"},
+    )
+    assert login_response.status_code == 200
 
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=2)
@@ -255,7 +260,12 @@ async def _register_and_attach(client, session_factory, *, prompt_count=1):
         "/api/v1/auth/register",
         json={"email": email, "password": "password123"},
     )
-    assert reg.status_code == 201
+    assert reg.status_code == 202
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "password123"},
+    )
+    assert login_response.status_code == 200
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=prompt_count)
         user = await session.scalar(select(User).where(User.email == email))

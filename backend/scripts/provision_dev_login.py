@@ -67,7 +67,11 @@ async def _run(email: str, password: str, counter_allowance: int) -> None:
             user = await get_user_by_email(session, email)
             if user is None:
                 user = await register_user(session, email, password, role="admin")
-            elif user.role != "admin":
+                if user is None:
+                    user = await get_user_by_email(session, email)
+                if user is None:
+                    raise RuntimeError("Development login registration did not persist")
+            if user.role != "admin":
                 raise RuntimeError("Existing development login is not an admin account")
             workspace = await ensure_personal_workspace(session, user)
             if workspace is None:

@@ -202,7 +202,8 @@ Use three Availability Zones when budget permits; two is the minimum.
 | Subnet tier                              | Contents                                                    | Internet route                                                    |
 | ---------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------- |
 | Public, one per AZ                       | ALB and NAT gateways only                                   | Internet gateway                                                  |
-| Private trusted-egress, one per AZ       | Frontend, API, credential-bearing workers, dispatcher       | Catalog-restricted firewall/trusted proxy; no crawler NAT route    |
+| Private frontend-proxy, one per AZ       | Frontend tasks only                                         | API and required frontend endpoints                                |
+| Private trusted-egress, one per AZ       | API, credential-bearing workers, dispatcher                 | Catalog-restricted firewall/trusted proxy; no crawler NAT route    |
 | Private crawler-egress, one per AZ       | Site Health/crawler workers                                 | Dedicated NAT with unrestricted public DNS/HTTP(S) egress          |
 | Private no-internet, one per AZ          | Analytics workers and migration tasks where applicable      | VPC endpoints and internal services only                           |
 | Isolated database, one per AZ            | RDS                                                         | None                                                               |
@@ -220,7 +221,7 @@ must have no route to the crawler NAT.
 | -------------- | ----------------------------------------------------------------- | -------------------------------------------------------- |
 | ALB            | TCP 443 from the AWS-managed CloudFront origin-facing prefix list | Frontend SG on TCP 3000                                  |
 | Frontend tasks | TCP 3000 from ALB SG                                              | API SG on TCP 8000, endpoints/DNS                        |
-| API tasks                    | TCP 8000 from frontend SG only                      | RDS SG, endpoints, catalog-restricted egress proxy/firewall |
+| API tasks                    | TCP 8000 from dedicated frontend-proxy subnet CIDRs only | RDS SG, endpoints, catalog-restricted egress proxy/firewall |
 | Credential-bearing workers  | No inbound                                          | RDS SG, endpoints, catalog-restricted egress proxy/firewall |
 | Site Health/crawler workers  | No inbound                                          | RDS SG, endpoints, arbitrary public DNS/HTTP(S) through dedicated crawler NAT |
 | RDS                          | TCP 5432 from API/worker/migration SGs only         | Stateful responses only                                    |
@@ -607,6 +608,10 @@ Manage non-secrets in IaC/task environment or AppConfig/SSM Parameter Store:
 
 - `APP_ENV=production`;
 - canonical `FRONTEND_URL` and exact `FRONTEND_ORIGINS`;
+- `TRUSTED_PROXY_CIDRS` containing only the private networks of proxy peers
+  allowed to supply `X-Forwarded-For` (the ECS deploy script derives only the
+  dedicated `frontendProxySubnetIds` IPv4 CIDRs and verifies that API TCP 8000
+  ingress matches that set exactly);
 - stable private `BACKEND_ORIGIN` for the frontend only;
 - database pool sizes/timeouts and all worker concurrency/lease/poll knobs;
 - provider endpoints/models and application usage caps;
