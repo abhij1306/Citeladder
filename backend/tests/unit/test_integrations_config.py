@@ -16,12 +16,9 @@ from app.core.config.integrations import (
     DATASET_BING_QUERY_DAILY,
     DATASET_GA4_CHANNEL_DAILY,
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
-    DATASET_GA4_EVENT_DAILY,
     DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
-    DATASET_GA4_KEY_EVENT_DAILY,
     DATASET_GA4_LANDING_DAILY,
-    DATASET_GA4_PAGE_DAILY,
     DATASET_GA4_REFERRER_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
     DATASET_GSC_COUNTRY_DAILY,
@@ -235,18 +232,6 @@ def test_dataset_templates_match_pinned_c1() -> None:
             INTEGRATION_PROVIDER_GA4,
             ("landingPage", "sessionSource", "sessionMedium", "date"),
         ),
-        DATASET_GA4_PAGE_DAILY: (
-            INTEGRATION_PROVIDER_GA4,
-            ("pageLocation", "date"),
-        ),
-        DATASET_GA4_EVENT_DAILY: (
-            INTEGRATION_PROVIDER_GA4,
-            ("eventName", "date"),
-        ),
-        DATASET_GA4_KEY_EVENT_DAILY: (
-            INTEGRATION_PROVIDER_GA4,
-            ("eventName", "date"),
-        ),
         DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY: (
             INTEGRATION_PROVIDER_GA4,
             ("sessionSource", "sessionMedium", "date"),
@@ -272,11 +257,6 @@ def test_dataset_templates_match_pinned_c1() -> None:
         DATASET_GA4_REFERRER_DAILY,
         DATASET_GA4_LANDING_DAILY,
     }
-    ga4_demand_metrics = {
-        DATASET_GA4_PAGE_DAILY: ("screenPageViews", "sessions", "engagedSessions"),
-        DATASET_GA4_EVENT_DAILY: ("eventCount",),
-        DATASET_GA4_KEY_EVENT_DAILY: ("keyEvents",),
-    }
     for dataset, (provider, dimensions) in expected.items():
         template = INTEGRATION_DATASET_TEMPLATES[dataset]
         assert template.dataset == dataset
@@ -286,8 +266,6 @@ def test_dataset_templates_match_pinned_c1() -> None:
             assert template.metrics == ("clicks", "impressions", "ctr", "position")
         elif dataset in ga4_session_datasets:
             assert template.metrics == ("sessions", "engagedSessions", "keyEvents")
-        elif dataset in ga4_demand_metrics:
-            assert template.metrics == ga4_demand_metrics[dataset]
         elif dataset == DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY:
             assert template.metrics == ("transactions", "purchaseRevenue", "sessions")
         elif provider == INTEGRATION_PROVIDER_GA4:

@@ -72,7 +72,6 @@ from app.core.config.integrations import (
     GA4_ACCOUNT_SUMMARIES_PATH,
     GA4_ADMIN_API_BASE_URL,
     GA4_API_BASE_URL,
-    GA4_DEMAND_OPTIONAL_DATASETS,
     GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS,
     GA4_PROPERTY_RESOURCE_PREFIX,
     GA4_RUN_REPORT_PATH,
@@ -91,8 +90,7 @@ class Ga4ApiError(IntegrationApiError):
 class Ga4DimensionCompatibilityError(Ga4ApiError):
     """The property rejected a capability-tested dataset's dimension mix.
 
-    Raised for the primary item source/medium dataset or an optional Demand
-    report when an HTTP
+    Raised for the primary item source/medium dataset when an HTTP
     400's capped provider detail explicitly identifies an incompatible
     dimension/metric combination — the sync worker's signal to fall back
     to the channel-group item template in the same run. Authentication,
@@ -104,14 +102,10 @@ class Ga4DimensionCompatibilityError(Ga4ApiError):
 def _is_compatibility_rejection(
     response: httpx.Response, template: IntegrationDatasetTemplate, detail: str
 ) -> bool:
-    capability_tested = (
-        template.dataset == DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
-        or template.dataset in GA4_DEMAND_OPTIONAL_DATASETS
-    )
     markers = GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS
     return (
         response.status_code == 400
-        and capability_tested
+        and template.dataset == DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
         and any(marker in detail.casefold() for marker in markers)
     )
 

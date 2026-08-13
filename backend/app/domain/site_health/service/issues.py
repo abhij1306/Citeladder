@@ -13,7 +13,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import and_, func, or_, select, tuple_
+from sqlalchemy import and_, func, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health import (
@@ -21,7 +21,6 @@ from app.core.config.site_health import (
     SEVERITY_CRITICAL,
     SEVERITY_HIGH,
 )
-from app.core.config.site_health_page_profiles import ISSUE_HISTORY_TIMELINE_MAX_CRAWLS
 from app.domain.site_health.normalization import (
     CursorScopeError,
     decode_keyset_cursor,
@@ -30,9 +29,7 @@ from app.domain.site_health.normalization import (
 from app.domain.site_health.service.common import (
     InvalidCursorError,
     SiteHealthNotFoundError,
-    _admitted_site_url_subquery,
     _clamp_limit,
-    _decode_created_id_keyset,
     _decode_url_keyset,
     _load_crawl,
 )
@@ -44,10 +41,8 @@ from app.domain.site_health.service.presentation import (
 )
 from app.models.site_health import (
     MonitoredSiteUrl,
-    SiteCrawl,
     SiteIssue,
     SitePageAnalysis,
-    SiteRuleEvaluation,
     SiteUrl,
 )
 
@@ -644,332 +639,10 @@ async def _affected_page_kinds(
     return page_kind_by_url
 
 
-async def get_issue_history(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    crawl_id: uuid.UUID,
-    site_url_id: uuid.UUID,
-    limit: int | None,
-    cursor: str | None,
-) -> dict:
-    """Per-URL issue history ordered ``(created_at DESC, id DESC)``.
 
-    Uses the ``ix_site_issues_url_created`` index, bounded to the URL's project
-    AND to crawls at or before the selected crawl in the project chronology, so
-    an older crawl's detail never shows issues from a later crawl.
-    """
-    crawl = await _load_crawl(session, workspace_id=workspace_id, crawl_id=crawl_id)
-    # The URL must be admitted to the selected crawl (404 otherwise), matching
-    # the page-detail scope; history then spans that crawl and prior ones.
-    site_url = await session.scalar(
-        select(SiteUrl).where(
-            SiteUrl.id == site_url_id,
-            SiteUrl.project_id == crawl.project_id,
-            SiteUrl.id.in_(_admitted_site_url_subquery(crawl_id)),
-        )
-    )
-    if site_url is None:
-        raise SiteHealthNotFoundError("Site URL not found")
+from app.domain.site_health.service.issue_history import (  # noqa: E402
+    get_grouped_issue_history,
+    get_issue_history,
+)
 
-    limit = _clamp_limit(limit)
-    scope = "issue_history"
-    filters = {
-        "site_url_id": str(site_url_id),
-        "project_id": str(crawl.project_id),
-        "crawl_id": str(crawl_id),
-    }
-
-    # Bound history to crawls at or before the SELECTED crawl in the project's
-    # chronology (by (created_at, id)) so viewing an older crawl never shows
-    # issues from a later one. Issue rows are immutable, so the crawl's
-    # position is stable.
-    prior_or_same_crawls = (
-        select(SiteCrawl.id)
-        .where(
-            SiteCrawl.project_id == crawl.project_id,
-            or_(
-                SiteCrawl.created_at < crawl.created_at,
-                and_(
-                    SiteCrawl.created_at == crawl.created_at,
-                    SiteCrawl.id <= crawl.id,
-                ),
-            ),
-        )
-        .scalar_subquery()
-    )
-    stmt = select(SiteIssue).where(
-        SiteIssue.site_url_id == site_url_id,
-        SiteIssue.project_id == crawl.project_id,
-        SiteIssue.crawl_id.in_(prior_or_same_crawls),
-    )
-    if cursor:
-        cur_created, cur_id = _decode_created_id_keyset(
-            cursor, scope=scope, filters=filters
-        )
-        stmt = stmt.where(
-            or_(
-                SiteIssue.created_at < cur_created,
-                and_(
-                    SiteIssue.created_at == cur_created,
-                    SiteIssue.id < cur_id,
-                ),
-            )
-        )
-    stmt = stmt.order_by(SiteIssue.created_at.desc(), SiteIssue.id.desc()).limit(
-        limit + 1
-    )
-    rows = list((await session.scalars(stmt)).all())
-
-    next_cursor: str | None = None
-    if len(rows) > limit:
-        rows = rows[:limit]
-        last = rows[-1]
-        next_cursor = encode_keyset_cursor(
-            scope=scope,
-            filters=filters,
-            sort_values=[last.created_at.isoformat(), str(last.id)],
-        )
-    items = [
-        {
-            "id": i.id,
-            "crawl_id": i.crawl_id,
-            "rule_id": i.rule_id,
-            "dimension": i.dimension,
-            "category": i.category,
-            "severity": i.severity,
-            # Per-URL history rows are ONE occurrence each, so the variant
-            # title applies (grouped/catalog rows above stay neutral — a group
-            # can span both directions of the same rule).
-            "title": display_label_for(i.rule_id, i.evidence),
-            "remediation": i.remediation or "",
-            "analyzer_version": i.analyzer_version,
-            "rule_version": i.rule_version,
-            "created_at": _iso(i.created_at),
-        }
-        for i in rows
-    ]
-    return {"items": items, "next_cursor": next_cursor}
-
-
-@dataclass(frozen=True)
-class _HistoryObservation:
-    crawl_id: uuid.UUID
-    observed_at: datetime
-    rule_id: str
-    dimension: str
-    category: str
-    severity: str
-    outcome: str
-    analyzer_version: str
-    rule_version: str
-    remediation: str
-
-
-def _group_issue_history(
-    observations: list[_HistoryObservation],
-) -> tuple[list[dict], dict[str, object]]:
-    """Collapse persisted evaluation evidence into rule-grouped history.
-
-    Only evaluations from the selected URL's latest analysis in each crawl are
-    supplied.  A pass/not-applicable after a prior fail is therefore a real,
-    persisted resolution — never an inferred repair.
-    """
-    by_rule: dict[str, list[_HistoryObservation]] = {}
-    for observation in observations:
-        by_rule.setdefault(observation.rule_id, []).append(observation)
-
-    groups: list[dict] = []
-    transition_counts = {"new": 0, "continuing": 0, "resolved": 0}
-    for rule_id, rows in by_rule.items():
-        rows.sort(key=lambda row: (row.observed_at, str(row.crawl_id)))
-        failures = [row for row in rows if row.outcome == "fail"]
-        if not failures:
-            continue
-        timeline: list[dict] = []
-        previous_failed = False
-        for row in rows:
-            failed = row.outcome == "fail"
-            if failed:
-                transition = "continuing" if previous_failed else "new"
-            elif previous_failed:
-                transition = "resolved"
-            else:
-                transition = "unchanged"
-            timeline.append(
-                {
-                    "crawl_id": row.crawl_id,
-                    "observed_at": _iso(row.observed_at),
-                    "outcome": row.outcome,
-                    "transition": transition,
-                }
-            )
-            previous_failed = failed
-        latest = rows[-1]
-        current_transition = timeline[-1]["transition"]
-        if current_transition in transition_counts:
-            transition_counts[current_transition] += 1
-        last_failure = failures[-1]
-        groups.append(
-            {
-                "rule_id": rule_id,
-                "dimension": last_failure.dimension,
-                "category": last_failure.category,
-                "severity": last_failure.severity,
-                "title": display_label_for(rule_id),
-                "remediation": last_failure.remediation,
-                "current_state": "open" if latest.outcome == "fail" else "resolved",
-                "current_transition": current_transition,
-                "occurrence_count": len(failures),
-                "first_seen_at": _iso(failures[0].observed_at),
-                "last_seen_at": _iso(last_failure.observed_at),
-                "analyzer_version": last_failure.analyzer_version,
-                "rule_version": last_failure.rule_version,
-                "timeline": timeline[-ISSUE_HISTORY_TIMELINE_MAX_CRAWLS:],
-            }
-        )
-    groups.sort(
-        key=lambda row: (str(row["last_seen_at"]), str(row["rule_id"])), reverse=True
-    )
-    summary: dict[str, object] = {
-        "has_previous_crawl": len({row.crawl_id for row in observations}) > 1,
-        **transition_counts,
-    }
-    return groups, summary
-
-
-async def get_grouped_issue_history(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    crawl_id: uuid.UUID,
-    site_url_id: uuid.UUID,
-    limit: int | None,
-    cursor: str | None,
-) -> dict:
-    """Rule-grouped issue history derived solely from persisted evaluations.
-
-    This is opt-in while the existing frontend's strict legacy occurrence DTO
-    remains deployed.  The endpoint's data is nevertheless the replacement
-    projection: one row per rule with state transitions and a collapsed crawl
-    timeline, not repeated issue rows.
-    """
-    crawl = await _load_crawl(session, workspace_id=workspace_id, crawl_id=crawl_id)
-    site_url = await session.scalar(
-        select(SiteUrl).where(
-            SiteUrl.id == site_url_id,
-            SiteUrl.project_id == crawl.project_id,
-            SiteUrl.id.in_(_admitted_site_url_subquery(crawl_id)),
-        )
-    )
-    if site_url is None:
-        raise SiteHealthNotFoundError("Site URL not found")
-
-    prior_or_same = or_(
-        SiteCrawl.created_at < crawl.created_at,
-        and_(SiteCrawl.created_at == crawl.created_at, SiteCrawl.id <= crawl.id),
-    )
-    rows = list(
-        (
-            await session.execute(
-                select(SiteCrawl, SitePageAnalysis, SiteRuleEvaluation)
-                .join(SitePageAnalysis, SitePageAnalysis.crawl_id == SiteCrawl.id)
-                .join(
-                    SiteRuleEvaluation,
-                    SiteRuleEvaluation.analysis_id == SitePageAnalysis.id,
-                )
-                .where(
-                    SiteCrawl.project_id == crawl.project_id,
-                    SiteCrawl.workspace_id == workspace_id,
-                    prior_or_same,
-                    SitePageAnalysis.site_url_id == site_url_id,
-                )
-                .order_by(
-                    SiteCrawl.created_at.asc(),
-                    SiteCrawl.id.asc(),
-                    SitePageAnalysis.created_at.asc(),
-                    SitePageAnalysis.id.asc(),
-                )
-            )
-        ).all()
-    )
-    # A rerun can create more than one analysis for a URL/crawl.  Only the
-    # latest complete evaluation set represents that crawl in the timeline.
-    latest_analysis: dict[uuid.UUID, uuid.UUID] = {}
-    for crawl_row, analysis, _evaluation in rows:
-        latest_analysis[crawl_row.id] = analysis.id
-    issue_rows = list(
-        (
-            await session.scalars(
-                select(SiteIssue).where(
-                    SiteIssue.project_id == crawl.project_id,
-                    SiteIssue.site_url_id == site_url_id,
-                    SiteIssue.crawl_id.in_(latest_analysis),
-                )
-            )
-        ).all()
-    )
-    remediation_by_evaluation = {
-        issue.evaluation_id: issue.remediation or "" for issue in issue_rows
-    }
-    observations = [
-        _HistoryObservation(
-            crawl_id=crawl_row.id,
-            observed_at=crawl_row.created_at,
-            rule_id=evaluation.rule_id,
-            dimension=evaluation.dimension,
-            category=evaluation.category,
-            severity=evaluation.severity,
-            outcome=evaluation.outcome,
-            analyzer_version=evaluation.analyzer_version,
-            rule_version=evaluation.rule_version,
-            remediation=remediation_by_evaluation.get(evaluation.id, ""),
-        )
-        for crawl_row, analysis, evaluation in rows
-        if latest_analysis.get(crawl_row.id) == analysis.id
-    ]
-    groups, since_previous_crawl = _group_issue_history(observations)
-    filters = {
-        "site_url_id": str(site_url_id),
-        "project_id": str(crawl.project_id),
-        "crawl_id": str(crawl_id),
-        "view": "grouped",
-    }
-    scope = "issue_history_grouped"
-    after_rule_id = ""
-    if cursor:
-        try:
-            values = decode_keyset_cursor(cursor, scope=scope, filters=filters)
-        except ValueError as exc:
-            raise InvalidCursorError("invalid grouped history cursor") from exc
-        if len(values) != 1:
-            raise InvalidCursorError("invalid grouped history cursor")
-        after_rule_id = values[0]
-    # Sort newest-first, but retain a stable rule-id cursor only within the
-    # materialized bounded group projection.  It prevents duplicate pages
-    # without pretending a grouped value has an immutable row id.
-    if after_rule_id:
-        start = next(
-            (
-                index + 1
-                for index, item in enumerate(groups)
-                if item["rule_id"] == after_rule_id
-            ),
-            len(groups),
-        )
-        groups = groups[start:]
-    limit = _clamp_limit(limit)
-    window = groups[: limit + 1]
-    next_cursor = None
-    if len(window) > limit:
-        window = window[:limit]
-        next_cursor = encode_keyset_cursor(
-            scope=scope,
-            filters=filters,
-            sort_values=[window[-1]["rule_id"]],
-        )
-    return {
-        "items": window,
-        "next_cursor": next_cursor,
-        "since_previous_crawl": since_previous_crawl,
-    }
+__all__ = ["get_grouped_issue_history", "get_issue_history"]

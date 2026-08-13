@@ -82,8 +82,6 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
     TASK_TERMINAL_STATUSES,
 )
-from app.core.config.traffic import TRAFFIC_GRANULARITY_DAY
-from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
 from app.domain.opportunities.service import enqueue_opportunity_refresh
 from app.domain.site_health.failure import load_root_failure_summary
 from app.domain.site_health.normalization import canonical_identity
@@ -107,7 +105,6 @@ from app.models.site_health import (
     SiteUrl,
     SiteUrlObservation,
 )
-from app.models.traffic import TrafficSnapshot
 
 logger = logging.getLogger("app.workers.site_health.lifecycle")
 
@@ -140,27 +137,7 @@ def _count_disclosure(crawl: SiteCrawl) -> bool:
 async def _enqueue_post_crawl_refresh(
     session: AsyncSession, *, crawl: SiteCrawl
 ) -> None:
-    """Refresh Demand when Traffic exists, otherwise refresh Opportunities."""
-    traffic = await session.scalar(
-        select(TrafficSnapshot)
-        .where(
-            TrafficSnapshot.workspace_id == crawl.workspace_id,
-            TrafficSnapshot.project_id == crawl.project_id,
-            TrafficSnapshot.granularity == TRAFFIC_GRANULARITY_DAY,
-        )
-        .order_by(TrafficSnapshot.window_end.desc(), TrafficSnapshot.created_at.desc())
-        .limit(1)
-    )
-    if traffic is not None:
-        await enqueue_demand_snapshot_refresh(
-            session,
-            workspace_id=crawl.workspace_id,
-            project_id=crawl.project_id,
-            window_start=traffic.window_start,
-            window_end=traffic.window_end,
-            source_revision=f"site:{crawl.id}",
-        )
-        return
+    """Refresh Opportunities after a crawl without rebuilding Demand."""
     await enqueue_opportunity_refresh(
         session,
         workspace_id=crawl.workspace_id,

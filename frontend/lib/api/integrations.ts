@@ -7,7 +7,7 @@
  * through `strictValidate` (fail loud on any drift). All paths are relative
  * `/api/v1` (same-origin proxy, invariant 12). Tokens are Fernet-encrypted
  * on the backend grant and are NEVER present on any response — the
- * `.strict()` connection schema throws on any leaked token key
+ * integration response schemas throw on any leaked token-shaped key
  * (invariant 6).
  */
 import type { z } from 'zod';

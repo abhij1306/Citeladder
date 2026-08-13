@@ -1,9 +1,8 @@
 'use client';
 
-import { Check, Copy, RefreshCw, Sparkles, X } from 'lucide-react';
+import { Check, Copy, Download, RefreshCw, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
-import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -13,12 +12,10 @@ import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { Textarea } from '@/components/ui/input';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
 import type { RunStatusValue } from '@/components/ui/badge-variants';
-import { contentApi, CONTENT_PROMPT_MAX_LEN } from '@/lib/api/content';
+import { CONTENT_PROMPT_MAX_LEN } from '@/lib/api/content';
 import { ApiError, httpErrorStatus } from '@/lib/api/errors';
-import { queryKeys } from '@/lib/api/query-keys';
 import type {
   ContentGenerationDetail,
   ContentGenerationListItem,
@@ -31,6 +28,7 @@ import {
 import { ContentMarkdown } from '@/lib/content/markdown';
 import { ICONS } from '@/lib/icons';
 import { useActiveProject } from '@/lib/project/project-context';
+import { saveBlob } from '@/lib/site-health/download';
 import { cn } from '@/lib/utils';
 
 /** Map an action failure to the user-facing message (409s are specific,
@@ -46,6 +44,9 @@ function actionErrorMessage(error: unknown): string {
     }
     if (body.includes('idempotency_conflict')) {
       return 'A different request was already submitted with this key. Please try again.';
+    }
+    if (body.includes('website_context_unavailable')) {
+      return 'Website evidence is not ready. Complete a Site Health crawl before generating content.';
     }
   }
   return 'Something went wrong while generating your content. You can try again.';
@@ -72,10 +73,10 @@ function historyLabel(item: ContentGenerationListItem): string {
 
 /**
  * Content screen (prompt-box-first, designs `content-*.html`): one composer
- * with an output-type chip + default-on Website-context toggle, and four
+ * with an output-type chip + required Website context, and four
  * states — ready, generating (locked composer + Cancel), result (sanitised
  * Markdown + provenance + truncation warning + Copy/Regenerate), error
- * (editable prompt + Try again + Dismiss preserving prompt + toggle).
+ * (editable prompt + Try again + Dismiss preserving the prompt).
  */
 export function ContentScreen({ opportunityId }: Readonly<{ opportunityId?: string | null }>) {
   const activeProject = useActiveProject();
@@ -105,7 +106,6 @@ export function ContentScreen({ opportunityId }: Readonly<{ opportunityId?: stri
     <ProjectContentScreen
       key={projectId}
       projectId={projectId}
-      projectName={activeProject?.name ?? 'project'}
       opportunityId={opportunityId}
     />
   );
@@ -117,12 +117,9 @@ function ContentComposer({
   opportunityId,
   generating,
   skillId,
-  websiteContextEnabled,
-  projectName,
   canGenerate,
   onPromptChange,
   onSkillChange,
-  onWebsiteContextChange,
   onGenerate,
 }: Readonly<{
   prompt: string;
@@ -130,12 +127,9 @@ function ContentComposer({
   opportunityId?: string | null;
   generating: boolean;
   skillId: ContentSkill;
-  websiteContextEnabled: boolean;
-  projectName: string;
   canGenerate: boolean;
   onPromptChange: (value: string) => void;
   onSkillChange: (value: ContentSkill) => void;
-  onWebsiteContextChange: (checked: boolean) => void;
   onGenerate: () => void;
 }>) {
   return (
@@ -171,17 +165,11 @@ function ContentComposer({
             className="[&_button]:capitalize"
           />
           <div
-            data-component-id="content-website-context-toggle"
+            data-component-id="content-website-context-required"
             className="text-secondary inline-flex items-center gap-2 text-xs font-medium"
           >
             <Sparkles className="size-3" aria-hidden />
-            Website context {websiteContextEnabled ? 'on' : 'off'}
-            <Switch
-              checked={websiteContextEnabled}
-              onCheckedChange={onWebsiteContextChange}
-              label={`Website context, ${projectName}, ${websiteContextEnabled ? 'on' : 'off'}`}
-              disabled={generating}
-            />
+            Grounded in persisted website evidence
           </div>
           <div className="ml-auto">
             <Button
@@ -278,28 +266,24 @@ function GenerationErrorPanel({
   );
 }
 
-type ContentValidation = Awaited<ReturnType<typeof contentApi.getValidation>>;
-
 function GenerationResult({
   detail,
-  validation,
   copied,
   copyLabel,
   regenerating,
-  revisionAction,
   feedbackPending,
   onCopy,
+  onExport,
   onRegenerate,
   onFeedback,
 }: Readonly<{
   detail: ContentGenerationDetail;
-  validation: ContentValidation | undefined;
   copied: boolean;
   copyLabel: string;
   regenerating: boolean;
-  revisionAction: ReactNode;
   feedbackPending: boolean;
   onCopy: () => void;
+  onExport: () => void;
   onRegenerate: (generationId: string) => void;
   onFeedback: (generationId: string, feedback: 'accepted' | 'rejected') => void;
 }>) {
@@ -321,14 +305,6 @@ function GenerationResult({
           AI-generated {detail.skill_id} — review and revise before publishing. Generated prose
           never becomes a project fact.
         </p>
-        {validation ? (
-          <Alert tone={validation.status === 'passed' ? 'success' : 'warning'}>
-            Automatic validation {validation.status}.{' '}
-            {!validation.blocking
-              ? 'No blocking findings.'
-              : `${validation.checks.filter((check) => check.passed === false).length} finding(s) require review.`}
-          </Alert>
-        ) : null}
         <div
           data-component-id="content-result-provenance"
           className="border-border-subtle text-muted text-2xs flex flex-wrap items-center gap-x-4 gap-y-1 border-t pt-3 font-mono"
@@ -351,6 +327,10 @@ function GenerationResult({
             )}
             {copyLabel}
           </Button>
+          <Button variant="secondary" data-component-id="content-export-button" onClick={onExport}>
+            <Download className="mr-1.5 size-4" aria-hidden />
+            Export Markdown
+          </Button>
           <Button
             variant="secondary"
             data-component-id="content-regenerate-button"
@@ -360,7 +340,6 @@ function GenerationResult({
             <RefreshCw className="mr-1.5 size-4" aria-hidden />
             Regenerate
           </Button>
-          {revisionAction}
           {detail.feedback === null ? (
             <>
               <Button disabled={feedbackPending} onClick={() => onFeedback(detail.id, 'accepted')}>
@@ -437,20 +416,13 @@ function GenerationHistory({
 
 function ProjectContentScreen({
   projectId,
-  projectName,
   opportunityId,
-}: Readonly<{ projectId: string; projectName: string; opportunityId?: string | null }>) {
+}: Readonly<{ projectId: string; opportunityId?: string | null }>) {
   const [prompt, setPrompt] = useState('');
-  const [websiteContextEnabled, setWebsiteContextEnabled] = useState(true);
   const [skillId, setSkillId] = useState<ContentSkill>('article');
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
-  const [createdRevision, setCreatedRevision] = useState<{
-    generationId: string;
-    revisionId: string;
-  } | null>(null);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
-  const queryClient = useQueryClient();
 
   const {
     listQuery,
@@ -470,26 +442,12 @@ function ProjectContentScreen({
   );
   const failed = detail?.status === 'failed';
   const succeeded = detail?.status === 'succeeded';
-  const validationQuery = useQuery({
-    queryKey: queryKeys.content.validation(detail?.id ?? ''),
-    queryFn: ({ signal }) => contentApi.getValidation(detail?.id ?? '', { signal }),
-    enabled: Boolean(succeeded && detail?.id && detail.brief_id),
-  });
-  const createRevisionMutation = useMutation({
-    mutationFn: (generationId: string) => contentApi.createRevision(generationId),
-    onSuccess: (revision, generationId) => {
-      setCreatedRevision({ generationId, revisionId: revision.id });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.content.all });
-    },
-  });
 
   const mutationError =
     enqueueMutation.error ??
     regenerateMutation.error ??
     tryAgainMutation.error ??
     feedbackMutation.error ??
-    createRevisionMutation.error ??
-    validationQuery.error ??
     null;
   const showErrorPanel = !generating && (Boolean(mutationError) || failed);
 
@@ -504,11 +462,11 @@ function ProjectContentScreen({
     if (!canGenerate) return;
     cancelMutation.reset();
     feedbackMutation.reset();
-    enqueueMutation.mutate({ prompt: trimmed, websiteContextEnabled, skillId });
+    enqueueMutation.mutate({ prompt: trimmed, skillId });
   };
 
   const handleDismiss = () => {
-    // Clears only the transient error surface; prompt text + toggle survive.
+    // Clears only the transient error surface; prompt text survives.
     enqueueMutation.reset();
     regenerateMutation.reset();
     tryAgainMutation.reset();
@@ -542,32 +500,17 @@ function ProjectContentScreen({
     }
   };
 
+  const handleExport = () => {
+    if (!detail?.output_text) return;
+    saveBlob(
+      new Blob([detail.output_text], { type: 'text/markdown;charset=utf-8' }),
+      `content-${detail.id.slice(0, 8)}.md`,
+    );
+  };
+
   let copyLabel = 'Copy';
   if (copied) copyLabel = 'Copied';
   else if (copyFailed) copyLabel = 'Copy failed';
-
-  const revisionAction = () => {
-    if (!detail) return null;
-    if (createdRevision?.generationId === detail.id) {
-      return (
-        <Link
-          href={`/content?tab=revisions&revision_id=${createdRevision.revisionId}`}
-          className="focus-ring bg-accent text-on-accent inline-flex min-h-8 items-center rounded-sm px-3 text-sm font-medium"
-        >
-          Open revision
-        </Link>
-      );
-    }
-    if (!detail.brief_id) return null;
-    return (
-      <Button
-        disabled={createRevisionMutation.isPending || validationQuery.data?.status !== 'passed'}
-        onClick={() => createRevisionMutation.mutate(detail.id)}
-      >
-        Start revision
-      </Button>
-    );
-  };
 
   return (
     <div className="grid gap-6">
@@ -577,12 +520,9 @@ function ProjectContentScreen({
         opportunityId={opportunityId}
         generating={generating}
         skillId={skillId}
-        websiteContextEnabled={websiteContextEnabled}
-        projectName={projectName}
         canGenerate={canGenerate}
         onPromptChange={setPrompt}
         onSkillChange={setSkillId}
-        onWebsiteContextChange={setWebsiteContextEnabled}
         onGenerate={handleGenerate}
       />
 
@@ -607,13 +547,12 @@ function ProjectContentScreen({
       {!generating && succeeded && detail?.output_text ? (
         <GenerationResult
           detail={detail}
-          validation={validationQuery.data}
           copied={copied}
           copyLabel={copyLabel}
           regenerating={regenerateMutation.isPending}
-          revisionAction={revisionAction()}
           feedbackPending={feedbackMutation.isPending}
           onCopy={handleCopy}
+          onExport={handleExport}
           onRegenerate={(generationId) => regenerateMutation.mutate(generationId)}
           onFeedback={(generationId, feedback) =>
             feedbackMutation.mutate({ generationId, feedback })

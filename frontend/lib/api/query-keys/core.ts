@@ -45,10 +45,4 @@ export const contentKeys = {
   // `limit` is part of the key so different caps cache separately.
   list: (projectId: string, limit: number) => ['content', 'list', projectId, limit] as const,
   detail: (generationId: string) => ['content', 'detail', generationId] as const,
-  validation: (generationId: string) => ['content', 'validation', generationId] as const,
-  strategy: (projectId: string) => ['content', 'strategy', projectId] as const,
-  inventory: (projectId: string) => ['content', 'inventory', projectId] as const,
-  briefs: (projectId: string) => ['content', 'briefs', projectId] as const,
-  revisions: (projectId: string) => ['content', 'revisions', projectId] as const,
-  verifications: (projectId: string) => ['content', 'verifications', projectId] as const,
 };

@@ -23,7 +23,7 @@ const LAYERS = [
     id: 'site',
     label: 'Site Intelligence',
     shortLabel: 'Site',
-    group: 'Site Intelligence' satisfies NavGroupTitle,
+    group: 'Site Health' satisfies NavGroupTitle,
     activeItem: 'Website' satisfies NavItemLabel,
     icon: ICONS.site,
   },

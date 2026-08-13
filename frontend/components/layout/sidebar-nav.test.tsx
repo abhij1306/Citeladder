@@ -17,7 +17,7 @@ describe('SidebarNav', () => {
     renderNav();
     expect(NAV_GROUPS.map((group) => group.title)).toEqual([
       'Workspace',
-      'Site Intelligence',
+      'Site Health',
       'Content Intelligence',
       'Demand Intelligence',
     ]);

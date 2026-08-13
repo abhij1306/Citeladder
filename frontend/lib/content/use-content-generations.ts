@@ -90,14 +90,12 @@ export function useContentGenerations(
   const enqueueMutation = useMutation({
     mutationFn: (input: {
       prompt: string;
-      websiteContextEnabled: boolean;
       skillId: 'youtube' | 'reddit' | 'blog' | 'article';
     }) =>
       contentApi.enqueueGeneration(
         {
           project_id: projectId ?? '',
           prompt: input.prompt,
-          website_context_enabled: input.websiteContextEnabled,
           skill_id: input.skillId,
           opportunity_id: opportunityId ?? undefined,
         },

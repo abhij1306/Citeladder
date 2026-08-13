@@ -37,12 +37,9 @@ from app.core.config.analytics import (
 from app.core.config.integrations import (
     DATASET_GA4_CHANNEL_DAILY,
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
-    DATASET_GA4_EVENT_DAILY,
     DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
-    DATASET_GA4_KEY_EVENT_DAILY,
     DATASET_GA4_LANDING_DAILY,
-    DATASET_GA4_PAGE_DAILY,
     DATASET_GA4_REFERRER_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
     ERROR_GA4_DIMENSION_INCOMPATIBLE,
@@ -51,7 +48,6 @@ from app.core.config.integrations import (
     EVENT_INTEGRATION_REAUTH_REQUIRED,
     EVENT_INTEGRATION_SYNC_FINISHED,
     EVENT_INTEGRATION_SYNC_STARTED,
-    GA4_DEMAND_CAPABILITY_VERSION,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_KEY,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_VERSION,
     GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP,
@@ -87,17 +83,14 @@ _WINDOW = (date(2026, 7, 20), date(2026, 7, 22))
 _PROPERTY_REF = "123456789"
 
 # The datasets a GA4 run pages by default (no persisted capability): the
-# four session datasets, three Demand reports, ecommerce source/medium, and PRIMARY
-# item report. The channel-group item template runs only as the recorded
+# four session datasets, ecommerce source/medium, and the primary item report.
+# The channel-group item template runs only as the recorded
 # fallback (exactly one item template per run).
 _GA4_DATASETS = (
     DATASET_GA4_CHANNEL_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
     DATASET_GA4_REFERRER_DAILY,
     DATASET_GA4_LANDING_DAILY,
-    DATASET_GA4_PAGE_DAILY,
-    DATASET_GA4_EVENT_DAILY,
-    DATASET_GA4_KEY_EVENT_DAILY,
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
 )
@@ -146,7 +139,6 @@ class _ProviderFake:
         drop_row: bool = False,
         item_incompatible: bool = False,
         item_generic_400: bool = False,
-        incompatible_datasets: frozenset[str] = frozenset(),
     ) -> None:
         self.token_calls: list[httpx.Request] = []
         self.ga4_auth: list[str] = []
@@ -157,7 +149,6 @@ class _ProviderFake:
         self._drop_row = drop_row
         self._item_incompatible = item_incompatible
         self._item_generic_400 = item_generic_400
-        self._incompatible_datasets = incompatible_datasets
 
     def _ga4_response(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
@@ -172,18 +163,6 @@ class _ProviderFake:
             return httpx.Response(200, json={"rowCount": 0})
         dimensions = tuple(entry.get("name") for entry in body.get("dimensions") or ())
         metrics = tuple(entry.get("name") for entry in body.get("metrics") or ())
-        demand_dataset = {
-            (
-                ("pageLocation", "date"),
-                ("screenPageViews", "sessions", "engagedSessions"),
-            ): DATASET_GA4_PAGE_DAILY,
-            (("eventName", "date"), ("eventCount",)): DATASET_GA4_EVENT_DAILY,
-            (("eventName", "date"), ("keyEvents",)): DATASET_GA4_KEY_EVENT_DAILY,
-        }.get((dimensions, metrics))
-        if demand_dataset in self._incompatible_datasets:
-            return httpx.Response(
-                400, json={"error": {"message": _INCOMPATIBLE_DETAIL}}
-            )
         offset = int(body.get("offset") or 0)
         if "itemId" in dimensions:
             if "sessionDefaultChannelGroup" in dimensions:
@@ -209,12 +188,6 @@ class _ProviderFake:
             if offset:
                 return httpx.Response(200, json={"rows": [], "rowCount": 2})
             payload = _fixture("ga4_run_report_ecommerce_source_medium.json")
-        elif dimensions == ("pageLocation", "date"):
-            payload = _fixture("ga4_run_report_page.json")
-        elif dimensions == ("eventName", "date") and metrics == ("eventCount",):
-            payload = _fixture("ga4_run_report_event.json")
-        elif dimensions == ("eventName", "date") and metrics == ("keyEvents",):
-            payload = _fixture("ga4_run_report_key_event.json")
         elif "sessionDefaultChannelGroup" in dimensions:
             if offset:
                 payload = _fixture("ga4_run_report_page2.json")
@@ -393,8 +366,8 @@ async def test_fixture_import_refresh_artifacts_derivation(
     assert form["grant_type"] == ["refresh_token"]
     grant = await db_session.get(IntegrationOAuthGrant, grant_id)
     assert decrypt_secret(grant.access_token_encrypted) == "fresh-access-token"
-    # 12 runReport calls include the three one-page Demand report families.
-    assert fake.ga4_auth == ["Bearer fresh-access-token"] * 12
+    assert len(fake.ga4_auth) == 9
+    assert set(fake.ga4_auth) == {"Bearer fresh-access-token"}
 
     # The runReport requests carried the template dimensions/metrics and
     # the limit/offset paging (channel dataset paged 0 -> 2).
@@ -416,7 +389,7 @@ async def test_fixture_import_refresh_artifacts_derivation(
         == [
             f"https://analyticsdata.googleapis.com/v1beta/properties/{_PROPERTY_REF}:runReport"
         ]
-        * 12
+        * 9
     )
 
     artifacts = await _artifacts(db_session, run.id)
@@ -458,12 +431,6 @@ async def test_fixture_import_refresh_artifacts_derivation(
             expected_keys = {"keys", "transactions", "purchaseRevenue", "sessions"}
         elif artifact.dataset == DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY:
             expected_keys = {"keys", "itemRevenue", "itemsPurchased"}
-        elif artifact.dataset == DATASET_GA4_PAGE_DAILY:
-            expected_keys = {"keys", "screenPageViews", "sessions", "engagedSessions"}
-        elif artifact.dataset == DATASET_GA4_EVENT_DAILY:
-            expected_keys = {"keys", "eventCount"}
-        elif artifact.dataset == DATASET_GA4_KEY_EVENT_DAILY:
-            expected_keys = {"keys", "keyEvents"}
         else:
             expected_keys = {"keys", "sessions", "engagedSessions", "keyEvents"}
         for row in artifact.payload["rows"]:
@@ -490,7 +457,7 @@ async def test_fixture_import_refresh_artifacts_derivation(
     rows = await _metric_rows(db_session, run.id)
     # 3 channel + 1 source/medium + 1 referrer + 1 landing + 2 ecommerce
     # source/medium + 2 primary item (empty pages derive zero rows).
-    assert len(rows) == 13
+    assert len(rows) == 10
     artifact_ids = {artifact.id for artifact in artifacts}
     for row in rows:
         assert row.source_artifact_id in artifact_ids
@@ -533,17 +500,6 @@ async def test_fixture_import_refresh_artifacts_derivation(
     ]
     assert item.dataset == DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY
     assert item.metrics == {"itemRevenue": 80.0, "itemsPurchased": 1}
-    page = by_key[(DATASET_GA4_PAGE_DAILY, "https://example.com/admissions | 20260721")]
-    assert page.metrics == {
-        "screenPageViews": 12,
-        "sessions": 8,
-        "engagedSessions": 5,
-    }
-    event = by_key[(DATASET_GA4_EVENT_DAILY, "application_start | 20260721")]
-    assert event.metrics == {"eventCount": 7}
-    key_event = by_key[(DATASET_GA4_KEY_EVENT_DAILY, "application_submit | 20260721")]
-    assert key_event.metrics == {"keyEvents": 3.0}
-
     # Sync lifecycle: started/finished events + last_synced_at + the C5
     # projection chain enqueued — dataset-aware routing: one referral
     # ingest per source/medium + referrer ARTIFACT (the two referral
@@ -591,37 +547,6 @@ async def test_fixture_import_refresh_artifacts_derivation(
         "window_start": _WINDOW[0].isoformat(),
         "window_end": _WINDOW[1].isoformat(),
         "resync_seq": 0,
-    }
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "dataset",
-    [DATASET_GA4_PAGE_DAILY, DATASET_GA4_EVENT_DAILY, DATASET_GA4_KEY_EVENT_DAILY],
-)
-async def test_optional_demand_dataset_incompatibility_is_persisted(
-    session_factory, db_session, dataset: str
-) -> None:
-    workspace_id, _project_id, _grant_id, connection_id = await _seed_graph(db_session)
-    run = await enqueue_sync_run(
-        db_session,
-        workspace_id=workspace_id,
-        connection_id=connection_id,
-        window_start=_WINDOW[0],
-        window_end=_WINDOW[1],
-    )
-    fake = _ProviderFake(incompatible_datasets=frozenset({dataset}))
-
-    assert await _worker(session_factory, fake.mock_transport()).run_until_idle() == 1
-    await db_session.refresh(run)
-    assert run.status == TASK_STATUS_SUCCEEDED
-    datasets = {artifact.dataset for artifact in await _artifacts(db_session, run.id)}
-    assert dataset not in datasets
-    connection = await db_session.get(IntegrationConnection, connection_id)
-    assert connection.dataset_capabilities[dataset] == {
-        "status": "unavailable",
-        "version": GA4_DEMAND_CAPABILITY_VERSION,
-        "reason": ERROR_GA4_DIMENSION_INCOMPATIBLE,
     }
 
 
@@ -906,12 +831,6 @@ async def test_item_dimension_incompatibility_falls_back_to_channel_group(
     assert connection.dataset_capabilities[GA4_ITEM_ATTRIBUTION_CAPABILITY_KEY] == (
         _FALLBACK_CAPABILITY
     )
-    for dataset in (
-        DATASET_GA4_PAGE_DAILY,
-        DATASET_GA4_EVENT_DAILY,
-        DATASET_GA4_KEY_EVENT_DAILY,
-    ):
-        assert connection.dataset_capabilities[dataset]["status"] == "compatible"
 
     # Fallback rows derive with the channel-group dimension packed (the
     # date is the LAST key part; the channel group takes the source slot).
@@ -1061,14 +980,6 @@ async def test_generic_400_on_item_dataset_does_not_fall_back(
     # No selection recorded, no fallback artifact written.
     connection = await db_session.get(IntegrationConnection, connection_id)
     assert GA4_ITEM_ATTRIBUTION_CAPABILITY_KEY not in connection.dataset_capabilities
-    assert all(
-        connection.dataset_capabilities[dataset]["status"] == "compatible"
-        for dataset in (
-            DATASET_GA4_PAGE_DAILY,
-            DATASET_GA4_EVENT_DAILY,
-            DATASET_GA4_KEY_EVENT_DAILY,
-        )
-    )
     artifacts = await _artifacts(db_session, run.id)
     assert {
         artifact.dataset

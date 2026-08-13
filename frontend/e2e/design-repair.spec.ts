@@ -127,71 +127,64 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   await expect(page.getByText(/Starting Prompts/i)).toHaveCount(0);
 });
 
-test('Growth Agent opens as a durable conversation with a bottom composer', async ({ page }) => {
-  const conversation = {
+test('Growth Agent opens as a bounded task workspace with evidence attempts', async ({ page }) => {
+  const run = {
     id: CONVERSATION_ID,
     project_id: '11111111-1111-4111-8111-111111111111',
-    title: 'Admissions roadmap',
-    created_by_user_id: null,
+    task_type: 'build_roadmap',
+    objective: 'Build an admissions roadmap',
+    task_policy_version: 'growth-agent-v2',
+    status: 'completed',
+    result: {
+      answer: 'Prioritize the admissions journey first.',
+      limitations: [],
+      artifact_refs: [{ kind: 'opportunity', id: '55555555-5555-4555-8555-555555555555' }],
+    },
+    provider_adapter: 'deterministic',
+    endpoint_host: '',
+    model: '',
+    instruction_version: 'v2',
+    usage: null,
+    latency_ms: 12,
+    error_code: '',
+    error_detail: '',
+    attempt_count: 1,
+    completed_at: '2026-08-09T00:00:02Z',
+    cancelled_at: null,
     created_at: '2026-08-09T00:00:00Z',
     updated_at: '2026-08-09T00:00:00Z',
+    attempts: [
+      {
+        id: '66666666-6666-4666-8666-666666666666',
+        run_attempt: 1,
+        ordinal: 1,
+        tool_name: 'opportunities.read_ranked',
+        tool_version: '2.0.0',
+        status: 'completed',
+        input: {},
+        artifact_refs: [{ kind: 'opportunity', id: '55555555-5555-4555-8555-555555555555' }],
+        output_hash: 'output-hash',
+        omissions: [],
+        error_code: '',
+        retryable: false,
+        latency_ms: 4,
+        created_at: '2026-08-09T00:00:01Z',
+      },
+    ],
   };
   await stubAuthedShell(page, [
-    [
-      '**/api/v1/agent/capabilities',
-      {
-        configured: false,
-        provider_adapter: '',
-        endpoint_host: '',
-        model: '',
-        model_capabilities: {},
-        policy_version: 'v1',
-        context_policy_version: 'v1',
-        tool_registry_version: 'v1',
-        task_catalog: [
-          {
-            task_type: 'build_roadmap',
-            title: 'Build roadmap',
-            description: 'Build a roadmap from verified evidence.',
-            allowed_tools: [],
-            required_scope: [],
-            requested_outputs: [],
-            max_steps: 8,
-            max_tool_calls: 8,
-          },
-        ],
-        tool_catalog: [],
-      },
-    ],
-    ['**/api/v1/agent/conversations?*', [conversation]],
-    [
-      `**/api/v1/agent/conversations/${CONVERSATION_ID}?*`,
-      {
-        ...conversation,
-        messages: [
-          {
-            id: '55555555-5555-4555-8555-555555555555',
-            conversation_id: CONVERSATION_ID,
-            task_run_id: null,
-            role: 'user',
-            content: 'Build an admissions roadmap',
-            citations: [],
-            created_at: '2026-08-09T00:00:00Z',
-          },
-        ],
-      },
-    ],
-    ['**/api/v1/agent/tasks?*', []],
+    ['**/api/v1/agent/tasks?*', [run]],
+    [`**/api/v1/agent/tasks/${CONVERSATION_ID}?*`, run],
   ]);
 
   await page.goto('/agent');
-  await expect(page.getByText('Build an admissions roadmap')).toBeVisible();
-  await expect(page.getByLabel('Message Growth Agent')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Send' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'New conversation' })).toBeVisible();
-  await expect(page.getByText(/Required scope/i)).toHaveCount(0);
-  await expect(page.getByText(/JSON scope/i)).toHaveCount(0);
-  await expect(page.getByRole('combobox')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Build an admissions roadmap' })).toBeVisible();
+  await expect(page.getByText('Prioritize the admissions journey first.')).toBeVisible();
+  await expect(page.getByLabel('Objective')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start task' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Task' })).toHaveValue('explain');
+  await expect(page.getByText('opportunities.read_ranked')).toBeVisible();
+  await expect(page.getByText(/conversation/i)).toHaveCount(0);
 });
 
 const siteFacts = {

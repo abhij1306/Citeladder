@@ -69,7 +69,7 @@ do not appear as passes or issues.
 | `/demand`, `/traffic`, `/analytics` | Demand Intelligence |
 | `/prompt-research`, `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
 | `/products` | Commerce specialization |
-| `/agent` | Growth Agent conversations and bounded task progress |
+| `/agent` | Growth Agent explain/roadmap task history and evidence attempts |
 | `/providers`, `/settings` | Shared workspace/project configuration |
 
 ## Authentication flow

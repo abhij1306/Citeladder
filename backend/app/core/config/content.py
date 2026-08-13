@@ -15,7 +15,6 @@ from urllib.parse import urlsplit
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.config.content_intelligence import CONTENT_SKILL_CATALOG
 from app.core.config.task_queue import (
     ERROR_MAX_ATTEMPTS,
     PostgresQueueSpec,
@@ -36,7 +35,7 @@ CONTENT_OUTPUT_TYPES: Final[frozenset[str]] = frozenset(
 )
 CONTENT_DEFAULT_OUTPUT_TYPE: Final = CONTENT_OUTPUT_TYPE_WEBSITE_PAGE
 CONTENT_SKILLS: Final[frozenset[str]] = frozenset(
-    {"youtube", "reddit", "blog", "article", *CONTENT_SKILL_CATALOG}
+    {"youtube", "reddit", "blog", "article"}
 )
 CONTENT_DEFAULT_SKILL: Final = "article"
 CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {
@@ -44,10 +43,6 @@ CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {
     "reddit": "Write a useful, conversational Reddit post without promotional hype.",
     "blog": "Write an answer-first blog post with practical examples.",
     "article": "Write an authoritative, evidence-led article.",
-    **{
-        skill_id: str(definition["directive"])
-        for skill_id, definition in CONTENT_SKILL_CATALOG.items()
-    },
 }
 FEEDBACK_ACCEPTED: Final = "accepted"
 FEEDBACK_REJECTED: Final = "rejected"
@@ -55,9 +50,8 @@ FEEDBACK_REJECTED: Final = "rejected"
 # --- Website-context statuses (frozen on the generation row) --------------
 CONTEXT_STATUS_INCLUDED: Final = "included"
 CONTEXT_STATUS_UNAVAILABLE: Final = "unavailable"
-CONTEXT_STATUS_DISABLED: Final = "disabled"
 CONTEXT_STATUSES: Final[frozenset[str]] = frozenset(
-    {CONTEXT_STATUS_INCLUDED, CONTEXT_STATUS_UNAVAILABLE, CONTEXT_STATUS_DISABLED}
+    {CONTEXT_STATUS_INCLUDED, CONTEXT_STATUS_UNAVAILABLE}
 )
 
 # --- Input caps ------------------------------------------------------------
@@ -83,12 +77,14 @@ CONTENT_CONTEXT_FIELD_MAX_CHARS: Final = 300
 
 # --- Versioning + retry budget --------------------------------------------
 CONTENT_GENERATOR_VERSION: Final = "content-v1"
+CONTENT_WEBSITE_CONTEXT_VERSION: Final = "website-context-v1"
 CONTENT_MAX_ATTEMPTS: Final = 3
 
 # --- Error tokens specific to the content vertical -------------------------
 ERROR_PROVIDER_NOT_CONFIGURED: Final = "provider_not_configured"
 ERROR_IDEMPOTENCY_CONFLICT: Final = "idempotency_conflict"
 ERROR_CANCEL_NOT_ALLOWED: Final = "cancel_not_allowed"
+ERROR_WEBSITE_CONTEXT_UNAVAILABLE: Final = "website_context_unavailable"
 
 
 class ContentSettings(BaseSettings):

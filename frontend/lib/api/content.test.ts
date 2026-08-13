@@ -2,9 +2,9 @@ import { http, HttpResponse } from 'msw';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  CONTENT_DETAIL_POLL_MS,
   CONTENT_LIST_DEFAULT_LIMIT,
   CONTENT_LIST_POLL_MS,
-  CONTENT_DETAIL_POLL_MS,
   contentApi,
 } from './content';
 import { queryKeys } from './query-keys';
@@ -15,17 +15,15 @@ import {
 } from './schemas';
 import { mswServer } from '@/test/msw-server';
 
-const UUID = '11111111-1111-4111-8111-111111111111';
-const UUID2 = '22222222-2222-4222-8222-222222222222';
+const GENERATION_ID = '11111111-1111-4111-8111-111111111111';
+const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 
 const listItem = {
-  id: UUID,
-  project_id: UUID2,
+  id: GENERATION_ID,
+  project_id: PROJECT_ID,
   status: 'queued' as const,
   output_type: 'website_page' as const,
   skill_id: 'article' as const,
-  brief_id: null,
-  context_package_id: null,
   opportunity_id: null,
   website_context_status: 'included' as const,
   requested_model: 'mistral-small-latest',
@@ -40,20 +38,19 @@ const listItem = {
 
 const detail = {
   ...listItem,
-  evidence_context: null,
+  skill_version: 'content-v1',
   feedback: null,
   feedback_at: null,
   prompt: 'Write a landing page for Acme.',
-  website_context_enabled: true,
   website_context_summary: {
-    crawl_id: UUID2,
+    crawl_id: PROJECT_ID,
     crawl_completed_at: '2026-07-14T00:00:00Z',
     extractor_version: 'ex-v1',
     analyzer_version: 'an-v1',
     page_count: 3,
     char_count: 1200,
-    site_url_ids: [UUID],
-    artifact_ids: [UUID2],
+    site_url_ids: [GENERATION_ID],
+    artifact_ids: [PROJECT_ID],
     content_hashes: ['abc123'],
   },
   finish_reason: null,
@@ -63,165 +60,101 @@ const detail = {
   latency_ms: null,
   error_detail: '',
   generator_version: 'content-v1',
-  skill_version: 'content-v1',
-  validator_snapshot: null,
 };
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
-describe('contentApi.listGenerations', () => {
-  it('sends project_id + the default limit and validates the bounded list', async () => {
+describe('content generation API', () => {
+  it('lists a bounded projection without output bodies', async () => {
     let seenUrl = '';
     mswServer.use(
       http.get('/api/v1/content/generations', ({ request }) => {
         seenUrl = request.url;
-        return HttpResponse.json([listItem]);
+        return HttpResponse.json([{ ...listItem, output_text: 'must not reach state' }]);
       }),
     );
-    const items = await contentApi.listGenerations(UUID2);
+
+    const items = await contentApi.listGenerations(PROJECT_ID);
     expect(items).toHaveLength(1);
     expect(items[0].prompt_preview).toBe('Write a landing page');
-    const url = new URL(seenUrl);
-    expect(url.searchParams.get('project_id')).toBe(UUID2);
-    expect(url.searchParams.get('limit')).toBe(String(CONTENT_LIST_DEFAULT_LIMIT));
-  });
-
-  it('sends an explicit limit when provided', async () => {
-    let seenUrl = '';
-    mswServer.use(
-      http.get('/api/v1/content/generations', ({ request }) => {
-        seenUrl = request.url;
-        return HttpResponse.json([]);
-      }),
-    );
-    await contentApi.listGenerations(UUID2, 10);
-    expect(new URL(seenUrl).searchParams.get('limit')).toBe('10');
-  });
-
-  it('strips output_text from a list item (bounded-list drift, tolerant-on-unknown)', async () => {
-    mswServer.use(
-      http.get('/api/v1/content/generations', () =>
-        HttpResponse.json([{ ...listItem, output_text: 'leaked' }]),
-      ),
-    );
-    // The list projection must never carry the full body — stripped on parse
-    // so the leaked field never reaches app state.
-    const items = await contentApi.listGenerations(UUID2);
-    expect(items).toHaveLength(1);
     expect('output_text' in items[0]).toBe(false);
+    expect(new URL(seenUrl).searchParams).toMatchObject({
+      get: expect.any(Function),
+    });
+    expect(new URL(seenUrl).searchParams.get('project_id')).toBe(PROJECT_ID);
+    expect(new URL(seenUrl).searchParams.get('limit')).toBe(String(CONTENT_LIST_DEFAULT_LIMIT));
   });
-});
 
-describe('contentApi.enqueueGeneration', () => {
-  it('posts the body with the Idempotency-Key header and validates the detail', async () => {
-    let seenKey: string | null = null;
-    let seenBody: unknown;
+  it('enqueues mandatory website-grounded input and preserves idempotency', async () => {
+    let key: string | null = null;
+    let body: unknown;
     mswServer.use(
       http.post('/api/v1/content/generations', async ({ request }) => {
-        seenKey = request.headers.get('idempotency-key');
-        seenBody = await request.json();
+        key = request.headers.get('idempotency-key');
+        body = await request.json();
         return HttpResponse.json(detail, { status: 201 });
       }),
     );
-    const created = await contentApi.enqueueGeneration(
-      { project_id: UUID2, prompt: 'Write a landing page for Acme.' },
+
+    const result = await contentApi.enqueueGeneration(
+      { project_id: PROJECT_ID, prompt: 'Write a landing page for Acme.', skill_id: 'article' },
       'idem-key-1',
     );
-    expect(created.id).toBe(UUID);
-    expect(created.website_context_summary?.page_count).toBe(3);
-    expect(seenKey).toBe('idem-key-1');
-    expect(seenBody).toEqual({ project_id: UUID2, prompt: 'Write a landing page for Acme.' });
+    expect(result.website_context_summary?.page_count).toBe(3);
+    expect(key).toBe('idem-key-1');
+    expect(body).toEqual({
+      project_id: PROJECT_ID,
+      prompt: 'Write a landing page for Acme.',
+      skill_id: 'article',
+    });
   });
 
-  it('omits the header when no key is given', async () => {
-    let seenKey: string | null = 'sentinel';
-    mswServer.use(
-      http.post('/api/v1/content/generations', ({ request }) => {
-        seenKey = request.headers.get('idempotency-key');
-        return HttpResponse.json(detail, { status: 201 });
-      }),
-    );
-    await contentApi.enqueueGeneration({ project_id: UUID2, prompt: 'p' });
-    expect(seenKey).toBeNull();
-  });
-});
-
-describe('contentApi detail + actions', () => {
-  it('getGeneration validates the full detail', async () => {
-    mswServer.use(
-      http.get(`/api/v1/content/generations/${UUID}`, () =>
-        HttpResponse.json({
-          ...detail,
-          status: 'succeeded',
-          returned_model: 'mistral-small-latest',
-          finish_reason: 'stop',
-          output_text: '# Hello',
-          usage: { total_tokens: 30 },
-          latency_ms: 420,
-          completed_at: '2026-07-15T00:01:00Z',
-        }),
-      ),
-    );
-    const got = await contentApi.getGeneration(UUID);
-    expect(got.status).toBe('succeeded');
-    expect(got.output_text).toBe('# Hello');
-    expect(got.output_truncated).toBe(false);
-  });
-
-  it('cancel/regenerate/try-again post to the action routes', async () => {
+  it('uses only the retained detail actions', async () => {
     const seen: string[] = [];
-    const record = (suffix: string) =>
-      http.post(`/api/v1/content/generations/${UUID}/${suffix}`, () => {
+    const action = (suffix: string) =>
+      http.post(`/api/v1/content/generations/${GENERATION_ID}/${suffix}`, () => {
         seen.push(suffix);
         return HttpResponse.json(
-          suffix === 'cancel'
-            ? { ...detail, status: 'cancelled', error_code: 'cancelled' }
-            : detail,
+          suffix === 'cancel' ? { ...detail, status: 'cancelled', error_code: 'cancelled' } : detail,
           { status: suffix === 'cancel' ? 200 : 201 },
         );
       });
-    mswServer.use(record('cancel'), record('regenerate'), record('try-again'));
-    const cancelled = await contentApi.cancelGeneration(UUID);
-    expect(cancelled.status).toBe('cancelled');
-    await contentApi.regenerateGeneration(UUID);
-    await contentApi.tryAgainGeneration(UUID);
+    mswServer.use(
+      http.get(`/api/v1/content/generations/${GENERATION_ID}`, () => HttpResponse.json(detail)),
+      action('cancel'),
+      action('regenerate'),
+      action('try-again'),
+      http.post(`/api/v1/content/generations/${GENERATION_ID}/feedback`, () =>
+        HttpResponse.json({ ...detail, feedback: 'accepted' }),
+      ),
+    );
+
+    expect((await contentApi.getGeneration(GENERATION_ID)).id).toBe(GENERATION_ID);
+    expect((await contentApi.cancelGeneration(GENERATION_ID)).status).toBe('cancelled');
+    await contentApi.regenerateGeneration(GENERATION_ID);
+    await contentApi.tryAgainGeneration(GENERATION_ID);
+    expect((await contentApi.recordFeedback(GENERATION_ID, 'accepted')).feedback).toBe('accepted');
     expect(seen).toEqual(['cancel', 'regenerate', 'try-again']);
   });
 });
 
-describe('content schemas (drift policy)', () => {
-  it('rejects a numeric id', () => {
-    expect(() =>
-      strictValidate(contentGenerationListItemSchema, { ...listItem, id: 123 }, 'test'),
-    ).toThrow(/test/);
-  });
-
-  it('rejects a detail missing output_truncated or requested_model', () => {
-    const { output_truncated: _t, ...noTruncated } = detail;
-    expect(() => strictValidate(contentGenerationDetailSchema, noTruncated, 'test')).toThrow();
-    const { requested_model: _m, ...noModel } = detail;
-    expect(() => strictValidate(contentGenerationDetailSchema, noModel, 'test')).toThrow();
-  });
-
-  it('strips a generic model field (provenance is requested/returned only)', () => {
-    const parsed = strictValidate(
-      contentGenerationDetailSchema,
-      { ...detail, model: 'gpt-4o' },
-      'test',
+describe('content contract guards', () => {
+  it('rejects malformed required fields and strips unknown fields', () => {
+    expect(() => strictValidate(contentGenerationListItemSchema, { ...listItem, id: 1 }, 'list')).toThrow(
+      /list/,
     );
-    expect('model' in parsed).toBe(false);
-  });
-});
-
-describe('content query keys + poll constants', () => {
-  it('list key includes projectId + limit; detail key includes the id', () => {
-    expect(queryKeys.content.list(UUID2, 50)).toEqual(['content', 'list', UUID2, 50]);
-    expect(queryKeys.content.detail(UUID)).toEqual(['content', 'detail', UUID]);
+    const { generator_version: _version, ...missing } = detail;
+    expect(() => strictValidate(contentGenerationDetailSchema, missing, 'detail')).toThrow();
+    expect('model' in strictValidate(contentGenerationDetailSchema, { ...detail, model: 'gpt' }, 'detail')).toBe(
+      false,
+    );
   });
 
-  it('poll cadences are the plan-specified values', () => {
+  it('keeps polling and cache ownership stable', () => {
+    expect(queryKeys.content.list(PROJECT_ID, 50)).toEqual(['content', 'list', PROJECT_ID, 50]);
+    expect(queryKeys.content.detail(GENERATION_ID)).toEqual(['content', 'detail', GENERATION_ID]);
     expect(CONTENT_LIST_POLL_MS).toBe(3000);
     expect(CONTENT_DETAIL_POLL_MS).toBe(2000);
   });

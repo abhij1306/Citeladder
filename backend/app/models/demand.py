@@ -1,9 +1,4 @@
-"""Demand Intelligence persistence projections.
-
-Provider rows remain owned by Integrations; site and visibility evidence keep
-their current owners. These tables store only versioned journey configuration
-and immutable interpretations over those persisted sources.
-"""
+"""Immutable Demand projections over persisted Traffic evidence."""
 
 from __future__ import annotations
 
@@ -15,7 +10,6 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
-    Integer,
     String,
     UniqueConstraint,
 )
@@ -32,73 +26,6 @@ _SET_NULL = "SET NULL"
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
-
-
-class JourneyDefinition(Base):
-    """Project-owned journey identity with one active immutable version."""
-
-    __tablename__ = "journey_definitions"
-    __table_args__ = (
-        UniqueConstraint("project_id", "slug", name="uq_journey_project_slug"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
-    )
-    slug: Mapped[str] = mapped_column(String(96))
-    name: Mapped[str] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(16), default="active", index=True)
-    current_version: Mapped[int] = mapped_column(Integer, default=1)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-
-
-class JourneyDefinitionVersion(Base):
-    """Immutable version of stages, outcomes, mappings, and provenance."""
-
-    __tablename__ = "journey_definition_versions"
-    __table_args__ = (
-        UniqueConstraint("journey_id", "version", name="uq_journey_definition_version"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
-    )
-    journey_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("journey_definitions.id", ondelete="CASCADE"),
-        index=True,
-    )
-    version: Mapped[int] = mapped_column(Integer)
-    definition: Mapped[dict] = mapped_column(JSONB)
-    source_kind: Mapped[str] = mapped_column(String(24))
-    source_version: Mapped[str] = mapped_column(String(64), default="")
-    created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete=_SET_NULL), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
 
 
 class DemandSnapshot(Base):
@@ -125,11 +52,6 @@ class DemandSnapshot(Base):
     window_start: Mapped[date] = mapped_column(Date)
     window_end: Mapped[date] = mapped_column(Date)
     source_hash: Mapped[str] = mapped_column(String(64))
-    site_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("site_health_snapshots.id", ondelete=_SET_NULL),
-        nullable=True,
-    )
     prior_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("demand_snapshots.id", ondelete=_SET_NULL),
@@ -137,8 +59,6 @@ class DemandSnapshot(Base):
     )
     source_artifact_ids: Mapped[list] = mapped_column(JSONB, default=list)
     source_metric_row_ids: Mapped[list] = mapped_column(JSONB, default=list)
-    source_audit_ids: Mapped[list] = mapped_column(JSONB, default=list)
-    journey_version_ids: Mapped[list] = mapped_column(JSONB, default=list)
     coverage: Mapped[dict] = mapped_column(JSONB, default=dict)
     summary: Mapped[dict] = mapped_column(JSONB, default=dict)
     comparison: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -178,9 +98,6 @@ class DemandSignal(Base):
     identity_hash: Mapped[str] = mapped_column(String(64))
     signal_type: Mapped[str] = mapped_column(String(64), index=True)
     state: Mapped[str] = mapped_column(String(24), index=True)
-    audience: Mapped[str] = mapped_column(String(128), default="")
-    intent: Mapped[str] = mapped_column(String(32), default="")
-    journey_stage: Mapped[str] = mapped_column(String(96), default="")
     topic_cluster: Mapped[str] = mapped_column(String(512), default="")
     page_url: Mapped[str] = mapped_column(String(2048), default="")
     evidence: Mapped[dict] = mapped_column(JSONB, default=dict)
@@ -192,7 +109,6 @@ class DemandSignal(Base):
     analyzer_version: Mapped[str] = mapped_column(String(32))
     rule_version: Mapped[str] = mapped_column(String(32))
     formula_version: Mapped[str] = mapped_column(String(32))
-    model_provenance: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

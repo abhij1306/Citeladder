@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 /**
- * ProvenanceChip — pack ID/version, analyzer version, snapshot identity.
+ * ProvenanceChip — analyzer version and snapshot identity.
  *
  * §5 requires this on every projection surface. It exists so a number is
  * reproducible: two people looking at the same score can confirm they are
@@ -9,10 +9,6 @@ import { cn } from '@/lib/utils';
  * between evidence and a dashboard.
  */
 export type Provenance = {
-  /** Industry pack identity, e.g. "commerce". */
-  packId?: string;
-  /** Pack version, e.g. "v1.2.0". */
-  packVersion?: string;
   /** Analyzer/rule version that produced the projection. */
   analyzerVersion?: string;
   /** Snapshot or run identity the projection was computed over. */
@@ -22,11 +18,6 @@ export type Provenance = {
 /** Renders the parts that exist; a missing part is omitted, never faked. */
 function provenanceParts(provenance: Provenance): string[] {
   const parts: string[] = [];
-  if (provenance.packId) {
-    parts.push(
-      provenance.packVersion ? `${provenance.packId} ${provenance.packVersion}` : provenance.packId,
-    );
-  }
   if (provenance.analyzerVersion) parts.push(`analyzer ${provenance.analyzerVersion}`);
   if (provenance.snapshotId) parts.push(`snapshot ${provenance.snapshotId}`);
   return parts;

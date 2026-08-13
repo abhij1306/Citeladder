@@ -16,7 +16,6 @@ import uuid
 from difflib import SequenceMatcher
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
@@ -24,8 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.connectors.agent.gateway import ModelGateway
-from app.connectors.web_evidence.brand_evidence import evidence_block_lines
-from app.core.config.projects import PROMPT_INTENTS, PROMPT_ORIGIN_GENERATED
+from app.core.config.projects import PROMPT_ORIGIN_GENERATED
 from app.core.config.prompts import (
     GENERATION_COMPARISON_SYSTEM_PROMPT,
     GENERATION_SYSTEM_PROMPT,
@@ -35,11 +33,15 @@ from app.core.config.prompts import (
     TOPIC_ORIGIN_GENERATED,
     prompt_generation_settings,
 )
-from app.domain.projects.knowledge_base import (
-    build_brand_knowledge_data,
-    serialize_brand_knowledge_context,
-)
+from app.domain.projects.knowledge_base import build_brand_knowledge_data
 from app.domain.projects.shim import project_scoring_identity
+from app.domain.prompts.generation_contract import (
+    GenerationOutputError,
+    SuggestedPrompt,
+    SuggestedTopic,
+    build_generation_user_message,
+    parse_generation_output,
+)
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
 from app.domain.prompts.normalization import prompt_text_hash
 from app.domain.prompts.portfolio import (
@@ -62,135 +64,16 @@ class GenerationValidationError(ValueError):
     """Request-level validation failure (422 at the API layer)."""
 
 
-class GenerationOutputError(RuntimeError):
-    """The agent returned output that could not be parsed into suggestions."""
-
-
-# --------------------------------------------------------------------------
-# Agent-output contract (strict, unit-testable without a live provider)
-# --------------------------------------------------------------------------
-class SuggestedPrompt(BaseModel):
-    text: str = Field(min_length=1)
-    intent: str = ""
-
-
-class SuggestedTopic(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
-    prompts: list[SuggestedPrompt] = Field(default_factory=list)
-
-
-class GenerationOutput(BaseModel):
-    topics: list[SuggestedTopic] = Field(default_factory=list)
-
-
-def parse_generation_output(raw: str) -> tuple[list[SuggestedTopic], int]:
-    """Parse + sanitize the agent's JSON into suggested topics.
-
-    Strict on structure (malformed JSON / wrong shape raises), lenient on
-    content: unknown intents are blanked, empty prompts dropped, duplicate
-    texts within the response collapsed (first wins), empty topics dropped.
-
-    Returns ``(topics, intra_response_duplicate_count)`` where the count is
-    the number of prompt texts collapsed because an equivalent text already
-    appeared earlier in the same response. The caller folds this into the
-    total ``dropped_duplicates`` alongside DB ``ON CONFLICT`` drops.
-    """
-    try:
-        output = GenerationOutput.model_validate(json.loads(raw))
-    except (json.JSONDecodeError, ValidationError) as exc:
-        raise GenerationOutputError(f"Unparseable agent output: {exc}") from exc
-
-    seen_hashes: set[str] = set()
-    intra_duplicates = 0
-    topics: list[SuggestedTopic] = []
-    for topic in output.topics:
-        name = topic.name.strip()
-        if not name:
-            continue
-        prompts: list[SuggestedPrompt] = []
-        for prompt in topic.prompts:
-            text = prompt.text.strip()
-            if not text:
-                continue
-            text_hash = prompt_text_hash(text)
-            if text_hash in seen_hashes:
-                intra_duplicates += 1
-                continue
-            seen_hashes.add(text_hash)
-            intent = prompt.intent.strip().casefold()
-            prompts.append(
-                SuggestedPrompt(
-                    text=text,
-                    intent=intent if intent in PROMPT_INTENTS else "",
-                )
-            )
-        if prompts:
-            topics.append(SuggestedTopic(name=name, prompts=prompts))
-    if not topics:
-        raise GenerationOutputError("Agent output contained no usable prompts")
-    return topics, intra_duplicates
-
-
-# --------------------------------------------------------------------------
-# Request building (pure)
-# --------------------------------------------------------------------------
-def build_generation_user_message(
-    *,
-    brand_context: dict[str, Any],
-    existing_topics: list[dict[str, str]],
-    existing_prompts: list[str],
-    count: int,
-    intents: list[str],
-    target_topic: str = "",
-    target_topic_description: str = "",
-) -> str:
-    """Assemble the user message with brand evidence + generation constraints."""
-    competitors = [c["name"] for c in brand_context.get("competitors", [])]
-    lines = [
-        serialize_brand_knowledge_context(
-            dict(brand_context.get("knowledge_base", {}))
-        ),
-    ]
-    # What the brand's own site says, when it could be read — named as the
-    # primary source so prompts describe the real business rather than
-    # whatever the brand's NAME suggests.
-    lines += evidence_block_lines(
-        brand_context.get("website_evidence", ""),
-        "Ground every prompt in the <brand_website_evidence> page content "
-        "above: it is what this brand actually sells and to whom. Do NOT "
-        "infer the brand's market or products from its name.",
-    )
-    lines += [
-        f"Brand: {brand_context.get('brand_name', '')}",
-        f"Brand aliases: {', '.join(brand_context.get('brand_aliases', [])) or 'none'}",
-        f"Competitors: {', '.join(competitors) or 'none'}",
-        f"Market country: {brand_context.get('country_code') or 'unspecified'}",
-        f"Language: {brand_context.get('language_code') or 'unspecified'}",
-    ]
-    if target_topic:
-        lines.append(
-            f"Generate prompts ONLY for this topic (use it verbatim): {target_topic}"
-        )
-        if target_topic_description:
-            lines.append(f"Target topic description: {target_topic_description}")
-    elif existing_topics:
-        lines.append(
-            "Existing topics (reuse the exact name field when applicable): "
-            + json.dumps(
-                existing_topics,
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
-        )
-    if intents:
-        lines.append("Restrict prompt intents to: " + ", ".join(intents))
-    lines.append(f"Generate exactly {count} prompts in total across topics.")
-    if existing_prompts:
-        lines.append(
-            "Existing prompts (do NOT duplicate any of these):\n- "
-            + "\n- ".join(existing_prompts)
-        )
-    return "\n".join(lines)
+__all__ = [
+    "GenerationOutputError",
+    "GenerationValidationError",
+    "SuggestedPrompt",
+    "SuggestedTopic",
+    "build_generation_user_message",
+    "generate_prompts",
+    "parse_generation_output",
+    "validate_generation_request",
+]
 
 
 def _brand_context_hash(brand_context: dict[str, Any]) -> str:

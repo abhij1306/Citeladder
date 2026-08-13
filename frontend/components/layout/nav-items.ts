@@ -38,7 +38,7 @@ export const NAV_GROUPS = [
     ],
   },
   {
-    title: 'Site Intelligence',
+    title: 'Site Health',
     items: [
       { label: 'Website', href: '/site', icon: ICONS.site },
       { label: 'Issues', href: '/issues', icon: ICONS.issues },

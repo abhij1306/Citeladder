@@ -39,7 +39,9 @@ from app.core.config.site_health import (
     SCORING_VERSION,
     TASK_KIND_LINK_CHECK,
 )
-from app.domain.site_health.discovery import _enqueue_task as _enqueue_discovery_task
+from app.domain.site_health.frontier_support import (
+    _enqueue_task as _enqueue_discovery_task,
+)
 from app.domain.site_health.selection import evaluate_task_guard, lease_is_owned
 from app.domain.site_health.state_events import record_crawl_event
 from app.models.site_health import (

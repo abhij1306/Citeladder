@@ -1,73 +1,24 @@
 # Growth Agent
 
-> **Status:** active owner and plan for bounded conversational orchestration.
+> **Status:** shipped authority for bounded standalone evidence tasks.
 
-## Role
-
-The Growth Agent helps a user inspect persisted Site Health, Content, and
-Demand evidence and run config-owned tasks through typed domain tools. It owns
-conversations, task runs, context manifests, progress, and results. It owns no
-copy of domain truth and no independent memory or correction store.
-
-## Execution flow
+Growth Agent supports exactly two tasks: `explain` and `build_roadmap`. Each
+request is a standalone persisted run; the product does not claim conversational
+memory. A lease-backed worker invokes only config-owned, workspace-authorized
+read tools over persisted Site Health, Demand, Opportunity, and audit data.
 
 ```text
-authorized conversation message
-  -> resolve task policy from catalog
-  -> assemble bounded persisted context
-  -> freeze context manifest
-  -> call authorized typed tools
-  -> persist progress and terminal result
-  -> render one assistant response
+task objective -> queued AgentTaskRun -> append-only AgentToolAttempt
+  -> bounded narration -> answer + limitations + artifact references
 ```
 
-Read tools never crawl, sync, classify, call a provider, or repair state. Work
-that requires acquisition or generation enters the owning persisted queue.
+Tool attempts are the canonical frozen evidence record. They contain authorized
+inputs, exact artifact/source references, output hash, omissions, status, and
+tool version. Runs contain only the public result and references; evidence is
+not copied into messages, context packages, steps, or citation counters.
 
-## Tool boundary
-
-Tools are registered, typed, workspace-authorized, versioned, and bounded. The
-agent has no arbitrary SQL, unrestricted URL fetch, shell, provider credential
-access, autonomous recursion, or generic external-mutation tool.
-
-The Site Intelligence comparison, knowledge, and correction tools were removed
-with their owning runtime. Do not return them as wrappers around missing data.
-
-## Context
-
-Context assembly selects only evidence relevant to the resolved task and
-records eligible, included, omitted, unavailable, and stale sources. It applies
-per-section and total budgets, redacts secrets, and freezes a manifest before
-provider I/O.
-
-An empty Content fact/source envelope is a limitation to surface, not a reason
-for the agent to infer business truth.
-
-## Decisions and safety
-
-The agent may explain, compare persisted projections, prioritize using the
-owning deterministic formula, build a brief, or start an authorized bounded
-workflow. Explicit user decisions are required for content save/publish claims,
-external mutations, prompt activation, billing changes, and future durable
-memory promotion.
-
-The agent presents priority; it does not silently set it. A proposed reorder or
-plan is a visible artifact and never overwrites the owning Opportunity record.
-
-## Scheduling
-
-Schedules are durable project-scoped rows owned by the workflow they trigger.
-They store cadence, timezone, active state, next run, last run, and bounded
-configuration. A schedule creates ordinary queue work and follows the same
-authorization, entitlement, lease, and audit rules as a manual run.
-
-## Verification
-
-Acceptance tests cover:
-
-- workspace isolation for conversation, run, and tool access;
-- context budgets, omissions, redaction, and manifest stability;
-- idempotent child-task reconciliation and cancellation;
-- unavailable source behavior;
-- zero arbitrary tool or external mutation paths;
-- one durable assistant response per completed user message.
+The Agent owns no conversations/messages, capability catalog, decision state,
+child reconciliation, priority overrides, Content creation, prompt activation,
+audit scheduling, arbitrary SQL/fetch/shell access, or external mutation.
+Acceptance covers workspace isolation, fixed task validation, append-only tool
+attempts, bounded omissions, leases, cancellation, and zero mutation paths.

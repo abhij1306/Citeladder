@@ -121,3 +121,14 @@ async def test_fixture_answers_yield_priced_product_mentions() -> None:
         assert aggregate["avg_rank"] is not None
         assert aggregate["price_mention_count"] > 0
         assert aggregate["price_accuracy_rate"] == 1.0
+
+
+async def test_fixture_citation_spans_match_the_answer_text() -> None:
+    adapter = _SeedStubAdapter(logical_engine="chatgpt", transport_provider="openai")
+    for prompt in ACTIVE_PROMPTS:
+        response = await adapter.execute(_Request(prompt))
+        for citation in response.citations:
+            assert (
+                response.answer_text[citation.start_index : citation.end_index]
+                == citation.cited_text
+            )

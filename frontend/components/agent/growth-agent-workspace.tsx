@@ -3,157 +3,117 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Circle, Clock3, Plus, Send, ShieldCheck, X } from 'lucide-react';
+import { Clock3, FileSearch, Map, ShieldCheck, X } from 'lucide-react';
 
-import { DecisionPrompt } from '@/components/intelligence/decision-prompt';
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import type { RunStatusValue } from '@/components/ui/badge-variants';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/input';
+import { Field } from '@/components/ui/field';
+import { inputClasses, Textarea } from '@/components/ui/input';
 import {
   agentApi,
-  type AgentConversation,
-  type AgentConversationDetail,
   type AgentTaskRun,
+  type AgentTaskType,
+  type AgentToolAttempt,
 } from '@/lib/api/agent';
 import { queryKeys } from '@/lib/api/query-keys';
 import { useProjectContext } from '@/lib/project/project-context';
 import { cn } from '@/lib/utils';
 
-const ACTIVE_STATUSES = new Set(['validating', 'planning', 'running', 'awaiting_task']);
-const TERMINAL_STATUSES = new Set(['completed', 'partially_completed', 'failed', 'cancelled']);
+const ACTIVE_STATUSES = new Set(['queued', 'running']);
+const CANCELLABLE_STATUSES = new Set(['queued', 'running']);
 
-function readable(value: string) {
+const TASKS: ReadonlyArray<{
+  value: AgentTaskType;
+  label: string;
+  description: string;
+  icon: typeof FileSearch;
+}> = [
+  {
+    value: 'explain',
+    label: 'Explain evidence',
+    description: 'Explain the latest persisted Site, Demand, Opportunity, and audit evidence.',
+    icon: FileSearch,
+  },
+  {
+    value: 'build_roadmap',
+    label: 'Build roadmap',
+    description: 'Turn deterministic Opportunity ordering into a concise, evidence-backed roadmap.',
+    icon: Map,
+  },
+];
+
+function requestedTask(value: string | null): AgentTaskType {
+  return value === 'build_roadmap' ? 'build_roadmap' : 'explain';
+}
+
+function readable(value: string): string {
   return value.replaceAll('_', ' ');
 }
 
-function statusIcon(status: string) {
-  if (status === 'completed') return <Check aria-hidden className="size-4" />;
-  if (status === 'failed' || status === 'cancelled') return <X aria-hidden className="size-4" />;
-  if (status === 'running' || status === 'awaiting_task') {
-    return <Clock3 aria-hidden className="size-4" />;
-  }
-  return <Circle aria-hidden className="size-3" />;
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
 }
 
-function parseScope(value: string): Record<string, unknown> {
-  if (!value.trim()) return {};
-  const parsed: unknown = JSON.parse(value);
-  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-    throw new Error('Scope must be a JSON object.');
-  }
-  return parsed as Record<string, unknown>;
+function badgeStatus(status: string): RunStatusValue {
+  if (status === 'completed' || status === 'failed' || status === 'cancelled') return status;
+  if (status === 'running') return 'running';
+  return 'queued';
 }
 
-function mostRecentConversationRun(
-  runs: ReadonlyArray<AgentTaskRun> | undefined,
-  conversationId: string | null,
-): AgentTaskRun | null {
-  if (!conversationId) return null;
-  return (runs ?? [])
-    .filter((run) => run.conversation_id === conversationId)
-    .reduce<AgentTaskRun | null>(
-      (latest, run) => (!latest || run.created_at > latest.created_at ? run : latest),
-      null,
-    );
-}
-
-function isAwaitingAssistantReply(
-  run: AgentTaskRun | null,
-  conversation: AgentConversationDetail | undefined,
-): boolean {
-  const selectedRunAnswered = Boolean(
-    run &&
-    conversation?.messages.some(
-      (message) => message.role === 'assistant' && message.task_run_id === run.id,
-    ),
-  );
-  return Boolean(run && TERMINAL_STATUSES.has(run.status) && !selectedRunAnswered);
-}
-
-function TaskProgress({ run }: Readonly<{ run: AgentTaskRun }>) {
-  const status = ['validating', 'planning'].includes(run.status)
-    ? 'Preparing'
-    : run.status === 'awaiting_task'
-      ? 'Waiting for linked work'
-      : 'Working';
+function RunBadge({ status }: Readonly<{ status: string }>) {
   return (
-    <details className="border-border-subtle mt-3 border-t pt-3">
-      <summary className="text-muted cursor-pointer text-xs font-medium">
-        {status} · {run.steps.length} {run.steps.length === 1 ? 'step' : 'steps'}
-      </summary>
-      <ol className="mt-3 grid gap-2">
-        {run.steps.map((step) => (
-          <li key={step.id} className="flex items-start gap-2 text-xs">
-            <span
-              className={cn(
-                'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full',
-                step.status === 'completed' && 'bg-success-bg text-success-text',
-                ['failed', 'cancelled'].includes(step.status) && 'bg-danger-bg text-danger-text',
-                ['running', 'awaiting_task', 'awaiting_user'].includes(step.status) &&
-                  'bg-info-bg text-info-text',
-                step.status === 'pending' && 'bg-neutral-bg text-subtle',
-              )}
-            >
-              {statusIcon(step.status)}
-            </span>
-            <span className="min-w-0">
-              <span className="text-foreground block">{step.name}</span>
-              <span className="text-muted block capitalize">{readable(step.status)}</span>
-            </span>
-          </li>
-        ))}
-      </ol>
-    </details>
+    <Badge variant="run-status" value={badgeStatus(status)} className="capitalize">
+      {readable(status)}
+    </Badge>
   );
 }
 
-function ConversationSidebar({
-  conversations,
-  tasks,
-  conversationId,
+function TaskHistory({
+  runs,
+  selectedId,
   loading,
-  onNew,
   onSelect,
 }: Readonly<{
-  conversations: AgentConversation[] | undefined;
-  tasks: AgentTaskRun[] | undefined;
-  conversationId: string | null;
+  runs: AgentTaskRun[] | undefined;
+  selectedId: string | null;
   loading: boolean;
-  onNew: () => void;
-  onSelect: (conversationId: string) => void;
+  onSelect: (runId: string) => void;
 }>) {
   return (
     <aside className="border-border-subtle bg-background-alt rounded-lg border p-2">
-      <Button variant="secondary" className="w-full justify-start" onClick={onNew}>
-        <Plus aria-hidden className="size-4" />
-        New conversation
-      </Button>
-      <div className="mt-3 grid gap-1" aria-label="Conversations">
-        {conversations?.map((item) => {
-          const conversationRun = mostRecentConversationRun(tasks, item.id);
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelect(item.id)}
-              aria-pressed={conversationId === item.id}
-              className={cn(
-                'focus-ring min-h-10 rounded-sm px-2 py-1.5 text-left text-xs',
-                conversationId === item.id
-                  ? 'bg-accent-soft text-accent-hover'
-                  : 'text-secondary hover:bg-background',
-              )}
-            >
-              <span className="block truncate font-medium">{item.title}</span>
-              <span className="text-muted mt-0.5 block capitalize">
-                {conversationRun ? readable(conversationRun.status) : 'Conversation'}
-              </span>
-            </button>
-          );
-        })}
-        {!loading && !conversations?.length ? (
-          <p className="text-muted px-2 py-4 text-xs leading-relaxed">
-            Your conversations will appear here.
+      <div className="px-2 py-2">
+        <h2 className="text-foreground text-sm font-semibold">Task history</h2>
+        <p className="text-muted mt-0.5 text-xs">Standalone runs for this project.</p>
+      </div>
+      <div className="mt-1 grid gap-1" aria-label="Task history">
+        {runs?.map((run) => (
+          <button
+            key={run.id}
+            type="button"
+            onClick={() => onSelect(run.id)}
+            aria-pressed={selectedId === run.id}
+            className={cn(
+              'focus-ring min-h-12 rounded-sm px-2 py-2 text-left',
+              selectedId === run.id
+                ? 'bg-accent-soft text-accent-hover'
+                : 'text-secondary hover:bg-background',
+            )}
+          >
+            <span className="block truncate text-xs font-medium">{run.objective}</span>
+            <span className="text-muted text-2xs mt-1 flex items-center justify-between gap-2">
+              <span className="capitalize">{readable(run.task_type)}</span>
+              <span>{formatDate(run.created_at)}</span>
+            </span>
+          </button>
+        ))}
+        {!loading && !runs?.length ? (
+          <p className="text-muted px-2 py-5 text-xs leading-relaxed">
+            Completed and active tasks will appear here.
           </p>
         ) : null}
       </div>
@@ -161,171 +121,226 @@ function ConversationSidebar({
   );
 }
 
-function ConversationMessages({
-  conversationId,
-  conversation,
+function EvidenceAttempt({ attempt }: Readonly<{ attempt: AgentToolAttempt }>) {
+  return (
+    <details className="border-border-subtle bg-background rounded-md border px-3 py-2">
+      <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-3 rounded-sm text-sm">
+        <span className="min-w-0">
+          <span className="text-foreground block truncate font-medium">{attempt.tool_name}</span>
+          <span className="text-muted text-xs">
+            v{attempt.tool_version} · {attempt.latency_ms} ms
+          </span>
+        </span>
+        <span className="text-muted shrink-0 text-xs capitalize">{readable(attempt.status)}</span>
+      </summary>
+      <div className="border-border-subtle mt-3 grid gap-3 border-t pt-3 text-xs">
+        <div>
+          <h4 className="text-foreground font-medium">Authorized input</h4>
+          <pre className="text-muted mt-1 overflow-x-auto break-all whitespace-pre-wrap">
+            {JSON.stringify(attempt.input, null, 2)}
+          </pre>
+        </div>
+        <div>
+          <h4 className="text-foreground font-medium">Artifact references</h4>
+          {attempt.artifact_refs.length ? (
+            <ul className="text-muted mt-1 grid gap-1 font-mono">
+              {attempt.artifact_refs.map((reference) => (
+                <li key={`${reference.kind}:${reference.id}`} className="break-all">
+                  {reference.kind}: {reference.id}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted mt-1">No artifact was available.</p>
+          )}
+        </div>
+        {attempt.omissions.length ? (
+          <div>
+            <h4 className="text-foreground font-medium">Omissions</h4>
+            <pre className="text-muted mt-1 overflow-x-auto break-all whitespace-pre-wrap">
+              {JSON.stringify(attempt.omissions, null, 2)}
+            </pre>
+          </div>
+        ) : null}
+        <p className="text-muted break-all">
+          Output hash: <span className="font-mono">{attempt.output_hash || 'unavailable'}</span>
+        </p>
+        {attempt.error_code ? (
+          <p className="text-danger-text">
+            {readable(attempt.error_code)}
+            {attempt.retryable ? ' · retryable' : ''}
+          </p>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function RunDetail({
+  run,
   loading,
   error,
+  cancelError,
+  cancelling,
+  onCancel,
 }: Readonly<{
-  conversationId: string | null;
-  conversation: AgentConversationDetail | undefined;
+  run: AgentTaskRun | undefined;
   loading: boolean;
   error: boolean;
+  cancelError: string;
+  cancelling: boolean;
+  onCancel: (run: AgentTaskRun) => void;
 }>) {
-  return (
-    <>
-      {error ? (
-        <Alert tone="danger">The conversation could not be loaded. Refresh and try again.</Alert>
-      ) : null}
-      {!conversationId || (!loading && !conversation?.messages.length) ? (
-        <div className="mx-auto grid max-w-xl place-items-center py-16 text-center">
-          <h2 className="font-display text-foreground text-xl font-semibold">
-            What should we work on next?
-          </h2>
-          <p className="text-muted mt-2 max-w-[58ch] text-sm leading-relaxed">
-            Ask for an explanation, roadmap, draft, demand analysis, or next measurement. The agent
-            uses only the current project&apos;s persisted evidence and bounded tools.
+  if (error && !run) {
+    return <Alert tone="danger">The task could not be loaded. Refresh and try again.</Alert>;
+  }
+  if (loading && !run) return <p className="text-muted text-sm">Loading task…</p>;
+  if (!run) {
+    return (
+      <div className="grid min-h-64 place-items-center text-center">
+        <div>
+          <ShieldCheck aria-hidden className="text-accent-text mx-auto size-6" />
+          <h2 className="text-foreground mt-3 text-lg font-semibold">Choose a bounded task</h2>
+          <p className="text-muted mt-1 max-w-lg text-sm">
+            Each run reads persisted project evidence once and records the exact artifacts used.
           </p>
         </div>
-      ) : null}
-      {conversation?.messages.length ? (
-        <ol className="mx-auto grid max-w-3xl gap-5">
-          {conversation.messages.map((message) => (
-            <li
-              key={message.id}
-              className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}
-            >
-              <div
-                className={cn(
-                  'max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm leading-relaxed',
-                  message.role === 'user'
-                    ? 'bg-accent text-inverse'
-                    : 'bg-background-alt text-foreground border-border-subtle border',
-                )}
-              >
-                <p className="whitespace-pre-wrap">{message.content}</p>
-                {message.citations.length ? (
-                  <p className="mt-2 text-xs opacity-80">
-                    Grounded in {message.citations.length}{' '}
-                    {message.citations.length === 1
-                      ? 'project evidence source'
-                      : 'project evidence sources'}
-                  </p>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-    </>
-  );
-}
+      </div>
+    );
+  }
 
-function ActiveTaskPanel({
-  run,
-  onReviewDecision,
-  onCancel,
-  cancelling,
-}: Readonly<{
-  run: AgentTaskRun | null;
-  onReviewDecision: () => void;
-  onCancel: (run: AgentTaskRun) => void;
-  cancelling: boolean;
-}>) {
-  if (!run || TERMINAL_STATUSES.has(run.status)) return null;
-  const pendingDecision = run.steps.find((step) => step.status === 'awaiting_user');
   return (
-    <div className="mx-auto mt-5 max-w-3xl">
-      {pendingDecision ? (
-        <div className="border-info bg-info-bg flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-          <div>
-            <p className="text-info-text text-sm font-semibold">Your decision is required</p>
-            <p className="text-info-text mt-0.5 text-xs">{pendingDecision.name}</p>
-          </div>
-          <Button size="sm" onClick={onReviewDecision}>
-            Review decision
-          </Button>
+    <article className="grid gap-5">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-muted text-xs capitalize">{readable(run.task_type)}</p>
+          <h2 className="text-foreground mt-1 text-lg font-semibold">{run.objective}</h2>
+          <p className="text-muted mt-1 text-xs">Started {formatDate(run.created_at)}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <RunBadge status={run.status} />
+          {CANCELLABLE_STATUSES.has(run.status) ? (
+            <Button variant="ghost" size="sm" onClick={() => onCancel(run)} disabled={cancelling}>
+              <X aria-hidden className="size-4" />
+              {cancelling ? 'Cancelling…' : 'Cancel'}
+            </Button>
+          ) : null}
+        </div>
+      </header>
+
+      {run.error_detail || cancelError ? (
+        <div className="grid gap-2">
+          {run.error_detail ? <Alert tone="danger">{run.error_detail}</Alert> : null}
+          {cancelError ? <Alert tone="danger">{cancelError}</Alert> : null}
         </div>
       ) : null}
-      <TaskProgress run={run} />
-      <Button
-        variant="ghost"
-        size="sm"
-        className="mt-2"
-        onClick={() => onCancel(run)}
-        disabled={cancelling}
-      >
-        {cancelling ? 'Cancelling…' : 'Cancel task'}
-      </Button>
-    </div>
+
+      {run.result ? (
+        <section className="border-border-subtle bg-background-alt rounded-md border p-4">
+          <h3 className="text-foreground text-sm font-semibold">Result</h3>
+          <p className="text-secondary mt-2 text-sm leading-relaxed whitespace-pre-wrap">
+            {run.result.answer}
+          </p>
+          {run.result.limitations.length ? (
+            <div className="mt-4">
+              <h4 className="text-foreground text-xs font-semibold">Limitations</h4>
+              <ul className="text-muted mt-1 list-disc space-y-1 pl-4 text-xs">
+                {run.result.limitations.map((limitation) => (
+                  <li key={limitation}>{limitation}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : ACTIVE_STATUSES.has(run.status) ? (
+        <div className="text-muted flex items-center gap-2 text-sm">
+          <Clock3 aria-hidden className="size-4" />
+          Reading persisted evidence and preparing the result…
+        </div>
+      ) : null}
+
+      <section>
+        <h3 className="text-foreground text-sm font-semibold">Evidence attempts</h3>
+        <p className="text-muted mt-1 text-xs">
+          Immutable reads and exact artifact references used by this task.
+        </p>
+        <div className="mt-3 grid gap-2">
+          {run.attempts.map((attempt) => (
+            <EvidenceAttempt key={attempt.id} attempt={attempt} />
+          ))}
+          {!run.attempts.length ? (
+            <p className="text-muted bg-background-alt rounded-md p-3 text-xs">
+              Evidence reads have not started yet.
+            </p>
+          ) : null}
+        </div>
+      </section>
+    </article>
   );
 }
 
-function AgentComposer({
+function TaskForm({
+  taskType,
   objective,
+  submitting,
+  error,
+  onTaskTypeChange,
   onObjectiveChange,
   onSubmit,
-  submitting,
-  taskAvailable,
-  missingRequiredScope,
-  formError,
-  capabilitiesError,
 }: Readonly<{
+  taskType: AgentTaskType;
   objective: string;
+  submitting: boolean;
+  error: string;
+  onTaskTypeChange: (value: AgentTaskType) => void;
   onObjectiveChange: (value: string) => void;
   onSubmit: () => void;
-  submitting: boolean;
-  taskAvailable: boolean;
-  missingRequiredScope: string[];
-  formError: string;
-  capabilitiesError: boolean;
 }>) {
+  const selected = TASKS.find((task) => task.value === taskType) ?? TASKS[0];
   return (
     <form
-      className="border-border-subtle bg-background-alt border-t p-3"
+      className="border-border-subtle bg-background-alt border-t p-4"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
       }}
     >
-      <div className="mx-auto grid max-w-3xl gap-2">
-        <Textarea
-          value={objective}
-          onChange={(event) => onObjectiveChange(event.target.value)}
-          maxLength={2000}
-          rows={3}
-          aria-label="Message Growth Agent"
-          placeholder="Ask the Growth Agent about your current evidence…"
-          disabled={submitting}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          {missingRequiredScope.length ? (
-            <p className="text-muted max-w-xl text-xs leading-relaxed">
-              This action needs a selected source item. Start it from the related Content or Demand
-              workspace so the agent receives the right context.
-            </p>
-          ) : null}
-          <Button
-            type="submit"
-            className="ml-auto"
-            disabled={
-              submitting || !objective.trim() || !taskAvailable || missingRequiredScope.length > 0
-            }
-          >
-            <Send aria-hidden className="size-4" />
-            {submitting ? 'Sending…' : 'Send'}
+      <div className="mx-auto grid max-w-3xl gap-3 sm:grid-cols-[13rem_minmax(0,1fr)]">
+        <Field label="Task">
+          {(props) => (
+            <select
+              {...props}
+              className={inputClasses}
+              value={taskType}
+              onChange={(event) => onTaskTypeChange(requestedTask(event.target.value))}
+              disabled={submitting}
+            >
+              {TASKS.map((task) => (
+                <option key={task.value} value={task.value}>
+                  {task.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+        <Field label="Objective" required error={error || undefined} hint={selected.description}>
+          {(props) => (
+            <Textarea
+              {...props}
+              value={objective}
+              onChange={(event) => onObjectiveChange(event.target.value)}
+              maxLength={2000}
+              rows={3}
+              placeholder="What should this task explain or prioritize?"
+              disabled={submitting}
+            />
+          )}
+        </Field>
+        <div className="sm:col-start-2">
+          <Button type="submit" disabled={submitting || !objective.trim()}>
+            {submitting ? 'Starting…' : 'Start task'}
           </Button>
         </div>
-        {formError ? (
-          <p role="alert" className="text-danger-text text-xs">
-            {formError}
-          </p>
-        ) : null}
-        {capabilitiesError ? (
-          <p role="alert" className="text-danger-text text-xs">
-            Agent capabilities could not be loaded. Refresh and try again.
-          </p>
-        ) : null}
       </div>
     </form>
   );
@@ -336,37 +351,20 @@ export function GrowthAgentWorkspace() {
   const queryClient = useQueryClient();
   const { activeProject, isLoading: projectLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
-  const taskType = search.get('task') ?? 'explain';
+  const taskParam = requestedTask(search.get('task'));
   const objectiveParam = search.get('objective') ?? '';
+  const [taskChoice, setTaskChoice] = useState({ searchValue: taskParam, value: taskParam });
+  const taskType = taskChoice.searchValue === taskParam ? taskChoice.value : taskParam;
   const [objectiveDraft, setObjectiveDraft] = useState({
     searchValue: objectiveParam,
     value: objectiveParam,
   });
   const objective =
     objectiveDraft.searchValue === objectiveParam ? objectiveDraft.value : objectiveParam;
-  const setObjective = (value: string) => {
-    setObjectiveDraft({ searchValue: objectiveParam, value });
-  };
-  const scopeText = search.get('scope') ?? '{}';
-  const [conversationChoice, setConversationChoice] = useState<string | 'new' | null>(null);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
-  const [decisionError, setDecisionError] = useState('');
-  const [decisionOpen, setDecisionOpen] = useState(false);
+  const [cancelError, setCancelError] = useState('');
 
-  const capabilities = useQuery({
-    queryKey: queryKeys.agent.capabilities(),
-    queryFn: ({ signal }) => agentApi.capabilities({ signal }),
-  });
-  const conversations = useQuery({
-    queryKey: queryKeys.agent.conversations(projectId ?? ''),
-    queryFn: ({ signal }) => agentApi.listConversations(projectId!, { signal }),
-    enabled: Boolean(projectId),
-  });
-  const conversationId =
-    conversationChoice === 'new'
-      ? null
-      : (conversationChoice ?? conversations.data?.[0]?.id ?? null);
   const tasks = useQuery({
     queryKey: queryKeys.agent.tasks(projectId ?? ''),
     queryFn: ({ signal }) => agentApi.listTasks(projectId!, { signal }),
@@ -374,188 +372,105 @@ export function GrowthAgentWorkspace() {
     refetchInterval: (query) =>
       (query.state.data ?? []).some((run) => ACTIVE_STATUSES.has(run.status)) ? 2_000 : false,
   });
-  const selectedRun = useMemo(() => {
-    if (selectedRunId) return tasks.data?.find((run) => run.id === selectedRunId) ?? null;
-    return mostRecentConversationRun(tasks.data, conversationId);
-  }, [conversationId, selectedRunId, tasks.data]);
-  const conversation = useQuery({
-    queryKey: queryKeys.agent.conversation(projectId ?? '', conversationId ?? ''),
-    queryFn: ({ signal }) => agentApi.getConversation(projectId!, conversationId!, { signal }),
-    enabled: Boolean(projectId && conversationId),
+  const resolvedRunId = selectedRunId ?? tasks.data?.[0]?.id ?? null;
+  const task = useQuery({
+    queryKey: queryKeys.agent.task(projectId ?? '', resolvedRunId ?? ''),
+    queryFn: ({ signal }) => agentApi.getTask(projectId!, resolvedRunId!, { signal }),
+    enabled: Boolean(projectId && resolvedRunId),
     refetchInterval: (query) =>
-      isAwaitingAssistantReply(selectedRun, query.state.data) ? 1_000 : false,
+      query.state.data && ACTIVE_STATUSES.has(query.state.data.status) ? 2_000 : false,
   });
 
-  const resolvedTaskType = capabilities.data?.task_catalog.some(
-    (item) => item.task_type === taskType,
-  )
-    ? taskType
-    : (capabilities.data?.task_catalog[0]?.task_type ?? taskType);
-  const taskPolicy = capabilities.data?.task_catalog.find(
-    (item) => item.task_type === resolvedTaskType,
+  const selectedRun = useMemo(
+    () => task.data ?? tasks.data?.find((run) => run.id === resolvedRunId),
+    [resolvedRunId, task.data, tasks.data],
   );
-  const taskScope = useMemo(() => {
-    try {
-      return parseScope(scopeText);
-    } catch {
-      return {};
-    }
-  }, [scopeText]);
-  const missingRequiredScope =
-    taskPolicy?.required_scope.filter((key) => !String(taskScope[key] ?? '').trim()) ?? [];
+
   const submit = useMutation({
     mutationFn: async () => {
-      if (!projectId) throw new Error('Select a project before sending a message.');
-      const message = objective.trim();
-      if (!message) throw new Error('Write a message for the Growth Agent.');
-      const activeConversationId =
-        conversationId ?? (await agentApi.createConversation(projectId, message.slice(0, 80))).id;
-      const run = await agentApi.submitTask(
-        {
-          project_id: projectId,
-          conversation_id: activeConversationId,
-          task_type: resolvedTaskType,
-          objective: message,
-          resource_scope: taskScope,
-        },
+      if (!projectId) throw new Error('Select a project before starting a task.');
+      const nextObjective = objective.trim();
+      if (!nextObjective) throw new Error('Write an objective for the task.');
+      return agentApi.submitTask(
+        { project_id: projectId, task_type: taskType, objective: nextObjective },
         crypto.randomUUID(),
       );
-      return { run, conversationId: activeConversationId };
-    },
-    onSuccess: ({ run, conversationId: nextConversationId }) => {
-      setFormError('');
-      setObjective('');
-      setConversationChoice(nextConversationId);
-      setSelectedRunId(run.id);
-      void queryClient.invalidateQueries({ queryKey: queryKeys.agent.tasks(run.project_id) });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.agent.conversations(run.project_id),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.agent.conversation(run.project_id, nextConversationId),
-      });
-    },
-    onError: (error) =>
-      setFormError(error instanceof Error ? error.message : 'The message could not be sent.'),
-  });
-  const decide = useMutation({
-    mutationFn: async ({ run, confirmed }: { run: AgentTaskRun; confirmed: boolean }) => {
-      const remaining = run.result?.decisions_remaining;
-      const decision = String(
-        (Array.isArray(remaining) ? remaining[0] : null) ??
-          run.steps.find((step) => step.status === 'awaiting_user')?.tool_kind ??
-          '',
-      );
-      return agentApi.decide(run.project_id, run.id, decision, confirmed);
     },
     onSuccess: (run) => {
-      setDecisionError('');
-      setDecisionOpen(false);
+      setFormError('');
+      setObjectiveDraft({ searchValue: objectiveParam, value: '' });
+      setSelectedRunId(run.id);
+      queryClient.setQueryData(queryKeys.agent.task(run.project_id, run.id), run);
       void queryClient.invalidateQueries({ queryKey: queryKeys.agent.tasks(run.project_id) });
-      if (run.conversation_id) {
-        void queryClient.invalidateQueries({
-          queryKey: queryKeys.agent.conversation(run.project_id, run.conversation_id),
-        });
-      }
     },
     onError: (error) =>
-      setDecisionError(
-        error instanceof Error ? error.message : 'The decision could not be recorded. Try again.',
-      ),
+      setFormError(error instanceof Error ? error.message : 'The task could not be started.'),
   });
   const cancel = useMutation({
-    mutationFn: (run: AgentTaskRun) => agentApi.cancel(run.project_id, run.id),
+    mutationFn: (run: AgentTaskRun) => {
+      setCancelError('');
+      return agentApi.cancel(run.project_id, run.id);
+    },
     onSuccess: (run) => {
-      setFormError('');
+      setCancelError('');
+      queryClient.setQueryData(queryKeys.agent.task(run.project_id, run.id), run);
       void queryClient.invalidateQueries({ queryKey: queryKeys.agent.tasks(run.project_id) });
     },
     onError: (error) =>
-      setFormError(error instanceof Error ? error.message : 'The task could not be cancelled.'),
+      setCancelError(error instanceof Error ? error.message : 'The task could not be cancelled.'),
   });
 
-  const pendingDecision = selectedRun?.steps.find((step) => step.status === 'awaiting_user');
-  const decisionKind = pendingDecision?.tool_kind === 'run_audit' ? 'run-audit' : 'save-content';
   if (projectLoading) return <p className="text-muted text-sm">Loading project…</p>;
   if (!projectId) {
-    return (
-      <p className="text-muted text-sm">Create or select a project to use the Growth Agent.</p>
-    );
+    return <p className="text-muted text-sm">Create or select a project to use Growth Agent.</p>;
   }
 
   return (
-    <div className="grid min-h-[calc(100dvh-10rem)] gap-4 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <ConversationSidebar
-        conversations={conversations.data}
-        tasks={tasks.data}
-        conversationId={conversationId}
-        loading={conversations.isLoading}
-        onNew={() => {
-          setConversationChoice('new');
-          setSelectedRunId(null);
-          setObjective('');
-          setFormError('');
-        }}
-        onSelect={(nextConversationId) => {
-          setConversationChoice(nextConversationId);
-          setSelectedRunId(null);
-        }}
+    <div className="grid min-h-[calc(100dvh-10rem)] gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <TaskHistory
+        runs={tasks.data}
+        selectedId={resolvedRunId}
+        loading={tasks.isLoading}
+        onSelect={setSelectedRunId}
       />
 
       <section className="border-border bg-panel flex min-w-0 flex-col rounded-lg border">
         <header className="border-border-subtle flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
           <div>
             <h1 className="font-display text-foreground text-lg font-semibold">Growth Agent</h1>
-            <p className="text-muted text-xs">Ask across Site, Content, and Demand evidence.</p>
+            <p className="text-muted text-xs">Explain evidence or build a deterministic roadmap.</p>
           </div>
           <div className="text-secondary flex items-center gap-2 text-xs">
             <ShieldCheck aria-hidden className="text-accent-text size-4" />
-            Uses approved project evidence
+            Read-only project evidence
           </div>
         </header>
 
         <div className="min-h-80 flex-1 overflow-y-auto p-4 sm:p-6">
-          <ConversationMessages
-            conversationId={conversationId}
-            conversation={conversation.data}
-            loading={conversation.isLoading}
-            error={conversation.isError}
-          />
-          <ActiveTaskPanel
-            run={selectedRun}
-            onReviewDecision={() => setDecisionOpen(true)}
-            onCancel={(run) => cancel.mutate(run)}
-            cancelling={cancel.isPending}
-          />
+          {tasks.isError ? (
+            <Alert tone="danger">Task history could not be loaded. Refresh and try again.</Alert>
+          ) : (
+            <RunDetail
+              run={selectedRun}
+              loading={task.isLoading}
+              error={task.isError}
+              cancelError={cancelError}
+              cancelling={cancel.isPending}
+              onCancel={(run) => cancel.mutate(run)}
+            />
+          )}
         </div>
 
-        <AgentComposer
+        <TaskForm
+          taskType={taskType}
           objective={objective}
-          onObjectiveChange={setObjective}
-          onSubmit={() => submit.mutate()}
           submitting={submit.isPending}
-          taskAvailable={Boolean(taskPolicy)}
-          missingRequiredScope={missingRequiredScope}
-          formError={formError}
-          capabilitiesError={capabilities.isError}
+          error={formError}
+          onTaskTypeChange={(value) => setTaskChoice({ searchValue: taskParam, value })}
+          onObjectiveChange={(value) => setObjectiveDraft({ searchValue: objectiveParam, value })}
+          onSubmit={() => submit.mutate()}
         />
       </section>
-
-      {selectedRun && pendingDecision ? (
-        <DecisionPrompt
-          kind={decisionKind}
-          open={decisionOpen}
-          onOpenChange={setDecisionOpen}
-          onConfirm={() => decide.mutate({ run: selectedRun, confirmed: true })}
-          onDecline={() => decide.mutate({ run: selectedRun, confirmed: false })}
-          pending={decide.isPending}
-          error={decisionError}
-          consequence={
-            decisionKind === 'run-audit'
-              ? 'Creates the configured recurring audit schedule. Each run can call paid answer engines.'
-              : 'Queues one brief-driven draft as a durable Content artifact. It does not publish the draft.'
-          }
-        />
-      ) : null}
     </div>
   );
 }

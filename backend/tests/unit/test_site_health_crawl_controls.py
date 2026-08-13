@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from app.core.config.site_health import SiteHealthSettings, site_health_settings
 from app.core.config.site_health_page_profiles import PAGE_PROFILE_RULE_VERSION
-from app.domain.site_health import discovery
+from app.domain.site_health import discovery, frontier
 from app.domain.site_health.api_schemas import (
     StartAnalysisRequest,
     StartDiscoveryRequest,
@@ -256,9 +256,9 @@ async def test_hard_excluded_candidate_never_reaches_enqueue_or_fetch(monkeypatc
         pending_frontier_checked = True
         return []
 
-    monkeypatch.setattr(discovery, "_upsert_site_url", fail_if_admitted)
-    monkeypatch.setattr(discovery, "_automatic_remaining", no_automatic_selection)
-    monkeypatch.setattr(discovery, "_pending_frontier", empty_pending_frontier)
+    monkeypatch.setattr(frontier, "_upsert_site_url", fail_if_admitted)
+    monkeypatch.setattr(frontier, "_automatic_remaining", no_automatic_selection)
+    monkeypatch.setattr(frontier, "_pending_frontier", empty_pending_frontier)
     result = await discovery.admit_candidates(
         None,
         crawl=Crawl(),

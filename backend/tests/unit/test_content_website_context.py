@@ -387,6 +387,12 @@ async def test_page_and_char_budgets(
         assert context.summary is not None
         assert context.summary["char_count"] <= CONTENT_CONTEXT_MAX_CHARS
         assert len(context.pages) < CONTENT_CONTEXT_MAX_PAGES + 2
+        assert context.summary["omissions"] == [
+            {
+                "reason": "character_budget",
+                "count": CONTENT_CONTEXT_MAX_PAGES - len(context.pages),
+            }
+        ]
         # Kept pages are the deterministic head of the ordering.
         titles = [page["title"] for page in context.pages]
         assert titles == [f"Page {i:02d}" for i in range(len(titles))]

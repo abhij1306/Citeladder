@@ -2,13 +2,8 @@ import { expect, test } from '@playwright/test';
 
 import { hideDevChrome, stubAuthedShell } from '../helpers/app-fixture';
 
-const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
-
 test('Demand Intelligence empty workspace', async ({ page }) => {
-  await stubAuthedShell(page, [
-    [`**/api/v1/projects/${PROJECT_ID}/demand/snapshots?limit=20`, { items: [] }],
-    [`**/api/v1/projects/${PROJECT_ID}/demand/capabilities`, { datasets: [] }],
-  ]);
+  await stubAuthedShell(page);
 
   await page.goto('/demand');
   await hideDevChrome(page);

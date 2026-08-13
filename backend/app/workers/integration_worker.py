@@ -67,8 +67,6 @@ from app.core.config.integrations import (
     EVENT_INTEGRATION_REAUTH_REQUIRED,
     EVENT_INTEGRATION_SYNC_FINISHED,
     EVENT_INTEGRATION_SYNC_STARTED,
-    GA4_DEMAND_CAPABILITY_VERSION,
-    GA4_DEMAND_OPTIONAL_DATASETS,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_KEY,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_VERSION,
     GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP,
@@ -805,10 +803,6 @@ class IntegrationWorker(DrainableWorkerMixin):
         capability selection under the connection row lock, and pages the
         fallback in the SAME run. Every other error propagates unchanged.
         """
-        if template.dataset in GA4_DEMAND_OPTIONAL_DATASETS:
-            return await self._sync_demand_template(
-                ctx, client=client, template=template, access_token=access_token
-            )
         try:
             return await self._sync_dataset(
                 ctx,
@@ -820,33 +814,6 @@ class IntegrationWorker(DrainableWorkerMixin):
             return await self._sync_item_fallback(
                 ctx, client=client, template=template, access_token=access_token
             )
-
-    async def _sync_demand_template(
-        self,
-        ctx: _RunContext,
-        *,
-        client: _DataClient,
-        template: IntegrationDatasetTemplate,
-        access_token: str,
-    ) -> bool:
-        try:
-            synced = await self._sync_dataset(
-                ctx, client=client, template=template, access_token=access_token
-            )
-        except Ga4DimensionCompatibilityError:
-            if await self._has_dataset_artifact(ctx.run_id, template.dataset):
-                raise
-            return await self._persist_demand_capability(
-                ctx,
-                dataset=template.dataset,
-                status="unavailable",
-                reason=ERROR_GA4_DIMENSION_INCOMPATIBLE,
-            )
-        if not synced:
-            return False
-        return await self._persist_demand_capability(
-            ctx, dataset=template.dataset, status="compatible"
-        )
 
     async def _sync_item_fallback(
         self,
@@ -871,37 +838,6 @@ class IntegrationWorker(DrainableWorkerMixin):
         return await self._sync_dataset(
             ctx, client=client, template=fallback, access_token=access_token
         )
-
-    async def _persist_demand_capability(
-        self,
-        ctx: _RunContext,
-        *,
-        dataset: str,
-        status: str,
-        reason: str | None = None,
-    ) -> bool:
-        """Persist a GA4 Demand report's observed compatibility."""
-        async with self._session_factory() as session:
-            run = await self._claim_run_if_owned(session, ctx.run_id)
-            if run is None:
-                return False
-            connection = await session.get(
-                IntegrationConnection, ctx.connection_id, with_for_update=True
-            )
-            if connection is None:
-                await session.commit()
-                return False
-            capabilities = dict(connection.dataset_capabilities or {})
-            state: dict[str, str] = {
-                "status": status,
-                "version": GA4_DEMAND_CAPABILITY_VERSION,
-            }
-            if reason is not None:
-                state["reason"] = reason
-            capabilities[dataset] = state
-            connection.dataset_capabilities = capabilities
-            await session.commit()
-            return True
 
     async def _has_dataset_artifact(self, run_id: uuid.UUID, dataset: str) -> bool:
         """True when the run already holds a durable artifact for ``dataset``."""

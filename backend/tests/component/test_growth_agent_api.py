@@ -4,6 +4,10 @@ import uuid
 
 import httpx
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.connectors.agent.gateway import FakeModelGateway
+from app.domain.agent.service import claim_task, execute_claimed_task
 
 
 async def _register(client: httpx.AsyncClient, email: str) -> None:
@@ -12,11 +16,11 @@ async def _register(client: httpx.AsyncClient, email: str) -> None:
         json={"email": email, "password": "password123"},
     )
     assert response.status_code == 202
-    login_response = await client.post(
+    login = await client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": "password123"},
     )
-    assert login_response.status_code == 200
+    assert login.status_code == 200
 
 
 async def _project(client: httpx.AsyncClient, name: str = "Agent Project") -> str:
@@ -38,133 +42,127 @@ async def _project(client: httpx.AsyncClient, name: str = "Agent Project") -> st
 
 
 @pytest.mark.asyncio
-async def test_capability_catalog_exposes_exact_tool_kinds(
+async def test_task_is_queued_and_replayed_idempotently(
     client: httpx.AsyncClient,
 ) -> None:
-    await _register(client, "agent-capabilities@example.com")
-    response = await client.get("/api/v1/agent/capabilities")
-    assert response.status_code == 200
-    payload = response.json()
-    assert {item["task_type"] for item in payload["task_catalog"]} >= {
-        "build_roadmap",
-        "generate_draft",
-        "schedule_audit",
-    }
-    kinds = {item["name"]: item["kind"] for item in payload["tool_catalog"]}
-    assert kinds["opportunities.read_ranked"] == "automatic"
-    assert kinds["content.generate_draft"] == "save_content"
-    assert kinds["audits.schedule"] == "run_audit"
-
-
-@pytest.mark.asyncio
-async def test_roadmap_run_freezes_context_and_replays_idempotently(
-    client: httpx.AsyncClient,
-) -> None:
-    await _register(client, "agent-roadmap@example.com")
+    await _register(client, "bounded-agent@example.com")
     project_id = await _project(client)
-    conversation = await client.post(
-        "/api/v1/agent/conversations",
-        json={"project_id": project_id, "title": "Admissions roadmap"},
-    )
-    assert conversation.status_code == 201
     body = {
         "project_id": project_id,
-        "conversation_id": conversation.json()["id"],
         "task_type": "build_roadmap",
-        "objective": "Build a roadmap to improve qualified admissions visibility.",
-        "resource_scope": {"journey": "admissions"},
+        "objective": "Build a roadmap from current persisted evidence.",
     }
     first = await client.post(
         "/api/v1/agent/tasks", json=body, headers={"Idempotency-Key": "roadmap-1"}
     )
     assert first.status_code == 201, first.text
-    payload = first.json()
-    assert payload["status"] == "completed"
-    assert payload["context"]["manifest"]["quality"]["selected_count"] == 0
-    assert payload["context"]["omissions"] == [
-        {"section": "site", "reason": "unavailable", "count": 1},
-        {"section": "content", "reason": "unavailable", "count": 1},
-        {"section": "demand", "reason": "unavailable", "count": 1},
-    ]
-    assert len(payload["steps"]) == 4
-    assert all(step["status"] == "completed" for step in payload["steps"])
-    assert payload["result"]["conclusion"] == (
-        "There is no project evidence available yet, so I cannot give you a "
-        "grounded answer."
-    )
+    assert first.json()["status"] == "queued"
+    assert first.json()["attempts"] == []
     replay = await client.post(
         "/api/v1/agent/tasks", json=body, headers={"Idempotency-Key": "roadmap-1"}
     )
     assert replay.status_code == 201
-    assert replay.json()["id"] == payload["id"]
+    assert replay.json()["id"] == first.json()["id"]
 
 
 @pytest.mark.asyncio
-async def test_task_scope_and_cross_workspace_access_fail_closed(
+async def test_only_fixed_tasks_and_minimal_contract_are_accepted(
     client: httpx.AsyncClient,
 ) -> None:
-    await _register(client, "agent-isolation@example.com")
+    await _register(client, "bounded-contract@example.com")
     project_id = await _project(client)
-    first_workspace_cookies = dict(client.cookies)
-    missing = await client.post(
-        "/api/v1/agent/tasks",
-        json={
-            "project_id": project_id,
-            "task_type": "create_brief",
-            "objective": "Create a brief",
-            "resource_scope": {},
-        },
-        headers={"Idempotency-Key": "brief-missing"},
-    )
-    assert missing.status_code == 422
-    assert missing.json()["error"]["code"] == "agent_task_invalid"
-
-    client.cookies.clear()
-    await _register(client, "agent-other-workspace@example.com")
-    foreign_project_id = await _project(client, "Foreign Agent Project")
-    client.cookies.clear()
-    client.cookies.update(first_workspace_cookies)
-    foreign = await client.get(
-        "/api/v1/agent/tasks", params={"project_id": foreign_project_id}
-    )
-    assert foreign.status_code == 404
-    assert foreign.json()["error"]["code"] == "agent_not_found"
-
-    unknown_project = await client.get(
-        "/api/v1/agent/tasks",
-        params={"project_id": str(uuid.uuid4())},
-    )
-    assert unknown_project.status_code == 404
-    assert unknown_project.json()["error"]["code"] == "agent_not_found"
-
-
-@pytest.mark.asyncio
-async def test_save_content_is_a_server_enforced_decision(
-    client: httpx.AsyncClient,
-) -> None:
-    await _register(client, "agent-decision@example.com")
-    project_id = await _project(client)
-    response = await client.post(
+    removed_task = await client.post(
         "/api/v1/agent/tasks",
         json={
             "project_id": project_id,
             "task_type": "generate_draft",
-            "objective": "Generate the selected draft",
-            "resource_scope": {"brief_id": str(uuid.uuid4())},
+            "objective": "Generate content",
         },
-        headers={"Idempotency-Key": "draft-decision"},
+        headers={"Idempotency-Key": "removed"},
     )
-    assert response.status_code == 201
-    run = response.json()
-    assert run["status"] == "awaiting_user"
-    assert run["steps"][0]["tool_kind"] == "save_content"
-    assert run["steps"][0]["status"] == "awaiting_user"
+    assert removed_task.status_code == 422
+    extra_field = await client.post(
+        "/api/v1/agent/tasks",
+        json={
+            "project_id": project_id,
+            "task_type": "explain",
+            "objective": "Explain evidence",
+            "conversation_id": str(uuid.uuid4()),
+        },
+        headers={"Idempotency-Key": "extra"},
+    )
+    assert extra_field.status_code == 422
+    assert (await client.get("/api/v1/agent/capabilities")).status_code == 404
+    assert (await client.get("/api/v1/agent/conversations")).status_code == 404
 
-    declined = await client.post(
-        f"/api/v1/agent/tasks/{run['id']}/decision",
-        params={"project_id": project_id},
-        json={"decision": "save_content", "confirmed": False},
+
+@pytest.mark.asyncio
+async def test_cancel_and_workspace_isolation(client: httpx.AsyncClient) -> None:
+    await _register(client, "agent-owner@example.com")
+    project_id = await _project(client)
+    created = await client.post(
+        "/api/v1/agent/tasks",
+        json={
+            "project_id": project_id,
+            "task_type": "explain",
+            "objective": "Explain persisted evidence.",
+        },
+        headers={"Idempotency-Key": "cancel-1"},
     )
-    assert declined.status_code == 200
-    assert declined.json()["status"] == "partially_completed"
-    assert declined.json()["decisions"][0]["confirmed"] is False
+    run_id = created.json()["id"]
+    cancelled = await client.post(
+        f"/api/v1/agent/tasks/{run_id}/cancel", params={"project_id": project_id}
+    )
+    assert cancelled.status_code == 200
+    assert cancelled.json()["status"] == "cancelled"
+
+    owner_cookies = dict(client.cookies)
+    client.cookies.clear()
+    await _register(client, "agent-outsider@example.com")
+    outsider_project = await _project(client, "Outsider")
+    client.cookies.clear()
+    client.cookies.update(owner_cookies)
+    response = await client.get(
+        "/api/v1/agent/tasks", params={"project_id": outsider_project}
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_worker_persists_canonical_attempts_and_minimal_result(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "agent-worker@example.com")
+    project_id = await _project(client)
+    created = await client.post(
+        "/api/v1/agent/tasks",
+        json={
+            "project_id": project_id,
+            "task_type": "explain",
+            "objective": "Explain the latest persisted evidence.",
+        },
+        headers={"Idempotency-Key": "worker-1"},
+    )
+    run_id = created.json()["id"]
+    gateway = FakeModelGateway(
+        '{"answer":"No evidence is available yet.","limitations":[]}'
+    )
+    async with session_factory() as session:
+        claimed = await claim_task(session, owner="test-worker", lease_seconds=60)
+        assert claimed is not None
+        assert str(claimed.id) == run_id
+        await execute_claimed_task(
+            session, run=claimed, owner="test-worker", gateway=gateway
+        )
+
+    detail = await client.get(
+        f"/api/v1/agent/tasks/{run_id}", params={"project_id": project_id}
+    )
+    assert detail.status_code == 200
+    payload = detail.json()
+    assert payload["status"] == "completed"
+    assert set(payload["result"]) == {"answer", "limitations", "artifact_refs"}
+    assert len(payload["attempts"]) == 4
+    assert all(attempt["output_hash"] for attempt in payload["attempts"])
+    assert all("output" not in attempt for attempt in payload["attempts"])

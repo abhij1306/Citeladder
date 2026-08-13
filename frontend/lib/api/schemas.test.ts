@@ -157,7 +157,7 @@ describe('contract schemas', () => {
     expect('surprise' in parsed).toBe(false);
   });
 
-  it('strips a leaked secret key from a provider connection', () => {
+  it('rejects a leaked secret key from a provider connection', () => {
     const base = {
       id: UUID,
       workspace_id: UUID2,
@@ -168,13 +168,9 @@ describe('contract schemas', () => {
       updated_at: '2026-07-15T00:00:00Z',
     };
     expect(strictValidate(providerConnectionSchema, base, 'conn').active).toBe(true);
-    // Invariant 6 holds in the parsed output: a secret never enters app state.
-    const parsed = strictValidate(
-      providerConnectionSchema,
-      { ...base, api_key: 'sk-test-fake' },
-      'conn',
-    );
-    expect('api_key' in parsed).toBe(false);
+    expect(() =>
+      strictValidate(providerConnectionSchema, { ...base, api_key: 'sk-test-fake' }, 'conn'),
+    ).toThrow('API validation failure');
   });
 
   it('accepts only the three direct transports', () => {

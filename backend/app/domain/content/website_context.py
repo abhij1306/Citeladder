@@ -24,6 +24,7 @@ from app.core.config.content import (
     CONTENT_CONTEXT_MAX_CHARS,
     CONTENT_CONTEXT_MAX_PAGES,
     CONTENT_CONTEXT_PER_PAGE_BODY_CHARS,
+    CONTENT_WEBSITE_CONTEXT_VERSION,
     CONTEXT_MAX_H1,
     CONTEXT_MAX_H2,
     CONTEXT_STATUS_INCLUDED,
@@ -103,6 +104,7 @@ class _ContextProjection:
     extractor_version: str
     analyzer_version: str
     total_chars: int
+    omissions: list[dict]
 
 
 def _is_homepage(site_url: SiteUrl, *, root_url: str, root_host: str) -> bool:
@@ -149,7 +151,7 @@ def _ordered_usable_rows(
             monitored_ids=monitored_ids,
         )
     )
-    return usable[:CONTENT_CONTEXT_MAX_PAGES]
+    return usable
 
 
 def _page_block(artifact: SiteFetchArtifact, site_url: SiteUrl) -> dict:
@@ -198,10 +200,20 @@ def _bounded_projection(rows: list[_ContextRow]) -> _ContextProjection:
     extractor_version = ""
     analyzer_version = ""
     total_chars = 0
-    for analysis, artifact, site_url in rows:
+    omissions: list[dict] = []
+    for index, (analysis, artifact, site_url) in enumerate(rows):
+        if index >= CONTENT_CONTEXT_MAX_PAGES:
+            omissions.append({"reason": "page_limit", "count": len(rows) - index})
+            break
         page = _page_block(artifact, site_url)
         page_chars = _page_char_count(page)
         if total_chars + page_chars > CONTENT_CONTEXT_MAX_CHARS:
+            omissions.append(
+                {
+                    "reason": "character_budget",
+                    "count": min(len(rows), CONTENT_CONTEXT_MAX_PAGES) - index,
+                }
+            )
             break
         total_chars += page_chars
         pages.append(page)
@@ -221,6 +233,7 @@ def _bounded_projection(rows: list[_ContextRow]) -> _ContextProjection:
         extractor_version=extractor_version,
         analyzer_version=analyzer_version,
         total_chars=total_chars,
+        omissions=omissions,
     )
 
 
@@ -240,6 +253,8 @@ def _included_context(
         "artifact_ids": projection.artifact_ids,
         "content_hashes": projection.content_hashes,
         "fetched_at": projection.fetched_ats,
+        "selection_policy_version": CONTENT_WEBSITE_CONTEXT_VERSION,
+        "omissions": projection.omissions,
     }
     return WebsiteContext(
         status=CONTEXT_STATUS_INCLUDED,

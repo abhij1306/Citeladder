@@ -21,10 +21,11 @@ Opportunities. Detailed contracts live in [`site-health.md`](site-health.md).
 
 ### Content Intelligence
 
-Content Intelligence owns inventory strategy, briefs, generation attempts,
-validation, user revisions, save decisions, publication claims, and later
-verification. Generated prose is never promoted to business truth
-automatically.
+Content Intelligence owns website-grounded generation requests and attempts,
+history, retry and regeneration, cancellation, and feedback. The shipped
+runtime does not own validation state machines, user revisions, save decisions,
+publication claims, or later verification. Generated prose is never promoted
+to business truth automatically.
 
 The former knowledge-assertion source for content fact grounding was removed
 with the Site Intelligence simplification. Until a replacement evidence source
@@ -33,7 +34,7 @@ than fabricating grounding.
 
 ### Demand Intelligence
 
-Demand Intelligence owns GSC and GA4 imports, journeys, demand signals, prompt
+Demand Intelligence owns GSC and Traffic observations, demand signals, prompt
 portfolios, schedules, answer-engine measurements, and AI Visibility. AI
 Visibility measures mentions, citations, rankings, and share of voice; it does
 not define company truth or the product hierarchy.
@@ -41,7 +42,7 @@ not define company truth or the product hierarchy.
 ### Growth Agent
 
 The Growth Agent orchestrates typed tools over persisted Site Health, Content,
-and Demand projections. It owns conversations and task execution, not a second
+and Demand projections. It owns standalone task execution, not a second
 copy of system data. It cannot publish content, activate prompts, or mutate an
 external system without an explicit user decision.
 
@@ -51,7 +52,7 @@ external system without an explicit user decision.
 external or owned source
   -> immutable evidence / provider attempt
   -> deterministic or bounded derived projection
-  -> persisted issue, signal, brief, measurement, or opportunity
+  -> persisted issue, signal, generation, measurement, or opportunity
   -> user-visible evidence and explicit decisions
 ```
 
@@ -65,10 +66,10 @@ repair.
 | Capability | Owner |
 |---|---|
 | Website discovery, acquisition, parsing, page kinds, rules, site snapshots | Site Health |
-| Content strategies, briefs, drafts, revisions, verification | Content Intelligence |
-| GSC/GA4, journeys, demand signals, prompts, AI Visibility | Demand Intelligence |
+| Grounded content generation, attempts, history, feedback | Content Intelligence |
+| GSC/Traffic demand signals, prompts, AI Visibility | Demand Intelligence |
 | Cross-system persisted action ranking | Opportunities |
-| Conversation and bounded typed-tool orchestration | Growth Agent |
+| Standalone explain/roadmap typed-tool tasks | Growth Agent |
 | Provider/OAuth configuration and secret storage | Integrations/providers |
 
 An existing owner must be extended before adding a parallel crawler, parser,

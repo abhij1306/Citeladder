@@ -1,172 +1,75 @@
-/** Strict client for persisted Growth Agent task runs and capability catalogs. */
+/** Strict client for the two bounded Growth Agent tasks and their evidence attempts. */
 import { z } from 'zod';
 
 import { apiClient, type ApiRequestOptions } from './client';
 
-const catalogTaskSchema = z.object({
-  task_type: z.string(),
-  title: z.string(),
-  description: z.string(),
-  allowed_tools: z.array(z.string()),
-  required_scope: z.array(z.string()),
-  requested_outputs: z.array(z.string()),
-  max_steps: z.number().int(),
-  max_tool_calls: z.number().int(),
-});
+export const agentTaskTypeSchema = z.enum(['explain', 'build_roadmap']);
 
-const toolSchema = z.object({
-  name: z.string(),
-  version: z.string(),
-  domain: z.string(),
+const artifactReferenceSchema = z.object({
   kind: z.string(),
-  description: z.string(),
-  idempotent: z.boolean(),
-  external_effect: z.boolean(),
-  maximum_result_items: z.number().int(),
+  id: z.string(),
 });
 
-const capabilitiesSchema = z.object({
-  configured: z.boolean(),
-  provider_adapter: z.string(),
-  endpoint_host: z.string(),
-  model: z.string(),
-  model_capabilities: z.record(z.string(), z.unknown()),
-  policy_version: z.string(),
-  context_policy_version: z.string(),
-  tool_registry_version: z.string(),
-  task_catalog: z.array(catalogTaskSchema),
-  tool_catalog: z.array(toolSchema),
-});
+const omissionSchema = z.record(z.string(), z.unknown());
 
-const stepSchema = z.object({
+export const agentToolAttemptSchema = z.object({
   id: z.uuid(),
+  run_attempt: z.number().int(),
   ordinal: z.number().int(),
-  name: z.string(),
   tool_name: z.string(),
   tool_version: z.string(),
-  tool_kind: z.string(),
   status: z.string(),
   input: z.record(z.string(), z.unknown()),
-  output: z.record(z.string(), z.unknown()).nullable(),
-  child_task_kind: z.string(),
-  child_task_id: z.uuid().nullable(),
-  retry_count: z.number().int(),
+  artifact_refs: z.array(artifactReferenceSchema),
+  output_hash: z.string(),
+  omissions: z.array(omissionSchema),
   error_code: z.string(),
-  error_detail: z.string(),
-  started_at: z.string().nullable(),
-  completed_at: z.string().nullable(),
-});
-
-const contextSchema = z.object({
-  id: z.uuid(),
-  project_id: z.uuid(),
-  brief_id: z.uuid().nullable(),
-  task_type: z.string(),
-  manifest: z.record(z.string(), z.unknown()),
-  rendered_context: z.record(z.string(), z.unknown()),
-  omissions: z.array(z.unknown()),
-  selection_policy_version: z.string(),
-  manifest_hash: z.string(),
-  char_count: z.number().int(),
+  retryable: z.boolean(),
+  latency_ms: z.number().int(),
   created_at: z.string(),
 });
 
-const conversationSchema = z.object({
-  id: z.uuid(),
-  project_id: z.uuid(),
-  title: z.string(),
-  created_by_user_id: z.uuid().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
-
-const messageSchema = z.object({
-  id: z.uuid(),
-  conversation_id: z.uuid(),
-  task_run_id: z.uuid().nullable(),
-  role: z.enum(['user', 'assistant']),
-  content: z.string(),
-  citations: z.array(z.string()),
-  created_at: z.string(),
-});
-
-const conversationDetailSchema = conversationSchema.extend({
-  messages: z.array(messageSchema),
+const agentResultSchema = z.object({
+  answer: z.string(),
+  limitations: z.array(z.string()),
+  artifact_refs: z.array(artifactReferenceSchema),
 });
 
 export const agentTaskRunSchema = z.object({
   id: z.uuid(),
   project_id: z.uuid(),
-  conversation_id: z.uuid().nullable(),
-  parent_run_id: z.uuid().nullable(),
-  context_package_id: z.uuid().nullable(),
-  task_type: z.string(),
+  task_type: agentTaskTypeSchema,
   objective: z.string(),
-  requested_outputs: z.array(z.unknown()),
   task_policy_version: z.string(),
-  allowed_tools: z.array(z.unknown()),
-  resource_scope: z.record(z.string(), z.unknown()),
-  industry_pack_id: z.string(),
-  industry_pack_version: z.string(),
   status: z.string(),
-  plan: z.array(z.unknown()),
-  result: z.record(z.string(), z.unknown()).nullable(),
-  validation: z.record(z.string(), z.unknown()).nullable(),
-  decisions: z.array(z.unknown()),
+  result: agentResultSchema.nullable(),
   provider_adapter: z.string(),
   endpoint_host: z.string(),
   model: z.string(),
-  capability_snapshot: z.record(z.string(), z.unknown()),
   instruction_version: z.string(),
-  skill_version: z.string(),
-  usage: z.record(z.string(), z.unknown()).nullable(),
+  usage: z.record(z.string(), z.number().int()).nullable(),
   latency_ms: z.number().int().nullable(),
   error_code: z.string(),
   error_detail: z.string(),
+  attempt_count: z.number().int(),
   completed_at: z.string().nullable(),
   cancelled_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
-  steps: z.array(stepSchema),
-  context: contextSchema.nullable(),
+  attempts: z.array(agentToolAttemptSchema),
 });
 
-export type AgentCapabilities = z.infer<typeof capabilitiesSchema>;
+export type AgentTaskType = z.infer<typeof agentTaskTypeSchema>;
+export type AgentToolAttempt = z.infer<typeof agentToolAttemptSchema>;
 export type AgentTaskRun = z.infer<typeof agentTaskRunSchema>;
-export type AgentConversation = z.infer<typeof conversationSchema>;
-export type AgentConversationDetail = z.infer<typeof conversationDetailSchema>;
 
 export type AgentTaskInput = {
   project_id: string;
-  conversation_id?: string;
-  task_type: string;
+  task_type: AgentTaskType;
   objective: string;
-  resource_scope: Record<string, unknown>;
 };
 
 export const agentApi = {
-  capabilities: async (options?: ApiRequestOptions) =>
-    capabilitiesSchema.parse(await apiClient.get<unknown>('/agent/capabilities', options)),
-  createConversation: async (projectId: string, title: string) =>
-    conversationSchema.parse(
-      await apiClient.post<unknown>('/agent/conversations', { project_id: projectId, title }),
-    ),
-  listConversations: async (projectId: string, options?: ApiRequestOptions) =>
-    z
-      .array(conversationSchema)
-      .parse(
-        await apiClient.get<unknown>(
-          `/agent/conversations?project_id=${encodeURIComponent(projectId)}`,
-          options,
-        ),
-      ),
-  getConversation: async (projectId: string, conversationId: string, options?: ApiRequestOptions) =>
-    conversationDetailSchema.parse(
-      await apiClient.get<unknown>(
-        `/agent/conversations/${encodeURIComponent(conversationId)}?project_id=${encodeURIComponent(projectId)}`,
-        options,
-      ),
-    ),
   listTasks: async (projectId: string, options?: ApiRequestOptions) =>
     z
       .array(agentTaskRunSchema)
@@ -186,13 +89,6 @@ export const agentApi = {
   submitTask: async (input: AgentTaskInput, idempotencyKey: string) =>
     agentTaskRunSchema.parse(
       await apiClient.post<unknown>('/agent/tasks', input, { idempotencyKey }),
-    ),
-  decide: async (projectId: string, runId: string, decision: string, confirmed: boolean) =>
-    agentTaskRunSchema.parse(
-      await apiClient.post<unknown>(
-        `/agent/tasks/${encodeURIComponent(runId)}/decision?project_id=${encodeURIComponent(projectId)}`,
-        { decision, confirmed },
-      ),
     ),
   cancel: async (projectId: string, runId: string) =>
     agentTaskRunSchema.parse(

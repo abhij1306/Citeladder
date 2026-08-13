@@ -6,8 +6,6 @@ in ``site_health_worker_helpers``.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import httpx
 import pytest
 from sqlalchemy import func, select, update
@@ -19,7 +17,6 @@ from app.core.config.site_health import (
     ANALYSIS_STATUS_COMPLETED,
     ANALYSIS_STATUS_FAILED,
     ANALYZER_VERSION,
-    AUTOMATIC_MONITOR_LIMIT_KEY,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,
     CRAWL_STATUS_RUNNING,
@@ -32,7 +29,6 @@ from app.core.config.site_health import (
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
     SCORING_VERSION,
-    SELECTION_SOURCE_BOOTSTRAP,
     SELECTION_SOURCE_FREE_SAMPLE,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
@@ -59,12 +55,10 @@ from app.models.site_health import (
 from app.workers.site_health_worker import (
     SiteHealthWorker,
 )
-from tests.component.site_health_helpers import seed_site_crawl
 from tests.component.site_health_worker_helpers import (
     DEFAULT_SEED_MONITORED_URLS,
     _analyses_by_page_url,
     _ByteStream,
-    _configure_crawl,
     _FakeResolver,
     _html,
     _rich_html,
@@ -754,191 +748,3 @@ async def test_rerun_from_completed_crawl_worker_analyzes_only_reran_url(
     # link URLs, not a site re-crawl.
     gets = [path for method, path in requests if method == "GET"]
     assert gets == ["/robots.txt", "/rich", "/robots.txt"]
-
-
-@pytest.mark.asyncio
-async def test_sample_recrawl_allowance_only_decrements_on_new_activation(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """Handoff finding 2: a recrawl must not consume allowance for a membership
-    that is already active, and must reactivate an inactive one.
-
-    - Re-observing an ALREADY-active free_sample URL is a no-op (no new
-      membership, no allowance consumed).
-    - Re-observing a DEACTIVATED free_sample URL reactivates it in place and
-      consumes exactly one allowance unit.
-    """
-    from app.domain.site_health.discovery import admit_candidates
-    from app.domain.site_health.schemas import FrontierCandidate
-
-    async def _sample_count(session, workspace_id) -> int:
-        return await session.scalar(
-            select(func.count())
-            .select_from(MonitoredSiteUrl)
-            .where(
-                MonitoredSiteUrl.workspace_id == workspace_id,
-                MonitoredSiteUrl.active.is_(True),
-                MonitoredSiteUrl.selection_source == SELECTION_SOURCE_FREE_SAMPLE,
-            )
-        )
-
-    root = "https://example.com/"
-    async with session_factory() as session:
-        seed = await seed_site_crawl(session, task_count=0, root_url=root)
-        await _seed_runtime(session, seed.workspace_id, monitored_urls=0)
-        await session.commit()
-        await _configure_crawl(
-            session,
-            crawl_id=seed.crawl_id,
-            sample_mode=True,
-            count_disclosure=False,
-        )
-
-    url = "https://example.com/page"
-    canonical, url_hash = canonical_identity(url)
-    candidate = FrontierCandidate(
-        url=canonical,
-        url_hash=url_hash,
-        depth=1,
-        source_kind="link",
-        parent_position=0,
-        link_ordinal=0,
-    )
-
-    # First admission: a brand-new free_sample membership is activated and the
-    # allowance is consumed (one active sample row).
-    async with session_factory() as session:
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        assert crawl is not None
-        await admit_candidates(session, crawl=crawl, candidates=[candidate])
-        await session.commit()
-        assert await _sample_count(session, seed.workspace_id) == 1
-
-    # Second admission of the SAME, still-active URL: no new membership, count
-    # unchanged (the WHERE-guarded upsert is a no-op, no decrement).
-    async with session_factory() as session:
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        assert crawl is not None
-        await admit_candidates(session, crawl=crawl, candidates=[candidate])
-        await session.commit()
-        assert await _sample_count(session, seed.workspace_id) == 1
-        total_rows = await session.scalar(
-            select(func.count())
-            .select_from(MonitoredSiteUrl)
-            .where(MonitoredSiteUrl.workspace_id == seed.workspace_id)
-        )
-        assert total_rows == 1
-
-    # Deactivate the membership (as a selection replacement / deselect would).
-    async with session_factory() as session:
-        await session.execute(
-            update(MonitoredSiteUrl)
-            .where(MonitoredSiteUrl.workspace_id == seed.workspace_id)
-            .values(active=False, deselected_at=datetime.now(UTC))
-        )
-        await session.commit()
-        assert await _sample_count(session, seed.workspace_id) == 0
-
-    # Re-admission of the now-INACTIVE URL: reactivate in place (same row) and
-    # consume one allowance unit again.
-    async with session_factory() as session:
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        assert crawl is not None
-        await admit_candidates(session, crawl=crawl, candidates=[candidate])
-        await session.commit()
-        assert await _sample_count(session, seed.workspace_id) == 1
-        membership = await session.scalar(
-            select(MonitoredSiteUrl).where(
-                MonitoredSiteUrl.workspace_id == seed.workspace_id
-            )
-        )
-        assert membership is not None
-        assert membership.active is True
-        assert membership.deselected_at is None
-        assert membership.selection_source == SELECTION_SOURCE_FREE_SAMPLE
-        # Still exactly one row: reactivation happened IN PLACE, never a dup.
-        total_rows = await session.scalar(
-            select(func.count())
-            .select_from(MonitoredSiteUrl)
-            .where(MonitoredSiteUrl.workspace_id == seed.workspace_id)
-        )
-        assert total_rows == 1
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("sample_mode", [False, True])
-async def test_automatic_analysis_stops_at_frozen_limit_across_batches(
-    session_factory: async_sessionmaker[AsyncSession],
-    sample_mode: bool,
-) -> None:
-    from app.domain.site_health.discovery import add_automatic_root, admit_candidates
-    from app.domain.site_health.schemas import FrontierCandidate
-
-    async with session_factory() as session:
-        seed = await seed_site_crawl(
-            session, task_count=1, root_url="https://example.com/"
-        )
-        # Keep the runtime projection consistent with the crawl mode. A sample
-        # crawl belongs to the zero-allowance policy; a positive allowance
-        # produces a full crawl in production.
-        await _seed_runtime(
-            session,
-            seed.workspace_id,
-            monitored_urls=0 if sample_mode else 50,
-        )
-        await session.commit()
-        await _configure_crawl(
-            session,
-            crawl_id=seed.crawl_id,
-            sample_mode=sample_mode,
-            count_disclosure=True,
-        )
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        assert crawl is not None
-        crawl.configuration = {
-            **crawl.configuration,
-            AUTOMATIC_MONITOR_LIMIT_KEY: 10,
-            "requested_page_limit": 10,
-        }
-        await add_automatic_root(session, crawl)
-        await session.commit()
-
-    for batch_start in (0, 12):
-        candidates = []
-        for index in range(batch_start, batch_start + 12):
-            url, url_hash = canonical_identity(f"https://example.com/page-{index}")
-            candidates.append(
-                FrontierCandidate(
-                    url=url,
-                    url_hash=url_hash,
-                    depth=1,
-                    source_kind="link",
-                    parent_position=0,
-                    link_ordinal=index,
-                )
-            )
-        async with session_factory() as session:
-            crawl = await session.get(SiteCrawl, seed.crawl_id)
-            assert crawl is not None
-            await admit_candidates(session, crawl=crawl, candidates=candidates)
-            await session.commit()
-
-    async with session_factory() as session:
-        analyze_tasks = await session.scalar(
-            select(func.count())
-            .select_from(SiteCrawlTask)
-            .where(
-                SiteCrawlTask.crawl_id == seed.crawl_id,
-                SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
-            )
-        )
-        memberships = await session.scalar(
-            select(func.count())
-            .select_from(MonitoredSiteUrl)
-            .where(
-                MonitoredSiteUrl.project_id == seed.project_id,
-                MonitoredSiteUrl.active.is_(True),
-                MonitoredSiteUrl.selection_source == SELECTION_SOURCE_BOOTSTRAP,
-            )
-        )
-    assert analyze_tasks == memberships == 10

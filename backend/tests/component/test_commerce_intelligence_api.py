@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -121,6 +123,30 @@ async def test_discovery_review_preserves_provenance_and_comparison(
     history = await client.get(f"/api/v1/projects/{project['id']}/commerce/comparisons")
     assert history.status_code == 200
     assert history.json()[0]["id"] == body["id"]
+
+
+@pytest.mark.asyncio
+async def test_accept_rejects_an_explicit_target_outside_candidate_matches(
+    client: httpx.AsyncClient,
+) -> None:
+    await _register(client)
+    project = await _project(client)
+    run = await client.post(
+        f"/api/v1/projects/{project['id']}/commerce/discovery/runs",
+        json={
+            "input_kind": "upload",
+            "rows": [{"candidate_kind": "own", "name": "Unmatched product"}],
+        },
+    )
+    candidate_id = run.json()["candidates"][0]["id"]
+
+    response = await client.post(
+        f"/api/v1/projects/commerce/discovery/candidates/{candidate_id}/accept",
+        json={"status": "accepted", "target_id": str(uuid.uuid4())},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "conflict"
 
 
 @pytest.mark.asyncio

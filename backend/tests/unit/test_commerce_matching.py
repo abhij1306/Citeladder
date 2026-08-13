@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 
 from app.domain.commerce.matching import match_candidate
+from app.domain.commerce.review import _comparison_artifact_ids
 
 
 def test_gtin_precedes_all_other_identity_evidence() -> None:
@@ -22,6 +24,18 @@ def test_gtin_precedes_all_other_identity_evidence() -> None:
     assert results[0].confidence == 1.0
     assert results[0].reasons == ("gtin",)
     assert results[0].review_required is False
+
+
+def test_comparison_artifact_ids_are_unique_and_sorted() -> None:
+    first = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    second = uuid.UUID("00000000-0000-0000-0000-000000000002")
+    own = [SimpleNamespace(source_artifact_id=second)]
+    competitors = [
+        SimpleNamespace(source_artifact_id=first),
+        SimpleNamespace(source_artifact_id=second),
+        SimpleNamespace(source_artifact_id=None),
+    ]
+    assert _comparison_artifact_ids(own, competitors) == [str(first), str(second)]
 
 
 def test_brand_model_precedes_family_and_similarity() -> None:

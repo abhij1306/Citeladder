@@ -21,7 +21,7 @@ Requires a real Postgres (``--test-db-url``).
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time
 
 import httpx
 import pytest
@@ -33,7 +33,6 @@ from app.core.config.analytics import (
     AI_SOURCE_GEMINI,
     AI_SOURCE_OTHER,
     AI_SOURCE_PERPLEXITY,
-    ANALYTICS_MAX_WINDOW_DAYS,
     ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
     CONFIDENCE_EXACT,
     MATCH_SIGNAL_REFERRER,
@@ -782,109 +781,3 @@ async def test_referrals_excludes_superseded_resync_revisions(
     # event remain — exactly once each.
     assert ids == {str(latest.id), str(unlinked.id)}
     assert str(stale.id) not in ids
-
-
-@pytest.mark.asyncio
-async def test_referrals_cursor_replay_with_different_filters_400(
-    client: httpx.AsyncClient,
-    session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A cursor is fingerprint-bound to its filters (contract C4)."""
-    await _register(client, "analytics-cursor@example.com")
-    project_id, workspace_id = await _create_project(client)
-    async with session_factory() as session:
-        await _seed_referral_page_rows(
-            session,
-            workspace_id=uuid.UUID(workspace_id),
-            project_id=uuid.UUID(project_id),
-        )
-    monkeypatch.setattr(analytics_service, "ANALYTICS_REFERRALS_PAGE_SIZE", 2)
-    url = f"/api/v1/projects/{project_id}/llm-analytics/referrals"
-
-    page1 = await client.get(url, params={"source": AI_SOURCE_CHATGPT})
-    assert page1.status_code == 200
-    cursor = page1.json()["next_cursor"]
-    assert cursor is not None
-
-    # Replayed against a different source -> 400 (never silently skips rows).
-    replayed = await client.get(
-        url, params={"source": AI_SOURCE_GEMINI, "cursor": cursor}
-    )
-    assert replayed.status_code == 400
-
-    # Replayed with the source dropped -> 400 as well.
-    dropped = await client.get(url, params={"cursor": cursor})
-    assert dropped.status_code == 400
-
-    # Replayed against the SAME filters still works (the cursor is valid).
-    ok = await client.get(url, params={"source": AI_SOURCE_CHATGPT, "cursor": cursor})
-    assert ok.status_code == 200
-
-
-@pytest.mark.asyncio
-async def test_referrals_malformed_cursor_400(client: httpx.AsyncClient) -> None:
-    await _register(client, "analytics-badcursor@example.com")
-    project_id, _workspace_id = await _create_project(client)
-    url = f"/api/v1/projects/{project_id}/llm-analytics/referrals"
-
-    resp = await client.get(url, params={"cursor": "not-a-valid-cursor"})
-    assert resp.status_code == 400
-
-
-# ---------------------------------------------------------------------------
-# Query validation (422 contract)
-# ---------------------------------------------------------------------------
-@pytest.mark.asyncio
-async def test_query_validation_422(client: httpx.AsyncClient) -> None:
-    await _register(client, "analytics-validation@example.com")
-    project_id, _workspace_id = await _create_project(client)
-    base = f"/api/v1/projects/{project_id}/llm-analytics"
-
-    # Unknown granularity.
-    assert (await client.get(base, params={"granularity": "hourly"})).status_code == 422
-    # 'to' before 'from'.
-    assert (
-        await client.get(base, params={"from": "2026-07-22", "to": "2026-07-20"})
-    ).status_code == 422
-    # 'from' without 'to' (both-or-neither).
-    assert (await client.get(base, params={"from": "2026-07-20"})).status_code == 422
-    # Window span beyond ANALYTICS_MAX_WINDOW_DAYS.
-    too_wide_from = WINDOW[1] - timedelta(days=ANALYTICS_MAX_WINDOW_DAYS)
-    assert (
-        await client.get(
-            base,
-            params={
-                "from": too_wide_from.isoformat(),
-                "to": WINDOW[1].isoformat(),
-            },
-        )
-    ).status_code == 422
-    # ...while a span exactly AT the maximum is accepted.
-    max_from = WINDOW[1] - timedelta(days=ANALYTICS_MAX_WINDOW_DAYS - 1)
-    assert (
-        await client.get(
-            base,
-            params={"from": max_from.isoformat(), "to": WINDOW[1].isoformat()},
-        )
-    ).status_code == 200
-    # A garbage date is rejected by FastAPI's own parsing (also 422).
-    assert (
-        await client.get(base, params={"from": "not-a-date", "to": "2026-07-22"})
-    ).status_code == 422
-
-    # Unknown ai_source on the referrals drill-down.
-    assert (
-        await client.get(f"{base}/referrals", params={"source": "bogus"})
-    ).status_code == 422
-    # The referrals window is validated the same way.
-    assert (
-        await client.get(f"{base}/referrals", params={"to": "2026-07-22"})
-    ).status_code == 422
-    # ...and so is the themes window.
-    assert (
-        await client.get(
-            f"{base}/themes",
-            params={"from": "2026-07-22", "to": "2026-07-20"},
-        )
-    ).status_code == 422

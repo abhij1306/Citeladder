@@ -46,7 +46,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_QUEUED,
     TASK_STATUS_SUCCEEDED,
 )
-from app.domain.site_health.discovery import _store_frontier_candidates
+from app.domain.site_health.frontier import _store_frontier_candidates
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.schemas import AdmissionResult, FrontierCandidate
 from app.domain.site_health.service import presentation_status_for

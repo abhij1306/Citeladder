@@ -245,37 +245,6 @@ SITE_HEALTH_MAX_INLINE_SCRIPT_CHARS: Final = 500_000
 # testimonial, a sample form value, or another organization's address.
 SITE_HEALTH_MAX_CONTACT_POINTS: Final = 16
 SITE_HEALTH_MAX_CONTACT_VALUE_CHARS: Final = 256
-# Money mentions carry their currency or they are not recorded: a bare number
-# is not a price, and a report that renders one beside the wrong symbol is worse
-# than one that reports the fact as missing.
-SITE_HEALTH_MAX_MONEY_MENTIONS: Final = 24
-SITE_HEALTH_MAX_MONEY_CONTEXT_CHARS: Final = 160
-# Money evidence is sized independently of the contact-point bound: the two are
-# unrelated fields, and sharing a constant would silently retune one when the
-# other is adjusted.
-SITE_HEALTH_MAX_MONEY_RAW_CHARS: Final = 64
-# ISO codes and symbols recognized in visible copy. Deliberately a short,
-# explicit list: an unrecognized currency yields no assertion rather than a
-# guessed one.
-MONEY_CURRENCY_SYMBOLS: Final[dict[str, str]] = {
-    "₹": "INR",
-    "$": "USD",
-    "£": "GBP",
-    "€": "EUR",
-    "¥": "JPY",
-    "₦": "NGN",
-    "AED": "AED",
-    "INR": "INR",
-    "USD": "USD",
-    "GBP": "GBP",
-    "EUR": "EUR",
-    # "Rs"/"Rs." and "₨" are deliberately ABSENT. Both are generic rupee
-    # notation used for the Indian, Pakistani, Sri Lankan, and Nepalese rupee
-    # alike — U+20A8 is literally named RUPEE SIGN and was the Indian rupee's
-    # own mark before ₹ (U+20B9) was assigned — so resolving either to one
-    # country's currency publishes a guess as an observed fact, exactly what
-    # the note above forbids. ₹ stays because it is country-specific.
-}
 SITE_HEALTH_MAX_PATH_CHARS: Final = 512
 SITE_HEALTH_MAX_SIGNAL_DETAIL_CHARS: Final = 256
 SITE_HEALTH_MAX_EVIDENCE_URLS: Final = 10
@@ -729,13 +698,9 @@ EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 # form_fields / link_context) to the bounded page facts. Existing fields are
 # unchanged, so an sh-extractor-2 artifact stays readable; only pages parsed at
 # 3+ can produce a conversion/journey role from CTA or form evidence.
-# sh-extractor-4 adds ``contact_points`` and ``money_mentions`` — the visible
-# evidence the knowledge layer needs for the ``contact_point`` and
-# ``price_or_fee`` core predicates. Both are read from VISIBLE content on
-# purpose: the first acceptance corpus publishes zero structured data, so a
-# knowledge layer that could only read JSON-LD would find nothing on a real
-# site and report an empty knowledge model as if it were an empty business.
-EXTRACTOR_VERSION: Final = "sh-extractor-5"
+# sh-extractor-6 removes the unconsumed ``money_mentions`` compatibility fact.
+# Contact points remain part of the observable Site Health artifact.
+EXTRACTOR_VERSION: Final = "sh-extractor-6"
 ANALYZER_VERSION: Final = "sh-analyzer-3"
 RULE_CATALOG_VERSION: Final = "sh-rules-3"
 SCORING_VERSION: Final = "sh-scoring-2"

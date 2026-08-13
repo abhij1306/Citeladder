@@ -1,40 +1,9 @@
-# Traffic domain services.
-#
-# A7 — the ``traffic_snapshot_refresh`` analytics-task kind: a pure
-# projection over persisted ``IntegrationMetricRow`` rows (invariant 7 — NO
-# provider I/O, no network): read the project's consumed-dataset metric rows
-# for the payload window in bounded batches (cooperative cancel at every
-# metric-row batch boundary, invariant 9), run the PURE projection math
-# (``projection.py``) per configured granularity, then persist all
-# granularities in ONE transaction — the ``TrafficSnapshot`` upsert on its
-# unique ``(project_id, window_start, window_end, granularity)`` tuple
-# (precedent: ``domain/site_health/discovery.py``), the ``site_url_id``
-# resolution per page row, and the replace-then-insert of the page/query
-# stat rows (delete-then-insert in the same tx).
-#
-# Idempotent (traffic.md section 4): recomputing from the same
-# latest-``resync_seq`` rows rewrites the SAME snapshot row in place and
-# replaces its stat rows, so a re-run (or a concurrent duplicate attempt,
-# serialized by the upsert's row lock) never duplicates. Every written row
-# stamps the formula/normalization versions and the
-# ``source_metric_row_ids`` / ``source_artifact_ids`` provenance
-# (invariant 4).
-#
-# A10 — the read services behind ``/projects/{id}/traffic`` (+ /pages,
-# /queries): persisted rows ONLY (invariant 7). The headline serves the
-# persisted ``TrafficSnapshot`` matching ``(window, granularity)`` — an
-# absent snapshot yields an EMPTY payload, NEVER a read-time recomputation;
-# the tables page the persisted ``TrafficPageStat`` / ``TrafficQueryStat``
-# rows via the shared keyset-cursor helpers (imported from
-# ``domain/site_health/normalization.py`` — the acknowledged cross-surface
-# reuse per invariant 2, not a re-implementation) with sorts restricted to
-# the config whitelists. No provider is ever called; every query is
-# workspace-scoped (invariant 5).
-#
-# A11 — the traffic-sync fan-out READ: the distinct ACTIVE mapped GSC/GA4
-# connections of a project (grant connected). The enqueue per connection is
-# owned by ``domain/integrations/sync.py`` and invoked by the API layer
-# (invariant 2 — this surface never re-implements it).
+"""Persist and read deterministic traffic projections.
+
+Refreshes fold persisted integration metrics in bounded batches and replace
+each snapshot's page/query rows atomically. Reads remain workspace-scoped and
+serve only persisted projections; synchronization stays with integrations.
+"""
 from __future__ import annotations
 
 import uuid
@@ -51,9 +20,7 @@ from app.core.config.integrations import (
 from app.core.config.traffic import (
     TRAFFIC_CONSUMED_DATASETS,
     TRAFFIC_DEFAULT_GRANULARITY,
-    TRAFFIC_DEFAULT_SORT,
     TRAFFIC_FORMULA_VERSION,
-    TRAFFIC_MAX_WINDOW_DAYS,
     TRAFFIC_NORMALIZATION_VERSION,
     TRAFFIC_PAGE_SORT_WHITELIST,
     TRAFFIC_QUERY_SORT_WHITELIST,
@@ -75,6 +42,41 @@ from app.domain.traffic.projection import (
     TrafficMetricRowInput,
     build_traffic_projection,
 )
+from app.domain.traffic.query_support import (
+    TrafficCursorError,
+    TrafficQueryError,
+)
+from app.domain.traffic.query_support import (
+    decode_table_cursor as _decode_table_cursor,
+)
+from app.domain.traffic.query_support import (
+    empty_dashboard as _empty_dashboard,
+)
+from app.domain.traffic.query_support import (
+    float_or_none as _float_or_none,
+)
+from app.domain.traffic.query_support import (
+    int_or_none as _int_or_none,
+)
+from app.domain.traffic.query_support import (
+    int_or_zero as _int_or_zero,
+)
+from app.domain.traffic.query_support import load_snapshot as _load_snapshot
+from app.domain.traffic.query_support import (
+    parse_sort as _parse_sort,
+)
+from app.domain.traffic.query_support import (
+    table_filters as _table_filters,
+)
+from app.domain.traffic.query_support import (
+    totals as _totals,
+)
+from app.domain.traffic.query_support import (
+    validate_granularity as _validate_granularity,
+)
+from app.domain.traffic.query_support import (
+    validate_window as _validate_window,
+)
 from app.domain.traffic.schemas import (
     TrafficDashboardResponse,
     TrafficPageRow,
@@ -82,7 +84,6 @@ from app.domain.traffic.schemas import (
     TrafficQueriesPage,
     TrafficQueryRow,
     TrafficSeries,
-    TrafficTotals,
 )
 from app.models.analytics import AnalyticsTask
 from app.models.integrations import (
@@ -99,6 +100,12 @@ from app.models.traffic import TrafficPageStat, TrafficQueryStat, TrafficSnapsho
 # the same precedent as A6's ``_CLASSIFY_BATCH_SIZE``; tests monkeypatch it
 # down to 1 to exercise the boundary per row.
 _METRIC_ROW_BATCH_SIZE = 1000
+
+__all__ = [
+    "TrafficCursorError",
+    "TrafficQueryError",
+    "decode_keyset_cursor",
+]
 
 
 async def _raise_if_task_terminal(
@@ -412,161 +419,10 @@ async def _enqueue_demand_refresh(
 # =========================================================================
 
 
-class TrafficQueryError(ValueError):
-    """Raised for an invalid traffic query (bad granularity/window/sort).
-
-    The API layer maps this to HTTP 422; it is never a not-found condition.
-    Mirrors the A9 ``AnalyticsQueryError`` contract without reusing that
-    analytics-specific class (one owner per surface).
-    """
-
-
-class TrafficCursorError(ValueError):
-    """A pages/queries cursor failed decode/scope verification (API: 400).
-
-    Mirrors the A9 ``AnalyticsCursorError`` contract: any typed-cursor
-    failure (scope/filter mismatch, tamper, malformed payload) is a client
-    error, never a server fault.
-    """
-
-
 # Cursor endpoint scope labels (the keyset fingerprint binds the cursor to
 # the endpoint + the active filters — site-health convention, contract C4).
 _PAGES_CURSOR_SCOPE = "traffic-pages"
 _QUERIES_CURSOR_SCOPE = "traffic-queries"
-
-
-def _validate_window(from_date: date | None, to_date: date | None) -> None:
-    """The from/to contract: both-or-neither, ordered, within the max span."""
-    if (from_date is None) != (to_date is None):
-        raise TrafficQueryError("'from' and 'to' must be supplied together")
-    if from_date is None or to_date is None:
-        return
-    if to_date < from_date:
-        raise TrafficQueryError("'to' must not be before 'from'")
-    if (to_date - from_date).days + 1 > TRAFFIC_MAX_WINDOW_DAYS:
-        raise TrafficQueryError(
-            f"window exceeds TRAFFIC_MAX_WINDOW_DAYS ({TRAFFIC_MAX_WINDOW_DAYS})"
-        )
-
-
-def _validate_granularity(granularity: str) -> str:
-    granularity = granularity or TRAFFIC_DEFAULT_GRANULARITY
-    if granularity not in TRAFFIC_SNAPSHOT_GRANULARITIES:
-        raise TrafficQueryError(f"unknown granularity: {granularity!r}")
-    return granularity
-
-
-def _parse_sort(sort: str | None, *, whitelist: frozenset[str]) -> tuple[str, bool]:
-    """Parse ``?sort=`` into ``(metric_key, descending)``, whitelist-guarded.
-
-    The direction idiom is a leading ``-`` for descending (what the table
-    sends for its "top rows" view); a bare key is ascending. Anything whose
-    key is outside the config whitelist is a 422 — sorting only ever hits
-    the persisted aggregate columns (invariant 7).
-    """
-    effective = sort if sort else TRAFFIC_DEFAULT_SORT
-    descending = effective.startswith("-")
-    key = effective[1:] if descending else effective
-    if key not in whitelist:
-        raise TrafficQueryError(f"unknown traffic sort: {sort!r}")
-    return key, descending
-
-
-async def _load_snapshot(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    from_date: date | None,
-    to_date: date | None,
-    granularity: str,
-) -> TrafficSnapshot | None:
-    """The persisted snapshot serving the request, or ``None``.
-
-    An explicit ``from``/``to`` selects the snapshot persisted for exactly
-    that window (read endpoints serve persisted snapshot windows only —
-    arbitrary custom windows are never recomputed). Without a window the
-    project's LATEST persisted snapshot at the granularity is served, so a
-    default landing still renders the freshest projection (the A9
-    precedent).
-    """
-    stmt = (
-        select(TrafficSnapshot)
-        .where(TrafficSnapshot.workspace_id == workspace_id)
-        .where(TrafficSnapshot.project_id == project_id)
-        .where(TrafficSnapshot.granularity == granularity)
-    )
-    if from_date is not None and to_date is not None:
-        stmt = stmt.where(TrafficSnapshot.window_start == from_date)
-        stmt = stmt.where(TrafficSnapshot.window_end == to_date)
-    else:
-        stmt = stmt.order_by(
-            TrafficSnapshot.window_end.desc(),
-            TrafficSnapshot.window_start.desc(),
-        )
-    return await session.scalar(stmt.limit(1))
-
-
-def _int_or_zero(value: object) -> int:
-    """An additive measure: a missing/non-numeric persisted value is 0."""
-    return int(value) if isinstance(value, (int, float)) else 0
-
-
-def _int_or_none(value: object) -> int | None:
-    """A nullable additive measure (absent GA4 feed stays null)."""
-    return int(value) if isinstance(value, (int, float)) else None
-
-
-def _float_or_none(value: object) -> float | None:
-    """A nullable ratio measure (undefined ratios stay null, never 0)."""
-    return float(value) if isinstance(value, (int, float)) else None
-
-
-def _totals(raw: object) -> TrafficTotals:
-    metrics = raw if isinstance(raw, dict) else {}
-    return TrafficTotals(
-        impressions=_int_or_zero(metrics.get("impressions")),
-        clicks=_int_or_zero(metrics.get("clicks")),
-        ctr=_float_or_none(metrics.get("ctr")),
-        position=_float_or_none(metrics.get("position")),
-        sessions=_int_or_none(metrics.get("sessions")),
-        conversions=_int_or_none(metrics.get("conversions")),
-    )
-
-
-def _empty_dashboard(
-    *,
-    project_id: uuid.UUID,
-    from_date: date | None,
-    to_date: date | None,
-    granularity: str,
-) -> TrafficDashboardResponse:
-    """The empty payload for an absent snapshot (never a recomputation)."""
-    return TrafficDashboardResponse(
-        project_id=project_id,
-        window_start=from_date.isoformat() if from_date is not None else "",
-        window_end=to_date.isoformat() if to_date is not None else "",
-        granularity=granularity,
-        totals=TrafficTotals(
-            impressions=0,
-            clicks=0,
-            ctr=None,
-            position=None,
-            sessions=None,
-            conversions=None,
-        ),
-        series=TrafficSeries(
-            impressions=[],
-            clicks=[],
-            ctr=[],
-            position=[],
-            sessions=[],
-            conversions=[],
-        ),
-        formula_version=TRAFFIC_FORMULA_VERSION,
-        normalization_version=TRAFFIC_NORMALIZATION_VERSION,
-    )
 
 
 async def get_traffic_dashboard(
@@ -619,39 +475,6 @@ async def get_traffic_dashboard(
         formula_version=snapshot.formula_version,
         normalization_version=snapshot.normalization_version,
     )
-
-
-def _table_filters(
-    *,
-    project_id: uuid.UUID,
-    from_date: date | None,
-    to_date: date | None,
-    sort: str,
-) -> dict[str, object]:
-    """The active filter set the keyset cursor is fingerprint-bound to."""
-    return {
-        "project_id": str(project_id),
-        "from": from_date.isoformat() if from_date is not None else "",
-        "to": to_date.isoformat() if to_date is not None else "",
-        "sort": sort,
-    }
-
-
-def _decode_table_cursor(
-    cursor: str, *, scope: str, filters: dict[str, object]
-) -> tuple[float | None, uuid.UUID]:
-    """Decode the ``(metric_value, id)`` keyset cursor (400 on any failure).
-
-    The metric value is encoded as ``""`` when the row's sort column is
-    NULL (a NULLS LAST row) — any other payload must round-trip through
-    ``float`` exactly as encoded.
-    """
-    try:
-        value_raw, id_raw = decode_keyset_cursor(cursor, scope=scope, filters=filters)
-        return (None if value_raw == "" else float(value_raw)), uuid.UUID(id_raw)
-    except ValueError as exc:
-        # CursorScopeError is a ValueError subclass — one branch covers it.
-        raise TrafficCursorError(str(exc)) from exc
 
 
 # The two persisted stat models share the columns the keyset read touches

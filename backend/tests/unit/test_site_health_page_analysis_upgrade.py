@@ -11,7 +11,7 @@ from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import evaluate_all, rule_for
 from app.core.config.opportunities import SITE_ISSUE_TO_OPPORTUNITY_RULE_ID
 from app.core.config.site_health import PAGE_KIND_EXPECTED_SCHEMA, PAGE_KIND_PROFILES
-from app.domain.site_health.service.issues import (
+from app.domain.site_health.service.issue_history import (
     _group_issue_history,
     _HistoryObservation,
 )

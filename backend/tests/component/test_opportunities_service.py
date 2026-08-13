@@ -82,12 +82,10 @@ async def test_unchanged_demand_snapshot_remains_fresh_and_ready(
         source_hash="d" * 64,
         source_artifact_ids=[],
         source_metric_row_ids=[],
-        source_audit_ids=[],
-        journey_version_ids=[],
         coverage={},
         summary={},
         formula_version="demand-priority-1",
-        analyzer_version="demand-analyzer-1",
+        analyzer_version="demand-analyzer-2",
     )
     db_session.add(demand)
     await db_session.flush()

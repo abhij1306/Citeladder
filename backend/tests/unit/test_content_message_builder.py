@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from app.core.config.content import (
-    CONTEXT_STATUS_DISABLED,
     CONTEXT_STATUS_INCLUDED,
+    CONTEXT_STATUS_UNAVAILABLE,
 )
 from app.domain.content.message_builder import build_messages
 from app.domain.content.website_context import WebsiteContext
@@ -35,7 +35,7 @@ def test_two_messages_without_context() -> None:
     assert len(digest) == 64
     assert snapshot["message_count"] == 2
 
-    empty = WebsiteContext(status=CONTEXT_STATUS_DISABLED)
+    empty = WebsiteContext(status=CONTEXT_STATUS_UNAVAILABLE)
     messages_disabled, _, _ = build_messages(
         prompt="Write a landing page",
         output_type="website_page",
@@ -65,6 +65,8 @@ def test_three_messages_with_context_reference_block() -> None:
     assert reference.startswith("WEBSITE REFERENCE CONTEXT")
     assert "untrusted data" in reference
     assert "We sell shoes." in reference
+    assert "inside that context" in messages[0]["content"]
+    assert "either context" not in messages[0]["content"]
     # The user's own prompt message stays exactly the prompt.
     assert messages[1]["content"] == "Write an about page"
 

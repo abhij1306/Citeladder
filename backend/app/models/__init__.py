@@ -8,14 +8,7 @@ from __future__ import annotations
 
 from app.core.database import Base
 from app.models.abuse import QueueWorkspaceTurn, UsageWindow
-from app.models.agent import (
-    AgentConversation,
-    AgentMessage,
-    AgentTaskRun,
-    AgentTaskStep,
-    AgentToolAttempt,
-    PriorityOverrideProposal,
-)
+from app.models.agent import AgentTaskRun, AgentToolAttempt
 from app.models.analysis import (
     BrandMention,
     Citation,
@@ -76,22 +69,12 @@ from app.models.commerce import (
     OrderFact,
 )
 from app.models.content import (
-    ContentBrief,
     ContentGeneration,
     ContentGenerationAttempt,
-    ContentInventoryItem,
-    ContentRevision,
-    ContentRevisionTransition,
-    ContentStrategySnapshot,
-    ContentValidation,
-    ContentVerification,
-    TaskContextPackage,
 )
 from app.models.demand import (
     DemandSignal,
     DemandSnapshot,
-    JourneyDefinition,
-    JourneyDefinitionVersion,
 )
 from app.models.discovery import BrandDiscovery, BrandResearchSnapshot
 from app.models.integrations import (
@@ -150,10 +133,7 @@ from app.models.workspace import Workspace, WorkspaceMember
 
 __all__ = [
     "AccountGrant",
-    "AgentConversation",
-    "AgentMessage",
     "AgentTaskRun",
-    "AgentTaskStep",
     "AgentToolAttempt",
     "AnalyticsSnapshot",
     "AnalyticsTask",
@@ -184,15 +164,7 @@ __all__ = [
     "CompetitorMention",
     "CompetitorProduct",
     "ContentGeneration",
-    "ContentBrief",
     "ContentGenerationAttempt",
-    "ContentInventoryItem",
-    "ContentRevision",
-    "ContentRevisionTransition",
-    "ContentStrategySnapshot",
-    "ContentValidation",
-    "ContentVerification",
-    "TaskContextPackage",
     "CommerceCandidateReview",
     "CommerceDiscoveryArtifact",
     "CommerceDiscoveryCandidate",
@@ -211,15 +183,12 @@ __all__ = [
     "IntegrationImportArtifact",
     "IntegrationMetricRow",
     "IntegrationOAuthGrant",
-    "JourneyDefinition",
-    "JourneyDefinitionVersion",
     "IntegrationOAuthState",
     "IntegrationPropertyMapping",
     "IntegrationSyncRun",
     "MerchantMention",
     "MetricSnapshot",
     "PromptMetricSnapshot",
-    "PriorityOverrideProposal",
     "Opportunity",
     "OpportunityGuidance",
     "OpportunityOrder",

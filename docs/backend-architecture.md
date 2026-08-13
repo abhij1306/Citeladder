@@ -10,7 +10,7 @@
 - PostgreSQL for product state, immutable evidence, projections, and durable
   work queues.
 - Separate workers for audits, Site Health, content, integrations, analytics,
-  and agent child-task reconciliation.
+  and bounded standalone Growth Agent tasks.
 - Fernet-encrypted provider/OAuth secrets and least-privilege worker
   environments.
 - Thin `/api/v1` routers; domain services own business rules.
@@ -36,12 +36,12 @@ utilities for convenience.
 |---|---|
 | Auth/workspaces/projects | Tenant and project boundary |
 | Site Health | Discovery, secure acquisition, page kinds, rules, scores, issues, snapshots, exports |
-| Content | Strategies, briefs, generation attempts, validation, revisions, verification |
-| Integrations/Traffic/Analytics/Demand | GSC/GA4 evidence, joins, journeys, snapshots, signals |
+| Content | Website-grounded generation queue, attempts, history, feedback |
+| Integrations/Traffic/Analytics/Demand | GSC/Traffic evidence, snapshots, signals |
 | Prompts/Audits/Visibility | Prompt portfolios and answer-engine measurement |
 | Opportunities | One persisted cross-system action store |
 | Commerce | Catalog/product specialization |
-| Growth Agent | Conversations, bounded task runs, typed tools, child-task reconciliation |
+| Growth Agent | Standalone explain/roadmap runs and append-only typed-tool attempts |
 
 ## Authentication and tenant creation
 
@@ -110,9 +110,9 @@ schema/property contracts and rule applicability. See
 
 ## Content
 
-`ContentGeneration` and `ContentGenerationAttempt` remain the queue/result
-owners. Strategy, brief, context, validation, revision, and verification rows
-extend that flow rather than creating another generation store.
+`ContentGeneration` and `ContentGenerationAttempt` are the queue/result owners.
+The shipped runtime has no strategy, brief, context-package, validation,
+revision, publication-claim, or verification rows.
 
 The current brief evidence adapter returns explicit empty `allowed_facts`,
 `prohibited_claims`, and `source_refs` because its former knowledge-assertion

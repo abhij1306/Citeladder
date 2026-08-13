@@ -42,10 +42,7 @@ function generation(overrides: Record<string, unknown> = {}) {
     status: 'queued',
     output_type: 'website_page',
     skill_id: 'article',
-    brief_id: null,
-    context_package_id: null,
     opportunity_id: null,
-    evidence_context: null,
     feedback: null,
     feedback_at: null,
     website_context_status: 'included',
@@ -58,7 +55,6 @@ function generation(overrides: Record<string, unknown> = {}) {
     error_code: '',
     prompt_preview: 'Write a landing page',
     prompt: 'Write a landing page for Acme.',
-    website_context_enabled: true,
     website_context_summary: {
       crawl_id: '44444444-4444-4444-8444-444444444444',
       crawl_completed_at: '2026-07-14T00:00:00Z',
@@ -78,7 +74,6 @@ function generation(overrides: Record<string, unknown> = {}) {
     error_detail: '',
     generator_version: 'content-v1',
     skill_version: 'content-v1',
-    validator_snapshot: null,
     ...overrides,
   };
 }
@@ -97,17 +92,6 @@ function mockBase(listItems: Record<string, unknown>[] = []) {
   mswServer.use(
     http.get('/api/v1/projects', () => HttpResponse.json([project])),
     http.get('/api/v1/content/generations', () => HttpResponse.json(listItems)),
-    http.get(`/api/v1/content/generations/${GEN}/validation`, () =>
-      HttpResponse.json({
-        id: '66666666-6666-4666-8666-666666666666',
-        project_id: PROJECT,
-        generation_id: GEN,
-        validator_version: 'content-validator-v1',
-        status: 'passed',
-        findings: [],
-        created_at: '2026-07-15T00:01:00Z',
-      }),
-    ),
   );
 }
 
@@ -124,23 +108,19 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 describe('ContentScreen — ready state', () => {
-  it('disables Generate until a prompt is typed, and the context toggle defaults on', async () => {
+  it('disables Generate until a prompt is typed and explains required grounding', async () => {
     mockBase();
     renderScreen();
     const generate = await screen.findByRole('button', { name: 'Generate' });
     expect(generate).toBeDisabled();
 
-    const toggle = screen.getByRole('switch', { name: /website context/i });
-    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText(/grounded in persisted website evidence/i)).toBeInTheDocument();
 
     await userEvent.type(
       screen.getByRole('textbox', { name: /describe the website content/i }),
       'Write a landing page',
     );
     expect(generate).toBeEnabled();
-
-    await userEvent.click(toggle);
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
   });
 
   it('shows the no-project state with a /projects link when there is no project', async () => {
@@ -160,7 +140,7 @@ describe('ContentScreen — generate flow', () => {
       http.post('/api/v1/content/generations', async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         expect(body.project_id).toBe(PROJECT);
-        expect(body.website_context_enabled).toBe(true);
+        expect(body).not.toHaveProperty('website_context_enabled');
         return HttpResponse.json(generation(), { status: 201 });
       }),
       http.get(`/api/v1/content/generations/${GEN}`, () => {
@@ -268,7 +248,7 @@ describe('ContentScreen — generate flow', () => {
 });
 
 describe('ContentScreen — error state', () => {
-  it('shows the provider-not-configured 409 message and Dismiss restores the composer preserving prompt + toggle', async () => {
+  it('shows the provider-not-configured 409 message and Dismiss preserves the prompt', async () => {
     mockBase();
     mswServer.use(
       http.post('/api/v1/content/generations', () =>
@@ -280,8 +260,6 @@ describe('ContentScreen — error state', () => {
       name: /describe the website content/i,
     });
     await userEvent.type(textarea, 'My prompt text');
-    const toggle = screen.getByRole('switch', { name: /website context/i });
-    await userEvent.click(toggle); // off
 
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
 
@@ -290,10 +268,25 @@ describe('ContentScreen — error state', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /dismiss/i }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    // Prompt + toggle preserved, composer editable again.
+    // Prompt is preserved and the composer is editable again.
     expect(textarea).toHaveValue('My prompt text');
     expect(textarea).toBeEnabled();
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('explains when persisted website evidence is unavailable', async () => {
+    mockBase();
+    mswServer.use(
+      http.post('/api/v1/content/generations', () =>
+        HttpResponse.json({ detail: 'website_context_unavailable' }, { status: 409 }),
+      ),
+    );
+    renderScreen();
+    await userEvent.type(
+      await screen.findByRole('textbox', { name: /describe the website content/i }),
+      'My prompt text',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/complete a site health crawl/i);
   });
 
   it('a failed generation offers Try again, which enqueues a new record', async () => {

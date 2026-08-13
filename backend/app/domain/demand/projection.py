@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,12 +12,10 @@ from app.core.config.demand import (
     DEMAND_FORMULA_VERSION,
     DEMAND_LOW_CTR_THRESHOLD,
     DEMAND_MIN_IMPRESSIONS,
-    DEMAND_QUESTION_GAP_WEIGHT,
     DEMAND_RULE_VERSION,
     DEMAND_SEARCH_GAP_WEIGHT,
     DEMAND_SIGNAL_HIGH_IMPRESSION_LOW_CTR,
     DEMAND_SIGNAL_STATE_ACTIVE,
-    DEMAND_SIGNAL_UNANSWERED_QUESTION,
 )
 
 
@@ -106,55 +103,6 @@ def detect_search_signals(
                 },
                 coverage={"search_demand": "observed"},
                 limitations=["GSC detail rows may omit privacy-filtered queries."],
-                priority_score=priority,
-                priority_inputs=inputs,
-            )
-        )
-    return candidates
-
-
-def detect_question_gap_signals(
-    questions: list[dict[str, Any]], *, site_snapshot_id: uuid.UUID
-) -> list[DemandSignalCandidate]:
-    candidates: list[DemandSignalCandidate] = []
-    seen_question_ids: set[str] = set()
-    for question in sorted(
-        questions, key=lambda item: str(item.get("question_id") or "")
-    ):
-        state = str(question.get("state") or "")
-        if state in {"answered_strong", "answered_weak", "not_applicable"}:
-            continue
-        question_id = str(question.get("question_id") or "")
-        if not question_id or question_id in seen_question_ids:
-            continue
-        seen_question_ids.add(question_id)
-        priority, inputs = _priority(
-            impressions=0, ctr=None, gap=DEMAND_QUESTION_GAP_WEIGHT
-        )
-        candidates.append(
-            DemandSignalCandidate(
-                identity_hash=stable_hash(
-                    {
-                        "type": DEMAND_SIGNAL_UNANSWERED_QUESTION,
-                        "question_id": question_id,
-                        "rule_version": DEMAND_RULE_VERSION,
-                    }
-                ),
-                signal_type=DEMAND_SIGNAL_UNANSWERED_QUESTION,
-                state=DEMAND_SIGNAL_STATE_ACTIVE,
-                topic_cluster=str(question.get("label") or question_id),
-                page_url="",
-                evidence={
-                    "site_snapshot_id": str(site_snapshot_id),
-                    "question_id": question_id,
-                    "question_state": state,
-                    "reason": str(question.get("reason") or ""),
-                },
-                metrics={},
-                coverage={"site_question": "observed", "search_demand": "unavailable"},
-                limitations=[
-                    "No compatible GSC demand was joined to this pack question."
-                ],
                 priority_score=priority,
                 priority_inputs=inputs,
             )

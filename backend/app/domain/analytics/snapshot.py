@@ -73,7 +73,6 @@
 # run leaves no partial projection behind.
 from __future__ import annotations
 
-import math
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -90,9 +89,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.analysis import ANALYZER_VERSION, SCORING_RULE_VERSION
 from app.core.config.analytics import (
     ANALYTICS_SNAPSHOT_GRANULARITIES,
-    CORRELATION_MIN_SAMPLE,
-    CORRELATION_STATE_INSUFFICIENT_DATA,
-    CORRELATION_STATE_OK,
 )
 
 # The dashboard-status audit tuple (completed | partially_completed) is
@@ -100,6 +96,21 @@ from app.core.config.analytics import (
 # (invariant 2; the visibility/theme folds must measure the same audit
 # population the Visibility dashboard serves).
 from app.domain.analysis.service import _DASHBOARD_STATUSES
+from app.domain.analytics.statistics import (
+    correlation_summary,
+)
+from app.domain.analytics.statistics import (
+    pearson_coefficient as pearson_coefficient,
+)
+from app.domain.analytics.statistics import (
+    rounded_weighted_mean as _rounded_weighted_mean,
+)
+from app.domain.analytics.statistics import (
+    select_latest_referral_facts as select_latest_referral_facts,
+)
+from app.domain.analytics.statistics import (
+    weighted_mean as _weighted_mean,
+)
 from app.domain.analytics.tasks import payload_window, raise_if_task_terminal
 
 # Calendar bucketing (day | ISO-Monday week | 1st-of-month, first label
@@ -134,8 +145,6 @@ _CLASSIFICATION_BATCH_SIZE = 1000
 # correlation coefficient rounds to 6 so re-runs serialize identically.
 _RATE_DECIMALS = 4
 _SCORE_DECIMALS = 2
-_CORRELATION_DECIMALS = 6
-_VARIANCE_EPSILON = 1e-12
 
 
 # --- Pure projection inputs (the executor reduces ORM rows to these) ---------
@@ -213,90 +222,6 @@ class AnalyticsProjection:
 # --- Pure math ---------------------------------------------------------------
 
 
-def select_latest_referral_facts(
-    facts: Sequence[ReferralFactInput],
-) -> list[ReferralFactInput]:
-    """Keep the latest ``resync_seq`` fact per metric-row identity.
-
-    A fact whose event points at a revision superseded by a later re-sync
-    is stale evidence and never folds in (its replacement enters via its
-    own classified event). Facts with NO metric row (``row_identity``
-    ``None``) carry no session measure and are excluded. The result is
-    sorted deterministically so downstream float aggregation is
-    order-independent (invariant 9).
-    """
-    latest: dict[tuple[str, str, str, date, str], ReferralFactInput] = {}
-    for fact in facts:
-        if fact.row_identity is None:
-            continue
-        current = latest.get(fact.row_identity)
-        if current is None or fact.resync_seq > current.resync_seq:
-            latest[fact.row_identity] = fact
-    return sorted(
-        latest.values(),
-        key=lambda fact: (fact.occurred_date, str(fact.classification_id)),
-    )
-
-
-def pearson_coefficient(xs: Sequence[float], ys: Sequence[float]) -> float | None:
-    """Deterministic Pearson product-moment correlation coefficient.
-
-    Returns ``None`` when the coefficient is undefined: empty input or a
-    zero-variance axis (the denominator would be 0 — never a fabricated
-    number). Raises ``ValueError`` on mismatched lengths (a caller bug).
-    """
-    if len(xs) != len(ys):
-        raise ValueError("pearson inputs must have equal lengths")
-    n = len(xs)
-    if n == 0:
-        return None
-    mean_x = sum(xs) / n
-    mean_y = sum(ys) / n
-    sxx = sum((x - mean_x) ** 2 for x in xs)
-    syy = sum((y - mean_y) ** 2 for y in ys)
-    if math.isclose(sxx, 0.0, rel_tol=0.0, abs_tol=_VARIANCE_EPSILON) or math.isclose(
-        syy, 0.0, rel_tol=0.0, abs_tol=_VARIANCE_EPSILON
-    ):
-        return None
-    sxy = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True))
-    return sxy / math.sqrt(sxx * syy)
-
-
-def correlation_summary(
-    pairs: Sequence[tuple[float, float]],
-) -> dict[str, Any]:
-    """The visibility<->referral correlation summary for aligned day-pairs.
-
-    Below ``CORRELATION_MIN_SAMPLE`` aligned pairs — or an undefined
-    (zero-variance) coefficient — the state is ``insufficient_data`` with a
-    NULL coefficient; only a real, defined coefficient reports ``ok``.
-    """
-    sample_size = len(pairs)
-    insufficient = {
-        "state": CORRELATION_STATE_INSUFFICIENT_DATA,
-        "coefficient": None,
-        "sample_size": sample_size,
-    }
-    if sample_size < CORRELATION_MIN_SAMPLE:
-        return insufficient
-    coefficient = pearson_coefficient([x for x, _y in pairs], [y for _x, y in pairs])
-    if coefficient is None:
-        return insufficient
-    return {
-        "state": CORRELATION_STATE_OK,
-        "coefficient": round(coefficient, _CORRELATION_DECIMALS),
-        "sample_size": sample_size,
-    }
-
-
-def _weighted_mean(pairs: Sequence[tuple[float, int]]) -> float | None:
-    """Completion-weighted mean of (value, weight); None when weightless."""
-    total_weight = sum(weight for _value, weight in pairs)
-    if total_weight == 0:
-        return None
-    return sum(value * weight for value, weight in pairs) / total_weight
-
-
 def _source_sort_key(source: Mapping[str, Any]) -> tuple[int, str]:
     """Stable descending-session source ordering."""
     return (-int(source["sessions"]), str(source["ai_source"]))
@@ -358,12 +283,6 @@ def _referral_metrics(
     ]
     sources.sort(key=_source_sort_key)
     return referral_volume, referral_share, sources
-
-
-def _rounded_weighted_mean(pairs: Sequence[tuple[float, int]]) -> float | None:
-    """Round a defined weighted mean using the projection score convention."""
-    mean = _weighted_mean(pairs)
-    return round(mean, _SCORE_DECIMALS) if mean is not None else None
 
 
 def _engine_visibility_metrics(

@@ -9,26 +9,17 @@
  * loads the project's dashboard-ready runs (for the Run selector) and the
  * product visibility projection — defaulting to the latest product audit,
  * sliced by the engine + surface filters via the backend's persisted
- * aggregates. `useAttributionQueries` loads the persisted A1/A2 attribution
- * snapshot and owns the recompute enqueue/poll cycle. Every hook takes an
- * explicit `enabled` flag so only the ACTIVE tab's queries run.
+ * aggregates. Every hook takes an explicit `enabled` flag so only the ACTIVE
+ * tab's queries run.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { attributionApi } from '@/lib/api/attribution';
 import { commerceApi } from '@/lib/api/commerce';
 import { queryKeys } from '@/lib/api/query-keys';
 import { productsApi } from '@/lib/api/products';
 import { runsApi } from '@/lib/api/runs';
-import {
-  ATTRIBUTION_RECOMPUTE_POLL_MS,
-  isActiveAttributionTask,
-  rangeToWindow,
-  type AnalyticsGranularity,
-  type AnalyticsRange,
-} from '@/lib/products/attribution';
 import {
   normalizeProductsTab,
   type ProductEngineFilter,
@@ -198,84 +189,4 @@ export function useMarketIntelligence(projectId: string | null, enabled = true) 
       queryClient.invalidateQueries({ queryKey: queryKeys.commerce.comparisons(projectId ?? '') }),
   });
   return { comparisonsQuery, createMutation };
-}
-
-/**
- * Attribution tab orchestration: range/granularity state (the shared
- * analytics options vocabulary), the persisted snapshot query, and the
- * recompute enqueue → 3s task poll → invalidate cycle. The recompute posts
- * once, stores the returned task id, and polls only that task until a
- * terminal status; a SUCCEEDED task invalidates ONLY the current snapshot
- * namespace, while failed/cancelled keeps the current snapshot on screen
- * (no refetch — nothing new was persisted).
- */
-export function useAttributionQueries(projectId: string | null, enabled = true) {
-  const queryClient = useQueryClient();
-  const [range, setRange] = useState<AnalyticsRange>('latest');
-  const [granularity, setGranularity] = useState<AnalyticsGranularity>('week');
-
-  // Resolve the range preset to `from`/`to` date bounds once per range
-  // (`latest` sends no bounds — the backend serves the freshest snapshot).
-  const windowBounds = useMemo(() => rangeToWindow(range), [range]);
-  const filters = useMemo(
-    () => ({
-      from: windowBounds.from ?? null,
-      to: windowBounds.to ?? null,
-      granularity,
-    }),
-    [windowBounds, granularity],
-  );
-
-  const snapshotQuery = useQuery({
-    queryKey: queryKeys.attribution.snapshot(projectId ?? '', filters),
-    queryFn: ({ signal }) =>
-      attributionApi.getSnapshot(projectId!, { ...windowBounds, granularity }, { signal }),
-    enabled: Boolean(projectId) && enabled,
-    placeholderData: keepPreviousData,
-  });
-
-  const [recomputeTaskId, setRecomputeTaskId] = useState<string | null>(null);
-  // The succeeded task poll below invalidates the exact snapshot key.
-  const recomputeMutation = useMutation({
-    mutationFn: () => attributionApi.recompute(projectId!),
-    onSuccess: (task) => setRecomputeTaskId(task.task_id),
-  });
-
-  const recomputeTaskQuery = useQuery({
-    queryKey: queryKeys.attribution.recompute(projectId ?? '', recomputeTaskId ?? ''),
-    queryFn: ({ signal }) => attributionApi.getRecompute(projectId!, recomputeTaskId!, { signal }),
-    enabled: Boolean(projectId) && enabled && recomputeTaskId !== null,
-    refetchInterval: (query) => {
-      const polled = query.state.data;
-      if (!polled) return ATTRIBUTION_RECOMPUTE_POLL_MS;
-      return isActiveAttributionTask(polled.status) ? ATTRIBUTION_RECOMPUTE_POLL_MS : false;
-    },
-  });
-
-  const recomputeStatus = recomputeTaskQuery.data?.status;
-  const recomputeTerminal =
-    recomputeStatus !== undefined && !isActiveAttributionTask(recomputeStatus);
-
-  // Succeeded → the refreshed snapshot is (being) persisted: invalidate only
-  // the current window/granularity namespace. Failed/cancelled persists no
-  // new snapshot, so the current one stays on screen untouched (the panel
-  // surfaces the explicit failure instead of refetching).
-  useEffect(() => {
-    if (recomputeStatus !== 'succeeded') return;
-    void queryClient.invalidateQueries({
-      queryKey: queryKeys.attribution.snapshot(projectId ?? '', filters),
-    });
-  }, [recomputeStatus, queryClient, projectId, filters]);
-
-  return {
-    range,
-    setRange,
-    granularity,
-    setGranularity,
-    filters,
-    snapshotQuery,
-    recomputeMutation,
-    recomputeTaskQuery,
-    recomputeTerminal,
-  };
 }

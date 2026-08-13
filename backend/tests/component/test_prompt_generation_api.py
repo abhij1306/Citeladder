@@ -233,20 +233,6 @@ async def test_generate_persists_provenance_evidence(
 
 
 @pytest.mark.asyncio
-async def test_generate_is_automatic_without_evidence_confirmation_gate(
-    client: httpx.AsyncClient, fake_agent: FakeAgent
-) -> None:
-    _, prompt_set_id = await _make_project_and_set(client, "gen3@example.com")
-    resp = await client.post(
-        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 3},
-    )
-    assert resp.status_code == 201
-    assert len(resp.json()["generated"]) == 3
-    assert len(fake_agent.calls) == 1
-
-
-@pytest.mark.asyncio
 async def test_generate_rejects_count_over_cap(
     client: httpx.AsyncClient, fake_agent: FakeAgent
 ) -> None:
@@ -315,25 +301,6 @@ async def test_generate_foreign_set_is_404_even_when_unconfigured(
         json={"count": 3, "confirm_send_evidence": True},
     )
     assert resp.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_generate_valid_payload_reaches_configuration_check(
-    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Automatic prompt derivation has no additional consent gate."""
-    _, prompt_set_id = await _make_project_and_set(client, "gen7c@example.com")
-
-    def _unconfigured() -> None:
-        raise AgentNotConfiguredError("no key")
-
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", _unconfigured)
-    resp = await client.post(
-        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 3},
-    )
-    assert resp.status_code == 503
-    assert resp.json()["detail"]["code"] == "agent_not_configured"
 
 
 @pytest.mark.asyncio
@@ -524,32 +491,6 @@ async def test_generate_activates_validated_requested_count(
 
 
 @pytest.mark.asyncio
-async def test_generate_second_run_adds_active_candidates(
-    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Later validated candidates are active; generation never starts an audit."""
-    _, prompt_set_id = await _make_project_and_set(client, "pool2@example.com")
-
-    first_agent = FakeAgent(response=_agent_response_with_n_prompts(20, topic="One"))
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: first_agent)
-    first = await client.post(
-        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 20, "confirm_send_evidence": True},
-    )
-    assert first.status_code == 201
-    assert {p["status"] for p in first.json()["generated"]} == {"active"}
-
-    second_agent = FakeAgent(response=_agent_response_with_n_prompts(5, topic="Two"))
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: second_agent)
-    second = await client.post(
-        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 5, "confirm_send_evidence": True},
-    )
-    assert second.status_code == 201
-    assert {p["status"] for p in second.json()["generated"]} == {"active"}
-
-
-@pytest.mark.asyncio
 async def test_generate_comparison_cohort_is_active_and_branded(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -589,99 +530,6 @@ async def test_generate_comparison_cohort_is_active_and_branded(
         p for p in body["generated"] if p["branded"] and p["status"] == "active"
     ]
     assert len(active_branded) == 10
-
-
-@pytest.mark.asyncio
-async def test_generate_comparison_candidates_do_not_need_pool_slots(
-    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Comparison candidates use the same active/archive lifecycle."""
-    _, prompt_set_id = await _make_project_and_set(client, "brandcap2@example.com")
-    # Two existing core prompts plus three comparisons still permit zero
-    # comparison rows: int(2 * 0.2) == 0.
-    for i in range(2):
-        created = await client.post(
-            f"/api/v1/prompt-sets/{prompt_set_id}/prompts",
-            json={"text": f"best Acme daily running shoe {i}"},
-        )
-        assert created.status_code == 201
-    prompts = [
-        {
-            "text": f"Acme Corp vs Globex for running shoe use case {i}",
-            "intent": "comparison",
-        }
-        for i in range(3)
-    ]
-    agent = FakeAgent(
-        response=json.dumps({"topics": [{"name": "Mix", "prompts": prompts}]})
-    )
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
-
-    resp = await client.post(
-        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 3, "cohort": "comparison", "confirm_send_evidence": True},
-    )
-    assert resp.status_code == 201
-    assert {p["status"] for p in resp.json()["generated"]} == {"active"}
-
-
-@pytest.mark.asyncio
-async def test_generate_all_comparison_candidates_active(
-    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Portfolio review happens through edit/archive, not a proposed state."""
-    _, prompt_set_id = await _make_project_and_set(client, "brandcap3@example.com")
-    # Six existing core prompts permit one of four new named comparisons:
-    # int(7 * 0.2) == 1.
-    for i in range(6):
-        created = await client.post(
-            f"/api/v1/prompt-sets/{prompt_set_id}/prompts",
-            json={"text": f"best Acme road running shoe {i}"},
-        )
-        assert created.status_code == 201
-    prompts = [
-        {
-            "text": f"Acme Corp vs Globex for running shoe use case {i}",
-            "intent": "comparison",
-        }
-        for i in range(4)
-    ]
-    agent = FakeAgent(
-        response=json.dumps({"topics": [{"name": "Mix", "prompts": prompts}]})
-    )
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
-
-    resp = await client.post(
-        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 4, "cohort": "comparison", "confirm_send_evidence": True},
-    )
-    assert resp.status_code == 201
-    assert {p["status"] for p in resp.json()["generated"]} == {"active"}
-
-
-@pytest.mark.asyncio
-async def test_generate_is_independent_of_existing_active_count(
-    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Existing active prompts do not force new valid prompts into another state."""
-    _, prompt_set_id = await _make_project_and_set(client, "pool3@example.com")
-    # Seed 18 manual prompts (created active by default).
-    for i in range(18):
-        created = await client.post(
-            f"/api/v1/prompt-sets/{prompt_set_id}/prompts",
-            json={"text": f"manual acme prompt {i}"},
-        )
-        assert created.status_code == 201
-
-    agent = FakeAgent(response=_agent_response_with_n_prompts(5, topic="Gen"))
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
-    resp = await client.post(
-        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 5, "confirm_send_evidence": True},
-    )
-    assert resp.status_code == 201
-    statuses = [p["status"] for p in resp.json()["generated"]]
-    assert statuses == ["active"] * 5
 
 
 @pytest.mark.asyncio

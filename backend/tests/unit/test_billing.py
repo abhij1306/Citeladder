@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import uuid
-from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -25,15 +24,12 @@ from app.core.config.billing import (
     REGION_CURRENCIES,
     REGION_INDIA,
     REGION_INTERNATIONAL,
-    TOPUP_BENCHMARK_CREDITS,
     GrantTemplate,
     billing_settings,
     commercial_catalog,
     plan_checkout_availability,
     plan_period_grant_specs,
     resolve_region,
-    scale_grant_specs,
-    topup_grant_specs,
 )
 from app.core.config.entitlements import (
     BENCHMARK_CADENCE_VALUES,
@@ -75,16 +71,9 @@ from app.domain.billing.schemas import (
     SubscriptionCreateRequest,
     UsageItemResponse,
 )
-from app.domain.billing.service import (
-    BillingConflictError,
-    resolve_addon_intent,
-    resolve_base_intent,
-)
 from app.domain.billing.webhooks import verify_razorpay_signature
 from scripts.provision_razorpay_plans import (
     _validate_environment,
-    _verify,
-    catalog_refs,
 )
 
 
@@ -793,165 +782,3 @@ def test_violated_constraint_name_unwraps_the_driver_adapter() -> None:
         _violated_constraint_name(violation)
         == "uq_pending_activation_one_pending_addon"
     )
-
-
-# --- Server-resolved quotes -------------------------------------------------
-def _enable_international_checkout(
-    monkeypatch: pytest.MonkeyPatch, refs: dict[str, str]
-) -> None:
-    monkeypatch.setattr(billing_settings, "checkout_enabled", True)
-    monkeypatch.setattr(billing_settings, "razorpay_live_ready", True)
-    monkeypatch.setattr(billing_settings, "razorpay_international_ready", True)
-    monkeypatch.setattr(billing_settings, "provider_price_refs", refs)
-
-
-def test_resolve_base_intent_quote_matches_catalog_and_separates_credit(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    refs = {f"tier_1:{REGION_INTERNATIONAL}:base": "ref_private"}
-    _enable_international_checkout(monkeypatch, refs)
-    now = datetime.now(UTC)
-    intent = resolve_base_intent(
-        catalog_key="tier_1", credential_mode="byok", country_code=" us ", at=now
-    )
-    quote = intent.quote
-    assert quote.catalog_key == "tier_1"
-    assert quote.catalog_revision == billing_settings.catalog_version
-    assert quote.credential_mode == "byok"
-    assert quote.region == REGION_INTERNATIONAL
-    assert quote.base_price.amount_minor == 9_900
-    # BYOK: no credit price, and the total is the base alone (tax inclusive).
-    assert quote.credit_price is None
-    assert quote.tax.amount_minor == 0
-    assert quote.total_price.amount_minor == 9_900
-    # The private provider ref NEVER reaches the quote DTO.
-    assert "ref_private" not in quote.model_dump_json()
-
-    # Funded: the margin-configured credit price is separate; total = base +
-    # credit, and base is never derived from credit.
-    monkeypatch.setattr(billing_settings, "funded_margin_bps", 2_000)
-    refs[f"tier_1:{REGION_INTERNATIONAL}:credit"] = "ref_credit"
-    monkeypatch.setattr(billing_settings, "provider_price_refs", refs)
-    funded = resolve_base_intent(
-        catalog_key="tier_1", credential_mode="funded", country_code="US", at=now
-    )
-    assert funded.quote.credit_price is not None
-    assert funded.quote.credit_price.amount_minor == 60_000
-    assert funded.quote.base_price.amount_minor == 9_900
-    assert funded.quote.total_price.amount_minor == 69_900
-
-
-def test_resolve_base_intent_refuses_unknown_keys_and_unconfigured_funded(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    refs = {f"tier_1:{REGION_INTERNATIONAL}:base": "ref_private"}
-    _enable_international_checkout(monkeypatch, refs)
-    now = datetime.now(UTC)
-    with pytest.raises(BillingConflictError, match="catalog_key_unknown"):
-        resolve_base_intent(
-            catalog_key="nope", credential_mode="byok", country_code="US", at=now
-        )
-    # Funded margin UNSET: funded checkout refuses rather than guessing.
-    with pytest.raises(BillingConflictError, match="checkout_unavailable"):
-        resolve_base_intent(
-            catalog_key="tier_1", credential_mode="funded", country_code="US", at=now
-        )
-    # Checkout disabled at the operator level: nothing is purchasable.
-    monkeypatch.setattr(billing_settings, "checkout_enabled", False)
-    with pytest.raises(BillingConflictError, match="checkout_unavailable"):
-        resolve_base_intent(
-            catalog_key="tier_1", credential_mode="byok", country_code="US", at=now
-        )
-
-
-def test_resolve_quote_applies_india_gst_server_side(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    refs = {f"tier_1:{REGION_INDIA}:base": "ref_private_in"}
-    _enable_international_checkout(monkeypatch, refs)
-    monkeypatch.setattr(billing_settings, "usd_inr_rate", Decimal("83"))
-    intent = resolve_base_intent(
-        catalog_key="tier_1",
-        credential_mode="byok",
-        country_code="IN",
-        at=datetime.now(UTC),
-    )
-    quote = intent.quote
-    assert quote.region == REGION_INDIA
-    assert quote.base_price.currency == "INR"
-    assert quote.base_price.amount_minor == 9_900 * 83
-    # Exclusive India GST: 18% ON TOP, owned by config.
-    assert quote.tax.amount_minor == int(round(9_900 * 83 * 0.18))
-    assert quote.total_price.amount_minor == (
-        quote.base_price.amount_minor + quote.tax.amount_minor
-    )
-
-
-def test_resolve_addon_intent_bounds_quantity_and_requires_availability(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    refs = {f"{ADDON_EXTRA_PROJECT}:{REGION_INTERNATIONAL}:base": "ref_private"}
-    _enable_international_checkout(monkeypatch, refs)
-    now = datetime.now(UTC)
-    with pytest.raises(BillingConflictError, match="checkout_unavailable"):
-        # Unit price unset: the add-on stays unavailable.
-        resolve_addon_intent(
-            catalog_key=ADDON_EXTRA_PROJECT, quantity=1, country_code="US", at=now
-        )
-    monkeypatch.setattr(billing_settings, "addon_extra_project_usd_minor", 1_900)
-    with pytest.raises(BillingConflictError, match="quantity_out_of_bounds"):
-        resolve_addon_intent(
-            catalog_key=ADDON_EXTRA_PROJECT, quantity=21, country_code="US", at=now
-        )
-    with pytest.raises(BillingConflictError, match="catalog_key_unknown"):
-        resolve_addon_intent(catalog_key="nope", quantity=1, country_code="US", at=now)
-    intent = resolve_addon_intent(
-        catalog_key=ADDON_EXTRA_PROJECT, quantity=3, country_code="US", at=now
-    )
-    assert intent.quote.total_price.amount_minor == 3 * 1_900
-    assert intent.quote.credential_mode == "byok"
-
-
-def test_topup_grant_specs_scale_and_reject_stale_revisions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Pack size UNSET: no grant template exists for the current revision.
-    assert (
-        topup_grant_specs(TOPUP_BENCHMARK_CREDITS, billing_settings.catalog_version)
-        is None
-    )
-    monkeypatch.setattr(billing_settings, "topup_benchmark_credits_per_pack", 25)
-    specs = topup_grant_specs(TOPUP_BENCHMARK_CREDITS, billing_settings.catalog_version)
-    assert specs == ((KEY_BENCHMARK_CREDITS, 25),)
-    assert scale_grant_specs(specs, 3) == ((KEY_BENCHMARK_CREDITS, 75),)
-    with pytest.raises(ValueError, match=">= 1"):
-        scale_grant_specs(specs, 0)
-    # A stale revision never silently issues today's bundle.
-    assert topup_grant_specs(TOPUP_BENCHMARK_CREDITS, "billing-v1") is None
-    assert topup_grant_specs("nope", billing_settings.catalog_version) is None
-
-
-# --- Provisioning CLI over the commercial catalog ---------------------------
-def test_provision_script_reports_missing_and_configured_refs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    rows = catalog_refs()
-    # Only the three self-serve plans have a positive international price by
-    # default (India is unrated, add-ons/top-ups are unpriced).
-    assert {row.settings_key for row in rows} == {
-        f"{key}:{REGION_INTERNATIONAL}:base" for key in ("tier_1", "tier_2", "tier_3")
-    }
-    assert all(not row.configured for row in rows)
-    assert _verify(rows) == 1
-    monkeypatch.setattr(
-        billing_settings,
-        "provider_price_refs",
-        {row.settings_key: "ref_private" for row in rows},
-    )
-    configured = catalog_refs()
-    assert all(row.configured for row in configured)
-    assert _verify(configured) == 0
-    # A configured funded margin surfaces the credit refs as their own rows.
-    monkeypatch.setattr(billing_settings, "funded_margin_bps", 2_000)
-    keys = {row.settings_key for row in catalog_refs()}
-    assert f"tier_1:{REGION_INTERNATIONAL}:credit" in keys

@@ -8,9 +8,6 @@ const signalSchema = z.strictObject({
   snapshot_id: z.uuid(),
   signal_type: z.string(),
   state: z.string(),
-  audience: z.string(),
-  intent: z.string(),
-  journey_stage: z.string(),
   topic_cluster: z.string(),
   page_url: z.string(),
   evidence: z.record(z.string(), z.unknown()),
@@ -19,7 +16,6 @@ const signalSchema = z.strictObject({
   limitations: z.array(z.string()),
   priority_score: z.number().nullable(),
   priority_inputs: z.record(z.string(), z.unknown()),
-  model_provenance: z.record(z.string(), z.unknown()).nullable(),
   created_at: z.string(),
 });
 
@@ -29,12 +25,9 @@ const snapshotSchema = z.strictObject({
   window_start: z.string(),
   window_end: z.string(),
   source_hash: z.string(),
-  site_snapshot_id: z.uuid().nullable(),
   prior_snapshot_id: z.uuid().nullable(),
   source_artifact_ids: z.array(z.string()),
   source_metric_row_ids: z.array(z.string()),
-  source_audit_ids: z.array(z.string()),
-  journey_version_ids: z.array(z.string()),
   coverage: z.record(z.string(), z.unknown()),
   summary: z.record(z.string(), z.unknown()),
   comparison: z.record(z.string(), z.unknown()).nullable(),
@@ -44,33 +37,11 @@ const snapshotSchema = z.strictObject({
   signals: z.array(signalSchema),
 });
 
-const snapshotListSchema = z.strictObject({ items: z.array(snapshotSchema) });
-const capabilitySchema = z.strictObject({
-  provider: z.string(),
-  dataset: z.string(),
-  state: z.string(),
-  latest_artifact_id: z.uuid().nullable(),
-  coverage: z.record(z.string(), z.unknown()),
-  provider_metadata: z.record(z.string(), z.unknown()),
-});
-const capabilityListSchema = z.strictObject({ datasets: z.array(capabilitySchema) });
 export type DemandSnapshot = z.infer<typeof snapshotSchema>;
-export type DemandCapability = z.infer<typeof capabilitySchema>;
 
 export const demandApi = {
-  listSnapshots: async (projectId: string, options?: ApiRequestOptions) =>
-    snapshotListSchema.parse(
-      await apiClient.get<unknown>(`/projects/${projectId}/demand/snapshots?limit=20`, options),
-    ),
-  getSnapshot: async (projectId: string, snapshotId: string, options?: ApiRequestOptions) =>
+  getLatest: async (projectId: string, options?: ApiRequestOptions) =>
     snapshotSchema.parse(
-      await apiClient.get<unknown>(
-        `/projects/${projectId}/demand/snapshots/${snapshotId}`,
-        options,
-      ),
-    ),
-  getCapabilities: async (projectId: string, options?: ApiRequestOptions) =>
-    capabilityListSchema.parse(
-      await apiClient.get<unknown>(`/projects/${projectId}/demand/capabilities`, options),
+      await apiClient.get<unknown>(`/projects/${projectId}/demand/latest`, options),
     ),
 };

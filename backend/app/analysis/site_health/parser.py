@@ -66,28 +66,6 @@ _MAX_FIRST_ANSWER_CHARS = site_health_config.SITE_HEALTH_MAX_FIRST_ANSWER_CHARS
 _MAX_INLINE_SCRIPT_CHARS = site_health_config.SITE_HEALTH_MAX_INLINE_SCRIPT_CHARS
 _MAX_CONTACT_POINTS = site_health_config.SITE_HEALTH_MAX_CONTACT_POINTS
 _MAX_CONTACT_VALUE_CHARS = site_health_config.SITE_HEALTH_MAX_CONTACT_VALUE_CHARS
-_MAX_MONEY_MENTIONS = site_health_config.SITE_HEALTH_MAX_MONEY_MENTIONS
-_MAX_MONEY_CONTEXT_CHARS = site_health_config.SITE_HEALTH_MAX_MONEY_CONTEXT_CHARS
-_MAX_MONEY_RAW_CHARS = site_health_config.SITE_HEALTH_MAX_MONEY_RAW_CHARS
-MONEY_CURRENCY_SYMBOLS = site_health_config.MONEY_CURRENCY_SYMBOLS
-# A currency token (symbol or ISO code) immediately preceding an amount.
-# Currency-FIRST only: a trailing token is ambiguous ("50 lakh", "20 000 sq ft")
-# and the ordering that matters for fees is universally symbol-first.
-# The grouped branch requires at least ONE separator so it cannot claim a
-# prefix of an ungrouped run: with ``*`` it matched "250" out of "250000" and
-# reported a 250-rupee annual fee. Both Western (250,000) and Indian
-# (2,50,000) grouping are accepted, hence the 2-or-3 digit group.
-# ``Rs``/``Rs.`` and ``₨`` are deliberately not tokens here: both are generic
-# rupee notation shared by four different rupees, and MONEY_CURRENCY_SYMBOLS
-# refuses to guess between them, so matching either would only produce a match
-# this loop then discards. ``₹`` stays because it is country-specific.
-_MONEY_PATTERN = re.compile(
-    r"(?P<currency>₹|\$|£|€|¥|₦|INR|USD|GBP|EUR|AED)\s*"
-    r"(?P<amount>\d{1,3}(?:[,\s]\d{2,3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)",
-    re.IGNORECASE,
-)
-# Every separator the amount group above accepts, for stripping before ``float``.
-_AMOUNT_SEPARATORS = re.compile(r"[,\s]")
 # The security response headers whose mere presence the delivery facts record.
 _SECURITY_HEADERS = (
     "strict-transport-security",
@@ -389,59 +367,6 @@ def _contact_points(root: Any) -> list[dict[str, str]]:
     except Exception:
         pass
     return points
-
-
-def _money_mentions(text: str) -> list[dict[str, Any]]:
-    """Bounded currency-qualified amounts in visible copy.
-
-    Only amounts carrying a recognized currency are returned. A bare number is
-    never promoted to money: "250000" on a fees page could be an amount, a
-    student count, or a phone extension, and a report that renders it beside a
-    currency symbol it invented is worse than one that reports the fee as
-    missing.
-    """
-    mentions: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for match in _MONEY_PATTERN.finditer(text or ""):
-        if len(mentions) >= _MAX_MONEY_MENTIONS:
-            break
-        token = (match.group("currency") or "").strip().upper()
-        currency = MONEY_CURRENCY_SYMBOLS.get(token) or MONEY_CURRENCY_SYMBOLS.get(
-            match.group("currency") or ""
-        )
-        if not currency:
-            continue
-        # Strip EVERY separator the pattern accepts. ``[,\s]`` matches Unicode
-        # whitespace, so a price grouped with a non-breaking or thin space —
-        # ordinary on Indian and European sites — survived this cleanup, failed
-        # ``float``, and was dropped as if the page had named no amount.
-        digits = _AMOUNT_SEPARATORS.sub("", match.group("amount") or "")
-        try:
-            amount = float(digits)
-        except ValueError:
-            continue
-        start = max(0, match.start() - _MAX_MONEY_CONTEXT_CHARS // 2)
-        # Surrounding words are what later tells an annual tuition fee from a
-        # one-time registration fee. Bounded and text-only.
-        context = " ".join(
-            text[start : match.end() + _MAX_MONEY_CONTEXT_CHARS // 2].split()
-        )[:_MAX_MONEY_CONTEXT_CHARS]
-        # The CONTEXT is part of the identity. Keying on currency+amount alone
-        # collapsed "Grade 8: INR 250000" and "Grade 9: INR 250000" into one
-        # mention and silently discarded the second grade's fee.
-        key = f"{currency}|{amount}|{context}"
-        if key in seen:
-            continue
-        seen.add(key)
-        mentions.append(
-            {
-                "currency": currency,
-                "amount": amount,
-                "raw": match.group(0).strip()[:_MAX_MONEY_RAW_CHARS],
-                "context": context,
-            }
-        )
-    return mentions
 
 
 def _link_context(anchors: list[dict]) -> list[str]:
@@ -1013,7 +938,6 @@ def _empty_facts() -> dict[str, Any]:
         "inline_script_chars": 0,
         # v2 S2 (sh-extractor-4) knowledge evidence.
         "contact_points": [],
-        "money_mentions": [],
     }
 
 
@@ -1151,7 +1075,6 @@ def extract_page_facts(
     facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
     # Money is scanned over the already-bounded VISIBLE text, so an amount
     # inside a script literal or a style block can never become a published fee.
-    facts["money_mentions"] = _money_mentions(facts["body"].get("text", ""))
 
     # Click-to-expand gating: gated words as a fraction of the visible body
     # word count (details/aria-expanded subtrees survive _body_text's junk
