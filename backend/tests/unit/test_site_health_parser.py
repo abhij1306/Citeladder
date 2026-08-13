@@ -371,10 +371,10 @@ _V2_PAGE = b"""
 """
 
 
-def test_extractor_version_is_sh_extractor_5():
-    # sh-extractor-5 preserves every recognized token from multi-typed JSON-LD.
-    assert EXTRACTOR_VERSION == "sh-extractor-5"
-    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-5"
+def test_extractor_version_is_sh_extractor_6():
+    # sh-extractor-6 preserves every recognized token from multi-typed JSON-LD.
+    assert EXTRACTOR_VERSION == "sh-extractor-6"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-6"
 
 
 # --- sh-extractor-3: industry-role classifier facts -------------------------

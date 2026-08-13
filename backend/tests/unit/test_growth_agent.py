@@ -55,8 +55,8 @@ def test_submit_contract_strips_objective_and_rejects_whitespace_only() -> None:
 
 def test_agent_retry_delay_increases_and_caps() -> None:
     settings = DefaultAgentSettings(
-        retry_base_delay_seconds=2,
-        retry_max_delay_seconds=5,
+        default_agent_retry_base_delay_seconds=2,
+        default_agent_retry_max_delay_seconds=5,
     )
     assert [settings.retry_delay(attempt) for attempt in (1, 2, 3, 4)] == [
         2,

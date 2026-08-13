@@ -180,7 +180,7 @@ describe('integrationsApi.sync + sync-run projections', () => {
     expect(run.row_count).toBe(400);
   });
 
-  it('strips an additive key from a sync-run projection (tolerant-on-unknown)', async () => {
+  it('retains a safe additive key in a sync-run projection', async () => {
     mswServer.use(
       http.get(`/api/v1/integrations/${CONN}/syncs/${SYNC}`, () =>
         HttpResponse.json({ ...syncRun, idempotency_key: 'internal-only' }),
@@ -188,7 +188,7 @@ describe('integrationsApi.sync + sync-run projections', () => {
     );
     const run = await integrationsApi.getSync(CONN, SYNC);
     expect(run.id).toBe(SYNC);
-    expect('idempotency_key' in run).toBe(false);
+    expect(run).toMatchObject({ idempotency_key: 'internal-only' });
   });
 });
 

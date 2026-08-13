@@ -206,10 +206,7 @@ describe('GrowthAgentWorkspace', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
 
-    expect(await screen.findByText('The task could not be cancelled.')).toHaveAttribute(
-      'role',
-      'alert',
-    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('The task could not be cancelled.');
     expect(agentApi.cancel).toHaveBeenCalledWith(PROJECT_ID, RUN_ID);
   });
 
