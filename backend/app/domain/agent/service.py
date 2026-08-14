@@ -9,6 +9,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from pydantic import ValidationError
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +21,9 @@ from app.core.config.agent import (
     AGENT_TASK_POLICIES,
     default_agent_settings,
 )
-from app.domain.agent.schemas import AgentTaskSubmit
+from app.domain.agent.projection import SOURCE_METADATA as _SOURCE_METADATA
+from app.domain.agent.projection import public_result as _public_result
+from app.domain.agent.schemas import AgentRoadmapItem, AgentTaskSubmit
 from app.domain.agent.tools import TOOL_VERSION, ToolExecutionContext, execute_tool
 from app.models.agent import AgentTaskRun, AgentToolAttempt
 from app.models.project import Project
@@ -36,6 +39,10 @@ class AgentValidationError(ValueError):
 
 class AgentConflictError(RuntimeError):
     pass
+
+
+_SUPPORTED_TASK_TYPES = tuple(AGENT_TASK_POLICIES)
+_OPPORTUNITIES_TOOL = "opportunities.read_ranked"
 
 
 def _utcnow() -> datetime:
@@ -110,6 +117,7 @@ async def list_task_runs(
                 .where(
                     AgentTaskRun.workspace_id == workspace_id,
                     AgentTaskRun.project_id == project_id,
+                    AgentTaskRun.task_type.in_(_SUPPORTED_TASK_TYPES),
                 )
                 .order_by(AgentTaskRun.created_at.desc(), AgentTaskRun.id.desc())
                 .limit(limit)
@@ -130,6 +138,7 @@ async def get_task_run(
             AgentTaskRun.id == run_id,
             AgentTaskRun.workspace_id == workspace_id,
             AgentTaskRun.project_id == project_id,
+            AgentTaskRun.task_type.in_(_SUPPORTED_TASK_TYPES),
         )
     )
     if row is None:
@@ -142,57 +151,6 @@ def task_run_projection(run: AgentTaskRun) -> dict[str, Any]:
     values = _run_values(run)
     values["result"] = _public_result(run.result)
     return values
-
-
-def _legacy_limitations(result: dict[str, Any]) -> list[str]:
-    return [str(item) for item in result.get("limitations") or [] if str(item).strip()]
-
-
-def _legacy_artifact_refs(result: dict[str, Any]) -> list[dict[str, str]]:
-    return [
-        {"kind": str(ref["kind"]), "id": str(ref["id"])}
-        for ref in result.get("artifact_refs") or []
-        if isinstance(ref, dict) and ref.get("kind") and ref.get("id")
-    ]
-
-
-_TYPED_RESULT_FIELDS = {
-    "summary",
-    "observations",
-    "roadmap_items",
-    "sources",
-    "limitations",
-    "artifact_refs",
-}
-
-
-def _public_result(result: object) -> dict[str, Any] | None:
-    """Project both current and pre-v3 persisted results without a repair read."""
-    if not isinstance(result, dict):
-        return None
-    if _TYPED_RESULT_FIELDS.issubset(result):
-        return result
-    summary = str(result.get("summary") or result.get("answer") or "").strip()
-    if not summary:
-        return None
-    return {
-        "summary": summary,
-        "observations": [],
-        "roadmap_items": [],
-        "sources": [
-            {
-                "key": key,
-                "label": label,
-                "availability": "unavailable",
-                "window": None,
-                "coverage": None,
-                "reason": "Availability was not recorded for this earlier run.",
-            }
-            for key, label in _SOURCE_METADATA.values()
-        ],
-        "limitations": _legacy_limitations(result),
-        "artifact_refs": _legacy_artifact_refs(result),
-    }
 
 
 async def cancel_task(
@@ -222,6 +180,7 @@ async def claim_task(
         select(AgentTaskRun)
         .where(
             AgentTaskRun.available_at <= now,
+            AgentTaskRun.task_type.in_(_SUPPORTED_TASK_TYPES),
             or_(
                 AgentTaskRun.status == "queued",
                 (
@@ -559,20 +518,28 @@ def _artifact_refs(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _limitations(evidence: list[dict[str, Any]]) -> list[str]:
-    return [
-        f"{_SOURCE_METADATA[item['tool']][1]} is unavailable. "
-        f"{_reason_text(item['evidence'].get('reason'))}"
-        for item in evidence
-        if item["evidence"].get("state") == "unavailable"
-    ]
+    limitations: list[str] = []
+    for item in evidence:
+        tool = item.get("tool")
+        source = _SOURCE_METADATA.get(tool) if isinstance(tool, str) else None
+        if source is None or item["evidence"].get("state") != "unavailable":
+            continue
+        limitations.append(
+            f"{source[1]} is unavailable. "
+            f"{_reason_text(item['evidence'].get('reason'))}"
+        )
+    return limitations
 
 
 def _roadmap_items(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for item in evidence:
-        if item["tool"] != "opportunities.read_ranked":
+        if item["tool"] != _OPPORTUNITIES_TOOL:
             continue
-        return [
-            {
+        roadmap: list[dict[str, Any]] = []
+        for opportunity in item["evidence"].get("items") or []:
+            if not isinstance(opportunity, dict):
+                continue
+            candidate = {
                 key: opportunity.get(key)
                 for key in (
                     "rank",
@@ -583,17 +550,12 @@ def _roadmap_items(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "severity",
                 )
             }
-            for opportunity in item["evidence"].get("items") or []
-        ]
+            try:
+                roadmap.append(AgentRoadmapItem.model_validate(candidate).model_dump())
+            except ValidationError:
+                continue
+        return roadmap
     return []
-
-
-_SOURCE_METADATA = {
-    "site.read_snapshot": ("site_health", "Site Health"),
-    "demand.read_snapshot": ("search_demand", "Search Demand"),
-    "opportunities.read_ranked": ("opportunities", "Opportunities"),
-    "audits.read_latest": ("ai_visibility", "AI Visibility"),
-}
 
 
 def _evidence_sources(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -650,11 +612,10 @@ def _deterministic_narrative(
         }
     if task_type == "build_roadmap":
         count = len(roadmap_items)
+        noun = "step" if count == 1 else "steps"
+        verb = "is" if count == 1 else "are"
         return {
-            "summary": (
-                f"{count} prioritized next step"
-                f"{'s' if count != 1 else ''} are available."
-            ),
+            "summary": f"{count} prioritized next {noun} {verb} available.",
             "observations": ["The order follows the persisted Opportunity ranking."]
             if count
             else [],
@@ -688,7 +649,7 @@ def _deterministic_observations(evidence: list[dict[str, Any]]) -> list[str]:
                 f"Search Demand covers {window.get('start', '')} through "
                 f"{window.get('end', '')}."
             )
-        elif item["tool"] == "opportunities.read_ranked":
+        elif item["tool"] == _OPPORTUNITIES_TOOL:
             observations.append(
                 f"{len(output.get('items') or [])} ranked opportunities are available."
             )
@@ -753,6 +714,7 @@ async def _locked_run(
             AgentTaskRun.id == run_id,
             AgentTaskRun.workspace_id == workspace_id,
             AgentTaskRun.project_id == project_id,
+            AgentTaskRun.task_type.in_(_SUPPORTED_TASK_TYPES),
         )
         .with_for_update()
     )

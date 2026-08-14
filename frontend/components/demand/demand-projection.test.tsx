@@ -88,6 +88,18 @@ describe('DemandProjection', () => {
     expect(screen.queryByText(/Demand overview/i)).not.toBeInTheDocument();
   });
 
+  it('announces the initial load while the skeleton remains decorative', () => {
+    vi.mocked(demandApi.getLatest).mockImplementation(
+      () =>
+        new Promise(() => {
+          // Intentionally pending so the loading state stays rendered.
+        }),
+    );
+    renderProjection();
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading search demand');
+  });
+
   it('distinguishes unavailable Search Console evidence', async () => {
     vi.mocked(demandApi.getLatest).mockResolvedValue({
       ...snapshot,

@@ -320,7 +320,7 @@ describe('TrafficScreen — populated dashboard', () => {
         },
       }),
     );
-    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('status')).toBeEmptyDOMElement());
     expect(screen.getByTestId('stat-impressions')).toHaveTextContent('No prior week');
   });
 

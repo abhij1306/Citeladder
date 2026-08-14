@@ -7,7 +7,7 @@ export const agentTaskTypeSchema = z.enum(['explain', 'build_roadmap']);
 
 const artifactReferenceSchema = z.object({
   kind: z.string(),
-  id: z.string(),
+  id: z.uuid(),
 });
 
 const roadmapItemSchema = z.object({

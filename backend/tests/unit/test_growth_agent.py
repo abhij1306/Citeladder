@@ -7,8 +7,15 @@ from pydantic import ValidationError
 
 from app.connectors.agent.gateway import FakeModelGateway
 from app.core.config.agent import AGENT_TASK_POLICIES, DefaultAgentSettings
-from app.domain.agent.schemas import AgentTaskSubmit
-from app.domain.agent.service import _artifact_refs, _json_hash, _parse_narrative
+from app.domain.agent.schemas import AgentArtifactReference, AgentTaskSubmit
+from app.domain.agent.service import (
+    _artifact_refs,
+    _deterministic_narrative,
+    _json_hash,
+    _limitations,
+    _parse_narrative,
+    _roadmap_items,
+)
 from app.domain.agent.tools import _EXECUTORS
 
 
@@ -67,12 +74,77 @@ def test_agent_retry_delay_increases_and_caps() -> None:
 
 
 def test_narrative_contract_is_minimal_and_strict() -> None:
-    assert _parse_narrative('{"answer":"Grounded.","limitations":["Partial."]}') == {
-        "answer": "Grounded.",
+    assert _parse_narrative(
+        '{"summary":"Grounded.","observations":[],"limitations":["Partial."]}'
+    ) == {
+        "summary": "Grounded.",
+        "observations": [],
         "limitations": ["Partial."],
     }
     with pytest.raises(ValueError):
-        _parse_narrative('{"answer":""}')
+        _parse_narrative('{"summary":""}')
+
+
+def test_public_artifact_reference_requires_a_uuid() -> None:
+    with pytest.raises(ValidationError):
+        AgentArtifactReference.model_validate({"kind": "snapshot", "id": "not-a-uuid"})
+
+
+def test_roadmap_filters_incomplete_items_and_keeps_valid_order() -> None:
+    valid = {
+        "rank": 1,
+        "title": "Fix the page",
+        "remediation": "Improve the answer.",
+        "target_url": None,
+        "priority_score": 9.5,
+        "severity": "high",
+    }
+    evidence = [
+        {
+            "tool": "opportunities.read_ranked",
+            "evidence": {
+                "items": [valid, {**valid, "rank": 2, "severity": None}, None]
+            },
+        }
+    ]
+
+    assert _roadmap_items(evidence) == [valid]
+
+
+def test_unknown_unavailable_tool_is_ignored_like_other_public_source_projection() -> (
+    None
+):
+    evidence = [
+        {
+            "tool": "legacy.read_unknown",
+            "evidence": {"state": "unavailable", "reason": "unknown"},
+        },
+        {
+            "tool": "demand.read_snapshot",
+            "evidence": {"state": "unavailable", "reason": "no_demand_snapshot"},
+        },
+    ]
+
+    assert _limitations(evidence) == [
+        "Search Demand is unavailable. No Search Demand snapshot is available yet."
+    ]
+
+
+@pytest.mark.parametrize(
+    ("count", "summary"),
+    [
+        (1, "1 prioritized next step is available."),
+        (2, "2 prioritized next steps are available."),
+    ],
+)
+def test_roadmap_summary_uses_matching_verb(count: int, summary: str) -> None:
+    narrative = _deterministic_narrative(
+        "build_roadmap",
+        evidence=[{"evidence": {"state": "available"}}],
+        roadmap_items=[{} for _ in range(count)],
+    )
+
+    assert narrative["summary"] == summary
 
 
 def test_artifact_refs_are_deduplicated_without_copying_evidence() -> None:

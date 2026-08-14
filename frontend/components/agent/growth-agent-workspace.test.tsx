@@ -91,11 +91,11 @@ describe('GrowthAgentWorkspace', () => {
     renderWithProviders(<GrowthAgentWorkspace />);
     const disclosure = await screen.findByText('Data used');
     const internals = ['opportunities.read_ranked', 'evidence-output-hash', '2.0.0', '44444444-4444-4444-8444-444444444444', '{"project_id"'];
-    internals.forEach((value) => expect(screen.queryByText(value)).not.toBeInTheDocument());
+    internals.forEach((value) => expect(document.body).not.toHaveTextContent(value));
     await user.click(disclosure);
     expect(screen.getByText('Site Health')).toBeVisible();
     expect(screen.getByText('unavailable')).toBeVisible();
     expect(screen.getByText('1 saved data artifact supported this result.')).toBeVisible();
-    internals.forEach((value) => expect(screen.queryByText(value)).not.toBeInTheDocument());
+    internals.forEach((value) => expect(document.body).not.toHaveTextContent(value));
   });
 });

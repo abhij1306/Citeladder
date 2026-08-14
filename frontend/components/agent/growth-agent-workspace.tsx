@@ -60,7 +60,9 @@ function taskLabel(value: AgentTaskType): string {
 function sourceCoverage(coverage: AgentResult['sources'][number]['coverage']): string {
   if (!coverage) return '';
   return Object.entries(coverage).reduce<string[]>((parts, [key, value]) => {
-    if (value !== null && value !== '') parts.push(`${readable(key)}: ${String(value)}`);
+    if ((typeof value === 'string' && value !== '') || typeof value === 'number') {
+      parts.push(`${readable(key)}: ${String(value)}`);
+    }
     return parts;
   }, []).join(' · ');
 }
@@ -140,25 +142,26 @@ function DataUsed({ result }: Readonly<{ result: AgentResult }>) {
         Data used
       </summary>
       <div className="border-border-subtle mt-3 grid gap-3 border-t pt-3">
-        {result.sources.map((source) => (
-          <div key={source.key} className="flex flex-wrap items-start justify-between gap-2 text-xs">
-            <div>
-              <p className="text-foreground font-medium">{source.label}</p>
-              {source.reason ? <p className="text-muted mt-0.5">{source.reason}</p> : null}
-              {source.window ? (
-                <p className="text-muted mt-0.5">
-                  {Object.values(source.window).filter(Boolean).join(' – ')}
-                </p>
-              ) : null}
-              {sourceCoverage(source.coverage) ? (
-                <p className="text-muted mt-0.5 capitalize">{sourceCoverage(source.coverage)}</p>
-              ) : null}
+        {result.sources.map((source) => {
+          const coverage = sourceCoverage(source.coverage);
+          const window = source.window
+            ? [source.window.start, source.window.end].filter(Boolean).join(' – ')
+            : '';
+          return (
+            <div
+              key={source.key}
+              className="flex flex-wrap items-start justify-between gap-2 text-xs"
+            >
+              <div>
+                <p className="text-foreground font-medium">{source.label}</p>
+                {source.reason ? <p className="text-muted mt-0.5">{source.reason}</p> : null}
+                {window ? <p className="text-muted mt-0.5">{window}</p> : null}
+                {coverage ? <p className="text-muted mt-0.5 capitalize">{coverage}</p> : null}
+              </div>
+              <Badge variant="neutral">{source.availability}</Badge>
             </div>
-            <Badge variant="neutral">
-              {source.availability}
-            </Badge>
-          </div>
-        ))}
+          );
+        })}
         <p className="text-muted border-border-subtle border-t pt-2 text-xs">
           {result.artifact_refs.length
             ? `${result.artifact_refs.length} saved data ${result.artifact_refs.length === 1 ? 'artifact' : 'artifacts'} supported this result.`
@@ -268,8 +271,8 @@ function RunDetail({
             <div className="mt-4">
               <h4 className="text-foreground text-xs font-semibold">What the data shows</h4>
               <ul className="text-secondary mt-2 list-disc space-y-1 pl-4 text-sm">
-                {run.result.observations.map((observation) => (
-                  <li key={observation}>{observation}</li>
+                {run.result.observations.map((observation, index) => (
+                  <li key={`${index}:${observation}`}>{observation}</li>
                 ))}
               </ul>
             </div>

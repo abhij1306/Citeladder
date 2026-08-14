@@ -151,15 +151,13 @@ _SCORE_DECIMALS = 2
 
 @dataclass(frozen=True)
 class ReferralFactInput:
-    """One classification + event (+ source metric row) reduced for the fold.
+    """One canonical GA4 metric row with optional referral classification.
 
-    ``row_identity`` is the metric row's
-    ``(property_ref, provider, dataset, date, dimension_key)`` revision
-    identity — ``None`` when the event's ``source_metric_row_id`` is NULL
-    (no session measure; the fact is excluded by latest-selection).
-    ``occurred_date`` is the EVENT's UTC date (the referral evidence's own
-    bucket key); ``sessions`` is the row's measured sessions (0 when the
-    metric payload lacks a numeric ``sessions``).
+    ``row_identity`` always identifies the metric row revision and
+    ``occurred_date`` is that row's date. ``classification_id`` and
+    ``is_ai_referral`` remain NULL when the row has not been classified, so
+    incomplete evidence stays unmeasured. ``sessions`` is the row's measured
+    session count (0 when the metric payload lacks a numeric value).
     """
 
     classification_id: uuid.UUID | None
@@ -722,10 +720,10 @@ async def refresh_analytics_snapshot(
 ) -> None:
     """``analytics_snapshot_refresh`` executor: rebuild one window's snapshots.
 
-    Read phase: the window's classification+event+metric-row triples in
-    bounded keyset batches (cooperative cancel at every batch boundary),
-    plus the visibility + theme inputs over the same dashboard-status audit
-    window. Write phase: for each configured granularity
+    Read phase: every canonical GA4 source/medium metric row in the window,
+    left-linked to its optional referral event and classification, in bounded
+    keyset batches (cooperative cancel at every batch boundary). Write phase:
+    for each configured granularity
     (``ANALYTICS_SNAPSHOT_GRANULARITIES``) the pure projection is upserted —
     ALL of it in ONE transaction (one commit), so a refresh never leaves a
     half-written snapshot family. NO provider I/O (invariant 7).

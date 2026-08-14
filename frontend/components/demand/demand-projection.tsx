@@ -137,14 +137,20 @@ export function DemandProjection() {
   });
 
   if (projectLoading || latest.isLoading) {
-    return <Skeleton className="h-72" aria-label="Loading search demand" />;
+    return (
+      <>
+        <span role="status" className="sr-only">
+          Loading search demand
+        </span>
+        <Skeleton className="h-72" />
+      </>
+    );
   }
   if (!activeProject) return <Alert tone="info">Select a project to inspect search demand.</Alert>;
   if (latest.isError && httpErrorStatus(latest.error) === 404) {
     return (
       <Alert tone="info">
-        No Search Demand snapshot exists yet. Sync Traffic evidence, then recompute Demand
-        Intelligence.
+        No Search Demand snapshot exists yet. Sync Traffic evidence, then recompute Search Demand.
       </Alert>
     );
   }

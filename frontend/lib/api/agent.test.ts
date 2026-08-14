@@ -55,5 +55,14 @@ describe('Growth Agent task API', () => {
     expect(parsed).not.toHaveProperty('attempts');
     expect(parsed).not.toHaveProperty('provider_adapter');
     expect(() => agentTaskRunSchema.parse({ ...detail, task_type: 'create_brief' })).toThrow();
+    expect(() =>
+      agentTaskRunSchema.parse({
+        ...detail,
+        result: {
+          ...detail.result,
+          artifact_refs: [{ kind: 'snapshot', id: 'not-a-uuid' }],
+        },
+      }),
+    ).toThrow();
   });
 });

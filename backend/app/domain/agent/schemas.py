@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.core.config.agent import AGENT_OBJECTIVE_MAX_CHARS
 
+AgentTaskType = Literal["explain", "build_roadmap"]
+
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -17,7 +19,7 @@ class _StrictModel(BaseModel):
 
 class AgentTaskSubmit(_StrictModel):
     project_id: uuid.UUID
-    task_type: Literal["explain", "build_roadmap"]
+    task_type: AgentTaskType
     objective: Annotated[
         str,
         StringConstraints(
@@ -30,7 +32,7 @@ class AgentTaskSubmit(_StrictModel):
 
 class AgentArtifactReference(_StrictModel):
     kind: str
-    id: str
+    id: uuid.UUID
 
 
 class AgentRoadmapItem(_StrictModel):
@@ -65,7 +67,7 @@ class AgentTaskRunSummary(_StrictModel):
 
     id: uuid.UUID
     project_id: uuid.UUID
-    task_type: str
+    task_type: AgentTaskType
     objective: str
     status: str
     error_code: str

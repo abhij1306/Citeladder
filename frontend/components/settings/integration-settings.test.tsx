@@ -165,6 +165,7 @@ describe('IntegrationSettings — empty state + OAuth navigation', () => {
     renderWithProviders(<IntegrationSettings />);
 
     expect(await screen.findByText('No integrations connected')).toBeInTheDocument();
+    expect(screen.getByText(/Google Analytics 4 for AI Referrals/)).toBeInTheDocument();
 
     await ue.click(screen.getByRole('button', { name: 'Connect Google' }));
     expect(assignMock).toHaveBeenCalledWith('/api/v1/integrations/oauth/gsc/start');
@@ -439,6 +440,17 @@ describe('IntegrationSettings — OAuth callback notice (C2)', () => {
     await waitFor(() =>
       expect(replaceState).toHaveBeenCalledWith(null, '', '/settings?tab=integrations'),
     );
+  });
+
+  it('does not attribute AI Referrals to a Microsoft connection', async () => {
+    search = 'tab=integrations&connected=bing';
+    mockList([]);
+    renderWithProviders(<IntegrationSettings />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Microsoft connected.');
+    expect(alert).toHaveTextContent(/appear in Traffic once/i);
+    expect(alert).not.toHaveTextContent('AI Referrals');
   });
 
   it('shows the failure notice for ?error= with the provider code in mono', async () => {

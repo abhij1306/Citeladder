@@ -149,12 +149,14 @@ function TrafficToolbar({
         ariaLabel="Chart interval"
       />
 
-      {fetching ? (
-        <span className="text-muted flex items-center gap-1.5 text-xs" role="status">
-          <Loader2 className="size-3.5 animate-spin" aria-hidden />
-          Updating data… Previous data shown.
-        </span>
-      ) : null}
+      <output className="text-muted flex items-center gap-1.5 text-xs">
+        {fetching ? (
+          <>
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            Updating data… Previous data shown.
+          </>
+        ) : null}
+      </output>
 
       <div className="ml-auto flex items-center gap-3">
         <span className="text-2xs text-muted">{note}</span>

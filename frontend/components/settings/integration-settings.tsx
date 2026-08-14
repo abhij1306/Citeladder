@@ -80,15 +80,14 @@ function CallbackNotice({
       return (
         <Alert tone="success">
           <strong className="font-medium">Microsoft connected.</strong> Bing Webmaster Tools is now
-          linked. Initial syncs are queued and will appear in Traffic and AI Referrals once they
-          complete.
+          linked. Initial syncs are queued and will appear in Traffic once they complete.
         </Alert>
       );
     }
     return (
       <Alert tone="success">
         <strong className="font-medium">Integration connected.</strong> Initial syncs are queued and
-        will appear in Traffic and AI Referrals once they complete.
+        will appear in Traffic once they complete.
       </Alert>
     );
   }

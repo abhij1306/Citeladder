@@ -4,10 +4,12 @@ import uuid
 
 import httpx
 import pytest
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.connectors.agent.gateway import FakeModelGateway
 from app.domain.agent.service import _public_result, claim_task, execute_claimed_task
+from app.models.agent import AgentTaskRun
 
 
 async def _register(client: httpx.AsyncClient, email: str) -> None:
@@ -113,6 +115,41 @@ async def test_only_fixed_tasks_and_minimal_contract_are_accepted(
     assert extra_field.status_code == 422
     assert (await client.get("/api/v1/agent/capabilities")).status_code == 404
     assert (await client.get("/api/v1/agent/conversations")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_unsupported_persisted_task_is_hidden_from_public_reads(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    await _register(client, "agent-legacy-task@example.com")
+    project_id = await _project(client)
+    created = await client.post(
+        "/api/v1/agent/tasks",
+        json={
+            "project_id": project_id,
+            "task_type": "explain",
+            "objective": "Legacy task",
+        },
+        headers={"Idempotency-Key": "legacy-task"},
+    )
+    run_id = created.json()["id"]
+    async with session_factory() as session:
+        await session.execute(
+            update(AgentTaskRun)
+            .where(AgentTaskRun.id == uuid.UUID(run_id))
+            .values(task_type="create_brief")
+        )
+        await session.commit()
+
+    history = await client.get("/api/v1/agent/tasks", params={"project_id": project_id})
+    detail = await client.get(
+        f"/api/v1/agent/tasks/{run_id}", params={"project_id": project_id}
+    )
+
+    assert history.status_code == 200
+    assert history.json() == []
+    assert detail.status_code == 404
 
 
 @pytest.mark.asyncio

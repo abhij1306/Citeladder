@@ -75,8 +75,7 @@ class AiReferralsResponse(BaseModel):
 
     Served from the persisted ``AnalyticsSnapshot`` matching
     ``(window, granularity)``; an absent snapshot yields an empty payload
-    (empty series/breakdowns + ``insufficient_data`` correlation), never a
-    recomputation (invariant 7).
+    (empty series and source breakdown), never a recomputation (invariant 7).
     """
 
     project_id: uuid.UUID

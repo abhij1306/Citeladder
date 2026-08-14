@@ -127,7 +127,7 @@ describe('AnalyticsScreen — focused AI Referrals', () => {
         referral_share: [{ date: '2026-07-20', value: 0.35 }],
       }),
     );
-    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('status')).toBeEmptyDOMElement());
     expect(screen.getAllByText('1 month')).toHaveLength(2);
   });
 });

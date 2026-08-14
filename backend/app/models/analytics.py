@@ -313,15 +313,15 @@ class ReferralClassification(Base):
 
 
 class AnalyticsSnapshot(Base):
-    """The LLM-Analytics projection for one (project, window, granularity).
+    """The AI Referrals projection for one (project, window, granularity).
 
     Exactly ONE current snapshot per tuple — the unique constraint backs the
     refresh job's transactional upsert (A8). Computed from persisted
     ``ReferralClassification`` + ``MetricSnapshot`` rows only and rebuildable
     at any time from them; holds nothing not traceable to that evidence
     (invariants 4 + 7). Provenance ids stay JSONB arrays (no cross-subsystem
-    FK compile dependency), and the analyzer/formula version stamps reuse the
-    config/analysis.py constants (llm-analytics.md section 8, invariant 2).
+    FK compile dependency), and the analyzer/formula version stamps come from
+    ``core/config/analytics.py`` (invariants 2 and 4).
     """
 
     __tablename__ = "analytics_snapshots"
@@ -354,14 +354,13 @@ class AnalyticsSnapshot(Base):
     window_end: Mapped[date] = mapped_column(Date)
     # day | week | month (ANALYTICS_SNAPSHOT_GRANULARITIES).
     granularity: Mapped[str] = mapped_column(String(8))
-    # Headline projection: AI-referral sessions by ai_source, referral
-    # share, visibility series, theme rollup, correlation summary.
+    # Headline projection: AI-referral volume, share, and source totals.
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # Provenance (invariant 4): the ReferralClassification ids folded in and
     # the MetricSnapshot ids folded in (JSONB id arrays).
     source_classification_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     source_snapshot_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    # Version stamps (invariant 4) — reused from config/analysis.py.
+    # Version stamps (invariant 4) — owned by core/config/analytics.py.
     analyzer_version: Mapped[str] = mapped_column(
         String(64), default=AI_REFERRAL_ANALYZER_VERSION
     )
