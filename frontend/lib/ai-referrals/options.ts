@@ -16,6 +16,7 @@
  */
 import type { z } from 'zod';
 
+import type { AiReferralsWindow } from '@/lib/api/ai-referrals';
 import type { snapshotGranularitySchema } from '@/lib/api/schemas';
 import { bucketAdjective } from '@/lib/format';
 
@@ -54,10 +55,7 @@ function isoDate(date: Date): string {
  * Resolve a range preset into `from`/`to` UTC date bounds, or `{}` for the
  * default latest-snapshot mode. `now` is injectable for deterministic tests.
  */
-export function rangeToWindow(
-  range: AiReferralsRange,
-  now: Date = new Date(),
-): { from?: string; to?: string } {
+export function rangeToWindow(range: AiReferralsRange, now: Date = new Date()): AiReferralsWindow {
   if (range === 'latest') return {};
   const from = new Date(now.getTime());
   if (range === '1y') from.setUTCFullYear(from.getUTCFullYear() - 1);

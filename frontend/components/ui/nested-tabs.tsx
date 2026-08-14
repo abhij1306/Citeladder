@@ -90,7 +90,7 @@ export function NestedTabs<T extends string>({
               role="tab"
               id={tabId(tab.id)}
               aria-selected={selected}
-              aria-controls={panelId(tab.id)}
+              aria-controls={selected ? panelId(tab.id) : undefined}
               tabIndex={selected ? 0 : -1}
               onClick={() => onSelectTab(tab.id)}
               onKeyDown={onKeyDown}

@@ -498,8 +498,8 @@ async def test_worker_dispatch_runs_registered_ingest_executor(
         assert (
             await session.scalar(select(func.count(ReferralClassification.id)))
         ) == 1
-        # The chain continues: ai_referrals_snapshot_refresh is enqueued; it
-        # fails loud as not-yet-wired until A8 registers its executor.
+        # The chain continues through the registered AI Referrals snapshot
+        # executor, so the refresh task succeeds.
         refresh = list(
             (
                 await session.scalars(

@@ -17,8 +17,8 @@ export const aiSourceSchema = z.enum([
 
 export const aiReferralSourceRowSchema = responseObject({
   ai_source: aiSourceSchema.exclude(['other']),
-  sessions: z.number().int(),
-  share: z.number().nullable(),
+  sessions: z.number().int().nonnegative(),
+  share: z.number().min(0).max(1).nullable(),
 });
 
 /** Persisted AI-referral measurements from the canonical GA4 source/medium report. */

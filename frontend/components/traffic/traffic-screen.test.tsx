@@ -253,8 +253,13 @@ describe('TrafficScreen — populated dashboard', () => {
     // Rankings are tabbed so the two dense tables do not force needless scrolling.
     expect(await screen.findByTestId('pages-table')).toBeInTheDocument();
     expect(screen.queryByTestId('queries-table')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Top pages' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Top queries' })).toHaveAttribute('aria-selected', 'false');
+    const pagesTab = screen.getByRole('tab', { name: 'Top pages' });
+    const queriesTab = screen.getByRole('tab', { name: 'Top queries' });
+    const rankingPanel = screen.getByRole('tabpanel', { name: 'Top pages' });
+    expect(pagesTab).toHaveAttribute('aria-selected', 'true');
+    expect(pagesTab).toHaveAttribute('aria-controls', rankingPanel.id);
+    expect(queriesTab).toHaveAttribute('aria-selected', 'false');
+    expect(queriesTab).not.toHaveAttribute('aria-controls');
     expect(screen.getByText(/Chart interval does not change their order/)).toBeInTheDocument();
   });
 

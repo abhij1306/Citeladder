@@ -9,9 +9,9 @@ import type { SnapshotGranularity } from './traffic';
 export type AiReferrals = z.infer<typeof aiReferralsSchema>;
 export type AiSource = z.infer<typeof aiSourceSchema>;
 
-export type AiReferralsWindowParams = {
-  from?: string;
-  to?: string;
+export type AiReferralsWindow = { from: string; to: string } | { from?: never; to?: never };
+
+export type AiReferralsWindowParams = AiReferralsWindow & {
   granularity?: SnapshotGranularity;
 };
 
