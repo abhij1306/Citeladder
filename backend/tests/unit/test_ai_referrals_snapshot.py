@@ -154,5 +154,6 @@ def test_empty_evidence_is_unavailable_not_measured_zero() -> None:
 def test_invalid_granularity_and_window_raise() -> None:
     with pytest.raises(ValueError, match="unknown AI Referrals granularity"):
         _build(granularity="hour")
+    reversed_window = (date(2026, 7, 22), date(2026, 7, 20))
     with pytest.raises(ValueError, match="window_end before window_start"):
-        _build(window=(date(2026, 7, 22), date(2026, 7, 20)))
+        _build(window=reversed_window)

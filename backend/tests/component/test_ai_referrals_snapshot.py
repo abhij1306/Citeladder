@@ -410,7 +410,8 @@ async def test_worker_routes_snapshot_refresh(
     assert await worker.run_until_idle() == 1
     async with session_factory() as session:
         row = await session.get(AnalyticsTask, task_id)
-        assert row is not None and row.status == TASK_STATUS_SUCCEEDED
+        assert row is not None
+        assert row.status == TASK_STATUS_SUCCEEDED
         assert await session.scalar(select(func.count(AiReferralsSnapshot.id))) == 3
 
 
@@ -429,14 +430,13 @@ async def test_refresh_rejects_invalid_payload_and_project(
             idempotency_key=uuid.uuid4().hex,
         )
 
+    missing_project = task({}, with_project=False)
+    missing_window = task({})
+    reversed_window = task({"window_start": "2026-07-22", "window_end": "2026-07-20"})
+
     with pytest.raises(ValueError, match="project_id"):
-        await refresh_ai_referrals_snapshot(
-            session_factory, task({}, with_project=False)
-        )
+        await refresh_ai_referrals_snapshot(session_factory, missing_project)
     with pytest.raises(ValueError, match="window_start"):
-        await refresh_ai_referrals_snapshot(session_factory, task({}))
+        await refresh_ai_referrals_snapshot(session_factory, missing_window)
     with pytest.raises(ValueError, match="window_end before window_start"):
-        await refresh_ai_referrals_snapshot(
-            session_factory,
-            task({"window_start": "2026-07-22", "window_end": "2026-07-20"}),
-        )
+        await refresh_ai_referrals_snapshot(session_factory, reversed_window)
