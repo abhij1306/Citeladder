@@ -116,7 +116,7 @@ describe('AnalyticsScreen — focused AI Referrals', () => {
     await user.click(month);
 
     expect(month).toHaveFocus();
-    expect(screen.getByRole('status')).toHaveTextContent('Updating chart…');
+    expect(screen.getByRole('status')).toHaveTextContent('Updating data… Previous data shown.');
     expect(screen.getAllByText('3 days')).toHaveLength(2);
 
     releaseMonth?.(

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.connectors.agent.gateway import FakeModelGateway
-from app.domain.agent.service import claim_task, execute_claimed_task
+from app.domain.agent.service import _public_result, claim_task, execute_claimed_task
 
 
 async def _register(client: httpx.AsyncClient, email: str) -> None:
@@ -39,6 +39,24 @@ async def _project(client: httpx.AsyncClient, name: str = "Agent Project") -> st
     )
     assert response.status_code == 201
     return response.json()["id"]
+
+
+def test_partial_persisted_result_is_normalized_to_the_typed_contract() -> None:
+    result = _public_result({"summary": "Earlier summary", "limitations": ["Partial"]})
+
+    assert result is not None
+    assert result["summary"] == "Earlier summary"
+    assert result["observations"] == []
+    assert result["roadmap_items"] == []
+    assert result["limitations"] == ["Partial"]
+    assert set(result) == {
+        "summary",
+        "observations",
+        "roadmap_items",
+        "sources",
+        "limitations",
+        "artifact_refs",
+    }
 
 
 @pytest.mark.asyncio

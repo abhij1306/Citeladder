@@ -305,10 +305,11 @@ describe('TrafficScreen — populated dashboard', () => {
 
     expect(week).toHaveFocus();
     expect(screen.getByTestId('traffic-stats')).toHaveTextContent('1,162,000');
-    expect(screen.getByRole('status')).toHaveTextContent('Updating chart…');
+    expect(screen.getByRole('status')).toHaveTextContent('Updating data… Previous data shown.');
     expect(screen.queryByTestId('traffic-skeleton')).not.toBeInTheDocument();
 
-    releaseWeek?.(
+    await waitFor(() => expect(releaseWeek).toBeTypeOf('function'));
+    releaseWeek!(
       HttpResponse.json({
         ...dashboardPayload,
         granularity: 'week',

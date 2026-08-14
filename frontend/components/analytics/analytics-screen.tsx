@@ -178,7 +178,7 @@ function AnalyticsToolbar({
       {fetching ? (
         <span className="text-muted flex items-center gap-1.5 text-xs" role="status">
           <Loader2 className="size-3.5 animate-spin" aria-hidden />
-          Updating chart…
+          Updating data… Previous data shown.
         </span>
       ) : null}
     </div>

@@ -156,13 +156,23 @@ def _legacy_artifact_refs(result: dict[str, Any]) -> list[dict[str, str]]:
     ]
 
 
+_TYPED_RESULT_FIELDS = {
+    "summary",
+    "observations",
+    "roadmap_items",
+    "sources",
+    "limitations",
+    "artifact_refs",
+}
+
+
 def _public_result(result: object) -> dict[str, Any] | None:
     """Project both current and pre-v3 persisted results without a repair read."""
     if not isinstance(result, dict):
         return None
-    if "summary" in result:
+    if _TYPED_RESULT_FIELDS.issubset(result):
         return result
-    summary = str(result.get("answer") or "").strip()
+    summary = str(result.get("summary") or result.get("answer") or "").strip()
     if not summary:
         return None
     return {
