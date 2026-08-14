@@ -1,11 +1,7 @@
-# LLM Analytics router (A9): the three read endpoints behind /analytics.
+# AI Referrals router: the persisted session projection.
 #
-# Projections only (invariant 7): every endpoint serves persisted evidence —
-# the ``AnalyticsSnapshot`` rows built by the A8 refresh executor (headline +
-# themes) and the persisted ``ReferralClassification`` + ``ReferralEvent``
-# rows (referrals drill-down, keyset-paged per contract C4). No provider is
-# ever called and nothing is recomputed at read time: an absent snapshot
-# yields an empty payload (the trends empty-history precedent).
+# No provider is called and nothing is recomputed at read time; an absent
+# snapshot yields an empty payload.
 #
 # The surface is flat like the other routers: the active workspace is
 # resolved by ``require_active_workspace`` (``X-Workspace-Id`` header or the
@@ -25,7 +21,7 @@ from app.core.config.analytics import ANALYTICS_DEFAULT_GRANULARITY
 from app.core.http_errors import raise_not_found
 from app.domain.analytics.schemas import AiReferralsResponse
 from app.domain.analytics.service import (
-    AnalyticsQueryError,
+    AiReferralsQueryError,
     get_ai_referrals,
 )
 from app.domain.projects.service import ProjectNotFoundError, get_project
@@ -49,7 +45,7 @@ async def _get_project_or_404(
         raise_not_found("Project", cause=exc)
 
 
-def _unprocessable(exc: AnalyticsQueryError) -> HTTPException:
+def _unprocessable(exc: AiReferralsQueryError) -> HTTPException:
     # Query-validation contract (the trends ``TrendQueryError`` precedent):
     # a bad granularity/window/source is a 422, never a 404 or a 500.
     return HTTPException(
@@ -78,5 +74,5 @@ async def get_ai_referrals_endpoint(
             to_date=to_date,
             granularity=granularity,
         )
-    except AnalyticsQueryError as exc:
+    except AiReferralsQueryError as exc:
         raise _unprocessable(exc) from exc

@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/empty-state';
  * Empty state for `/ai-referrals`. Referral measurement begins only after a
  * persisted GA4 source/medium report has been synced.
  */
-export function AnalyticsEmptyState() {
+export function AiReferralsEmptyState() {
   return (
     <EmptyState
       icon={BarChart3}

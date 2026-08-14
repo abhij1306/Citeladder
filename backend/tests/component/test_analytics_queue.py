@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.analytics import (
     AI_REFERRAL_RULE_VERSION,
     ANALYTICS_QUEUE_SPEC,
-    ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
+    ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
     ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
@@ -214,7 +214,7 @@ async def test_analytics_queue_claims_by_task_kind(
     rest = await queue.claim(owner="analytics-a", limit=20)
     assert {t.id for t in rest} == set(
         seeded[ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH]
-        + seeded[ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH]
+        + seeded[ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH]
         + seeded[ANALYTICS_TASK_KIND_ATTRIBUTION_LINK]
         + seeded[ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT]
         + seeded[ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP]

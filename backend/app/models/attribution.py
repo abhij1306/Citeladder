@@ -49,10 +49,10 @@ class AttributionSnapshot(Base):
 
     Exactly ONE current snapshot per tuple — the unique constraint backs the
     refresh executor's transactional ``INSERT ... ON CONFLICT DO UPDATE``
-    (the ``domain/analytics/snapshot.py`` precedent), so concurrent
+    (the ``domain/analytics/ai_referrals_snapshot.py`` precedent), so concurrent
     refreshes serialize on the unique row and never create a duplicate
     "current" snapshot. Provenance ids stay JSONB arrays (no cross-subsystem
-    FK compile dependency — the AnalyticsSnapshot precedent): the A2
+    FK compile dependency — the AiReferralsSnapshot precedent): the A2
     ``OrderLink``/``OrderFact`` ids (null until those land), the folded
     ``IntegrationMetricRow`` ids, and any folded snapshot ids.
     """

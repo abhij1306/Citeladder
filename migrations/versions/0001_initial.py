@@ -400,7 +400,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("workspace_id", name="uq_ws_site_health_runtime_workspace"),
     )
     op.create_table(
-        "analytics_snapshots",
+        "ai_referrals_snapshots",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
@@ -412,9 +412,6 @@ def upgrade() -> None:
             "source_classification_ids",
             postgresql.JSONB(astext_type=Text()),
             nullable=True,
-        ),
-        sa.Column(
-            "source_snapshot_ids", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
         sa.Column("analyzer_version", sa.String(length=64), nullable=False),
         sa.Column("formula_version", sa.String(length=64), nullable=False),
@@ -429,18 +426,18 @@ def upgrade() -> None:
             "window_start",
             "window_end",
             "granularity",
-            name="uq_analytics_snapshot_window",
+            name="uq_ai_referrals_snapshot_window",
         ),
     )
     op.create_index(
-        op.f("ix_analytics_snapshots_project_id"),
-        "analytics_snapshots",
+        op.f("ix_ai_referrals_snapshots_project_id"),
+        "ai_referrals_snapshots",
         ["project_id"],
         unique=False,
     )
     op.create_index(
-        op.f("ix_analytics_snapshots_workspace_id"),
-        "analytics_snapshots",
+        op.f("ix_ai_referrals_snapshots_workspace_id"),
+        "ai_referrals_snapshots",
         ["workspace_id"],
         unique=False,
     )
@@ -5229,6 +5226,7 @@ def upgrade() -> None:
         "agent_tool_attempts", ("workspace_id", "project_id", "task_run_id")
     )
 
+
 def downgrade() -> None:
     op.drop_table("agent_tool_attempts")
     op.drop_table("agent_task_runs")
@@ -6114,12 +6112,14 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_analytics_tasks_available_at"), table_name="analytics_tasks")
     op.drop_table("analytics_tasks")
     op.drop_index(
-        op.f("ix_analytics_snapshots_workspace_id"), table_name="analytics_snapshots"
+        op.f("ix_ai_referrals_snapshots_workspace_id"),
+        table_name="ai_referrals_snapshots",
     )
     op.drop_index(
-        op.f("ix_analytics_snapshots_project_id"), table_name="analytics_snapshots"
+        op.f("ix_ai_referrals_snapshots_project_id"),
+        table_name="ai_referrals_snapshots",
     )
-    op.drop_table("analytics_snapshots")
+    op.drop_table("ai_referrals_snapshots")
     op.drop_table("workspace_site_health_runtime")
     op.drop_index(
         op.f("ix_workspace_members_workspace_id"), table_name="workspace_members"

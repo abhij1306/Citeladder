@@ -6,7 +6,7 @@
 # routes by its dataset id to the projection chains that consume it —
 # referral-dimension artifacts enqueue ``ingest_referrals`` (the referral
 # chain's first task; the executors chain ``classify_referrals`` and
-# ``analytics_snapshot_refresh`` on completion), traffic-consumed artifacts
+# ``ai_referrals_snapshot_refresh`` on completion), traffic-consumed artifacts
 # trigger one ``traffic_snapshot_refresh`` per distinct affected sync
 # window, and the GA4 ecommerce artifacts trigger one
 # ``attribution_snapshot`` refresh per distinct affected window (WS-B A1).
@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.analytics import (
     AI_REFERRAL_RULE_VERSION,
-    ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
+    ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
     ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
@@ -241,7 +241,7 @@ async def enqueue_traffic_snapshot_refresh(
     )
 
 
-async def enqueue_analytics_snapshot_refresh(
+async def enqueue_ai_referrals_snapshot_refresh(
     session: AsyncSession,
     *,
     workspace_id: uuid.UUID,
@@ -252,7 +252,7 @@ async def enqueue_analytics_snapshot_refresh(
     source_revision: str | None = None,
     priority: int = 0,
 ) -> uuid.UUID | None:
-    """Enqueue a rebuild of the LLM-Analytics snapshot for one window (A8).
+    """Enqueue an AI Referrals snapshot rebuild for one window.
 
     The executor expands ``ANALYTICS_SNAPSHOT_GRANULARITIES``; the
     revision-keyed dedupe rule is documented on
@@ -260,7 +260,7 @@ async def enqueue_analytics_snapshot_refresh(
     """
     return await _enqueue_window_snapshot_refresh(
         session,
-        task_kind=ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
+        task_kind=ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
         workspace_id=workspace_id,
         project_id=project_id,
         window_start=window_start,
@@ -494,7 +494,7 @@ async def enqueue_post_sync_projections(
     - ``TRAFFIC_GA4_REFERRAL_DATASETS`` (``ga4_referrer_daily``,
       ``ga4_source_medium_daily``) → one ``ingest_referrals`` task per
       artifact (the referral chain's first link; the executors chain
-      ``classify_referrals`` and ``analytics_snapshot_refresh`` on
+      ``classify_referrals`` and ``ai_referrals_snapshot_refresh`` on
       completion).
     - ``TRAFFIC_REFRESH_TRIGGER_DATASETS`` (the traffic-consumed read set
       plus the Bing dailies) → one ``traffic_snapshot_refresh`` per

@@ -60,7 +60,7 @@
 # Idempotent: recomputing from the same persisted rows rewrites the SAME
 # snapshot rows in place via ``INSERT ... ON CONFLICT (project_id,
 # window_start, window_end, granularity) DO UPDATE`` (the
-# ``domain/analytics/snapshot.py`` precedent). Provenance (invariant 4):
+# ``domain/analytics/ai_referrals_snapshot.py`` precedent). Provenance (invariant 4):
 # ``source_metric_row_ids`` = the folded row ids (sorted strings, so
 # re-runs serialize identically); analyzer/formula versions stamp the
 # config/attribution.py constants. Cooperative cancel is honored at every

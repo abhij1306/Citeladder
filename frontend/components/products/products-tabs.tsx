@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 
 import { PRODUCTS_TABS, type ProductsTab } from '@/lib/products/catalog';
 
-import { NestedTabs } from './nested-tabs';
+import { NestedTabs } from '@/components/ui/nested-tabs';
 
 /**
  * Accessible four-tab navigation for the Commerce workspace (WAI-ARIA tabs):

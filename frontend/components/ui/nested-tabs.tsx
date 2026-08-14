@@ -5,15 +5,13 @@ import { useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { tabItemClasses, tabListClasses } from '@/components/ui/tabs';
 
 /**
- * Accessible underline tablist (WAI-ARIA tabs) shared by the Products
- * workspace's top-level tabs and every NESTED sub-tablist (Visibility,
- * Attribution, and the drill-down evidence kinds). Roving tabindex,
+ * Accessible shared underline tablist following the WAI-ARIA tabs pattern.
+ * Roving tabindex,
  * `aria-selected`, Arrow/Home/End keyboard navigation with focus transfer +
  * automatic activation and wraparound, exactly one rendered `tabpanel`, and
- * horizontal scrolling at narrow widths. Built on the shared ADS underline
+ * horizontal scrolling at narrow widths. Built on the shared underline
  * recipes in `components/ui/tabs.tsx`. Controlled view: the parent owns the
- * selection state (URL-synced at the top level, local React state for
- * nested levels).
+ * selection state.
  */
 export function NestedTabs<T extends string>({
   tabs,

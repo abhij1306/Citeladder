@@ -8,13 +8,16 @@ import { mswServer } from '@/test/msw-server';
 import { renderWithProviders } from '@/test/render';
 
 const PROJECT = '88888888-8888-4888-8888-888888888888';
-const activeProject = { id: PROJECT, workspace_id: '11111111-1111-4111-8111-111111111111' } as Project;
+const activeProject = {
+  id: PROJECT,
+  workspace_id: '11111111-1111-4111-8111-111111111111',
+} as Project;
 
 vi.mock('@/lib/project/project-context', () => ({
   useProjectContext: () => ({ activeProject, isLoading: false }),
 }));
 
-import { AnalyticsScreen } from './analytics-screen';
+import { AiReferralsScreen } from './ai-referrals-screen';
 
 const endpoint = `/api/v1/projects/${PROJECT}/ai-referrals`;
 const dashboard = {
@@ -44,10 +47,10 @@ beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
-describe('AnalyticsScreen — focused AI Referrals', () => {
+describe('AiReferralsScreen', () => {
   it('renders only persisted referral measurement, without visibility or event drill-downs', async () => {
     mswServer.use(http.get(endpoint, () => HttpResponse.json(dashboard)));
-    renderWithProviders(<AnalyticsScreen />);
+    renderWithProviders(<AiReferralsScreen />);
 
     expect(await screen.findByText('AI-referred sessions')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Share of GA4 sessions' })).toBeInTheDocument();
@@ -71,7 +74,7 @@ describe('AnalyticsScreen — focused AI Referrals', () => {
         }),
       ),
     );
-    renderWithProviders(<AnalyticsScreen />);
+    renderWithProviders(<AiReferralsScreen />);
 
     expect(
       await screen.findByText(/no sessions matched a known AI source in this window/i),
@@ -90,7 +93,7 @@ describe('AnalyticsScreen — focused AI Referrals', () => {
         }),
       ),
     );
-    renderWithProviders(<AnalyticsScreen />);
+    renderWithProviders(<AiReferralsScreen />);
     expect(
       await screen.findByText(/classification is not complete for this window/i),
     ).toBeInTheDocument();
@@ -109,7 +112,7 @@ describe('AnalyticsScreen — focused AI Referrals', () => {
       }),
     );
     const user = userEvent.setup();
-    renderWithProviders(<AnalyticsScreen />);
+    renderWithProviders(<AiReferralsScreen />);
 
     expect(await screen.findAllByText('3 days')).toHaveLength(2);
     const month = screen.getByRole('radio', { name: 'Month' });

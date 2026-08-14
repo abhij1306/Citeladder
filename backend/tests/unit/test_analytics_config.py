@@ -1,5 +1,6 @@
-"""Traffic + LLM Analytics config (A1): projection knobs, provenance
-versions, C1 dataset-id consumption, deterministic rule-table integrity,
+"""Traffic + AI Referrals configuration and provenance versions.
+
+Covers dataset-id consumption, deterministic rule-table integrity,
 sanitization allowlists, and env-injected secrets/settings."""
 
 from __future__ import annotations
@@ -26,7 +27,6 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
     ANALYTICS_TASK_KINDS,
     CONFIDENCE_BUCKETS,
-    CORRELATION_MIN_SAMPLE,
     MATCH_SIGNALS,
     REFERRAL_RAW_ALLOWLIST,
     REFERRAL_RETENTION_DAYS,
@@ -98,7 +98,7 @@ def test_analytics_task_kinds_include_attribution_snapshot() -> None:
             "ingest_referrals",
             "classify_referrals",
             "traffic_snapshot_refresh",
-            "analytics_snapshot_refresh",
+            "ai_referrals_snapshot_refresh",
             "referral_retention_sweep",
             "attribution_snapshot",
             "attribution_link",
@@ -201,7 +201,6 @@ def test_analytics_snapshot_knobs() -> None:
     assert ANALYTICS_MAX_WINDOW_DAYS > 0
     assert ANALYTICS_SNAPSHOT_TTL_S > 0
     # Pearson needs at least two aligned buckets; never report below this.
-    assert CORRELATION_MIN_SAMPLE >= 2
 
 
 def test_referral_sanitization_allowlists() -> None:

@@ -32,17 +32,12 @@ async def _create_project(client: httpx.AsyncClient) -> tuple[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_ai_referrals_requires_auth_and_legacy_routes_are_absent(
+async def test_ai_referrals_requires_auth(
     client: httpx.AsyncClient,
 ) -> None:
     project_id = uuid.uuid4()
     endpoint = f"/api/v1/projects/{project_id}/ai-referrals"
     assert (await client.get(endpoint)).status_code == 401
-    # Pre-launch rename: no compatibility endpoint may keep the obsolete
-    # mixed visibility/referral projection alive.
-    assert (
-        await client.get(f"/api/v1/projects/{project_id}/llm-analytics")
-    ).status_code == 404
 
 
 @pytest.mark.asyncio

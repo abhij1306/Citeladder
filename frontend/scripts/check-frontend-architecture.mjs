@@ -27,7 +27,7 @@ for (const [file, limit] of budgets) {
 }
 
 for (const owner of [
-  'analytics.ts',
+  'ai-referrals.ts',
   'auth.ts',
   'content.ts',
   'integrations.ts',

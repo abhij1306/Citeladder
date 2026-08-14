@@ -6,7 +6,7 @@ tables are config-owned data (``app/core/config/analytics.py``) versioned by
 rules that produced it (invariant 4).
 
 Rules are evaluated in a FIXED priority order — referrer host, then UTM,
-then user-agent (llm-analytics.md section 4) — so the same event always
+then user-agent (Demand Intelligence plan) — so the same event always
 classifies the same way. Unmatched signals return ``None``; the caller maps
 that to ``is_ai_referral=false, ai_source=other`` — the classifier never
 guesses a source.

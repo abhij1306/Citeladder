@@ -5,7 +5,7 @@ via the A4 pure classifier (fixed referrer -> utm -> user-agent priority),
 writes exactly one provenance-stamped classification per event (rule_version
 + the config/analysis.py ANALYZER_VERSION — never the site_health one),
 stays idempotent + immutable on re-run (ON CONFLICT DO NOTHING), enqueues
-``analytics_snapshot_refresh`` for the artifact's sync-run window (C5 chain),
+``ai_referrals_snapshot_refresh`` for the artifact's sync-run window (C5 chain),
 honors cooperative cancel at the batch boundary, and that the worker's
 default dispatch table routes the kind to the real executor. Requires a real
 Postgres.
@@ -26,7 +26,7 @@ from app.core.config.analytics import (
     AI_SOURCE_CHATGPT,
     AI_SOURCE_GEMINI,
     AI_SOURCE_OTHER,
-    ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
+    ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
 )
 from app.core.config.provider_catalog import ENGINE_CHATGPT, ENGINE_GEMINI
@@ -83,7 +83,7 @@ async def _snapshot_refresh_tasks(session: AsyncSession) -> list[AnalyticsTask]:
             await session.scalars(
                 select(AnalyticsTask).where(
                     AnalyticsTask.task_kind
-                    == ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH
+                    == ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH
                 )
             )
         ).all()
@@ -352,7 +352,7 @@ async def test_worker_dispatch_runs_registered_classify_executor(
     assert task_id is not None
 
     worker = AnalyticsWorker(session_factory=session_factory, owner="analytics-test")
-    # classify + the chained analytics_snapshot_refresh.
+    # classify + the chained ai_referrals_snapshot_refresh.
     assert await worker.run_until_idle() == 2
 
     async with session_factory() as session:

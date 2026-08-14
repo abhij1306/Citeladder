@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { AnalyticsEmptyState } from '@/components/analytics/empty-state';
+import { AiReferralsEmptyState } from '@/components/ai-referrals/empty-state';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,9 +18,16 @@ import {
 } from '@/components/ui/dropdown';
 import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { TrendChart, type TrendPoint } from '@/components/ui/trend-chart';
-import { aiReferralsApi, type AiReferrals } from '@/lib/api/analytics';
+import { aiReferralsApi, type AiReferrals } from '@/lib/api/ai-referrals';
 import { queryKeys } from '@/lib/api/query-keys';
 import {
   GRANULARITY_OPTIONS,
@@ -28,20 +35,20 @@ import {
   bucketCountLabel,
   rangeLabel,
   rangeToWindow,
-  type AnalyticsGranularity,
-  type AnalyticsRange,
-} from '@/lib/analytics/options';
+  type AiReferralsGranularity,
+  type AiReferralsRange,
+} from '@/lib/ai-referrals/options';
 import {
   aiSourceLabel,
   countDomainMax,
   countYLabels,
   formatInt,
   formatPercent,
-  isAnalyticsEmpty,
+  isAiReferralsEmpty,
   toCountChartPoints,
   toPercentChartPoints,
   totalSourceSessions,
-} from '@/lib/analytics/series';
+} from '@/lib/ai-referrals/series';
 import { formatWindowDate } from '@/lib/format';
 import { useProjectContext } from '@/lib/project/project-context';
 import { cn } from '@/lib/utils';
@@ -49,15 +56,15 @@ import { cn } from '@/lib/utils';
 const CHIP_ACTIVE_CLASS =
   'border-accent-border bg-accent-soft text-accent-text hover:border-accent-border hover:bg-accent-soft hover:text-accent-text';
 
-export function AnalyticsScreen() {
+export function AiReferralsScreen() {
   const { activeProject, isLoading: isProjectLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
-  const [range, setRange] = useState<AnalyticsRange>('latest');
-  const [granularity, setGranularity] = useState<AnalyticsGranularity>('week');
+  const [range, setRange] = useState<AiReferralsRange>('latest');
+  const [granularity, setGranularity] = useState<AiReferralsGranularity>('week');
   const windowBounds = useMemo(() => rangeToWindow(range), [range]);
 
   const dashboardQuery = useQuery({
-    queryKey: queryKeys.analytics.dashboard(projectId ?? '', {
+    queryKey: queryKeys.aiReferrals.dashboard(projectId ?? '', {
       from: windowBounds.from ?? null,
       to: windowBounds.to ?? null,
       granularity,
@@ -69,7 +76,7 @@ export function AnalyticsScreen() {
   });
 
   if (isProjectLoading || (Boolean(projectId) && dashboardQuery.isLoading)) {
-    return <AnalyticsSkeleton />;
+    return <AiReferralsSkeleton />;
   }
   if (!projectId) return <Alert tone="info">Select or create a project to see AI referrals.</Alert>;
   if (dashboardQuery.isError) {
@@ -86,11 +93,11 @@ export function AnalyticsScreen() {
   }
 
   const data = dashboardQuery.data ?? null;
-  const empty = data ? isAnalyticsEmpty(data) : true;
-  if (!data || (empty && range === 'latest')) return <AnalyticsEmptyState />;
+  const empty = data ? isAiReferralsEmpty(data) : true;
+  if (!data || (empty && range === 'latest')) return <AiReferralsEmptyState />;
 
   const toolbar = (
-    <AnalyticsToolbar
+    <AiReferralsToolbar
       range={range}
       onChangeRange={setRange}
       granularity={granularity}
@@ -126,21 +133,21 @@ export function AnalyticsScreen() {
   );
 }
 
-function AnalyticsToolbar({
+function AiReferralsToolbar({
   range,
   onChangeRange,
   granularity,
   onChangeGranularity,
   fetching,
 }: Readonly<{
-  range: AnalyticsRange;
-  onChangeRange: (range: AnalyticsRange) => void;
-  granularity: AnalyticsGranularity;
-  onChangeGranularity: (granularity: AnalyticsGranularity) => void;
+  range: AiReferralsRange;
+  onChangeRange: (range: AiReferralsRange) => void;
+  granularity: AiReferralsGranularity;
+  onChangeGranularity: (granularity: AiReferralsGranularity) => void;
   fetching: boolean;
 }>) {
   return (
-    <div className="flex flex-wrap items-center gap-2" data-testid="analytics-toolbar">
+    <div className="flex flex-wrap items-center gap-2" data-testid="ai-referrals-toolbar">
       <Dropdown>
         <DropdownTrigger asChild>
           <Button
@@ -217,7 +224,10 @@ function TrendCard({
       </CardHeader>
       <CardContent>
         <div className="flex gap-3">
-          <div className="text-2xs text-muted flex flex-col justify-between py-1 tabular-nums" aria-hidden>
+          <div
+            className="text-2xs text-muted flex flex-col justify-between py-1 tabular-nums"
+            aria-hidden
+          >
             {yLabels.map((label) => (
               <span key={label}>{label}</span>
             ))}
@@ -232,7 +242,10 @@ function TrendCard({
               className="h-45 w-full"
             />
             {points.length > 1 ? (
-              <div className="text-2xs text-muted mt-1 flex justify-between tabular-nums" aria-hidden>
+              <div
+                className="text-2xs text-muted mt-1 flex justify-between tabular-nums"
+                aria-hidden
+              >
                 <span>{firstLabel}</span>
                 <span>{lastLabel}</span>
               </div>
@@ -322,7 +335,7 @@ function SourceTotals({ data }: Readonly<{ data: AiReferrals }>) {
   );
 }
 
-export function AnalyticsSkeleton() {
+export function AiReferralsSkeleton() {
   return (
     <div className="grid gap-6" aria-hidden>
       <div className="flex flex-wrap gap-2">

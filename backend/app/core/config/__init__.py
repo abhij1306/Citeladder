@@ -85,7 +85,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ENCRYPTION_KEY", "encryption_key"),
     )
     # HMAC key for the opaque ``session_id_hash`` stamped on sanitized
-    # referral events (LLM Analytics, invariant 6). Env-injected deployment
+    # referral events (AI Referrals, invariant 6). Env-injected deployment
     # secret — resolved only inside the referral sanitization pass, never
     # logged and never placed in a DTO.
     referral_hash_salt: str = Field(

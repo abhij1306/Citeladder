@@ -20,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.analytics import (
-    ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
+    ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
     REFERRAL_RAW_ALLOWLIST,
@@ -442,7 +442,7 @@ async def test_referral_event_fk_actions(
         event_id = events[0].id
 
     # Deleting the source ingest batch deletes its events (retention
-    # contract, llm-analytics.md section 3).
+    # contract documented by Demand Intelligence).
     async with session_factory() as session:
         await session.delete(
             await session.get(IntegrationImportArtifact, seed.artifact_id)
@@ -498,14 +498,14 @@ async def test_worker_dispatch_runs_registered_ingest_executor(
         assert (
             await session.scalar(select(func.count(ReferralClassification.id)))
         ) == 1
-        # The chain continues: analytics_snapshot_refresh is enqueued; it
+        # The chain continues: ai_referrals_snapshot_refresh is enqueued; it
         # fails loud as not-yet-wired until A8 registers its executor.
         refresh = list(
             (
                 await session.scalars(
                     select(AnalyticsTask).where(
                         AnalyticsTask.task_kind
-                        == ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH
+                        == ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH
                     )
                 )
             ).all()

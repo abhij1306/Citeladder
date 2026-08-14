@@ -1,4 +1,4 @@
-# LLM Analytics persistence models (UUID PKs, workspace-scoped).
+# AI Referrals persistence models (UUID PKs, workspace-scoped).
 #
 # A3 scope: ``AnalyticsTask`` — the queue+lease row driving every analytics
 # projection job (referral ingest/classification, the traffic + analytics
@@ -11,12 +11,12 @@
 # (invariant 8). Double-claim is prevented by ``FOR UPDATE SKIP LOCKED`` plus
 # the unique ``idempotency_key``.
 #
-# A5 scope adds the referral chain's persisted rows (llm-analytics.md
-# section 3): ``ReferralEvent`` — the immutable, sanitized-at-rest ingest
+# The referral scope adds these persisted rows: ``ReferralEvent`` — the
+# immutable, sanitized-at-rest ingest
 # artifact projected from ``IntegrationMetricRow`` (written once, deduped by
 # ``(import_id, content_hash)``); ``ReferralClassification`` — the derived,
 # provenance-stamped deterministic classification (exactly one per event);
-# and ``AnalyticsSnapshot`` — the rebuildable projection snapshot for a
+# and ``AiReferralsSnapshot`` — the rebuildable projection snapshot for a
 # ``(project, window, granularity)``.
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 # ``ANALYZER_VERSION`` / ``SCORING_RULE_VERSION`` are OWNED by
 # config/analysis.py and reused here for the analytics provenance stamps
-# (llm-analytics.md section 8, invariant 2) — never the same-named constant
+# (Demand Intelligence plan, invariant 2) — never the same-named constant
 # in config/site_health.py.
 from app.core.config.analysis import ANALYZER_VERSION
 from app.core.config.analytics import (
@@ -109,7 +109,7 @@ class AnalyticsTask(Base):
         index=True,
     )
     # ingest_referrals | classify_referrals | traffic_snapshot_refresh |
-    # analytics_snapshot_refresh | referral_retention_sweep
+    # ai_referrals_snapshot_refresh | referral_retention_sweep
     # (ANALYTICS_TASK_KINDS).
     task_kind: Mapped[str] = mapped_column(
         String(32), default=ANALYTICS_TASK_KIND_INGEST_REFERRALS
@@ -312,19 +312,18 @@ class ReferralClassification(Base):
     )
 
 
-class AnalyticsSnapshot(Base):
+class AiReferralsSnapshot(Base):
     """The AI Referrals projection for one (project, window, granularity).
 
     Exactly ONE current snapshot per tuple — the unique constraint backs the
     refresh job's transactional upsert (A8). Computed from persisted
-    ``ReferralClassification`` + ``MetricSnapshot`` rows only and rebuildable
-    at any time from them; holds nothing not traceable to that evidence
-    (invariants 4 + 7). Provenance ids stay JSONB arrays (no cross-subsystem
-    FK compile dependency), and the analyzer/formula version stamps come from
-    ``core/config/analytics.py`` (invariants 2 and 4).
+    canonical GA4 rows and their ``ReferralClassification`` records only and
+    rebuildable at any time from them; holds nothing not traceable to that
+    evidence (invariants 4 + 7). Provenance ids stay a JSONB array, and the
+    analyzer/formula version stamps come from ``core/config/analytics.py``.
     """
 
-    __tablename__ = "analytics_snapshots"
+    __tablename__ = "ai_referrals_snapshots"
     __table_args__ = (
         # One current snapshot per (project, window, granularity).
         UniqueConstraint(
@@ -332,7 +331,7 @@ class AnalyticsSnapshot(Base):
             "window_start",
             "window_end",
             "granularity",
-            name="uq_analytics_snapshot_window",
+            name="uq_ai_referrals_snapshot_window",
         ),
     )
 
@@ -356,10 +355,8 @@ class AnalyticsSnapshot(Base):
     granularity: Mapped[str] = mapped_column(String(8))
     # Headline projection: AI-referral volume, share, and source totals.
     metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # Provenance (invariant 4): the ReferralClassification ids folded in and
-    # the MetricSnapshot ids folded in (JSONB id arrays).
+    # Provenance (invariant 4): the ReferralClassification ids folded in.
     source_classification_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
-    source_snapshot_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # Version stamps (invariant 4) — owned by core/config/analytics.py.
     analyzer_version: Mapped[str] = mapped_column(
         String(64), default=AI_REFERRAL_ANALYZER_VERSION

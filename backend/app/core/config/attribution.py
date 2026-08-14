@@ -7,8 +7,7 @@
 # state vocabularies served verbatim by the read API (the frontend zod
 # contract pins them exactly), and the consumed-dataset read set.
 #
-# Import direction is strictly attribution -> analytics -> traffic ->
-# integrations (acyclic): the confidence buckets are IMPORTED from
+# The confidence buckets are imported from
 # ``config/analytics.py`` and the source-granularity literals from
 # ``config/integrations.py`` — aliased here, never re-literalized
 # (invariant 2). Attribution performs NO provider I/O, so no fetch knobs
@@ -24,7 +23,6 @@ from app.core.config.analytics import (
     CONFIDENCE_BUCKETS,
     CONFIDENCE_EXACT,
     CONFIDENCE_HEURISTIC,
-    CORRELATION_MIN_SAMPLE,
 )
 
 # The dataset ids + item source-granularity literals are OWNED by the
@@ -63,7 +61,6 @@ __all__ = [
     "ATTRIBUTION_METHODS",
     "ATTRIBUTION_METRICS_NAMESPACE_DETERMINISTIC",
     "ATTRIBUTION_METRICS_NAMESPACE_STATISTICAL",
-    "ATTRIBUTION_MIN_SAMPLE",
     "ATTRIBUTION_SOURCE_GRANULARITIES",
     "ATTRIBUTION_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP",
     "ATTRIBUTION_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM",
@@ -93,11 +90,6 @@ ATTRIBUTION_ORDER_STATE_UNATTRIBUTED: Final = "unattributed"
 ATTRIBUTION_ORDER_STATES: Final[frozenset[str]] = frozenset(
     {ATTRIBUTION_ORDER_STATE_ATTRIBUTED, ATTRIBUTION_ORDER_STATE_UNATTRIBUTED}
 )
-# The minimum-sample floor for any future statistical estimate: follows the
-# existing analytics floor exactly. NO statistical estimate consumes it in
-# this scope (the statistical namespace is persistently ``not_offered``).
-ATTRIBUTION_MIN_SAMPLE: Final = CORRELATION_MIN_SAMPLE
-
 # --- Metrics namespaces (the persisted metrics document's top level) ---------
 ATTRIBUTION_METRICS_NAMESPACE_DETERMINISTIC: Final = "deterministic"
 ATTRIBUTION_METRICS_NAMESPACE_STATISTICAL: Final = "statistical"

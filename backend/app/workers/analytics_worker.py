@@ -33,7 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.analytics import (
     ANALYTICS_QUEUE_SPEC,
-    ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
+    ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
     ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
@@ -55,8 +55,8 @@ from app.core.config.task_queue import (
 )
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging
+from app.domain.analytics.ai_referrals_snapshot import refresh_ai_referrals_snapshot
 from app.domain.analytics.ingest import ingest_referrals
-from app.domain.analytics.snapshot import refresh_analytics_snapshot
 from app.domain.analytics.tasks import (
     run_classify_referrals,
     run_referral_retention_sweep,
@@ -110,7 +110,7 @@ EXECUTORS: dict[str, AnalyticsExecutor] = {
     ANALYTICS_TASK_KIND_INGEST_REFERRALS: ingest_referrals,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS: run_classify_referrals,
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH: refresh_traffic_snapshot,
-    ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH: refresh_analytics_snapshot,
+    ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH: refresh_ai_referrals_snapshot,
     ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP: run_referral_retention_sweep,
     ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT: refresh_attribution_snapshot,
     ANALYTICS_TASK_KIND_ATTRIBUTION_LINK: run_attribution_link,

@@ -1,10 +1,10 @@
 /**
  * Shared display-format vocabulary (F5–F9) — ONE owner (invariant 2) for the
- * date / count / URL / snapshot-granularity formatters the traffic, LLM
- * Analytics, and Settings→Integrations surfaces all render with.
+ * date / count / URL / snapshot-granularity formatters the Traffic,
+ * AI Referrals, and Settings→Integrations surfaces all render with.
  *
- * The domain modules (`lib/traffic/traffic`, `lib/analytics/options`,
- * `lib/analytics/series`) re-export these under their historical names so
+ * The domain modules (`lib/traffic/traffic`, `lib/ai-referrals/options`,
+ * `lib/ai-referrals/series`) re-export these under their local names so
  * domain import sites stay local; new code should import from here.
  *
  * Everything is pure and framework-free; explicit locales + UTC keep SSR/CSR

@@ -9,12 +9,12 @@
 # ``INSERT ... ON CONFLICT DO NOTHING`` on ``referral_event_id`` — a re-run
 # (or a concurrent duplicate attempt) is a dedup no-op, never a mutation
 # (invariant 3; single writer, invariant 4 version stamps). On completion it
-# enqueues ``analytics_snapshot_refresh`` for the artifact's sync-run window
+# enqueues ``ai_referrals_snapshot_refresh`` for the artifact's sync-run window
 # at the run's ``resync_seq`` (the chain's third link; the window + revision
 # are resolved artifact -> sync run, the same resolution the C5 hook uses).
 #
 # ``run_referral_retention_sweep`` hard-deletes referral data past
-# ``REFERRAL_RETENTION_DAYS`` (llm-analytics.md section 3): classifications
+# ``REFERRAL_RETENTION_DAYS``: classifications
 # first (FK order), then their events, in bounded committed batches.
 #
 # Both executors are pure projections over persisted rows (NO network I/O,
@@ -44,7 +44,7 @@ from app.core.config.analytics import (
 )
 from app.core.config.task_queue import TASK_TERMINAL_STATUSES
 from app.domain.analytics.classification import classify_referral_signals
-from app.domain.analytics.enqueue import enqueue_analytics_snapshot_refresh
+from app.domain.analytics.enqueue import enqueue_ai_referrals_snapshot_refresh
 from app.models.analytics import (
     AnalyticsTask,
     ReferralClassification,
@@ -198,7 +198,7 @@ async def run_classify_referrals(
     Committed batches of ``_CLASSIFY_BATCH_SIZE``: read the artifact's
     unclassified events, classify each via the A4 pure classifier, insert
     conflict-safe (idempotent, never mutates — invariant 3). Then enqueue
-    ``analytics_snapshot_refresh`` for the artifact's sync-run window (C5
+    ``ai_referrals_snapshot_refresh`` for the artifact's sync-run window (C5
     chain). Cooperative cancel is honored at every batch boundary.
     """
     if task.project_id is None:
@@ -239,7 +239,7 @@ async def run_classify_referrals(
             await session.execute(stmt)
             await session.commit()
 
-        await enqueue_analytics_snapshot_refresh(
+        await enqueue_ai_referrals_snapshot_refresh(
             session,
             workspace_id=task.workspace_id,
             project_id=task.project_id,
@@ -299,7 +299,7 @@ async def run_referral_retention_sweep(
     Workspace-scoped (the task carries no project): every ``ReferralEvent``
     in the task's workspace whose ``occurred_at`` is past
     ``REFERRAL_RETENTION_DAYS`` is deleted together with its
-    ``ReferralClassification`` (llm-analytics.md section 3), in bounded
+    ``ReferralClassification``, in bounded
     committed batches with cooperative cancel at each batch boundary
     (invariant 9). Idempotent: a re-run simply finds less (then nothing) to
     delete.

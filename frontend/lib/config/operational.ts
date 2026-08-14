@@ -48,9 +48,7 @@ export const CONTRACT_BACKEND_ORIGIN =
 export const CONTRACT_LIVE_FETCH_TIMEOUT_MS = 2_000;
 export const CONTRACT_CODEGEN_TIMEOUT_MS = 120_000;
 
-// Analytics and evidence request/display bounds.
-export const REFERRALS_PAGE_SIZE = 50;
-export const CORRELATION_MIN_SAMPLE = 8;
+// Evidence request/display bounds.
 export const EVIDENCE_LIMIT = 100;
 
 // Content request and list bounds.

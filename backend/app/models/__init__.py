@@ -18,7 +18,7 @@ from app.models.analysis import (
     ResponseAnalysis,
 )
 from app.models.analytics import (
-    AnalyticsSnapshot,
+    AiReferralsSnapshot,
     AnalyticsTask,
     ReferralClassification,
     ReferralEvent,
@@ -135,7 +135,7 @@ __all__ = [
     "AccountGrant",
     "AgentTaskRun",
     "AgentToolAttempt",
-    "AnalyticsSnapshot",
+    "AiReferralsSnapshot",
     "AnalyticsTask",
     "AttributionLink",
     "AttributionSnapshot",

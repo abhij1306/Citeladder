@@ -9,8 +9,8 @@ const uuid = () => z.uuid();
 // read-time recomputation and no provider calls anywhere, invariant 7)
 // ---------------------------------------------------------------------------
 
-// Snapshot bucket granularity shared by the Traffic and LLM Analytics
-// projections (`TrafficSnapshot` / `AnalyticsSnapshot.granularity`).
+// Snapshot bucket granularity shared by the Traffic and AI Referrals
+// projections (`TrafficSnapshot` / `AiReferralsSnapshot.granularity`).
 export const snapshotGranularitySchema = z.enum(['day', 'week', 'month']);
 
 // One dated point of a metric series. A `null` value is an UNAVAILABLE bucket

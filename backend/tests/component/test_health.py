@@ -104,7 +104,7 @@ def test_health_route_and_router_stubs_registered() -> None:
     # router adds the ninth (9); the Content router adds the tenth (10); the
     # brand-discoveries router adds the eleventh (11); the OAuth router adds
     # the twelfth (12); the integrations router adds the thirteenth (13); the
-    # LLM-Analytics router adds the fourteenth (14); the Traffic router adds
+    # AI Referrals router adds the fourteenth (14); the Traffic router adds
     # the fifteenth (15); the products router adds the sixteenth (16); the
     # Opportunities router adds the seventeenth; Billing adds the eighteenth
     # and Commerce adds the nineteenth; audit schedules add the twentieth.

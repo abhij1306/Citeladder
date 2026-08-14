@@ -9,7 +9,7 @@ export * from './schemas/visibility-evidence';
 export * from './schemas/content';
 export * from './schemas/integrations';
 export * from './schemas/traffic';
-export * from './schemas/analytics';
+export * from './schemas/ai-referrals';
 export * from './schemas/products';
 export * from './schemas/commerce-health';
 export * from './schemas/attribution';

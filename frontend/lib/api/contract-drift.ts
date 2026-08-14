@@ -88,7 +88,7 @@ export const CONTRACT_SCHEMA_MAP = {
   // Content
   contentGenerationListItemSchema: 'ContentGenerationListItem',
   contentGenerationDetailSchema: 'ContentGenerationDetail',
-  // Analytics / traffic
+  // AI Referrals / traffic
   aiReferralsSchema: 'AiReferralsResponse',
   trafficDashboardSchema: 'TrafficDashboardResponse',
   trafficPagesPageSchema: 'TrafficPagesPage',

@@ -16,11 +16,11 @@ const responseObject = <Shape extends z.ZodRawShape>(shape: Shape) =>
 const uuid = () => z.uuid();
 
 // ---------------------------------------------------------------------------
-// Integrations (GSC / GA4 / Bing), Traffic, and LLM Analytics
+// Integrations (GSC / GA4 / Bing), Traffic, and AI Referrals
 //
 // Contract source: `docs/integrations-traffic-analytics.md`
 // (§2 contracts C2–C4, §5 F1–F3) + specs `docs/roadmap/integrations.md`,
-// `docs/roadmap/traffic.md`, `docs/roadmap/llm-analytics.md`. Additive fields
+// `docs/roadmap/traffic.md`. Additive fields
 // are retained, but token-shaped keys are contract violations (invariant 6).
 // ---------------------------------------------------------------------------
 

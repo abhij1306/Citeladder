@@ -1,6 +1,6 @@
 /** Display-only helpers for the persisted AI-referral projection. */
 import type { TrendPoint } from '@/components/ui/trend-chart';
-import type { AiReferrals, AiSource } from '@/lib/api/analytics';
+import type { AiReferrals, AiSource } from '@/lib/api/ai-referrals';
 import { formatShortDate } from '@/lib/format';
 
 export { formatCount as formatInt } from '@/lib/format';
@@ -55,6 +55,6 @@ export function totalSourceSessions(sources: AiReferrals['sources']): number {
   return sources.reduce((sum, row) => sum + row.sessions, 0);
 }
 
-export function isAnalyticsEmpty(data: AiReferrals): boolean {
+export function isAiReferralsEmpty(data: AiReferrals): boolean {
   return data.referral_volume.length === 0 && data.referral_share.length === 0;
 }

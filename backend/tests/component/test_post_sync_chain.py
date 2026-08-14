@@ -5,7 +5,7 @@ THE one lifecycle test for the referral chain: drive
 call after derivation in I9) over a freshly derived artifact, drain the
 analytics worker, and assert the full chain ran end to end — ingest
 projected the referral events, classify classified them, and the
-window-level ``analytics_snapshot_refresh`` was enqueued by the classify
+window-level ``ai_referrals_snapshot_refresh`` was enqueued by the classify
 executor and ran to SUCCESS. The seeded artifact is a REFERRER-dataset
 artifact, so the hook's dataset-aware routing fires the referral ingest
 only (the referrer dataset triggers no window refresh). The chain LINKS
@@ -25,7 +25,7 @@ from app.core.config.analytics import (
     AI_REFERRAL_RULE_VERSION,
     AI_SOURCE_CHATGPT,
     AI_SOURCE_OTHER,
-    ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
+    ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
@@ -98,7 +98,7 @@ async def test_post_sync_chain_runs_ingest_classify_and_enqueues_refreshes(
     assert len(enqueued) == 1
 
     worker = AnalyticsWorker(session_factory=session_factory, owner="chain-test")
-    # ingest -> classify -> analytics_snapshot_refresh.
+    # ingest -> classify -> ai_referrals_snapshot_refresh.
     assert await worker.run_until_idle() == 3
 
     async with session_factory() as session:
@@ -132,10 +132,10 @@ async def test_post_sync_chain_runs_ingest_classify_and_enqueues_refreshes(
         assert other.is_ai_referral is False
         assert other.ai_source == AI_SOURCE_OTHER
 
-        # Link 3: the classify executor enqueued analytics_snapshot_refresh
+        # Link 3: the classify executor enqueued ai_referrals_snapshot_refresh
         # for the artifact's sync-run window.
         analytics_refresh = await _tasks_by_kind(
-            session, ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH
+            session, ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH
         )
         assert len(analytics_refresh) == 1
         assert analytics_refresh[0].payload == {
@@ -251,7 +251,7 @@ async def test_resync_of_projected_window_refires_refreshes(
 
     async with session_factory() as session:
         analytics_refreshes = await _tasks_by_kind(
-            session, ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH
+            session, ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH
         )
         assert len(analytics_refreshes) == 2
         assert all(row.status == TASK_STATUS_SUCCEEDED for row in analytics_refreshes)

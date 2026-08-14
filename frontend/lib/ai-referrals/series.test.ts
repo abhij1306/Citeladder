@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { countDomainMax, formatPercent, isAnalyticsEmpty, toCountChartPoints } from './series';
+import { countDomainMax, formatPercent, isAiReferralsEmpty, toCountChartPoints } from './series';
 
 describe('AI referral display helpers', () => {
   it('preserves unavailable points and formats persisted fractions', () => {
@@ -11,6 +11,6 @@ describe('AI referral display helpers', () => {
 
   it('uses a readable count scale and honest empty state', () => {
     expect(countDomainMax([101, 199])).toBe(200);
-    expect(isAnalyticsEmpty({ referral_volume: [], referral_share: [] } as never)).toBe(true);
+    expect(isAiReferralsEmpty({ referral_volume: [], referral_share: [] } as never)).toBe(true);
   });
 });

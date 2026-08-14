@@ -15,7 +15,7 @@ import uuid
 from pydantic import BaseModel
 
 # The dated metric-series point is the ONE chart-point contract shared with
-# LLM Analytics — imported from its owner (invariant 2), never forked.
+# AI Referrals — imported from its owner (invariant 2), never forked.
 from app.domain.analytics.schemas import MetricSeriesPoint
 
 

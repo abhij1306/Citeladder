@@ -8,15 +8,14 @@
  *   - site-health.ts   — site health (crawls, inventory, monitored, issues)
  *   - integrations.ts  — integrations (connections, sync runs)
  *   - traffic.ts       — traffic (dashboard, pages, queries)
- *   - analytics.ts     — LLM analytics (headline, referrals, themes)
+ *   - ai-referrals.ts  — AI-referral measurements
  *   - products.ts      — products (agentic commerce catalog + visibility)
  *   - opportunities.ts — opportunities (catalog, detail, summary)
  *   - commerce.ts      — commerce (catalog feed health)
  *
- * This facade re-assembles them under the historical `queryKeys` shape so the
- * 20+ existing importers keep the single `@/lib/api/query-keys` entry point.
+ * This facade assembles them under one `queryKeys` entry point.
  */
-import { analyticsKeys } from './query-keys/analytics';
+import { aiReferralsKeys } from './query-keys/ai-referrals';
 import { agentKeys } from './query-keys/agent';
 import { billingKeys } from './query-keys/billing';
 import { commerceKeys } from './query-keys/commerce';
@@ -51,7 +50,7 @@ export const queryKeys = {
   content: contentKeys,
   integrations: integrationKeys,
   traffic: trafficKeys,
-  analytics: analyticsKeys,
+  aiReferrals: aiReferralsKeys,
   products: productKeys,
   opportunities: opportunityKeys,
   commerce: commerceKeys,

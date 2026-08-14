@@ -36,7 +36,7 @@ from app.core.config.integrations import (
 TRAFFIC_DEFAULT_WINDOW_DAYS: Final = 28
 TRAFFIC_MAX_WINDOW_DAYS: Final = 480
 
-# Snapshot bucket granularity vocabulary. Shared with the LLM Analytics
+# Snapshot bucket granularity vocabulary. Shared with the AI Referrals
 # projection (same concept, one owner — invariant 2): ``config/analytics.py``
 # aliases this set instead of forking a second ``day|week|month`` vocabulary.
 TRAFFIC_GRANULARITY_DAY: Final = "day"

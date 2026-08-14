@@ -52,7 +52,7 @@ import { AttributeFrequencyPanel } from './attribute-frequency-panel';
 import { BuyerDestinationBreakdown } from './buyer-destination-breakdown';
 import { CompetitorCoPlacementMatrix } from './competitor-co-placement-matrix';
 import { EngineFilterDropdown } from './engine-filter-dropdown';
-import { NestedTabs } from './nested-tabs';
+import { NestedTabs } from '@/components/ui/nested-tabs';
 import { SurfaceFilterDropdown } from './surface-filter-dropdown';
 
 type VisibilityQueries = ReturnType<typeof useProductVisibilityQueries>;

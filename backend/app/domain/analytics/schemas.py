@@ -1,13 +1,4 @@
-# LLM Analytics API DTOs (A9) — projections only (invariant 7).
-#
-# These response models are the backend source of truth for the C6 schema
-# reconcile: every shape mirrors the frontend zod schemas in
-# ``frontend/lib/api/schemas.ts`` (the LLM-Analytics section) EXACTLY — no
-# missing keys, no extra keys (the frontend ``strictValidate`` fails loud on
-# any drift). Nullability is contractual: a null series value is an
-# UNMEASURED bucket (chart gap), a null correlation coefficient is the
-# ``insufficient_data`` state, and a null theme rate/score is an absent
-# metric — never a fabricated number (invariant 9).
+# AI Referrals API DTOs — persisted projections only (invariant 7).
 from __future__ import annotations
 
 import uuid
@@ -41,7 +32,7 @@ def metric_series_points(raw: object) -> list[MetricSeriesPoint]:
     return points
 
 
-class AnalyticsSourceBreakdownRow(BaseModel):
+class AiReferralSourceRow(BaseModel):
     """One per-``ai_source`` referral breakdown row (window-level)."""
 
     ai_source: str
@@ -49,31 +40,10 @@ class AnalyticsSourceBreakdownRow(BaseModel):
     share: float | None
 
 
-class AnalyticsEngineVisibility(BaseModel):
-    """One logical engine's visibility series over the window."""
-
-    logical_engine: str
-    series: list[MetricSeriesPoint]
-
-
-class AnalyticsCorrelation(BaseModel):
-    """The visibility<->referral correlation summary.
-
-    ``state`` is ``ok`` only with a real, defined coefficient; below the
-    minimum aligned-sample size (or a zero-variance axis) it is
-    ``insufficient_data`` with a NULL coefficient — never a fabricated
-    number (invariant 9).
-    """
-
-    state: str
-    coefficient: float | None
-    sample_size: int
-
-
 class AiReferralsResponse(BaseModel):
     """``GET /projects/{id}/ai-referrals`` — persisted referral measures.
 
-    Served from the persisted ``AnalyticsSnapshot`` matching
+    Served from the persisted ``AiReferralsSnapshot`` matching
     ``(window, granularity)``; an absent snapshot yields an empty payload
     (empty series and source breakdown), never a recomputation (invariant 7).
     """
@@ -84,51 +54,6 @@ class AiReferralsResponse(BaseModel):
     granularity: str
     referral_volume: list[MetricSeriesPoint]
     referral_share: list[MetricSeriesPoint]
-    sources: list[AnalyticsSourceBreakdownRow]
+    sources: list[AiReferralSourceRow]
     analyzer_version: str
     formula_version: str
-
-
-class AnalyticsReferralRow(BaseModel):
-    """One classified referral drill-down row (classification + its event).
-
-    ``referrer_host`` / ``logical_engine`` / ``match_signal`` are null when
-    the sanitized event carries no host / the source maps to no audited
-    engine / no rule fired (a non-AI referral). The persisted empty
-    ``confidence`` of a non-AI row surfaces as ``exact``: the deterministic
-    rule table's no-match verdict is itself an exact determination, never a
-    heuristic guess (the frontend contract requires the enum).
-    """
-
-    id: uuid.UUID
-    occurred_at: str
-    landing_url: str
-    referrer_host: str | None
-    is_ai_referral: bool
-    ai_source: str
-    logical_engine: str | None
-    confidence: str
-    match_signal: str | None
-
-
-class AnalyticsReferralsPage(BaseModel):
-    """The keyset envelope (contract C4) for the referrals drill-down."""
-
-    items: list[AnalyticsReferralRow]
-    next_cursor: str | None
-
-
-class LlmAnalyticsThemeRow(BaseModel):
-    """One theme-level visibility rollup row (frozen theme/intent axes).
-
-    Rates/score are null when the underlying metric is absent (a group with
-    no executions forms no row; SOV is null when the group has no brand or
-    competitor mentions at all) — no fabricated numbers.
-    """
-
-    theme: str
-    intent: str
-    total_completed: int
-    brand_mention_rate: float | None
-    visibility_score: float | None
-    share_of_voice: float | None

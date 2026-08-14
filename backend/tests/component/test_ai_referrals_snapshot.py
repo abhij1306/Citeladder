@@ -22,11 +22,11 @@ from app.core.config.integrations import (
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
 )
 from app.core.config.task_queue import TASK_STATUS_CANCELLED, TASK_STATUS_SUCCEEDED
-from app.domain.analytics import snapshot as snapshot_module
-from app.domain.analytics.enqueue import enqueue_analytics_snapshot_refresh
-from app.domain.analytics.snapshot import refresh_analytics_snapshot
+from app.domain.analytics import ai_referrals_snapshot as snapshot_module
+from app.domain.analytics.ai_referrals_snapshot import refresh_ai_referrals_snapshot
+from app.domain.analytics.enqueue import enqueue_ai_referrals_snapshot_refresh
 from app.domain.analytics.tasks import TaskCancelledError
-from app.models.analytics import AnalyticsSnapshot, AnalyticsTask
+from app.models.analytics import AiReferralsSnapshot, AnalyticsTask
 from app.models.integrations import IntegrationConnection
 from app.workers.analytics_worker import AnalyticsWorker
 from tests.component.analytics_helpers import (
@@ -180,7 +180,7 @@ async def _enqueue(
     project_id: uuid.UUID,
 ) -> AnalyticsTask:
     async with session_factory() as session:
-        task_id = await enqueue_analytics_snapshot_refresh(
+        task_id = await enqueue_ai_referrals_snapshot_refresh(
             session,
             workspace_id=workspace_id,
             project_id=project_id,
@@ -196,8 +196,8 @@ async def _enqueue(
     return task
 
 
-async def _snapshots(session: AsyncSession) -> dict[str, AnalyticsSnapshot]:
-    rows = list((await session.scalars(select(AnalyticsSnapshot))).all())
+async def _snapshots(session: AsyncSession) -> dict[str, AiReferralsSnapshot]:
+    rows = list((await session.scalars(select(AiReferralsSnapshot))).all())
     return {row.granularity: row for row in rows}
 
 
@@ -214,7 +214,7 @@ async def test_refresh_builds_canonical_buckets_without_referrer_double_counting
         session_factory, workspace_id=workspace_id, project_id=project_id
     )
 
-    await refresh_analytics_snapshot(session_factory, task)
+    await refresh_ai_referrals_snapshot(session_factory, task)
 
     async with session_factory() as session:
         snapshots = await _snapshots(session)
@@ -245,7 +245,6 @@ async def test_refresh_builds_canonical_buckets_without_referrer_double_counting
         assert set(day.source_classification_ids or []) == {
             str(identifier) for identifier in evidence["classification_ids"]
         }
-        assert day.source_snapshot_ids == []
         for granularity in ("week", "month"):
             assert snapshots[granularity].metrics["referral_volume"] == [
                 {"date": "2026-07-20", "value": 7}
@@ -275,7 +274,7 @@ async def test_missing_canonical_classification_is_unmeasured(
     task = await _enqueue(
         session_factory, workspace_id=workspace_id, project_id=project_id
     )
-    await refresh_analytics_snapshot(session_factory, task)
+    await refresh_ai_referrals_snapshot(session_factory, task)
     async with session_factory() as session:
         day = (await _snapshots(session))["day"]
         assert day.metrics["referral_volume"][0]["value"] is None
@@ -295,15 +294,15 @@ async def test_refresh_upsert_is_idempotent(
     task = await _enqueue(
         session_factory, workspace_id=workspace_id, project_id=project_id
     )
-    await refresh_analytics_snapshot(session_factory, task)
+    await refresh_ai_referrals_snapshot(session_factory, task)
     async with session_factory() as session:
         first = await _snapshots(session)
         first_ids = {key: row.id for key, row in first.items()}
-    await refresh_analytics_snapshot(session_factory, task)
+    await refresh_ai_referrals_snapshot(session_factory, task)
     async with session_factory() as session:
         second = await _snapshots(session)
         assert {key: row.id for key, row in second.items()} == first_ids
-        assert await session.scalar(select(func.count(AnalyticsSnapshot.id))) == 3
+        assert await session.scalar(select(func.count(AiReferralsSnapshot.id))) == 3
 
 
 @pytest.mark.asyncio
@@ -346,7 +345,7 @@ async def test_refresh_reads_only_latest_resync_revision(
     task = await _enqueue(
         session_factory, workspace_id=workspace_id, project_id=project_id
     )
-    await refresh_analytics_snapshot(session_factory, task)
+    await refresh_ai_referrals_snapshot(session_factory, task)
     async with session_factory() as session:
         day = (await _snapshots(session))["day"]
         assert day.metrics["referral_volume"][0]["value"] == 9
@@ -384,9 +383,9 @@ async def test_refresh_honors_cancel_at_metric_batch_boundary(
 
     monkeypatch.setattr(snapshot_module, "_raise_if_task_terminal", cancel_on_second)
     with pytest.raises(TaskCancelledError):
-        await refresh_analytics_snapshot(session_factory, task)
+        await refresh_ai_referrals_snapshot(session_factory, task)
     async with session_factory() as session:
-        assert await session.scalar(select(func.count(AnalyticsSnapshot.id))) == 0
+        assert await session.scalar(select(func.count(AiReferralsSnapshot.id))) == 0
 
 
 @pytest.mark.asyncio
@@ -398,7 +397,7 @@ async def test_worker_routes_snapshot_refresh(
         await _seed_canonical_chain(
             session, workspace_id=workspace_id, project_id=project_id
         )
-        task_id = await enqueue_analytics_snapshot_refresh(
+        task_id = await enqueue_ai_referrals_snapshot_refresh(
             session,
             workspace_id=workspace_id,
             project_id=project_id,
@@ -412,7 +411,7 @@ async def test_worker_routes_snapshot_refresh(
     async with session_factory() as session:
         row = await session.get(AnalyticsTask, task_id)
         assert row is not None and row.status == TASK_STATUS_SUCCEEDED
-        assert await session.scalar(select(func.count(AnalyticsSnapshot.id))) == 3
+        assert await session.scalar(select(func.count(AiReferralsSnapshot.id))) == 3
 
 
 @pytest.mark.asyncio
@@ -425,17 +424,19 @@ async def test_refresh_rejects_invalid_payload_and_project(
         return AnalyticsTask(
             workspace_id=workspace_id,
             project_id=project_id if with_project else None,
-            task_kind="analytics_snapshot_refresh",
+            task_kind="ai_referrals_snapshot_refresh",
             payload=payload,
             idempotency_key=uuid.uuid4().hex,
         )
 
     with pytest.raises(ValueError, match="project_id"):
-        await refresh_analytics_snapshot(session_factory, task({}, with_project=False))
+        await refresh_ai_referrals_snapshot(
+            session_factory, task({}, with_project=False)
+        )
     with pytest.raises(ValueError, match="window_start"):
-        await refresh_analytics_snapshot(session_factory, task({}))
+        await refresh_ai_referrals_snapshot(session_factory, task({}))
     with pytest.raises(ValueError, match="window_end before window_start"):
-        await refresh_analytics_snapshot(
+        await refresh_ai_referrals_snapshot(
             session_factory,
             task({"window_start": "2026-07-22", "window_end": "2026-07-20"}),
         )

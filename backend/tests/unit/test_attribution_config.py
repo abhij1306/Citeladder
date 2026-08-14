@@ -24,7 +24,6 @@ from app.core.config.attribution import (
     ATTRIBUTION_METHODS,
     ATTRIBUTION_METRICS_NAMESPACE_DETERMINISTIC,
     ATTRIBUTION_METRICS_NAMESPACE_STATISTICAL,
-    ATTRIBUTION_MIN_SAMPLE,
     ATTRIBUTION_SOURCE_GRANULARITIES,
     ATTRIBUTION_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP,
     ATTRIBUTION_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM,
@@ -49,7 +48,6 @@ def test_confidence_buckets_are_aliased_never_duplicated() -> None:
     assert CONFIDENCE_EXACT is analytics_config.CONFIDENCE_EXACT
     assert CONFIDENCE_HEURISTIC is analytics_config.CONFIDENCE_HEURISTIC
     assert CONFIDENCE_BUCKETS is analytics_config.CONFIDENCE_BUCKETS
-    assert ATTRIBUTION_MIN_SAMPLE == analytics_config.CORRELATION_MIN_SAMPLE
 
 
 def test_provenance_versions_stamped_and_distinct() -> None:

@@ -13,9 +13,9 @@ from app.core.config.analytics import (
     AI_SOURCE_OTHER,
 )
 from app.core.config.integrations import DATASET_GA4_SOURCE_MEDIUM_DAILY
-from app.domain.analytics.snapshot import (
+from app.domain.analytics.ai_referrals_snapshot import (
     ReferralFactInput,
-    build_analytics_projection,
+    build_ai_referrals_projection,
     select_latest_referral_facts,
 )
 
@@ -51,10 +51,8 @@ def _fact(
 
 
 def _build(*, referral_facts=(), granularity: str = "day", window=WINDOW):
-    return build_analytics_projection(
+    return build_ai_referrals_projection(
         referral_facts=list(referral_facts),
-        visibility_facts=[],
-        theme_facts=[],
         window_start=window[0],
         window_end=window[1],
         granularity=granularity,
@@ -154,7 +152,7 @@ def test_empty_evidence_is_unavailable_not_measured_zero() -> None:
 
 
 def test_invalid_granularity_and_window_raise() -> None:
-    with pytest.raises(ValueError, match="unknown analytics granularity"):
+    with pytest.raises(ValueError, match="unknown AI Referrals granularity"):
         _build(granularity="hour")
     with pytest.raises(ValueError, match="window_end before window_start"):
         _build(window=(date(2026, 7, 22), date(2026, 7, 20)))

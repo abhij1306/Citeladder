@@ -407,7 +407,7 @@ def _page_accum(
 
 
 def series_point(label: date, value: int | float | None) -> dict[str, Any]:
-    """One persisted series fragment point (shared with analytics snapshot)."""
+    """One persisted series point shared with AI Referrals snapshots."""
     return {"date": label.isoformat(), "value": value}
 
 

@@ -11,7 +11,7 @@ from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.agent import router as agent_router
-from app.api.analytics import router as analytics_router
+from app.api.ai_referrals import router as ai_referrals_router
 from app.api.audit_schedules import router as audit_schedules_router
 from app.api.audits import router as audits_router
 from app.api.auth import router as auth_router
@@ -93,7 +93,7 @@ _ROUTERS = (
     content_router,
     demand_router,
     integrations_router,
-    analytics_router,
+    ai_referrals_router,
     traffic_router,
     opportunities_router,
     commerce_router,

@@ -1,7 +1,7 @@
 """Deterministic referral sanitization (invariant 6 privacy, invariant 9).
 
 PURE, versioned redaction applied BEFORE the immutable ``ReferralEvent``
-write (llm-analytics.md section 3): persisted referral data must never carry
+write (Demand Intelligence plan): persisted referral data must never carry
 PII, credentials, secrets, or raw device/network identifiers. The redaction
 pass itself is versioned by ``REFERRAL_SANITIZE_VERSION`` — stamped by the
 CALLER onto each event, not here.

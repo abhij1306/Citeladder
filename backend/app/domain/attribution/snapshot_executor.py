@@ -173,7 +173,7 @@ async def _upsert_snapshot(
     ``INSERT ... ON CONFLICT (project_id, window_start, window_end,
     granularity) DO UPDATE`` — concurrent refreshes serialize on the
     unique row and can never create a duplicate "current" snapshot (the
-    ``domain/analytics/snapshot.py`` precedent). The A2 provenance arrays
+    ``domain/analytics/ai_referrals_snapshot.py`` precedent). The A2 provenance arrays
     (``source_link_ids`` / ``source_order_fact_ids``) are insert-only nulls
     in this scope — Task 4 owns writing them, so a Task-1 re-refresh
     deliberately does not clobber them.

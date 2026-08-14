@@ -457,7 +457,7 @@ class IntegrationMetricRow(Base):
             ondelete=_ON_DELETE_CASCADE,
             name="fk_integration_metric_row_artifact_scoped",
         ),
-        # Window scans by project+date (traffic/analytics projections).
+        # Window scans by project+date (Traffic/AI Referrals projections).
         Index("ix_integration_metric_rows_project_date", "project_id", "date"),
     )
 

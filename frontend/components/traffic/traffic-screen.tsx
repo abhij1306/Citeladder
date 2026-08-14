@@ -11,7 +11,7 @@ import { ChevronDown, Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { NestedTabs } from '@/components/products/nested-tabs';
+import { NestedTabs } from '@/components/ui/nested-tabs';
 import { TrafficEmptyState } from '@/components/traffic/empty-state';
 import { PagesTable } from '@/components/traffic/pages-table';
 import { QueriesTable } from '@/components/traffic/queries-table';
@@ -487,7 +487,7 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Traffic screen (F6; mockups `analytics-dashboards-traffic-*.html`).
+ * Traffic screen (F6).
  *
  * One dashboard over the persisted Traffic projection: a toolbar (Range
  * dropdown-chip + day|week|month segmented granularity + Sync now), six

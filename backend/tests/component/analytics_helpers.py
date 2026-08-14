@@ -1,4 +1,4 @@
-"""Shared seed helpers for the LLM-Analytics component tests (A5+).
+"""Shared seed helpers for AI Referrals component tests.
 
 Builds a workspace + project plus the integrations-owned import graph
 (OAuth grant -> connection -> sync run -> immutable import artifact ->

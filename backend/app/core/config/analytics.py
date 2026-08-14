@@ -1,11 +1,11 @@
-# LLM Analytics / AI-referral configuration (invariant 1: config lives here).
+# AI-referral configuration (invariant 1: config lives here).
 #
-# Owns every tunable knob + vocabulary token for the LLM Analytics surface
-# (docs/roadmap/llm-analytics.md section 8): the VERSIONED deterministic
+# Owns every tunable knob + vocabulary token for the AI Referrals surface:
+# the VERSIONED deterministic
 # AI-referral rule tables (host / UTM / user-agent — data, not code) and
 # their ``AI_REFERRAL_RULE_VERSION``, the ``ai_source`` vocabulary and its
 # mapping onto the audited logical-engine ids (invariant 10), the snapshot
-# window/granularity/TTL knobs, the correlation minimum-sample floor, the
+# window/granularity/TTL knobs, the
 # referral sanitization contract (``REFERRAL_SANITIZE_VERSION`` + the raw and
 # URL-param allowlists + retention, invariant 6 privacy), and the analytics
 # worker lease TTL.
@@ -79,8 +79,7 @@ AI_SOURCES: Final[frozenset[str]] = frozenset(
 )
 
 # ``ai_source`` -> audited ``logical_engine`` where one exists (invariant 10),
-# so referral + visibility analytics share a join key. Sources outside the
-# audited three deliberately have NO entry -> ``logical_engine`` stays null.
+# Sources outside the audited three deliberately have NO entry.
 AI_SOURCE_TO_LOGICAL_ENGINE: Final[dict[str, str]] = {
     AI_SOURCE_CHATGPT: ENGINE_CHATGPT,
     AI_SOURCE_GEMINI: ENGINE_GEMINI,
@@ -107,7 +106,7 @@ CONFIDENCE_BUCKETS: Final[frozenset[str]] = frozenset(
 )
 
 
-# --- Deterministic rule tables (llm-analytics.md section 4) -------------------
+# --- Deterministic rule tables -------------------------------------------------
 @dataclass(frozen=True)
 class AiReferralHostRule:
     """One known AI-referrer hostname -> ``ai_source`` (suffix-safe match).
@@ -223,25 +222,9 @@ AI_REFERRAL_UA_RULES: Final[tuple[AiReferralUaRule, ...]] = (
 ANALYTICS_SNAPSHOT_GRANULARITIES: Final[frozenset[str]] = TRAFFIC_SNAPSHOT_GRANULARITIES
 ANALYTICS_DEFAULT_GRANULARITY: Final = TRAFFIC_GRANULARITY_DAY
 ANALYTICS_MAX_WINDOW_DAYS: Final = 480
-# Minimum age before a persisted AnalyticsSnapshot is rebuilt (rebuild
+# Minimum age before a persisted AI Referrals snapshot is rebuilt (rebuild
 # cadence), in seconds.
 ANALYTICS_SNAPSHOT_TTL_S: Final = 3600
-
-# Below this many aligned day-buckets the visibility<->referral correlation
-# reports ``insufficient_data`` — NEVER a fabricated coefficient
-# (invariant 9; llm-analytics.md section 1).
-CORRELATION_MIN_SAMPLE: Final = 8
-
-# Correlation summary state vocabulary. Stamped into the persisted
-# ``AnalyticsSnapshot.metrics["correlation"]`` and served verbatim by the
-# read API — the frontend zod contract (C6) pins exactly these two states.
-CORRELATION_STATE_OK: Final = "ok"
-CORRELATION_STATE_INSUFFICIENT_DATA: Final = "insufficient_data"
-
-# Page size for the keyset-paged referrals drill-down (contract C4): every
-# page reads at most this many classified-referral rows (+1 lookahead row
-# for the ``next_cursor``), so a response is always bounded.
-ANALYTICS_REFERRALS_PAGE_SIZE: Final = 50
 
 # --- Referral sanitization contract (invariant 6 privacy) ---------------------
 # Persisted ``ReferralEvent.raw`` is an ALLOWLISTED, redacted payload — only
@@ -283,12 +266,14 @@ REFERRAL_RETENTION_DAYS: Final = 90
 # spec + worker skeleton); the per-kind executors are registered in the
 # worker dispatch table by A5 (ingest_referrals), A6 (classify_referrals,
 # referral_retention_sweep), A7 (traffic_snapshot_refresh), A8
-# (analytics_snapshot_refresh) and WS-B Task 1 (attribution_snapshot — the
+# (ai_referrals_snapshot_refresh) and WS-B Task 1 (attribution_snapshot — the
 # A1 commerce-attribution projection refresh).
 ANALYTICS_TASK_KIND_INGEST_REFERRALS: Final = "ingest_referrals"
 ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS: Final = "classify_referrals"
 ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH: Final = "traffic_snapshot_refresh"
-ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH: Final = "analytics_snapshot_refresh"
+ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH: Final = (
+    "ai_referrals_snapshot_refresh"
+)
 ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP: Final = "referral_retention_sweep"
 ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT: Final = "attribution_snapshot"
 ANALYTICS_TASK_KIND_ATTRIBUTION_LINK: Final = "attribution_link"
@@ -301,7 +286,7 @@ ANALYTICS_TASK_KINDS: Final[frozenset[str]] = frozenset(
         ANALYTICS_TASK_KIND_INGEST_REFERRALS,
         ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
         ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
-        ANALYTICS_TASK_KIND_ANALYTICS_SNAPSHOT_REFRESH,
+        ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
         ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP,
         ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
         ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,

@@ -40,7 +40,7 @@ import { engineLabel } from '@/lib/providers/catalog';
 import { isDashboardStatus } from '@/lib/visibility/dashboard';
 
 import { EngineFilterDropdown } from './engine-filter-dropdown';
-import { NestedTabs } from './nested-tabs';
+import { NestedTabs } from '@/components/ui/nested-tabs';
 
 /** Newest-window size for the evidence request (backend max 500). */
 const EVIDENCE_LIMIT = 100;
