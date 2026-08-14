@@ -11,7 +11,4 @@ export const opportunityKeys = {
     ['opportunities', 'list', projectId, filters] as const,
   detail: (opportunityId: string) => ['opportunities', 'detail', opportunityId] as const,
   summary: (projectId: string) => ['opportunities', 'summary', projectId] as const,
-  guidance: (opportunityId: string) => ['opportunities', 'guidance', opportunityId] as const,
-  guidanceHistory: (opportunityId: string) =>
-    ['opportunities', 'guidance-history', opportunityId] as const,
 };

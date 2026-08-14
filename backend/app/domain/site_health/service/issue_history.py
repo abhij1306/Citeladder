@@ -213,9 +213,7 @@ def _history_timeline(rows: list[_HistoryObservation]) -> list[dict]:
     return timeline
 
 
-def _rule_history_group(
-    rule_id: str, rows: list[_HistoryObservation]
-) -> dict | None:
+def _rule_history_group(rule_id: str, rows: list[_HistoryObservation]) -> dict | None:
     rows.sort(key=lambda row: (row.observed_at, str(row.crawl_id)))
     failures = [row for row in rows if row.outcome == "fail"]
     if not failures:

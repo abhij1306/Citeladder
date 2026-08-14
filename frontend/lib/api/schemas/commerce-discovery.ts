@@ -86,25 +86,3 @@ export const competitorComparisonSnapshotSchema = responseObject({
   truncated: z.boolean(),
   created_at: z.string(),
 });
-
-export const opportunityGuidanceItemSchema = responseObject({
-  id: uuid(),
-  opportunity_id: uuid(),
-  input_hash: z.string(),
-  findings: z.array(z.string()),
-  recommendations: z.array(z.string()),
-  source_analysis_ids: z.array(uuid()),
-  source_issue_ids: z.array(uuid()),
-  source_metric_ids: z.array(uuid()),
-  analyzer_version: z.string(),
-  rule_version: z.string(),
-  formula_version: z.string(),
-  generator_version: z.string(),
-  prompt_version: z.string(),
-  provider: z.string(),
-  model: z.string(),
-  created_at: z.string(),
-});
-export const opportunityGuidanceHistorySchema = responseObject({
-  items: z.array(opportunityGuidanceItemSchema),
-});

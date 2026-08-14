@@ -16,7 +16,6 @@ from __future__ import annotations
 from typing import Final, Literal
 
 from app.core.config.site_health import (
-    ANALYSIS_STATUS_RUNNING,
     CRAWL_STATUS_CANCELLED,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
@@ -33,7 +32,6 @@ from app.models.site_health import SiteCrawl
 SiteHealthPhase = Literal[
     "empty",
     "discovering",
-    "selection",
     "analyzing",
     "dashboard",
     "terminal",
@@ -68,34 +66,15 @@ def _has_real_scores(score_summary: dict | None) -> bool:
     return score_summary is not None and score_summary.get("overall_score") is not None
 
 
-def _is_active_analysis(crawl: SiteCrawl, has_monitored_selection: bool) -> bool:
-    """Whether an active crawl is already committed to analysis work."""
-    return has_monitored_selection and crawl.analysis_status in (
-        "pending",
-        ANALYSIS_STATUS_RUNNING,
-    )
-
-
-def _phase_for_parked_crawl(crawl: SiteCrawl, selection_mode: bool) -> SiteHealthPhase:
-    """A parked inventory is selectable only when it contains admitted URLs."""
-    if selection_mode and (crawl.admitted_url_count or 0) > 0:
-        return "selection"
-    return "terminal"
-
-
 def resolve_phase(
     crawl: SiteCrawl | None,
     *,
     score_summary: dict | None,
-    selection_mode: bool,
     has_monitored_selection: bool,
 ) -> SiteHealthPhase:
     """Resolve the screen phase for ``crawl``.
 
     :param score_summary: the crawl's projected summary, if any.
-    :param selection_mode: the account stages its own monitored set (a positive
-        monitored allowance). A zero-allowance account fails closed to the
-        server-picked sample, which auto-analyzes.
     :param has_monitored_selection: the PROJECT has at least one active
         monitored URL committed.
     """
@@ -114,30 +93,26 @@ def resolve_phase(
     if crawl.status == CRAWL_STATUS_FAILED:
         return "terminal"
 
-    # Parked (cancelled/paused) with nothing scored. The discovered inventory
-    # survives, so a selection-mode account can restage it and re-crawl;
-    # everyone else dead-ends.
+    # A parked crawl with no scores is terminal. Page selection is not a crawl
+    # phase: discovery and analysis are one bounded run, and a new crawl is the
+    # only way to resume work.
     if crawl.status in _PARKED_STATUSES:
-        # `admitted_url_count` is projected to the client as `visible_url_count`.
-        return _phase_for_parked_crawl(crawl, selection_mode)
+        return "terminal"
 
     # Everything below is an ACTIVE crawl (draft/validating/queued/running).
     #
     # A project with a committed monitored set is an analysis run from the
     # moment the crawl is created: the planner seeds the analyze tasks at
-    # creation and a selection commit enqueues into the active crawl, so
-    # `analysis_status` merely lags at 'pending' until the worker's first
-    # reconcile. Resolving it as discovery/selection would bounce the screen
-    # back to the URL list immediately after a new crawl starts.
-    if _is_active_analysis(crawl, has_monitored_selection):
+    # creation, so `analysis_status` merely lags at 'pending' until the
+    # worker's first reconcile. Resolving it as discovery would bounce the
+    # screen back to an inventory-only view after a new crawl starts.
+    if has_monitored_selection:
         return "analyzing"
 
     if crawl.discovery_status not in TERMINAL_DISCOVERY:
         return "discovering"
 
-    if crawl.analysis_status == ANALYSIS_STATUS_RUNNING:
-        return "analyzing"
-
-    # Discovery is done with no analysis in flight: a selection-mode account
-    # stages its monitored set; a sample account auto-analyzes.
-    return "selection" if selection_mode else "analyzing"
+    # Discovery completion never opens a separate selection/analysis step.
+    # Automatic admission owns the bounded analysis set; keep the same live
+    # results surface mounted until the crawl terminalizes.
+    return "analyzing"

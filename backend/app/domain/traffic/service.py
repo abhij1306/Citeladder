@@ -4,6 +4,7 @@ Refreshes fold persisted integration metrics in bounded batches and replace
 each snapshot's page/query rows atomically. Reads remain workspace-scoped and
 serve only persisted projections; synchronization stays with integrations.
 """
+
 from __future__ import annotations
 
 import uuid

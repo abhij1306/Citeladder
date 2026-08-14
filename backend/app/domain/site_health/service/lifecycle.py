@@ -419,7 +419,6 @@ async def get_dashboard(
         "phase": resolve_phase(
             crawl,
             score_summary=score_summary,
-            selection_mode=int(runtime.monitored_url_limit) > 0,
             has_monitored_selection=int(project_monitored or 0) > 0,
         ),
         "quota": {

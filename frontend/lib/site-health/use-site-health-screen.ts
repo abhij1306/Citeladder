@@ -94,11 +94,9 @@ export function useSiteHealthScreen(projectId: string | null) {
     if (projectId) invalidateMonitoredProjection(queryClient, projectId);
   }, [crawlId, crawlVersion, projectId, queryClient]);
 
-  // Per-PROJECT monitored set. Supplies the analysis progress totals and the
-  // `selection_version` that guards a phase mutation. It is NO LONGER a phase
-  // input: the server counts these rows in the same transaction that resolves
-  // the phase, so this query landing late can no longer flip the screen from
-  // 'selection' to 'analyzing' after it has already rendered.
+  // Per-project monitored rows supply analysis progress totals. Automatic URL
+  // admission owns membership; this query is display-only and cannot change
+  // the crawl phase.
   const monitoredQuery = useQuery({
     ...siteHealthQueries.monitored(projectId ?? ''),
     enabled: Boolean(projectId),

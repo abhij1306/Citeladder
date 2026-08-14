@@ -391,7 +391,7 @@ export function OnboardingScreen() {
       </BrandCanvas>
 
       {/* Right Canvas — Form & Details */}
-      <div className="bg-panel relative col-span-12 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 min-[900px]:col-span-7 sm:p-8 lg:col-span-8 lg:p-10">
+      <div className="bg-panel relative col-span-12 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 min-[900px]:col-span-7 sm:px-8 sm:py-6 lg:col-span-8 lg:px-10 lg:py-8 xl:py-10">
         {/* Mobile Header (<900px) */}
         <header className="border-border-subtle border-b pb-3 min-[900px]:hidden">
           <div className="flex items-center justify-between gap-4">
@@ -435,10 +435,13 @@ export function OnboardingScreen() {
             than the viewport — or any step on a short laptop — clipped its
             own action row with nothing able to scroll to it. `min-h-0` is
             what lets a flex child shrink below its content and actually
-            scroll instead of stretching the column. */}
+            scroll instead of stretching the column. The scrollbar stays
+            visually hidden so ordinary laptop viewports never gain a stray
+            rail, while wheel, touch, and keyboard scrolling remain available
+            for short screens and unusually long discovered content. */}
         <main
           id="main"
-          className="mx-auto flex min-h-0 w-full max-w-xl flex-1 flex-col justify-start overflow-y-auto py-2 sm:py-4"
+          className="mx-auto flex min-h-0 w-full max-w-xl flex-1 [scrollbar-width:none] flex-col justify-start overflow-y-auto py-2 sm:py-3 lg:py-4 [&::-webkit-scrollbar]:hidden"
         >
           <div className="p-1 sm:p-2">
             {step === 0 ? (
@@ -760,7 +763,7 @@ export function OnboardingScreen() {
                   </Alert>
                 ) : null}
 
-                <div className="-mt-1 flex items-center gap-3 pt-1 pb-4">
+                <div className="-mt-1 flex items-center gap-3 pt-1">
                   <Button
                     size="lg"
                     onClick={() => complete.mutate()}

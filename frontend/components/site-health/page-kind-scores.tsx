@@ -29,9 +29,8 @@ import { cn } from '@/lib/utils';
  *
  * READ-ONLY by design. This used to expand each row into an accordion holding
  * its own paginated URL list, checkboxes, and a "Re-analyze selected" button —
- * a third page-selection UI alongside the inventory selector and the pages
- * table, nested inside a table cell. Monitored-page selection belongs in the
- * inventory; re-auditing one page belongs on that page's detail screen.
+ * a page-selection UI nested inside a table cell. The canonical inventory is
+ * the only URL surface; re-auditing one page belongs on its detail screen.
  */
 export function PageKindScores({
   crawl,

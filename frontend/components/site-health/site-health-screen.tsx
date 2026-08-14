@@ -80,10 +80,8 @@ export function SiteHealthScreen() {
     );
   }
 
-  // A 'resolving' phase means one of the three inputs the phase reads has not
-  // settled yet. Holding the skeleton for that beat is the whole point of the
-  // explicit phase: rendering a guess and correcting it is what made the screen
-  // visibly flip between the URL list and the analysis view.
+  // A 'resolving' phase means the server dashboard projection has not settled
+  // yet. Holding the skeleton for that beat avoids rendering a client guess.
   if (entitlementQuery.isLoading || dashboardQuery.isLoading || phase === 'resolving') {
     const label = entitlementQuery.isLoading
       ? 'Checking Site Health access…'
@@ -155,11 +153,7 @@ export function SiteHealthScreen() {
           one, two live information architectures over the same crawl. The
           workspace and its five panels are deleted; Site Health is Site
           Health, and issues live on the Issues screen. */}
-      <SiteHealthDashboardLayout
-        screen={screen}
-        entitlement={entitlementQuery.data!}
-        projectId={projectId}
-      />
+      <SiteHealthDashboardLayout screen={screen} entitlement={entitlementQuery.data!} />
     </div>
   );
 }

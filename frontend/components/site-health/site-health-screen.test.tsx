@@ -411,33 +411,17 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     ).toBeInTheDocument();
   });
 
-  it('keeps the discovered inventory (selection mode) for a cancelled Starter crawl', async () => {
-    // Cancelling discovery must NOT dead-end the discovered URLs: the
-    // inventory persists server-side, so the inventory section switches to
-    // selection mode with a cancellation notice instead of a terminal card.
-    mockRoutes({ status: 'cancelled', error_message: '', visible_url_count: 3 }, 'selection');
-    mswServer.use(
-      http.get(`/api/v1/site-crawls/${CRAWL}/inventory`, () =>
-        HttpResponse.json({
-          items: [inventoryRow('66666666-6666-4666-8666-666666666666', 'https://acme.com/pricing')],
-          next_cursor: null,
-        }),
-      ),
-    );
+  it('does not resurrect the removed selection step after cancellation', async () => {
+    mockRoutes({ status: 'cancelled', error_message: '', visible_url_count: 3 }, 'terminal');
 
     renderScreen();
 
     expect(
-      await screen.findByText(/Discovery cancelled — found pages are kept/),
+      await screen.findByText('This crawl was cancelled before it produced results.'),
     ).toBeInTheDocument();
-    // The persisted inventory row itself is visible and selectable.
-    expect(await screen.findByLabelText('Monitor https://acme.com/pricing')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /analysis/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/start the analysis/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/save, then run a new crawl/i)).toBeInTheDocument();
-    expect(
-      screen.queryByText('This crawl was cancelled before it produced results.'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Discovery finished/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Save selection/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Monitor https:\/\/acme\.com/)).not.toBeInTheDocument();
   });
 
   it('offers one Stop crawl action in the header while a crawl is discovering', async () => {
@@ -466,6 +450,56 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     expect(screen.getByTestId('inventory-section')).not.toContainElement(stop);
     expect(screen.queryByRole('button', { name: 'Run new crawl' })).not.toBeInTheDocument();
     expect(hiddenPagesRequests).toBe(0);
+  });
+
+  it('keeps completed page results mounted while the crawl finishes link checks', async () => {
+    mockRoutes(
+      {
+        status: 'running',
+        discovery_status: 'completed',
+        analysis_status: 'completed',
+        analyzed_count: 1,
+        score_summary: null,
+        completed_at: null,
+      },
+      'analyzing',
+    );
+    mswServer.use(
+      http.get(`/api/v1/site-crawls/${CRAWL}/pages`, () =>
+        HttpResponse.json({
+          items: [
+            {
+              site_url_id: '66666666-6666-4666-8666-666666666666',
+              crawl_id: CRAWL,
+              normalized_url: 'https://acme.com/',
+              display_url: 'https://acme.com/',
+              title: 'Homepage',
+              monitored: true,
+              analysis_status: 'completed',
+              error_code: '',
+              issue_count: 3,
+              technical_score: 46,
+              aeo_score: 64,
+              overall_score: 55,
+              last_audited: '2026-07-16T00:00:00Z',
+              page_kind: 'homepage',
+            },
+          ],
+          next_cursor: null,
+          root_errors: [],
+        }),
+      ),
+    );
+
+    renderScreen();
+
+    expect(
+      await screen.findByText('Pages analyzed — checking their links for broken destinations'),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('55 / 100')).toBeInTheDocument();
+    expect(screen.getByTitle('Homepage')).toBeInTheDocument();
+    expect(screen.queryByText(/Discovery finished/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Save selection/ })).not.toBeInTheDocument();
   });
 
   it('keeps the dashboard + partial scores and labels the run Cancelled (with Re-crawl)', async () => {
@@ -527,7 +561,7 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
 });
 
 describe('SiteHealthScreen — canonical single-screen flow (regression)', () => {
-  it('walks discover → stop → select → new crawl → finish without swapping the screen', async () => {
+  it('walks discover → stop → new crawl → finish without resurrecting selection', async () => {
     // The reported bug: each lifecycle step replaced the whole panel (cancel
     // showed a URL-list screen, starting analysis bounced back to that list,
     // finishing jumped to a separate dashboard). This walks the exact
@@ -561,7 +595,18 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
     // `phase` is a server field now, so the mutable server state carries it and
     // each transition below sets the phase that transition actually produces.
     let serverPhase: SiteHealthDashboard['phase'] = 'discovering';
-    const monitored: Array<Record<string, unknown>> = [];
+    const monitored: Array<Record<string, unknown>> = [
+      {
+        site_url_id: URL_ID,
+        normalized_url: 'https://acme.com/pricing',
+        display_url: 'https://acme.com/pricing',
+        title: null,
+        active: true,
+        selection_source: 'bootstrap',
+        selected_at: '2026-07-16T00:00:00Z',
+        deselected_at: null,
+      },
+    ];
 
     mswServer.use(
       http.get('/api/v1/projects', () => HttpResponse.json([project])),
@@ -586,28 +631,6 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
           quota: { used: monitored.length, limit: 50 },
         }),
       ),
-      http.put(`/api/v1/projects/${PROJECT}/monitored-urls`, async ({ request }) => {
-        const body = (await request.json()) as { site_url_ids: string[] };
-        monitored.length = 0;
-        for (const id of body.site_url_ids) {
-          monitored.push({
-            site_url_id: id,
-            normalized_url: 'https://acme.com/pricing',
-            display_url: 'https://acme.com/pricing',
-            title: null,
-            active: true,
-            selection_source: 'user',
-            selected_at: '2026-07-16T00:00:00Z',
-            deselected_at: null,
-          });
-        }
-        return HttpResponse.json({
-          project_id: PROJECT,
-          selection_version: 2,
-          monitored_urls: monitored,
-          quota: { used: monitored.length, limit: 50 },
-        });
-      }),
       http.post(`/api/v1/site-crawls/${serverCrawl.id}/cancel`, () => {
         serverCrawl = crawl({
           status: 'cancelled',
@@ -616,9 +639,7 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
           score_summary: null,
           completed_at: null,
         });
-        // Cancelled with a discovered inventory and a monitored allowance:
-        // the user restages the set rather than dead-ending.
-        serverPhase = 'selection';
+        serverPhase = 'terminal';
         return HttpResponse.json(serverCrawl);
       }),
       http.post('/api/v1/site-crawls', async ({ request }) => {
@@ -660,17 +681,17 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
     const canonical = screen.getByTestId('site-health-canonical');
     expect(screen.getByText(/pages discovered so far/)).toBeInTheDocument();
 
-    // Step 2 — cancel from the header. The SAME screen shifts to selection
-    // mode (inventory persists), no navigation, no terminal dead-end.
+    // Step 2 — cancel from the header. The SAME screen shows the terminal
+    // outcome and never mounts the removed selection UI.
     await user.click(screen.getByRole('button', { name: 'Stop crawl' }));
     expect(
-      await screen.findByText(/Discovery cancelled — found pages are kept/),
+      await screen.findByText('This crawl was cancelled before it produced results.'),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Save selection/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('site-health-canonical')).toBe(canonical);
 
-    // Step 3 — stage + save a monitored page, then run a fresh crawl directly.
-    await user.click(await screen.findByLabelText('Monitor https://acme.com/pricing'));
-    await user.click(screen.getByRole('button', { name: /Save selection/ }));
+    // Step 3 — run a fresh crawl directly. Automatic admission already owns
+    // the bounded monitored set; there is no manual analysis gate.
     const recrawl = screen.getByRole('button', { name: 'Run new crawl' });
     await waitFor(() => expect(recrawl).toBeEnabled());
     await user.click(recrawl);
@@ -678,11 +699,11 @@ describe('SiteHealthScreen — canonical single-screen flow (regression)', () =>
     await waitFor(() => expect(createBody).toMatchObject({ project_id: PROJECT }));
 
     // The screen moves FORWARD to the analysis view in place — it must never
-    // bounce back to the selection list (the reported regression), even though
+    // mount a selection list (the reported regression), even though
     // the fresh crawl reports discovery running + analysis still pending.
     expect(
       await screen.findByText(
-        'Auditing selected pages while discovery re-scans the site in the background',
+        'Auditing monitored pages while discovery re-scans the site in the background',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText('Monitor https://acme.com/pricing')).not.toBeInTheDocument();

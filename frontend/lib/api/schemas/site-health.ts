@@ -574,7 +574,7 @@ export const siteHealthDashboardSchema = responseObject({
   score_summary: siteScoreSummarySchema.nullable(),
   // THE screen phase, resolved server-side. The client renders this; it does
   // not re-derive it from crawl statuses + entitlement + monitored counts.
-  phase: z.enum(['empty', 'discovering', 'selection', 'analyzing', 'dashboard', 'terminal']),
+  phase: z.enum(['empty', 'discovering', 'analyzing', 'dashboard', 'terminal']),
   // Null until the crawl terminalizes; content verification compares a
   // published revision against a later snapshot.
   snapshot_id: uuid().nullable(),

@@ -171,7 +171,7 @@ export function isSampleMode(crawl: Pick<SiteCrawl, 'sample_mode'>): boolean {
 
 /**
  * Discovery-progress copy. Sample mode NEVER renders a total or "so far"
- * language (no count side channel); selection mode uses provisional
+ * language (no count side channel); full mode uses provisional
  * "discovered so far" until discovery terminalizes, then the settled
  * "discovered".
  */
@@ -211,7 +211,7 @@ export function canShowDiscoveredTotal(
  * sends: it means the dashboard request itself has not landed yet.
  */
 export type SiteHealthPhase =
-  'resolving' | 'empty' | 'discovering' | 'selection' | 'analyzing' | 'dashboard' | 'terminal';
+  'resolving' | 'empty' | 'discovering' | 'analyzing' | 'dashboard' | 'terminal';
 
 /**
  * Fingerprint of everything on a crawl that means "progress happened".
@@ -252,13 +252,12 @@ export function crawlProgressVersion(
  * canonical Site Health screen never swaps whole panels — the layout (scores +
  * status row + inventory) stays mounted and only this mode changes:
  *   - 'discovering': read-only inventory rows streaming in;
- *   - 'selectable':  monitored-set staging (checkboxes + commit);
  *   - 'scored':      the tabbed (monitored/all/errors) page browser — used
  *                    DURING analysis and after: the same table, rows advance
  *                    queued → running → completed and scores fill in place;
  *   - 'none':        empty/terminal — nothing to list yet.
  */
-export type InventoryMode = 'none' | 'discovering' | 'selectable' | 'scored';
+export type InventoryMode = 'none' | 'discovering' | 'scored';
 
 export function inventoryModeForPhase(
   phase: SiteHealthPhase,
@@ -267,8 +266,6 @@ export function inventoryModeForPhase(
   switch (phase) {
     case 'discovering':
       return 'discovering';
-    case 'selection':
-      return 'selectable';
     case 'analyzing':
     case 'dashboard':
       // ONE table for the whole audit lifecycle: the analyzing phase renders

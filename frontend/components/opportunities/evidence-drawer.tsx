@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { OpportunityEvidenceSection } from '@/components/opportunities/opportunity-evidence-section';
 import { OpportunityStatusBadge } from '@/components/opportunities/opportunity-status-badge';
@@ -9,13 +9,10 @@ import { OpportunitySummarySection } from '@/components/opportunities/opportunit
 import { OpportunityTypeBadge } from '@/components/opportunities/opportunity-type-badge';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Drawer } from '@/components/ui/drawer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/typography';
-import { opportunitiesMutations, opportunitiesQueries } from '@/lib/api/opportunities';
-import { queryKeys } from '@/lib/api/query-keys';
-import { formatUtcTimestamp } from '@/lib/format';
+import { opportunitiesQueries } from '@/lib/api/opportunities';
 import { severityBadgeValue, severityLabel } from '@/lib/site-health/issues';
 
 /** Recommendation detail drawer backed by the persisted detail projection. */
@@ -35,26 +32,6 @@ export function EvidenceDrawer({
     enabled: open && opportunityId !== null,
   });
   const detail = detailQuery.data ?? null;
-  const queryClient = useQueryClient();
-  const guidanceQuery = useQuery({
-    ...opportunitiesQueries.guidance(opportunityId ?? ''),
-    enabled: open && opportunityId !== null,
-    retry: false,
-  });
-  const guidanceMutation = useMutation({
-    ...opportunitiesMutations.createGuidance(),
-    onSuccess: (guidance) => {
-      queryClient.setQueryData(queryKeys.opportunities.guidance(guidance.opportunity_id), guidance);
-    },
-  });
-
-  const createGuidance = () => {
-    if (!opportunityId) return;
-    guidanceMutation.mutate({ opportunityId, idempotencyKey: crypto.randomUUID() });
-  };
-  let guidanceActionLabel = 'Generate';
-  if (guidanceQuery.data) guidanceActionLabel = 'Regenerate';
-  if (guidanceMutation.isPending) guidanceActionLabel = 'Generating…';
 
   return (
     <Drawer
@@ -94,47 +71,6 @@ export function EvidenceDrawer({
               </div>
             </section>
           ) : null}
-          <section className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label>Tailored guidance</Label>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={createGuidance}
-                disabled={guidanceMutation.isPending}
-              >
-                {guidanceActionLabel}
-              </Button>
-            </div>
-            {guidanceQuery.data ? (
-              <div className="border-border-subtle bg-background-alt grid gap-3 rounded-lg border p-3">
-                <div className="grid gap-1">
-                  <span className="text-2xs text-muted">What was found</span>
-                  <ul className="text-foreground grid list-disc gap-1 pl-4 text-sm">
-                    {guidanceQuery.data.findings.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="grid gap-1">
-                  <span className="text-2xs text-muted">Recommended improvements</span>
-                  <ul className="text-foreground grid list-disc gap-1 pl-4 text-sm">
-                    {guidanceQuery.data.recommendations.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-                <p className="text-muted text-xs">
-                  Updated {formatUtcTimestamp(guidanceQuery.data.created_at)}
-                </p>
-              </div>
-            ) : guidanceQuery.isError ? (
-              <Alert tone="info">Tailored guidance is unavailable for this workspace.</Alert>
-            ) : null}
-            {guidanceMutation.isError ? (
-              <Alert tone="danger">Could not generate guidance. Please try again.</Alert>
-            ) : null}
-          </section>
           <OpportunitySummarySection detail={detail} />
         </div>
       )}

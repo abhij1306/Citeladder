@@ -11,8 +11,8 @@ import type { SiteHealthEntitlement } from '@/lib/api/types';
 /**
  * The canonical Site Health dashboard layout.
  *
- * ONE composed screen that stays mounted through the entire discover → select
- * → analyze → scored lifecycle. Phase changes update each section's DATA and
+ * ONE composed screen that stays mounted through the entire discover → analyze
+ * → scored lifecycle. Phase changes update each section's DATA and
  * mode — they never swap the layout for a different panel, so starting,
  * cancelling, or finishing a crawl visibly updates the screen the user is
  * already on. (The per-URL crawl detail view and the issues screen remain the
@@ -24,11 +24,9 @@ import type { SiteHealthEntitlement } from '@/lib/api/types';
 export function SiteHealthDashboardLayout({
   screen,
   entitlement,
-  projectId,
 }: Readonly<{
   screen: ReturnType<typeof useSiteHealthScreen>;
   entitlement: SiteHealthEntitlement;
-  projectId: string;
 }>) {
   const {
     phase,
@@ -84,13 +82,7 @@ export function SiteHealthDashboardLayout({
             selectedTotal={projectSelectedTotal}
           />
 
-          <InventorySection
-            mode={inventoryMode}
-            crawl={crawl}
-            entitlement={entitlement}
-            projectId={projectId}
-            active={active}
-          />
+          <InventorySection mode={inventoryMode} crawl={crawl} active={active} />
 
           <PageKindScores crawl={crawl} dashboard={dashboardQuery.data} />
 

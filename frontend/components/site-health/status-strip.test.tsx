@@ -174,7 +174,7 @@ describe('StatusStrip — analysis counters', () => {
   it('surfaces a monitored-count fetch error instead of silently approximating', () => {
     renderStrip({ crawl: crawl({ score_summary: null }), selectedError: true });
 
-    expect(screen.getByText(/Could not load the selected-page count/)).toBeInTheDocument();
+    expect(screen.getByText(/Could not load the monitored-page count/)).toBeInTheDocument();
   });
 });
 
@@ -190,7 +190,7 @@ describe('StatusStrip — link-check phase', () => {
     });
 
     expect(screen.getByText(/checking their links/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Auditing selected pages/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Auditing monitored pages/i)).not.toBeInTheDocument();
   });
 
   it('shows the live pulse while link checking so still counters do not read as hung', () => {
@@ -208,7 +208,7 @@ describe('StatusStrip — link-check phase', () => {
       selectedTotal: 3,
     });
 
-    expect(screen.getByText(/Auditing selected pages/i)).toBeInTheDocument();
+    expect(screen.getByText(/Auditing monitored pages/i)).toBeInTheDocument();
     expect(screen.queryByTestId('activity-pulse')).not.toBeInTheDocument();
   });
 
@@ -243,7 +243,7 @@ describe('StatusStrip — lifecycle content', () => {
   it('freezes behind a starting notice while a fresh crawl create is in flight', () => {
     // The old crawl's phase must not stay in view while a new crawl is being
     // created — a single notice covers the in-flight window.
-    renderStrip({ startPending: true, phase: 'selection', crawl: crawl({ status: 'cancelled' }) });
+    renderStrip({ startPending: true, phase: 'terminal', crawl: crawl({ status: 'cancelled' }) });
 
     expect(screen.getByText(/Starting a fresh crawl/)).toBeInTheDocument();
     expect(screen.queryByText(/Discovery cancelled/)).not.toBeInTheDocument();
@@ -255,7 +255,6 @@ describe('StatusStrip — lifecycle content', () => {
 
     for (const [phase, c] of [
       ['discovering', crawl({ discovery_status: 'running', score_summary: null })],
-      ['selection', crawl({ status: 'cancelled', score_summary: null })],
       ['analyzing', crawl({ score_summary: null })],
       ['dashboard', crawl({ status: 'completed' })],
       ['terminal', crawl({ status: 'failed', score_summary: null })],

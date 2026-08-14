@@ -29,11 +29,10 @@ def _crawl(
     )
 
 
-def _resolve(crawl, *, summary=None, selection_mode=True, monitored=False):
+def _resolve(crawl, *, summary=None, monitored=False):
     return resolve_phase(
         crawl,
         score_summary=summary,
-        selection_mode=selection_mode,
         has_monitored_selection=monitored,
     )
 
@@ -67,18 +66,13 @@ def test_failed_crawl_that_scored_something_keeps_its_dashboard() -> None:
 
 
 @pytest.mark.parametrize("status", ["cancelled", "paused"])
-def test_parked_crawl_with_inventory_returns_to_selection(status: str) -> None:
-    assert _resolve(_crawl(status=status)) == "selection"
+def test_parked_crawl_with_inventory_is_terminal(status: str) -> None:
+    assert _resolve(_crawl(status=status)) == "terminal"
 
 
 @pytest.mark.parametrize("status", ["cancelled", "paused"])
 def test_parked_crawl_with_nothing_discovered_is_terminal(status: str) -> None:
     assert _resolve(_crawl(status=status, admitted_url_count=0)) == "terminal"
-
-
-@pytest.mark.parametrize("status", ["cancelled", "paused"])
-def test_parked_crawl_dead_ends_without_a_monitored_allowance(status: str) -> None:
-    assert _resolve(_crawl(status=status), selection_mode=False) == "terminal"
 
 
 def test_parked_crawl_with_partial_scores_prefers_the_dashboard() -> None:
@@ -100,21 +94,18 @@ def test_active_crawl_without_a_committed_set_is_discovering() -> None:
     assert _resolve(_crawl()) == "discovering"
 
 
-def test_stopped_analysis_is_not_treated_as_live() -> None:
-    # The monitored set survives Stop; it is not evidence analysis is running.
+def test_active_crawl_never_falls_back_to_a_selection_step() -> None:
     crawl = _crawl(discovery_status="completed", analysis_status="stopped")
-    assert _resolve(crawl, monitored=True) == "selection"
+    assert _resolve(crawl, monitored=True) == "analyzing"
 
 
-def test_finished_discovery_waits_for_selection() -> None:
-    assert _resolve(_crawl(discovery_status="completed")) == "selection"
+def test_finished_discovery_continues_on_the_live_results_surface() -> None:
+    assert _resolve(_crawl(discovery_status="completed")) == "analyzing"
 
 
-def test_finished_discovery_auto_analyzes_for_a_sample_account() -> None:
-    assert (
-        _resolve(_crawl(discovery_status="completed"), selection_mode=False)
-        == "analyzing"
-    )
+def test_completed_analysis_does_not_replace_results_with_selection_ui() -> None:
+    crawl = _crawl(discovery_status="completed", analysis_status="completed")
+    assert _resolve(crawl, monitored=True) == "analyzing"
 
 
 def test_running_analysis_after_discovery_is_analyzing() -> None:

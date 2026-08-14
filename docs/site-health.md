@@ -45,6 +45,8 @@ repair lifecycle state, or call a model.
   alongside discovery. The frozen entitlement/runtime allowance still bounds
   which pages may be analyzed; discovery never turns an unentitled inventory
   row into analysis work.
+- Discovery completion never opens a page-selection or separate analysis step.
+  The live results surface stays mounted until the crawl terminalizes.
 - Sitemap frontier lookups and inserts use bounded batches; a full configured
   sitemap cannot exceed PostgreSQL driver parameter limits.
 - Sitemap observations are also written in bounded batches. A worker reuses

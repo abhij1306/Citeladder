@@ -22,7 +22,9 @@ function insightFixture(overrides: Partial<InsightModel> = {}): InsightModel {
 describe('Insight', () => {
   it('renders only evidence-backed insight anatomy', () => {
     const { rerender, container } = render(<Insight insight={insightFixture()} />);
-    expect(screen.getByText('47 product pages have weak buying-intent coverage')).toBeInTheDocument();
+    expect(
+      screen.getByText('47 product pages have weak buying-intent coverage'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '47 product pages' })).toHaveAttribute(
       'href',
       '/site-health/issues?filter=weak',

@@ -16,12 +16,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Label } from '@/components/ui/typography';
-import { InventorySelection } from '@/components/site-health/inventory-selection';
 import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import { PagesTable } from '@/components/site-health/pages-table';
 import { RootErrorsBlock } from '@/components/site-health/root-errors-block';
 import { siteHealthQueries, type PagesParams } from '@/lib/api/site-health';
-import type { SiteCrawl, SiteHealthEntitlement } from '@/lib/api/types';
+import type { SiteCrawl } from '@/lib/api/types';
 import { segmentedItemClasses, segmentedTrackClasses } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
@@ -33,7 +32,6 @@ import { PAGE_LIMIT, statusLabel, type InventoryMode } from '@/lib/site-health/s
  * ONE persistent region that renders the crawl's pages through the whole
  * lifecycle — the rows enrich in place instead of the screen swapping:
  *   - 'discovering': read-only rows streaming in as discovery finds them;
- *   - 'selectable':  monitored-set staging via `InventorySelection`;
  *   - 'scored':      the tabbed (monitored / all / errors) page browser used
  *                    BOTH while analysis runs and after it finishes — statuses
  *                    move queued → running → completed and scores fill in on
@@ -46,14 +44,10 @@ import { PAGE_LIMIT, statusLabel, type InventoryMode } from '@/lib/site-health/s
 export function InventorySection({
   mode,
   crawl,
-  entitlement,
-  projectId,
   active,
 }: Readonly<{
   mode: InventoryMode;
   crawl: SiteCrawl | null;
-  entitlement: SiteHealthEntitlement;
-  projectId: string;
   /** True while the crawl is non-terminal (keeps inventory/pages polling). */
   active: boolean;
 }>) {
@@ -68,17 +62,6 @@ export function InventorySection({
     );
   } else if (mode === 'discovering') {
     content = <DiscoveringInventory crawl={crawl} />;
-  } else if (mode === 'selectable') {
-    content = (
-      <InventorySelection
-        crawl={crawl}
-        entitlement={entitlement}
-        projectId={projectId}
-        // A cancelled crawl keeps its discovered inventory but can no longer
-        // run analysis itself — selections persist into the next crawl.
-        crawlInactive={!active}
-      />
-    );
   } else {
     content = <ScoredInventory crawl={crawl} active={active} />;
   }

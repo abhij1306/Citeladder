@@ -103,11 +103,7 @@ export function ContentScreen({ opportunityId }: Readonly<{ opportunityId?: stri
   // `key` remounts on project switch so all transient state (prompt, toggle,
   // selection, mutation surfaces) resets — no cross-project bleed-through.
   return (
-    <ProjectContentScreen
-      key={projectId}
-      projectId={projectId}
-      opportunityId={opportunityId}
-    />
+    <ProjectContentScreen key={projectId} projectId={projectId} opportunityId={opportunityId} />
   );
 }
 

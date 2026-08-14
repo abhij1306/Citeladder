@@ -104,9 +104,7 @@ def extract_discovery_links(
         if url_hash in seen:
             continue
         seen.add(url_hash)
-        links.append(
-            DiscoveredLink(url=canonical, url_hash=url_hash, ordinal=ordinal)
-        )
+        links.append(DiscoveredLink(url=canonical, url_hash=url_hash, ordinal=ordinal))
         ordinal += 1
         if len(links) >= limit:
             break

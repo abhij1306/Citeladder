@@ -229,9 +229,7 @@ class _SeedStubAdapter:
                 f"3. {alpine.name} - ${alpine.price:.2f} ({alpine.url}) - "
                 "two-year warranty, a 45-liter alpine alternative."
             )
-            wanderlust_start, wanderlust_end = _citation_span(
-                answer, "Wanderlust Gear"
-            )
+            wanderlust_start, wanderlust_end = _citation_span(answer, "Wanderlust Gear")
             trailblaze_start, trailblaze_end = _citation_span(
                 answer, "TrailBlaze Packs"
             )

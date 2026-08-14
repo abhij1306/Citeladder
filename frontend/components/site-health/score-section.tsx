@@ -78,7 +78,10 @@ function overallSub(
       ? `based on ${crawl.analyzed_count} of ${selectedTotal} pages`
       : `based on ${crawl.analyzed_count} pages so far`;
   }
-  return 'Run the analysis to see scores';
+  if (crawl && ['failed', 'cancelled', 'paused'].includes(crawl.status)) {
+    return 'No score available';
+  }
+  return 'Scores appear as pages are analyzed';
 }
 
 /**

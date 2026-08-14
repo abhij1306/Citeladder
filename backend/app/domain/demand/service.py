@@ -117,6 +117,8 @@ def _source_material(
         "analyzer_version": DEMAND_ANALYZER_VERSION,
         "formula_version": DEMAND_FORMULA_VERSION,
     }
+
+
 def _snapshot_row(
     *,
     task: AnalyticsTask,

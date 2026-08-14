@@ -639,7 +639,6 @@ async def _affected_page_kinds(
     return page_kind_by_url
 
 
-
 from app.domain.site_health.service.issue_history import (  # noqa: E402
     get_grouped_issue_history,
     get_issue_history,

@@ -88,10 +88,7 @@ export function useContentGenerations(
   };
 
   const enqueueMutation = useMutation({
-    mutationFn: (input: {
-      prompt: string;
-      skillId: 'youtube' | 'reddit' | 'blog' | 'article';
-    }) =>
+    mutationFn: (input: { prompt: string; skillId: 'youtube' | 'reddit' | 'blog' | 'article' }) =>
       contentApi.enqueueGeneration(
         {
           project_id: projectId ?? '',

@@ -117,7 +117,9 @@ describe('content generation API', () => {
       http.post(`/api/v1/content/generations/${GENERATION_ID}/${suffix}`, () => {
         seen.push(suffix);
         return HttpResponse.json(
-          suffix === 'cancel' ? { ...detail, status: 'cancelled', error_code: 'cancelled' } : detail,
+          suffix === 'cancel'
+            ? { ...detail, status: 'cancelled', error_code: 'cancelled' }
+            : detail,
           { status: suffix === 'cancel' ? 200 : 201 },
         );
       });
@@ -142,14 +144,15 @@ describe('content generation API', () => {
 
 describe('content contract guards', () => {
   it('rejects malformed required fields and strips unknown fields', () => {
-    expect(() => strictValidate(contentGenerationListItemSchema, { ...listItem, id: 1 }, 'list')).toThrow(
-      /list/,
-    );
+    expect(() =>
+      strictValidate(contentGenerationListItemSchema, { ...listItem, id: 1 }, 'list'),
+    ).toThrow(/list/);
     const { generator_version: _version, ...missing } = detail;
     expect(() => strictValidate(contentGenerationDetailSchema, missing, 'detail')).toThrow();
-    expect('model' in strictValidate(contentGenerationDetailSchema, { ...detail, model: 'gpt' }, 'detail')).toBe(
-      false,
-    );
+    expect(
+      'model' in
+        strictValidate(contentGenerationDetailSchema, { ...detail, model: 'gpt' }, 'detail'),
+    ).toBe(false);
   });
 
   it('keeps polling and cache ownership stable', () => {

@@ -63,8 +63,8 @@ export function BrandProfilePanel({
           <CardEyebrow>Brand profile</CardEyebrow>
           <CardTitle id="brand-knowledge-title">Facts & positioning</CardTitle>
           <p className="text-secondary text-sm">
-            Curated context used by competitor and prompt generation. Generated prose never
-            becomes knowledge.
+            Curated context used by competitor and prompt generation. Generated prose never becomes
+            knowledge.
           </p>
         </div>
       </CardHeader>

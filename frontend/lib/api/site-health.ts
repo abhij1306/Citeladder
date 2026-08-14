@@ -21,7 +21,6 @@ import {
   monitoredUrlsResponseSchema,
   pageDetailSchema,
   pagesPageSchema,
-  phaseMutationResponseSchema,
   rerunPageResponseSchema,
   siteCrawlListPageSchema,
   siteCrawlSchema,
@@ -39,7 +38,6 @@ import type {
   MonitoredUrlsResponse,
   PageDetail,
   PagesPage,
-  PhaseMutationResponse,
   RerunPageResponse,
   SiteCrawl,
   SiteCrawlListPage,
@@ -114,34 +112,6 @@ type IssueDetailParams = { cursor?: string; limit?: number };
 /** Keyset params for a URL's crawl-bounded issue history. */
 type IssueHistoryParams = { cursor?: string; limit?: number };
 
-/** `PUT /projects/{id}/monitored-urls` body — atomic full-set replacement. */
-type ReplaceMonitoredInput = {
-  site_url_ids: string[];
-  expected_selection_version: number;
-};
-
-/**
- * `POST /projects/{id}/monitored-urls/bulk-select` body — server-resolved
- * bulk selection. `first_n` selects the first `count` admitted URLs of
- * `crawl_id` in the inventory's `(normalized_url, id)` order; `all` selects
- * every admitted URL; `none` clears the selection. `query` applies the same
- * substring filter as the inventory listing.
- */
-export type BulkSelectMonitoredInput = {
-  mode: 'first_n' | 'all' | 'none';
-  crawl_id: string;
-  count?: number;
-  query?: string;
-  expected_selection_version: number;
-};
-
-export type StartDiscoveryInput = { additional_url_count: number };
-export type StartAnalysisInput = {
-  requested_url_count: number;
-  site_url_ids: string[];
-  expected_selection_version: number;
-};
-
 export const siteHealthApi = {
   getEntitlements: async (options?: ApiRequestOptions) => {
     const res = await apiClient.get<SiteHealthEntitlement>('/entitlements', options);
@@ -176,46 +146,6 @@ export const siteHealthApi = {
     );
     return strictValidate(siteCrawlSchema, res, 'siteHealth.cancelCrawl');
   },
-  startDiscovery: async (
-    crawlId: string,
-    input: StartDiscoveryInput,
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.post<PhaseMutationResponse>(
-      `/site-crawls/${crawlId}/discovery/start`,
-      input,
-      options,
-    );
-    return strictValidate(phaseMutationResponseSchema, res, 'siteHealth.startDiscovery');
-  },
-  stopDiscovery: async (crawlId: string, options?: ApiRequestOptions) => {
-    const res = await apiClient.post<PhaseMutationResponse>(
-      `/site-crawls/${crawlId}/discovery/stop`,
-      undefined,
-      options,
-    );
-    return strictValidate(phaseMutationResponseSchema, res, 'siteHealth.stopDiscovery');
-  },
-  startAnalysis: async (
-    crawlId: string,
-    input: StartAnalysisInput,
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.post<PhaseMutationResponse>(
-      `/site-crawls/${crawlId}/analysis/start`,
-      input,
-      options,
-    );
-    return strictValidate(phaseMutationResponseSchema, res, 'siteHealth.startAnalysis');
-  },
-  stopAnalysis: async (crawlId: string, options?: ApiRequestOptions) => {
-    const res = await apiClient.post<PhaseMutationResponse>(
-      `/site-crawls/${crawlId}/analysis/stop`,
-      undefined,
-      options,
-    );
-    return strictValidate(phaseMutationResponseSchema, res, 'siteHealth.stopAnalysis');
-  },
   getInventory: async (crawlId: string, params?: InventoryParams, options?: ApiRequestOptions) => {
     const path = withQuery(`/site-crawls/${crawlId}/inventory`, definedQuery(params));
     const res = await apiClient.get<InventoryPage>(path, options);
@@ -227,30 +157,6 @@ export const siteHealthApi = {
       options,
     );
     return strictValidate(monitoredUrlsResponseSchema, res, 'siteHealth.getMonitoredUrls');
-  },
-  replaceMonitoredUrls: async (
-    projectId: string,
-    input: ReplaceMonitoredInput,
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.put<MonitoredUrlsResponse>(
-      `/projects/${projectId}/monitored-urls`,
-      input,
-      options,
-    );
-    return strictValidate(monitoredUrlsResponseSchema, res, 'siteHealth.replaceMonitoredUrls');
-  },
-  bulkSelectMonitoredUrls: async (
-    projectId: string,
-    input: BulkSelectMonitoredInput,
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.post<MonitoredUrlsResponse>(
-      `/projects/${projectId}/monitored-urls/bulk-select`,
-      input,
-      options,
-    );
-    return strictValidate(monitoredUrlsResponseSchema, res, 'siteHealth.bulkSelectMonitoredUrls');
   },
   getPages: async (crawlId: string, params?: PagesParams, options?: ApiRequestOptions) => {
     const path = withQuery(`/site-crawls/${crawlId}/pages`, definedQuery(params));
@@ -423,34 +329,6 @@ export const siteHealthMutations = {
   cancelCrawl: () =>
     mutationOptions({
       mutationFn: (crawlId: string) => siteHealthApi.cancelCrawl(crawlId),
-    }),
-  startDiscovery: () =>
-    mutationOptions({
-      mutationFn: (vars: { crawlId: string; input: StartDiscoveryInput }) =>
-        siteHealthApi.startDiscovery(vars.crawlId, vars.input),
-    }),
-  stopDiscovery: () =>
-    mutationOptions({
-      mutationFn: (crawlId: string) => siteHealthApi.stopDiscovery(crawlId),
-    }),
-  startAnalysis: () =>
-    mutationOptions({
-      mutationFn: (vars: { crawlId: string; input: StartAnalysisInput }) =>
-        siteHealthApi.startAnalysis(vars.crawlId, vars.input),
-    }),
-  stopAnalysis: () =>
-    mutationOptions({
-      mutationFn: (crawlId: string) => siteHealthApi.stopAnalysis(crawlId),
-    }),
-  replaceMonitoredUrls: () =>
-    mutationOptions({
-      mutationFn: (vars: { projectId: string; input: ReplaceMonitoredInput }) =>
-        siteHealthApi.replaceMonitoredUrls(vars.projectId, vars.input),
-    }),
-  bulkSelectMonitoredUrls: () =>
-    mutationOptions({
-      mutationFn: (vars: { projectId: string; input: BulkSelectMonitoredInput }) =>
-        siteHealthApi.bulkSelectMonitoredUrls(vars.projectId, vars.input),
     }),
   rerunPage: () =>
     mutationOptions({

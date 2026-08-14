@@ -13,7 +13,6 @@ import {
   opportunitySummarySchema,
   opportunityTypeSchema,
   recomputeResponseSchema,
-  opportunityGuidanceItemSchema,
   strictValidate,
 } from './schemas';
 
@@ -98,50 +97,6 @@ const recomputeResponse = {
   formula_version: 'opp-formula-1',
   created_at: '2026-07-24T00:00:00Z',
 };
-
-const guidance = {
-  id: AUDIT,
-  opportunity_id: OPP,
-  input_hash: 'hash',
-  findings: ['Brand is absent'],
-  recommendations: ['Publish a comparison page'],
-  source_analysis_ids: [AUDIT],
-  source_issue_ids: [],
-  source_metric_ids: [AUDIT],
-  analyzer_version: 'a1',
-  rule_version: 'r1',
-  formula_version: 'f1',
-  generator_version: 'g1',
-  prompt_version: 'p1',
-  provider: 'deterministic',
-  model: 'template',
-  created_at: '2026-07-24T00:00:00Z',
-};
-
-describe('opportunity guidance contract', () => {
-  it('creates immutable guidance with an idempotency key', async () => {
-    mswServer.use(
-      http.post(`/api/v1/opportunities/${OPP}/guidance`, ({ request }) => {
-        expect(request.headers.get('Idempotency-Key')).toBe('guidance-key');
-        return HttpResponse.json(guidance);
-      }),
-    );
-    await expect(opportunitiesApi.createGuidance(OPP, 'guidance-key')).resolves.toEqual(guidance);
-    expect(
-      strictValidate(opportunityGuidanceItemSchema, guidance, 'guidance').recommendations,
-    ).toHaveLength(1);
-  });
-
-  it('rejects non-UUID provenance IDs', () => {
-    expect(() =>
-      strictValidate(
-        opportunityGuidanceItemSchema,
-        { ...guidance, source_metric_ids: ['not-a-uuid'] },
-        'guidance',
-      ),
-    ).toThrow(/API validation failure/);
-  });
-});
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => mswServer.resetHandlers());

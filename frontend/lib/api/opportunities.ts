@@ -18,8 +18,6 @@ import {
   opportunityDetailSchema,
   opportunitySummarySchema,
   opportunitySchema,
-  opportunityGuidanceHistorySchema,
-  opportunityGuidanceItemSchema,
   opportunityOrderResponseSchema,
   recomputeResponseSchema,
   strictValidate,
@@ -32,8 +30,6 @@ import type {
   OpportunityStatus,
   OpportunitySummary,
   RecomputeResponse,
-  OpportunityGuidanceHistory,
-  OpportunityGuidanceItem,
 } from './types';
 
 /** Keyset catalog params. Ordering is server-owned (priority desc, id desc). */
@@ -102,40 +98,6 @@ export const opportunitiesApi = {
     );
     return strictValidate(opportunitySummarySchema, res, 'opportunities.summary');
   },
-  createGuidance: async (
-    opportunityId: string,
-    idempotencyKey: string,
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.post<OpportunityGuidanceItem>(
-      `/opportunities/${opportunityId}/guidance`,
-      {},
-      { ...options, idempotencyKey },
-    );
-    return strictValidate(opportunityGuidanceItemSchema, res, 'opportunities.createGuidance');
-  },
-  getLatestGuidance: async (opportunityId: string, options?: ApiRequestOptions) => {
-    const res = await apiClient.get<OpportunityGuidanceItem | null>(
-      `/opportunities/${opportunityId}/guidance`,
-      options,
-    );
-    return strictValidate(
-      opportunityGuidanceItemSchema.nullable(),
-      res,
-      'opportunities.getLatestGuidance',
-    );
-  },
-  getGuidanceHistory: async (opportunityId: string, options?: ApiRequestOptions) => {
-    const res = await apiClient.get<OpportunityGuidanceHistory>(
-      `/opportunities/${opportunityId}/guidance/history`,
-      options,
-    );
-    return strictValidate(
-      opportunityGuidanceHistorySchema,
-      res,
-      'opportunities.getGuidanceHistory',
-    );
-  },
   /** Same-origin export URLs (browser navigation / download links). */
   exportUrl: (
     projectId: string,
@@ -196,16 +158,6 @@ export const opportunitiesQueries = {
       placeholderData: (previousData, previousQuery) =>
         isSameProjectQuery(previousQuery, projectId) ? previousData : undefined,
     }),
-  guidance: (opportunityId: string) =>
-    queryOptions({
-      queryKey: queryKeys.opportunities.guidance(opportunityId),
-      queryFn: ({ signal }) => opportunitiesApi.getLatestGuidance(opportunityId, { signal }),
-    }),
-  guidanceHistory: (opportunityId: string) =>
-    queryOptions({
-      queryKey: queryKeys.opportunities.guidanceHistory(opportunityId),
-      queryFn: ({ signal }) => opportunitiesApi.getGuidanceHistory(opportunityId, { signal }),
-    }),
 };
 
 export const opportunitiesMutations = {
@@ -218,10 +170,5 @@ export const opportunitiesMutations = {
     mutationOptions({
       mutationFn: (vars: { projectId: string; scope?: RecomputeScope }) =>
         opportunitiesApi.recompute(vars.projectId, vars.scope),
-    }),
-  createGuidance: () =>
-    mutationOptions({
-      mutationFn: (vars: { opportunityId: string; idempotencyKey: string }) =>
-        opportunitiesApi.createGuidance(vars.opportunityId, vars.idempotencyKey),
     }),
 };

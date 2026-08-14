@@ -433,6 +433,10 @@ describe('OpportunitiesScreen', () => {
     expect(within(drawer).getByText('“best crm for small teams”')).toBeInTheDocument();
     expect(within(drawer).getByText('Globex')).toBeInTheDocument();
     expect(within(drawer).getByText('Publish a comparison page.')).toBeInTheDocument();
+    expect(within(drawer).queryByText('Tailored guidance')).not.toBeInTheDocument();
+    expect(
+      within(drawer).queryByRole('button', { name: /Generate|Regenerate/ }),
+    ).not.toBeInTheDocument();
 
     const runLink = within(drawer).getByRole('link', { name: 'View result' });
     expect(runLink).toHaveAttribute('href', `/runs/${RUN}`);

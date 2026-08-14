@@ -38,9 +38,7 @@ async def _authorize(
         raise_not_found("Project", cause=exc)
 
 
-async def _snapshot_view(
-    session: AsyncSession, row
-) -> DemandSnapshotView:
+async def _snapshot_view(session: AsyncSession, row) -> DemandSnapshotView:
     signals = await list_signals(
         session,
         workspace_id=row.workspace_id,

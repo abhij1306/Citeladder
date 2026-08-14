@@ -100,7 +100,7 @@ function StripContent({
       <Alert tone="info">
         {crawl
           ? 'Starting a fresh crawl — current results stay visible until the new run completes.'
-          : 'Starting discovery — pages will appear below as they are found.'}
+          : 'Starting crawl — pages will appear below as they are found.'}
       </Alert>
     );
   }
@@ -119,9 +119,9 @@ function StripContent({
           <AccentEyebrow>Site health</AccentEyebrow>
           <h2 className={displayHeadingLgClasses}>No crawl yet</h2>
           <p className="text-secondary max-w-md text-sm">
-            Discover and analyze your site&apos;s pages for AI search optimization. Start a
-            discovery to see your pages, scores, and issues here — this screen updates in place as
-            the crawl progresses.
+            Discover and analyze your site&apos;s pages for AI search optimization. Start a crawl to
+            see your pages, scores, and issues here — this screen updates in place as the crawl
+            progresses.
           </p>
         </CardContent>
       </Card>
@@ -141,16 +141,6 @@ function StripContent({
         selectedTotal={selectedTotal}
         selectedError={selectedError}
       />
-    );
-  }
-
-  if (phase === 'selection') {
-    return (
-      <Alert tone="info">
-        {crawl.status === 'cancelled'
-          ? 'Discovery cancelled — found pages are kept below. Select pages to monitor, save, then run a new crawl.'
-          : 'Discovery finished — select pages to monitor, save, then run a new crawl.'}
-      </Alert>
     );
   }
 
@@ -259,12 +249,12 @@ function DiscoveryStrip({
 }>) {
   const provisional = isDiscoveryProvisional(crawl);
   const showTotal = canShowDiscoveredTotal(entitlement, crawl);
-  // Neutral capability, not a plan name: `sample` means the server picks the
-  // pages, `selection` means this account stages its own monitored set.
+  // Neutral capability, not a plan name: `sample` means the server picks a
+  // bounded sample; full mode uses the crawl's automatic admission allowance.
   const sampleMode = entitlement.access_mode === 'sample';
   let narration: string;
   if (cancelPending) {
-    narration = 'Cancelling discovery — finishing the page in flight and stopping';
+    narration = 'Stopping crawl — finishing the page in flight';
   } else if (provisional) {
     narration = `${discoveryProgressLabel(crawl)} — scanning continues in the background`;
   } else {
@@ -335,9 +325,9 @@ function AnalysisStrip({
   } else if (linkChecking) {
     narration = 'Pages analyzed — checking their links for broken destinations';
   } else if (discovering) {
-    narration = 'Auditing selected pages while discovery re-scans the site in the background';
+    narration = 'Auditing monitored pages while discovery re-scans the site in the background';
   } else {
-    narration = 'Auditing selected pages for Web Fundamentals and AEO health issues';
+    narration = 'Auditing monitored pages for Web Fundamentals and AEO health issues';
   }
 
   return (
@@ -356,7 +346,7 @@ function AnalysisStrip({
     >
       {selectedError ? (
         <Alert tone="warning">
-          Could not load the selected-page count — progress totals may be approximate until it
+          Could not load the monitored-page count — progress totals may be approximate until it
           refreshes.
         </Alert>
       ) : null}

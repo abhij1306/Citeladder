@@ -160,8 +160,6 @@ import type {
   opportunitySummarySchema,
   opportunityTypeSchema,
   recomputeResponseSchema,
-  opportunityGuidanceHistorySchema,
-  opportunityGuidanceItemSchema,
 } from './schemas';
 
 export type SessionUser = z.infer<typeof sessionUserSchema>;
@@ -328,5 +326,3 @@ export type OpportunityDetail = z.infer<typeof opportunityDetailSchema>;
 export type OpportunitiesPage = z.infer<typeof opportunitiesPageSchema>;
 export type OpportunitySummary = z.infer<typeof opportunitySummarySchema>;
 export type RecomputeResponse = z.infer<typeof recomputeResponseSchema>;
-export type OpportunityGuidanceItem = z.infer<typeof opportunityGuidanceItemSchema>;
-export type OpportunityGuidanceHistory = z.infer<typeof opportunityGuidanceHistorySchema>;
