@@ -11,7 +11,7 @@
  */
 const PAGE_TITLES: ReadonlyArray<readonly [prefix: string, title: string]> = [
   ['/visibility', 'Overview'],
-  ['/analytics', 'AI Referrals'],
+  ['/ai-referrals', 'AI Referrals'],
   ['/traffic', 'Traffic'],
   ['/prompts', 'Prompts'],
   ['/prompt-research', 'Prompt research'],
@@ -27,9 +27,8 @@ const PAGE_TITLES: ReadonlyArray<readonly [prefix: string, title: string]> = [
   // prefix matches, so the shorter one would otherwise swallow it.
   ['/site-health', 'Site health'],
   ['/site', 'Site'],
-  ['/demand', 'Demand'],
+  ['/demand', 'Search Demand'],
   ['/agent', 'Growth Agent'],
-  ['/reports', 'Reports'],
   ['/issues', 'Issues'],
   ['/settings', 'Settings'],
   ['/providers', 'Settings'],

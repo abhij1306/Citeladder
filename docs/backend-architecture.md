@@ -118,12 +118,21 @@ The current brief evidence adapter returns explicit empty `allowed_facts`,
 `prohibited_claims`, and `source_refs` because its former knowledge-assertion
 source was removed. A replacement requires a separate approved design.
 
-## Demand and visibility
+## Demand, Traffic, and visibility
 
 Integration import artifacts are immutable. Normalized GSC/GA4 rows and Demand
 snapshots preserve provider coverage, requested/available report families,
 join coverage, source IDs, and formula versions. Missing permissions or data
 remain unavailable rather than becoming zero.
+
+Search Demand projects its latest snapshot as ranked GSC query/page gaps with
+their evidence window and observed impressions, clicks, and CTR. It does not
+embed a duplicate AI Visibility projection. Traffic projections make chart
+granularity explicit while retaining selected-window totals. AI Referrals derives
+session volume and shares only from `ga4_source_medium_daily`; overlapping
+referrer rows are provenance, not an additional summand. Derived referral
+snapshots carry formula/analyzer versions and rebuild through an explicit worker
+path, never in a read route.
 
 Prompt generation, scheduled audits, provider attempts, and answer-engine
 measurements use existing queue owners and immutable evidence. Visibility does
@@ -131,10 +140,14 @@ not write business truth.
 
 ## Growth Agent
 
-Agent runs resolve a config-owned task policy, freeze a bounded context
-package, execute registered typed tools, and persist progress/results.
-Conversation reads do not recompute domain state. The agent has no correction
-or knowledge-memory tool after the Site Intelligence removal.
+Agent runs resolve a config-owned task policy, freeze a bounded context package,
+execute registered typed tools, and persist progress/results. Result contracts
+contain plain-language summary/observations, source availability, limitations,
+artifact references, and deterministic Opportunity-ordered roadmap items.
+Compact history and full run-detail routes have separate response shapes so
+history reads do not return provenance payloads. Conversation reads do not
+recompute domain state. The agent has no correction or knowledge-memory tool
+after the Site Intelligence removal.
 
 ## Task queue contract
 

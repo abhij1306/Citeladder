@@ -19,7 +19,7 @@ export default function robots(): MetadataRoute.Robots {
           '/api/',
           '/onboarding',
           '/visibility',
-          '/analytics',
+          '/ai-referrals',
           '/traffic',
           '/prompts',
           '/products',

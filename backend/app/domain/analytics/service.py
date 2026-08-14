@@ -16,24 +16,22 @@ from datetime import UTC, date, datetime, time, timedelta
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.analysis import ANALYZER_VERSION, SCORING_RULE_VERSION
 from app.core.config.analytics import (
+    AI_REFERRAL_ANALYZER_VERSION,
+    AI_REFERRAL_FORMULA_VERSION,
     AI_SOURCES,
     ANALYTICS_DEFAULT_GRANULARITY,
     ANALYTICS_MAX_WINDOW_DAYS,
     ANALYTICS_REFERRALS_PAGE_SIZE,
     ANALYTICS_SNAPSHOT_GRANULARITIES,
     CONFIDENCE_EXACT,
-    CORRELATION_STATE_INSUFFICIENT_DATA,
 )
 from app.domain.analytics.ingest import metric_row_not_superseded
 from app.domain.analytics.schemas import (
-    AnalyticsCorrelation,
-    AnalyticsEngineVisibility,
+    AiReferralsResponse,
     AnalyticsReferralRow,
     AnalyticsReferralsPage,
     AnalyticsSourceBreakdownRow,
-    LlmAnalyticsResponse,
     LlmAnalyticsThemeRow,
     metric_series_points,
 )
@@ -124,6 +122,10 @@ async def _load_snapshot(
         .where(AnalyticsSnapshot.workspace_id == workspace_id)
         .where(AnalyticsSnapshot.project_id == project_id)
         .where(AnalyticsSnapshot.granularity == granularity)
+        .where(
+            AnalyticsSnapshot.analyzer_version == AI_REFERRAL_ANALYZER_VERSION
+        )
+        .where(AnalyticsSnapshot.formula_version == AI_REFERRAL_FORMULA_VERSION)
     )
     if from_date is not None and to_date is not None:
         stmt = stmt.where(AnalyticsSnapshot.window_start == from_date)
@@ -142,9 +144,9 @@ def _empty_analytics(
     from_date: date | None,
     to_date: date | None,
     granularity: str,
-) -> LlmAnalyticsResponse:
+) -> AiReferralsResponse:
     """The empty payload for an absent snapshot (never a recomputation)."""
-    return LlmAnalyticsResponse(
+    return AiReferralsResponse(
         project_id=project_id,
         window_start=from_date.isoformat() if from_date is not None else "",
         window_end=to_date.isoformat() if to_date is not None else "",
@@ -152,18 +154,12 @@ def _empty_analytics(
         referral_volume=[],
         referral_share=[],
         sources=[],
-        engine_visibility=[],
-        correlation=AnalyticsCorrelation(
-            state=CORRELATION_STATE_INSUFFICIENT_DATA,
-            coefficient=None,
-            sample_size=0,
-        ),
-        analyzer_version=ANALYZER_VERSION,
-        formula_version=SCORING_RULE_VERSION,
+        analyzer_version=AI_REFERRAL_ANALYZER_VERSION,
+        formula_version=AI_REFERRAL_FORMULA_VERSION,
     )
 
 
-async def get_llm_analytics(
+async def get_ai_referrals(
     session: AsyncSession,
     *,
     workspace_id: uuid.UUID,
@@ -171,7 +167,7 @@ async def get_llm_analytics(
     from_date: date | None = None,
     to_date: date | None = None,
     granularity: str = ANALYTICS_DEFAULT_GRANULARITY,
-) -> LlmAnalyticsResponse:
+) -> AiReferralsResponse:
     """Serve the headline AEO projection from the persisted snapshot.
 
     The persisted ``metrics`` JSONB already carries the exact DTO fragments
@@ -197,7 +193,6 @@ async def get_llm_analytics(
         )
 
     metrics = snapshot.metrics or {}
-    correlation = metrics.get("correlation") or {}
     sources = [
         AnalyticsSourceBreakdownRow(
             ai_source=str(row.get("ai_source") or ""),
@@ -207,15 +202,7 @@ async def get_llm_analytics(
         for row in metrics.get("sources") or []
         if isinstance(row, dict)
     ]
-    engine_visibility = [
-        AnalyticsEngineVisibility(
-            logical_engine=str(row.get("logical_engine") or ""),
-            series=metric_series_points(row.get("series")),
-        )
-        for row in metrics.get("engine_visibility") or []
-        if isinstance(row, dict)
-    ]
-    return LlmAnalyticsResponse(
+    return AiReferralsResponse(
         project_id=project_id,
         window_start=snapshot.window_start.isoformat(),
         window_end=snapshot.window_end.isoformat(),
@@ -223,12 +210,6 @@ async def get_llm_analytics(
         referral_volume=metric_series_points(metrics.get("referral_volume")),
         referral_share=metric_series_points(metrics.get("referral_share")),
         sources=sources,
-        engine_visibility=engine_visibility,
-        correlation=AnalyticsCorrelation(
-            state=str(correlation.get("state") or CORRELATION_STATE_INSUFFICIENT_DATA),
-            coefficient=correlation.get("coefficient"),
-            sample_size=int(correlation.get("sample_size") or 0),
-        ),
         analyzer_version=snapshot.analyzer_version,
         formula_version=snapshot.formula_version,
     )

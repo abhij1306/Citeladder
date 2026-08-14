@@ -31,7 +31,7 @@ export function IntegrationsEmptyState() {
         <div className="grid gap-1">
           <h2 className={displayHeadingLgClasses}>No integrations connected</h2>
           <p className="text-secondary max-w-md text-sm">
-            Sync your Google or Microsoft accounts to power Traffic and LLM Analytics.
+            Sync your Google or Microsoft accounts to power Traffic and AI Referrals.
           </p>
         </div>
         <div className="flex items-center gap-2">

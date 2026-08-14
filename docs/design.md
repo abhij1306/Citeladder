@@ -185,7 +185,6 @@ to look on every page in the app.
 │ Demand     │  ┌─────────┐ ┌─────────┐ ┌─────────┐            │
 │ Growth     │  │ Metric  │ │ Metric  │ │ Metric  │            │
 │            │  └─────────┘ └─────────┘ └─────────┘            │
-│ Reports    │                                                 │
 │            │  Primary analytical surface                     │
 │ Settings   │  ──────────────────────────────────────         │
 │            │                                                 │
@@ -322,10 +321,17 @@ sheets owned by `components/ui/drawer.tsx`. Their scrim dims and locks the page;
 outside click, Escape, or the close control dismisses them, and focus returns to
 the trigger. Feature components never import Radix directly.
 
-Tabs remain the underline treatment for navigation between views. Segmented
-controls use one bordered-track recipe for compact single-select changes within
-a view. Filter chips are the shared pill treatment for independent or
-multi-select filters; they live in `components/ui`, not a feature directory.
+Tabs remain the underline treatment for navigation between views and for one
+mutually exclusive data table within a surface (for example, Top pages and Top
+queries). They provide keyboard navigation and preserve the selected tab's
+focus. Segmented controls use one bordered-track recipe for compact single-select
+changes within a view. Filter chips are the shared pill treatment for independent
+or multi-select filters; they live in `components/ui`, not a feature directory.
+
+Changing a chart interval retains the previous analytical content while the new
+persisted projection loads. Mark the analytical region busy and show compact
+loading feedback; do not replace it with a skeleton or let its labels describe
+data that has not arrived.
 
 ## Motion and accessibility
 

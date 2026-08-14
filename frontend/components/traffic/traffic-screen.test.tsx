@@ -184,7 +184,7 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 describe('TrafficScreen — populated dashboard', () => {
-  it('renders the toolbar, six stat cards, four trend cards, and both tables', async () => {
+  it('renders the toolbar, six stat cards, four trend cards, and a tabbed rankings view', async () => {
     const seen = mockDashboard();
     mockConnections([
       connection(),
@@ -205,7 +205,7 @@ describe('TrafficScreen — populated dashboard', () => {
     expect(within(toolbar).getByRole('button', { name: 'Select date range' })).toHaveTextContent(
       'Latest synced window',
     );
-    const group = within(toolbar).getByRole('radiogroup', { name: 'Snapshot granularity' });
+    const group = within(toolbar).getByRole('radiogroup', { name: 'Chart interval' });
     expect(within(group).getByRole('radio', { name: 'Day' })).toHaveAttribute(
       'aria-checked',
       'true',
@@ -250,10 +250,12 @@ describe('TrafficScreen — populated dashboard', () => {
     expect(screen.getByTestId('trend-chart-clicks')).toBeInTheDocument();
     expect(screen.getByTestId('trend-chart-average-position')).toBeInTheDocument();
 
-    // Both keyset tables render beneath the charts.
+    // Rankings are tabbed so the two dense tables do not force needless scrolling.
     expect(await screen.findByTestId('pages-table')).toBeInTheDocument();
-    expect(await screen.findByTestId('queries-table')).toBeInTheDocument();
-    expect(await screen.findByText('best trail running shoes')).toBeInTheDocument();
+    expect(screen.queryByTestId('queries-table')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Top pages' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Top queries' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByText(/Chart interval does not change their order/)).toBeInTheDocument();
   });
 
   it('refetches with the requested granularity when the segmented control changes', async () => {
@@ -279,6 +281,66 @@ describe('TrafficScreen — populated dashboard', () => {
     );
     // The delta copy follows the selected bucket's noun.
     expect(await screen.findByTestId('stat-impressions')).toHaveTextContent('vs. prior month');
+  });
+
+  it('keeps the previous chart visible and focused while an interval request is pending', async () => {
+    let releaseWeek: ((response: Response) => void) | undefined;
+    mswServer.use(
+      http.get(DASHBOARD_URL, ({ request }) => {
+        const granularity = new URL(request.url).searchParams.get('granularity') ?? 'day';
+        if (granularity !== 'week') return HttpResponse.json({ ...dashboardPayload, granularity });
+        return new Promise<Response>((resolve) => {
+          releaseWeek = resolve;
+        });
+      }),
+    );
+    mockConnections([connection()]);
+    mockTables();
+    const user = userEvent.setup();
+    renderWithProviders(<TrafficScreen />);
+
+    await screen.findByTestId('traffic-stats');
+    const week = screen.getByRole('radio', { name: 'Week' });
+    await user.click(week);
+
+    expect(week).toHaveFocus();
+    expect(screen.getByTestId('traffic-stats')).toHaveTextContent('1,162,000');
+    expect(screen.getByRole('status')).toHaveTextContent('Updating chart…');
+    expect(screen.queryByTestId('traffic-skeleton')).not.toBeInTheDocument();
+
+    releaseWeek?.(
+      HttpResponse.json({
+        ...dashboardPayload,
+        granularity: 'week',
+        series: {
+          ...dashboardPayload.series,
+          impressions: [point('2026-07-21', 101000)],
+          clicks: [point('2026-07-21', 4184)],
+        },
+      }),
+    );
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    expect(screen.getByTestId('stat-impressions')).toHaveTextContent('No prior week');
+  });
+
+  it('switches Top pages and Top queries with accessible keyboard tabs', async () => {
+    mockDashboard();
+    mockConnections([connection()]);
+    mockTables();
+    const user = userEvent.setup();
+    renderWithProviders(<TrafficScreen />);
+
+    await screen.findByTestId('pages-table');
+    const pages = screen.getByRole('tab', { name: 'Top pages' });
+    pages.focus();
+    await user.keyboard('{ArrowRight}');
+
+    const queries = screen.getByRole('tab', { name: 'Top queries' });
+    expect(queries).toHaveFocus();
+    expect(queries).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByTestId('queries-table')).toBeInTheDocument();
+    expect(screen.queryByTestId('pages-table')).not.toBeInTheDocument();
+    expect(screen.getByText('best trail running shoes')).toBeInTheDocument();
   });
 });
 

@@ -57,7 +57,8 @@ async def test_task_is_queued_and_replayed_idempotently(
     )
     assert first.status_code == 201, first.text
     assert first.json()["status"] == "queued"
-    assert first.json()["attempts"] == []
+    assert first.json()["result"] is None
+    assert "attempts" not in first.json()
     replay = await client.post(
         "/api/v1/agent/tasks", json=body, headers={"Idempotency-Key": "roadmap-1"}
     )
@@ -146,7 +147,9 @@ async def test_worker_persists_canonical_attempts_and_minimal_result(
     )
     run_id = created.json()["id"]
     gateway = FakeModelGateway(
-        '{"answer":"No evidence is available yet.","limitations":[]}'
+        '{"summary":"No persisted evidence is available yet.",'
+        '"observations":["Site Health has not produced a snapshot."],'
+        '"limitations":[]}'
     )
     async with session_factory() as session:
         claimed = await claim_task(session, owner="test-worker", lease_seconds=60)
@@ -162,7 +165,66 @@ async def test_worker_persists_canonical_attempts_and_minimal_result(
     assert detail.status_code == 200
     payload = detail.json()
     assert payload["status"] == "completed"
-    assert set(payload["result"]) == {"answer", "limitations", "artifact_refs"}
-    assert len(payload["attempts"]) == 4
-    assert all(attempt["output_hash"] for attempt in payload["attempts"])
-    assert all("output" not in attempt for attempt in payload["attempts"])
+    assert set(payload["result"]) == {
+        "summary",
+        "observations",
+        "roadmap_items",
+        "sources",
+        "limitations",
+        "artifact_refs",
+    }
+    assert payload["result"]["summary"] == "No persisted evidence is available yet."
+    assert payload["result"]["observations"] == [
+        "Site Health has not produced a snapshot."
+    ]
+    assert payload["result"]["roadmap_items"] == []
+    assert {source["key"] for source in payload["result"]["sources"]} == {
+        "site_health",
+        "search_demand",
+        "opportunities",
+        "ai_visibility",
+    }
+    assert payload["result"]["artifact_refs"] == []
+    assert "attempts" not in payload
+
+
+@pytest.mark.asyncio
+async def test_task_list_is_compact_while_detail_keeps_result_and_provenance(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """History remains cheap and internal evidence is selected-detail only."""
+    await _register(client, "agent-list-detail@example.com")
+    project_id = await _project(client)
+    created = await client.post(
+        "/api/v1/agent/tasks",
+        json={
+            "project_id": project_id,
+            "task_type": "explain",
+            "objective": "Explain the latest persisted evidence.",
+        },
+        headers={"Idempotency-Key": "list-detail-1"},
+    )
+    run_id = created.json()["id"]
+    async with session_factory() as session:
+        claimed = await claim_task(
+            session, owner="list-detail-worker", lease_seconds=60
+        )
+        assert claimed is not None
+        await execute_claimed_task(
+            session, run=claimed, owner="list-detail-worker", gateway=None
+        )
+
+    history = await client.get("/api/v1/agent/tasks", params={"project_id": project_id})
+    assert history.status_code == 200
+    listed = history.json()[0]
+    assert listed["id"] == run_id
+    assert "result" not in listed
+    assert "attempts" not in listed
+
+    detail = await client.get(
+        f"/api/v1/agent/tasks/{run_id}", params={"project_id": project_id}
+    )
+    assert detail.status_code == 200
+    assert detail.json()["result"]["summary"]
+    assert "attempts" not in detail.json()

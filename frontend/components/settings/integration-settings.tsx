@@ -72,7 +72,7 @@ function CallbackNotice({
         <Alert tone="success">
           <strong className="font-medium">Google connected.</strong> Search Console and Analytics 4
           are now linked on one shared OAuth grant. Initial syncs are queued and will appear in
-          Traffic and LLM Analytics once they complete.
+          Traffic and AI Referrals once they complete.
         </Alert>
       );
     }
@@ -80,7 +80,7 @@ function CallbackNotice({
       return (
         <Alert tone="success">
           <strong className="font-medium">Microsoft connected.</strong> Bing Webmaster Tools is now
-          linked. Initial syncs are queued and will appear in Traffic and LLM Analytics once they
+          linked. Initial syncs are queued and will appear in Traffic and AI Referrals once they
           complete.
         </Alert>
       );
@@ -88,7 +88,7 @@ function CallbackNotice({
     return (
       <Alert tone="success">
         <strong className="font-medium">Integration connected.</strong> Initial syncs are queued and
-        will appear in Traffic and LLM Analytics once they complete.
+        will appear in Traffic and AI Referrals once they complete.
       </Alert>
     );
   }

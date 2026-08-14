@@ -29,13 +29,12 @@ describe('SidebarNav', () => {
     expect(labels).toEqual([
       'Overview',
       'Growth Agent',
-      'Reports',
       'Website',
       'Issues',
       'Opportunities',
       'Facts',
       'Content',
-      'Demand overview',
+      'Search Demand',
       'AI Visibility',
       'AI Referrals',
       'Traffic',
@@ -59,7 +58,7 @@ describe('SidebarNav', () => {
   it('renders items as navigable links', () => {
     renderNav();
     expect(screen.getByRole('link', { name: /^website$/i })).toHaveAttribute('href', '/site');
-    expect(screen.getByRole('link', { name: /^demand overview$/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^search demand$/i })).toHaveAttribute(
       'href',
       '/demand',
     );
@@ -77,7 +76,7 @@ describe('SidebarNav', () => {
   it('renders every item as a link — no disabled state or "soon" badge', () => {
     renderNav();
     const links = screen.getAllByRole('link');
-    expect(links).toHaveLength(15);
+    expect(links).toHaveLength(14);
     for (const link of links) {
       expect(link).not.toHaveAttribute('aria-disabled');
     }

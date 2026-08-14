@@ -75,7 +75,7 @@ describe('robots', () => {
         '/api/',
         '/onboarding',
         '/visibility',
-        '/analytics',
+        '/ai-referrals',
         '/traffic',
         '/prompts',
         '/products',

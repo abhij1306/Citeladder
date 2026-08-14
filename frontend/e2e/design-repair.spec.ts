@@ -127,7 +127,7 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   await expect(page.getByText(/Starting Prompts/i)).toHaveCount(0);
 });
 
-test('Growth Agent opens as a bounded task workspace with evidence attempts', async ({ page }) => {
+test('Growth Agent opens as a bounded task workspace with plain-language data used', async ({ page }) => {
   const run = {
     id: CONVERSATION_ID,
     project_id: '11111111-1111-4111-8111-111111111111',
@@ -136,7 +136,10 @@ test('Growth Agent opens as a bounded task workspace with evidence attempts', as
     task_policy_version: 'growth-agent-v2',
     status: 'completed',
     result: {
-      answer: 'Prioritize the admissions journey first.',
+      summary: 'Prioritize the admissions journey first.',
+      observations: ['Admissions has the highest-ranked saved opportunity.'],
+      roadmap_items: [{ rank: 1, title: 'Improve admissions', remediation: 'Answer the next common question.', target_url: null, priority_score: 90, severity: 'high' }],
+      sources: [{ key: 'opportunities', label: 'Opportunities', availability: 'available', window: null, coverage: { count: 1 }, reason: null }],
       limitations: [],
       artifact_refs: [{ kind: 'opportunity', id: '55555555-5555-4555-8555-555555555555' }],
     },
@@ -183,7 +186,8 @@ test('Growth Agent opens as a bounded task workspace with evidence attempts', as
   await expect(page.getByLabel('Objective')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Start task' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Task' })).toHaveValue('explain');
-  await expect(page.getByText('opportunities.read_ranked')).toBeVisible();
+  await expect(page.getByText('Data used')).toBeVisible();
+  await expect(page.getByText('opportunities.read_ranked')).toHaveCount(0);
   await expect(page.getByText(/conversation/i)).toHaveCount(0);
 });
 

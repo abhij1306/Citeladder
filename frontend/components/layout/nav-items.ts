@@ -34,7 +34,6 @@ export const NAV_GROUPS = [
     items: [
       { label: 'Overview', href: '/projects', icon: ICONS.overview },
       { label: 'Growth Agent', href: '/agent', icon: ICONS.agent },
-      { label: 'Reports', href: '/reports', icon: ICONS.reports },
     ],
   },
   {
@@ -53,9 +52,9 @@ export const NAV_GROUPS = [
   {
     title: 'Demand Intelligence',
     items: [
-      { label: 'Demand overview', href: '/demand', icon: ICONS.demand },
+      { label: 'Search Demand', href: '/demand', icon: ICONS.demand },
       { label: 'AI Visibility', href: '/visibility', icon: ICONS.visibility },
-      { label: 'AI Referrals', href: '/analytics', icon: ICONS.analytics },
+      { label: 'AI Referrals', href: '/ai-referrals', icon: ICONS.analytics },
       { label: 'Traffic', href: '/traffic', icon: ICONS.traffic },
       { label: 'Prompts', href: '/prompts', icon: ICONS.prompts },
       { label: 'Commerce', href: '/products', icon: ICONS.products },

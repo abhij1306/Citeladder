@@ -27,7 +27,7 @@ test('authenticated shell renders sidebar groups and top bar', async ({ page }) 
   await expect(nav.getByRole('link', { name: 'Website', exact: true })).toBeVisible();
   await expect(nav.getByRole('link', { name: 'Content', exact: true })).toBeVisible();
   await expect(nav.getByText('Demand Intelligence', { exact: true })).toBeVisible();
-  await expect(nav.getByRole('link', { name: 'Demand overview', exact: true })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Search Demand', exact: true })).toBeVisible();
 
   // Project switcher shows the active brand.
   await expect(page.getByText('Acme').first()).toBeVisible();

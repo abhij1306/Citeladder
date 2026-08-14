@@ -1,10 +1,17 @@
 'use client';
 
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { ChevronDown, Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { SegmentedControl } from '@/components/ui/segmented-control';
+import { NestedTabs } from '@/components/products/nested-tabs';
 import { TrafficEmptyState } from '@/components/traffic/empty-state';
 import { PagesTable } from '@/components/traffic/pages-table';
 import { QueriesTable } from '@/components/traffic/queries-table';
@@ -91,6 +98,7 @@ function TrafficToolbar({
   note,
   syncing,
   syncPending,
+  fetching,
   onSyncNow,
 }: Readonly<{
   range: TrafficRange;
@@ -100,6 +108,7 @@ function TrafficToolbar({
   note: string;
   syncing: boolean;
   syncPending: boolean;
+  fetching: boolean;
   onSyncNow: () => void;
 }>) {
   return (
@@ -137,8 +146,15 @@ function TrafficToolbar({
         value={granularity}
         onChange={onChangeGranularity}
         options={GRANULARITY_OPTIONS}
-        ariaLabel="Snapshot granularity"
+        ariaLabel="Chart interval"
       />
+
+      {fetching ? (
+        <span className="text-muted flex items-center gap-1.5 text-xs" role="status">
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+          Updating chart…
+        </span>
+      ) : null}
 
       <div className="ml-auto flex items-center gap-3">
         <span className="text-2xs text-muted">{note}</span>
@@ -167,6 +183,12 @@ function TrafficToolbar({
 }
 
 type MetricKey = 'clicks' | 'impressions' | 'ctr' | 'position';
+type TrafficTableView = 'pages' | 'queries';
+
+const TRAFFIC_TABLE_TABS = [
+  { id: 'pages', label: 'Top pages' },
+  { id: 'queries', label: 'Top queries' },
+] as const;
 
 /** Fixed panel order — never the active-set order, so toggling never reflows. */
 const METRIC_ORDER: readonly MetricKey[] = ['clicks', 'impressions', 'ctr', 'position'];
@@ -484,6 +506,7 @@ export function TrafficScreen() {
 
   const [range, setRange] = useState<TrafficRange>('latest');
   const [granularity, setGranularity] = useState<TrafficGranularity>('day');
+  const [tableView, setTableView] = useState<TrafficTableView>('pages');
   const [syncRuns, setSyncRuns] = useState<TrafficSyncEnqueueResponse>([]);
   const [syncStartedAt, setSyncStartedAt] = useState<string | null>(null);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
@@ -495,6 +518,7 @@ export function TrafficScreen() {
     queryFn: ({ signal }) =>
       trafficApi.getTraffic(projectId ?? '', { ...windowBounds, granularity }, { signal }),
     enabled: Boolean(projectId),
+    placeholderData: keepPreviousData,
   });
 
   // Workspace connections feed the "Last synced" note and the empty-state
@@ -612,6 +636,7 @@ export function TrafficScreen() {
       note={toolbarNote}
       syncing={syncing}
       syncPending={syncMutation.isPending}
+      fetching={dashboardQuery.isFetching}
       onSyncNow={() => syncMutation.mutate()}
     />
   );
@@ -677,20 +702,40 @@ export function TrafficScreen() {
         </Alert>
       ) : null}
 
-      <UnifiedPerformanceCard dashboard={dashboard} granularity={granularity} />
+      <div aria-busy={dashboardQuery.isFetching} className="grid gap-6">
+        <UnifiedPerformanceCard dashboard={dashboard} granularity={dashboard.granularity} />
 
-      <PagesTable
-        key={`pages-${tableKey}`}
-        projectId={projectId}
-        from={windowBounds.from}
-        to={windowBounds.to}
-      />
-      <QueriesTable
-        key={`queries-${tableKey}`}
-        projectId={projectId}
-        from={windowBounds.from}
-        to={windowBounds.to}
-      />
+        <NestedTabs
+          tabs={TRAFFIC_TABLE_TABS}
+          activeTab={tableView}
+          onSelectTab={setTableView}
+          ariaLabel="Traffic rankings"
+          idPrefix="traffic-rankings"
+          panel={
+            <div className="grid gap-3">
+              <p className="text-muted text-xs">
+                Rankings use totals for the selected date range. Chart interval does not change
+                their order.
+              </p>
+              {tableView === 'pages' ? (
+                <PagesTable
+                  key={`pages-${tableKey}`}
+                  projectId={projectId}
+                  from={windowBounds.from}
+                  to={windowBounds.to}
+                />
+              ) : (
+                <QueriesTable
+                  key={`queries-${tableKey}`}
+                  projectId={projectId}
+                  from={windowBounds.from}
+                  to={windowBounds.to}
+                />
+              )}
+            </div>
+          }
+        />
+      </div>
     </div>
   );
 }

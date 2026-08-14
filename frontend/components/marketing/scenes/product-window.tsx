@@ -291,5 +291,5 @@ function MobileSubnav({
 function previewItems(groupTitle: NavGroupTitle): readonly NavItem[] {
   const group = NAV_GROUPS.find((candidate) => candidate.title === groupTitle);
   if (!group) return [];
-  return group.items.filter((item) => item.label !== 'Demand overview');
+  return group.items.filter((item) => item.label !== 'Search Demand');
 }

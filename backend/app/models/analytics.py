@@ -43,8 +43,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 # config/analysis.py and reused here for the analytics provenance stamps
 # (llm-analytics.md section 8, invariant 2) — never the same-named constant
 # in config/site_health.py.
-from app.core.config.analysis import ANALYZER_VERSION, SCORING_RULE_VERSION
+from app.core.config.analysis import ANALYZER_VERSION
 from app.core.config.analytics import (
+    AI_REFERRAL_ANALYZER_VERSION,
+    AI_REFERRAL_FORMULA_VERSION,
     AI_REFERRAL_RULE_VERSION,
     AI_SOURCE_OTHER,
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
@@ -360,9 +362,11 @@ class AnalyticsSnapshot(Base):
     source_classification_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     source_snapshot_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     # Version stamps (invariant 4) — reused from config/analysis.py.
-    analyzer_version: Mapped[str] = mapped_column(String(64), default=ANALYZER_VERSION)
+    analyzer_version: Mapped[str] = mapped_column(
+        String(64), default=AI_REFERRAL_ANALYZER_VERSION
+    )
     formula_version: Mapped[str] = mapped_column(
-        String(64), default=SCORING_RULE_VERSION
+        String(64), default=AI_REFERRAL_FORMULA_VERSION
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow

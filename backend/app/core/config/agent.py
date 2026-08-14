@@ -27,8 +27,8 @@ from app.core.config import BASE_DIR, PROJECT_ROOT
 STRUCTURED_OUTPUT_PROMPT_JSON = "prompt_json"
 STRUCTURED_OUTPUT_JSON_SCHEMA = "json_schema"
 
-AGENT_POLICY_VERSION: Final = "bounded-agent-v2"
-AGENT_INSTRUCTION_VERSION: Final = "bounded-agent-narration-v2"
+AGENT_POLICY_VERSION: Final = "bounded-agent-v3"
+AGENT_INSTRUCTION_VERSION: Final = "bounded-agent-narration-v3"
 AGENT_LIST_DEFAULT_LIMIT: Final = 25
 AGENT_LIST_MAX_LIMIT: Final = 100
 AGENT_OBJECTIVE_MAX_CHARS: Final = 2_000

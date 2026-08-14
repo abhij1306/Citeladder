@@ -44,7 +44,7 @@ describe('ProductWindow', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Demand Intelligence' }));
     expect(document.querySelector('[data-preview-layer="demand"]')).not.toBeNull();
     expect(within(sidebar).getByText('Website')).toBeInTheDocument();
-    expect(within(sidebar).queryByText('Demand overview')).not.toBeInTheDocument();
+    expect(within(sidebar).queryByText('Search Demand')).not.toBeInTheDocument();
     expect(within(sidebar).getByText('AI Visibility').closest('div')).toHaveClass('bg-accent-soft');
     screen.getAllByText('AI Visibility');
     screen.getAllByText('Traffic');

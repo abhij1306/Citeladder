@@ -66,10 +66,10 @@ do not appear as passes or issues.
 | Route family | Owner |
 |---|---|
 | `/content` | Content Intelligence |
-| `/demand`, `/traffic`, `/analytics` | Demand Intelligence |
+| `/demand`, `/traffic`, `/ai-referrals` | Demand Intelligence |
 | `/prompt-research`, `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
 | `/products` | Commerce specialization |
-| `/agent` | Growth Agent explain/roadmap task history and evidence attempts |
+| `/agent` | Growth Agent explain/roadmap task history, typed results, and Data used disclosure |
 | `/providers`, `/settings` | Shared workspace/project configuration |
 
 ## Authentication flow
@@ -89,6 +89,26 @@ shared artifact uses the same server ID and cache identity everywhere.
 Unknown, unavailable, zero, historical, conflicting, excluded, and
 not-applicable states retain distinct labels and are never communicated by
 color alone.
+
+## Demand, traffic, referrals, and agent UX
+
+`/demand` is the single **Search Demand** screen; it does not provide nested
+Overview/Search Demand/AI Visibility tabs. `/visibility` remains the standalone
+AI Visibility destination. Search Demand renders GSC-backed target rows and the
+honest no-snapshot, unavailable, observed-zero, and active-gap states.
+
+Traffic treats Day/Week/Month as chart-interval controls. During an interval
+refetch, existing analytical content stays mounted, the analytical region is
+marked busy with compact loading feedback, and focus remains on the selected
+control. Labels and comparisons render from API-returned `granularity` only.
+Top pages and Top queries are accessible underline tabs; their selected-window
+rankings state that chart interval does not affect them.
+
+`/ai-referrals` renders only referral volume, referral share, and AI-source
+totals, with their measurement context. It has no copied visibility, themes,
+correlation, or event surfaces. The empty Reports navigation item, route, and
+title mapping are absent; the persisted executive PDF remains an Overview
+download.
 
 ## Verification
 

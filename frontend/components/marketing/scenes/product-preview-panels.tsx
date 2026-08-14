@@ -52,7 +52,7 @@ const AGENT_PROMPT = 'What should we improve next?';
 const AGENT_TOOL_STEPS = [
   ['Read Site findings', '12 evidence-backed gaps'],
   ['Read Demand signals', 'GSC, GA4, AI Visibility'],
-  ['Build roadmap', 'Deterministic priority order'],
+  ['Prioritize next steps', 'Deterministic priority order'],
   ['Request review', 'No external action taken'],
 ] as const;
 

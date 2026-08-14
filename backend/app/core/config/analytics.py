@@ -48,6 +48,10 @@ from app.core.config.traffic import (
 # traces to the exact rule table that produced it. Bumped whenever a rule is
 # added/changed/removed.
 AI_REFERRAL_RULE_VERSION: Final = "ai-referral-rules-1"
+# Dedicated snapshot provenance. These versions describe the referral-only
+# projection, independently of AI Visibility scoring and narration analyzers.
+AI_REFERRAL_ANALYZER_VERSION: Final = "ai-referrals-v2"
+AI_REFERRAL_FORMULA_VERSION: Final = "ai-referral-sessions-v2"
 # Versions the deterministic redaction pass over every ``ReferralEvent``
 # (applied BEFORE the immutable write, invariant 3/6). Stamped by the CALLER
 # (the ingest projection) onto ``ReferralEvent.sanitize_version``.

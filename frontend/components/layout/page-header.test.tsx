@@ -20,7 +20,7 @@ function renderTitle(route: string) {
 describe('PageHeader', () => {
   it.each([
     ['/visibility', 'Overview'],
-    ['/analytics', 'AI Referrals'],
+    ['/ai-referrals', 'AI Referrals'],
     ['/traffic', 'Traffic'],
     ['/prompts', 'Prompts'],
     ['/opportunities', 'Opportunities'],
@@ -30,9 +30,8 @@ describe('PageHeader', () => {
     ['/prompt-research', 'Prompt research'],
     // The layer routes. `/site` must not be swallowed by `/site-health`.
     ['/site', 'Site'],
-    ['/demand', 'Demand'],
+    ['/demand', 'Search Demand'],
     ['/agent', 'Growth Agent'],
-    ['/reports', 'Reports'],
   ])('resolves %s to the page title %s', (route, title) => {
     expect(renderTitle(route)).toBe(title);
   });

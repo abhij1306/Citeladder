@@ -89,9 +89,7 @@ export const CONTRACT_SCHEMA_MAP = {
   contentGenerationListItemSchema: 'ContentGenerationListItem',
   contentGenerationDetailSchema: 'ContentGenerationDetail',
   // Analytics / traffic
-  llmAnalyticsSchema: 'LlmAnalyticsResponse',
-  llmAnalyticsThemeRowSchema: 'LlmAnalyticsThemeRow',
-  analyticsReferralsPageSchema: 'AnalyticsReferralsPage',
+  aiReferralsSchema: 'AiReferralsResponse',
   trafficDashboardSchema: 'TrafficDashboardResponse',
   trafficPagesPageSchema: 'TrafficPagesPage',
   trafficQueriesPageSchema: 'TrafficQueriesPage',

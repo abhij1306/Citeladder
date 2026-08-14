@@ -3,111 +3,132 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { demandApi, type DemandSnapshot } from '@/lib/api/demand';
 import { httpErrorStatus } from '@/lib/api/errors';
+import { formatWindowDate } from '@/lib/format';
 import { useProjectContext } from '@/lib/project/project-context';
 
-const SIGNAL_LABELS: Record<string, string> = {
-  high_impression_low_ctr: 'High-impression, low-click demand',
-};
+type DemandSignal = DemandSnapshot['signals'][number];
 
-function describeCoverage(value: unknown): string {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return String(value);
-  const details = value as Record<string, unknown>;
-  const parts: string[] = [];
-  if (typeof details.state === 'string') parts.push(details.state);
-  if (typeof details.total_pages === 'number' && typeof details.matched_pages === 'number') {
-    parts.push(`${details.matched_pages} of ${details.total_pages} pages joined`);
-  }
-  if (typeof details.join_rate === 'number') parts.push(`${Math.round(details.join_rate * 100)}%`);
-
-  const counts = Object.entries(details)
-    .filter(
-      (entry): entry is [string, number] =>
-        typeof entry[1] === 'number' &&
-        !['join_rate', 'total_pages', 'matched_pages'].includes(entry[0]),
-    )
-    .map(([key, count]) => `${key.replaceAll('_', ' ')} ${count}`);
-  return parts.concat(counts).join(' · ') || 'None represented';
+function numericMetric(signal: DemandSignal, key: string): number | null {
+  const value = signal.metrics[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function Coverage({ coverage }: Readonly<{ coverage: Record<string, unknown> }>) {
+function signalTarget(signal: DemandSignal): { kind: 'Query' | 'Page'; value: string } {
+  const targetKind = signal.evidence.target_kind;
+  const target = signal.evidence.target;
+  if (targetKind === 'page') {
+    return { kind: 'Page', value: typeof target === 'string' ? target : signal.page_url };
+  }
+  return { kind: 'Query', value: typeof target === 'string' ? target : signal.topic_cluster };
+}
+
+function formatCtr(signal: DemandSignal): string {
+  const persistedCtr = numericMetric(signal, 'ctr');
+  if (persistedCtr !== null) return `${(persistedCtr * 100).toFixed(1)}%`;
+  const impressions = numericMetric(signal, 'impressions');
+  const clicks = numericMetric(signal, 'clicks');
+  if (impressions === null || clicks === null || impressions === 0) return '—';
+  return `${((clicks / impressions) * 100).toFixed(1)}%`;
+}
+
+function formatCount(value: number | null): string {
+  return value === null ? '—' : value.toLocaleString('en-US');
+}
+
+function SearchSignalRow({ signal, rank }: Readonly<{ signal: DemandSignal; rank: number }>) {
+  const target = signalTarget(signal);
   return (
-    <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {Object.entries(coverage).map(([source, value]) => (
-        <div key={source} className="border-border-subtle rounded-md border p-3">
-          <dt className="text-muted text-xs capitalize">{source.replaceAll('_', ' ')}</dt>
-          <dd className="text-foreground mt-1 text-sm font-medium">{describeCoverage(value)}</dd>
+    <article className="border-border-subtle grid gap-3 border-t py-4 first:border-t-0 first:pt-0 last:pb-0">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="text-muted w-6 shrink-0 pt-0.5 text-xs tabular-nums">#{rank}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="neutral">{target.kind}</Badge>
+            <p className="text-foreground min-w-0 break-words text-sm font-medium">{target.value}</p>
+          </div>
         </div>
-      ))}
-    </dl>
+      </div>
+      <dl className="ml-9 grid grid-cols-3 gap-3">
+        <div>
+          <dt className="text-muted text-xs">Impressions</dt>
+          <dd className="text-foreground mt-1 text-sm font-medium tabular-nums">
+            {formatCount(numericMetric(signal, 'impressions'))}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted text-xs">Clicks</dt>
+          <dd className="text-foreground mt-1 text-sm font-medium tabular-nums">
+            {formatCount(numericMetric(signal, 'clicks'))}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted text-xs">CTR</dt>
+          <dd className="text-foreground mt-1 text-sm font-medium tabular-nums">
+            {formatCtr(signal)}
+          </dd>
+        </div>
+      </dl>
+    </article>
   );
 }
 
-function Signals({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) {
+function SearchDemandSnapshot({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) {
+  if (snapshot.coverage.search !== 'observed') {
+    return (
+      <Alert tone="info">
+        Search Console evidence is unavailable for this snapshot. Sync Search Console to measure
+        search demand.
+      </Alert>
+    );
+  }
+
+  const limitations = Array.from(
+    new Set(snapshot.signals.flatMap((signal) => signal.limitations).filter(Boolean)),
+  );
+  const windowLabel = `${formatWindowDate(snapshot.window_start)} – ${formatWindowDate(snapshot.window_end)}`;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Prioritized signals</CardTitle>
+        <CardTitle>
+          {snapshot.signals.length === 1
+            ? '1 search gap needs attention'
+            : `${snapshot.signals.length} search gaps need attention`}
+        </CardTitle>
         <CardDescription>
-          Every item traces to persisted Search Console or Traffic evidence.
+          High-impression, low-click queries and pages for {windowLabel}. Highest-priority gaps are
+          shown first.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3">
+      <CardContent>
         {snapshot.signals.length ? (
-          snapshot.signals.map((signal) => (
-            <article key={signal.id} className="border-border-subtle rounded-md border p-3">
-              <div className="flex flex-wrap justify-between gap-2">
-                <h4 className="text-sm font-medium">
-                  {SIGNAL_LABELS[signal.signal_type] ?? signal.signal_type}
-                </h4>
-                <span className="text-muted font-mono text-xs">
-                  {signal.priority_score ?? 'unranked'}
-                </span>
-              </div>
-              <p className="text-secondary mt-1 text-sm">
-                {signal.topic_cluster || signal.page_url}
-              </p>
-              {signal.limitations.map((limitation) => (
-                <p key={limitation} className="text-muted mt-2 text-xs">
-                  {limitation}
-                </p>
-              ))}
-            </article>
-          ))
+          <div>
+            {snapshot.signals.map((signal, index) => (
+              <SearchSignalRow key={signal.id} signal={signal} rank={index + 1} />
+            ))}
+          </div>
         ) : (
-          <p className="text-muted text-sm">
-            No active search-demand signals were detected in this evidence window.
+          <p className="text-secondary text-sm">
+            Search Console data was observed, but no query or page met the configured
+            high-impression, low-click criteria in this window.
           </p>
         )}
+        {limitations.length ? (
+          <p className="text-muted border-border-subtle mt-4 border-t pt-3 text-xs">
+            {limitations.join(' ')}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
 }
 
-function Snapshot({ snapshot }: Readonly<{ snapshot: DemandSnapshot }>) {
-  return (
-    <div className="grid gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Demand overview</CardTitle>
-          <CardDescription>
-            {snapshot.window_start}–{snapshot.window_end}; comparisons are descriptive and never
-            assert causality.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Coverage coverage={snapshot.coverage} />
-        </CardContent>
-      </Card>
-      <Signals snapshot={snapshot} />
-    </div>
-  );
-}
-
-export function DemandProjection({ panel }: Readonly<{ panel: 'overview' | 'search' }>) {
+export function DemandProjection() {
   const { activeProject, isLoading: projectLoading } = useProjectContext();
   const latest = useQuery({
     queryKey: ['demand', activeProject?.id, 'latest'],
@@ -116,32 +137,19 @@ export function DemandProjection({ panel }: Readonly<{ panel: 'overview' | 'sear
   });
 
   if (projectLoading || latest.isLoading) {
-    return (
-      <div className="grid gap-4" aria-busy="true">
-        <Skeleton className="h-28" />
-        <Skeleton className="h-64" />
-      </div>
-    );
+    return <Skeleton className="h-72" aria-label="Loading search demand" />;
   }
-  if (!activeProject) return <Alert tone="info">Select a project to inspect demand.</Alert>;
+  if (!activeProject) return <Alert tone="info">Select a project to inspect search demand.</Alert>;
   if (latest.isError && httpErrorStatus(latest.error) === 404) {
     return (
       <Alert tone="info">
-        No Demand snapshot exists yet. Sync Traffic evidence, then recompute Demand Intelligence.
+        No Search Demand snapshot exists yet. Sync Traffic evidence, then recompute Demand
+        Intelligence.
       </Alert>
     );
   }
-  if (latest.isError) return <Alert tone="danger">Demand signals could not be loaded.</Alert>;
+  if (latest.isError) return <Alert tone="danger">Search demand could not be loaded.</Alert>;
   if (!latest.data) return null;
 
-  const snapshot =
-    panel === 'search'
-      ? {
-          ...latest.data,
-          signals: latest.data.signals.filter(
-            (signal) => signal.signal_type === 'high_impression_low_ctr',
-          ),
-        }
-      : latest.data;
-  return <Snapshot snapshot={snapshot} />;
+  return <SearchDemandSnapshot snapshot={latest.data} />;
 }

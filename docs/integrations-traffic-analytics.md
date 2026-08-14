@@ -32,6 +32,25 @@ Before creating Demand Signals:
 7. Unavailable measures remain null; observed zero is zero.
 8. Alternative-dimensional GA4 reports must not be summed as independent activity.
 
+## Traffic and AI Referrals projections
+
+Traffic headline totals describe the selected date window. **Day**, **Week**,
+and **Month** choose the returned chart interval only: they change chart buckets
+and prior-interval comparisons, not the selected window or headline totals. The
+projection returns its actual `granularity`; clients derive bucket labels,
+interval badges, and comparison wording from that value. Top pages and top
+queries are selected-window totals and are independent of chart interval.
+
+AI Referrals uses `ga4_source_medium_daily` as the canonical session grain.
+The deterministic referrer classification selects AI-source sessions for volume;
+all sessions from the same source/medium report form the referral-share and
+source-share denominator. Referrer-report rows are retained with their source
+artifacts and classifications for provenance, but are excluded from session
+sums so alternative GA4 dimensions cannot double count. Public rows contain AI
+sources only; `other` classifications remain available to the formula and audit
+trail. A referral analyzer or formula version bump is applied by an explicit
+rebuild of derived snapshots, never on a read.
+
 ## Demand projections
 
 Demand Intelligence creates versioned `DemandSignal` and `DemandSnapshot` projections over:

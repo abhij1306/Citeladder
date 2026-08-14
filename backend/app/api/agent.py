@@ -17,7 +17,11 @@ from app.core.config.agent import (
     AGENT_LIST_MAX_LIMIT,
 )
 from app.core.errors import ApiException
-from app.domain.agent.schemas import AgentTaskRunItem, AgentTaskSubmit
+from app.domain.agent.schemas import (
+    AgentTaskRunDetail,
+    AgentTaskRunSummary,
+    AgentTaskSubmit,
+)
 from app.domain.agent.service import (
     AgentConflictError,
     AgentNotFoundError,
@@ -27,7 +31,6 @@ from app.domain.agent.service import (
     list_task_runs,
     submit_task,
     task_run_projection,
-    task_runs_projection,
 )
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -55,7 +58,7 @@ async def submit_task_endpoint(
         str | None,
         Header(alias="Idempotency-Key", max_length=AGENT_IDEMPOTENCY_KEY_MAX_CHARS),
     ] = None,
-) -> AgentTaskRunItem:
+) -> AgentTaskRunDetail:
     await enforce_workspace_request(
         session,
         workspace_id=ctx.workspace_id,
@@ -71,7 +74,7 @@ async def submit_task_endpoint(
             payload=payload,
             idempotency_key=(idempotency_key or "").strip(),
         )
-        return AgentTaskRunItem.model_validate(await task_run_projection(session, run))
+        return AgentTaskRunDetail.model_validate(task_run_projection(run))
     except (AgentNotFoundError, AgentValidationError, AgentConflictError) as exc:
         raise _error(exc) from exc
 
@@ -84,7 +87,7 @@ async def list_tasks_endpoint(
     limit: Annotated[
         int, Query(ge=1, le=AGENT_LIST_MAX_LIMIT)
     ] = AGENT_LIST_DEFAULT_LIMIT,
-) -> list[AgentTaskRunItem]:
+) -> list[AgentTaskRunSummary]:
     try:
         rows = await list_task_runs(
             session,
@@ -92,8 +95,7 @@ async def list_tasks_endpoint(
             project_id=project_id,
             limit=limit,
         )
-        projections = await task_runs_projection(session, rows)
-        return [AgentTaskRunItem.model_validate(item) for item in projections]
+        return [AgentTaskRunSummary.model_validate(row) for row in rows]
     except AgentNotFoundError as exc:
         raise _error(exc) from exc
 
@@ -104,7 +106,7 @@ async def get_task_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
     project_id: Annotated[uuid.UUID, Query()],
-) -> AgentTaskRunItem:
+) -> AgentTaskRunDetail:
     try:
         run = await get_task_run(
             session,
@@ -112,7 +114,7 @@ async def get_task_endpoint(
             project_id=project_id,
             run_id=run_id,
         )
-        return AgentTaskRunItem.model_validate(await task_run_projection(session, run))
+        return AgentTaskRunDetail.model_validate(task_run_projection(run))
     except AgentNotFoundError as exc:
         raise _error(exc) from exc
 
@@ -123,7 +125,7 @@ async def cancel_task_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
     project_id: Annotated[uuid.UUID, Query()],
-) -> AgentTaskRunItem:
+) -> AgentTaskRunDetail:
     try:
         run = await cancel_task(
             session,
@@ -131,6 +133,6 @@ async def cancel_task_endpoint(
             project_id=project_id,
             run_id=run_id,
         )
-        return AgentTaskRunItem.model_validate(await task_run_projection(session, run))
+        return AgentTaskRunDetail.model_validate(task_run_projection(run))
     except AgentNotFoundError as exc:
         raise _error(exc) from exc

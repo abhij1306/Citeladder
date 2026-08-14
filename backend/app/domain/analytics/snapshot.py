@@ -86,10 +86,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 # ``ANALYZER_VERSION`` / ``SCORING_RULE_VERSION`` are OWNED by
 # config/analysis.py and reused for the snapshot provenance stamps
 # (invariant 2) — never the same-named site-health constants.
-from app.core.config.analysis import ANALYZER_VERSION, SCORING_RULE_VERSION
 from app.core.config.analytics import (
+    AI_REFERRAL_ANALYZER_VERSION,
+    AI_REFERRAL_FORMULA_VERSION,
     ANALYTICS_SNAPSHOT_GRANULARITIES,
 )
+from app.core.config.integrations import DATASET_GA4_SOURCE_MEDIUM_DAILY
 
 # The dashboard-status audit tuple (completed | partially_completed) is
 # OWNED by the analysis projections service — imported, never re-derived
@@ -163,8 +165,8 @@ class ReferralFactInput:
     metric payload lacks a numeric ``sessions``).
     """
 
-    classification_id: uuid.UUID
-    is_ai_referral: bool
+    classification_id: uuid.UUID | None
+    is_ai_referral: bool | None
     ai_source: str
     occurred_date: date
     sessions: int
@@ -239,8 +241,10 @@ def _referral_metrics(
     bucket_ai: dict[date, int] = {}
     bucket_total: dict[date, int] = {}
     bucket_measured: set[date] = set()
+    bucket_unclassified: set[date] = set()
     source_sessions: dict[str, int] = {}
     window_total = 0
+    window_has_unclassified = False
     for referral_fact in latest:
         if not window_start <= referral_fact.occurred_date <= window_end:
             continue
@@ -248,6 +252,10 @@ def _referral_metrics(
         bucket_measured.add(bucket)
         bucket_total[bucket] = bucket_total.get(bucket, 0) + referral_fact.sessions
         window_total += referral_fact.sessions
+        if referral_fact.is_ai_referral is None:
+            bucket_unclassified.add(bucket)
+            window_has_unclassified = True
+            continue
         if referral_fact.is_ai_referral:
             bucket_ai[bucket] = bucket_ai.get(bucket, 0) + referral_fact.sessions
             source_sessions[referral_fact.ai_source] = (
@@ -258,7 +266,7 @@ def _referral_metrics(
     referral_share: list[dict[str, Any]] = []
     for label in labels:
         bucket = bucket_start(label, granularity)
-        if bucket not in bucket_measured:
+        if bucket not in bucket_measured or bucket in bucket_unclassified:
             referral_volume.append(series_point(label, None))
             referral_share.append(series_point(label, None))
             continue
@@ -280,7 +288,7 @@ def _referral_metrics(
         }
         for ai_source, sessions in source_sessions.items()
         if sessions > 0
-    ]
+    ] if not window_has_unclassified else []
     sources.sort(key=_source_sort_key)
     return referral_volume, referral_share, sources
 
@@ -432,32 +440,19 @@ def build_analytics_projection(
         granularity=granularity,
         labels=labels,
     )
-    engine_visibility = _engine_visibility_metrics(
-        visibility_facts,
-        window_start=window_start,
-        window_end=window_end,
-        granularity=granularity,
-        labels=labels,
-    )
-    correlation = _correlation_metric(
-        latest, visibility_facts, window_start=window_start, window_end=window_end
-    )
-    themes = _theme_metrics(theme_facts)
-
     return AnalyticsProjection(
         granularity=granularity,
         metrics={
             "referral_volume": referral_volume,
             "referral_share": referral_share,
             "sources": sources,
-            "engine_visibility": engine_visibility,
-            "correlation": correlation,
-            "themes": themes,
         },
         source_classification_ids=sorted(
-            str(fact.classification_id) for fact in latest
+            str(fact.classification_id)
+            for fact in latest
+            if fact.classification_id is not None
         ),
-        source_snapshot_ids=sorted(str(fact.snapshot_id) for fact in visibility_facts),
+        source_snapshot_ids=[],
     )
 
 
@@ -496,61 +491,71 @@ async def _classification_batch(
     window_end: date,
     after_id: uuid.UUID | None,
     limit: int,
-) -> list[tuple[ReferralClassification, ReferralEvent, IntegrationMetricRow | None]]:
-    """One keyset batch of classification+event+metric-row triples.
+) -> list[
+    tuple[IntegrationMetricRow, ReferralEvent | None, ReferralClassification | None]
+]:
+    """One keyset batch anchored on canonical source/medium metric rows.
 
-    Workspace + project scoped (invariant 5); the classification-id keyset
-    order keeps the scan stable across batches. The metric row is an OUTER
-    join (the event survives its deletion as a NULL link); latest-
+    Workspace + project scoped (invariant 5); the metric-row keyset order
+    keeps the scan stable across batches. Event and classification are OUTER
+    joins so missing classification remains unknown; latest-
     ``resync_seq`` selection is applied by the pure projection (one owner
     of the rule), not here.
     """
-    start_dt, end_dt = _window_bounds(window_start, window_end)
     stmt = (
-        select(ReferralClassification, ReferralEvent, IntegrationMetricRow)
-        .join(
+        select(IntegrationMetricRow, ReferralEvent, ReferralClassification)
+        .outerjoin(
             ReferralEvent,
-            ReferralEvent.id == ReferralClassification.referral_event_id,
+            and_(
+                ReferralEvent.source_metric_row_id == IntegrationMetricRow.id,
+                ReferralEvent.workspace_id == workspace_id,
+                ReferralEvent.project_id == project_id,
+            ),
         )
         .outerjoin(
-            IntegrationMetricRow,
-            IntegrationMetricRow.id == ReferralEvent.source_metric_row_id,
+            ReferralClassification,
+            and_(
+                ReferralClassification.referral_event_id == ReferralEvent.id,
+                ReferralClassification.workspace_id == workspace_id,
+                ReferralClassification.project_id == project_id,
+            ),
         )
-        .where(ReferralClassification.workspace_id == workspace_id)
-        .where(ReferralClassification.project_id == project_id)
-        .where(ReferralEvent.occurred_at >= start_dt)
-        .where(ReferralEvent.occurred_at < end_dt)
-        .order_by(ReferralClassification.id.asc())
+        .where(IntegrationMetricRow.workspace_id == workspace_id)
+        .where(IntegrationMetricRow.project_id == project_id)
+        .where(IntegrationMetricRow.date >= window_start)
+        .where(IntegrationMetricRow.date <= window_end)
+        .where(IntegrationMetricRow.dataset == DATASET_GA4_SOURCE_MEDIUM_DAILY)
+        .order_by(IntegrationMetricRow.id.asc())
         .limit(limit)
     )
     if after_id is not None:
-        stmt = stmt.where(ReferralClassification.id > after_id)
+        stmt = stmt.where(IntegrationMetricRow.id > after_id)
     return list((await session.execute(stmt)).tuples().all())
 
 
 def _to_referral_input(
-    classification: ReferralClassification,
-    event: ReferralEvent,
-    row: IntegrationMetricRow | None,
+    row: IntegrationMetricRow,
+    _event: ReferralEvent | None,
+    classification: ReferralClassification | None,
 ) -> ReferralFactInput:
     return ReferralFactInput(
-        classification_id=classification.id,
-        is_ai_referral=bool(classification.is_ai_referral),
-        ai_source=classification.ai_source,
-        occurred_date=event.occurred_at.date(),
-        sessions=metric_count(row.metrics if row is not None else None, "sessions"),
-        row_identity=(
-            (
-                row.property_ref,
-                row.provider,
-                row.dataset,
-                row.date,
-                row.dimension_key,
-            )
-            if row is not None
+        classification_id=classification.id if classification is not None else None,
+        is_ai_referral=(
+            bool(classification.is_ai_referral)
+            if classification is not None
             else None
         ),
-        resync_seq=row.resync_seq if row is not None else 0,
+        ai_source=classification.ai_source if classification is not None else "",
+        occurred_date=row.date,
+        sessions=metric_count(row.metrics, "sessions"),
+        row_identity=(
+            row.property_ref,
+            row.provider,
+            row.dataset,
+            row.date,
+            row.dimension_key,
+        ),
+        resync_seq=row.resync_seq,
     )
 
 
@@ -695,8 +700,8 @@ async def _upsert_snapshot(
             metrics=projection.metrics,
             source_classification_ids=projection.source_classification_ids,
             source_snapshot_ids=projection.source_snapshot_ids,
-            analyzer_version=ANALYZER_VERSION,
-            formula_version=SCORING_RULE_VERSION,
+            analyzer_version=AI_REFERRAL_ANALYZER_VERSION,
+            formula_version=AI_REFERRAL_FORMULA_VERSION,
         )
         .on_conflict_do_update(
             index_elements=[
@@ -709,8 +714,8 @@ async def _upsert_snapshot(
                 "metrics": projection.metrics,
                 "source_classification_ids": projection.source_classification_ids,
                 "source_snapshot_ids": projection.source_snapshot_ids,
-                "analyzer_version": ANALYZER_VERSION,
-                "formula_version": SCORING_RULE_VERSION,
+                "analyzer_version": AI_REFERRAL_ANALYZER_VERSION,
+                "formula_version": AI_REFERRAL_FORMULA_VERSION,
             },
         )
     )
@@ -750,33 +755,18 @@ async def refresh_analytics_snapshot(
             if not batch:
                 break
             referral_facts.extend(
-                _to_referral_input(classification, event, row)
-                for classification, event, row in batch
+                _to_referral_input(row, event, classification)
+                for row, event, classification in batch
             )
             after_id = batch[-1][0].id
             if len(batch) < _CLASSIFICATION_BATCH_SIZE:
                 break
 
-        visibility_facts = await _visibility_facts(
-            session,
-            workspace_id=task.workspace_id,
-            project_id=task.project_id,
-            window_start=window_start,
-            window_end=window_end,
-        )
-        theme_facts = await _theme_facts(
-            session,
-            workspace_id=task.workspace_id,
-            project_id=task.project_id,
-            window_start=window_start,
-            window_end=window_end,
-        )
-
         for granularity in sorted(ANALYTICS_SNAPSHOT_GRANULARITIES):
             projection = build_analytics_projection(
                 referral_facts=referral_facts,
-                visibility_facts=visibility_facts,
-                theme_facts=theme_facts,
+                visibility_facts=(),
+                theme_facts=(),
                 window_start=window_start,
                 window_end=window_end,
                 granularity=granularity,

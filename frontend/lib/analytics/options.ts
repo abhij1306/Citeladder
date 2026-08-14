@@ -1,6 +1,6 @@
 /**
  * LLM Analytics toolbar vocabulary (F8): the date-range presets and snapshot
- * granularity driving the `/analytics` screen.
+ * granularity driving the `/ai-referrals` screen.
  *
  * The range presets are OWNED here, mirroring the traffic surface's
  * `lib/traffic/traffic.ts` contract (the sibling snapshot surface, invariant

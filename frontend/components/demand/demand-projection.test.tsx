@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DemandProjection } from './demand-projection';
 
@@ -59,24 +59,52 @@ vi.mock('@/lib/api/demand', () => ({
   demandApi: { getLatest: vi.fn(async () => snapshot) },
 }));
 
-describe('DemandProjection', () => {
-  it.each(['overview', 'search'] as const)(
-    'renders persisted coverage and search signals in the %s panel',
-    async (panel) => {
-      render(
-        <QueryClientProvider client={new QueryClient()}>
-          <DemandProjection panel={panel} />
-        </QueryClientProvider>,
-      );
+import { demandApi } from '@/lib/api/demand';
 
-      expect(await screen.findByText('Prioritized signals')).toBeInTheDocument();
-      expect(screen.getByText('observed')).toBeInTheDocument();
-      expect(screen.getByText('unavailable')).toBeInTheDocument();
-      expect(
-        screen.getByText('partial · 4 of 10 pages joined · 40% · excluded pages 2'),
-      ).toBeInTheDocument();
-      expect(screen.queryByText(/join rate 0\.4/)).not.toBeInTheDocument();
-      expect(screen.getByText('school fees')).toBeInTheDocument();
-    },
-  );
+describe('DemandProjection', () => {
+  beforeEach(() => {
+    vi.mocked(demandApi.getLatest).mockResolvedValue(snapshot);
+  });
+
+  function renderProjection() {
+    return render(
+      <QueryClientProvider client={new QueryClient()}>
+        <DemandProjection />
+      </QueryClientProvider>,
+    );
+  }
+
+  it('renders one Search Demand view with useful GSC metrics and no raw score', async () => {
+    renderProjection();
+
+    expect(await screen.findByText('1 search gap needs attention')).toBeInTheDocument();
+    expect(screen.getByText('Query')).toBeInTheDocument();
+    expect(screen.getByText('school fees')).toBeInTheDocument();
+    expect(screen.getByText('100')).toBeInTheDocument();
+    expect(screen.getByText('0')).toBeInTheDocument();
+    expect(screen.getByText('0.0%')).toBeInTheDocument();
+    expect(screen.getByText('Privacy-filtered queries may be omitted.')).toBeInTheDocument();
+    expect(screen.queryByText('50')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Demand overview/i)).not.toBeInTheDocument();
+  });
+
+  it('distinguishes unavailable Search Console evidence', async () => {
+    vi.mocked(demandApi.getLatest).mockResolvedValue({
+      ...snapshot,
+      coverage: { ...snapshot.coverage, search: 'unavailable' },
+    });
+    renderProjection();
+
+    expect(await screen.findByText(/Search Console evidence is unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText('school fees')).not.toBeInTheDocument();
+  });
+
+  it('states that observed Search Console data had no qualifying gaps', async () => {
+    vi.mocked(demandApi.getLatest).mockResolvedValue({ ...snapshot, signals: [] });
+    renderProjection();
+
+    expect(
+      await screen.findByText(/no query or page met the configured high-impression, low-click criteria/i),
+    ).toBeInTheDocument();
+  });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock3, FileSearch, Map, ShieldCheck, X } from 'lucide-react';
@@ -14,10 +14,11 @@ import { inputClasses, Textarea } from '@/components/ui/input';
 import {
   agentApi,
   type AgentTaskRun,
+  type AgentTaskRunSummary,
   type AgentTaskType,
-  type AgentToolAttempt,
 } from '@/lib/api/agent';
 import { queryKeys } from '@/lib/api/query-keys';
+import { formatUtcTimestamp } from '@/lib/format';
 import { useProjectContext } from '@/lib/project/project-context';
 import { cn } from '@/lib/utils';
 
@@ -32,14 +33,14 @@ const TASKS: ReadonlyArray<{
 }> = [
   {
     value: 'explain',
-    label: 'Explain evidence',
-    description: 'Explain the latest persisted Site, Demand, Opportunity, and audit evidence.',
+    label: 'Explain my latest data',
+    description: 'Summarize the latest saved Site Health, Search Demand, Opportunity, and AI Visibility data.',
     icon: FileSearch,
   },
   {
     value: 'build_roadmap',
-    label: 'Build roadmap',
-    description: 'Turn deterministic Opportunity ordering into a concise, evidence-backed roadmap.',
+    label: 'Prioritize next steps',
+    description: 'Turn the saved Opportunity order into a concise, evidence-backed list of next steps.',
     icon: Map,
   },
 ];
@@ -52,11 +53,20 @@ function readable(value: string): string {
   return value.replaceAll('_', ' ');
 }
 
+function taskLabel(value: AgentTaskType): string {
+  return TASKS.find((task) => task.value === value)?.label ?? readable(value);
+}
+
+function sourceCoverage(coverage: AgentResult['sources'][number]['coverage']): string {
+  if (!coverage) return '';
+  return Object.entries(coverage).reduce<string[]>((parts, [key, value]) => {
+    if (value !== null && value !== '') parts.push(`${readable(key)}: ${String(value)}`);
+    return parts;
+  }, []).join(' · ');
+}
+
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  return formatUtcTimestamp(value);
 }
 
 function badgeStatus(status: string): RunStatusValue {
@@ -79,7 +89,7 @@ function TaskHistory({
   loading,
   onSelect,
 }: Readonly<{
-  runs: AgentTaskRun[] | undefined;
+  runs: AgentTaskRunSummary[] | undefined;
   selectedId: string | null;
   loading: boolean;
   onSelect: (runId: string) => void;
@@ -106,7 +116,7 @@ function TaskHistory({
           >
             <span className="block truncate text-xs font-medium">{run.objective}</span>
             <span className="text-muted text-2xs mt-1 flex items-center justify-between gap-2">
-              <span className="capitalize">{readable(run.task_type)}</span>
+              <span>{taskLabel(run.task_type)}</span>
               <span>{formatDate(run.created_at)}</span>
             </span>
           </button>
@@ -121,58 +131,71 @@ function TaskHistory({
   );
 }
 
-function EvidenceAttempt({ attempt }: Readonly<{ attempt: AgentToolAttempt }>) {
+type AgentResult = NonNullable<AgentTaskRun['result']>;
+
+function DataUsed({ result }: Readonly<{ result: AgentResult }>) {
   return (
-    <details className="border-border-subtle bg-background rounded-md border px-3 py-2">
-      <summary className="focus-ring flex cursor-pointer list-none items-center justify-between gap-3 rounded-sm text-sm">
-        <span className="min-w-0">
-          <span className="text-foreground block truncate font-medium">{attempt.tool_name}</span>
-          <span className="text-muted text-xs">
-            v{attempt.tool_version} · {attempt.latency_ms} ms
-          </span>
-        </span>
-        <span className="text-muted shrink-0 text-xs capitalize">{readable(attempt.status)}</span>
+    <details className="border-border-subtle bg-background rounded-md border px-3 py-3">
+      <summary className="focus-ring cursor-pointer list-none rounded-sm text-sm font-medium">
+        Data used
       </summary>
-      <div className="border-border-subtle mt-3 grid gap-3 border-t pt-3 text-xs">
-        <div>
-          <h4 className="text-foreground font-medium">Authorized input</h4>
-          <pre className="text-muted mt-1 overflow-x-auto break-all whitespace-pre-wrap">
-            {JSON.stringify(attempt.input, null, 2)}
-          </pre>
-        </div>
-        <div>
-          <h4 className="text-foreground font-medium">Artifact references</h4>
-          {attempt.artifact_refs.length ? (
-            <ul className="text-muted mt-1 grid gap-1 font-mono">
-              {attempt.artifact_refs.map((reference) => (
-                <li key={`${reference.kind}:${reference.id}`} className="break-all">
-                  {reference.kind}: {reference.id}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-muted mt-1">No artifact was available.</p>
-          )}
-        </div>
-        {attempt.omissions.length ? (
-          <div>
-            <h4 className="text-foreground font-medium">Omissions</h4>
-            <pre className="text-muted mt-1 overflow-x-auto break-all whitespace-pre-wrap">
-              {JSON.stringify(attempt.omissions, null, 2)}
-            </pre>
+      <div className="border-border-subtle mt-3 grid gap-3 border-t pt-3">
+        {result.sources.map((source) => (
+          <div key={source.key} className="flex flex-wrap items-start justify-between gap-2 text-xs">
+            <div>
+              <p className="text-foreground font-medium">{source.label}</p>
+              {source.reason ? <p className="text-muted mt-0.5">{source.reason}</p> : null}
+              {source.window ? (
+                <p className="text-muted mt-0.5">
+                  {Object.values(source.window).filter(Boolean).join(' – ')}
+                </p>
+              ) : null}
+              {sourceCoverage(source.coverage) ? (
+                <p className="text-muted mt-0.5 capitalize">{sourceCoverage(source.coverage)}</p>
+              ) : null}
+            </div>
+            <Badge variant="neutral">
+              {source.availability}
+            </Badge>
           </div>
-        ) : null}
-        <p className="text-muted break-all">
-          Output hash: <span className="font-mono">{attempt.output_hash || 'unavailable'}</span>
+        ))}
+        <p className="text-muted border-border-subtle border-t pt-2 text-xs">
+          {result.artifact_refs.length
+            ? `${result.artifact_refs.length} saved data ${result.artifact_refs.length === 1 ? 'artifact' : 'artifacts'} supported this result.`
+            : 'No saved data artifact was available for this result.'}
         </p>
-        {attempt.error_code ? (
-          <p className="text-danger-text">
-            {readable(attempt.error_code)}
-            {attempt.retryable ? ' · retryable' : ''}
-          </p>
-        ) : null}
       </div>
     </details>
+  );
+}
+
+function Roadmap({ items }: Readonly<{ items: AgentResult['roadmap_items'] }>) {
+  if (!items.length) return null;
+  return (
+    <section>
+      <h3 className="text-foreground text-sm font-semibold">Prioritized next steps</h3>
+      <ol className="mt-2 grid gap-2">
+        {items.map((item) => (
+          <li key={`${item.rank}:${item.title}`} className="border-border-subtle rounded-md border p-3">
+            <div className="flex items-start gap-3">
+              <span className="bg-accent-soft text-accent-text grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold">
+                {item.rank}
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-foreground text-sm font-medium">{item.title}</h4>
+                  <Badge variant="neutral" className="capitalize">{readable(item.severity)}</Badge>
+                </div>
+                <p className="text-secondary mt-1 text-sm leading-relaxed">{item.remediation}</p>
+                {item.target_url ? (
+                  <p className="text-muted mt-1 truncate text-xs">Target: {item.target_url}</p>
+                ) : null}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -213,7 +236,7 @@ function RunDetail({
     <article className="grid gap-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-muted text-xs capitalize">{readable(run.task_type)}</p>
+          <p className="text-muted text-xs">{taskLabel(run.task_type)}</p>
           <h2 className="text-foreground mt-1 text-lg font-semibold">{run.objective}</h2>
           <p className="text-muted mt-1 text-xs">Started {formatDate(run.created_at)}</p>
         </div>
@@ -237,10 +260,20 @@ function RunDetail({
 
       {run.result ? (
         <section className="border-border-subtle bg-background-alt rounded-md border p-4">
-          <h3 className="text-foreground text-sm font-semibold">Result</h3>
+          <h3 className="text-foreground text-sm font-semibold">Summary</h3>
           <p className="text-secondary mt-2 text-sm leading-relaxed whitespace-pre-wrap">
-            {run.result.answer}
+            {run.result.summary}
           </p>
+          {run.result.observations.length ? (
+            <div className="mt-4">
+              <h4 className="text-foreground text-xs font-semibold">What the data shows</h4>
+              <ul className="text-secondary mt-2 list-disc space-y-1 pl-4 text-sm">
+                {run.result.observations.map((observation) => (
+                  <li key={observation}>{observation}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {run.result.limitations.length ? (
             <div className="mt-4">
               <h4 className="text-foreground text-xs font-semibold">Limitations</h4>
@@ -259,22 +292,8 @@ function RunDetail({
         </div>
       ) : null}
 
-      <section>
-        <h3 className="text-foreground text-sm font-semibold">Evidence attempts</h3>
-        <p className="text-muted mt-1 text-xs">
-          Immutable reads and exact artifact references used by this task.
-        </p>
-        <div className="mt-3 grid gap-2">
-          {run.attempts.map((attempt) => (
-            <EvidenceAttempt key={attempt.id} attempt={attempt} />
-          ))}
-          {!run.attempts.length ? (
-            <p className="text-muted bg-background-alt rounded-md p-3 text-xs">
-              Evidence reads have not started yet.
-            </p>
-          ) : null}
-        </div>
-      </section>
+      {run.result ? <Roadmap items={run.result.roadmap_items} /> : null}
+      {run.result ? <DataUsed result={run.result} /> : null}
     </article>
   );
 }
@@ -381,10 +400,7 @@ export function GrowthAgentWorkspace() {
       query.state.data && ACTIVE_STATUSES.has(query.state.data.status) ? 2_000 : false,
   });
 
-  const selectedRun = useMemo(
-    () => task.data ?? tasks.data?.find((run) => run.id === resolvedRunId),
-    [resolvedRunId, task.data, tasks.data],
-  );
+  const selectedRun = task.data;
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -438,7 +454,7 @@ export function GrowthAgentWorkspace() {
         <header className="border-border-subtle flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
           <div>
             <h1 className="font-display text-foreground text-lg font-semibold">Growth Agent</h1>
-            <p className="text-muted text-xs">Explain evidence or build a deterministic roadmap.</p>
+            <p className="text-muted text-xs">Understand saved data or prioritize the next actions.</p>
           </div>
           <div className="text-secondary flex items-center gap-2 text-xs">
             <ShieldCheck aria-hidden className="text-accent-text size-4" />

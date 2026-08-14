@@ -70,8 +70,8 @@ class AnalyticsCorrelation(BaseModel):
     sample_size: int
 
 
-class LlmAnalyticsResponse(BaseModel):
-    """``GET /projects/{id}/llm-analytics`` — the headline AEO projection.
+class AiReferralsResponse(BaseModel):
+    """``GET /projects/{id}/ai-referrals`` — persisted referral measures.
 
     Served from the persisted ``AnalyticsSnapshot`` matching
     ``(window, granularity)``; an absent snapshot yields an empty payload
@@ -86,8 +86,6 @@ class LlmAnalyticsResponse(BaseModel):
     referral_volume: list[MetricSeriesPoint]
     referral_share: list[MetricSeriesPoint]
     sources: list[AnalyticsSourceBreakdownRow]
-    engine_visibility: list[AnalyticsEngineVisibility]
-    correlation: AnalyticsCorrelation
     analyzer_version: str
     formula_version: str
 
