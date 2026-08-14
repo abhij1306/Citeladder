@@ -105,9 +105,6 @@ from app.domain.analytics.statistics import (
     pearson_coefficient as pearson_coefficient,
 )
 from app.domain.analytics.statistics import (
-    rounded_weighted_mean as _rounded_weighted_mean,
-)
-from app.domain.analytics.statistics import (
     select_latest_referral_facts as select_latest_referral_facts,
 )
 from app.domain.analytics.statistics import (
@@ -229,15 +226,21 @@ def _source_sort_key(source: Mapping[str, Any]) -> tuple[int, str]:
     return (-int(source["sessions"]), str(source["ai_source"]))
 
 
-def _referral_metrics(
+def _referral_aggregates(
     latest: Sequence[ReferralFactInput],
     *,
     window_start: date,
     window_end: date,
     granularity: str,
-    labels: Sequence[date],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    """Build the referral series and source breakdown from latest facts."""
+) -> tuple[
+    dict[date, int],
+    dict[date, int],
+    set[date],
+    set[date],
+    dict[str, int],
+    int,
+    bool,
+]:
     bucket_ai: dict[date, int] = {}
     bucket_total: dict[date, int] = {}
     bucket_measured: set[date] = set()
@@ -261,6 +264,40 @@ def _referral_metrics(
             source_sessions[referral_fact.ai_source] = (
                 source_sessions.get(referral_fact.ai_source, 0) + referral_fact.sessions
             )
+    return (
+        bucket_ai,
+        bucket_total,
+        bucket_measured,
+        bucket_unclassified,
+        source_sessions,
+        window_total,
+        window_has_unclassified,
+    )
+
+
+def _referral_metrics(
+    latest: Sequence[ReferralFactInput],
+    *,
+    window_start: date,
+    window_end: date,
+    granularity: str,
+    labels: Sequence[date],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build the referral series and source breakdown from latest facts."""
+    (
+        bucket_ai,
+        bucket_total,
+        bucket_measured,
+        bucket_unclassified,
+        source_sessions,
+        window_total,
+        window_has_unclassified,
+    ) = _referral_aggregates(
+        latest,
+        window_start=window_start,
+        window_end=window_end,
+        granularity=granularity,
+    )
 
     referral_volume: list[dict[str, Any]] = []
     referral_share: list[dict[str, Any]] = []
@@ -280,61 +317,21 @@ def _referral_metrics(
             )
         )
 
-    sources: list[dict[str, Any]] = [
-        {
-            "ai_source": ai_source,
-            "sessions": sessions,
-            "share": sessions / window_total if window_total > 0 else None,
-        }
-        for ai_source, sessions in source_sessions.items()
-        if sessions > 0
-    ] if not window_has_unclassified else []
+    sources: list[dict[str, Any]] = (
+        [
+            {
+                "ai_source": ai_source,
+                "sessions": sessions,
+                "share": sessions / window_total if window_total > 0 else None,
+            }
+            for ai_source, sessions in source_sessions.items()
+            if sessions > 0
+        ]
+        if not window_has_unclassified
+        else []
+    )
     sources.sort(key=_source_sort_key)
     return referral_volume, referral_share, sources
-
-
-def _engine_visibility_metrics(
-    facts: Sequence[VisibilityFactInput],
-    *,
-    window_start: date,
-    window_end: date,
-    granularity: str,
-    labels: Sequence[date],
-) -> list[dict[str, Any]]:
-    """Build completion-weighted per-engine visibility series."""
-    engines = sorted(
-        {
-            engine
-            for visibility_fact in facts
-            for engine, _score in visibility_fact.engine_scores
-        }
-    )
-    bucket_engine: dict[tuple[date, str], list[tuple[float, int]]] = {}
-    for visibility_fact in facts:
-        if not window_start <= visibility_fact.completed_date <= window_end:
-            continue
-        bucket = bucket_start(visibility_fact.completed_date, granularity)
-        for engine, score in visibility_fact.engine_scores:
-            bucket_engine.setdefault((bucket, engine), []).append(
-                (score, visibility_fact.total_completed)
-            )
-    return [
-        {
-            "logical_engine": engine,
-            "series": [
-                series_point(
-                    label,
-                    _rounded_weighted_mean(
-                        bucket_engine.get(
-                            (bucket_start(label, granularity), engine), []
-                        )
-                    ),
-                )
-                for label in labels
-            ],
-        }
-        for engine in engines
-    ]
 
 
 def _correlation_metric(
@@ -541,9 +538,7 @@ def _to_referral_input(
     return ReferralFactInput(
         classification_id=classification.id if classification is not None else None,
         is_ai_referral=(
-            bool(classification.is_ai_referral)
-            if classification is not None
-            else None
+            bool(classification.is_ai_referral) if classification is not None else None
         ),
         ai_source=classification.ai_source if classification is not None else "",
         occurred_date=row.date,

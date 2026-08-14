@@ -144,6 +144,18 @@ def task_run_projection(run: AgentTaskRun) -> dict[str, Any]:
     return values
 
 
+def _legacy_limitations(result: dict[str, Any]) -> list[str]:
+    return [str(item) for item in result.get("limitations") or [] if str(item).strip()]
+
+
+def _legacy_artifact_refs(result: dict[str, Any]) -> list[dict[str, str]]:
+    return [
+        {"kind": str(ref["kind"]), "id": str(ref["id"])}
+        for ref in result.get("artifact_refs") or []
+        if isinstance(ref, dict) and ref.get("kind") and ref.get("id")
+    ]
+
+
 def _public_result(result: object) -> dict[str, Any] | None:
     """Project both current and pre-v3 persisted results without a repair read."""
     if not isinstance(result, dict):
@@ -168,16 +180,8 @@ def _public_result(result: object) -> dict[str, Any] | None:
             }
             for key, label in _SOURCE_METADATA.values()
         ],
-        "limitations": [
-            str(item)
-            for item in result.get("limitations") or []
-            if str(item).strip()
-        ],
-        "artifact_refs": [
-            {"kind": str(ref.get("kind") or ""), "id": str(ref.get("id") or "")}
-            for ref in result.get("artifact_refs") or []
-            if isinstance(ref, dict) and ref.get("kind") and ref.get("id")
-        ],
+        "limitations": _legacy_limitations(result),
+        "artifact_refs": _legacy_artifact_refs(result),
     }
 
 
@@ -628,9 +632,7 @@ def _deterministic_narrative(
     evidence: list[dict[str, Any]],
     roadmap_items: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    available = sum(
-        item["evidence"].get("state") == "available" for item in evidence
-    )
+    available = sum(item["evidence"].get("state") == "available" for item in evidence)
     if available == 0:
         return {
             "summary": "No persisted evidence is available for this project yet.",
@@ -643,9 +645,9 @@ def _deterministic_narrative(
                 f"{count} prioritized next step"
                 f"{'s' if count != 1 else ''} are available."
             ),
-            "observations": [
-                "The order follows the persisted Opportunity ranking."
-            ] if count else [],
+            "observations": ["The order follows the persisted Opportunity ranking."]
+            if count
+            else [],
         }
     return {
         "summary": (

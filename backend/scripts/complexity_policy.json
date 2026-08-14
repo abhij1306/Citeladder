@@ -43,7 +43,6 @@
       "app/domain/analysis/service.py::get_visibility": 15,
       "app/domain/analysis/service.py::get_visibility_evidence": 16,
       "app/domain/analytics/enqueue.py::enqueue_post_sync_projections": 20,
-      "app/domain/analytics/service.py::get_llm_analytics": 17,
       "app/domain/attribution/service.py::get_attribution_orders": 28,
       "app/domain/attribution/service.py::get_commerce_attribution": 16,
       "app/domain/attribution/snapshot.py::_aggregate_a2_for_currency": 16,
