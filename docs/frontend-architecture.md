@@ -89,8 +89,9 @@ secondary action. The client exposes no separate discovery or analysis buttons.
 Website uses one tablist on `/site`. **Pages** retains the crawl lifecycle and
 inventory surface. **Link Graph** reads the selected crawl's persisted summary,
 nodes, and edges with no client-side analysis. Its topology preview is bounded
-to 24 stable-priority nodes and the first 200 persisted rows; the page-authority
-table is always present as the accessible evidence fallback. It shows
+to 24 stable-priority nodes from the current evidence pages; snapshot-bound
+cursor controls page through both the page-authority and collapsed-link tables,
+which remain the accessible evidence fallback. The authority table shows
 deterministic PageRank/depth/link counts and links suggested source pages to the
 existing crawl-bounded page detail. Incomplete graphs state observed coverage
 and suppress recommendation language rather than implying a complete crawl.

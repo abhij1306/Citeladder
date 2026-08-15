@@ -102,7 +102,9 @@ async def test_seven_dimensions_exactly_reconcile_and_trace_failing_page(
         assert dimension["pass_count"] == counts["pass"]
         assert dimension["fail_count"] == counts["fail"]
         assert dimension["not_applicable_count"] == counts["not_applicable"]
+        assert dimension["error_count"] == counts["error"]
         assert dimension["observed_evaluation_count"] == sum(counts.values())
+        assert dimension["expected_evaluation_count"] == sum(counts.values())
         assert dimension["coverage"] == 1.0
     failing_links = [
         link

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CursorPager } from '@/components/ui/cursor-pager';
 import {
   Table,
   TableBody,
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { siteHealthQueries } from '@/lib/api/site-health';
 import type { LinkGraphEdge, LinkGraphNode } from '@/lib/api/types';
+import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
 
 const VISUAL_NODE_LIMIT = 24;
 
@@ -122,9 +124,11 @@ export function LinkGraphPanel({
   projectId,
   crawlId,
 }: Readonly<{ projectId: string; crawlId: string }>) {
+  const nodePager = useCursorStack();
+  const edgePager = useCursorStack();
   const summary = useQuery(siteHealthQueries.linkGraph(projectId, crawlId));
-  const nodes = useQuery(siteHealthQueries.linkGraphNodes(projectId, crawlId));
-  const edges = useQuery(siteHealthQueries.linkGraphEdges(projectId, crawlId));
+  const nodes = useQuery(siteHealthQueries.linkGraphNodes(projectId, crawlId, nodePager.cursor));
+  const edges = useQuery(siteHealthQueries.linkGraphEdges(projectId, crawlId, edgePager.cursor));
 
   if (summary.isLoading || nodes.isLoading || edges.isLoading) {
     return (
@@ -172,7 +176,9 @@ export function LinkGraphPanel({
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             <div>
               <span className="text-subtle block">Pages</span>
-              <span className="font-medium tabular-nums">{nodeRows.length}</span>
+              <span className="font-medium tabular-nums">
+                {String(summary.data.summary.node_count ?? nodeRows.length)}
+              </span>
             </div>
             <div>
               <span className="text-subtle block">Observed edges</span>
@@ -198,8 +204,8 @@ export function LinkGraphPanel({
           nodes.data?.next_cursor ||
           edges.data?.next_cursor ? (
             <p className="text-subtle text-xs">
-              The visual is bounded to {VISUAL_NODE_LIMIT} pages and the first 200 persisted rows.
-              The table remains the accessible evidence view.
+              The visual is bounded to {VISUAL_NODE_LIMIT} pages from the current evidence pages.
+              The tables paginate through the persisted graph.
             </p>
           ) : null}
         </CardContent>
@@ -213,7 +219,8 @@ export function LinkGraphPanel({
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
-          <Table>
+          <div role="region" aria-label="Page authority evidence">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Page</TableHead>
@@ -265,7 +272,73 @@ export function LinkGraphPanel({
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
+          {nodePager.canPrev || nodes.data?.next_cursor ? (
+            <div className="mt-3 flex justify-end gap-2" aria-label="Page authority pagination">
+              <CursorPager
+                canPrev={nodePager.canPrev}
+                canNext={Boolean(nodes.data?.next_cursor)}
+                onPrev={nodePager.pop}
+                onNext={() => nodePager.push(nodes.data?.next_cursor ?? null)}
+              />
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Observed link evidence</CardTitle>
+          <CardDescription>
+            Collapsed followed and nofollow observations, with bounded anchor evidence.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div role="region" aria-label="Observed link evidence">
+            <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Source</TableHead>
+                <TableHead>Target</TableHead>
+                <TableHead>Transfer</TableHead>
+                <TableHead numeric>Occurrences</TableHead>
+                <TableHead>Anchors</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {edgeRows.map((edge) => {
+                const source = byId.get(edge.source_site_url_id);
+                const target = edge.target_site_url_id
+                  ? byId.get(edge.target_site_url_id)
+                  : undefined;
+                return (
+                  <TableRow key={edge.id}>
+                    <TableCell>
+                      {source?.title || displayPath(source?.normalized_url ?? edge.source_site_url_id)}
+                    </TableCell>
+                    <TableCell>
+                      {target?.title || displayPath(target?.normalized_url ?? edge.target_url)}
+                    </TableCell>
+                    <TableCell>{edge.followed ? 'Followed' : 'Nofollow-only'}</TableCell>
+                    <TableCell numeric>{edge.occurrence_count}</TableCell>
+                    <TableCell>{edge.anchor_texts.join(', ') || '—'}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+            </Table>
+          </div>
+          {edgePager.canPrev || edges.data?.next_cursor ? (
+            <div className="mt-3 flex justify-end gap-2" aria-label="Link evidence pagination">
+              <CursorPager
+                canPrev={edgePager.canPrev}
+                canNext={Boolean(edges.data?.next_cursor)}
+                onPrev={edgePager.pop}
+                onNext={() => edgePager.push(edges.data?.next_cursor ?? null)}
+              />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

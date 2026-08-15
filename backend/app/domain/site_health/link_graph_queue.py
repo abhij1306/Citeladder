@@ -22,7 +22,9 @@ async def enqueue_link_graph_refresh(
     """Queue one graph task after terminal crawl evidence becomes usable."""
     if not usable_evidence:
         return
-    token = hashlib.sha256(f"link-graph:{crawl.id}".encode()).hexdigest()
+    token = hashlib.sha256(
+        f"link-graph:{crawl.id}:{LINK_GRAPH_ANALYZER_VERSION}".encode()
+    ).hexdigest()
     await session.execute(
         pg_insert(SiteCrawlTask)
         .values(

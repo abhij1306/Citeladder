@@ -6,6 +6,7 @@ import uuid
 
 from sqlalchemy import select
 
+from app.core.config.site_health import TASK_KIND_LINK_GRAPH
 from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.domain.site_health.link_graph import build_link_graph_snapshot
 from app.domain.site_health.selection import lease_is_owned
@@ -29,6 +30,9 @@ class LinkGraphPhaseMixin(PhaseSupport):
                 if (
                     crawl is None
                     or task is None
+                    or task.crawl_id != crawl.id
+                    or task.workspace_id != crawl.workspace_id
+                    or task.task_kind != TASK_KIND_LINK_GRAPH
                     or task.status != TASK_STATUS_RUNNING
                     or not lease_is_owned(task, owner=self.owner)
                 ):

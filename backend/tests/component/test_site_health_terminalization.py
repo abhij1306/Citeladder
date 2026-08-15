@@ -366,6 +366,7 @@ async def test_recrawl_root_failure_keeps_successful_monitored_analysis(
 @pytest.mark.asyncio
 async def test_completed_crawl_refreshes_demand_when_traffic_exists(
     session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async with session_factory() as session:
         seed = await seed_site_crawl(session, task_count=0)
@@ -385,6 +386,12 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
         )
         await session.flush()
 
+        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
+        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
+        monkeypatch.setattr(
+            "app.domain.site_health.link_graph_queue.LINK_GRAPH_ANALYZER_VERSION",
+            "link-graph-review-v2",
+        )
         await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
         await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
         graph_snapshot_id = uuid.uuid4()
@@ -420,7 +427,8 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
                 )
             ).all()
         )
-        assert len(graph_tasks) == 1
+        assert len(graph_tasks) == 2
+        assert len({task.url_hash for task in graph_tasks}) == 2
         demand_task = next(
             task
             for task in tasks

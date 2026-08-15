@@ -4343,6 +4343,10 @@ def upgrade() -> None:
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint(
+            "outcome IN ('pass', 'fail', 'not_applicable', 'error')",
+            name="ck_site_rule_evaluations_outcome",
+        ),
         sa.UniqueConstraint("analysis_id", "rule_id", name="uq_site_rule_evaluation"),
     )
     op.create_index(

@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -1070,6 +1071,10 @@ class SiteRuleEvaluation(Base):
     __tablename__ = "site_rule_evaluations"
     __table_args__ = (
         UniqueConstraint("analysis_id", "rule_id", name="uq_site_rule_evaluation"),
+        CheckConstraint(
+            "outcome IN ('pass', 'fail', 'not_applicable', 'error')",
+            name="ck_site_rule_evaluations_outcome",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

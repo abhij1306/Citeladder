@@ -180,10 +180,11 @@ desktop).
   **affected URLs** so visually adjacent quantities never masquerade as one
   number. Advisory rows use an Advisory label, not a severity chip.
 - Website analysis uses one restrained tab row. Link Graph pairs a bounded
-  followed-edge overview with a persistent table fallback; the visualization
-  never becomes the only way to inspect a page. Flag labels and source-page
-  links carry meaning without colour. Partial crawls lead with exact observed
-  coverage and do not show near-orphan or weak-authority recommendations.
+  followed-edge overview with cursor-paged page-authority and link-evidence
+  table fallbacks; the visualization never becomes the only way to inspect a
+  page or edge. Flag labels and source-page links carry meaning without colour.
+  Partial crawls lead with exact observed coverage and do not show near-orphan
+  or weak-authority recommendations.
 - AEO Readiness is a dimension ledger, never a gauge or mystery number. Its
   table names pass, fail, not applicable, and coverage independently for all
   seven dimensions. Evidence disclosures link to persisted page evaluations;

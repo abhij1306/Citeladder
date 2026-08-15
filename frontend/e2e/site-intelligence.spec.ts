@@ -73,6 +73,7 @@ const dimensions = [
   ['freshness', 'Freshness'],
   ['crawlability', 'Crawlability'],
 ] as const;
+const ruleCounts = [4, 5, 1, 3, 2, 1, 4] as const;
 
 async function stubWebsite(page: Page) {
   const graphPath = `/api/v1/projects/${FIXTURE_PROJECT.id}/site-health/link-graph`;
@@ -208,13 +209,18 @@ async function stubWebsite(page: Page) {
         dimensions: dimensions.map(([key, label], index) => ({
           key,
           label,
-          rule_ids: [`aeo.rule_${index}`],
-          pass_count: index ? 2 : 1,
+          rule_ids: Array.from({ length: ruleCounts[index] }, (_, ruleIndex) =>
+            index === 0 && ruleIndex === 0
+              ? 'aeo.answer_first'
+              : `aeo.rule_${index}_${ruleIndex}`,
+          ),
+          pass_count:
+            ruleCounts[index] * 2 - (index === 0 ? 1 : 0) - (index === 1 ? 1 : 0),
           fail_count: index ? 0 : 1,
           not_applicable_count: index === 1 ? 1 : 0,
           error_count: 0,
-          observed_evaluation_count: 2,
-          expected_evaluation_count: 2,
+          observed_evaluation_count: ruleCounts[index] * 2,
+          expected_evaluation_count: ruleCounts[index] * 2,
           coverage: 1,
           evidence_links: [
             {
@@ -222,7 +228,7 @@ async function stubWebsite(page: Page) {
               analysis_id: TARGET,
               site_url_id: TARGET,
               normalized_url: 'https://acme.example/case-study',
-              rule_id: index ? `aeo.rule_${index}` : 'aeo.answer_first',
+              rule_id: index ? `aeo.rule_${index}_0` : 'aeo.answer_first',
               outcome: index ? 'pass' : 'fail',
             },
           ],
@@ -241,8 +247,13 @@ test('Website Link Graph browser proof: bounded visual, table fallback, and sour
 
   await expect(page.getByTestId('website-link-graph')).toBeVisible();
   await expect(page.getByLabel('Internal link graph preview')).toBeVisible();
-  await expect(page.getByRole('table')).toContainText('CRM case study');
-  await expect(page.getByRole('table')).toContainText('CRM guide');
+  const authorityTable = page
+    .getByRole('region', { name: 'Page authority evidence' })
+    .getByRole('table');
+  await expect(authorityTable).toContainText('CRM case study');
+  await expect(authorityTable).toContainText('CRM guide');
+  const targetRow = authorityTable.getByRole('row').filter({ hasText: 'CRM case study' });
+  await expect(targetRow.getByRole('link', { name: 'CRM guide' })).toBeVisible();
 });
 
 test('AEO Readiness browser proof: seven reconciled dimensions and failing evidence link', async ({

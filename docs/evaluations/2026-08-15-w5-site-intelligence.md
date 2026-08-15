@@ -38,10 +38,13 @@ disposable database.
 - Review boundaries: coverage uses the distinct crawl-scoped analyze-task
   population (not the broader monitored selection), so inventory-only URLs do
   not suppress complete HTML topology. Equivalent unresolved target variants
-  canonicalize to one retained edge and occurrence count.
+  canonicalize to one retained edge and occurrence count. Versioned graph tasks
+  use versioned queue slots and validate task/crawl workspace ownership before
+  reading graph evidence.
 - Website fixture: the bounded followed-edge preview, page-authority table,
-  page-detail source links, and descriptive partial-crawl disclosure render
-  from persisted API rows. No client metric or alternate link store is used.
+  collapsed-link table, cursor traversal for both evidence sets, page-detail
+  source links, and descriptive partial-crawl disclosure render from persisted
+  API rows. No client metric or alternate link store is used.
 
 ## E01 readiness spike
 

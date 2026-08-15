@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw';
-import { screen } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { renderWithProviders } from '@/test/render';
@@ -16,7 +17,10 @@ beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
-function handlers(state: 'available' | 'incomplete') {
+function handlers(
+  state: 'available' | 'incomplete',
+  onCursor?: (kind: 'nodes' | 'edges', cursor: string | null) => void,
+) {
   const base = `/api/v1/projects/${PROJECT}/site-health/link-graph`;
   mswServer.use(
     http.get(base, () =>
@@ -39,8 +43,10 @@ function handlers(state: 'available' | 'incomplete') {
         created_at: '2026-08-15T00:00:00Z',
       }),
     ),
-    http.get(`${base}/nodes`, () =>
-      HttpResponse.json({
+    http.get(`${base}/nodes`, ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get('cursor');
+      onCursor?.('nodes', cursor);
+      return HttpResponse.json({
         state,
         snapshot_id: SNAPSHOT,
         crawl_id: CRAWL,
@@ -80,12 +86,14 @@ function handlers(state: 'available' | 'incomplete') {
             suggested_source_ids: state === 'available' ? [SOURCE] : [],
           },
         ],
-        next_cursor: null,
+        next_cursor: state === 'available' && !cursor ? 'next-nodes' : null,
         limitations: [],
-      }),
-    ),
-    http.get(`${base}/edges`, () =>
-      HttpResponse.json({
+      });
+    }),
+    http.get(`${base}/edges`, ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get('cursor');
+      onCursor?.('edges', cursor);
+      return HttpResponse.json({
         state,
         snapshot_id: SNAPSHOT,
         crawl_id: CRAWL,
@@ -102,10 +110,10 @@ function handlers(state: 'available' | 'incomplete') {
             anchor_texts: ['CRM'],
           },
         ],
-        next_cursor: null,
+        next_cursor: state === 'available' && !cursor ? 'next-edges' : null,
         limitations: [],
-      }),
-    ),
+      });
+    }),
   );
 }
 
@@ -116,9 +124,14 @@ describe('Website Link Graph', () => {
 
     expect(await screen.findByTestId('website-link-graph')).toBeInTheDocument();
     expect(screen.getByLabelText('Internal link graph preview')).toBeInTheDocument();
-    expect(screen.getByRole('table')).toHaveTextContent('CRM page');
-    expect(screen.getByRole('table')).toHaveTextContent('Near orphan');
-    expect(screen.getByRole('table')).toHaveTextContent('CRM guide');
+    const authorityTable = within(
+      screen.getByRole('region', { name: 'Page authority evidence' }),
+    ).getByRole('table');
+    expect(authorityTable).toHaveTextContent('CRM page');
+    expect(authorityTable).toHaveTextContent('Near orphan');
+    expect(authorityTable).toHaveTextContent('CRM guide');
+    const targetRow = within(authorityTable).getByRole('row', { name: /CRM page/i });
+    expect(within(targetRow).getByRole('link', { name: 'CRM guide' })).toBeInTheDocument();
   });
 
   it('describes partial coverage and suppresses source suggestions', async () => {
@@ -130,5 +143,29 @@ describe('Website Link Graph', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Opportunities are suppressed/i)).toBeInTheDocument();
     expect(screen.queryByText('Near orphan')).not.toBeInTheDocument();
+  });
+
+  it('requests subsequent persisted node and edge pages with bounded cursors', async () => {
+    const observed: Partial<Record<'nodes' | 'edges', string | null>> = {};
+    handlers('available', (kind, cursor) => {
+      if (cursor) observed[kind] = cursor;
+    });
+    renderWithProviders(<LinkGraphPanel projectId={PROJECT} crawlId={CRAWL} />);
+
+    await screen.findByTestId('website-link-graph');
+    await userEvent.click(
+      within(screen.getByLabelText('Page authority pagination')).getByRole('button', {
+        name: 'Next',
+      }),
+    );
+    await waitFor(() => expect(observed.nodes).toBe('next-nodes'));
+    await screen.findByTestId('website-link-graph');
+    await userEvent.click(
+      within(screen.getByLabelText('Link evidence pagination')).getByRole('button', {
+        name: 'Next',
+      }),
+    );
+
+    await waitFor(() => expect(observed.edges).toBe('next-edges'));
   });
 });
