@@ -154,7 +154,7 @@ this plan with the evidence and a concrete replacement decision before continuin
 | PR | Branch | Status | Sub-slices in order | Cumulative delivery outcome |
 |---|---|---|---|---|
 | W1 | `feat/aeo-wave-1-foundations` | completed | R00 → X01 → D01 → D02 → A01 → A02 | Authorities, cross-source identity, window/honest-state primitives, branded classification, and the complete Act→Verify record. |
-| W2 | `feat/aeo-wave-2-site-health` | ready_for_merge | S01 → S02 → S03 → S04 → S05 → S06 | Crawl correctness/speed/progress, terminal refresh, historical issue copy, and trustworthy defect/advisory semantics. |
+| W2 | `feat/aeo-wave-2-site-health` | completed | S01 → S02 → S03 → S04 → S05 → S06 | Crawl correctness/speed/progress, terminal refresh, historical issue copy, and trustworthy defect/advisory semantics. |
 | W3 | `feat/aeo-wave-3-product-loop` | pending | I01 → I02 → I03 → P01 → O01 → O02 → O03 | Final route/navigation replacement, confirmed-ICP onboarding, useful no-audit Overview, Facts cutover, and Visibility cleanup. |
 | W4 | `feat/aeo-wave-4-demand-content` | pending | G01 → Q01 → Q02 → Q03 | Grounded generation plus bounded query evidence and all approved GSC detectors. |
 | W5 | `feat/aeo-wave-5-site-intelligence` | pending | L01 → L02 → E01 | Internal-link graph, link Opportunities/UI, and evidence-linked AEO Readiness. |
@@ -371,6 +371,15 @@ The next wave chat reconciles this note from GitHub readback.
 - Review disposition: CodeRabbit and CodeAnt findings were audited and addressed in follow-up commits `435c8bbd` and `4b0efce3`; remaining open-thread markers point at the pre-fix diff or already-correct current code. The Traffic snapshot suggestion is intentionally not applied because W1's approved contract treats an existing measured all-zero snapshot as `observed_zero`, while absence of a persisted snapshot is `not_run`.
 - Retained review debt: none actionable from merged-head readback.
 - Synchronization: local `main` and `origin/main` both resolved to `0150cbcb5544b97efb2a4e75d13f61a67f4bac54` before W2 branched.
+
+#### W2 — completed 2026-08-15
+- Branch / sub-slices: `feat/aeo-wave-2-site-health`; S01 → S02 → S03 → S04 → S05 → S06.
+- Final unique-file count: 80 (GitHub readback against the W1 merge commit).
+- Pull request / merge: https://github.com/abhij1306/Citeladder/pull/72; merge commit `78b4061ea5d9b7117c654ae49607b1228dfca70f`.
+- Required CI: 9 passed, 0 failed.
+- Review disposition: CodeRabbit and CodeAnt findings were audited and addressed in follow-up commits `00c8f5aa` and `0e0fab61`; CI-discovered stale boundary fixtures were corrected in `63768f64`, and the final review scope was recorded in `762870c0`.
+- Retained review debt: none actionable from merged-head readback; Qodo was unavailable because its subscription was inactive, and the CodeRabbit docstring-coverage item was an advisory rather than a required check.
+- Synchronization: local `main` and `origin/main` both resolved to `78b4061ea5d9b7117c654ae49607b1228dfca70f` before W3 branched.
 
 ### Current next-session handoff — W3
 
