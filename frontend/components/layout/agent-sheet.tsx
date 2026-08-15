@@ -20,7 +20,9 @@ type AgentLaunch = { taskType: AgentTaskType; objective: string };
 
 function boundedFilters(search: URLSearchParams): Readonly<Record<string, readonly string[]>> {
   const filters: Record<string, string[]> = {};
-  for (const key of [...new Set(search.keys())].sort().slice(0, 10)) {
+  for (const key of [...new Set(search.keys())]
+    .sort((left, right) => left.localeCompare(right))
+    .slice(0, 10)) {
     if (DATE_KEYS.has(key)) continue;
     filters[key] = search.getAll(key).slice(0, 10).map((value) => value.slice(0, 200));
   }

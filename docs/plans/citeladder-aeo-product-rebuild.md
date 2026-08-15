@@ -414,7 +414,7 @@ row is the removal condition. No other compatibility path is implied.
 - Implemented: honest Track summary; Trends-owned latest/start rankings, engine comparison, and prompt movement; three-tab desktop/mobile Visibility with Trends default.
 - Deleted / retained until: deleted the Visibility `overview` token, `VisibilityOverview`, `OverviewSummary`, duplicate selected-run composition, overview-only marketing preview, tests, and comments; retained Commerce's unrelated product-visibility Overview and the legal section ID.
 - Commit: wave commit
-- Cumulative changed files vs wave merge base: 95
+- Cumulative changed files vs wave merge base: 94 (GitHub readback)
 - Local verification: focused frontend Vitest 83 passed; ESLint, 10 contract tests, design/policy and architecture guards, TypeScript, and production build passed; selected Playwright route/navigation/empty-state suite passed after fixture repair; documentation validator and diff checks run at wave close.
 - Evaluation artifact: not applicable; deterministic browser and contract fixtures cover the cutover.
 - Advanced to internal slice: wave close
