@@ -34,6 +34,14 @@ def canonical_identity(url: str, *, base_url: str | None = None) -> tuple[str, s
     return canonical, url_hash(canonical)
 
 
+def canonical_or_empty(url: str) -> str:
+    """Return canonical URL identity, or empty for malformed persisted input."""
+    try:
+        return canonical_identity(url)[0]
+    except (TypeError, ValueError):
+        return ""
+
+
 # =========================================================================
 # Filter-aware, typed keyset cursors (Slice 6 API)
 # =========================================================================

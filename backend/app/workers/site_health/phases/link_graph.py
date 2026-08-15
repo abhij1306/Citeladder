@@ -18,21 +18,32 @@ from app.workers.site_health.phases.support import PhaseSupport
 class LinkGraphPhaseMixin(PhaseSupport):
     """TASK_KIND_LINK_GRAPH handling without network I/O."""
 
-    async def _run_link_graph(self, task_id: uuid.UUID, crawl_id: uuid.UUID) -> None:
+    async def _run_link_graph(
+        self, task_id: uuid.UUID, crawl_id: uuid.UUID, workspace_id: uuid.UUID
+    ) -> None:
         async with self._leased(task_id):
             async with self._session_factory() as session:
-                crawl = await session.get(SiteCrawl, crawl_id, with_for_update=True)
+                crawl = await session.scalar(
+                    select(SiteCrawl)
+                    .where(
+                        SiteCrawl.id == crawl_id,
+                        SiteCrawl.workspace_id == workspace_id,
+                    )
+                    .with_for_update()
+                )
                 task = await session.scalar(
                     select(SiteCrawlTask)
-                    .where(SiteCrawlTask.id == task_id)
+                    .where(
+                        SiteCrawlTask.id == task_id,
+                        SiteCrawlTask.crawl_id == crawl_id,
+                        SiteCrawlTask.workspace_id == workspace_id,
+                        SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+                    )
                     .with_for_update()
                 )
                 if (
                     crawl is None
                     or task is None
-                    or task.crawl_id != crawl.id
-                    or task.workspace_id != crawl.workspace_id
-                    or task.task_kind != TASK_KIND_LINK_GRAPH
                     or task.status != TASK_STATUS_RUNNING
                     or not lease_is_owned(task, owner=self.owner)
                 ):

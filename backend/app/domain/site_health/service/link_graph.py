@@ -7,7 +7,7 @@ import uuid
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.site_health import (
+from app.core.config.site_link_graph import (
     LINK_GRAPH_ANALYZER_VERSION,
     LINK_GRAPH_LIST_DEFAULT_LIMIT,
     LINK_GRAPH_LIST_MAX_LIMIT,

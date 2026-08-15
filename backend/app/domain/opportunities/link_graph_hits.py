@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.opportunities.detectors import DetectorHit
 from app.core.config.opportunities import SITE_GAP_FACTOR, SITE_VALUE_FACTOR
-from app.core.config.site_health import (
+from app.core.config.site_link_graph import (
     LINK_GRAPH_ANALYZER_VERSION,
     LINK_GRAPH_MAX_NODES,
     LINK_GRAPH_STATE_AVAILABLE,

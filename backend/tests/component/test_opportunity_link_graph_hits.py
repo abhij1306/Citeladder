@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.site_health import LINK_GRAPH_ANALYZER_VERSION
+from app.core.config.site_link_graph import LINK_GRAPH_ANALYZER_VERSION
 from app.domain.opportunities import service
 from app.models.opportunity import Opportunity
 from app.models.site_health import (

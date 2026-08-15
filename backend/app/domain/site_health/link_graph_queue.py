@@ -8,10 +8,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_health import (
-    LINK_GRAPH_ANALYZER_VERSION,
     TASK_KIND_LINK_GRAPH,
     site_health_settings,
 )
+from app.core.config.site_link_graph import LINK_GRAPH_ANALYZER_VERSION
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.models.site_health import SiteCrawl, SiteCrawlTask
 

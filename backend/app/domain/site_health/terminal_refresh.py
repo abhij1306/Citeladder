@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,16 +19,19 @@ async def enqueue_post_graph_refresh(
     session: AsyncSession,
     *,
     crawl: SiteCrawl,
-    graph_snapshot_id,
+    graph_snapshot_id: uuid.UUID | None,
 ) -> None:
-    """Enqueue the one dependency-ordered refresh chain after graph persistence.
+    """Enqueue the terminal refresh chain after graph persistence or abstention.
 
     Every enqueue is transactionally idempotent on the crawl identity. Traffic
     evidence selects Demand as the predecessor and carries the crawl trigger
     through to Demand's eventual Opportunity enqueue. Site-only projects enqueue
-    Opportunities directly. No usable completed analysis means there is no new
-    Site Health evidence to project.
+    Opportunities directly. A terminal crawl with no usable HTML analysis uses
+    its crawl identity so prior Site Opportunities can be superseded without
+    inventing a graph snapshot.
     """
+    trigger_kind = "site_link_graph" if graph_snapshot_id else "site_crawl"
+    trigger_id = graph_snapshot_id or crawl.id
     await enqueue_implementation_verification(
         session,
         workspace_id=crawl.workspace_id,
@@ -55,17 +60,17 @@ async def enqueue_post_graph_refresh(
             project_id=crawl.project_id,
             window_start=traffic.window_start,
             window_end=traffic.window_end,
-            source_revision=f"site-graph:{graph_snapshot_id}",
-            downstream_trigger_kind="site_link_graph",
-            downstream_trigger_id=graph_snapshot_id,
+            source_revision=f"{trigger_kind}:{trigger_id}",
+            downstream_trigger_kind=trigger_kind,
+            downstream_trigger_id=trigger_id,
         )
         return
     await enqueue_opportunity_refresh(
         session,
         workspace_id=crawl.workspace_id,
         project_id=crawl.project_id,
-        trigger_kind="site_link_graph",
-        trigger_id=graph_snapshot_id,
+        trigger_kind=trigger_kind,
+        trigger_id=trigger_id,
     )
 
 

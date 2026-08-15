@@ -46,6 +46,7 @@ from app.core.config.site_health import (
     TASK_KIND_LINK_GRAPH,
 )
 from app.core.config.task_queue import (
+    TASK_STATUS_CANCELLED,
     TASK_STATUS_FAILED,
     TASK_STATUS_LEASED,
     TASK_STATUS_QUEUED,
@@ -778,6 +779,104 @@ async def test_partial_analysis_failure_partially_completes(
         assert snapshot.analyzed_url_count == 1
         assert snapshot.overall_score is not None
         assert snapshot.overall_score > 0
+
+
+@pytest.mark.asyncio
+async def test_no_evidence_partial_crawl_refreshes_without_inventing_graph(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A drained failed analysis clears stale Opportunities via crawl provenance."""
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=0)
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        crawl.discovery_status = DISCOVERY_STATUS_COMPLETED
+        crawl.analysis_status = ANALYSIS_STATUS_RUNNING
+        crawl.inventory_complete = True
+        crawl.discovered_url_count = 1
+        crawl.analysis_requested_count = 1
+        session.add_all(
+            [
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    task_kind=TASK_KIND_DISCOVER,
+                    requested_url="https://example.com/",
+                    url_hash=canonical_identity("https://example.com/")[1],
+                    generation=0,
+                    idempotency_key=f"{seed.crawl_id}:discover:no-evidence:0",
+                    status=TASK_STATUS_SUCCEEDED,
+                    completed_at=datetime.now(UTC),
+                ),
+                SiteCrawlTask(
+                    crawl_id=seed.crawl_id,
+                    workspace_id=seed.workspace_id,
+                    task_kind=TASK_KIND_ANALYZE,
+                    requested_url="https://example.com/failed",
+                    url_hash=canonical_identity("https://example.com/failed")[1],
+                    generation=0,
+                    idempotency_key=f"{seed.crawl_id}:analyze:no-evidence:0",
+                    status=TASK_STATUS_FAILED,
+                    error_code="http_404",
+                    completed_at=datetime.now(UTC),
+                ),
+            ]
+        )
+        await session.commit()
+
+    await CrawlLifecycle(session_factory).reconcile(seed.crawl_id)
+
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        assert crawl.status == CRAWL_STATUS_PARTIALLY_COMPLETED
+        graph_tasks = await session.scalar(
+            select(func.count())
+            .select_from(SiteCrawlTask)
+            .where(
+                SiteCrawlTask.crawl_id == seed.crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+            )
+        )
+        assert graph_tasks == 0
+        refresh = await session.scalar(
+            select(AnalyticsTask).where(
+                AnalyticsTask.project_id == seed.project_id,
+                AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+            )
+        )
+        assert refresh is not None
+        assert refresh.payload == {
+            "trigger_kind": "site_crawl",
+            "trigger_id": str(seed.crawl_id),
+        }
+
+
+@pytest.mark.asyncio
+async def test_claim_preparation_rejects_foreign_workspace(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=1)
+        task = await session.scalar(
+            select(SiteCrawlTask).where(SiteCrawlTask.crawl_id == seed.crawl_id)
+        )
+        assert task is not None
+        task_id, task_kind = task.id, task.task_kind
+        await session.commit()
+
+    worker = _worker(session_factory, {}, owner="foreign-workspace-boundary")
+    prepared = await worker._prepare_claimed_task(
+        task_id=task_id,
+        crawl_id=seed.crawl_id,
+        workspace_id=uuid.uuid4(),
+        kind=task_kind,
+    )
+    assert prepared is False
+
+    async with session_factory() as session:
+        task = await session.get(SiteCrawlTask, task_id)
+        assert task is not None and task.status == TASK_STATUS_CANCELLED
 
 
 @pytest.mark.asyncio

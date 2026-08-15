@@ -403,30 +403,8 @@ LINK_KINDS: Final[frozenset[str]] = frozenset(
     {LINK_KIND_ANCHOR, LINK_KIND_IMAGE, LINK_KIND_SCRIPT, LINK_KIND_STYLESHEET}
 )
 
-# Crawl-scoped internal-link graph (WS4). A version bump appends a new
-# immutable snapshot rather than reinterpreting historical topology.
-LINK_GRAPH_ANALYZER_VERSION: Final = "link-graph-v1"
-LINK_GRAPH_STATE_AVAILABLE: Final = "available"
-LINK_GRAPH_STATE_INCOMPLETE: Final = "incomplete"
-LINK_GRAPH_STATE_UNAVAILABLE: Final = "unavailable"
-LINK_GRAPH_PAGERANK_DAMPING: Final = 0.85
-LINK_GRAPH_PAGERANK_TOLERANCE: Final = 1e-8
-LINK_GRAPH_PAGERANK_MAX_ITERATIONS: Final = 100
-LINK_GRAPH_NEAR_ORPHAN_MAX_INBOUND: Final = 1
-LINK_GRAPH_WEAK_AUTHORITY_MIN_NODES: Final = 20
-LINK_GRAPH_OVER_LINKED_MIN_TARGETS: Final = 100
-LINK_GRAPH_HUB_MIN_TARGETS: Final = 10
-LINK_GRAPH_HUB_MAX_DEPTH: Final = 2
-LINK_GRAPH_SUGGESTION_MIN_JACCARD: Final = 0.20
-LINK_GRAPH_MAX_SUGGESTIONS: Final = 3
-LINK_GRAPH_MAX_ANCHOR_TEXTS_PER_EDGE: Final = 5
-LINK_GRAPH_MAX_ANCHOR_DISTRIBUTION: Final = 25
-LINK_GRAPH_MAX_NODES: Final = 10_000
-LINK_GRAPH_MAX_REFERENCES: Final = 100_000
-LINK_GRAPH_LIST_DEFAULT_LIMIT: Final = 50
-LINK_GRAPH_LIST_MAX_LIMIT: Final = 200
-
 AEO_READINESS_TAXONOMY_VERSION: Final = "aeo-readiness-v1"
+RULE_ID_TECHNICAL_INDEXABLE: Final = "technical.indexable"
 AEO_READINESS_DIMENSIONS: Final[tuple[str, ...]] = ("answerability", "structure", "evidence", "machine-readability", "authority", "freshness", "crawlability")  # noqa: E501
 AEO_READINESS_DIMENSION_LABELS: Final[dict[str, str]] = {
     key: key.replace("_", " ").capitalize() for key in AEO_READINESS_DIMENSIONS
@@ -450,7 +428,7 @@ AEO_READINESS_RULE_DIMENSIONS: Final[dict[str, str]] = {
     "aeo.date_present": "freshness",
     "aeo.server_rendered_content": "crawlability",
     "technical.ai_crawler_access": "crawlability",
-    "technical.indexable": "crawlability",
+    RULE_ID_TECHNICAL_INDEXABLE: "crawlability",
     "technical.https": "crawlability",
 }
 AEO_READINESS_MAX_EVALUATIONS: Final = 100_000

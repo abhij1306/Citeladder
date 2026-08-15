@@ -400,11 +400,29 @@ class SiteHealthWorker(
     # --- per-task execution ------------------------------------------------
 
     async def _prepare_claimed_task(
-        self, *, task_id: uuid.UUID, crawl_id: uuid.UUID, kind: str
+        self,
+        *,
+        task_id: uuid.UUID,
+        crawl_id: uuid.UUID,
+        workspace_id: uuid.UUID,
+        kind: str,
     ) -> bool:
         async with self._session_factory() as session:
-            task = await session.get(SiteCrawlTask, task_id)
-            crawl = await session.get(SiteCrawl, crawl_id, with_for_update=True)
+            task = await session.scalar(
+                select(SiteCrawlTask).where(
+                    SiteCrawlTask.id == task_id,
+                    SiteCrawlTask.crawl_id == crawl_id,
+                    SiteCrawlTask.workspace_id == workspace_id,
+                )
+            )
+            crawl = await session.scalar(
+                select(SiteCrawl)
+                .where(
+                    SiteCrawl.id == crawl_id,
+                    SiteCrawl.workspace_id == workspace_id,
+                )
+                .with_for_update()
+            )
             if task is None or crawl is None:
                 await session.rollback()
                 await self._queue.cancel(task_id=task_id)
@@ -431,7 +449,9 @@ class SiteHealthWorker(
         elif kind == TASK_KIND_LINK_CHECK:
             await self._run_link_check(claimed.id, claimed.crawl_id)
         elif kind == TASK_KIND_LINK_GRAPH:
-            await self._run_link_graph(claimed.id, claimed.crawl_id)
+            await self._run_link_graph(
+                claimed.id, claimed.crawl_id, claimed.workspace_id
+            )
         else:
             raise NotImplementedError(f"unknown task kind '{kind}'")
 
@@ -451,7 +471,10 @@ class SiteHealthWorker(
             # Cooperative cancel: stop at this boundary if the crawl was
             # cancelled/terminalized since the claim, rather than fetching.
             if not await self._prepare_claimed_task(
-                task_id=task_id, crawl_id=crawl_id, kind=kind
+                task_id=task_id,
+                crawl_id=crawl_id,
+                workspace_id=claimed.workspace_id,
+                kind=kind,
             ):
                 return
 

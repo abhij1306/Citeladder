@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.site_health import LINK_GRAPH_ANALYZER_VERSION
+from app.core.config.site_link_graph import LINK_GRAPH_ANALYZER_VERSION
 from app.domain.site_health.link_graph import build_link_graph_snapshot
 from app.models.site_health import (
     SiteCrawl,

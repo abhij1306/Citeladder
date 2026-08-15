@@ -39,8 +39,10 @@ disposable database.
   population (not the broader monitored selection), so inventory-only URLs do
   not suppress complete HTML topology. Equivalent unresolved target variants
   canonicalize to one retained edge and occurrence count. Versioned graph tasks
-  use versioned queue slots and validate task/crawl workspace ownership before
-  reading graph evidence.
+  use versioned queue slots and scope both task and crawl selection by the exact
+  workspace/crawl identity before reading graph evidence. A drained partial
+  crawl with zero successful analyses produces no invented graph but emits a
+  crawl-provenance Opportunity refresh so prior Site signals cannot remain live.
 - Website fixture: the bounded followed-edge preview, page-authority table,
   collapsed-link table, cursor traversal for both evidence sets, page-detail
   source links, and descriptive partial-crawl disclosure render from persisted

@@ -19,15 +19,19 @@ from app.analysis.site_health.link_graph import (
 )
 from app.core.config.site_health import (
     CRAWL_STATUS_COMPLETED,
-    LINK_GRAPH_ANALYZER_VERSION,
-    LINK_GRAPH_MAX_NODES,
-    LINK_GRAPH_MAX_REFERENCES,
     LINK_KIND_ANCHOR,
     PAGE_ANALYSIS_STATUS_COMPLETED,
+    RULE_ID_TECHNICAL_INDEXABLE,
     RULE_OUTCOME_PASS,
     TASK_KIND_ANALYZE,
 )
-from app.domain.site_health.normalization import canonical_identity
+from app.core.config.site_link_graph import (
+    LINK_GRAPH_ANALYZER_VERSION,
+    LINK_GRAPH_MAX_NODES,
+    LINK_GRAPH_MAX_REFERENCES,
+    LINK_GRAPH_NODE_TITLE_MAX_LENGTH,
+)
+from app.domain.site_health.normalization import canonical_or_empty
 from app.models.site_health import (
     SiteCrawl,
     SiteCrawlTask,
@@ -66,13 +70,6 @@ def _source_hash(inputs: _GraphInputs) -> str:
     }
     encoded = json.dumps(material, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode()).hexdigest()
-
-
-def _canonical_or_empty(url: str) -> str:
-    try:
-        return canonical_identity(url)[0]
-    except (TypeError, ValueError):
-        return ""
 
 
 async def _selected_analyses(
@@ -116,7 +113,7 @@ async def _indexable_analysis_ids(
             await session.scalars(
                 select(SiteRuleEvaluation.analysis_id).where(
                     SiteRuleEvaluation.analysis_id.in_(analysis_ids),
-                    SiteRuleEvaluation.rule_id == "technical.indexable",
+                    SiteRuleEvaluation.rule_id == RULE_ID_TECHNICAL_INDEXABLE,
                     SiteRuleEvaluation.outcome == RULE_OUTCOME_PASS,
                 )
             )
@@ -142,14 +139,16 @@ def _node_maps(
                 site_url_id=site_url.id,
                 source_analysis_id=analysis.id,
                 normalized_url=site_url.normalized_url,
-                title=str(facts.get("title") or site_url.latest_title or "")[:1024],
+                title=str(facts.get("title") or site_url.latest_title or "")[
+                    :LINK_GRAPH_NODE_TITLE_MAX_LENGTH
+                ],
                 indexable=analysis.id in indexable_ids,
                 page_nofollow=bool((facts.get("robots") or {}).get("nofollow")),
             )
         )
         artifact_targets[artifact.id] = site_url.id
         for url in (site_url.normalized_url, artifact.final_url):
-            canonical = _canonical_or_empty(url)
+            canonical = canonical_or_empty(url)
             if canonical:
                 url_targets[canonical] = site_url.id
     return nodes, artifact_targets, url_targets
@@ -191,7 +190,7 @@ async def _references(
             if row.target_artifact_id is not None
             else None
         )
-        canonical_target = _canonical_or_empty(row.target_url)
+        canonical_target = canonical_or_empty(row.target_url)
         if target_id is None:
             target_id = url_targets.get(canonical_target)
         references.append(
@@ -283,7 +282,7 @@ async def load_graph_inputs(session: AsyncSession, crawl: SiteCrawl) -> _GraphIn
         nodes_truncated=nodes_truncated,
         refs_truncated=refs_truncated,
     )
-    root_id = url_targets.get(_canonical_or_empty(crawl.root_url))
+    root_id = url_targets.get(canonical_or_empty(crawl.root_url))
     return _GraphInputs(
         nodes=nodes,
         references=references,

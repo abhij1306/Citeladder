@@ -85,7 +85,7 @@ from app.core.config.task_queue import (
 )
 from app.domain.site_health.failure import load_root_failure_summary
 from app.domain.site_health.link_graph_queue import enqueue_link_graph_refresh
-from app.domain.site_health.normalization import canonical_identity
+from app.domain.site_health.normalization import canonical_identity, canonical_or_empty
 from app.domain.site_health.selection import crawl_is_active
 from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.domain.site_health.state_events import (
@@ -94,6 +94,7 @@ from app.domain.site_health.state_events import (
     apply_discovery_status,
     record_crawl_event,
 )
+from app.domain.site_health.terminal_refresh import enqueue_post_graph_refresh
 from app.models.site_health import (
     SiteCrawl,
     SiteCrawlPhaseRun,
@@ -275,24 +276,6 @@ def _is_crawl_finalize_rule(rule_id: str) -> bool:
     return rule is not None and rule.applicability_key == APPLICABILITY_CRAWL_FINALIZE
 
 
-def _canonical_or_empty(url: str) -> str:
-    """The canonical form of ``url``, or ``""`` when it fails normalization.
-
-    The finalize pass canonicalizes persisted URLs (link targets, hreflang
-    alternates, sitemap observations) that may no longer parse — an
-    unnormalizable URL simply contributes nothing.
-
-    Catches ``ValueError`` (the ``UrlPolicyError`` base) rather than the policy
-    error alone: a malformed persisted URL can fail inside ``urlsplit`` itself
-    (an unclosed IPv6 bracket, a junk port) before the policy checks run, and
-    ``_run_crawl_finalize_pass`` must never die on one bad stored row.
-    """
-    try:
-        return canonical_identity(url)[0]
-    except ValueError:
-        return ""
-
-
 def crawl_root_identity(crawl: SiteCrawl) -> tuple[str, str]:
     """``(canonical, url_hash)`` of the crawl root, or ``("", "")``."""
     try:
@@ -327,7 +310,7 @@ def _cross_check_hreflang_alternates(
     missing: list[str] = []
     for alternate in alternates:
         target_url = str(alternate.get("url") or "")
-        target_canonical = _canonical_or_empty(target_url)
+        target_canonical = canonical_or_empty(target_url)
         if not target_canonical:
             unchecked_count += 1
             continue
@@ -339,7 +322,7 @@ def _cross_check_hreflang_alternates(
             continue
         checked_count += 1
         return_tag_found = any(
-            _canonical_or_empty(str(back.get("url") or "")) == source_canonical
+            canonical_or_empty(str(back.get("url") or "")) == source_canonical
             for back in target_alternates
         )
         if not return_tag_found and target_url not in missing:
@@ -390,7 +373,7 @@ async def _crawl_hreflang_indexes(
     canonical_by_artifact: dict[uuid.UUID, str] = {}
     per_artifact: list[tuple[uuid.UUID, str, list[dict]]] = []
     for artifact_id, final_url, facts in artifacts:
-        canonical = _canonical_or_empty(str(final_url or ""))
+        canonical = canonical_or_empty(str(final_url or ""))
         alternates = list((facts or {}).get("hreflang_alternates") or [])
         if canonical:
             canonical_by_artifact[artifact_id] = canonical
@@ -554,6 +537,10 @@ class CrawlLifecycle:
             crawl=crawl,
             usable_evidence=summary.analyze_succeeded > 0,
         )
+        if summary.analyze_succeeded == 0:
+            await enqueue_post_graph_refresh(
+                session, crawl=crawl, graph_snapshot_id=None
+            )
 
     async def _reconcile_advanced_phase_runs(
         self,
@@ -977,12 +964,12 @@ class CrawlLifecycle:
         linked_targets = {
             canonical
             for (target_url,) in anchor_rows
-            if (canonical := _canonical_or_empty(str(target_url)))
+            if (canonical := canonical_or_empty(str(target_url)))
         }
         orphans: list[str] = []
         for _site_url_id, observed_url in sitemap_rows:
             observed = str(observed_url or "")
-            observed_canonical = _canonical_or_empty(observed)
+            observed_canonical = canonical_or_empty(observed)
             if (
                 observed_canonical
                 and observed_canonical != root_canonical

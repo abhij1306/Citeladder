@@ -24,6 +24,7 @@ depends_on = None
 
 _CONTENT_GENERATION_FK = "content_generations.id"
 _SITE_SNAPSHOT_FK = "site_health_snapshots.id"
+_SITE_LINK_GRAPH_SNAPSHOT_FK = "site_link_graph_snapshots.id"
 _DEMAND_SNAPSHOT_FK = "demand_snapshots.id"
 _AGENT_TASK_RUN_FK = "agent_task_runs.id"
 
@@ -4185,13 +4186,22 @@ def upgrade() -> None:
         sa.Column("limitations", postgresql.ARRAY(sa.Text()), nullable=False),
         sa.Column("summary", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id", "project_id", "crawl_id"],
+            [
+                "site_crawls.workspace_id",
+                "site_crawls.project_id",
+                "site_crawls.id",
+            ],
+            name="fk_site_link_graph_snapshot_crawl_scoped",
+            ondelete="CASCADE",
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["root_site_url_id"], ["site_urls.id"], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(
-            ["supersedes_id"], ["site_link_graph_snapshots.id"], ondelete="SET NULL"
+            ["supersedes_id"], [_SITE_LINK_GRAPH_SNAPSHOT_FK], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
@@ -4244,7 +4254,7 @@ def upgrade() -> None:
         sa.Column("suggested_source_ids", postgresql.ARRAY(sa.UUID()), nullable=False),
         sa.ForeignKeyConstraint(["site_url_id"], ["site_urls.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["snapshot_id"], ["site_link_graph_snapshots.id"], ondelete="CASCADE"
+            ["snapshot_id"], [_SITE_LINK_GRAPH_SNAPSHOT_FK], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
             ["source_analysis_id"], ["site_page_analyses.id"], ondelete="CASCADE"
@@ -4281,7 +4291,7 @@ def upgrade() -> None:
             "anchor_texts", postgresql.ARRAY(sa.String(length=256)), nullable=False
         ),
         sa.ForeignKeyConstraint(
-            ["snapshot_id"], ["site_link_graph_snapshots.id"], ondelete="CASCADE"
+            ["snapshot_id"], [_SITE_LINK_GRAPH_SNAPSHOT_FK], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
             ["source_site_url_id"], ["site_urls.id"], ondelete="CASCADE"

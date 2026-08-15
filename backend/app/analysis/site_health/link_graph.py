@@ -6,10 +6,12 @@ import math
 import re
 import uuid
 from collections import Counter, deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
-from app.core.config.site_health import (
+from app.core.config.site_link_graph import (
+    LINK_GRAPH_ANCHOR_TEXT_MAX_LENGTH,
+    LINK_GRAPH_AUTHORITY_CONCENTRATION_THRESHOLD,
     LINK_GRAPH_HUB_MAX_DEPTH,
     LINK_GRAPH_HUB_MIN_TARGETS,
     LINK_GRAPH_MAX_ANCHOR_DISTRIBUTION,
@@ -23,6 +25,7 @@ from app.core.config.site_health import (
     LINK_GRAPH_STATE_AVAILABLE,
     LINK_GRAPH_STATE_INCOMPLETE,
     LINK_GRAPH_SUGGESTION_MIN_JACCARD,
+    LINK_GRAPH_TOP_FRACTION,
     LINK_GRAPH_WEAK_AUTHORITY_MIN_NODES,
 )
 
@@ -99,10 +102,7 @@ class _EdgeAccumulator:
     occurrence_count: int = 0
     followed_count: int = 0
     nofollow_count: int = 0
-    anchor_texts: set[str] | None = None
-
-    def __post_init__(self) -> None:
-        self.anchor_texts = set()
+    anchor_texts: set[str] = field(default_factory=set)
 
 
 def _is_nofollow(rel: str) -> bool:
@@ -139,8 +139,8 @@ def _collapse_edges(
         else:
             edge.nofollow_count += 1
         text = " ".join(ref.anchor_text.split())
-        if text and edge.anchor_texts is not None:
-            edge.anchor_texts.add(text[:256])
+        if text:
+            edge.anchor_texts.add(text[:LINK_GRAPH_ANCHOR_TEXT_MAX_LENGTH])
     return tuple(
         LinkGraphEdge(
             source_site_url_id=item.source_id,
@@ -150,7 +150,7 @@ def _collapse_edges(
             occurrence_count=item.occurrence_count,
             followed_occurrence_count=item.followed_count,
             nofollow_occurrence_count=item.nofollow_count,
-            anchor_texts=tuple(sorted(item.anchor_texts or ()))[
+            anchor_texts=tuple(sorted(item.anchor_texts))[
                 :LINK_GRAPH_MAX_ANCHOR_TEXTS_PER_EDGE
             ],
         )
@@ -247,13 +247,14 @@ def _suggest_sources(
     nodes: dict[uuid.UUID, LinkGraphNodeInput],
     ranks: dict[uuid.UUID, float],
     outbound: dict[uuid.UUID, set[uuid.UUID]],
+    tokens: dict[uuid.UUID, set[str]],
 ) -> tuple[uuid.UUID, ...]:
-    target_tokens = _tokens(nodes[target_id])
+    target_tokens = tokens[target_id]
     candidates: list[tuple[float, float, str, uuid.UUID]] = []
-    for source_id, source in nodes.items():
+    for source_id in nodes:
         if source_id == target_id or target_id in outbound[source_id]:
             continue
-        similarity = _jaccard(target_tokens, _tokens(source))
+        similarity = _jaccard(target_tokens, tokens[source_id])
         if similarity < LINK_GRAPH_SUGGESTION_MIN_JACCARD:
             continue
         candidates.append((ranks[source_id], similarity, str(source_id), source_id))
@@ -273,6 +274,7 @@ def _node_metric(
     weak_cutoff: float | None,
     hub_cutoff: int,
     complete_coverage: bool,
+    tokens: dict[uuid.UUID, set[str]],
 ) -> LinkGraphNode:
     source = nodes[node_id]
     near_orphan = (
@@ -288,7 +290,11 @@ def _node_metric(
     suggestions: tuple[uuid.UUID, ...] = ()
     if complete_coverage and (near_orphan or weak):
         suggestions = _suggest_sources(
-            node_id, nodes=nodes, ranks=ranks, outbound=outbound
+            node_id,
+            nodes=nodes,
+            ranks=ranks,
+            outbound=outbound,
+            tokens=tokens,
         )
     return LinkGraphNode(
         site_url_id=node_id,
@@ -329,6 +335,7 @@ def analyze_link_graph(
     depths = _depths(root_site_url_id, outbound)
     weak_cutoff = _quartile_cutoff(ranks)
     hub_cutoff = _hub_cutoff(outbound)
+    tokens = {node_id: _tokens(by_id[node_id]) for node_id in node_ids}
     metrics = [
         _node_metric(
             node_id,
@@ -341,10 +348,15 @@ def analyze_link_graph(
             weak_cutoff=weak_cutoff,
             hub_cutoff=hub_cutoff,
             complete_coverage=complete_coverage,
+            tokens=tokens,
         )
         for node_id in node_ids
     ]
-    top_count = max(1, math.ceil(len(node_ids) * 0.10)) if node_ids else 0
+    top_count = (
+        max(1, math.ceil(len(node_ids) * LINK_GRAPH_TOP_FRACTION))
+        if node_ids
+        else 0
+    )
     top_share = sum(sorted(ranks.values(), reverse=True)[:top_count])
     anchor_counts = Counter(
         text.lower() for edge in edges for text in edge.anchor_texts if text.strip()
@@ -363,7 +375,9 @@ def analyze_link_graph(
         root_site_url_id=root_site_url_id,
         pagerank_iterations=iterations,
         pagerank_converged=converged,
-        authority_concentrated=top_share > 0.50,
+        authority_concentrated=(
+            top_share > LINK_GRAPH_AUTHORITY_CONCENTRATION_THRESHOLD
+        ),
         anchor_text_distribution=distribution,
         limitations=limitations,
     )

@@ -138,7 +138,10 @@ snapshot commits does a current Traffic snapshot route through Demand and then
 Opportunities; without Traffic input, the graph routes directly to
 Opportunities. The successors never race their graph predecessor, and repeated
 terminalization, cancellation, or graph-task recovery cannot duplicate a
-logical refresh. A cancellation before any usable analysis enqueues none.
+logical refresh. A completed or partially completed crawl with zero successful
+HTML analyses skips graph creation but carries its crawl identity through the
+same bounded downstream path so stale Site Opportunities are superseded rather
+than preserved. A cancellation before any usable analysis enqueues none.
 
 ## Internal-link graph
 
