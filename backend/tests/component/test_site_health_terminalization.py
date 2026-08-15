@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+    ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
 )
 from app.core.config.site_health import (
     ANALYSIS_STATUS_COMPLETED,
@@ -396,9 +397,10 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
                 )
             ).all()
         )
-        assert [task.task_kind for task in tasks] == [
-            ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH
-        ]
+        assert {task.task_kind for task in tasks} == {
+            ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
+            ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
+        }
 
 
 @pytest.mark.asyncio
@@ -874,6 +876,15 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
             )
         )
         assert queued == 0
+        verification = await session.scalar(
+            select(AnalyticsTask).where(
+                AnalyticsTask.project_id == seed.project_id,
+                AnalyticsTask.task_kind
+                == ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
+            )
+        )
+        assert verification is not None
+        assert verification.payload["trigger_id"] == str(seed.crawl_id)
 
 
 @pytest.mark.asyncio

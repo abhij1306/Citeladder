@@ -19,6 +19,7 @@ const SYNC2 = '66666666-6666-4666-8666-666666666666';
 // points (chart gaps), keyset envelopes, per-run 202 enqueue objects.
 const dashboard = {
   project_id: PROJECT,
+  evidence_state: 'available' as const,
   window_start: '2026-07-16',
   window_end: '2026-07-22',
   granularity: 'day' as const,

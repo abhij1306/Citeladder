@@ -40,6 +40,7 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
     ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+    ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
     ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
     ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP,
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
@@ -66,6 +67,7 @@ from app.domain.attribution.snapshot import refresh_attribution_snapshot
 from app.domain.commerce.orders import run_order_retention_sweep
 from app.domain.demand.service import recompute_demand
 from app.domain.opportunities.service import recompute as recompute_opportunities
+from app.domain.opportunities.verification import verify_implementation_events
 from app.domain.traffic.service import refresh_traffic_snapshot
 from app.models.analytics import AnalyticsTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
@@ -116,6 +118,7 @@ EXECUTORS: dict[str, AnalyticsExecutor] = {
     ANALYTICS_TASK_KIND_ATTRIBUTION_LINK: run_attribution_link,
     ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP: run_order_retention_sweep,
     ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH: _refresh_opportunities,
+    ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION: verify_implementation_events,
     ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH: recompute_demand,
 }
 

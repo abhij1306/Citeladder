@@ -102,7 +102,7 @@ from app.domain.entitlements.ledger import (
     record_billable_attempt,
     release_terminal_funded_task,
 )
-from app.domain.opportunities.service import enqueue_opportunity_refresh
+from app.domain.opportunities.verification import enqueue_audit_opportunity_tasks
 from app.domain.providers.credentials import pause_connection_after_key_failure
 from app.models.audit import (
     Audit,
@@ -1581,12 +1581,11 @@ class AuditWorker(DrainableWorkerMixin):
         # outage must never roll back the evidence and snapshot above.
         try:
             async with self._session_factory() as session:
-                await enqueue_opportunity_refresh(
+                await enqueue_audit_opportunity_tasks(
                     session,
                     workspace_id=workspace_id,
                     project_id=project_id,
-                    trigger_kind="audit",
-                    trigger_id=audit_id,
+                    audit_id=audit_id,
                 )
                 await session.commit()
         except Exception:

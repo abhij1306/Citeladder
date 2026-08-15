@@ -4,10 +4,18 @@
 > **Runtime:** FastAPI modular monolith, separate workers, Next.js frontend,
 > PostgreSQL durable state and queues
 
-CiteLadder is an evidence-grounded growth platform with three product systems
-and one bounded orchestrator.
+CiteLadder is an evidence-grounded growth platform organized around one loop:
 
-## Product systems
+```text
+Connect -> Analyze -> Act -> Improve / Verify -> Track -> recompute Analyze
+```
+
+Its primary measured outcome is increased **observed** mention/citation share
+across a versioned prompt portfolio under comparable audit conditions. Crawl
+health, GSC demand coverage, and AEO readiness are leading indicators. They do
+not prove CiteLadder caused a later change.
+
+## Capabilities behind the loop
 
 ### Site Health
 
@@ -32,19 +40,32 @@ with the Site Intelligence simplification. Until a replacement evidence source
 is approved, the runtime exposes an explicit empty fact/source envelope rather
 than fabricating grounding.
 
-### Demand Intelligence
+### Demand Intelligence and Track
 
 Demand Intelligence owns GSC and Traffic observations, demand signals, prompt
 portfolios, schedules, answer-engine measurements, and AI Visibility. AI
-Visibility measures mentions, citations, rankings, and share of voice; it does
-not define company truth or the product hierarchy.
+Visibility is the Track station: it measures observed mentions, citations,
+rankings, and share of voice under comparable conditions.
 
 ### Growth Agent
 
-The Growth Agent orchestrates typed tools over persisted Site Health, Content,
-and Demand projections. It owns standalone task execution, not a second
-copy of system data. It cannot publish content, activate prompts, or mutate an
-external system without an explicit user decision.
+The Growth Agent is a top-bar orchestrator over persisted Site Health, Content,
+and Demand projections, not a navigation station or a second copy of system
+data. It cannot publish content, activate prompts, or mutate an external system
+without an explicit user decision.
+
+## Product stations
+
+| Station | User job | Primary capability owners |
+|---|---|---|
+| Overview | See loop state, company facts, and one next action | Cross-system persisted projections |
+| Connect | Establish authorized evidence and provider inputs | Projects and integrations |
+| Analyze | Inspect website, search demand, traffic, and gaps | Site Health and Demand |
+| Act | Prioritize and generate against one Opportunity | Opportunities and Content |
+| Track | Compare observed citation share and later evidence | AI Visibility and analytics |
+
+Improve / Verify is the transition after an explicit implementation declaration:
+recrawl, resync, or audit evidence is observed without making a causal claim.
 
 ## Evidence flow
 

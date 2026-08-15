@@ -17,6 +17,7 @@ listed here must prove a current operational purpose or move to the archive.
 | Document | Role |
 |---|---|
 | [`architecture.md`](architecture.md) | Canonical product architecture |
+| [`plans/citeladder-aeo-product-rebuild.md`](plans/citeladder-aeo-product-rebuild.md) | Implementation-ready delivery plan for the AEO product rebuild (subordinate to `architecture.md`) |
 | [`plans/growth-intelligence-platform.md`](plans/growth-intelligence-platform.md) | Program sequence and open cross-system work |
 | [`plans/content-intelligence.md`](plans/content-intelligence.md) | Content strategy, briefs, generation, review, and verification |
 | [`plans/demand-intelligence.md`](plans/demand-intelligence.md) | GSC/GA4, journeys, prompts, and AI Visibility |

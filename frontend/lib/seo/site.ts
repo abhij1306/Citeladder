@@ -10,7 +10,7 @@ import { getSiteUrl } from '@/lib/config/env';
  */
 
 export const SITE_NAME = 'CiteLadder';
-export const SITE_TAGLINE = 'AI visibility analytics';
+export const SITE_TAGLINE = 'Evidence-grounded answer-engine growth';
 
 /** Parses NEXT_PUBLIC_SITE_URL. Returns null when unset or not a clean https origin. */
 export function siteOrigin(): URL | null {

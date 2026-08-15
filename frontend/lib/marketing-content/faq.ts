@@ -1,6 +1,6 @@
 /**
- * FAQ content for /faq — four groups aligned to the growth-intelligence
- * platform (see docs/architecture.md and the landing page).
+ * FAQ content for /faq, aligned to the governed product loop in
+ * docs/architecture.md.
  *
  * Answers describe the platform's architecture and guarantees at the vision
  * level; commercial answers follow lib/marketing-content/pricing.ts, the single
@@ -24,19 +24,19 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
     items: [
       {
         q: 'What is CiteLadder?',
-        a: `CiteLadder is a growth-intelligence platform. It unifies site, content, and demand intelligence with a Growth Agent that finds gaps, ranks the work by impact, and verifies every improvement against evidence — so growth runs on proof, not guesswork.`,
+        a: `CiteLadder is an evidence-grounded growth-intelligence platform. It connects owned-site and demand evidence, ranks the next action, and tracks observed mention and citation share under comparable conditions.`,
       },
       {
-        q: 'What are the four intelligence layers?',
-        a: `Site Intelligence crawls and understands your pages and documents. Content Intelligence turns detected gaps into briefs, drafts, and schema. Demand Intelligence unifies Search Console, GA4, and AI visibility. The Growth Agent orchestrates all three, explaining every recommendation and showing the evidence it used.`,
+        q: 'How is the product organized?',
+        a: `Five stations form one loop: Connect, Analyze, Act, Improve / Verify, and Track. Site Health, Content, Demand, Opportunities, and the bounded Growth Agent retain clear ownership behind those stations.`,
       },
       {
         q: 'How does the growth loop work?',
-        a: `A continuous cycle: collect evidence, analyze and prioritize the gaps, improve the content, then measure and verify. Every pass tightens the evidence, sharpens the next action, and confirms the last one before it counts as done.`,
+        a: `Connect evidence, analyze and prioritize gaps, explicitly declare an implemented action, observe later crawl or audit evidence, and track comparable outcomes. Verification reports observation, never causality.`,
       },
       {
         q: 'Does CiteLadder measure AI visibility?',
-        a: `Yes — it is part of Demand Intelligence. CiteLadder observes how the answer engines describe your brand and competitors, and traces every observation back to the answer it came from, so a score is always inspectable.`,
+        a: `Yes. AI Visibility is the Track station. CiteLadder observes how answer engines mention and cite your brand and competitors and traces every metric to persisted responses under a versioned prompt portfolio.`,
       },
       {
         q: 'Can CiteLadder create content?',

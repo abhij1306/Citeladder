@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     String,
     UniqueConstraint,
 )
@@ -109,6 +110,45 @@ class DemandSignal(Base):
     analyzer_version: Mapped[str] = mapped_column(String(32))
     rule_version: Mapped[str] = mapped_column(String(32))
     formula_version: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class BrandedQueryOverride(Base):
+    """Append-only user evidence overriding one exact normalized query."""
+
+    __tablename__ = "branded_query_overrides"
+    __table_args__ = (
+        Index(
+            "ix_branded_query_override_lookup",
+            "workspace_id",
+            "project_id",
+            "normalized_query",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_PROJECT_FK, ondelete="CASCADE"),
+        index=True,
+    )
+    normalized_query: Mapped[str] = mapped_column(String(512))
+    classification: Mapped[str] = mapped_column(String(16))
+    classifier_version: Mapped[str] = mapped_column(String(32))
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

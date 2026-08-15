@@ -2,12 +2,12 @@
 
 # CiteLadder
 
-<strong>The growth operating system for businesses whose website, content, and demand evidence is scattered across tools.</strong>
+<strong>Connect evidence, improve what answer engines can understand, and track observed citation share.</strong>
 
 [Architecture](docs/architecture.md) · [Backend](docs/backend-architecture.md) · [Frontend](docs/frontend-architecture.md) · [Invariants](docs/invariants.md) · [Plans](docs/plans/) · [Development](docs/DEVELOPMENT.md)
 
 <p align="center">
-  CiteLadder is an evidence-grounded growth intelligence platform. It unifies website analysis, content improvement, demand evidence, and AI visibility into one project-scoped system.
+  CiteLadder is an evidence-grounded growth intelligence platform for making a brand more likely to be recommended and cited by answer engines—without pretending leading indicators prove causality.
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <code>Growth Intelligence</code> · <code>Site Health</code> · <code>Content Intelligence</code> · <code>Demand Intelligence</code> · <code>Growth Agent</code> · <code>AEO</code> · <code>GEO</code> · <code>AI Visibility</code> · <code>Evidence-Grounded</code> · <code>Open Source</code>
+  <code>Connect</code> · <code>Analyze</code> · <code>Act</code> · <code>Improve / Verify</code> · <code>Track</code> · <code>AEO</code> · <code>AI Visibility</code> · <code>Evidence-Grounded</code> · <code>Open Source</code>
 </p>
 
 </div>
@@ -47,7 +47,7 @@ generation, audit, and later measurement.
 <a id="product-architecture"></a>
 ## Product architecture
 
-Four layers. Three own data; the fourth is how you talk to them.
+Five user-facing stations sit over four durable capability owners.
 
 | Layer | Owns |
 |---|---|
@@ -56,8 +56,9 @@ Four layers. Three own data; the fourth is how you talk to them.
 | **Demand Intelligence** | Connects GSC, GA4, journeys, prompts, AI Visibility, and later paid marketing evidence to decide what improves next |
 | **Growth Agent** | Explains and orchestrates bounded tasks through typed tools, selective context, and reproducible provenance |
 
-AI Visibility remains an important measurement loop **inside** Demand Intelligence. It is no longer
-the organizing principle of the product.
+AI Visibility is the Track station. The primary measured outcome is increased
+**observed** mention/citation share under comparable portfolio and engine
+conditions; Site Health and demand metrics remain leading indicators.
 
 > The Growth Agent is a real layer — the one you spend the most time in — but it owns no data. It
 > is deliberately **not** a fourth database, an unrestricted chat interface, or an autonomous

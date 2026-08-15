@@ -6,8 +6,9 @@
 
 ## What CiteLadder is
 
-CiteLadder is an evidence-grounded growth intelligence platform with three
-product systems and one bounded orchestrator:
+CiteLadder is an evidence-grounded growth intelligence platform organized
+around one measurable loop: Connect → Analyze → Act → Improve / Verify →
+Track. Four durable capabilities sit behind those stations:
 
 1. **Site Health** securely crawls the owned website, classifies each page by
    structural type, applies the correct deterministic checklist, and produces
@@ -20,8 +21,10 @@ product systems and one bounded orchestrator:
    second knowledge store and cannot publish or mutate external systems without
    an explicit user action.
 
-AI Visibility is a Demand Intelligence measurement capability, not the
-product's organizing principle.
+The measured outcome is increased observed mention/citation share across a
+versioned prompt portfolio under comparable audit conditions. AI Visibility is
+the Track capability; crawl health, demand coverage, and AEO readiness are
+leading indicators, never causal proof.
 
 ## Canonical documentation
 
@@ -29,7 +32,8 @@ Read only the documents required by the task.
 
 | Task | Required source |
 |---|---|
-| Product hierarchy and architecture | `docs/architecture.md` |
+| Product loop, hierarchy, and architecture | `docs/architecture.md` |
+| AEO rebuild delivery sequence | `docs/plans/citeladder-aeo-product-rebuild.md` |
 | Complete active-document map | `docs/documentation-index.md` |
 | Program sequence | `docs/plans/growth-intelligence-platform.md` |
 | Site crawl, classification, rules, and runtime | `docs/site-health.md` |

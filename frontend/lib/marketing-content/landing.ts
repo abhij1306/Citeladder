@@ -1,9 +1,9 @@
 /**
  * Landing-page copy for the public marketing surface.
  *
- * Structure and copy follow the approved prototype: a growth-intelligence
- * platform built from Site, Content, and Demand intelligence with a Growth Agent
- * on top. Sections carry icons and the prototype's fuller detail (module feature
+ * Structure and copy follow the governed product loop. Durable Site, Content,
+ * Demand, Opportunities, and Agent capabilities sit behind user-facing loop
+ * stations. Sections carry icons and the prototype's fuller detail (module feature
  * lists, a four-step loop, industry-pack item lists, a security ledger). Only the
  * hero tagline, the product visual, and the type scale/weight are ours.
  *
@@ -36,11 +36,11 @@ export type IconKey =
 
 export const LANDING_CONTENT = {
   hook: {
-    eyebrow: 'Growth intelligence platform',
+    eyebrow: 'Evidence-grounded AEO',
     // Retained tagline — the hook the site opens on.
     title: 'Your buyers stopped Googling you.',
     titleAccent: 'They ask AI instead.',
-    body: 'CiteLadder unifies site, content, and demand intelligence with a growth agent that finds the gaps, prioritizes the work, and verifies every improvement against evidence.',
+    body: 'Connect what your site proves with what people search for, act on the clearest gap, and track observed mention and citation share without causal overclaiming.',
     primaryCta: 'Book a demo',
     secondaryCta: 'See how it works',
   },
@@ -76,8 +76,8 @@ export const LANDING_CONTENT = {
 
   platform: {
     kicker: 'Product architecture',
-    title: 'Four intelligence layers, one growth system.',
-    lead: 'Every layer verifies its work before passing results to the next. Evidence flows up, actions flow down, and the Growth Agent orchestrates everything.',
+    title: 'One measurable loop, four durable capabilities.',
+    lead: 'Connect, Analyze, Act, Improve / Verify, and Track. Evidence stays with its owning system while the Growth Agent provides bounded help from the top bar.',
     // The four-across summary row.
     summary: [
       {

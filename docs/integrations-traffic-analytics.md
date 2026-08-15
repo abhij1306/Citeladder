@@ -32,6 +32,20 @@ Before creating Demand Signals:
 7. Unavailable measures remain null; observed zero is zero.
 8. Alternative-dimensional GA4 reports must not be summed as independent activity.
 
+## Cross-source owned-page equivalence
+
+Demand owns `resolve_owned_page` for mapping GSC/GA4 URL variants onto an
+existing workspace-owned `SiteUrl`. It is separate from crawler identity.
+Exact normalized URLs return `exact`; a non-exact variant returns `resolved`
+only when a persisted redirect or canonical declaration proves one target.
+Sitemap membership and the configured preferred origin rank candidates but do
+not prove equivalence. Heuristic-only candidates return `ambiguous`, including
+a single candidate, and no candidate returns `unresolved`.
+
+Every result includes the bounded candidate list, evidence kinds, and resolver
+version. Every query filters both `workspace_id` and `project_id`; ambiguity is
+never silently coerced into a join.
+
 ## Traffic and AI Referrals projections
 
 Traffic headline totals describe the selected date window. **Day**, **Week**,
@@ -40,6 +54,12 @@ and prior-interval comparisons, not the selected window or headline totals. The
 projection returns its actual `granularity`; clients derive bucket labels,
 interval badges, and comparison wording from that value. Top pages and top
 queries are selected-window totals and are independent of chart interval.
+
+Traffic reads resolve the exact `(window_start, window_end, granularity)` when
+dates are supplied. They use the newest snapshot only when the caller
+explicitly omits the window to request current/latest state. The wire-level
+`evidence_state` distinguishes `not_run`, `observed_zero`, and `available`, so
+an absent snapshot never masquerades as a measured zero.
 
 AI Referrals uses `ga4_source_medium_daily` as the canonical session grain.
 The deterministic referrer classification selects AI-source sessions for volume;

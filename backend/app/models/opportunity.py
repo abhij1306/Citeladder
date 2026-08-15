@@ -42,6 +42,7 @@ _FK_PROJECT = "projects.id"
 _FK_PROMPT = "prompts.id"
 _FK_SITE_CRAWL = "site_crawls.id"
 _FK_OPPORTUNITY = "opportunities.id"
+_FK_OPPORTUNITY_SNAPSHOT = "opportunity_snapshots.id"
 _FK_USER = "users.id"
 _ON_DELETE_CASCADE = "CASCADE"
 
@@ -290,6 +291,124 @@ class OpportunitySnapshot(Base):
     # Provenance (invariant 4): the evidence set this run read.
     source_analysis_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     source_issue_ids: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class OpportunityImplementationEvent(Base):
+    """Immutable user declaration that an Opportunity was implemented."""
+
+    __tablename__ = "opportunity_implementation_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "idempotency_key",
+            name="uq_opportunity_implementation_ws_idem",
+        ),
+        Index(
+            "ix_opportunity_implementation_project_created",
+            "project_id",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    opportunity_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_OPPORTUNITY, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    opportunity_snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_OPPORTUNITY_SNAPSHOT, ondelete="RESTRICT"),
+        index=True,
+    )
+    target_site_url_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    generation_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("content_generations.id", ondelete=ON_DELETE_SET_NULL),
+        nullable=True,
+    )
+    declared_implemented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expected_checks: Mapped[list] = mapped_column(JSONB, default=list)
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_FK_USER, ondelete="RESTRICT")
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(160))
+    request_fingerprint: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class OpportunityVerificationEvent(Base):
+    """Immutable observation of post-declaration persisted evidence."""
+
+    __tablename__ = "opportunity_verification_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "idempotency_key",
+            name="uq_opportunity_verification_ws_idem",
+        ),
+        Index(
+            "ix_opportunity_verification_implementation_created",
+            "implementation_event_id",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    implementation_event_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("opportunity_implementation_events.id", ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    observation_kind: Mapped[str] = mapped_column(String(16))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    crawl_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_SITE_CRAWL, ondelete=ON_DELETE_SET_NULL),
+        nullable=True,
+    )
+    audit_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(FK_AUDITS_ID, ondelete=ON_DELETE_SET_NULL),
+        nullable=True,
+    )
+    source_analysis_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    source_rule_evaluation_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    source_metric_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    verifier_version: Mapped[str] = mapped_column(String(32))
+    limitations: Mapped[list] = mapped_column(JSONB, default=list)
+    idempotency_key: Mapped[str] = mapped_column(String(160))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

@@ -3,6 +3,9 @@
 > **Status:** shipped authority for deterministic first-party demand signals,
 > Prompts, and AI Visibility.
 
+Delivery sequencing and the Analyze/Track station contract are owned by
+[`citeladder-aeo-product-rebuild.md`](citeladder-aeo-product-rebuild.md).
+
 Demand snapshots derive from immutable GSC and Traffic observations. The first
 shipped detector identifies high-impression, low-CTR search demand and preserves
 exact source IDs, freshness, time window, formula version, and unknown versus
@@ -44,3 +47,10 @@ Referrer artifacts remain provenance only and are never added to those session
 sums. Non-AI classifications remain in the canonical denominator and audit
 record but do not render in the public AI Referrals projection. Formula/analyzer
 version changes require an explicit snapshot rebuild; reads never repair state.
+
+Branded-query classification uses canonical `Brand.name`, normalized aliases,
+and owned-domain spellings. It returns `branded`, `non_branded`, or `ambiguous`
+with matched terms and a classifier version. A single-token canonical name
+requires exact-token plus owned-domain support; otherwise automatic
+classification abstains as `ambiguous`. User overrides are append-only evidence
+for one exact normalized query, and the newest workspace-scoped override wins.

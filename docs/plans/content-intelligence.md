@@ -2,6 +2,9 @@
 
 > **Status:** shipped authority for website-grounded content generation.
 
+Delivery sequencing and the Act → Improve / Verify product contract are owned by
+[`citeladder-aeo-product-rebuild.md`](citeladder-aeo-product-rebuild.md).
+
 Content owns one bounded generation workflow. A user supplies an instruction
 and may link an Opportunity. The service selects a usable persisted Site Health
 snapshot, freezes a bounded website-context snapshot with exact source IDs,

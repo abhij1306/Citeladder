@@ -165,6 +165,9 @@ function mockBase() {
   const project2 = { ...project, id: PROJECT_2, name: 'Beta', brand_name: 'Beta' };
   mswServer.use(
     http.get('/api/v1/projects', () => HttpResponse.json([project, project2])),
+    http.get(`/api/v1/projects/${PROJECT}/opportunities/implementation-events`, () =>
+      HttpResponse.json({ items: [], next_cursor: null }),
+    ),
     http.post(`/api/v1/projects/${PROJECT}/logos/refresh`, () => HttpResponse.json({})),
     http.post(`/api/v1/projects/${PROJECT_2}/logos/refresh`, () => HttpResponse.json({})),
   );
@@ -405,6 +408,7 @@ describe('OpportunitiesScreen', () => {
   it('Review opens the recommendation detail drawer with evidence + footer actions', async () => {
     mockBase();
     const patches: unknown[] = [];
+    const declarations: unknown[] = [];
     mswServer.use(
       http.get(`/api/v1/projects/${PROJECT}/opportunities/summary`, () =>
         HttpResponse.json(summary),
@@ -417,6 +421,35 @@ describe('OpportunitiesScreen', () => {
         patches.push(await request.json());
         return HttpResponse.json(opportunity({ status: 'in_progress' }));
       }),
+      http.post(
+        `/api/v1/projects/${PROJECT}/opportunities/implementation-events`,
+        async ({ request }) => {
+          declarations.push(await request.json());
+          return HttpResponse.json(
+            {
+              id: '66666666-6666-4666-8666-666666666666',
+              project_id: PROJECT,
+              opportunity_id: OPP_A,
+              opportunity_snapshot_id: RUN,
+              target_site_url_ids: [],
+              generation_id: null,
+              declared_implemented_at: '2026-07-24T00:00:00Z',
+              expected_checks: [
+                {
+                  kind: 'visibility_metric',
+                  metric: 'brand_absent_high_value_prompt',
+                  direction: 'increase',
+                },
+              ],
+              state: 'declared',
+              limitations: [],
+              verification_events: [],
+              created_at: '2026-07-24T00:00:01Z',
+            },
+            { status: 201 },
+          );
+        },
+      ),
     );
 
     const user = userEvent.setup();
@@ -448,6 +481,10 @@ describe('OpportunitiesScreen', () => {
     expect(
       within(drawer).queryByText(/opp-analyzer|opp-rules|opp-formula/),
     ).not.toBeInTheDocument();
+
+    await user.click(within(drawer).getByRole('button', { name: 'I implemented this' }));
+    expect(await within(drawer).findByText('Declared for verification.')).toBeInTheDocument();
+    expect(declarations).toHaveLength(1);
 
     // Footer workflow: Mark in progress patches the row.
     await user.click(screen.getByRole('button', { name: 'Mark in progress' }));

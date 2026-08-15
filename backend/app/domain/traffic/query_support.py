@@ -95,6 +95,7 @@ def empty_dashboard(
 ) -> TrafficDashboardResponse:
     return TrafficDashboardResponse(
         project_id=project_id,
+        evidence_state="not_run",
         window_start=from_date.isoformat() if from_date is not None else "",
         window_end=to_date.isoformat() if to_date is not None else "",
         granularity=granularity,

@@ -46,6 +46,7 @@ function point(date: string, value: number | null) {
 
 const dashboardPayload = {
   project_id: PROJECT,
+  evidence_state: 'available',
   window_start: '2026-07-21',
   window_end: '2026-07-23',
   granularity: 'day',
@@ -77,6 +78,7 @@ const dashboardPayload = {
 // echoed — the read endpoints never recompute.
 const emptyPayload = {
   ...dashboardPayload,
+  evidence_state: 'not_run',
   totals: {
     impressions: 0,
     clicks: 0,

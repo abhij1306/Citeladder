@@ -18,3 +18,13 @@ DEMAND_MIN_IMPRESSIONS: Final = 10
 DEMAND_LOW_CTR_THRESHOLD: Final = 0.02
 DEMAND_SEARCH_GAP_WEIGHT: Final = 1.0
 DEMAND_LIST_MAX_LIMIT: Final = 200
+
+# Cross-source owned-page equivalence is deliberately separate from crawler
+# identity. Bump whenever evidence precedence or candidate construction changes.
+PAGE_EQUIVALENCE_RESOLVER_VERSION: Final = "owned-page-resolver-1"
+PAGE_EQUIVALENCE_MAX_CANDIDATES: Final = 16
+
+BRANDED_QUERY_CLASSIFIER_VERSION: Final = "branded-query-1"
+BRANDED_QUERY_CLASSES: Final[frozenset[str]] = frozenset(
+    {"branded", "non_branded", "ambiguous"}
+)

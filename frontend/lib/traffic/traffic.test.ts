@@ -34,6 +34,7 @@ function point(date: string, value: number | null): TrafficSeriesPoint {
 function dashboard(overrides: Record<string, unknown> = {}): TrafficDashboard {
   return {
     project_id: '11111111-1111-4111-8111-111111111111',
+    evidence_state: 'available',
     window_start: '2026-06-24',
     window_end: '2026-07-23',
     granularity: 'day',
@@ -235,6 +236,7 @@ describe('trafficStats', () => {
 describe('isEmptyDashboard', () => {
   it('is true only when every series is empty (the absent-snapshot payload)', () => {
     const empty = dashboard({
+      evidence_state: 'not_run',
       window_start: '',
       window_end: '',
       totals: {

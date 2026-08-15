@@ -153,6 +153,8 @@ import type {
   unattributedMetricsSchema,
   // Opportunities
   opportunitiesPageSchema,
+  implementationEventSchema,
+  implementationStateSchema,
   opportunityDetailSchema,
   opportunitySchema,
   opportunitySeveritySchema,
@@ -326,3 +328,5 @@ export type OpportunityDetail = z.infer<typeof opportunityDetailSchema>;
 export type OpportunitiesPage = z.infer<typeof opportunitiesPageSchema>;
 export type OpportunitySummary = z.infer<typeof opportunitySummarySchema>;
 export type RecomputeResponse = z.infer<typeof recomputeResponseSchema>;
+export type ImplementationEvent = z.infer<typeof implementationEventSchema>;
+export type ImplementationState = z.infer<typeof implementationStateSchema>;

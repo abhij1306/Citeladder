@@ -8,6 +8,15 @@ immutable fetch evidence, normalized page facts, structural page-kind
 classification, deterministic rule evaluation, scores, grouped issues,
 snapshots, exports, and site-derived opportunities.
 
+Within the product loop, Site Health powers Website and Issues in Analyze and
+supplies persisted evidence to Act and Improve / Verify. This framing does not
+change crawler ownership, URL identity, or the rule and scoring contracts.
+
+Demand's cross-source page-equivalence resolver consumes Site Health evidence
+without changing `canonicalize()`, `canonical_identity()`, `url_hash`, or
+`SiteUrl`. Scheme, `www`, and trailing-slash variants therefore remain distinct
+crawler identities even when external evidence later resolves them for a join.
+
 The user-facing area has three pages:
 
 1. **Site Health** — crawl lifecycle, scores by page kind, and URL inventory.

@@ -400,6 +400,14 @@ async def test_standard_crawl_completes_when_advanced_controls_are_available(
         )
         assert opportunity_refresh is not None
         assert opportunity_refresh.payload["trigger_id"] == str(seed.crawl_id)
+        verification = await session.scalar(
+            select(AnalyticsTask).where(
+                AnalyticsTask.project_id == seed.project_id,
+                AnalyticsTask.task_kind == "opportunity_verification",
+            )
+        )
+        assert verification is not None
+        assert verification.payload["trigger_id"] == str(seed.crawl_id)
 
 
 @pytest.mark.asyncio

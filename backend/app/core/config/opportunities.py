@@ -98,6 +98,17 @@ CODE_OPPORTUNITY_GUIDANCE_UNAVAILABLE: Final = "opportunity_guidance_unavailable
 CODE_OPPORTUNITY_GUIDANCE_IDEMPOTENCY_CONFLICT: Final = (
     "opportunity_guidance_idempotency_conflict"
 )
+CODE_IMPLEMENTATION_TARGET_CONFLICT: Final = "implementation_target_conflict"
+CODE_IMPLEMENTATION_IDEMPOTENCY_CONFLICT: Final = (
+    "implementation_idempotency_conflict"
+)
+IMPLEMENTATION_EVENT_DEFAULT_LIMIT: Final = 50
+IMPLEMENTATION_EVENT_MAX_LIMIT: Final = 200
+IMPLEMENTATION_IDEMPOTENCY_KEY_MAX_LEN: Final = 160
+IMPLEMENTATION_EXPECTED_CHECKS_MAX: Final = 32
+IMPLEMENTATION_TARGETS_MAX: Final = 64
+IMPLEMENTATION_VERIFIER_VERSION: Final = "implementation-verifier-1"
+IMPLEMENTATION_VERIFICATION_BATCH_MAX: Final = 100
 
 # =========================================================================
 # Rule catalog

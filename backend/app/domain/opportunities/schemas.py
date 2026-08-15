@@ -8,7 +8,8 @@
 from __future__ import annotations
 
 import uuid
-from typing import Literal
+from datetime import datetime
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -52,6 +53,76 @@ class RecomputeRequest(_Model):
 
     audit_id: uuid.UUID | None = None
     site_crawl_id: uuid.UUID | None = None
+
+
+class SiteRuleExpectedCheck(_Model):
+    kind: Literal["site_rule"]
+    target_site_url_id: uuid.UUID | None = None
+    rule_id: str = Field(min_length=1, max_length=64)
+    expected_outcome: Literal["pass", "fail"]
+
+
+class PageFactExpectedCheck(_Model):
+    kind: Literal["page_fact"]
+    target_site_url_id: uuid.UUID | None = None
+    fact_key: str = Field(min_length=1, max_length=128)
+    expected_value: Any
+
+
+class MetricExpectedCheck(_Model):
+    kind: Literal["visibility_metric", "traffic_metric"]
+    metric: str = Field(min_length=1, max_length=128)
+    direction: Literal["increase", "decrease", "equal"]
+    expected_value: float | None = None
+    tolerance: float = Field(default=0, ge=0)
+
+
+ExpectedCheck = Annotated[
+    SiteRuleExpectedCheck | PageFactExpectedCheck | MetricExpectedCheck,
+    Field(discriminator="kind"),
+]
+
+
+class ImplementationEventCreate(_Model):
+    opportunity_id: uuid.UUID
+    target_site_url_ids: list[uuid.UUID] = Field(default_factory=list, max_length=64)
+    generation_id: uuid.UUID | None = None
+    declared_implemented_at: datetime
+    expected_checks: list[ExpectedCheck] = Field(min_length=1, max_length=32)
+
+
+class VerificationEventView(_Model):
+    id: uuid.UUID
+    observation_kind: Literal["observed", "verified", "contradicted"]
+    observed_at: datetime
+    crawl_id: uuid.UUID | None
+    audit_id: uuid.UUID | None
+    source_analysis_ids: list[uuid.UUID]
+    source_rule_evaluation_ids: list[uuid.UUID]
+    source_metric_ids: list[uuid.UUID]
+    verifier_version: str
+    limitations: list[str]
+    created_at: datetime
+
+
+class ImplementationEventView(_Model):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    opportunity_id: uuid.UUID
+    opportunity_snapshot_id: uuid.UUID
+    target_site_url_ids: list[uuid.UUID]
+    generation_id: uuid.UUID | None
+    declared_implemented_at: datetime
+    expected_checks: list[dict[str, Any]]
+    state: Literal["declared", "observed", "verified", "contradicted"]
+    limitations: list[str]
+    verification_events: list[VerificationEventView]
+    created_at: datetime
+
+
+class ImplementationEventsPage(_Model):
+    items: list[ImplementationEventView]
+    next_cursor: str | None = None
 
 
 class OpportunityGuidanceItem(_Model):

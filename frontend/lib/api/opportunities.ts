@@ -14,6 +14,8 @@ import { mutationOptions, queryOptions } from '@tanstack/react-query';
 import { API_BASE_URL, apiClient, type ApiRequestOptions } from './client';
 import { queryKeys } from './query-keys';
 import {
+  implementationEventSchema,
+  implementationEventsPageSchema,
   opportunitiesPageSchema,
   opportunityDetailSchema,
   opportunitySummarySchema,
@@ -24,6 +26,7 @@ import {
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
 import type {
+  ImplementationEvent,
   OpportunitiesPage,
   Opportunity,
   OpportunityDetail,
@@ -52,6 +55,33 @@ export type OpportunityOrderUpdate = {
 
 /** Optional recompute scope; omit both for the latest dashboard sources. */
 export type RecomputeScope = { audit_id?: string; site_crawl_id?: string };
+export type ExpectedCheck =
+  | {
+      kind: 'site_rule';
+      target_site_url_id?: string;
+      rule_id: string;
+      expected_outcome: 'pass' | 'fail';
+    }
+  | {
+      kind: 'page_fact';
+      target_site_url_id?: string;
+      fact_key: string;
+      expected_value: unknown;
+    }
+  | {
+      kind: 'visibility_metric' | 'traffic_metric';
+      metric: string;
+      direction: 'increase' | 'decrease' | 'equal';
+      expected_value?: number;
+      tolerance?: number;
+    };
+export type ImplementationEventCreate = {
+  opportunity_id: string;
+  target_site_url_ids: string[];
+  generation_id?: string;
+  declared_implemented_at: string;
+  expected_checks: ExpectedCheck[];
+};
 
 export const opportunitiesApi = {
   list: async (projectId: string, params?: OpportunitiesParams, options?: ApiRequestOptions) => {
@@ -97,6 +127,41 @@ export const opportunitiesApi = {
       options,
     );
     return strictValidate(opportunitySummarySchema, res, 'opportunities.summary');
+  },
+  createImplementationEvent: async (
+    projectId: string,
+    input: ImplementationEventCreate,
+    idempotencyKey: string,
+    options?: ApiRequestOptions,
+  ) => {
+    const res = await apiClient.post<ImplementationEvent>(
+      `/projects/${projectId}/opportunities/implementation-events`,
+      input,
+      { ...options, idempotencyKey, retryNetworkFailures: true },
+    );
+    return strictValidate(implementationEventSchema, res, 'opportunities.implementation.create');
+  },
+  listImplementationEvents: async (projectId: string, options?: ApiRequestOptions) => {
+    const res = await apiClient.get(
+      `/projects/${projectId}/opportunities/implementation-events`,
+      options,
+    );
+    return strictValidate(
+      implementationEventsPageSchema,
+      res,
+      'opportunities.implementation.list',
+    );
+  },
+  getImplementationEvent: async (
+    projectId: string,
+    eventId: string,
+    options?: ApiRequestOptions,
+  ) => {
+    const res = await apiClient.get(
+      `/projects/${projectId}/opportunities/implementation-events/${eventId}`,
+      options,
+    );
+    return strictValidate(implementationEventSchema, res, 'opportunities.implementation.get');
   },
   /** Same-origin export URLs (browser navigation / download links). */
   exportUrl: (
@@ -158,6 +223,12 @@ export const opportunitiesQueries = {
       placeholderData: (previousData, previousQuery) =>
         isSameProjectQuery(previousQuery, projectId) ? previousData : undefined,
     }),
+  implementationEvents: (projectId: string) =>
+    queryOptions({
+      queryKey: queryKeys.opportunities.implementationEvents(projectId),
+      queryFn: ({ signal }) =>
+        opportunitiesApi.listImplementationEvents(projectId, { signal }),
+    }),
 };
 
 export const opportunitiesMutations = {
@@ -170,5 +241,18 @@ export const opportunitiesMutations = {
     mutationOptions({
       mutationFn: (vars: { projectId: string; scope?: RecomputeScope }) =>
         opportunitiesApi.recompute(vars.projectId, vars.scope),
+    }),
+  createImplementationEvent: () =>
+    mutationOptions({
+      mutationFn: (vars: {
+        projectId: string;
+        input: ImplementationEventCreate;
+        idempotencyKey: string;
+      }) =>
+        opportunitiesApi.createImplementationEvent(
+          vars.projectId,
+          vars.input,
+          vars.idempotencyKey,
+        ),
     }),
 };

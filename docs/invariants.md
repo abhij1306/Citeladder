@@ -74,7 +74,9 @@ entitlement/runtime allowance. Other configured classification, opportunity
 creation, demand imports, prompt generation, and scheduled measurement may run
 automatically. Explicit user decisions are required for content save/publish
 claims, external mutations, prompt activation, billing changes, and any future
-durable-memory promotion.
+durable-memory promotion. Declaring an Opportunity implemented is also an
+explicit user action. Later verification is a bounded observation over
+persisted evidence and never a causal claim or an inferred workflow status.
 
 ## 11. Context is selected and inspectable
 

@@ -26,18 +26,36 @@ from app.core.config.errors import (
     CODE_VALIDATION_ERROR,
 )
 from app.core.config.opportunities import (
+    CODE_IMPLEMENTATION_IDEMPOTENCY_CONFLICT,
+    CODE_IMPLEMENTATION_TARGET_CONFLICT,
     CODE_OPPORTUNITY_GUIDANCE_IDEMPOTENCY_CONFLICT,
     CODE_OPPORTUNITY_GUIDANCE_UNAVAILABLE,
     CODE_OPPORTUNITY_ORDER_CONFLICT,
     GUIDANCE_HISTORY_DEFAULT_LIMIT,
     GUIDANCE_HISTORY_MAX_LIMIT,
     GUIDANCE_IDEMPOTENCY_KEY_MAX_LEN,
+    IMPLEMENTATION_EVENT_DEFAULT_LIMIT,
+    IMPLEMENTATION_EVENT_MAX_LIMIT,
+    IMPLEMENTATION_IDEMPOTENCY_KEY_MAX_LEN,
     LIST_DEFAULT_LIMIT,
     LIST_MAX_LIMIT,
 )
 from app.core.errors import ApiException
 from app.domain.opportunities import service
+from app.domain.opportunities.implementation_events import (
+    ImplementationConflictError,
+    ImplementationDeclaration,
+    ImplementationIdempotencyConflictError,
+    ImplementationNotFoundError,
+    create_implementation_event,
+    get_implementation_event,
+    list_implementation_events,
+    list_verification_events,
+)
 from app.domain.opportunities.schemas import (
+    ImplementationEventCreate,
+    ImplementationEventsPage,
+    ImplementationEventView,
     OpportunitiesPage,
     OpportunityDetail,
     OpportunityGuidanceHistory,
@@ -50,6 +68,7 @@ from app.domain.opportunities.schemas import (
     OpportunitySummary,
     RecomputeRequest,
     RecomputeResponse,
+    VerificationEventView,
 )
 from app.domain.opportunities.service import (
     InvalidCursorError,
@@ -65,6 +84,40 @@ router = APIRouter(prefix="", tags=["opportunities"])
 
 _WorkspaceDep = Annotated[WorkspaceContext, Depends(require_active_workspace)]
 _SessionDep = Annotated[AsyncSession, Depends(get_db)]
+
+
+def _verification_view(row) -> VerificationEventView:
+    return VerificationEventView(
+        id=row.id,
+        observation_kind=row.observation_kind,
+        observed_at=row.observed_at,
+        crawl_id=row.crawl_id,
+        audit_id=row.audit_id,
+        source_analysis_ids=list(row.source_analysis_ids or []),
+        source_rule_evaluation_ids=list(row.source_rule_evaluation_ids or []),
+        source_metric_ids=list(row.source_metric_ids or []),
+        verifier_version=row.verifier_version,
+        limitations=list(row.limitations or []),
+        created_at=row.created_at,
+    )
+
+
+def _implementation_view(row, verification_rows=()) -> ImplementationEventView:
+    latest = verification_rows[-1] if verification_rows else None
+    return ImplementationEventView(
+        id=row.id,
+        project_id=row.project_id,
+        opportunity_id=row.opportunity_id,
+        opportunity_snapshot_id=row.opportunity_snapshot_id,
+        target_site_url_ids=list(row.target_site_url_ids or []),
+        generation_id=row.generation_id,
+        declared_implemented_at=row.declared_implemented_at,
+        expected_checks=list(row.expected_checks or []),
+        state=latest.observation_kind if latest is not None else "declared",
+        limitations=list(latest.limitations or []) if latest is not None else [],
+        verification_events=[_verification_view(item) for item in verification_rows],
+        created_at=row.created_at,
+    )
 
 
 def _not_found(exc: OpportunityNotFoundError) -> ApiException:
@@ -196,6 +249,129 @@ async def get_grouped_history_endpoint(
     except OpportunityNotFoundError as exc:
         raise _not_found(exc) from exc
     return OpportunityHistoryResponse.model_validate(projection)
+
+
+@router.post(
+    "/projects/{project_id}/opportunities/implementation-events",
+    response_model=ImplementationEventView,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_implementation_event_endpoint(
+    project_id: uuid.UUID,
+    payload: ImplementationEventCreate,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            alias="Idempotency-Key",
+            max_length=IMPLEMENTATION_IDEMPOTENCY_KEY_MAX_LEN,
+        ),
+    ] = None,
+) -> ImplementationEventView:
+    key = (idempotency_key or "").strip()
+    if not key:
+        raise ApiException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            CODE_VALIDATION_ERROR,
+            "Idempotency-Key is required",
+        )
+    try:
+        row, created = await create_implementation_event(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            actor_user_id=ctx.user.id,
+            idempotency_key=key,
+            declaration=ImplementationDeclaration(
+                opportunity_id=payload.opportunity_id,
+                target_site_url_ids=payload.target_site_url_ids,
+                generation_id=payload.generation_id,
+                declared_implemented_at=payload.declared_implemented_at,
+                expected_checks=[
+                    item.model_dump(mode="json") for item in payload.expected_checks
+                ],
+            ),
+        )
+        await session.commit()
+    except ImplementationNotFoundError as exc:
+        raise ApiException(status.HTTP_404_NOT_FOUND, CODE_NOT_FOUND, str(exc)) from exc
+    except ImplementationIdempotencyConflictError as exc:
+        raise ApiException(
+            status.HTTP_409_CONFLICT,
+            CODE_IMPLEMENTATION_IDEMPOTENCY_CONFLICT,
+            str(exc),
+        ) from exc
+    except ImplementationConflictError as exc:
+        raise ApiException(
+            status.HTTP_409_CONFLICT,
+            CODE_IMPLEMENTATION_TARGET_CONFLICT,
+            str(exc),
+        ) from exc
+    response = _implementation_view(row)
+    if not created:
+        return response
+    return response
+
+
+@router.get(
+    "/projects/{project_id}/opportunities/implementation-events",
+    response_model=ImplementationEventsPage,
+)
+async def list_implementation_events_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    limit: Annotated[
+        int, Query(ge=1, le=IMPLEMENTATION_EVENT_MAX_LIMIT)
+    ] = IMPLEMENTATION_EVENT_DEFAULT_LIMIT,
+) -> ImplementationEventsPage:
+    try:
+        rows = await list_implementation_events(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            limit=limit,
+        )
+    except ImplementationNotFoundError as exc:
+        raise ApiException(status.HTTP_404_NOT_FOUND, CODE_NOT_FOUND, str(exc)) from exc
+    verification = await list_verification_events(
+        session,
+        workspace_id=ctx.workspace_id,
+        project_id=project_id,
+        implementation_event_ids=[row.id for row in rows],
+    )
+    return ImplementationEventsPage(
+        items=[_implementation_view(row, verification.get(row.id, [])) for row in rows]
+    )
+
+
+@router.get(
+    "/projects/{project_id}/opportunities/implementation-events/{event_id}",
+    response_model=ImplementationEventView,
+)
+async def get_implementation_event_endpoint(
+    project_id: uuid.UUID,
+    event_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> ImplementationEventView:
+    try:
+        row = await get_implementation_event(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            event_id=event_id,
+        )
+    except ImplementationNotFoundError as exc:
+        raise ApiException(status.HTTP_404_NOT_FOUND, CODE_NOT_FOUND, str(exc)) from exc
+    verification = await list_verification_events(
+        session,
+        workspace_id=ctx.workspace_id,
+        project_id=project_id,
+        implementation_event_ids=[row.id],
+    )
+    return _implementation_view(row, verification.get(row.id, []))
 
 
 # =========================================================================

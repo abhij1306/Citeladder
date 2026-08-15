@@ -73,6 +73,7 @@ from app.models.content import (
     ContentGenerationAttempt,
 )
 from app.models.demand import (
+    BrandedQueryOverride,
     DemandSignal,
     DemandSnapshot,
 )
@@ -90,9 +91,11 @@ from app.models.integrations import (
 from app.models.opportunity import (
     Opportunity,
     OpportunityGuidance,
+    OpportunityImplementationEvent,
     OpportunityOrder,
     OpportunitySnapshot,
     OpportunityStatusEvent,
+    OpportunityVerificationEvent,
 )
 from app.models.product import (
     CompetitorProduct,
@@ -154,6 +157,7 @@ __all__ = [
     "BrandMention",
     "BrandDiscovery",
     "BrandResearchSnapshot",
+    "BrandedQueryOverride",
     "BillingAccount",
     "BillingCustomer",
     "BillingSubscription",
@@ -191,6 +195,8 @@ __all__ = [
     "PromptMetricSnapshot",
     "Opportunity",
     "OpportunityGuidance",
+    "OpportunityImplementationEvent",
+    "OpportunityVerificationEvent",
     "OpportunityOrder",
     "OpportunitySnapshot",
     "OpportunityStatusEvent",

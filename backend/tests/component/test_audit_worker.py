@@ -978,17 +978,16 @@ async def test_completed_audit_enqueues_opportunities_refresh(
     seed, audit = await _make_audit(session_factory, prompts=2, reps=1)
     calls: list[dict[str, object]] = []
 
-    async def _record(session, *, workspace_id, project_id, trigger_kind, trigger_id):
+    async def _record(session, *, workspace_id, project_id, audit_id):
         calls.append(
             {
                 "workspace_id": workspace_id,
                 "project_id": project_id,
-                "trigger_kind": trigger_kind,
-                "trigger_id": trigger_id,
+                "audit_id": audit_id,
             }
         )
 
-    monkeypatch.setattr(audit_worker, "enqueue_opportunity_refresh", _record)
+    monkeypatch.setattr(audit_worker, "enqueue_audit_opportunity_tasks", _record)
     worker = AuditWorker(session_factory=session_factory, owner="w-hook")
     await worker.run_until_idle()
 
@@ -1000,8 +999,7 @@ async def test_completed_audit_enqueues_opportunities_refresh(
         {
             "workspace_id": seed.workspace_id,
             "project_id": seed.project_id,
-            "trigger_kind": "audit",
-            "trigger_id": audit.id,
+            "audit_id": audit.id,
         }
     ]
 
@@ -1032,10 +1030,10 @@ async def test_failed_audit_never_enqueues_opportunities_refresh(
 
     calls: list[dict[str, object]] = []
 
-    async def _record(session, *, workspace_id, project_id, trigger_kind, trigger_id):
-        calls.append({"trigger_id": trigger_id})
+    async def _record(session, *, workspace_id, project_id, audit_id):
+        calls.append({"audit_id": audit_id})
 
-    monkeypatch.setattr(audit_worker, "enqueue_opportunity_refresh", _record)
+    monkeypatch.setattr(audit_worker, "enqueue_audit_opportunity_tasks", _record)
     worker = AuditWorker(session_factory=session_factory, owner="w-hook-fail")
     await worker.run_until_idle()
 
@@ -1054,10 +1052,10 @@ async def test_opportunities_enqueue_failure_never_blocks_terminalization(
 ) -> None:
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
 
-    async def _boom(session, *, workspace_id, project_id, trigger_kind, trigger_id):
+    async def _boom(session, *, workspace_id, project_id, audit_id):
         raise RuntimeError("enqueue exploded")
 
-    monkeypatch.setattr(audit_worker, "enqueue_opportunity_refresh", _boom)
+    monkeypatch.setattr(audit_worker, "enqueue_audit_opportunity_tasks", _boom)
     worker = AuditWorker(session_factory=session_factory, owner="w-hook-boom")
     # Best-effort: the raise is logged + swallowed; the audit still
     # terminalizes.

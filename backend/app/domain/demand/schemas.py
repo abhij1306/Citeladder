@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -63,3 +63,16 @@ class DemandSnapshotView(_Model):
     analyzer_version: str
     created_at: datetime
     signals: list[DemandSignalView] = Field(default_factory=list)
+
+
+class BrandedQueryOverrideRequest(_Model):
+    query: str = Field(min_length=1, max_length=512)
+    classification: Literal["branded", "non_branded", "ambiguous"]
+
+
+class BrandedQueryClassificationView(_Model):
+    normalized_query: str
+    classification: Literal["branded", "non_branded", "ambiguous"]
+    matched_terms: list[str]
+    classifier_version: str
+    override_id: uuid.UUID | None

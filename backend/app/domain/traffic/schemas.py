@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -53,6 +54,7 @@ class TrafficDashboardResponse(BaseModel):
     """
 
     project_id: uuid.UUID
+    evidence_state: Literal["not_run", "observed_zero", "available"]
     window_start: str
     window_end: str
     granularity: str

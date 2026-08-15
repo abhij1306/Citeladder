@@ -48,7 +48,8 @@ export const metadata: Metadata = {
     default: `${SITE_NAME} — ${SITE_TAGLINE}`,
     template: `%s · ${SITE_NAME}`,
   },
-  description: 'AI visibility analytics — see how LLMs represent your brand.',
+  description:
+    'Connect site and demand evidence, act on grounded opportunities, and track observed answer-engine citation share.',
   applicationName: SITE_NAME,
   icons: { icon: '/icon.svg' },
 };

@@ -3,6 +3,9 @@
 > **Status:** active cross-system sequence. Runtime details remain in each
 > subsystem authority.
 
+The approved six-wave AEO rebuild supersedes this document for delivery order;
+see [`citeladder-aeo-product-rebuild.md`](citeladder-aeo-product-rebuild.md).
+
 ## Goal
 
 Give a business one governed loop for website health, content improvement,

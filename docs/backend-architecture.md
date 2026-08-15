@@ -32,6 +32,11 @@ utilities for convenience.
 
 ## Current subsystem map
 
+These capabilities serve one product loop—Connect → Analyze → Act →
+Improve / Verify → Track—while retaining the persistence owners below. AI
+Visibility is the observed Track measurement; leading indicators never become
+causal claims.
+
 | Subsystem | Responsibility |
 |---|---|
 | Auth/workspaces/projects | Tenant and project boundary |
@@ -42,6 +47,43 @@ utilities for convenience.
 | Opportunities | One persisted cross-system action store |
 | Commerce | Catalog/product specialization |
 | Growth Agent | Standalone explain/roadmap runs and append-only typed-tool attempts |
+
+Demand's `page_equivalence` module is the sole cross-source owned-page resolver.
+It uses exact `SiteUrl` matches plus persisted redirect/canonical evidence and
+returns `exact`, `resolved`, `ambiguous`, or `unresolved` with a versioned
+candidate projection. Sitemap/preferred-origin signals rank but never prove a
+mapping. All resolver queries are workspace- and project-scoped.
+
+Traffic's existing `load_snapshot` resolver is exact-window when both dates are
+present and explicit-latest only when they are omitted. Dashboard projections
+expose `not_run`, `observed_zero`, or `available`; reads never substitute a
+newer mismatched window or recompute missing state.
+
+Demand's `query_classification` module owns deterministic branded-query
+classification. Vocabulary comes from the canonical brand row, aliases, and
+owned-domain spellings; results and append-only overrides carry the classifier
+version. The newest override for the exact normalized query wins, with every
+lookup scoped to workspace and project. Overrides are written through
+`POST /api/v1/projects/{project_id}/demand/query-classification-overrides`.
+
+Opportunities owns the Act → Verify record. An
+`OpportunityImplementationEvent` is an immutable, workspace-authorized user
+declaration against the current opportunity snapshot, resolved owned-page
+identities, optional content generation, and discriminated expected checks.
+`OpportunityVerificationEvent` rows are separate append-only observations;
+they never update the declaration or imply causality. The authenticated
+create/list/detail routes live at
+`/api/v1/projects/{project_id}/opportunities/implementation-events`, require an
+idempotency key for writes, reject foreign or unresolved targets, and include
+the persisted observation history in reads.
+
+Crawl and audit terminalization enqueue `opportunity_verification` on the
+existing PostgreSQL analytics queue. Its bounded, versioned executor reads
+only post-boundary persisted evidence. A latest observation projects
+`observed`, `verified`, or `contradicted`; without one the declaration remains
+`declared`. Missing, not-applicable, or unsupported checks remain limitations.
+`OpportunityStatusEvent` continues to track human workflow status only and is
+never used as evidence that implementation occurred.
 
 ## Authentication and tenant creation
 
@@ -181,6 +223,10 @@ after the Site Intelligence removal.
 - Reads render persisted projections; they never crawl, sync, classify, call a
   model, or repair lifecycle state.
 - Raw evidence and provider attempts are append-only.
+- Opportunity implementation declarations and verification observations are
+  append-only; deleting their owning workspace/project follows the baseline
+  cascade, while nullable crawl/audit/generation provenance survives source
+  retention through `SET NULL` where configured.
 - Derived data carries direct source IDs and relevant versions.
 - Configuration and product policy live under `app/core/config/*`.
 - PostgreSQL remains the durable queue; do not add Redis without measured need.

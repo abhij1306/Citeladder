@@ -11,7 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
 from app.core.http_errors import raise_not_found
 from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
+from app.domain.demand.query_classification import append_override
 from app.domain.demand.schemas import (
+    BrandedQueryClassificationView,
+    BrandedQueryOverrideRequest,
     DemandRecomputeRequest,
     DemandRecomputeResponse,
     DemandSignalView,
@@ -106,4 +109,34 @@ async def recompute(
     await session.commit()
     return DemandRecomputeResponse(
         task_id=task_id, status="queued" if task_id else "already_queued"
+    )
+
+
+@router.post(
+    "/{project_id}/demand/query-classification-overrides",
+    response_model=BrandedQueryClassificationView,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_query_classification_override(
+    project_id: uuid.UUID,
+    payload: BrandedQueryOverrideRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> BrandedQueryClassificationView:
+    await _authorize(session, ctx.workspace_id, project_id)
+    row = await append_override(
+        session,
+        workspace_id=ctx.workspace_id,
+        project_id=project_id,
+        actor_user_id=ctx.user.id,
+        query=payload.query,
+        classification=payload.classification,
+    )
+    await session.commit()
+    return BrandedQueryClassificationView(
+        normalized_query=row.normalized_query,
+        classification=row.classification,
+        matched_terms=[],
+        classifier_version=row.classifier_version,
+        override_id=row.id,
     )

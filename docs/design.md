@@ -180,10 +180,10 @@ to look on every page in the app.
 ├────────────┬─────────────────────────────────────────────────┤
 │            │                                                 │
 │ Overview   │  Page title                          Actions    │
-│ Site       │  Supporting context                             │
-│ Content    │                                                 │
-│ Demand     │  ┌─────────┐ ┌─────────┐ ┌─────────┐            │
-│ Growth     │  │ Metric  │ │ Metric  │ │ Metric  │            │
+│ Analyze    │  Supporting context                             │
+│ Act        │                                                 │
+│ Track      │  ┌─────────┐ ┌─────────┐ ┌─────────┐            │
+│ Connect    │  │ Metric  │ │ Metric  │ │ Metric  │            │
 │            │  └─────────┘ └─────────┘ └─────────┘            │
 │            │  Primary analytical surface                     │
 │ Settings   │  ──────────────────────────────────────         │
@@ -197,7 +197,7 @@ Fixed responsibilities per region:
 | Region             | Owns                                                                                        | Never                                          |
 | ------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | Top bar            | Project and context switching, date range and comparison window, global search, agent entry | Page-specific actions                          |
-| Sidebar            | Workspace links plus primary destinations grouped under Site, Content, and Demand Intelligence | A third navigation level or disabled future items |
+| Sidebar            | Five loop stations: Overview, Analyze, Act, Track, and Connect; station subnavigation owns its destinations | A third navigation level or disabled future items |
 | Page header        | Title, one line of supporting context, and this page's actions                              | Metrics                                        |
 | Metric row         | Three to five headline numbers, each with coverage                                          | More than five, or a metric without provenance |
 | Analytical surface | The one chart, table, or comparison this page exists for                                    | Competing equal-weight surfaces                |
@@ -206,6 +206,13 @@ Fixed responsibilities per region:
 Date range and comparison live in the top bar because they apply to the whole
 context, not to one chart. A page that needs its own time control is a page whose
 scope is wrong.
+
+Desktop navigation groups destinations under Overview, Analyze, Act, Track,
+and Connect. The five-slot mobile bar uses those exact stations; one shared
+accessible secondary-navigation component exposes each station's destinations.
+The Agent is a top-bar button opening a right-side sheet, not a destination.
+Escape closes it, focus returns to the trigger, and its context is limited to
+typed workspace, project, canonical route, date range, and route filters.
 
 #### The insight object
 
@@ -246,8 +253,8 @@ Required anatomy, in this order:
 
 Rules:
 
-- One insight component, used identically in Site, Content, Demand, and the Growth
-  Agent. A layer that invents its own finding card breaks the product's coherence.
+- One insight component, used identically in Analyze, Act, Track, and the Growth
+  Agent sheet. A station that invents its own finding card breaks coherence.
 - The same insight in two places is the same server ID and the same cache identity.
 - An insight with no resolvable evidence does not render.
 - Coverage and unknown states use their text labels; an insight never implies

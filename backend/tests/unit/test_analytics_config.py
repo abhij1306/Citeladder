@@ -24,6 +24,7 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
     ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
     ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+    ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
     ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
     ANALYTICS_TASK_KINDS,
     CONFIDENCE_BUCKETS,
@@ -93,6 +94,10 @@ def test_analytics_task_kinds_include_attribution_snapshot() -> None:
     assert ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT == "attribution_snapshot"
     assert ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP == "order_retention_sweep"
     assert ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH == "opportunity_refresh"
+    assert (
+        ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION
+        == "opportunity_verification"
+    )
     assert ANALYTICS_TASK_KINDS == frozenset(
         {
             "ingest_referrals",
@@ -104,6 +109,7 @@ def test_analytics_task_kinds_include_attribution_snapshot() -> None:
             "attribution_link",
             "order_retention_sweep",
             "opportunity_refresh",
+            "opportunity_verification",
             "demand_snapshot_refresh",
         }
     )

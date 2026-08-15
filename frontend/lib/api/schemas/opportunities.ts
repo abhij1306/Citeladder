@@ -13,6 +13,12 @@ const uuid = () => z.uuid();
 export const opportunityTypeSchema = z.enum(['visibility', 'site', 'traffic', 'topic']);
 export const opportunitySeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'info']);
 export const opportunityStatusSchema = z.enum(['open', 'in_progress', 'dismissed', 'resolved']);
+export const implementationStateSchema = z.enum([
+  'declared',
+  'observed',
+  'verified',
+  'contradicted',
+]);
 
 // One live opportunity row in the priority-sorted catalog.
 export const opportunitySchema = responseObject({
@@ -153,4 +159,38 @@ export const recomputeResponseSchema = responseObject({
   rule_version: z.string(),
   formula_version: z.string(),
   created_at: z.string(),
+});
+
+export const implementationEventSchema = responseObject({
+  id: uuid(),
+  project_id: uuid(),
+  opportunity_id: uuid(),
+  opportunity_snapshot_id: uuid(),
+  target_site_url_ids: z.array(uuid()),
+  generation_id: uuid().nullable(),
+  declared_implemented_at: z.string(),
+  expected_checks: z.array(z.record(z.string(), z.unknown())),
+  state: implementationStateSchema,
+  limitations: z.array(z.string()),
+  verification_events: z.array(
+    responseObject({
+      id: uuid(),
+      observation_kind: z.enum(['observed', 'verified', 'contradicted']),
+      observed_at: z.string(),
+      crawl_id: uuid().nullable(),
+      audit_id: uuid().nullable(),
+      source_analysis_ids: z.array(uuid()),
+      source_rule_evaluation_ids: z.array(uuid()),
+      source_metric_ids: z.array(uuid()),
+      verifier_version: z.string(),
+      limitations: z.array(z.string()),
+      created_at: z.string(),
+    }),
+  ),
+  created_at: z.string(),
+});
+
+export const implementationEventsPageSchema = responseObject({
+  items: z.array(implementationEventSchema),
+  next_cursor: z.string().nullable(),
 });

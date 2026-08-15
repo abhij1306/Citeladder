@@ -2,6 +2,9 @@
 
 > **Status:** shipped authority for bounded standalone evidence tasks.
 
+The top-bar Agent cutover and rebuild sequencing are owned by
+[`citeladder-aeo-product-rebuild.md`](citeladder-aeo-product-rebuild.md).
+
 Growth Agent supports exactly two bounded tasks, labelled **Explain my latest
 data** (`explain`) and **Prioritize next steps** (`build_roadmap`). Each request
 is a standalone persisted run; the product does not claim conversational memory.

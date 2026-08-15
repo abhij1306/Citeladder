@@ -39,6 +39,7 @@ export const trafficTotalsSchema = responseObject({
 // payload (empty series, zeroed/null totals), never a recomputation.
 export const trafficDashboardSchema = responseObject({
   project_id: uuid(),
+  evidence_state: z.enum(['not_run', 'observed_zero', 'available']),
   window_start: z.string(),
   window_end: z.string(),
   granularity: snapshotGranularitySchema,

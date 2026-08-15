@@ -65,6 +65,7 @@ PAGE_C = "https://example.com/about"
 # Exact key sets mirroring the frontend zod .strict() schemas (contract C6).
 _DASHBOARD_KEYS = {
     "project_id",
+    "evidence_state",
     "window_start",
     "window_end",
     "granularity",

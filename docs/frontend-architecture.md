@@ -7,6 +7,30 @@ The frontend projects workspace-scoped backend contracts. It owns navigation,
 interaction, accessibility, validation, and local ephemeral state; it does not
 own scoring, page classification, lifecycle truth, or authorization.
 
+## Locked rebuild route contract
+
+Navigation is organized into five loop stations. This is the target contract
+during the six-wave AEO rebuild; a route remains shipped until its atomic
+replacement slice migrates every caller and deletes it.
+
+| Station | Destination | Canonical browser location |
+|---|---|---|
+| Overview | Overview | `/projects` |
+| Analyze | Website | `/site?tab=pages` (default), `aeo-readiness`, `link-graph`, `changes` |
+| Analyze | Issues / Search Demand / Traffic | `/issues`, `/demand`, `/traffic` |
+| Analyze | Commerce | `/products` only when commerce evidence exists |
+| Act | Opportunities / Content | `/opportunities`, `/content` |
+| Track | AI Visibility | `/visibility?tab=trends` (default), `mentions-citations`, `query-fanout` |
+| Track | Runs / AI Referrals | `/runs`, `/runs/[runId]`, `/ai-referrals` |
+| Connect | Integrations / Providers | `/settings?tab=integrations`, `/settings?tab=providers` |
+| Connect | Prompts / Settings | `/prompts`, `/settings` |
+
+The mobile bar has exactly Overview, Analyze, Act, Track, and Connect. One
+shared station-navigation owner exposes secondary destinations and resolves
+active state from pathname plus recognized `tab`/`mode` values. The Growth
+Agent moves to an accessible top-bar sheet with typed persisted route context;
+it is not a sidebar destination. Retired internal routes receive no redirects.
+
 ## Core rules
 
 - Browser calls use relative `/api/*`; Next.js rewrites to server-only
@@ -89,6 +113,13 @@ shared artifact uses the same server ID and cache identity everywhere.
 Unknown, unavailable, zero, historical, conflicting, excluded, and
 not-applicable states retain distinct labels and are never communicated by
 color alone.
+
+The Opportunity detail footer owns the explicit **I implemented this** action.
+It posts an idempotent declaration with resolved target IDs and expected
+checks, then renders the persisted lifecycle as `declared`, `observed`,
+`verified`, or `contradicted`, including verifier limitations. Reloading reads
+the same state from the implementation-event projection; a workflow status
+such as Resolved neither creates nor replaces this action record.
 
 ## Demand, traffic, referrals, and agent UX
 

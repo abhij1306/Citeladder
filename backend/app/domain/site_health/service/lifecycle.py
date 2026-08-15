@@ -42,6 +42,7 @@ from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,
 )
 from app.domain.opportunities.service import enqueue_opportunity_refresh
+from app.domain.opportunities.verification import enqueue_implementation_verification
 from app.domain.site_health.phase import resolve_phase
 from app.domain.site_health.service.common import (
     _CRAWL_NOT_FOUND,
@@ -307,6 +308,13 @@ async def cancel_crawl(
     )
     if snapshot_written:
         await enqueue_opportunity_refresh(
+            session,
+            workspace_id=workspace_id,
+            project_id=crawl.project_id,
+            trigger_kind="site_crawl",
+            trigger_id=crawl.id,
+        )
+        await enqueue_implementation_verification(
             session,
             workspace_id=workspace_id,
             project_id=crawl.project_id,

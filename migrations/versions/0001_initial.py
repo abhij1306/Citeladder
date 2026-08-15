@@ -2149,6 +2149,112 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
+        "opportunity_implementation_events",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("opportunity_id", sa.UUID(), nullable=False),
+        sa.Column("opportunity_snapshot_id", sa.UUID(), nullable=False),
+        sa.Column(
+            "target_site_url_ids",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=False,
+        ),
+        sa.Column("generation_id", sa.UUID(), nullable=True),
+        sa.Column("declared_implemented_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "expected_checks", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("actor_user_id", sa.UUID(), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=160), nullable=False),
+        sa.Column("request_fingerprint", sa.String(length=64), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["opportunity_id"], ["opportunities.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["opportunity_snapshot_id"],
+            ["opportunity_snapshots.id"],
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["generation_id"], ["content_generations.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="RESTRICT"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "workspace_id",
+            "idempotency_key",
+            name="uq_opportunity_implementation_ws_idem",
+        ),
+    )
+    _create_indexes(
+        "opportunity_implementation_events",
+        (
+            "workspace_id",
+            "project_id",
+            "opportunity_id",
+            "opportunity_snapshot_id",
+        ),
+    )
+    op.create_index(
+        "ix_opportunity_implementation_project_created",
+        "opportunity_implementation_events",
+        ["project_id", "created_at", "id"],
+    )
+    op.create_table(
+        "opportunity_verification_events",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("implementation_event_id", sa.UUID(), nullable=False),
+        sa.Column("observation_kind", sa.String(length=16), nullable=False),
+        sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("crawl_id", sa.UUID(), nullable=True),
+        sa.Column("audit_id", sa.UUID(), nullable=True),
+        sa.Column(
+            "source_analysis_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "source_rule_evaluation_ids",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=False,
+        ),
+        sa.Column(
+            "source_metric_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("verifier_version", sa.String(length=32), nullable=False),
+        sa.Column("limitations", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=160), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["implementation_event_id"],
+            ["opportunity_implementation_events.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "workspace_id",
+            "idempotency_key",
+            name="uq_opportunity_verification_ws_idem",
+        ),
+    )
+    _create_indexes(
+        "opportunity_verification_events",
+        ("workspace_id", "project_id", "implementation_event_id"),
+    )
+    op.create_index(
+        "ix_opportunity_verification_implementation_created",
+        "opportunity_verification_events",
+        ["implementation_event_id", "created_at", "id"],
+    )
+    op.create_table(
         "opportunity_guidance",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
@@ -5125,6 +5231,30 @@ def upgrade() -> None:
         ("workspace_id", "project_id", "snapshot_id", "signal_type", "state"),
     )
 
+    op.create_table(
+        "branded_query_overrides",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("normalized_query", sa.String(length=512), nullable=False),
+        sa.Column("classification", sa.String(length=16), nullable=False),
+        sa.Column("classifier_version", sa.String(length=32), nullable=False),
+        sa.Column("actor_user_id", sa.UUID(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="RESTRICT"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    _create_indexes(
+        "branded_query_overrides", ("workspace_id", "project_id")
+    )
+    op.create_index(
+        "ix_branded_query_override_lookup",
+        "branded_query_overrides",
+        ["workspace_id", "project_id", "normalized_query", "created_at", "id"],
+    )
+
     # --- Bounded Growth Agent --------------------------------------------
     op.create_table(
         "agent_task_runs",
@@ -5230,6 +5360,18 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("agent_tool_attempts")
     op.drop_table("agent_task_runs")
+    op.drop_index(
+        "ix_branded_query_override_lookup", table_name="branded_query_overrides"
+    )
+    op.drop_index(
+        op.f("ix_branded_query_overrides_project_id"),
+        table_name="branded_query_overrides",
+    )
+    op.drop_index(
+        op.f("ix_branded_query_overrides_workspace_id"),
+        table_name="branded_query_overrides",
+    )
+    op.drop_table("branded_query_overrides")
     op.drop_table("demand_signals")
     op.drop_constraint(
         "fk_opportunity_snapshots_demand_snapshot_id",
@@ -5790,6 +5932,44 @@ def downgrade() -> None:
         table_name="opportunity_guidance",
     )
     op.drop_table("opportunity_guidance")
+    op.drop_index(
+        "ix_opportunity_verification_implementation_created",
+        table_name="opportunity_verification_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_verification_events_implementation_event_id"),
+        table_name="opportunity_verification_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_verification_events_project_id"),
+        table_name="opportunity_verification_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_verification_events_workspace_id"),
+        table_name="opportunity_verification_events",
+    )
+    op.drop_table("opportunity_verification_events")
+    op.drop_index(
+        "ix_opportunity_implementation_project_created",
+        table_name="opportunity_implementation_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_implementation_events_opportunity_snapshot_id"),
+        table_name="opportunity_implementation_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_implementation_events_opportunity_id"),
+        table_name="opportunity_implementation_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_implementation_events_project_id"),
+        table_name="opportunity_implementation_events",
+    )
+    op.drop_index(
+        op.f("ix_opportunity_implementation_events_workspace_id"),
+        table_name="opportunity_implementation_events",
+    )
+    op.drop_table("opportunity_implementation_events")
     op.drop_index(
         op.f("ix_opportunity_snapshots_workspace_id"),
         table_name="opportunity_snapshots",
