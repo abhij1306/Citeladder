@@ -676,6 +676,52 @@ export const linkGraphEdgesPageSchema = responseObject({
   items: z.array(linkGraphEdgeSchema),
 });
 
+export const changeStateSchema = z.enum(['available', 'unavailable', 'non_comparable']);
+export const changeClassSchema = z.enum([
+  'improvement',
+  'neutral-change',
+  'potential-regression',
+  'critical-regression',
+]);
+export const changeSummarySchema = responseObject({
+  state: changeStateSchema,
+  reason_code: z.string().nullable(),
+  snapshot_id: uuid().nullable(),
+  crawl_a_id: uuid().nullable(),
+  crawl_b_id: uuid().nullable(),
+  complete_pair: z.boolean(),
+  analyzer_version: z.string(),
+  page_analyzer_version: z.string(),
+  extractor_version: z.string(),
+  source_analysis_ids: z.array(uuid()),
+  coverage: z.record(z.string(), z.unknown()),
+  summary: z.record(z.string(), z.unknown()),
+  limitations: z.array(z.string()),
+  created_at: z.string().nullable(),
+});
+export const changeObservationSchema = responseObject({
+  id: uuid(),
+  site_url_id: uuid(),
+  normalized_url: z.string(),
+  field: z.string(),
+  change_class: changeClassSchema,
+  before_value: z.unknown().nullable(),
+  after_value: z.unknown().nullable(),
+  source_analysis_a_id: uuid().nullable(),
+  source_analysis_b_id: uuid().nullable(),
+  source_artifact_a_id: uuid().nullable(),
+  source_artifact_b_id: uuid().nullable(),
+  source_evaluation_a_id: uuid().nullable(),
+  source_evaluation_b_id: uuid().nullable(),
+  expected: z.boolean(),
+  implementation_event_id: uuid().nullable(),
+  created_at: z.string(),
+});
+export const changesPageSchema = changeSummarySchema.extend({
+  items: z.array(changeObservationSchema),
+  next_cursor: z.string().nullable(),
+});
+
 export const readinessEvidenceLinkSchema = responseObject({
   evaluation_id: uuid(),
   analysis_id: uuid(),

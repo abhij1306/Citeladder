@@ -60,6 +60,9 @@ import type {
   commandCenterSchema,
   // Site Health
   crawlAnalysisStatusSchema,
+  changeObservationSchema,
+  changeSummarySchema,
+  changesPageSchema,
   crawlDiscoveryStatusSchema,
   crawlFailureSummarySchema,
   crawlOverallStatusSchema,
@@ -263,6 +266,9 @@ export type LinkGraphNode = z.infer<typeof linkGraphNodeSchema>;
 export type LinkGraphEdge = z.infer<typeof linkGraphEdgeSchema>;
 export type LinkGraphNodesPage = z.infer<typeof linkGraphNodesPageSchema>;
 export type LinkGraphEdgesPage = z.infer<typeof linkGraphEdgesPageSchema>;
+export type ChangeSummary = z.infer<typeof changeSummarySchema>;
+export type ChangeObservation = z.infer<typeof changeObservationSchema>;
+export type ChangesPage = z.infer<typeof changesPageSchema>;
 export type VisibilityTrendRankingRow = z.infer<typeof visibilityTrendRankingRowSchema>;
 export type VisibilityTrendPoint = z.infer<typeof visibilityTrendPointSchema>;
 export type VisibilityExecutionEvidence = z.infer<typeof visibilityExecutionEvidenceSchema>;

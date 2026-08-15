@@ -4,6 +4,7 @@ import { FIXTURE_PROJECT, stubAuthedShell } from './helpers/app-fixture';
 
 const WORKSPACE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const CRAWL = '22222222-2222-4222-8222-222222222222';
+const CRAWL_A = '12121212-1212-4212-8212-121212121212';
 const PROFILE = '33333333-3333-4333-8333-333333333333';
 const SOURCE = '44444444-4444-4444-8444-444444444444';
 const TARGET = '55555555-5555-4555-8555-555555555555';
@@ -235,6 +236,65 @@ async function stubWebsite(page: Page) {
         })),
       },
     ],
+    [
+      `**/api/v1/projects/${FIXTURE_PROJECT.id}/site-health/changes/summary`,
+      {
+        state: 'available',
+        reason_code: null,
+        snapshot_id: SNAPSHOT,
+        crawl_a_id: CRAWL_A,
+        crawl_b_id: CRAWL,
+        complete_pair: true,
+        analyzer_version: 'site-change-v1',
+        page_analyzer_version: 'page-v1',
+        extractor_version: 'extract-v1',
+        source_analysis_ids: [SOURCE, TARGET],
+        coverage: { shared_pages: 2 },
+        summary: { total: 1, counts_by_class: { 'critical-regression': 1 } },
+        limitations: [],
+        created_at: '2026-08-15T00:01:00Z',
+      },
+    ],
+    [
+      new RegExp(`/api/v1/projects/${FIXTURE_PROJECT.id}/site-health/changes(?:\\?.*)?$`),
+      {
+        state: 'available',
+        reason_code: null,
+        snapshot_id: SNAPSHOT,
+        crawl_a_id: CRAWL_A,
+        crawl_b_id: CRAWL,
+        complete_pair: true,
+        analyzer_version: 'site-change-v1',
+        page_analyzer_version: 'page-v1',
+        extractor_version: 'extract-v1',
+        source_analysis_ids: [SOURCE, TARGET],
+        coverage: { shared_pages: 2 },
+        summary: { total: 1, counts_by_class: { 'critical-regression': 1 } },
+        limitations: [],
+        created_at: '2026-08-15T00:01:00Z',
+        next_cursor: null,
+        items: [
+          {
+            id: '10101010-1010-4010-8010-101010101010',
+            site_url_id: TARGET,
+            normalized_url: 'https://acme.example/case-study',
+            field: 'http_status',
+            change_class: 'critical-regression',
+            before_value: 200,
+            after_value: 503,
+            source_analysis_a_id: SOURCE,
+            source_analysis_b_id: TARGET,
+            source_artifact_a_id: SOURCE,
+            source_artifact_b_id: TARGET,
+            source_evaluation_a_id: null,
+            source_evaluation_b_id: null,
+            expected: false,
+            implementation_event_id: null,
+            created_at: '2026-08-15T00:01:00Z',
+          },
+        ],
+      },
+    ],
   ]);
 }
 
@@ -269,4 +329,16 @@ test('AEO Readiness browser proof: seven reconciled dimensions and failing evide
   await expect(table).toContainText('Not applicable');
   await page.getByText('View 1 evidence link').first().click();
   await expect(page.getByText('aeo.answer_first')).toBeVisible();
+});
+
+test('Website Changes browser proof: summary and exact before-after evidence', async ({ page }) => {
+  await stubWebsite(page);
+  await page.goto('/site');
+  await page.getByRole('tab', { name: 'Changes' }).click();
+
+  await expect(page.getByTestId('website-changes')).toBeVisible();
+  await expect(page.getByRole('table')).toContainText('Critical regression');
+  await page.getByText('View evidence').click();
+  await expect(page.getByText(/Before:/).locator('..')).toContainText('200');
+  await expect(page.getByText(/After:/).locator('..')).toContainText('503');
 });

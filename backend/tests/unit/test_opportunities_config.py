@@ -77,6 +77,8 @@ def test_v2_enabled_rule_set() -> None:
         "declining_query",
         "site_link_near_orphan",
         "site_link_weak_authority",
+        "site_change_potential_regression",
+        "site_change_critical_regression",
     }
 
 

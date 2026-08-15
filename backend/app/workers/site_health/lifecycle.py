@@ -94,7 +94,7 @@ from app.domain.site_health.state_events import (
     apply_discovery_status,
     record_crawl_event,
 )
-from app.domain.site_health.terminal_refresh import enqueue_post_graph_refresh
+from app.domain.site_health.terminal_refresh import enqueue_terminal_analytics_refresh
 from app.models.site_health import (
     SiteCrawl,
     SiteCrawlPhaseRun,
@@ -538,8 +538,8 @@ class CrawlLifecycle:
             usable_evidence=summary.analyze_succeeded > 0,
         )
         if summary.analyze_succeeded == 0:
-            await enqueue_post_graph_refresh(
-                session, crawl=crawl, graph_snapshot_id=None
+            await enqueue_terminal_analytics_refresh(
+                session, crawl=crawl, change_snapshot_id=None
             )
 
     async def _reconcile_advanced_phase_runs(

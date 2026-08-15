@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import json
 from dataclasses import dataclass
+from datetime import date
 
 import httpx
 
@@ -392,5 +394,71 @@ def _site_transport() -> httpx.MockTransport:
         else:
             body, headers = entry, {"content-type": "text/html"}
         return httpx.Response(200, headers=headers, stream=_ByteStream(body))
+
+    return httpx.MockTransport(handler)
+
+
+def _integration_transport(metric_date: date) -> httpx.MockTransport:
+    """Deterministic GSC/GA4 provider fixture used by the real sync worker."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content or b"{}")
+        if request.url.host == "www.googleapis.com":
+            dimensions = body.get("dimensions") or []
+            values = {
+                "query": "best hiking backpack",
+                "page": "https://wanderlustgear.com/backpacks",
+                "searchAppearance": "WEB",
+                "device": "MOBILE",
+                "country": "usa",
+                "date": metric_date.isoformat(),
+            }
+            return httpx.Response(
+                200,
+                json={
+                    "rows": [
+                        {
+                            "keys": [values[item] for item in dimensions],
+                            "clicks": 12,
+                            "impressions": 240,
+                            "ctr": 0.05,
+                            "position": 6.0,
+                        }
+                    ]
+                },
+            )
+        if request.url.host == "analyticsdata.googleapis.com":
+            dimensions = [item["name"] for item in body.get("dimensions") or []]
+            metrics = [item["name"] for item in body.get("metrics") or []]
+            dimension_values = {
+                "date": metric_date.strftime("%Y%m%d"),
+                "sessionDefaultChannelGroup": "Organic Search",
+                "sessionSource": "google",
+                "sessionMedium": "organic",
+                "fullReferrer": "https://google.com/",
+                "landingPage": "/backpacks",
+                "itemId": "WGC-S40-BLK",
+                "itemName": "Summit 40L Trail Pack",
+            }
+            return httpx.Response(
+                200,
+                json={
+                    "dimensionHeaders": [{"name": item} for item in dimensions],
+                    "metricHeaders": [
+                        {"name": item, "type": "TYPE_INTEGER"} for item in metrics
+                    ],
+                    "rows": [
+                        {
+                            "dimensionValues": [
+                                {"value": dimension_values.get(item, "seed")}
+                                for item in dimensions
+                            ],
+                            "metricValues": [{"value": "12"} for _ in metrics],
+                        }
+                    ],
+                    "rowCount": 1,
+                },
+            )
+        raise AssertionError(f"unexpected integration request: {request.url.host}")
 
     return httpx.MockTransport(handler)

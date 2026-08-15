@@ -400,6 +400,26 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
         ),
     ),
     OpportunityRule(
+        rule_id="site_change_potential_regression",
+        opportunity_type=OPPORTUNITY_TYPE_SITE,
+        severity=SEVERITY_HIGH,
+        title="A crawl-observed page signal regressed",
+        remediation=(
+            "Review the exact before/after evidence, restore the intended page "
+            "signal, and verify it in a later comparable crawl."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="site_change_critical_regression",
+        opportunity_type=OPPORTUNITY_TYPE_SITE,
+        severity=SEVERITY_CRITICAL,
+        title="A critical crawl-observed page signal regressed",
+        remediation=(
+            "Review the exact before/after evidence and restore the critical "
+            "page signal before verifying it in a later comparable crawl."
+        ),
+    ),
+    OpportunityRule(
         rule_id="low_share_of_voice_theme",
         opportunity_type=OPPORTUNITY_TYPE_TOPIC,
         severity=SEVERITY_MEDIUM,

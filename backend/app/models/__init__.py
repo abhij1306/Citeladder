@@ -115,6 +115,7 @@ from app.models.provider import (
     ProviderConnectionTest,
     ProviderRoute,
 )
+from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
 from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,
@@ -231,6 +232,8 @@ __all__ = [
     "SiteCrawl",
     "SiteCrawlEvent",
     "SiteCrawlTask",
+    "SiteChangeObservation",
+    "SiteChangeSnapshot",
     "SiteFetchArtifact",
     "SiteFetchAttempt",
     "SiteHealthProfile",

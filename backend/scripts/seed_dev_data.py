@@ -48,7 +48,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.config.audits import AUDIT_TRIGGER_SYSTEM, audit_settings
+from app.core.config.brand_profile import (
+    BRAND_PROFILE_FIELDS,
+    BRAND_PROFILE_REVIEW_CONFIRMED,
+    BRAND_PROFILE_SOURCE_MANUAL,
+)
 from app.core.config.entitlements import KEY_MONITORED_URLS
+from app.core.config.integrations import INTEGRATION_TRANSPORT_GOOGLE
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
     ENGINE_CLAUDE,
@@ -58,6 +64,7 @@ from app.core.config.provider_catalog import (
     TRANSPORT_OPENAI,
     measurement_route,
 )
+from app.core.config.site_health import CRAWL_TERMINAL_STATUSES
 from app.core.database import SessionLocal
 from app.core.security import encrypt_secret
 from app.domain.audits.planner import create_audit
@@ -65,6 +72,7 @@ from app.domain.auth.service import register_user
 from app.domain.billing.bootstrap import ensure_user_billing
 from app.domain.entitlements.grants import issue_override_bundle
 from app.domain.entitlements.types import GrantSpec
+from app.domain.integrations.sync import enqueue_sync_run
 from app.domain.opportunities.service import (
     list_opportunities,
 )
@@ -83,18 +91,27 @@ from app.domain.workspaces.service import ensure_personal_workspace
 from app.models.brand import (
     Brand,
     BrandAlias,
+    BrandProfile,
     Competitor,
     OwnedDomain,
     UnintendedDomain,
+)
+from app.models.integrations import (
+    IntegrationConnection,
+    IntegrationOAuthGrant,
+    IntegrationPropertyMapping,
 )
 from app.models.product import CompetitorProduct, Product
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet
 from app.models.provider import ProviderConnection, ProviderRoute
+from app.models.site_health import SiteCrawl
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
 from app.workers import audit_worker
+from app.workers.analytics_worker import AnalyticsWorker
 from app.workers.audit_worker import AuditWorker
+from app.workers.integration_worker import IntegrationWorker
 from app.workers.site_health_worker import SiteHealthWorker
 from scripts.seed_dev_support import (
     DEMO_COMPETITOR_PRODUCT_SPEC,
@@ -103,6 +120,7 @@ from scripts.seed_dev_support import (
     SEED_MONITORED_URL_ALLOWANCE,
     _build_seed_adapter,
     _FakeResolver,
+    _integration_transport,
     _prompt_bucket,
     _SeedStubAdapter,
     _site_transport,
@@ -134,6 +152,20 @@ _DEVELOPMENT_ENVS = frozenset({"development", "dev", "local", "test", "testing"}
 
 class SeedEnvironmentError(RuntimeError):
     """The configured target is not an approved development database."""
+
+
+async def _drain_site_crawl(worker: SiteHealthWorker, crawl_id: uuid.UUID) -> None:
+    """Drain delayed host-gated tasks until the selected crawl terminalizes."""
+    for _ in range(120):
+        await worker.run_until_idle()
+        async with SessionLocal() as session:
+            status = await session.scalar(
+                select(SiteCrawl.status).where(SiteCrawl.id == crawl_id)
+            )
+        if status in CRAWL_TERMINAL_STATUSES:
+            return
+        await asyncio.sleep(0.25)
+    raise RuntimeError(f"seed Site Health crawl did not terminalize: {crawl_id}")
 
 
 def _require_development_target() -> None:
@@ -337,6 +369,32 @@ async def seed() -> None:
         brand = Brand(project_id=project.id, name="Wanderlust Gear Co.")
         session.add(brand)
         await session.flush()
+        reviewed_at = datetime.now(UTC).isoformat()
+        confirmed_source = {
+            "origin": BRAND_PROFILE_SOURCE_MANUAL,
+            "review_state": BRAND_PROFILE_REVIEW_CONFIRMED,
+            "reviewed_by": str(demo_user_id),
+            "reviewed_at": reviewed_at,
+        }
+        session.add(
+            BrandProfile(
+                workspace_id=workspace_id,
+                project_id=project.id,
+                brand_id=brand.id,
+                description="Evidence-grounded outdoor packs and travel gear.",
+                positioning="Durable mid-market packs for multi-day travel.",
+                products_services=[
+                    "Hiking backpacks",
+                    "Travel backpacks",
+                    "Waterproof backpack",
+                ],
+                target_audience="Travelers and hikers planning multi-day trips.",
+                sources={
+                    field: dict(confirmed_source)
+                    for field in BRAND_PROFILE_FIELDS
+                },
+            )
+        )
         session.add(BrandAlias(brand_id=brand.id, alias="Wanderlust"))
         session.add(BrandAlias(brand_id=brand.id, alias="Wanderlust Gear"))
 
@@ -422,7 +480,86 @@ async def seed() -> None:
             len(active_prompt_ids),
         )
 
-    # 4. Project #2: a second, smaller project on the agency workspace
+    # 4. Persist one real Google consent graph (shared by GSC + GA4), map both
+    # properties, and drain the real sync + analytics queues against a
+    # deterministic provider transport. This yields immutable raw artifacts,
+    # metric rows, Traffic/Demand projections, and honest connection history.
+    metric_date = datetime.now(UTC).date() - timedelta(days=2)
+    window = (metric_date - timedelta(days=27), metric_date)
+    async with SessionLocal() as session:
+        grant = IntegrationOAuthGrant(
+            workspace_id=workspace_id,
+            transport=INTEGRATION_TRANSPORT_GOOGLE,
+            access_token_encrypted=encrypt_secret("dev-google-access-token"),
+            refresh_token_encrypted=encrypt_secret("dev-google-refresh-token"),
+            token_expires_at=datetime.now(UTC) + timedelta(days=1),
+            granted_scopes=["gsc.readonly", "analytics.readonly"],
+            status="connected",
+        )
+        session.add(grant)
+        await session.flush()
+        gsc = IntegrationConnection(
+            workspace_id=workspace_id,
+            grant_id=grant.id,
+            provider="gsc",
+            label="Wanderlust Search Console",
+            account_ref="https://wanderlustgear.com",
+        )
+        ga4 = IntegrationConnection(
+            workspace_id=workspace_id,
+            grant_id=grant.id,
+            provider="ga4",
+            label="Wanderlust GA4",
+            account_ref="123456789",
+        )
+        session.add_all([gsc, ga4])
+        await session.flush()
+        session.add_all(
+            [
+                IntegrationPropertyMapping(
+                    workspace_id=workspace_id,
+                    connection_id=gsc.id,
+                    provider="gsc",
+                    property_ref=gsc.account_ref,
+                    project_id=project_id,
+                    status="active",
+                ),
+                IntegrationPropertyMapping(
+                    workspace_id=workspace_id,
+                    connection_id=ga4.id,
+                    provider="ga4",
+                    property_ref=ga4.account_ref,
+                    project_id=project_id,
+                    status="active",
+                ),
+            ]
+        )
+        await enqueue_sync_run(
+            session,
+            workspace_id=workspace_id,
+            connection_id=gsc.id,
+            window_start=window[0],
+            window_end=window[1],
+        )
+        await enqueue_sync_run(
+            session,
+            workspace_id=workspace_id,
+            connection_id=ga4.id,
+            window_start=window[0],
+            window_end=window[1],
+        )
+    integration_worker = IntegrationWorker(
+        session_factory=SessionLocal,
+        owner="seed-integration-worker",
+        transport=_integration_transport(metric_date),
+    )
+    await integration_worker.run_until_idle()
+    await AnalyticsWorker(
+        session_factory=SessionLocal, owner="seed-analytics-worker"
+    ).run_until_idle()
+    logger.info("Completed deterministic GSC/GA4 sync and analytics refresh")
+
+    # 5. Project #2: a second, smaller project on the agency workspace
     #    (forced_grounded benchmark mode) to exercise multi-project / cross-
     #    workspace surfaces.
     async with SessionLocal() as session:
@@ -505,7 +642,7 @@ async def seed() -> None:
         )
         await session.commit()
 
-    # 5. Run a REAL completed audit for project #1 across all 3 engines,
+    # 6. Run a REAL completed audit for project #1 across all 3 engines,
     #    using the stubbed adapter (no network calls) - patches build_adapter
     #    for the duration of this run only, then restores it.
     _original_build_adapter = audit_worker.build_adapter
@@ -554,7 +691,7 @@ async def seed() -> None:
         audit_settings.min_request_interval_seconds = _original_min_interval
         audit_settings.heartbeat_interval_seconds = _original_heartbeat
 
-    # 6. Site Health: run the REAL crawl planner (`create_crawl`) + REAL
+    # 7. Site Health: run the REAL crawl planner (`create_crawl`) + REAL
     #    SiteHealthWorker (with a mocked transport) to drain discovery, then
     #    select every discovered URL as "monitored" and recrawl so the
     #    analyze tasks get seeded for them (mirrors the production
@@ -573,7 +710,7 @@ async def seed() -> None:
         resolver=_FakeResolver(),
         transport=_site_transport(),
     )
-    await worker3.run_until_idle()
+    await _drain_site_crawl(worker3, crawl1_id)
     logger.info("Completed site health discovery crawl %s", crawl1_id)
 
     async with SessionLocal() as session:
@@ -595,10 +732,21 @@ async def seed() -> None:
             session, workspace_id=workspace_id, project_id=project_id, random_seed="100"
         )
         crawl2_id = crawl2.id
-    await worker3.run_until_idle()
+    await _drain_site_crawl(worker3, crawl2_id)
     logger.info("Completed site health analysis crawl %s", crawl2_id)
 
-    # 7. Materialize the first action set and resolve one item between two
+    # A second analysis recrawl supplies the immediate comparable A/B pair for
+    # the shipped Website Changes projection. The deterministic transport is
+    # unchanged, so this is also the clean-stack zero-false-regression proof.
+    async with SessionLocal() as session:
+        crawl3 = await create_crawl(
+            session, workspace_id=workspace_id, project_id=project_id, random_seed="101"
+        )
+        crawl3_id = crawl3.id
+    await _drain_site_crawl(worker3, crawl3_id)
+    logger.info("Completed comparable site health crawl %s", crawl3_id)
+
+    # 8. Materialize the first action set and resolve one item between two
     # comparable Wanderlust audits. The second deterministic adapter generation
     # improves the evidence mix without changing prompt or engine identity.
     async with SessionLocal() as session:
@@ -607,7 +755,7 @@ async def seed() -> None:
             workspace_id=workspace_id,
             project_id=project_id,
             audit_id=audit1_id,
-            site_crawl_id=crawl2_id,
+            site_crawl_id=crawl3_id,
         )
         actions = await list_opportunities(
             session,
@@ -658,7 +806,7 @@ async def seed() -> None:
             workspace_id=workspace_id,
             project_id=project_id,
             audit_id=comparison_audit_id,
-            site_crawl_id=crawl2_id,
+            site_crawl_id=crawl3_id,
         )
     logger.info(
         "Completed comparable audit %s with action history for project %s",

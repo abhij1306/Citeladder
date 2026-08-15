@@ -15,13 +15,13 @@ from app.models.site_health import SiteCrawl
 from app.models.traffic import TrafficSnapshot
 
 
-async def enqueue_post_graph_refresh(
+async def enqueue_terminal_analytics_refresh(
     session: AsyncSession,
     *,
     crawl: SiteCrawl,
-    graph_snapshot_id: uuid.UUID | None,
+    change_snapshot_id: uuid.UUID | None,
 ) -> None:
-    """Enqueue the terminal refresh chain after graph persistence or abstention.
+    """Enqueue analytics after change persistence or crawl-evidence abstention.
 
     Every enqueue is transactionally idempotent on the crawl identity. Traffic
     evidence selects Demand as the predecessor and carries the crawl trigger
@@ -30,8 +30,8 @@ async def enqueue_post_graph_refresh(
     its crawl identity so prior Site Opportunities can be superseded without
     inventing a graph snapshot.
     """
-    trigger_kind = "site_link_graph" if graph_snapshot_id else "site_crawl"
-    trigger_id = graph_snapshot_id or crawl.id
+    trigger_kind = "site_change" if change_snapshot_id else "site_crawl"
+    trigger_id = change_snapshot_id or crawl.id
     await enqueue_implementation_verification(
         session,
         workspace_id=crawl.workspace_id,
@@ -74,4 +74,4 @@ async def enqueue_post_graph_refresh(
     )
 
 
-__all__ = ["enqueue_post_graph_refresh"]
+__all__ = ["enqueue_terminal_analytics_refresh"]

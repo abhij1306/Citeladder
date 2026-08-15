@@ -11,8 +11,8 @@ around one measurable loop: Connect → Analyze → Act → Improve / Verify →
 Track. Four durable capabilities sit behind those stations:
 
 1. **Site Health** securely crawls the owned website, classifies each page by
-   structural type, applies the correct deterministic checklist, and produces
-   persisted scores, issues, snapshots, and opportunities.
+structural type, applies the correct deterministic checklist, and produces
+persisted scores, issues, graph/change snapshots, and opportunities.
 2. **Content Intelligence** turns site and demand evidence into strategies,
    briefs, drafts, reviews, and post-publication verification.
 3. **Demand Intelligence** connects GSC, GA4, journeys, prompts, and AI

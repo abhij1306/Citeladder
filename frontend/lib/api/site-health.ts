@@ -17,6 +17,8 @@ import { API_BASE_URL, apiClient, getActiveWorkspaceId, type ApiRequestOptions }
 import { queryKeys } from './query-keys';
 import {
   aeoReadinessSchema,
+  changeSummarySchema,
+  changesPageSchema,
   inventoryPageSchema,
   linkGraphEdgesPageSchema,
   linkGraphNodesPageSchema,
@@ -38,6 +40,8 @@ import {
 import { definedQuery, withQuery } from './shared';
 import type {
   AeoReadiness,
+  ChangeSummary,
+  ChangesPage,
   InventoryPage,
   LinkGraphEdgesPage,
   LinkGraphNodesPage,
@@ -267,6 +271,21 @@ export const siteHealthApi = {
     const res = await apiClient.get<AeoReadiness>(path, options);
     return strictValidate(aeoReadinessSchema, res, 'siteHealth.getAeoReadiness');
   },
+  getChangesSummary: async (projectId: string, options?: ApiRequestOptions) => {
+    const res = await apiClient.get<ChangeSummary>(
+      `/projects/${projectId}/site-health/changes/summary`,
+      options,
+    );
+    return strictValidate(changeSummarySchema, res, 'siteHealth.getChangesSummary');
+  },
+  getChanges: async (projectId: string, cursor?: string, options?: ApiRequestOptions) => {
+    const path = withQuery(
+      `/projects/${projectId}/site-health/changes`,
+      definedQuery({ limit: 50, cursor }),
+    );
+    const res = await apiClient.get<ChangesPage>(path, options);
+    return strictValidate(changesPageSchema, res, 'siteHealth.getChanges');
+  },
   /** Same-origin SSE endpoint (polling is the baseline; `?stream=true`). */
   eventsUrl: (crawlId: string) => `${API_BASE_URL}/site-crawls/${crawlId}/events?stream=true`,
   /** Same-origin export URLs (browser navigation / download links). */
@@ -313,6 +332,16 @@ export const siteHealthQueries = {
     queryOptions({
       queryKey: queryKeys.siteHealth.aeoReadiness(projectId, crawlId),
       queryFn: ({ signal }) => siteHealthApi.getAeoReadiness(projectId, crawlId, { signal }),
+    }),
+  changesSummary: (projectId: string) =>
+    queryOptions({
+      queryKey: queryKeys.siteHealth.changesSummary(projectId),
+      queryFn: ({ signal }) => siteHealthApi.getChangesSummary(projectId, { signal }),
+    }),
+  changes: (projectId: string, cursor?: string) =>
+    queryOptions({
+      queryKey: queryKeys.siteHealth.changes(projectId, cursor),
+      queryFn: ({ signal }) => siteHealthApi.getChanges(projectId, cursor, { signal }),
     }),
   crawls: (params: CrawlListParams) =>
     queryOptions({

@@ -55,7 +55,7 @@ from app.core.config.task_queue import (
 from app.domain.site_health.link_graph_queue import enqueue_link_graph_refresh
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.snapshot import persist_crawl_snapshot
-from app.domain.site_health.terminal_refresh import enqueue_post_graph_refresh
+from app.domain.site_health.terminal_refresh import enqueue_terminal_analytics_refresh
 from app.models.analytics import AnalyticsTask
 from app.models.site_health import (
     MonitoredSiteUrl,
@@ -396,11 +396,11 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
         await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
         await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
         graph_snapshot_id = uuid.uuid4()
-        await enqueue_post_graph_refresh(
-            session, crawl=crawl, graph_snapshot_id=graph_snapshot_id
+        await enqueue_terminal_analytics_refresh(
+            session, crawl=crawl, change_snapshot_id=graph_snapshot_id
         )
-        await enqueue_post_graph_refresh(
-            session, crawl=crawl, graph_snapshot_id=graph_snapshot_id
+        await enqueue_terminal_analytics_refresh(
+            session, crawl=crawl, change_snapshot_id=graph_snapshot_id
         )
         await session.commit()
 
@@ -435,7 +435,7 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
             for task in tasks
             if task.task_kind == ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH
         )
-        assert demand_task.payload["downstream_trigger_kind"] == "site_link_graph"
+        assert demand_task.payload["downstream_trigger_kind"] == "site_change"
         assert demand_task.payload["downstream_trigger_id"] == str(graph_snapshot_id)
 
 
@@ -1047,8 +1047,8 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
         assert opportunity_tasks == []
 
         graph_snapshot_id = uuid.uuid4()
-        await enqueue_post_graph_refresh(
-            session, crawl=crawl, graph_snapshot_id=graph_snapshot_id
+        await enqueue_terminal_analytics_refresh(
+            session, crawl=crawl, change_snapshot_id=graph_snapshot_id
         )
         await session.commit()
         verification = await session.scalar(
@@ -1066,7 +1066,7 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
         )
         assert opportunity is not None
         assert opportunity.payload == {
-            "trigger_kind": "site_link_graph",
+            "trigger_kind": "site_change",
             "trigger_id": str(graph_snapshot_id),
         }
 

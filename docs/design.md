@@ -189,6 +189,12 @@ desktop).
   table names pass, fail, not applicable, and coverage independently for all
   seven dimensions. Evidence disclosures link to persisted page evaluations;
   not-applicable rows remain visible and are not styled as failures.
+- Website Changes is an evidence ledger with four named classes and expandable
+  before/after provenance. `Expected` is a secondary exact-link label, not a
+  fifth severity. Unavailable and non-comparable states use distinct empty
+  panels; partial comparisons lead with shared-URL-only and added/removed
+  suppression copy. An observed zero renders as “No changes were observed,”
+  never as unavailable.
 - Mobile retains every critical action. Tables become labelled records; filters
   and evidence use full-height sheets.
 

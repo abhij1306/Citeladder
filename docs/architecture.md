@@ -22,7 +22,8 @@ not prove CiteLadder caused a later change.
 Site Health acquires and analyzes the owned website. It owns secure discovery
 and crawling, immutable artifacts, normalized facts, deterministic structural
 page types, page-type schema contracts, rule evaluations, scores, issues,
-snapshots, exports, and site-derived opportunities.
+snapshots, deterministic comparable-crawl changes, exports, and site-derived
+opportunities.
 
 Its product surface is deliberately limited to Site Health, Issues, and
 Opportunities. Detailed contracts live in [`site-health.md`](site-health.md).

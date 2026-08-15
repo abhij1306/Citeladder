@@ -27,7 +27,7 @@ listed here must prove a current operational purpose or move to the archive.
 
 | Document | Role |
 |---|---|
-| [`site-health.md`](site-health.md) | Crawl, page-kind classification, schema contracts, rules, scores, and issues |
+| [`site-health.md`](site-health.md) | Crawl, page kinds, rules, scores, issues, graph, readiness, and crawl changes |
 | [`backend-architecture.md`](backend-architecture.md) | Backend modules, queues, workers, and routes |
 | [`frontend-architecture.md`](frontend-architecture.md) | Frontend ownership, API contracts, and routes |
 | [`invariants.md`](invariants.md) | Hard cross-cutting runtime invariants |
@@ -49,8 +49,10 @@ remain active within their named scopes.
 
 The shipped product has three site surfaces: Site Health, Issues, and
 Opportunities. The former Site Intelligence workspace, industry-pack runtime,
-knowledge kernel, corrections, and comparison projections were deliberately
-removed during the 2026-08 simplification. Their plans are retained under
+knowledge kernel, corrections, and its cross-industry comparison workspace were
+removed during the 2026-08 simplification. The shipped deterministic
+comparable-crawl Change Intelligence projection is a Site Health owner, not a
+revival of that workspace. The retired plans are retained under
 [`archive/plans/site-health-simplification/`](archive/plans/site-health-simplification/)
 and have no implementation authority.
 

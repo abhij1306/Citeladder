@@ -67,6 +67,7 @@ from app.core.config.site_health import (
     OBSERVATION_SOURCE_ROOT,
     SITE_CRAWL_QUEUE_SPEC,
     TASK_KIND_ANALYZE,
+    TASK_KIND_CHANGE_INTEL,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_CHECK,
     TASK_KIND_LINK_GRAPH,
@@ -110,6 +111,7 @@ from app.workers.site_health.outcomes import AnalyzeOutcome as _AnalyzeOutcome
 from app.workers.site_health.outcomes import DiscoverOutcome as _DiscoverOutcome
 from app.workers.site_health.phases import (
     AnalyzePhaseMixin,
+    ChangeIntelPhaseMixin,
     DiscoverPhaseMixin,
     LinkCheckPhaseMixin,
     LinkGraphPhaseMixin,
@@ -165,6 +167,7 @@ _MIN_HEARTBEAT_INTERVAL_SECONDS = 0.05
 class SiteHealthWorker(
     DiscoverPhaseMixin,
     AnalyzePhaseMixin,
+    ChangeIntelPhaseMixin,
     LinkCheckPhaseMixin,
     LinkGraphPhaseMixin,
     DrainableWorkerMixin,
@@ -332,6 +335,7 @@ class SiteHealthWorker(
                 TASK_KIND_ANALYZE,
                 TASK_KIND_LINK_CHECK,
                 TASK_KIND_LINK_GRAPH,
+                TASK_KIND_CHANGE_INTEL,
             ],
         )
         if tasks:
@@ -355,7 +359,7 @@ class SiteHealthWorker(
         fetch heartbeats are owned by ``_run_discover`` / ``_run_analyze`` /
         ``_run_link_check`` — one loop per active fetch, never two.
         """
-        if task.task_kind == TASK_KIND_LINK_GRAPH:
+        if task.task_kind in {TASK_KIND_LINK_GRAPH, TASK_KIND_CHANGE_INTEL}:
             await self._execute_task(task)
             return
         try:
@@ -428,7 +432,8 @@ class SiteHealthWorker(
                 await self._queue.cancel(task_id=task_id)
                 return False
             graph_terminal = (
-                kind == TASK_KIND_LINK_GRAPH and crawl.status in CRAWL_TERMINAL_STATUSES
+                kind in {TASK_KIND_LINK_GRAPH, TASK_KIND_CHANGE_INTEL}
+                and crawl.status in CRAWL_TERMINAL_STATUSES
             )
             if not crawl_is_active(crawl) and not graph_terminal:
                 await session.rollback()
@@ -450,6 +455,10 @@ class SiteHealthWorker(
             await self._run_link_check(claimed.id, claimed.crawl_id)
         elif kind == TASK_KIND_LINK_GRAPH:
             await self._run_link_graph(
+                claimed.id, claimed.crawl_id, claimed.workspace_id
+            )
+        elif kind == TASK_KIND_CHANGE_INTEL:
+            await self._run_change_intel(
                 claimed.id, claimed.crawl_id, claimed.workspace_id
             )
         else:
@@ -495,7 +504,7 @@ class SiteHealthWorker(
             # discover task never drives the crawl terminal while analyze/
             # link_check work is still queued (which would make a later analysis
             # finalize raise InvalidSiteCrawlTransition from a terminal state).
-            if kind != TASK_KIND_LINK_GRAPH:
+            if kind not in {TASK_KIND_LINK_GRAPH, TASK_KIND_CHANGE_INTEL}:
                 await self._reconcile_crawl_status(crawl_id)
 
     def _ensure_running(self, crawl: SiteCrawl) -> None:

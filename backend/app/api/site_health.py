@@ -72,6 +72,11 @@ from app.domain.site_health.api_schemas import (
     UrlPreviewRequest,
     UrlPreviewResponse,
 )
+from app.domain.site_health.change_schemas import (
+    ChangeObservationResponse,
+    ChangesPage,
+    ChangeSummaryResponse,
+)
 from app.domain.site_health.phase_control import (
     CODE_ANALYSIS_LIMIT_EXCEEDED,
     CODE_DISCOVERY_LIMIT_EXCEEDED,
@@ -101,6 +106,7 @@ from app.domain.site_health.selection import (
     rerun_page,
 )
 from app.domain.site_health.service import (
+    InvalidChangeSelectionError,
     InvalidCursorError,
     SiteHealthNotFoundError,
     project_phase_run,
@@ -121,6 +127,12 @@ def _not_found(detail: str = "Not found") -> ApiException:
 
 def _bad_cursor(exc: InvalidCursorError) -> ApiException:
     return ApiException(status.HTTP_400_BAD_REQUEST, CODE_INVALID_CURSOR, str(exc))
+
+
+def _change_selection_error(exc: InvalidChangeSelectionError) -> ApiException:
+    return ApiException(
+        status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
+    )
 
 
 def _selection_error_response(exc: Exception) -> ApiException:
@@ -957,6 +969,86 @@ async def get_link_graph_edges_endpoint(
     except InvalidCursorError as exc:
         raise _bad_cursor(exc) from exc
     return LinkGraphEdgesPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/changes/summary",
+    response_model=ChangeSummaryResponse,
+)
+async def get_changes_summary_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_a_id: Annotated[uuid.UUID | None, Query()] = None,
+    crawl_b_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> ChangeSummaryResponse:
+    try:
+        result = await service.get_changes_summary(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_a_id=crawl_a_id,
+            crawl_b_id=crawl_b_id,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    except InvalidChangeSelectionError as exc:
+        raise _change_selection_error(exc) from exc
+    return ChangeSummaryResponse.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/changes",
+    response_model=ChangesPage,
+)
+async def list_changes_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_a_id: Annotated[uuid.UUID | None, Query()] = None,
+    crawl_b_id: Annotated[uuid.UUID | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    cursor: Annotated[str | None, Query()] = None,
+) -> ChangesPage:
+    try:
+        result = await service.list_changes(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_a_id=crawl_a_id,
+            crawl_b_id=crawl_b_id,
+            limit=limit,
+            cursor=cursor,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    except InvalidCursorError as exc:
+        raise _bad_cursor(exc) from exc
+    except InvalidChangeSelectionError as exc:
+        raise _change_selection_error(exc) from exc
+    return ChangesPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/changes/{observation_id}",
+    response_model=ChangeObservationResponse,
+)
+async def get_change_endpoint(
+    project_id: uuid.UUID,
+    observation_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> ChangeObservationResponse:
+    try:
+        result = await service.get_change(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            observation_id=observation_id,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return ChangeObservationResponse.model_validate(result)
 
 
 @router.get(

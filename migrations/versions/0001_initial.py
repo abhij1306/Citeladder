@@ -25,6 +25,7 @@ depends_on = None
 _CONTENT_GENERATION_FK = "content_generations.id"
 _SITE_SNAPSHOT_FK = "site_health_snapshots.id"
 _SITE_LINK_GRAPH_SNAPSHOT_FK = "site_link_graph_snapshots.id"
+_SITE_CHANGE_SNAPSHOT_FK = "site_change_snapshots.id"
 _DEMAND_SNAPSHOT_FK = "demand_snapshots.id"
 _AGENT_TASK_RUN_FK = "agent_task_runs.id"
 
@@ -4447,6 +4448,136 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
+        "site_change_snapshots",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("crawl_a_id", sa.UUID(), nullable=True),
+        sa.Column("crawl_b_id", sa.UUID(), nullable=False),
+        sa.Column("supersedes_id", sa.UUID(), nullable=True),
+        sa.Column("state", sa.String(length=24), nullable=False),
+        sa.Column("reason_code", sa.String(length=64), nullable=True),
+        sa.Column("root_origin", sa.String(length=512), nullable=False),
+        sa.Column("crawl_scope_hash", sa.String(length=64), nullable=False),
+        sa.Column("source_hash", sa.String(length=64), nullable=False),
+        sa.Column("source_analysis_ids", postgresql.ARRAY(sa.UUID()), nullable=False),
+        sa.Column("source_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=False),
+        sa.Column("analyzer_version", sa.String(length=32), nullable=False),
+        sa.Column("page_analyzer_version", sa.String(length=32), nullable=False),
+        sa.Column("extractor_version", sa.String(length=32), nullable=False),
+        sa.Column("complete_pair", sa.Boolean(), nullable=False),
+        sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("summary", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("limitations", postgresql.ARRAY(sa.Text()), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["crawl_a_id", "project_id", "workspace_id"],
+            ["site_crawls.id", "site_crawls.project_id", "site_crawls.workspace_id"],
+            ondelete="CASCADE",
+            name="fk_site_change_snapshot_crawl_a_scoped",
+        ),
+        sa.ForeignKeyConstraint(
+            ["crawl_b_id", "project_id", "workspace_id"],
+            ["site_crawls.id", "site_crawls.project_id", "site_crawls.workspace_id"],
+            ondelete="CASCADE",
+            name="fk_site_change_snapshot_crawl_b_scoped",
+        ),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["supersedes_id"], [_SITE_CHANGE_SNAPSHOT_FK], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "workspace_id",
+            "crawl_a_id",
+            "crawl_b_id",
+            "source_hash",
+            "analyzer_version",
+            name="uq_site_change_snapshot_identity",
+        ),
+        sa.UniqueConstraint(
+            "workspace_id", "id", name="uq_site_change_snapshot_ws_id"
+        ),
+    )
+    _create_indexes(
+        "site_change_snapshots",
+        ("workspace_id", "project_id", "crawl_a_id", "crawl_b_id"),
+    )
+    op.create_table(
+        "site_change_observations",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("site_url_id", sa.UUID(), nullable=False),
+        sa.Column("normalized_url", sa.String(length=2048), nullable=False),
+        sa.Column("field", sa.String(length=32), nullable=False),
+        sa.Column("change_class", sa.String(length=32), nullable=False),
+        sa.Column("before_value", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("after_value", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("source_analysis_a_id", sa.UUID(), nullable=True),
+        sa.Column("source_analysis_b_id", sa.UUID(), nullable=True),
+        sa.Column("source_artifact_a_id", sa.UUID(), nullable=True),
+        sa.Column("source_artifact_b_id", sa.UUID(), nullable=True),
+        sa.Column("source_evaluation_a_id", sa.UUID(), nullable=True),
+        sa.Column("source_evaluation_b_id", sa.UUID(), nullable=True),
+        sa.Column("expected", sa.Boolean(), nullable=False),
+        sa.Column("implementation_event_id", sa.UUID(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(
+            "change_class IN ('improvement', 'neutral-change', "
+            "'potential-regression', 'critical-regression')",
+            name="ck_site_change_observation_class",
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id", "implementation_event_id"],
+            [
+                "opportunity_implementation_events.workspace_id",
+                "opportunity_implementation_events.id",
+            ],
+            ondelete="RESTRICT",
+            name="fk_site_change_observation_implementation_workspace",
+        ),
+        sa.ForeignKeyConstraint(["site_url_id"], ["site_urls.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id", "snapshot_id"],
+            ["site_change_snapshots.workspace_id", _SITE_CHANGE_SNAPSHOT_FK],
+            ondelete="CASCADE",
+            name="fk_site_change_observation_snapshot_workspace",
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_analysis_a_id"], ["site_page_analyses.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_analysis_b_id"], ["site_page_analyses.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_artifact_a_id"], ["site_fetch_artifacts.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_artifact_b_id"], ["site_fetch_artifacts.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_evaluation_a_id"], ["site_rule_evaluations.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_evaluation_b_id"], ["site_rule_evaluations.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "snapshot_id", "site_url_id", "field", name="uq_site_change_observation"
+        ),
+    )
+    _create_indexes(
+        "site_change_observations",
+        ("snapshot_id", "workspace_id", "site_url_id", "change_class"),
+    )
+    op.create_table(
         "account_grants",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("billing_account_id", sa.UUID(), nullable=False),
@@ -5898,6 +6029,18 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_site_issues_project_id"), table_name="site_issues")
     op.drop_index("ix_site_issues_filter", table_name="site_issues")
     op.drop_index(op.f("ix_site_issues_crawl_id"), table_name="site_issues")
+    for column in ("change_class", "site_url_id", "workspace_id", "snapshot_id"):
+        op.drop_index(
+            op.f(f"ix_site_change_observations_{column}"),
+            table_name="site_change_observations",
+        )
+    op.drop_table("site_change_observations")
+    for column in ("crawl_b_id", "crawl_a_id", "project_id", "workspace_id"):
+        op.drop_index(
+            op.f(f"ix_site_change_snapshots_{column}"),
+            table_name="site_change_snapshots",
+        )
+    op.drop_table("site_change_snapshots")
     op.drop_index(op.f("ix_site_issues_analysis_id"), table_name="site_issues")
     op.drop_table("site_issues")
     op.drop_index(

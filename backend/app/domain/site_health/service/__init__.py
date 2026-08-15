@@ -37,6 +37,12 @@
 from __future__ import annotations
 
 from app.domain.site_health.service.aeo_readiness import get_aeo_readiness
+from app.domain.site_health.service.changes import (
+    InvalidChangeSelectionError,
+    get_change,
+    get_changes_summary,
+    list_changes,
+)
 from app.domain.site_health.service.common import (
     InvalidCursorError,
     SiteHealthNotFoundError,
@@ -80,6 +86,7 @@ from app.domain.site_health.service.queries import (
 __all__ = [
     "SiteHealthNotFoundError",
     "InvalidCursorError",
+    "InvalidChangeSelectionError",
     "get_entitlement_view",
     "get_crawl_summary",
     "list_crawls",
@@ -95,6 +102,9 @@ __all__ = [
     "get_grouped_issue_history",
     "get_dashboard",
     "get_aeo_readiness",
+    "get_change",
+    "get_changes_summary",
+    "list_changes",
     "get_link_graph",
     "list_link_graph_nodes",
     "list_link_graph_edges",

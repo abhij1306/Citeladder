@@ -159,7 +159,7 @@ serialization enforces the decoded-document cap before HTML crosses the driver
 boundary.
 
 Site Health owns crawl, URL, task, attempt, artifact, evaluation, analysis,
-issue, snapshot, event, and export persistence. `SitePageAnalysis` is the one
+issue, graph/change snapshot, event, and export persistence. `SitePageAnalysis` is the one
 page-understanding row. It stores scores, analyzer/scoring versions,
 `page_kind`, classifier version/evidence, and source IDs. It is append-only per
 artifact/analyzer version with one current row.
@@ -212,17 +212,19 @@ host rung outcomes: after two consecutive rung-1 `403`/`429` responses, rung 2
 is preferred for 20 acquisitions, then rung 1 is probed; success restores rung
 1 immediately. This adds no fetch-artifact column or mutable crawl-config state.
 
-Usable terminal Site Health evidence has one graph-first downstream DAG. A
+Usable terminal Site Health evidence has one graph-then-change downstream DAG. A
 conflict-safe `link_graph` `SiteCrawlTask` runs without network I/O after a
 completed, partial, or cancelled-after-analysis crawl. It selects only the
 exact current successful HTML analyses for that crawl and persists immutable
 `SiteLinkGraphSnapshot`, node, and collapsed-edge rows with source IDs, relevant
-versions, coverage, and limitations. `domain/site_health/terminal_refresh.py`
-admits verification and Demand/Opportunity successors only after the graph
-snapshot commits. Traffic projects route `graph -> Demand -> Opportunities`;
-site-only projects route `graph -> Opportunities`. Retries reuse the snapshot
-identity and downstream task identities, so no successor can race or duplicate
-its graph predecessor.
+versions, coverage, and limitations. A conflict-safe `change_intel` task then
+selects the immediate persisted A/B pair, enforces root, scope, extractor, and
+analyzer comparability, and writes immutable snapshot and observation rows.
+`domain/site_health/terminal_refresh.py` admits verification and
+Demand/Opportunity successors only after the change snapshot commits. Traffic
+projects route `graph -> change -> Demand -> Opportunities`; site-only projects
+route `graph -> change -> Opportunities`. Retries reuse projection and task
+identities, so no successor can race or duplicate a predecessor.
 
 The Site Health API exposes persisted graph summary, node, and edge projections
 under `/api/v1/projects/{project_id}/site-health/link-graph`. Optional
@@ -236,6 +238,12 @@ into seven presentation dimensions, and returns pass/fail/not-applicable/error
 counts, expected/observed coverage, source-analysis IDs, and at most 25 stable
 evidence links per dimension. It persists no row, computes no score, repairs no
 state, and performs no network/model work.
+
+Change summary, cursor-paged observation, and detail APIs are persisted reads
+under `/api/v1/projects/{project_id}/site-health/changes`. Both crawl IDs are
+required for an exact-pair request; omission selects the newest persisted pair.
+Unavailable, non-comparable, and partial coverage remain distinct. Reads never
+select source analyses, compare facts, enqueue work, or manufacture issues.
 
 The analysis sequence is fixed:
 

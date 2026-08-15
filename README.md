@@ -51,7 +51,7 @@ Five user-facing stations sit over four durable capability owners.
 
 | Layer | Owns |
 |---|---|
-| **Site Health** | Crawls the owned site, classifies pages structurally, and applies page-type-correct schema and content checks |
+| **Site Health** | Crawls the owned site, classifies pages structurally, applies page-type-correct checks, and persists comparable-crawl changes |
 | **Content Intelligence** | Turns verified gaps into strategies, briefs, drafts, and post-publication verification |
 | **Demand Intelligence** | Connects GSC, GA4, journeys, prompts, AI Visibility, and later paid marketing evidence to decide what improves next |
 | **Growth Agent** | Explains and orchestrates bounded tasks through typed tools, selective context, and reproducible provenance |
@@ -173,7 +173,7 @@ runbook: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 | [`docs/architecture.md`](docs/architecture.md) | Canonical target product architecture |
 | [`docs/invariants.md`](docs/invariants.md) | The review-blocking rules |
 | [`docs/plans/growth-intelligence-platform.md`](docs/plans/growth-intelligence-platform.md) | Program architecture and delivery order |
-| [`docs/site-health.md`](docs/site-health.md) | Site crawl, page kinds, schema contracts, rules, and issues |
+| [`docs/site-health.md`](docs/site-health.md) | Site crawl, page kinds, rules, issues, link graph, readiness, and crawl changes |
 | [`docs/design.md`](docs/design.md) | Design tokens, screen geometry, and the insight object |
 
 Everything under [`docs/archive/`](docs/archive/) is historical and is **not** an implementation

@@ -133,15 +133,15 @@ robots-blocked URL is visible instead of leaving the counter apparently frozen.
 
 Terminal evidence refresh follows one transactionally idempotent DAG for
 completed, partially completed, and cancelled-after-analysis crawls. Usable
-evidence first enqueues the crawl-scoped link graph. Only after that immutable
-snapshot commits does a current Traffic snapshot route through Demand and then
-Opportunities; without Traffic input, the graph routes directly to
-Opportunities. The successors never race their graph predecessor, and repeated
-terminalization, cancellation, or graph-task recovery cannot duplicate a
-logical refresh. A completed or partially completed crawl with zero successful
-HTML analyses skips graph creation but carries its crawl identity through the
-same bounded downstream path so stale Site Opportunities are superseded rather
-than preserved. A cancellation before any usable analysis enqueues none.
+evidence first enqueues the crawl-scoped link graph, then the immutable change
+snapshot. Only after Change Intelligence commits does a current Traffic
+snapshot route through Demand and then Opportunities; without Traffic input,
+the change snapshot routes directly to Opportunities. Successors never race
+their graph/change predecessors, and retries cannot duplicate a logical
+refresh. A completed or partially completed crawl with zero successful HTML
+analyses skips both projections but carries its crawl identity through the same
+bounded downstream path so stale Site Opportunities are superseded. A
+cancellation before any usable analysis enqueues none.
 
 ## Internal-link graph
 
@@ -200,6 +200,34 @@ bucket. Each dimension exposes pass, fail, not-applicable, error, expected and
 observed counts, coverage, and at most 25 stable page/evaluation links.
 Not-applicable remains disclosed and never becomes a failure. This adds no AEO
 Readiness score and does not reinterpret Site Health scoring.
+
+## Change Intelligence
+
+After the newer crawl's graph snapshot commits, Site Health persists one
+immutable comparison for its immediately preceding usable project crawl.
+Comparable pairs require the same root origin, frozen crawl-scope hash,
+extractor version, and page-analyzer version. A missing predecessor is
+`unavailable`; scope or version drift is `non_comparable`, never a regression.
+Completed pairs may report added/removed URLs. Partial or cancelled pairs
+compare shared observed URLs only and suppress all added/removed claims.
+
+The deterministic analyzer compares title, meta description, H1, canonical,
+robots noindex, JSON-LD presence, internal-link count, and HTTP status. Changes
+are `improvement`, `neutral-change`, `potential-regression`, or
+`critical-regression`. Rule fail→pass improves; pass→fail regresses and becomes
+critical only for a critical rule. HTTP 2xx→4xx/5xx and an explicitly
+intended-indexable page becoming non-indexable are critical. The crawler never
+infers intent. `expected` is an overlay only when an exact implementation event
+targets the page/field or rule, falls between A and B, and its expected value or
+outcome matches B.
+
+`SiteChangeSnapshot` and `SiteChangeObservation` freeze both crawl IDs, source
+analysis/artifact/evaluation IDs, versions, scope/source hashes, coverage, and
+the optional implementation-event ID. They never manufacture `SiteIssue` rows.
+Only unexpected potential/critical regressions map into the existing
+Opportunity owner; later snapshots use its normal supersession lifecycle.
+Summary, cursor-paged observations, and detail reads live under the existing
+project Site Health `/changes` routes and never compute or repair a diff.
 
 ## Page-kind classification
 

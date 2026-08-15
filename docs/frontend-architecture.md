@@ -102,6 +102,13 @@ expected/observed coverage columns. Bounded persisted evaluation links open the
 existing crawl-bounded page detail. The client does not remap rules, recompute
 coverage, guess a missing bucket, or display a composite readiness score.
 
+**Changes** reads only persisted Change Intelligence summary and cursor pages.
+It shows the four classes, exact before/after values, analysis provenance, and
+an Expected marker only for an exact implementation-event link. Unavailable,
+non-comparable, partial, and observed-zero pairs have separate copy. Partial
+pairs explicitly state that added/removed URL claims were suppressed; the
+browser never computes a diff or turns a neutral/expected change into an action.
+
 The inventory remains mounted and progressive: discovery renders the first ten
 persisted rows as they arrive, and rows later receive their analysis status and
 scores in place. The Issues row uses persisted description copy for what is
