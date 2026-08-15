@@ -106,6 +106,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_RUNNING,
 )
 from app.domain.opportunities.demand_hits import load_demand_hits
+from app.domain.opportunities.link_graph_hits import load_link_graph_hits
 from app.domain.opportunities.site_coverage import site_coverage
 from app.domain.opportunities.snapshot_projection import project_snapshot
 from app.domain.products.visibility import select_current_snapshots
@@ -710,6 +711,9 @@ async def _collect_recompute_hits(
             session, workspace_id=workspace_id, crawl=crawl
         )
         hits.extend(detect_site_issue_opportunities(site))
+        hits.extend(
+            await load_link_graph_hits(session, workspace_id=workspace_id, crawl=crawl)
+        )
     return audit, demand_snapshot, hits
 
 

@@ -5,6 +5,7 @@ import { queryKeys } from './query-keys';
 import {
   cursorPageSchema,
   inventoryRowSchema,
+  linkGraphSnapshotSchema,
   monitoredUrlsResponseSchema,
   pageDetailSchema,
   rerunPageResponseSchema,
@@ -664,6 +665,15 @@ describe('query key isolation (project / crawl / filter)', () => {
     );
   });
 
+  it('isolates link graph projections by project and crawl', () => {
+    expect(queryKeys.siteHealth.linkGraph('p1', 'c1')).not.toEqual(
+      queryKeys.siteHealth.linkGraph('p1', 'c2'),
+    );
+    expect(queryKeys.siteHealth.linkGraphNodes('p1')).not.toEqual(
+      queryKeys.siteHealth.linkGraphEdges('p1'),
+    );
+  });
+
   it('isolates issues by crawl and filter', () => {
     const a = queryKeys.siteHealth.issues('c1', { severity: 'high' });
     const b = queryKeys.siteHealth.issues('c1', { severity: 'low' });
@@ -674,6 +684,30 @@ describe('query key isolation (project / crawl / filter)', () => {
 
   it('keeps monitored keyed per project', () => {
     expect(queryKeys.siteHealth.monitored('p1')).not.toEqual(queryKeys.siteHealth.monitored('p2'));
+  });
+});
+
+describe('link graph contract', () => {
+  it('keeps partial coverage and exact source provenance', () => {
+    const parsed = strictValidate(
+      linkGraphSnapshotSchema,
+      {
+        state: 'incomplete',
+        snapshot_id: UUID,
+        crawl_id: UUID2,
+        analyzer_version: 'link-graph-v1',
+        page_analyzer_version: 'page-v1',
+        extractor_version: 'extract-v1',
+        source_analysis_ids: [UUID],
+        coverage: { complete: false },
+        limitations: ['Observed topology is partial.'],
+        summary: { node_count: 1 },
+        created_at: '2026-08-15T00:00:00Z',
+      },
+      'linkGraph',
+    );
+    expect(parsed.state).toBe('incomplete');
+    expect(parsed.source_analysis_ids).toEqual([UUID]);
   });
 });
 

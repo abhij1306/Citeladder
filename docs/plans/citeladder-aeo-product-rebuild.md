@@ -196,8 +196,8 @@ focused gate passed and its completion note was recorded; it does **not** create
 | Q02 | W4 | completed | Q01 | WS3B Wave 1 branded separation + striking-distance signals and Opportunity mapping. |
 | Q03 | W4 | completed | Q02 | WS3B Wave 2 cannibalization, property-relative CTR gap, trend detectors, abstention states, and no mismatch placeholder. |
 | L01 | W5 | completed | Q03, S06 | WS4 pure link-graph analysis plus immutable snapshot lifecycle/API/schema and post-crawl DAG. |
-| L02 | W5 | in_progress | L01 | WS4 link opportunities and bounded Website Link Graph surface with table fallback. |
-| E01 | W5 | pending | L02, S06 | WS5 config-owned AEO Readiness projection/API and evidence-linked Website surface; no score. |
+| L02 | W5 | completed | L01 | WS4 link opportunities and bounded Website Link Graph surface with table fallback. |
+| E01 | W5 | in_progress | L02, S06 | WS5 config-owned AEO Readiness projection/API and evidence-linked Website surface; no score. |
 | C01 | W6 | pending | A02, X01, L01 | WS6 deterministic comparable-crawl analyzer plus immutable snapshot lifecycle/API/schema and expected-event linkage. |
 | C02 | W6 | pending | C01 | WS6 change-derived Opportunities and Website Changes surface with honest unavailable/non-comparable states. |
 | Z01 | W6 | pending | all prior slices | WS8 clean-database/image/route/doc audit, clean-stack end-to-end proof, and plan completion. |
@@ -330,6 +330,17 @@ row is the removal condition. No other compatibility path is implied.
 - Local verification: focused graph unit/component/terminalization pytest passed; Ruff and targeted mypy passed; disposable empty-database `alembic upgrade head` and `alembic check` passed; complexity, documentation, and diff checks passed at the L01 gate.
 - Evaluation artifact: `docs/evaluations/2026-08-15-w5-site-intelligence.md` (sanitized read-only live edge/readiness inventory; zero provider/network mutations)
 - Advanced to internal slice: L02
+
+#### L02 — completed 2026-08-15
+- Wave / branch: W5 / `feat/aeo-wave-5-site-intelligence`
+- Owners: immutable Site Health graph evidence, the singular Opportunity store, and the Website tab surface.
+- Implemented: complete-coverage-only mapping of the approved near-orphan and weak-authority signals with exact graph/node/analysis provenance and bounded source suggestions; a bounded followed-edge Website preview; and an always-present page-authority table fallback with crawl-bounded page links and descriptive incomplete coverage.
+- Deleted / retained until: retained the existing Opportunity supersede lifecycle, `SiteLinkReference`, graph projections, Site Health page detail, and sitemap-orphan evaluator as their sole owners. No alternate recommendation store, embeddings, client metric, or partial-crawl link Opportunity exists.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 39
+- Local verification: focused Opportunity config/component pytest 16 passed; focused Website Link Graph/API Vitest 52 passed; Ruff/ESLint passed at the slice gate. The named Playwright browser proof is recorded with the combined Website browser layer at E01.
+- Evaluation artifact: `docs/evaluations/2026-08-15-w5-site-intelligence.md`
+- Advanced to internal slice: E01
 
 #### S01 — completed 2026-08-15
 - Wave / branch: W2 / `feat/aeo-wave-2-site-health`

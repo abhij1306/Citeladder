@@ -36,8 +36,8 @@ from app.core.config.projects import (
 # catalog change, and ``FORMULA_VERSION`` on any scoring change so a derived
 # row is always traceable to the exact logic that produced it (mirrors
 # ``SCORING_RULE_VERSION`` in ``config/analysis.py``).
-ANALYZER_VERSION: Final = "opp-analyzer-3"
-RULE_VERSION: Final = "opp-rules-5"
+ANALYZER_VERSION: Final = "opp-analyzer-4"
+RULE_VERSION: Final = "opp-rules-6"
 FORMULA_VERSION: Final = "opp-formula-1"
 CONFIRMED_DECLINE_MIN_FACTOR: Final = 0.1
 CONFIRMED_DECLINE_GAP_NORMALIZER: Final = 10.0
@@ -377,6 +377,26 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
         remediation=(
             "Refresh the owned answer for the declining query and verify "
             "recovery in a later GSC window."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="site_link_near_orphan",
+        opportunity_type=OPPORTUNITY_TYPE_SITE,
+        severity=SEVERITY_MEDIUM,
+        title="Indexable page has too few followed internal links",
+        remediation=(
+            "Add relevant followed internal links from the suggested source "
+            "pages to make this page easier to discover and reach."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="site_link_weak_authority",
+        opportunity_type=OPPORTUNITY_TYPE_SITE,
+        severity=SEVERITY_LOW,
+        title="Page has weak internal-link authority",
+        remediation=(
+            "Strengthen this page with relevant followed links from the "
+            "suggested higher-authority pages."
         ),
     ),
     OpportunityRule(

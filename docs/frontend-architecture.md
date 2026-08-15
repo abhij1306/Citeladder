@@ -86,6 +86,15 @@ crawl exists, its header has one contextual primary control: **Stop crawl** for
 an active persisted crawl, otherwise **Run new crawl**. **Export** is the
 secondary action. The client exposes no separate discovery or analysis buttons.
 
+Website uses one tablist on `/site`. **Pages** retains the crawl lifecycle and
+inventory surface. **Link Graph** reads the selected crawl's persisted summary,
+nodes, and edges with no client-side analysis. Its topology preview is bounded
+to 24 stable-priority nodes and the first 200 persisted rows; the page-authority
+table is always present as the accessible evidence fallback. It shows
+deterministic PageRank/depth/link counts and links suggested source pages to the
+existing crawl-bounded page detail. Incomplete graphs state observed coverage
+and suppress recommendation language rather than implying a complete crawl.
+
 The inventory remains mounted and progressive: discovery renders the first ten
 persisted rows as they arrive, and rows later receive their analysis status and
 scores in place. The Issues row uses persisted description copy for what is

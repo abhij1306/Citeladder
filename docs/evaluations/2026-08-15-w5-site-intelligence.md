@@ -27,6 +27,17 @@ The schema gate migrated a disposable empty `citeladder_w5_migration` database
 from the singular `0001_initial.py`, reported no ORM drift, and then dropped the
 disposable database.
 
+## L02 Opportunity and browser fixture proof
+
+- Complete graph fixture: one target carrying both approved signals and one
+  deterministic suggested source produced exactly two distinct Opportunities,
+  each with the graph snapshot/node and both source-analysis IDs.
+- Boundary fixture: the identical observed topology marked incomplete produced
+  zero link Opportunities.
+- Website fixture: the bounded followed-edge preview, page-authority table,
+  page-detail source links, and descriptive partial-crawl disclosure render
+  from persisted API rows. No client metric or alternate link store is used.
+
 ## E01 readiness spike
 
 The same read-only inspection confirmed that current persisted evaluations

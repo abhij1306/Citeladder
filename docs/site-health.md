@@ -171,6 +171,14 @@ and `edges` endpoints. Optional `crawl_id` selects an exact persisted snapshot;
 omission selects the latest. Node and edge pages use snapshot-bound cursors and
 never compute, repair, crawl, or enqueue work.
 
+Only complete `available` graph snapshots can produce link Opportunities. The
+existing Opportunity owner maps `near_orphan` and `weak_authority` separately,
+freezes the graph snapshot/node plus exact target/source analysis provenance,
+and includes the analyzer's bounded suggested source pages. An incomplete
+snapshot produces no link Opportunity. Authority concentration, hubs,
+over-linking, anchor distribution, and sitemap-orphan evidence remain
+descriptive and are not mapped by v1.
+
 ## Page-kind classification
 
 Every analyzed HTML page receives one of:

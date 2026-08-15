@@ -179,6 +179,11 @@ desktop).
   switching views; supporting counters say class-labelled **occurrences** and
   **affected URLs** so visually adjacent quantities never masquerade as one
   number. Advisory rows use an Advisory label, not a severity chip.
+- Website analysis uses one restrained tab row. Link Graph pairs a bounded
+  followed-edge overview with a persistent table fallback; the visualization
+  never becomes the only way to inspect a page. Flag labels and source-page
+  links carry meaning without colour. Partial crawls lead with exact observed
+  coverage and do not show near-orphan or weak-authority recommendations.
 - Mobile retains every critical action. Tables become labelled records; filters
   and evidence use full-height sheets.
 

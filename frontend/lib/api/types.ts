@@ -69,6 +69,11 @@ import type {
   issueDimensionSchema,
   issueHistoryPageSchema,
   issueSeveritySchema,
+  linkGraphEdgeSchema,
+  linkGraphEdgesPageSchema,
+  linkGraphNodeSchema,
+  linkGraphNodesPageSchema,
+  linkGraphSnapshotSchema,
   issuesSummarySchema,
   monitoredUrlSchema,
   monitoredUrlsResponseSchema,
@@ -249,6 +254,11 @@ export type PagesPage = z.infer<typeof pagesPageSchema>;
 export type PageDetail = z.infer<typeof pageDetailSchema>;
 export type RerunPageResponse = z.infer<typeof rerunPageResponseSchema>;
 export type SiteHealthDashboard = z.infer<typeof siteHealthDashboardSchema>;
+export type LinkGraphSnapshot = z.infer<typeof linkGraphSnapshotSchema>;
+export type LinkGraphNode = z.infer<typeof linkGraphNodeSchema>;
+export type LinkGraphEdge = z.infer<typeof linkGraphEdgeSchema>;
+export type LinkGraphNodesPage = z.infer<typeof linkGraphNodesPageSchema>;
+export type LinkGraphEdgesPage = z.infer<typeof linkGraphEdgesPageSchema>;
 export type VisibilityTrendRankingRow = z.infer<typeof visibilityTrendRankingRowSchema>;
 export type VisibilityTrendPoint = z.infer<typeof visibilityTrendPointSchema>;
 export type VisibilityExecutionEvidence = z.infer<typeof visibilityExecutionEvidenceSchema>;

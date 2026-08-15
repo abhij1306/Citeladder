@@ -17,6 +17,9 @@ import { API_BASE_URL, apiClient, getActiveWorkspaceId, type ApiRequestOptions }
 import { queryKeys } from './query-keys';
 import {
   inventoryPageSchema,
+  linkGraphEdgesPageSchema,
+  linkGraphNodesPageSchema,
+  linkGraphSnapshotSchema,
   issueHistoryPageSchema,
   monitoredUrlsResponseSchema,
   pageDetailSchema,
@@ -34,6 +37,9 @@ import {
 import { definedQuery, withQuery } from './shared';
 import type {
   InventoryPage,
+  LinkGraphEdgesPage,
+  LinkGraphNodesPage,
+  LinkGraphSnapshot,
   IssueHistoryPage,
   MonitoredUrlsResponse,
   PageDetail,
@@ -217,6 +223,30 @@ export const siteHealthApi = {
     const res = await apiClient.get<SiteHealthDashboard>(path, options);
     return strictValidate(siteHealthDashboardSchema, res, 'siteHealth.getDashboard');
   },
+  getLinkGraph: async (projectId: string, crawlId?: string, options?: ApiRequestOptions) => {
+    const path = withQuery(
+      `/projects/${projectId}/site-health/link-graph`,
+      definedQuery({ crawl_id: crawlId }),
+    );
+    const res = await apiClient.get<LinkGraphSnapshot>(path, options);
+    return strictValidate(linkGraphSnapshotSchema, res, 'siteHealth.getLinkGraph');
+  },
+  getLinkGraphNodes: async (projectId: string, crawlId?: string, options?: ApiRequestOptions) => {
+    const path = withQuery(
+      `/projects/${projectId}/site-health/link-graph/nodes`,
+      definedQuery({ crawl_id: crawlId, limit: 200 }),
+    );
+    const res = await apiClient.get<LinkGraphNodesPage>(path, options);
+    return strictValidate(linkGraphNodesPageSchema, res, 'siteHealth.getLinkGraphNodes');
+  },
+  getLinkGraphEdges: async (projectId: string, crawlId?: string, options?: ApiRequestOptions) => {
+    const path = withQuery(
+      `/projects/${projectId}/site-health/link-graph/edges`,
+      definedQuery({ crawl_id: crawlId, limit: 200 }),
+    );
+    const res = await apiClient.get<LinkGraphEdgesPage>(path, options);
+    return strictValidate(linkGraphEdgesPageSchema, res, 'siteHealth.getLinkGraphEdges');
+  },
   /** Same-origin SSE endpoint (polling is the baseline; `?stream=true`). */
   eventsUrl: (crawlId: string) => `${API_BASE_URL}/site-crawls/${crawlId}/events?stream=true`,
   /** Same-origin export URLs (browser navigation / download links). */
@@ -241,6 +271,21 @@ export const siteHealthQueries = {
     queryOptions({
       queryKey: queryKeys.siteHealth.dashboard(projectId, crawlId),
       queryFn: ({ signal }) => siteHealthApi.getDashboard(projectId, crawlId, { signal }),
+    }),
+  linkGraph: (projectId: string, crawlId?: string) =>
+    queryOptions({
+      queryKey: queryKeys.siteHealth.linkGraph(projectId, crawlId),
+      queryFn: ({ signal }) => siteHealthApi.getLinkGraph(projectId, crawlId, { signal }),
+    }),
+  linkGraphNodes: (projectId: string, crawlId?: string) =>
+    queryOptions({
+      queryKey: queryKeys.siteHealth.linkGraphNodes(projectId, crawlId),
+      queryFn: ({ signal }) => siteHealthApi.getLinkGraphNodes(projectId, crawlId, { signal }),
+    }),
+  linkGraphEdges: (projectId: string, crawlId?: string) =>
+    queryOptions({
+      queryKey: queryKeys.siteHealth.linkGraphEdges(projectId, crawlId),
+      queryFn: ({ signal }) => siteHealthApi.getLinkGraphEdges(projectId, crawlId, { signal }),
     }),
   crawls: (params: CrawlListParams) =>
     queryOptions({

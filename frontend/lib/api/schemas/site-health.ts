@@ -611,6 +611,71 @@ export const siteHealthDashboardSchema = responseObject({
   }),
 });
 
+export const linkGraphStateSchema = z.enum(['available', 'incomplete', 'unavailable']);
+
+export const linkGraphSnapshotSchema = responseObject({
+  state: linkGraphStateSchema,
+  snapshot_id: uuid().nullable(),
+  crawl_id: uuid().nullable(),
+  root_site_url_id: uuid().nullable().optional(),
+  analyzer_version: z.string(),
+  page_analyzer_version: z.string(),
+  extractor_version: z.string(),
+  source_analysis_ids: z.array(uuid()),
+  coverage: z.record(z.string(), z.unknown()),
+  limitations: z.array(z.string()),
+  summary: z.record(z.string(), z.unknown()),
+  created_at: z.string().nullable(),
+});
+
+export const linkGraphNodeSchema = responseObject({
+  id: uuid(),
+  site_url_id: uuid(),
+  source_analysis_id: uuid(),
+  normalized_url: z.string(),
+  title: z.string(),
+  indexable: z.boolean(),
+  pagerank: z.number(),
+  click_depth: z.number().int().nullable(),
+  followed_inbound_count: z.number().int(),
+  followed_outbound_count: z.number().int(),
+  near_orphan: z.boolean(),
+  weak_authority: z.boolean(),
+  over_linked: z.boolean(),
+  hub: z.boolean(),
+  suggested_source_ids: z.array(uuid()),
+});
+
+export const linkGraphEdgeSchema = responseObject({
+  id: uuid(),
+  source_site_url_id: uuid(),
+  target_site_url_id: uuid().nullable(),
+  target_url: z.string(),
+  followed: z.boolean(),
+  occurrence_count: z.number().int(),
+  followed_occurrence_count: z.number().int(),
+  nofollow_occurrence_count: z.number().int(),
+  anchor_texts: z.array(z.string()),
+});
+
+const linkGraphPageBase = {
+  state: linkGraphStateSchema,
+  snapshot_id: uuid().nullable(),
+  crawl_id: uuid().nullable(),
+  next_cursor: z.string().nullable(),
+  limitations: z.array(z.string()),
+};
+
+export const linkGraphNodesPageSchema = responseObject({
+  ...linkGraphPageBase,
+  items: z.array(linkGraphNodeSchema),
+});
+
+export const linkGraphEdgesPageSchema = responseObject({
+  ...linkGraphPageBase,
+  items: z.array(linkGraphEdgeSchema),
+});
+
 // Stable coded failures (plan §API contract). The frontend keys UX (upgrade
 // prompt, quota feedback, stale-revision refetch, retry copy) off these codes.
 export const siteHealthErrorCodeSchema = z.enum([

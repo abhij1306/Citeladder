@@ -1,9 +1,12 @@
 'use client';
 
+import { useState } from 'react';
+
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { MutationNotice } from '@/components/ui/mutation-notice';
 import { SiteHealthDashboardLayout } from '@/components/site-health/dashboard-layout';
+import { LinkGraphPanel } from '@/components/site-health/link-graph-panel';
 import { ScreenHeader, ScreenSkeleton } from '@/components/site-health/screen-states';
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
 import { useProjectContext } from '@/lib/project/project-context';
@@ -21,6 +24,7 @@ import { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
  * re-crawl is available from the same place at every point.
  */
 export function SiteHealthScreen() {
+  const [tab, setTab] = useState<'pages' | 'link-graph'>('pages');
   const { activeProject, isLoading: projectLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
 
@@ -144,12 +148,41 @@ export function SiteHealthScreen() {
           persisted remain visible below.
         </Alert>
       ) : null}
+      <div
+        className="border-border flex gap-1 border-b"
+        role="tablist"
+        aria-label="Website analysis"
+      >
+        {(
+          [
+            ['pages', 'Pages'],
+            ['link-graph', 'Link Graph'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            className={`min-h-10 border-b-2 px-3 text-sm font-medium transition-colors ${tab === value ? 'border-accent text-foreground' : 'text-muted hover:text-foreground border-transparent'}`}
+            onClick={() => setTab(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {/* ONE screen. The Site Intelligence workspace used to wrap this whole
           dashboard as its "Pages" tab — the old screen nested inside the new
           one, two live information architectures over the same crawl. The
           workspace and its five panels are deleted; Site Health is Site
           Health, and issues live on the Issues screen. */}
-      <SiteHealthDashboardLayout screen={screen} entitlement={entitlementQuery.data!} />
+      {tab === 'pages' ? (
+        <SiteHealthDashboardLayout screen={screen} entitlement={entitlementQuery.data!} />
+      ) : crawl ? (
+        <LinkGraphPanel projectId={projectId} crawlId={crawl.id} />
+      ) : (
+        <Alert tone="info">Run a crawl before opening the Website Link Graph.</Alert>
+      )}
     </div>
   );
 }

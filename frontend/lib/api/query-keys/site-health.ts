@@ -15,6 +15,12 @@ export const siteHealthKeys = {
     ['site-health', 'entitlements', workspaceId ?? 'default'] as const,
   dashboard: (projectId: string, crawlId?: string) =>
     ['site-health', 'dashboard', projectId, crawlId ?? 'latest'] as const,
+  linkGraph: (projectId: string, crawlId?: string) =>
+    ['site-health', 'link-graph', projectId, crawlId ?? 'latest'] as const,
+  linkGraphNodes: (projectId: string, crawlId?: string) =>
+    ['site-health', 'link-graph-nodes', projectId, crawlId ?? 'latest'] as const,
+  linkGraphEdges: (projectId: string, crawlId?: string) =>
+    ['site-health', 'link-graph-edges', projectId, crawlId ?? 'latest'] as const,
   crawls: (projectId: string, filters: ListFilters = {}) =>
     ['site-health', 'crawls', projectId, filters] as const,
   crawl: (crawlId: string) => ['site-health', 'crawl', crawlId] as const,
