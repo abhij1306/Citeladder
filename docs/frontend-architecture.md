@@ -95,6 +95,12 @@ deterministic PageRank/depth/link counts and links suggested source pages to the
 existing crawl-bounded page detail. Incomplete graphs state observed coverage
 and suppress recommendation language rather than implying a complete crawl.
 
+**AEO Readiness** is the adjacent Website tab. It renders the server's seven
+ordered presentation dimensions as pass, fail, not-applicable, and explicit
+expected/observed coverage columns. Bounded persisted evaluation links open the
+existing crawl-bounded page detail. The client does not remap rules, recompute
+coverage, guess a missing bucket, or display a composite readiness score.
+
 The inventory remains mounted and progressive: discovery renders the first ten
 persisted rows as they arrive, and rows later receive their analysis status and
 scores in place. The Issues row uses persisted description copy for what is

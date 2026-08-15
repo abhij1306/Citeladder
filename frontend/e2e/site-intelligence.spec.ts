@@ -1,0 +1,261 @@
+import { expect, test, type Page } from '@playwright/test';
+
+import { FIXTURE_PROJECT, stubAuthedShell } from './helpers/app-fixture';
+
+const WORKSPACE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const CRAWL = '22222222-2222-4222-8222-222222222222';
+const PROFILE = '33333333-3333-4333-8333-333333333333';
+const SOURCE = '44444444-4444-4444-8444-444444444444';
+const TARGET = '55555555-5555-4555-8555-555555555555';
+const SNAPSHOT = '66666666-6666-4666-8666-666666666666';
+
+const crawl = {
+  id: CRAWL,
+  workspace_id: WORKSPACE,
+  project_id: FIXTURE_PROJECT.id,
+  profile_id: PROFILE,
+  status: 'completed',
+  discovery_status: 'completed',
+  analysis_status: 'completed',
+  root_url: 'https://acme.example/',
+  sample_mode: false,
+  seed: '1',
+  inventory_complete: true,
+  visible_url_count: 2,
+  analyzed_count: 2,
+  failed_count: 0,
+  discovery_requested_count: 2,
+  analysis_requested_count: 2,
+  counters: {
+    discovered: 2,
+    selected: 2,
+    queued: 0,
+    running: 0,
+    analyzed: 2,
+    errors: 0,
+    blocked: 0,
+    failure_breakdown: { robots_denied: 0, http_4xx: 0, http_5xx: 0, timeout: 0 },
+    activity: { state: 'terminal', reason: 'terminal', queue_depth: 0, next_available_at: null },
+    by_page_kind: { article: 2 },
+  },
+  discovered_count: 2,
+  total_url_count: 2,
+  has_more_site_urls: false,
+  score_summary: {
+    overall_score: 82,
+    technical_score: 85,
+    aeo_score: 79,
+    selected_count: 2,
+    analyzed_count: 2,
+    issue_count: 2,
+    scoring_version: 'score-v1',
+    by_page_kind: {},
+  },
+  failure_summary: null,
+  site_facts: {},
+  extractor_version: 'extract-v1',
+  analyzer_version: 'page-v1',
+  rule_version: 'rules-v1',
+  scoring_version: 'score-v1',
+  error_message: '',
+  created_at: '2026-08-15T00:00:00Z',
+  updated_at: '2026-08-15T00:01:00Z',
+  started_at: '2026-08-15T00:00:00Z',
+  completed_at: '2026-08-15T00:01:00Z',
+};
+
+const dimensions = [
+  ['answerability', 'Answerability'],
+  ['structure', 'Structure'],
+  ['evidence', 'Evidence'],
+  ['machine-readability', 'Machine-readability'],
+  ['authority', 'Authority'],
+  ['freshness', 'Freshness'],
+  ['crawlability', 'Crawlability'],
+] as const;
+
+async function stubWebsite(page: Page) {
+  const graphPath = `/api/v1/projects/${FIXTURE_PROJECT.id}/site-health/link-graph`;
+  await stubAuthedShell(page, [
+    [
+      '**/api/v1/entitlements',
+      {
+        workspace_id: WORKSPACE,
+        access_mode: 'full',
+        sample_url_limit: 10,
+        monitored_url_limit: 50,
+        count_disclosure: true,
+        resolver_status: 'resolved',
+        registry_revision: 'registry-v1',
+        entitlement_lifecycle_version: 1,
+        valid_until: null,
+        contributing_grant_ids: [],
+        advanced_controls_enabled: false,
+      },
+    ],
+    [
+      `**/api/v1/projects/${FIXTURE_PROJECT.id}/site-health`,
+      {
+        project_id: FIXTURE_PROJECT.id,
+        crawl,
+        score_summary: crawl.score_summary,
+        phase: 'dashboard',
+        snapshot_id: SNAPSHOT,
+        quota: { used: 2, limit: 50 },
+        root_errors: [],
+        phase_runs: { discovery: null, analysis: null },
+      },
+    ],
+    [
+      new RegExp(`${graphPath}(?:\\?.*)?$`),
+      {
+        state: 'available',
+        snapshot_id: SNAPSHOT,
+        crawl_id: CRAWL,
+        root_site_url_id: SOURCE,
+        analyzer_version: 'link-graph-v1',
+        page_analyzer_version: 'page-v1',
+        extractor_version: 'extract-v1',
+        source_analysis_ids: [SOURCE, TARGET],
+        coverage: { complete: true, analyzed_html_node_count: 2, selected_url_count: 2 },
+        limitations: [],
+        summary: { node_count: 2, edge_count: 1, near_orphan_count: 1, weak_authority_count: 1 },
+        created_at: '2026-08-15T00:01:00Z',
+      },
+    ],
+    [
+      new RegExp(`${graphPath}/nodes(?:\\?.*)?$`),
+      {
+        state: 'available',
+        snapshot_id: SNAPSHOT,
+        crawl_id: CRAWL,
+        next_cursor: null,
+        limitations: [],
+        items: [
+          {
+            id: '77777777-7777-4777-8777-777777777777',
+            site_url_id: SOURCE,
+            source_analysis_id: SOURCE,
+            normalized_url: 'https://acme.example/guide',
+            title: 'CRM guide',
+            indexable: true,
+            pagerank: 0.8,
+            click_depth: 0,
+            followed_inbound_count: 1,
+            followed_outbound_count: 1,
+            near_orphan: false,
+            weak_authority: false,
+            over_linked: false,
+            hub: true,
+            suggested_source_ids: [],
+          },
+          {
+            id: '88888888-8888-4888-8888-888888888888',
+            site_url_id: TARGET,
+            source_analysis_id: TARGET,
+            normalized_url: 'https://acme.example/case-study',
+            title: 'CRM case study',
+            indexable: true,
+            pagerank: 0.2,
+            click_depth: 1,
+            followed_inbound_count: 1,
+            followed_outbound_count: 0,
+            near_orphan: true,
+            weak_authority: true,
+            over_linked: false,
+            hub: false,
+            suggested_source_ids: [SOURCE],
+          },
+        ],
+      },
+    ],
+    [
+      new RegExp(`${graphPath}/edges(?:\\?.*)?$`),
+      {
+        state: 'available',
+        snapshot_id: SNAPSHOT,
+        crawl_id: CRAWL,
+        next_cursor: null,
+        limitations: [],
+        items: [
+          {
+            id: '99999999-9999-4999-8999-999999999999',
+            source_site_url_id: SOURCE,
+            target_site_url_id: TARGET,
+            target_url: 'https://acme.example/case-study',
+            followed: true,
+            occurrence_count: 1,
+            followed_occurrence_count: 1,
+            nofollow_occurrence_count: 0,
+            anchor_texts: ['Case study'],
+          },
+        ],
+      },
+    ],
+    [
+      new RegExp(`/api/v1/projects/${FIXTURE_PROJECT.id}/site-health/aeo-readiness(?:\\?.*)?$`),
+      {
+        state: 'available',
+        crawl_id: CRAWL,
+        taxonomy_version: 'aeo-readiness-v1',
+        analyzer_version: 'page-v1',
+        source_analysis_ids: [SOURCE, TARGET],
+        analysis_count: 2,
+        observed_evaluation_count: 40,
+        expected_evaluation_count: 40,
+        coverage: 1,
+        limitations: [],
+        dimensions: dimensions.map(([key, label], index) => ({
+          key,
+          label,
+          rule_ids: [`aeo.rule_${index}`],
+          pass_count: index ? 2 : 1,
+          fail_count: index ? 0 : 1,
+          not_applicable_count: index === 1 ? 1 : 0,
+          error_count: 0,
+          observed_evaluation_count: 2,
+          expected_evaluation_count: 2,
+          coverage: 1,
+          evidence_links: [
+            {
+              evaluation_id: `abababab-abab-4bab-8bab-abababababa${index}`,
+              analysis_id: TARGET,
+              site_url_id: TARGET,
+              normalized_url: 'https://acme.example/case-study',
+              rule_id: index ? `aeo.rule_${index}` : 'aeo.answer_first',
+              outcome: index ? 'pass' : 'fail',
+            },
+          ],
+        })),
+      },
+    ],
+  ]);
+}
+
+test('Website Link Graph browser proof: bounded visual, table fallback, and source suggestion', async ({
+  page,
+}) => {
+  await stubWebsite(page);
+  await page.goto('/site');
+  await page.getByRole('tab', { name: 'Link Graph' }).click();
+
+  await expect(page.getByTestId('website-link-graph')).toBeVisible();
+  await expect(page.getByLabel('Internal link graph preview')).toBeVisible();
+  await expect(page.getByRole('table')).toContainText('CRM case study');
+  await expect(page.getByRole('table')).toContainText('CRM guide');
+});
+
+test('AEO Readiness browser proof: seven reconciled dimensions and failing evidence link', async ({
+  page,
+}) => {
+  await stubWebsite(page);
+  await page.goto('/site');
+  await page.getByRole('tab', { name: 'AEO Readiness' }).click();
+
+  const table = page.getByRole('table');
+  await expect(page.getByTestId('aeo-readiness')).toBeVisible();
+  for (const [, label] of dimensions) await expect(table).toContainText(label);
+  await expect(table).toContainText('Not applicable');
+  await page.getByText('View 1 evidence link').first().click();
+  await expect(page.getByText('aeo.answer_first')).toBeVisible();
+});

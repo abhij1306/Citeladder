@@ -40,7 +40,20 @@ disposable database.
 
 ## E01 readiness spike
 
-The same read-only inspection confirmed that current persisted evaluations
-contain pass, fail, and not-applicable states across the locked readiness rule
-set. Exact dimension reconciliation is recorded after E01; no score or provider
-call is part of this validation.
+The same read-only inspection reconciled all seven dimensions across the latest
+usable crawl for three sanitized corpora. Cells are `pass / fail /
+not-applicable`; every row's total equals `analysis count × mapped rules`:
+
+| Corpus (analyses) | Answerability | Structure | Evidence | Machine-readability | Authority | Freshness | Crawlability |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1 (150) | 226/36/338 | 217/74/459 | 0/0/150 | 76/162/212 | 0/1/299 | 0/0/150 | 395/55/150 |
+| 2 (114) | 217/15/224 | 315/98/157 | 0/0/114 | 83/111/148 | 2/1/225 | 0/0/114 | 319/23/114 |
+| 3 (22) | 52/1/35 | 73/18/19 | 0/4/18 | 41/0/25 | 4/2/38 | 3/1/18 | 66/0/22 |
+
+The query joined current successful HTML analyses to the exact crawl analyzer
+and artifact extractor versions before mapping only the 20 declared rule IDs.
+No project identity, URL, page content, score, provider call, or write is part
+of this validation. Deterministic fixtures additionally trace a low-readiness
+`case_study_review` page to failing `aeo.answer_first` and
+`aeo.outbound_citations` evaluations and prove workspace isolation and bounded
+fail-first evidence links.

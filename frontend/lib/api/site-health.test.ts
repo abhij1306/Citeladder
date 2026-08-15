@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { queryKeys } from './query-keys';
 import {
+  aeoReadinessSchema,
   cursorPageSchema,
   inventoryRowSchema,
   linkGraphSnapshotSchema,
@@ -708,6 +709,44 @@ describe('link graph contract', () => {
     );
     expect(parsed.state).toBe('incomplete');
     expect(parsed.source_analysis_ids).toEqual([UUID]);
+  });
+});
+
+describe('AEO Readiness contract', () => {
+  it('keeps not-applicable distinct and exposes no score field', () => {
+    const parsed = strictValidate(
+      aeoReadinessSchema,
+      {
+        state: 'available',
+        crawl_id: UUID,
+        taxonomy_version: 'aeo-readiness-v1',
+        analyzer_version: 'page-v1',
+        source_analysis_ids: [UUID2],
+        analysis_count: 1,
+        observed_evaluation_count: 1,
+        expected_evaluation_count: 1,
+        coverage: 1,
+        dimensions: [
+          {
+            key: 'freshness',
+            label: 'Freshness',
+            rule_ids: ['aeo.date_present'],
+            pass_count: 0,
+            fail_count: 0,
+            not_applicable_count: 1,
+            error_count: 0,
+            observed_evaluation_count: 1,
+            expected_evaluation_count: 1,
+            coverage: 1,
+            evidence_links: [],
+          },
+        ],
+        limitations: [],
+      },
+      'readiness',
+    );
+    expect(parsed.dimensions[0].not_applicable_count).toBe(1);
+    expect('score' in parsed).toBe(false);
   });
 });
 

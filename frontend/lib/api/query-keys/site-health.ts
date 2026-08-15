@@ -21,6 +21,8 @@ export const siteHealthKeys = {
     ['site-health', 'link-graph-nodes', projectId, crawlId ?? 'latest'] as const,
   linkGraphEdges: (projectId: string, crawlId?: string) =>
     ['site-health', 'link-graph-edges', projectId, crawlId ?? 'latest'] as const,
+  aeoReadiness: (projectId: string, crawlId?: string) =>
+    ['site-health', 'aeo-readiness', projectId, crawlId ?? 'latest'] as const,
   crawls: (projectId: string, filters: ListFilters = {}) =>
     ['site-health', 'crawls', projectId, filters] as const,
   crawl: (crawlId: string) => ['site-health', 'crawl', crawlId] as const,

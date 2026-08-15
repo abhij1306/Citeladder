@@ -16,7 +16,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'pnpm dev',
+    command: 'pnpm exec next dev -p 3000 -H 127.0.0.1',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: !process.env.CI,
   },

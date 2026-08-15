@@ -46,6 +46,7 @@ from app.core.database import SessionLocal
 from app.core.errors import ApiException
 from app.domain.site_health import service
 from app.domain.site_health.api_schemas import (
+    AeoReadinessResponse,
     BulkSelectMonitoredRequest,
     CrawlListPage,
     CrawlResponse,
@@ -956,6 +957,28 @@ async def get_link_graph_edges_endpoint(
     except InvalidCursorError as exc:
         raise _bad_cursor(exc) from exc
     return LinkGraphEdgesPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/aeo-readiness",
+    response_model=AeoReadinessResponse,
+)
+async def get_aeo_readiness_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> AeoReadinessResponse:
+    try:
+        result = await service.get_aeo_readiness(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return AeoReadinessResponse.model_validate(result)
 
 
 # =========================================================================

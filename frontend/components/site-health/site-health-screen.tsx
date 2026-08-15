@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { MutationNotice } from '@/components/ui/mutation-notice';
 import { SiteHealthDashboardLayout } from '@/components/site-health/dashboard-layout';
 import { LinkGraphPanel } from '@/components/site-health/link-graph-panel';
+import { AeoReadinessPanel } from '@/components/site-health/aeo-readiness-panel';
 import { ScreenHeader, ScreenSkeleton } from '@/components/site-health/screen-states';
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
 import { useProjectContext } from '@/lib/project/project-context';
@@ -24,7 +25,7 @@ import { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
  * re-crawl is available from the same place at every point.
  */
 export function SiteHealthScreen() {
-  const [tab, setTab] = useState<'pages' | 'link-graph'>('pages');
+  const [tab, setTab] = useState<'pages' | 'aeo-readiness' | 'link-graph'>('pages');
   const { activeProject, isLoading: projectLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
 
@@ -156,6 +157,7 @@ export function SiteHealthScreen() {
         {(
           [
             ['pages', 'Pages'],
+            ['aeo-readiness', 'AEO Readiness'],
             ['link-graph', 'Link Graph'],
           ] as const
         ).map(([value, label]) => (
@@ -178,10 +180,12 @@ export function SiteHealthScreen() {
           Health, and issues live on the Issues screen. */}
       {tab === 'pages' ? (
         <SiteHealthDashboardLayout screen={screen} entitlement={entitlementQuery.data!} />
+      ) : tab === 'aeo-readiness' && crawl ? (
+        <AeoReadinessPanel projectId={projectId} crawlId={crawl.id} />
       ) : crawl ? (
         <LinkGraphPanel projectId={projectId} crawlId={crawl.id} />
       ) : (
-        <Alert tone="info">Run a crawl before opening the Website Link Graph.</Alert>
+        <Alert tone="info">Run a crawl before opening Website analysis.</Alert>
       )}
     </div>
   );

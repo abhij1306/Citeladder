@@ -179,6 +179,24 @@ snapshot produces no link Opportunity. Authority concentration, hubs,
 over-linking, anchor distribution, and sitemap-orphan evidence remain
 descriptive and are not mapped by v1.
 
+## AEO Readiness
+
+`GET /api/v1/projects/{project_id}/site-health/aeo-readiness` is a read-only
+presentation projection over the selected crawl's current successful HTML
+analyses and their persisted evaluations. It requires the crawl's exact page
+analyzer and extractor versions and returns the exact source-analysis IDs.
+Optional `crawl_id` selects one usable terminal crawl; omission selects the
+latest. Reads never analyze, enqueue, repair, or call a provider.
+
+Taxonomy `aeo-readiness-v1` maps exactly 20 declared rule IDs into seven ordered
+dimensions: **Answerability**, **Structure**, **Evidence**,
+**Machine-readability**, **Authority**, **Freshness**, and **Crawlability**.
+Unmapped Site Health rules remain outside this view; there is no fallback
+bucket. Each dimension exposes pass, fail, not-applicable, error, expected and
+observed counts, coverage, and at most 25 stable page/evaluation links.
+Not-applicable remains disclosed and never becomes a failure. This adds no AEO
+Readiness score and does not reinterpret Site Health scoring.
+
 ## Page-kind classification
 
 Every analyzed HTML page receives one of:

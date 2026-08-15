@@ -426,6 +426,36 @@ LINK_GRAPH_MAX_REFERENCES: Final = 100_000
 LINK_GRAPH_LIST_DEFAULT_LIMIT: Final = 50
 LINK_GRAPH_LIST_MAX_LIMIT: Final = 200
 
+AEO_READINESS_TAXONOMY_VERSION: Final = "aeo-readiness-v1"
+AEO_READINESS_DIMENSIONS: Final[tuple[str, ...]] = ("answerability", "structure", "evidence", "machine-readability", "authority", "freshness", "crawlability")  # noqa: E501
+AEO_READINESS_DIMENSION_LABELS: Final[dict[str, str]] = {
+    key: key.replace("_", " ").capitalize() for key in AEO_READINESS_DIMENSIONS
+}
+AEO_READINESS_RULE_DIMENSIONS: Final[dict[str, str]] = {
+    "technical.thin_content": "answerability",
+    "aeo.answer_first": "answerability",
+    "aeo.question_headings": "answerability",
+    "aeo.no_expand_gating": "answerability",
+    "technical.single_h1": "structure",
+    "aeo.schema_expected_for_type": "structure",
+    "aeo.schema_required_valid": "structure",
+    "aeo.schema_recommended_present": "structure",
+    "aeo.schema_matches_content": "structure",
+    "aeo.outbound_citations": "evidence",
+    "aeo.structured_data_present": "machine-readability",
+    "aeo.open_graph_present": "machine-readability",
+    "aeo.llms_txt_present": "machine-readability",
+    "aeo.author_present": "authority",
+    "aeo.organization_identity": "authority",
+    "aeo.date_present": "freshness",
+    "aeo.server_rendered_content": "crawlability",
+    "technical.ai_crawler_access": "crawlability",
+    "technical.indexable": "crawlability",
+    "technical.https": "crawlability",
+}
+AEO_READINESS_MAX_EVALUATIONS: Final = 100_000
+AEO_READINESS_MAX_EVIDENCE_LINKS_PER_DIMENSION: Final = 25
+
 FETCH_PURPOSE_DISCOVER: Final = "discover"
 FETCH_PURPOSE_ANALYZE: Final = "analyze"
 FETCH_PURPOSE_LINK_CHECK: Final = "link_check"

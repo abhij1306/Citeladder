@@ -676,6 +676,51 @@ export const linkGraphEdgesPageSchema = responseObject({
   items: z.array(linkGraphEdgeSchema),
 });
 
+export const readinessEvidenceLinkSchema = responseObject({
+  evaluation_id: uuid(),
+  analysis_id: uuid(),
+  site_url_id: uuid(),
+  normalized_url: z.string(),
+  rule_id: z.string(),
+  outcome: z.enum(['pass', 'fail', 'not_applicable', 'error']),
+});
+
+export const readinessDimensionSchema = responseObject({
+  key: z.enum([
+    'answerability',
+    'structure',
+    'evidence',
+    'machine-readability',
+    'authority',
+    'freshness',
+    'crawlability',
+  ]),
+  label: z.string(),
+  rule_ids: z.array(z.string()),
+  pass_count: z.number().int(),
+  fail_count: z.number().int(),
+  not_applicable_count: z.number().int(),
+  error_count: z.number().int(),
+  observed_evaluation_count: z.number().int(),
+  expected_evaluation_count: z.number().int(),
+  coverage: z.number().nullable(),
+  evidence_links: z.array(readinessEvidenceLinkSchema),
+});
+
+export const aeoReadinessSchema = responseObject({
+  state: z.enum(['available', 'incomplete', 'unavailable']),
+  crawl_id: uuid().nullable(),
+  taxonomy_version: z.string(),
+  analyzer_version: z.string(),
+  source_analysis_ids: z.array(uuid()),
+  analysis_count: z.number().int(),
+  observed_evaluation_count: z.number().int(),
+  expected_evaluation_count: z.number().int(),
+  coverage: z.number().nullable(),
+  dimensions: z.array(readinessDimensionSchema),
+  limitations: z.array(z.string()),
+});
+
 // Stable coded failures (plan §API contract). The frontend keys UX (upgrade
 // prompt, quota feedback, stale-revision refetch, retry copy) off these codes.
 export const siteHealthErrorCodeSchema = z.enum([

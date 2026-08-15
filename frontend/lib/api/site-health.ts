@@ -16,6 +16,7 @@ import { queryOptions, mutationOptions } from '@tanstack/react-query';
 import { API_BASE_URL, apiClient, getActiveWorkspaceId, type ApiRequestOptions } from './client';
 import { queryKeys } from './query-keys';
 import {
+  aeoReadinessSchema,
   inventoryPageSchema,
   linkGraphEdgesPageSchema,
   linkGraphNodesPageSchema,
@@ -36,6 +37,7 @@ import {
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
 import type {
+  AeoReadiness,
   InventoryPage,
   LinkGraphEdgesPage,
   LinkGraphNodesPage,
@@ -247,6 +249,14 @@ export const siteHealthApi = {
     const res = await apiClient.get<LinkGraphEdgesPage>(path, options);
     return strictValidate(linkGraphEdgesPageSchema, res, 'siteHealth.getLinkGraphEdges');
   },
+  getAeoReadiness: async (projectId: string, crawlId?: string, options?: ApiRequestOptions) => {
+    const path = withQuery(
+      `/projects/${projectId}/site-health/aeo-readiness`,
+      definedQuery({ crawl_id: crawlId }),
+    );
+    const res = await apiClient.get<AeoReadiness>(path, options);
+    return strictValidate(aeoReadinessSchema, res, 'siteHealth.getAeoReadiness');
+  },
   /** Same-origin SSE endpoint (polling is the baseline; `?stream=true`). */
   eventsUrl: (crawlId: string) => `${API_BASE_URL}/site-crawls/${crawlId}/events?stream=true`,
   /** Same-origin export URLs (browser navigation / download links). */
@@ -286,6 +296,11 @@ export const siteHealthQueries = {
     queryOptions({
       queryKey: queryKeys.siteHealth.linkGraphEdges(projectId, crawlId),
       queryFn: ({ signal }) => siteHealthApi.getLinkGraphEdges(projectId, crawlId, { signal }),
+    }),
+  aeoReadiness: (projectId: string, crawlId?: string) =>
+    queryOptions({
+      queryKey: queryKeys.siteHealth.aeoReadiness(projectId, crawlId),
+      queryFn: ({ signal }) => siteHealthApi.getAeoReadiness(projectId, crawlId, { signal }),
     }),
   crawls: (params: CrawlListParams) =>
     queryOptions({

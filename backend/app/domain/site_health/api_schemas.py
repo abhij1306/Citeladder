@@ -715,6 +715,49 @@ class LinkGraphEdgesPage(_Model):
     limitations: list[str] = []
 
 
+# =========================================================================
+# Read-only AEO Readiness presentation taxonomy
+# =========================================================================
+ReadinessState = Literal["available", "incomplete", "unavailable"]
+
+
+class ReadinessEvidenceLink(_Model):
+    evaluation_id: uuid.UUID
+    analysis_id: uuid.UUID
+    site_url_id: uuid.UUID
+    normalized_url: str
+    rule_id: str
+    outcome: Literal["pass", "fail", "not_applicable", "error"]
+
+
+class ReadinessDimensionResponse(_Model):
+    key: str
+    label: str
+    rule_ids: list[str]
+    pass_count: int
+    fail_count: int
+    not_applicable_count: int
+    error_count: int
+    observed_evaluation_count: int
+    expected_evaluation_count: int
+    coverage: float | None
+    evidence_links: list[ReadinessEvidenceLink]
+
+
+class AeoReadinessResponse(_Model):
+    state: ReadinessState
+    crawl_id: uuid.UUID | None = None
+    taxonomy_version: str
+    analyzer_version: str
+    source_analysis_ids: list[uuid.UUID]
+    analysis_count: int
+    observed_evaluation_count: int
+    expected_evaluation_count: int
+    coverage: float | None
+    dimensions: list[ReadinessDimensionResponse]
+    limitations: list[str]
+
+
 class SiteHealthError(_Model):
     code: str
     message: str

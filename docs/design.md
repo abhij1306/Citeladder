@@ -184,6 +184,10 @@ desktop).
   never becomes the only way to inspect a page. Flag labels and source-page
   links carry meaning without colour. Partial crawls lead with exact observed
   coverage and do not show near-orphan or weak-authority recommendations.
+- AEO Readiness is a dimension ledger, never a gauge or mystery number. Its
+  table names pass, fail, not applicable, and coverage independently for all
+  seven dimensions. Evidence disclosures link to persisted page evaluations;
+  not-applicable rows remain visible and are not styled as failures.
 - Mobile retains every critical action. Tables become labelled records; filters
   and evidence use full-height sheets.
 

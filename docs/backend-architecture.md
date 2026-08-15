@@ -229,6 +229,14 @@ under `/api/v1/projects/{project_id}/site-health/link-graph`. Optional
 `crawl_id` selects an exact snapshot; latest selection and snapshot-bound cursor
 pagination remain workspace/project authorized. Reads perform no graph work.
 
+The AEO Readiness endpoint is a separate read-only projection over those same
+persisted current page analyses and rule evaluations. It requires the crawl's
+exact analyzer/extractor versions, maps only the 20 config-declared rule IDs
+into seven presentation dimensions, and returns pass/fail/not-applicable/error
+counts, expected/observed coverage, source-analysis IDs, and at most 25 stable
+evidence links per dimension. It persists no row, computes no score, repairs no
+state, and performs no network/model work.
+
 The analysis sequence is fixed:
 
 ```text

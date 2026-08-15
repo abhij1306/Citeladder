@@ -8,6 +8,7 @@
 import type { z } from 'zod';
 
 import type {
+  aeoReadinessSchema,
   auditEventSchema,
   auditScheduleCadenceSchema,
   auditScheduleSchema,
@@ -86,6 +87,7 @@ import type {
   phaseMutationResponseSchema,
   phaseRunSchema,
   rerunPageResponseSchema,
+  readinessDimensionSchema,
   rootErrorSchema,
   siteCrawlListPageSchema,
   siteCrawlSchema,
@@ -254,6 +256,8 @@ export type PagesPage = z.infer<typeof pagesPageSchema>;
 export type PageDetail = z.infer<typeof pageDetailSchema>;
 export type RerunPageResponse = z.infer<typeof rerunPageResponseSchema>;
 export type SiteHealthDashboard = z.infer<typeof siteHealthDashboardSchema>;
+export type AeoReadiness = z.infer<typeof aeoReadinessSchema>;
+export type ReadinessDimension = z.infer<typeof readinessDimensionSchema>;
 export type LinkGraphSnapshot = z.infer<typeof linkGraphSnapshotSchema>;
 export type LinkGraphNode = z.infer<typeof linkGraphNodeSchema>;
 export type LinkGraphEdge = z.infer<typeof linkGraphEdgeSchema>;
