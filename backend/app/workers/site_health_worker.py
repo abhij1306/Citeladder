@@ -56,6 +56,7 @@ from app.connectors.web_evidence.url_policy import (
 )
 from app.core.config.site_health import (
     CRAWL_STATUS_RUNNING,
+    CRAWL_TERMINAL_STATUSES,
     DISCOVERY_STATUS_COMPLETED,
     DISCOVERY_STATUS_RUNNING,
     EXTRACTOR_VERSION,
@@ -68,6 +69,7 @@ from app.core.config.site_health import (
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_CHECK,
+    TASK_KIND_LINK_GRAPH,
     site_health_settings,
 )
 from app.core.config.task_queue import (
@@ -110,6 +112,7 @@ from app.workers.site_health.phases import (
     AnalyzePhaseMixin,
     DiscoverPhaseMixin,
     LinkCheckPhaseMixin,
+    LinkGraphPhaseMixin,
 )
 from app.workers.site_health.urls import authority_key as _authority_key
 
@@ -163,6 +166,7 @@ class SiteHealthWorker(
     DiscoverPhaseMixin,
     AnalyzePhaseMixin,
     LinkCheckPhaseMixin,
+    LinkGraphPhaseMixin,
     DrainableWorkerMixin,
 ):
     """Owns a claim/lease loop over ``SiteCrawlTask`` discover rows.
@@ -327,6 +331,7 @@ class SiteHealthWorker(
                 TASK_KIND_DISCOVER,
                 TASK_KIND_ANALYZE,
                 TASK_KIND_LINK_CHECK,
+                TASK_KIND_LINK_GRAPH,
             ],
         )
         if tasks:
@@ -350,6 +355,9 @@ class SiteHealthWorker(
         fetch heartbeats are owned by ``_run_discover`` / ``_run_analyze`` /
         ``_run_link_check`` — one loop per active fetch, never two.
         """
+        if task.task_kind == TASK_KIND_LINK_GRAPH:
+            await self._execute_task(task)
+            return
         try:
             host, _port = split_host_port(task.requested_url)
         except Exception:
@@ -391,6 +399,42 @@ class SiteHealthWorker(
 
     # --- per-task execution ------------------------------------------------
 
+    async def _prepare_claimed_task(
+        self, *, task_id: uuid.UUID, crawl_id: uuid.UUID, kind: str
+    ) -> bool:
+        async with self._session_factory() as session:
+            task = await session.get(SiteCrawlTask, task_id)
+            crawl = await session.get(SiteCrawl, crawl_id, with_for_update=True)
+            if task is None or crawl is None:
+                await session.rollback()
+                await self._queue.cancel(task_id=task_id)
+                return False
+            graph_terminal = (
+                kind == TASK_KIND_LINK_GRAPH and crawl.status in CRAWL_TERMINAL_STATUSES
+            )
+            if not crawl_is_active(crawl) and not graph_terminal:
+                await session.rollback()
+                await self._queue.cancel(task_id=task_id)
+                await self._reconcile_crawl_status(crawl_id)
+                return False
+            if not graph_terminal:
+                self._ensure_running(crawl)
+            await session.commit()
+        return True
+
+    async def _dispatch_task(self, claimed: SiteCrawlTask) -> None:
+        kind = claimed.task_kind
+        if kind == TASK_KIND_DISCOVER:
+            await self._run_discover(claimed.id, claimed.crawl_id)
+        elif kind == TASK_KIND_ANALYZE:
+            await self._run_analyze(claimed.id, claimed.crawl_id, claimed.workspace_id)
+        elif kind == TASK_KIND_LINK_CHECK:
+            await self._run_link_check(claimed.id, claimed.crawl_id)
+        elif kind == TASK_KIND_LINK_GRAPH:
+            await self._run_link_graph(claimed.id, claimed.crawl_id)
+        else:
+            raise NotImplementedError(f"unknown task kind '{kind}'")
+
     async def _execute_task(self, claimed: SiteCrawlTask) -> None:
         """Run one claimed task end to end inside short-lived sessions.
 
@@ -406,35 +450,16 @@ class SiteHealthWorker(
         try:
             # Cooperative cancel: stop at this boundary if the crawl was
             # cancelled/terminalized since the claim, rather than fetching.
-            async with self._session_factory() as session:
-                task = await session.get(SiteCrawlTask, task_id)
-                crawl = await session.get(SiteCrawl, crawl_id, with_for_update=True)
-                if task is None or crawl is None:
-                    await session.rollback()
-                    await self._queue.cancel(task_id=task_id)
-                    return
-                if not crawl_is_active(crawl):
-                    await session.rollback()
-                    await self._queue.cancel(task_id=task_id)
-                    await self._reconcile_crawl_status(crawl_id)
-                    return
-                # The first task moves the crawl QUEUED -> RUNNING.
-                self._ensure_running(crawl)
-                await session.commit()
+            if not await self._prepare_claimed_task(
+                task_id=task_id, crawl_id=crawl_id, kind=kind
+            ):
+                return
 
             # Mark the queue row running (still owned) before the fetch.
             if not await self._queue.mark_running(task_id=task_id, owner=self.owner):
                 # Lease lost (sweeper reclaimed it); another worker will retry.
                 return
-
-            if kind == TASK_KIND_DISCOVER:
-                await self._run_discover(task_id, crawl_id)
-            elif kind == TASK_KIND_ANALYZE:
-                await self._run_analyze(task_id, crawl_id, claimed.workspace_id)
-            elif kind == TASK_KIND_LINK_CHECK:
-                await self._run_link_check(task_id, crawl_id)
-            else:
-                raise NotImplementedError(f"unknown task kind '{kind}'")
+            await self._dispatch_task(claimed)
         except Exception as exc:  # defensive: never let one task kill the loop
             logger.exception(
                 "site health task crashed",
@@ -447,7 +472,8 @@ class SiteHealthWorker(
             # discover task never drives the crawl terminal while analyze/
             # link_check work is still queued (which would make a later analysis
             # finalize raise InvalidSiteCrawlTransition from a terminal state).
-            await self._reconcile_crawl_status(crawl_id)
+            if kind != TASK_KIND_LINK_GRAPH:
+                await self._reconcile_crawl_status(crawl_id)
 
     def _ensure_running(self, crawl: SiteCrawl) -> None:
         if crawl.status == CRAWL_STATUS_RUNNING:

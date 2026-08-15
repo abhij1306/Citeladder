@@ -212,15 +212,22 @@ host rung outcomes: after two consecutive rung-1 `403`/`429` responses, rung 2
 is preferred for 20 acquisitions, then rung 1 is probed; success restores rung
 1 immediately. This adds no fetch-artifact column or mutable crawl-config state.
 
-Usable terminal Site Health evidence has one downstream DAG owned by
-`domain/site_health/terminal_refresh.py`. Completed, partial, and
-cancelled-after-analysis crawls enqueue verification plus exactly one eventual
-Opportunity refresh. A project with Traffic evidence routes through Demand;
-Demand carries the originating crawl identity and enqueues Opportunities after
-persisting or reusing the Demand snapshot. A site-only project routes directly
-to Opportunities. Conflict-safe crawl-keyed task identities make repeated
-terminal reconciliation/cancellation no-ops. Opportunity snapshots freeze
-coverage and limitations for partial/cancelled crawl evidence.
+Usable terminal Site Health evidence has one graph-first downstream DAG. A
+conflict-safe `link_graph` `SiteCrawlTask` runs without network I/O after a
+completed, partial, or cancelled-after-analysis crawl. It selects only the
+exact current successful HTML analyses for that crawl and persists immutable
+`SiteLinkGraphSnapshot`, node, and collapsed-edge rows with source IDs, relevant
+versions, coverage, and limitations. `domain/site_health/terminal_refresh.py`
+admits verification and Demand/Opportunity successors only after the graph
+snapshot commits. Traffic projects route `graph -> Demand -> Opportunities`;
+site-only projects route `graph -> Opportunities`. Retries reuse the snapshot
+identity and downstream task identities, so no successor can race or duplicate
+its graph predecessor.
+
+The Site Health API exposes persisted graph summary, node, and edge projections
+under `/api/v1/projects/{project_id}/site-health/link-graph`. Optional
+`crawl_id` selects an exact snapshot; latest selection and snapshot-bound cursor
+pagination remain workspace/project authorized. Reads perform no graph work.
 
 The analysis sequence is fixed:
 

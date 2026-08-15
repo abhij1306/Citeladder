@@ -132,15 +132,44 @@ time—own those states. Terminal failures therefore count as progress and a
 robots-blocked URL is visible instead of leaving the counter apparently frozen.
 
 Terminal evidence refresh follows one transactionally idempotent DAG for
-completed, partially completed, and cancelled-after-analysis crawls. When a
-current Traffic snapshot exists the crawl enqueues Demand, and Demand enqueues
-the crawl-keyed Opportunity refresh after either creating or reusing its
-snapshot. Without Traffic input, the crawl enqueues Opportunities directly.
-The two successors are never fired concurrently, and repeated terminalization
-or cancellation cannot duplicate either logical task. Partial/cancelled
-Opportunity snapshots and each site-derived Opportunity freeze the crawl
-status, selected/analyzed/failed counts, analysis ratio, and plain-language
-coverage limitations. A cancellation before any usable analysis enqueues none.
+completed, partially completed, and cancelled-after-analysis crawls. Usable
+evidence first enqueues the crawl-scoped link graph. Only after that immutable
+snapshot commits does a current Traffic snapshot route through Demand and then
+Opportunities; without Traffic input, the graph routes directly to
+Opportunities. The successors never race their graph predecessor, and repeated
+terminalization, cancellation, or graph-task recovery cannot duplicate a
+logical refresh. A cancellation before any usable analysis enqueues none.
+
+## Internal-link graph
+
+Site Health builds one immutable graph snapshot from the exact current,
+successful HTML analyses of one crawl and records their analysis/artifact IDs,
+page-analyzer/extractor versions, a source hash, coverage, and limitations.
+`SiteLinkReference` remains the only link-evidence store. Anchor targets resolve
+through an in-scope target artifact/final URL when present and otherwise by the
+crawl's canonical `SiteUrl`; URL fragments never create nodes. External and
+unresolved targets remain counted evidence, not authority nodes.
+
+Repeated anchors for one ordered source/target pair collapse to one unit-weight
+topology edge while retaining occurrence counts, bounded anchor texts, and
+followed/nofollow observations. Anchor-level `rel=nofollow` and page-level
+robots nofollow exclude the observation from PageRank and BFS without deleting
+it. Deterministic PageRank uses damping `0.85`, tolerance `1e-8`, at most 100
+iterations, and standard dangling-mass redistribution. Click depth is BFS from
+the configured root; unreachable remains unknown.
+
+Near-orphan, weak-authority, over-linked, hub, authority-concentration, and
+anchor-distribution metrics use the config-owned WS4 thresholds. Suggested
+sources use only PageRank plus normalized path/title token Jaccard and return at
+most three stable candidates; no embeddings exist. Partial or bounded crawls
+remain `incomplete`, disclose observed coverage, and provide descriptive
+topology only. The existing `technical.sitemap_orphan` finalize evaluation
+remains the sole sitemap-orphan owner.
+
+Persisted reads are exposed at the project Site Health `link-graph`, `nodes`,
+and `edges` endpoints. Optional `crawl_id` selects an exact persisted snapshot;
+omission selects the latest. Node and edge pages use snapshot-bound cursors and
+never compute, repair, crawl, or enqueue work.
 
 ## Page-kind classification
 

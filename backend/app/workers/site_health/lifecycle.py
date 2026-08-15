@@ -84,6 +84,7 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.domain.site_health.failure import load_root_failure_summary
+from app.domain.site_health.link_graph_queue import enqueue_link_graph_refresh
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.selection import crawl_is_active
 from app.domain.site_health.snapshot import persist_crawl_snapshot
@@ -93,7 +94,6 @@ from app.domain.site_health.state_events import (
     apply_discovery_status,
     record_crawl_event,
 )
-from app.domain.site_health.terminal_refresh import enqueue_terminal_crawl_refresh
 from app.models.site_health import (
     SiteCrawl,
     SiteCrawlPhaseRun,
@@ -549,7 +549,7 @@ class CrawlLifecycle:
             payload={"status": crawl.status},
             count_disclosure=_count_disclosure(crawl),
         )
-        await enqueue_terminal_crawl_refresh(
+        await enqueue_link_graph_refresh(
             session,
             crawl=crawl,
             usable_evidence=summary.analyze_succeeded > 0,

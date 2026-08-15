@@ -2169,7 +2169,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("generation_id", sa.UUID(), nullable=True),
-        sa.Column("declared_implemented_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "declared_implemented_at", sa.DateTime(timezone=True), nullable=False
+        ),
         sa.Column(
             "expected_checks", postgresql.JSONB(astext_type=Text()), nullable=False
         ),
@@ -2177,7 +2179,9 @@ def upgrade() -> None:
         sa.Column("idempotency_key", sa.String(length=160), nullable=False),
         sa.Column("request_fingerprint", sa.String(length=64), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["opportunity_id"], ["opportunities.id"], ondelete="CASCADE"
@@ -2240,7 +2244,9 @@ def upgrade() -> None:
         sa.Column("limitations", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column("idempotency_key", sa.String(length=160), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["workspace_id", "implementation_event_id"],
@@ -4161,6 +4167,152 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
+        "site_link_graph_snapshots",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("crawl_id", sa.UUID(), nullable=False),
+        sa.Column("supersedes_id", sa.UUID(), nullable=True),
+        sa.Column("state", sa.String(length=24), nullable=False),
+        sa.Column("root_site_url_id", sa.UUID(), nullable=True),
+        sa.Column("source_analysis_hash", sa.String(length=64), nullable=False),
+        sa.Column("source_analysis_ids", postgresql.ARRAY(sa.UUID()), nullable=False),
+        sa.Column("source_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=False),
+        sa.Column("analyzer_version", sa.String(length=32), nullable=False),
+        sa.Column("page_analyzer_version", sa.String(length=32), nullable=False),
+        sa.Column("extractor_version", sa.String(length=32), nullable=False),
+        sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("limitations", postgresql.ARRAY(sa.Text()), nullable=False),
+        sa.Column("summary", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["root_site_url_id"], ["site_urls.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["supersedes_id"], ["site_link_graph_snapshots.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "workspace_id",
+            "crawl_id",
+            "source_analysis_hash",
+            "analyzer_version",
+            name="uq_site_link_graph_snapshot_identity",
+        ),
+    )
+    op.create_index(
+        op.f("ix_site_link_graph_snapshots_crawl_id"),
+        "site_link_graph_snapshots",
+        ["crawl_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_link_graph_snapshots_project_id"),
+        "site_link_graph_snapshots",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_link_graph_snapshots_workspace_id"),
+        "site_link_graph_snapshots",
+        ["workspace_id"],
+        unique=False,
+    )
+    op.create_table(
+        "site_link_graph_nodes",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("site_url_id", sa.UUID(), nullable=False),
+        sa.Column("source_analysis_id", sa.UUID(), nullable=False),
+        sa.Column("normalized_url", sa.String(length=2048), nullable=False),
+        sa.Column("title", sa.String(length=1024), nullable=False),
+        sa.Column("indexable", sa.Boolean(), nullable=False),
+        sa.Column("pagerank", sa.Float(), nullable=False),
+        sa.Column("click_depth", sa.Integer(), nullable=True),
+        sa.Column("followed_inbound_count", sa.Integer(), nullable=False),
+        sa.Column("followed_outbound_count", sa.Integer(), nullable=False),
+        sa.Column("near_orphan", sa.Boolean(), nullable=False),
+        sa.Column("weak_authority", sa.Boolean(), nullable=False),
+        sa.Column("over_linked", sa.Boolean(), nullable=False),
+        sa.Column("hub", sa.Boolean(), nullable=False),
+        sa.Column("suggested_source_ids", postgresql.ARRAY(sa.UUID()), nullable=False),
+        sa.ForeignKeyConstraint(["site_url_id"], ["site_urls.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["snapshot_id"], ["site_link_graph_snapshots.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_analysis_id"], ["site_page_analyses.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "snapshot_id", "site_url_id", name="uq_site_link_graph_node"
+        ),
+    )
+    for column in ("site_url_id", "snapshot_id", "workspace_id"):
+        op.create_index(
+            op.f(f"ix_site_link_graph_nodes_{column}"),
+            "site_link_graph_nodes",
+            [column],
+            unique=False,
+        )
+    op.create_table(
+        "site_link_graph_edges",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("source_site_url_id", sa.UUID(), nullable=False),
+        sa.Column("target_site_url_id", sa.UUID(), nullable=True),
+        sa.Column("target_key", sa.String(length=2048), nullable=False),
+        sa.Column("target_url", sa.String(length=2048), nullable=False),
+        sa.Column("followed", sa.Boolean(), nullable=False),
+        sa.Column("occurrence_count", sa.Integer(), nullable=False),
+        sa.Column("followed_occurrence_count", sa.Integer(), nullable=False),
+        sa.Column("nofollow_occurrence_count", sa.Integer(), nullable=False),
+        sa.Column(
+            "anchor_texts", postgresql.ARRAY(sa.String(length=256)), nullable=False
+        ),
+        sa.ForeignKeyConstraint(
+            ["snapshot_id"], ["site_link_graph_snapshots.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_site_url_id"], ["site_urls.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["target_site_url_id"], ["site_urls.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "snapshot_id",
+            "source_site_url_id",
+            "target_key",
+            name="uq_site_link_graph_edge",
+        ),
+    )
+    for column in (
+        "snapshot_id",
+        "source_site_url_id",
+        "target_site_url_id",
+        "workspace_id",
+    ):
+        op.create_index(
+            op.f(f"ix_site_link_graph_edges_{column}"),
+            "site_link_graph_edges",
+            [column],
+            unique=False,
+        )
+    op.create_table(
         "site_rule_evaluations",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
@@ -5262,7 +5414,9 @@ def upgrade() -> None:
         sa.Column("supersedes_snapshot_id", sa.UUID(), nullable=True),
         sa.Column("state", sa.String(length=24), nullable=False),
         sa.Column(
-            "source_metric_row_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+            "source_metric_row_ids",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=False,
         ),
         sa.Column(
             "source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False
@@ -5308,7 +5462,9 @@ def upgrade() -> None:
         sa.Column("resolved_page_url", sa.String(length=2048), nullable=False),
         sa.Column("resolution_outcome", sa.String(length=16), nullable=False),
         sa.Column(
-            "resolution_candidates", postgresql.JSONB(astext_type=Text()), nullable=False
+            "resolution_candidates",
+            postgresql.JSONB(astext_type=Text()),
+            nullable=False,
         ),
         sa.Column("property_ref", sa.String(length=512), nullable=False),
         sa.Column("impressions", sa.Integer(), nullable=False),
@@ -5321,9 +5477,7 @@ def upgrade() -> None:
         sa.Column("resolver_version", sa.String(length=32), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["site_url_id"], ["site_urls.id"], ondelete="SET NULL"
-        ),
+        sa.ForeignKeyConstraint(["site_url_id"], ["site_urls.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(
             ["snapshot_id"], ["query_evidence_snapshots.id"], ondelete="CASCADE"
         ),
@@ -5370,15 +5524,15 @@ def upgrade() -> None:
         sa.Column("classifier_version", sa.String(length=32), nullable=False),
         sa.Column("actor_user_id", sa.UUID(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("ordinal"),
     )
-    _create_indexes(
-        "branded_query_overrides", ("workspace_id", "project_id")
-    )
+    _create_indexes("branded_query_overrides", ("workspace_id", "project_id"))
     op.create_index(
         "ix_branded_query_override_lookup",
         "branded_query_overrides",
@@ -5744,6 +5898,36 @@ def downgrade() -> None:
         op.f("ix_site_rule_evaluations_analysis_id"), table_name="site_rule_evaluations"
     )
     op.drop_table("site_rule_evaluations")
+    for column in (
+        "workspace_id",
+        "target_site_url_id",
+        "source_site_url_id",
+        "snapshot_id",
+    ):
+        op.drop_index(
+            op.f(f"ix_site_link_graph_edges_{column}"),
+            table_name="site_link_graph_edges",
+        )
+    op.drop_table("site_link_graph_edges")
+    for column in ("workspace_id", "snapshot_id", "site_url_id"):
+        op.drop_index(
+            op.f(f"ix_site_link_graph_nodes_{column}"),
+            table_name="site_link_graph_nodes",
+        )
+    op.drop_table("site_link_graph_nodes")
+    op.drop_index(
+        op.f("ix_site_link_graph_snapshots_workspace_id"),
+        table_name="site_link_graph_snapshots",
+    )
+    op.drop_index(
+        op.f("ix_site_link_graph_snapshots_project_id"),
+        table_name="site_link_graph_snapshots",
+    )
+    op.drop_index(
+        op.f("ix_site_link_graph_snapshots_crawl_id"),
+        table_name="site_link_graph_snapshots",
+    )
+    op.drop_table("site_link_graph_snapshots")
     op.drop_index(
         op.f("ix_site_link_references_workspace_id"), table_name="site_link_references"
     )

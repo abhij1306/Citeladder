@@ -13,13 +13,13 @@ from app.models.site_health import SiteCrawl
 from app.models.traffic import TrafficSnapshot
 
 
-async def enqueue_terminal_crawl_refresh(
+async def enqueue_post_graph_refresh(
     session: AsyncSession,
     *,
     crawl: SiteCrawl,
-    usable_evidence: bool,
+    graph_snapshot_id,
 ) -> None:
-    """Enqueue the one dependency-ordered refresh chain for a terminal crawl.
+    """Enqueue the one dependency-ordered refresh chain after graph persistence.
 
     Every enqueue is transactionally idempotent on the crawl identity. Traffic
     evidence selects Demand as the predecessor and carries the crawl trigger
@@ -27,8 +27,6 @@ async def enqueue_terminal_crawl_refresh(
     Opportunities directly. No usable completed analysis means there is no new
     Site Health evidence to project.
     """
-    if not usable_evidence:
-        return
     await enqueue_implementation_verification(
         session,
         workspace_id=crawl.workspace_id,
@@ -57,18 +55,18 @@ async def enqueue_terminal_crawl_refresh(
             project_id=crawl.project_id,
             window_start=traffic.window_start,
             window_end=traffic.window_end,
-            source_revision=f"site:{crawl.id}",
-            downstream_trigger_kind="site_crawl",
-            downstream_trigger_id=crawl.id,
+            source_revision=f"site-graph:{graph_snapshot_id}",
+            downstream_trigger_kind="site_link_graph",
+            downstream_trigger_id=graph_snapshot_id,
         )
         return
     await enqueue_opportunity_refresh(
         session,
         workspace_id=crawl.workspace_id,
         project_id=crawl.project_id,
-        trigger_kind="site_crawl",
-        trigger_id=crawl.id,
+        trigger_kind="site_link_graph",
+        trigger_id=graph_snapshot_id,
     )
 
 
-__all__ = ["enqueue_terminal_crawl_refresh"]
+__all__ = ["enqueue_post_graph_refresh"]

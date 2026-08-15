@@ -18,5 +18,11 @@ from __future__ import annotations
 from app.workers.site_health.phases.analyze import AnalyzePhaseMixin
 from app.workers.site_health.phases.discover import DiscoverPhaseMixin
 from app.workers.site_health.phases.link_check import LinkCheckPhaseMixin
+from app.workers.site_health.phases.link_graph import LinkGraphPhaseMixin
 
-__all__ = ["AnalyzePhaseMixin", "DiscoverPhaseMixin", "LinkCheckPhaseMixin"]
+__all__ = [
+    "AnalyzePhaseMixin",
+    "DiscoverPhaseMixin",
+    "LinkCheckPhaseMixin",
+    "LinkGraphPhaseMixin",
+]

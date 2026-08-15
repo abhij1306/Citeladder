@@ -156,8 +156,8 @@ this plan with the evidence and a concrete replacement decision before continuin
 | W1 | `feat/aeo-wave-1-foundations` | completed | R00 → X01 → D01 → D02 → A01 → A02 | Authorities, cross-source identity, window/honest-state primitives, branded classification, and the complete Act→Verify record. |
 | W2 | `feat/aeo-wave-2-site-health` | completed | S01 → S02 → S03 → S04 → S05 → S06 | Crawl correctness/speed/progress, terminal refresh, historical issue copy, and trustworthy defect/advisory semantics. |
 | W3 | `feat/aeo-wave-3-product-loop` | completed | I01 → I02 → I03 → P01 → O01 → O02 → O03 | Final route/navigation replacement, confirmed-ICP onboarding, useful no-audit Overview, Facts cutover, and Visibility cleanup. |
-| W4 | `feat/aeo-wave-4-demand-content` | ready_for_merge | G01 → Q01 → Q02 → Q03 | Grounded generation plus bounded query evidence and all approved GSC detectors. |
-| W5 | `feat/aeo-wave-5-site-intelligence` | pending | L01 → L02 → E01 | Internal-link graph, link Opportunities/UI, and evidence-linked AEO Readiness. |
+| W4 | `feat/aeo-wave-4-demand-content` | completed | G01 → Q01 → Q02 → Q03 | Grounded generation plus bounded query evidence and all approved GSC detectors. |
+| W5 | `feat/aeo-wave-5-site-intelligence` | in_progress | L01 → L02 → E01 | Internal-link graph, link Opportunities/UI, and evidence-linked AEO Readiness. |
 | W6 | `feat/aeo-wave-6-change-final` | pending | C01 → C02 → Z01 | Comparable crawl changes, Opportunities/UI, schema/image/route debt closure, clean-stack proof, and final review audit. |
 
 `pending` means no sub-slice has started. `in_progress` means its one owning chat is implementing
@@ -195,8 +195,8 @@ focused gate passed and its completion note was recorded; it does **not** create
 | Q01 | W4 | completed | X01, D02 | WS3A bounded query↔page↔time projection, lifecycle, API, schema, provenance, and pagination. |
 | Q02 | W4 | completed | Q01 | WS3B Wave 1 branded separation + striking-distance signals and Opportunity mapping. |
 | Q03 | W4 | completed | Q02 | WS3B Wave 2 cannibalization, property-relative CTR gap, trend detectors, abstention states, and no mismatch placeholder. |
-| L01 | W5 | pending | Q03, S06 | WS4 pure link-graph analysis plus immutable snapshot lifecycle/API/schema and post-crawl DAG. |
-| L02 | W5 | pending | L01 | WS4 link opportunities and bounded Website Link Graph surface with table fallback. |
+| L01 | W5 | completed | Q03, S06 | WS4 pure link-graph analysis plus immutable snapshot lifecycle/API/schema and post-crawl DAG. |
+| L02 | W5 | in_progress | L01 | WS4 link opportunities and bounded Website Link Graph surface with table fallback. |
 | E01 | W5 | pending | L02, S06 | WS5 config-owned AEO Readiness projection/API and evidence-linked Website surface; no score. |
 | C01 | W6 | pending | A02, X01, L01 | WS6 deterministic comparable-crawl analyzer plus immutable snapshot lifecycle/API/schema and expected-event linkage. |
 | C02 | W6 | pending | C01 | WS6 change-derived Opportunities and Website Changes surface with honest unavailable/non-comparable states. |
@@ -319,6 +319,17 @@ row is the removal condition. No other compatibility path is implied.
 - Local verification: focused backend pytest 90 passed across all changed W4 test owners after review follow-up (including 30 targeted regression tests); Ruff, targeted mypy, and the complete complexity policy passed. Focused Content Vitest 19 passed and Demand Vitest 4 passed with ESLint green.
 - Evaluation artifact: `docs/evaluations/2026-08-15-w4-demand-content.md` (read-only live GSC and grounding envelope proof; zero provider calls)
 - Advanced to internal slice: wave close
+
+#### L01 — completed 2026-08-15
+- Wave / branch: W5 / `feat/aeo-wave-5-site-intelligence`
+- Owners: Site Health's existing link evidence, PostgreSQL crawl queue, immutable projections, API, and post-crawl refresh DAG; the existing sitemap-orphan evaluator remains authoritative.
+- Implemented: pure crawl-scoped collapsed topology with retained nofollow observations; deterministic PageRank/dangling redistribution and root BFS; near-orphan, weak-authority, over-link, hub, concentration, anchor distribution, and bounded heuristic suggestion metrics; immutable snapshot/node/edge persistence with exact source-analysis/artifact/version provenance; honest partial coverage; graph-first terminal/cancellation DAG; workspace-authorized summary plus snapshot-bound node/edge pagination.
+- Deleted / retained until: deleted the direct `enqueue_terminal_crawl_refresh` symbol and crawl→Demand/Opportunity path. `SiteLinkReference`, `technical.sitemap_orphan`, canonical `SiteUrl` identity, Site Health routes, and the existing Opportunity store are intentionally retained as their sole owners. No embedding or second link store exists.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 24
+- Local verification: focused graph unit/component/terminalization pytest passed; Ruff and targeted mypy passed; disposable empty-database `alembic upgrade head` and `alembic check` passed; complexity, documentation, and diff checks passed at the L01 gate.
+- Evaluation artifact: `docs/evaluations/2026-08-15-w5-site-intelligence.md` (sanitized read-only live edge/readiness inventory; zero provider/network mutations)
+- Advanced to internal slice: L02
 
 #### S01 — completed 2026-08-15
 - Wave / branch: W2 / `feat/aeo-wave-2-site-health`
@@ -510,6 +521,15 @@ The next wave chat reconciles this note from GitHub readback.
 - Review disposition: CodeRabbit and CodeAnt findings were audited; workspace authorization, audit-boundary, ICP validation, provenance, reviewer attribution, commerce capability, stale Trends cache, loading copy, refresh, and error-state findings were addressed through follow-up commit `5d72e826`. Agent route-context persistence was intentionally not added because I02 bounds that ephemeral shell context and a durable API/store would create an unauthorized second owner.
 - Retained review debt: none actionable from merged-head readback; Qodo was unavailable because its subscription was inactive, and CodeRabbit's docstring-coverage warning was advisory.
 - Synchronization: local `main` and `origin/main` both resolved to `7263930cd6d0e2f34ea30313eee44fd1003038de` before W4 branched.
+
+#### W4 — completed 2026-08-15
+- Branch / sub-slices: `feat/aeo-wave-4-demand-content`; G01 → Q01 → Q02 → Q03.
+- Final unique-file count: 62 (GitHub readback against the W3 merge commit).
+- Pull request / merge: https://github.com/abhij1306/Citeladder/pull/74; merge commit `5b56421b0a3599b4fbfa210cd00c6938c2903640`.
+- Required CI: 9 passed, 0 failed.
+- Review disposition: merged-head readback audited all unresolved CodeRabbit and CodeAnt markers. The two live CodeAnt claims are already disproved by the bounded latest-row SQL selection and query-evidence-inclusive classification revision material; outdated trend/cache markers point at pre-fix code. The remaining fixture marker mistakes the deliberate 64-hex grounding source reference for a repository UUID while the paired frontend state is already truthful.
+- Retained review debt: none actionable from merged-head readback; Qodo was unavailable because its subscription was inactive, and CodeRabbit's later incremental review was rate-limited.
+- Synchronization: local `main` and `origin/main` both resolved to `5b56421b0a3599b4fbfa210cd00c6938c2903640` before W5 branched.
 
 ### Current next-session handoff — W5
 

@@ -43,6 +43,7 @@ from app.core.config.site_health import (
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_CHECK,
+    TASK_KIND_LINK_GRAPH,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_FAILED,
@@ -50,9 +51,10 @@ from app.core.config.task_queue import (
     TASK_STATUS_QUEUED,
     TASK_STATUS_SUCCEEDED,
 )
+from app.domain.site_health.link_graph_queue import enqueue_link_graph_refresh
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.snapshot import persist_crawl_snapshot
-from app.domain.site_health.terminal_refresh import enqueue_terminal_crawl_refresh
+from app.domain.site_health.terminal_refresh import enqueue_post_graph_refresh
 from app.models.analytics import AnalyticsTask
 from app.models.site_health import (
     MonitoredSiteUrl,
@@ -350,10 +352,11 @@ async def test_recrawl_root_failure_keeps_successful_monitored_analysis(
         assert (
             await session.scalar(
                 select(func.count())
-                .select_from(AnalyticsTask)
+                .select_from(SiteCrawlTask)
                 .where(
-                    AnalyticsTask.project_id == seed.project_id,
-                    AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+                    SiteCrawlTask.crawl_id == seed.crawl_id,
+                    SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+                    SiteCrawlTask.status == TASK_STATUS_QUEUED,
                 )
             )
             == 1
@@ -382,8 +385,15 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
         )
         await session.flush()
 
-        await enqueue_terminal_crawl_refresh(session, crawl=crawl, usable_evidence=True)
-        await enqueue_terminal_crawl_refresh(session, crawl=crawl, usable_evidence=True)
+        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
+        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
+        graph_snapshot_id = uuid.uuid4()
+        await enqueue_post_graph_refresh(
+            session, crawl=crawl, graph_snapshot_id=graph_snapshot_id
+        )
+        await enqueue_post_graph_refresh(
+            session, crawl=crawl, graph_snapshot_id=graph_snapshot_id
+        )
         await session.commit()
 
     async with session_factory() as session:
@@ -400,13 +410,24 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
             ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
             ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
         }
+        graph_tasks = list(
+            (
+                await session.scalars(
+                    select(SiteCrawlTask).where(
+                        SiteCrawlTask.crawl_id == seed.crawl_id,
+                        SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+                    )
+                )
+            ).all()
+        )
+        assert len(graph_tasks) == 1
         demand_task = next(
             task
             for task in tasks
             if task.task_kind == ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH
         )
-        assert demand_task.payload["downstream_trigger_kind"] == "site_crawl"
-        assert demand_task.payload["downstream_trigger_id"] == str(crawl.id)
+        assert demand_task.payload["downstream_trigger_kind"] == "site_link_graph"
+        assert demand_task.payload["downstream_trigger_id"] == str(graph_snapshot_id)
 
 
 @pytest.mark.asyncio
@@ -645,10 +666,11 @@ async def test_analysis_completes_while_link_checks_keep_crawl_running(
         assert (
             await session.scalar(
                 select(func.count())
-                .select_from(AnalyticsTask)
+                .select_from(SiteCrawlTask)
                 .where(
-                    AnalyticsTask.project_id == seed.project_id,
-                    AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+                    SiteCrawlTask.crawl_id == seed.crawl_id,
+                    SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+                    SiteCrawlTask.status == TASK_STATUS_QUEUED,
                 )
             )
             == 1
@@ -880,7 +902,7 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
         assert crawl.status == CRAWL_STATUS_CANCELLED
-        # The still-queued analyze task was cancelled by terminalization.
+        # The stale analyze task was cancelled; one graph predecessor is queued.
         queued = await session.scalar(
             select(func.count())
             .select_from(SiteCrawlTask)
@@ -889,15 +911,21 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
                 SiteCrawlTask.status == TASK_STATUS_QUEUED,
             )
         )
-        assert queued == 0
+        assert queued == 1
+        graph_task = await session.scalar(
+            select(SiteCrawlTask).where(
+                SiteCrawlTask.crawl_id == seed.crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+            )
+        )
+        assert graph_task is not None
         verification = await session.scalar(
             select(AnalyticsTask).where(
                 AnalyticsTask.project_id == seed.project_id,
                 AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
             )
         )
-        assert verification is not None
-        assert verification.payload["trigger_id"] == str(seed.crawl_id)
+        assert verification is None
         opportunity_tasks = list(
             (
                 await session.scalars(
@@ -909,10 +937,30 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
                 )
             ).all()
         )
-        assert len(opportunity_tasks) == 1
-        assert opportunity_tasks[0].payload == {
-            "trigger_kind": "site_crawl",
-            "trigger_id": str(seed.crawl_id),
+        assert opportunity_tasks == []
+
+        graph_snapshot_id = uuid.uuid4()
+        await enqueue_post_graph_refresh(
+            session, crawl=crawl, graph_snapshot_id=graph_snapshot_id
+        )
+        await session.commit()
+        verification = await session.scalar(
+            select(AnalyticsTask).where(
+                AnalyticsTask.project_id == seed.project_id,
+                AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
+            )
+        )
+        assert verification is not None
+        opportunity = await session.scalar(
+            select(AnalyticsTask).where(
+                AnalyticsTask.project_id == seed.project_id,
+                AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
+            )
+        )
+        assert opportunity is not None
+        assert opportunity.payload == {
+            "trigger_kind": "site_link_graph",
+            "trigger_id": str(graph_snapshot_id),
         }
 
 

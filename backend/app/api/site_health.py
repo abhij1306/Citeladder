@@ -54,6 +54,9 @@ from app.domain.site_health.api_schemas import (
     GroupedIssueHistoryPage,
     InventoryPage,
     IssueHistoryPage,
+    LinkGraphEdgesPage,
+    LinkGraphNodesPage,
+    LinkGraphSnapshotResponse,
     MonitoredUrlsResponse,
     PageDetail,
     PagesPage,
@@ -875,6 +878,84 @@ async def get_dashboard_endpoint(
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
     return DashboardResponse.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/link-graph",
+    response_model=LinkGraphSnapshotResponse,
+)
+async def get_link_graph_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> LinkGraphSnapshotResponse:
+    try:
+        result = await service.get_link_graph(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    return LinkGraphSnapshotResponse.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/link-graph/nodes",
+    response_model=LinkGraphNodesPage,
+)
+async def get_link_graph_nodes_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    cursor: Annotated[str | None, Query()] = None,
+) -> LinkGraphNodesPage:
+    try:
+        result = await service.list_link_graph_nodes(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+            limit=limit,
+            cursor=cursor,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    except InvalidCursorError as exc:
+        raise _bad_cursor(exc) from exc
+    return LinkGraphNodesPage.model_validate(result)
+
+
+@router.get(
+    "/projects/{project_id}/site-health/link-graph/edges",
+    response_model=LinkGraphEdgesPage,
+)
+async def get_link_graph_edges_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    crawl_id: Annotated[uuid.UUID | None, Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    cursor: Annotated[str | None, Query()] = None,
+) -> LinkGraphEdgesPage:
+    try:
+        result = await service.list_link_graph_edges(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            crawl_id=crawl_id,
+            limit=limit,
+            cursor=cursor,
+        )
+    except SiteHealthNotFoundError as exc:
+        raise _not_found(str(exc)) from exc
+    except InvalidCursorError as exc:
+        raise _bad_cursor(exc) from exc
+    return LinkGraphEdgesPage.model_validate(result)
 
 
 # =========================================================================
