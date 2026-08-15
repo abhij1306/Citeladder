@@ -26,21 +26,6 @@ export type ReviewCompetitor = {
   selected: boolean;
 };
 
-export type ReviewPrompt = {
-  id: string;
-  text: string;
-  /**
-   * The topic the agent filed this prompt under. Carried through review so the
-   * confirm chain can recreate the agent's topics as real `Topic` rows — the
-   * same structure `/generate` produces. Empty means the agent gave it no
-   * topic, and the prompt is created untopiced.
-   */
-  theme: string;
-  intent: 'discovery' | 'comparison' | 'purchase' | 'service' | 'local';
-  cohort: 'market_visibility' | 'brand_relevant';
-  selected: boolean;
-};
-
 export type ReviewDomain = {
   id: string;
   domain: string;
@@ -102,24 +87,6 @@ export function deriveDomain(value: string): string {
   } catch {
     return '';
   }
-}
-
-/**
- * Valid prompt intents. `PromptSuggestionItem.intent` is free text on the wire
- * (the backend casefolds and normalises it), but `PromptInput.intent` is the
- * strict enum — so a suggested intent has to be checked before it can be
- * written back, not cast. Anything unrecognised becomes `''` ("unspecified"),
- * which is exactly what the backend's own `normalize_intent` does.
- */
-const PROMPT_INTENTS = ['', 'discovery', 'comparison', 'purchase', 'service', 'local'] as const;
-
-export type PromptIntent = (typeof PROMPT_INTENTS)[number];
-
-export function normalizeIntent(value: string): PromptIntent {
-  const candidate = value.trim().toLowerCase();
-  return (PROMPT_INTENTS as readonly string[]).includes(candidate)
-    ? (candidate as PromptIntent)
-    : '';
 }
 
 /**

@@ -54,7 +54,7 @@ export function IssuesScreen() {
               will appear here once a crawl finishes.
             </p>
             <Button variant="secondary" asChild>
-              <Link href="/site-health">Go to Site Health</Link>
+              <Link href="/site">Go to Website</Link>
             </Button>
           </CardContent>
         </Card>

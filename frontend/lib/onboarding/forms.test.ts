@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   brandStepSchema,
   deriveDomain,
-  normalizeIntent,
   normalizeWebsiteUrl,
   onboardingErrorMessage,
   type BrandStepValues,
@@ -69,20 +68,6 @@ describe('brandStepSchema', () => {
 
   it('requires a brand name', () => {
     expect(brandStepSchema.safeParse({ ...brand, brand_name: '   ' }).success).toBe(false);
-  });
-});
-
-describe('normalizeIntent', () => {
-  it('passes through the known enum values, casefolded', () => {
-    expect(normalizeIntent('Discovery')).toBe('discovery');
-    expect(normalizeIntent('  purchase ')).toBe('purchase');
-  });
-
-  it('maps anything unrecognised to unspecified rather than leaking it', () => {
-    // The suggestion endpoint returns free text; PromptInput.intent is a strict
-    // enum, so an unknown value must not reach the API.
-    expect(normalizeIntent('vibes')).toBe('');
-    expect(normalizeIntent('')).toBe('');
   });
 });
 

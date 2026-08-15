@@ -48,10 +48,10 @@ function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['prog
     progress: {
       phase,
       completed_steps: status === 'ready' ? 5 : 2,
-      total_steps: 5,
+      total_steps: 4,
       pages_read: 3,
       competitors_found: 1,
-      prompts_prepared: 10,
+      prompts_prepared: 0,
     },
     input_data: {
       brand_name: 'Acme',
@@ -84,20 +84,7 @@ function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['prog
       },
     ],
     topics: ['Product feeds', 'Comparisons'],
-    prompt_suggestions: [
-      ...Array.from({ length: 5 }, (_, index) => ({
-        text: `Which analytics platform should I use for retail need ${index} in US?`,
-        theme: 'Product feeds',
-        intent: 'discovery' as const,
-        cohort: 'market_visibility' as const,
-      })),
-      ...Array.from({ length: 5 }, (_, index) => ({
-        text: `Which retail analytics tool should I use for buyer need ${index} in US?`,
-        theme: 'Comparisons',
-        intent: 'service' as const,
-        cohort: 'brand_relevant' as const,
-      })),
-    ],
+    prompt_suggestions: [],
     evidence: [],
     warnings: [],
     gaps: [],
@@ -154,7 +141,7 @@ describe('OnboardingScreen', () => {
     );
   });
 
-  it('uses one grouped atomic completion and redirects to factual activation progress', async () => {
+  it('submits one confirmed ICP completion and redirects to factual activation progress', async () => {
     discoveryState = discovery('ready', 'preparing_review');
     let completionBody: unknown;
     mswServer.use(
@@ -187,24 +174,32 @@ describe('OnboardingScreen', () => {
 
     await waitFor(() => expect(completionBody).toBeDefined());
     expect(completionBody).toMatchObject({
-      prompt_groups: [
-        {
-          topic: 'Product feeds',
-          prompts: expect.arrayContaining([
-            expect.objectContaining({ cohort: 'market_visibility' }),
-          ]),
-        },
-        {
-          topic: 'Comparisons',
-          prompts: expect.arrayContaining([expect.objectContaining({ cohort: 'brand_relevant' })]),
-        },
-      ],
+      profile: {
+        positioning: 'Reliable product data',
+        products_services: ['Product feeds'],
+        target_audience: 'Retailers',
+      },
     });
-    expect(JSON.stringify(completionBody)).not.toContain('"theme"');
+    expect(JSON.stringify(completionBody)).not.toContain('prompt_groups');
     expect(setActiveProjectId).toHaveBeenCalledWith(PROJECT_ID);
     expect(replace).toHaveBeenCalledWith(
       `/projects?project=${PROJECT_ID}&activation=1&crawl=${CRAWL_ID}&limit=10`,
     );
+  });
+
+  it('requires every structured ICP input before generation', async () => {
+    const ready = discovery('ready', 'preparing_review');
+    discoveryState = { ...ready, profile: { ...ready.profile, target_audience: '' } };
+    mswServer.use(catalogHandler());
+    renderWithProviders(<OnboardingScreen />);
+
+    const user = await enterBrand();
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    const createProject = await screen.findByRole('button', { name: 'Create project' });
+    expect(createProject).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/Target audience/), 'Revenue leaders');
+    expect(createProject).toBeEnabled();
   });
 
   it('selects only the first five discovered competitors', async () => {

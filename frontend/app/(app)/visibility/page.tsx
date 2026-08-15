@@ -7,16 +7,12 @@ import { DashboardSkeleton } from '@/components/visibility/dashboard-skeleton';
 import { VisibilityDashboard } from '@/components/visibility/visibility-dashboard';
 
 /**
- * Visibility workspace screen (F9, four-tab IA).
+ * Visibility workspace screen (three-tab IA).
  *
  * One workspace shell with a shared filter bar above an accessible tablist and
- * exactly four focused panels:
- *   - **Overview** (default): the selected-run Visibility Score, both SOV
- *     definitions, per-engine / logical-engine comparison, and brand-vs-
- *     competitor rankings, from `GET /projects/{id}/visibility?audit_id=`.
- *   - **Trends**: cross-run Visibility Score, Share of Voice, and ranking
- *     movement across completed audits, with engine / date / granularity
- *     controls and version-boundary markers, from
+ * exactly three focused panels:
+ *   - **Trends** (default): cross-run Visibility Score, Share of Voice, ranking
+ *     movement, latest model comparison, and prompt movement, from
  *     `GET /projects/{id}/visibility/trends`.
  *   - **Mentions & Citations**: persisted brand/competitor mentions and
  *     classified citation records with task/analysis/artifact provenance.

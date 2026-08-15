@@ -77,6 +77,7 @@ from app.domain.projects.schemas import (
 )
 from app.domain.projects.service import (
     ProjectNotFoundError,
+    commerce_evidence_project_ids,
     create_project,
     delete_project,
     get_project,
@@ -129,7 +130,15 @@ async def list_projects_endpoint(
     ctx: _WorkspaceDep, session: _SessionDep
 ) -> list[ProjectResponse]:
     projects = await list_projects(session, workspace_id=ctx.workspace_id)
-    return [project_to_response(p) for p in projects]
+    commerce_ids = await commerce_evidence_project_ids(
+        session,
+        workspace_id=ctx.workspace_id,
+        project_ids=[project.id for project in projects],
+    )
+    return [
+        project_to_response(project, has_commerce_evidence=project.id in commerce_ids)
+        for project in projects
+    ]
 
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -179,6 +188,7 @@ async def put_brand_profile_endpoint(
             session,
             workspace_id=ctx.workspace_id,
             project_id=project_id,
+            user_id=ctx.user.id,
             payload=payload,
         )
     except (ProjectNotFoundError, BrandProfileNotFoundError) as exc:
@@ -468,6 +478,11 @@ async def get_executive_report_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No completed command-center measurement is available",
         ) from exc
+    if not command_center.report_available or command_center.measurement is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No completed command-center measurement is available",
+        )
     slug = re.sub(r"[^a-z0-9]+", "-", project.brand_name.lower()).strip("-")
     date = command_center.measurement.completed_at.date().isoformat()
     filename = f"citeladder-{slug or 'report'}-{date}.pdf"

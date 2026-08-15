@@ -84,7 +84,7 @@ const PANEL_ID = (tab: SettingsTab) => `settings-panel-${tab}`;
  *   defaults to `"user"`) and `created_at` is when the account was created —
  *   neither is a workspace membership role.
  * - **Provider Settings**: the BYOK provider configuration (formerly the
- *   standalone `/providers` page), rendered by `ProviderSettings`.
+ *   settings-owned Providers tab), rendered by `ProviderSettings`.
  * - **Integrations**: first-party data connections (GSC/GA4 on one shared
  *   Google OAuth grant, Bing on a Microsoft grant), rendered by
  *   `IntegrationSettings`. `?tab=integrations` is the OAuth-callback landing

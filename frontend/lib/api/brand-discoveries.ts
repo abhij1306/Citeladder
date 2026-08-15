@@ -18,7 +18,7 @@ export type BrandDiscoveryInput = {
   language_code?: string;
 };
 
-type DiscoveryProfile = {
+export type DiscoveryProfile = {
   description: string;
   positioning: string;
   products_services: string[];
@@ -30,21 +30,11 @@ type DiscoveryProfile = {
 };
 
 type DiscoveryCompetitor = { name: string; aliases: string[]; domains: string[] };
-type DiscoveryPrompt = {
-  text: string;
-  intent: 'discovery' | 'comparison' | 'purchase' | 'service' | 'local';
-  cohort: 'market_visibility' | 'brand_relevant';
-};
-
 export type BrandDiscoveryCompletion = {
   name: string;
   profile: DiscoveryProfile;
   domains: string[];
   competitors: DiscoveryCompetitor[];
-  prompt_groups: Array<{
-    topic: string;
-    prompts: DiscoveryPrompt[];
-  }>;
 };
 
 export const brandDiscoveriesApi = {

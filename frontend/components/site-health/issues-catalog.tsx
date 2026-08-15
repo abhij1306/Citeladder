@@ -359,7 +359,7 @@ function IssueCard({ issue, crawlId }: Readonly<{ issue: SiteIssue; crawlId: str
                 {affected.map((url) => (
                   <li key={url.site_url_id} className="px-3 py-2">
                     <Link
-                      href={`/site-health/crawls/${crawlId}/pages/${url.site_url_id}`}
+                      href={`/site/crawls/${crawlId}/pages/${url.site_url_id}`}
                       className="hover:text-accent flex min-w-0 flex-col gap-0.5"
                     >
                       <span className="flex min-w-0 items-center gap-2">

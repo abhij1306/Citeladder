@@ -10,34 +10,25 @@
  * capitalisation, everything else reads like a sentence.
  */
 const PAGE_TITLES: ReadonlyArray<readonly [prefix: string, title: string]> = [
-  ['/visibility', 'Overview'],
+  ['/visibility', 'AI Visibility'],
   ['/ai-referrals', 'AI Referrals'],
   ['/traffic', 'Traffic'],
   ['/prompts', 'Prompts'],
-  ['/prompt-research', 'Prompt research'],
   ['/opportunities', 'Opportunities'],
   ['/products', 'Products'],
   ['/runs', 'Runs'],
   ['/content', 'Content'],
   ['/projects', 'Overview'],
-  // §9.3: the route persists, the label is "Facts" — never "brand memory",
-  // "brand knowledge", or "knowledge base".
-  ['/knowledge-base', 'Facts'],
-  // The four layer routes. `/site-health` MUST precede `/site`: these are
-  // prefix matches, so the shorter one would otherwise swallow it.
-  ['/site-health', 'Site health'],
-  ['/site', 'Site'],
+  ['/site', 'Website'],
   ['/demand', 'Search Demand'],
-  ['/agent', 'Growth Agent'],
   ['/issues', 'Issues'],
   ['/settings', 'Settings'],
-  ['/providers', 'Settings'],
 ];
 
 /** Deeper-route overrides (checked before the prefix table). */
 const EXACT_OVERRIDES: ReadonlyArray<readonly [pattern: RegExp, title: string]> = [
   [/^\/products\/[^/]+$/, 'Product evidence'],
-  [/^\/site-health\/crawls\/[^/]+\/pages\/[^/]+$/, 'Page detail'],
+  [/^\/site\/crawls\/[^/]+\/pages\/[^/]+$/, 'Page detail'],
   [/^\/runs\/[^/]+\/executions\/[^/]+$/, 'Execution evidence'],
   [/^\/runs\/[^/]+$/, 'Run detail'],
 ];

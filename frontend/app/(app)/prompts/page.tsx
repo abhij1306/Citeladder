@@ -17,9 +17,9 @@ import { TooltipProvider } from '@/components/ui/tooltip';
  * per-prompt / per-topic Visibility Score derived from persisted audit
  * evidence). "Manage prompts" mode swaps in the full management workspace
  * (add, import, review proposed/archived, AI generation) without leaving the
- * page. The mode follows the `?mode=manage` deep link (`/prompt-research`
- * redirects here, and the read view's manage controls are plain links to that
- * URL); the in-page toggle buttons set a local override so no navigation is
+ * page. The mode follows the canonical `?mode=manage` deep link; the read
+ * view's manage controls are plain links to that URL. In-page toggle buttons
+ * set a local override so no navigation is
  * needed. The page title renders in the top bar (F5), so there is no in-page
  * header.
  */

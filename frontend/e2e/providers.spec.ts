@@ -135,7 +135,7 @@ test('provider settings: available engines save and test an OpenAI key', async (
     }),
   );
 
-  await page.goto('/providers');
+  await page.goto('/settings?tab=providers');
 
   // The three directly configurable engine cards render.
   await expect(page.getByRole('heading', { name: 'ChatGPT' })).toBeVisible();

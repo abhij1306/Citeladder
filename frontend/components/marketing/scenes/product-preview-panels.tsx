@@ -42,12 +42,7 @@ const CONTENT_QUESTIONS = [
   'When are applications reviewed?',
   'Can international students apply?',
 ] as const;
-const DEMAND_VIEWS = ['Overview', 'Trends', 'Mentions & Citations', 'Query Fanout'] as const;
-const VISIBILITY_COMPETITORS = [
-  ['Acme Corp', '62%', '1.8', 'Brand'],
-  ['Northstar', '49%', '2.3', 'Competitor'],
-  ['Vertex Labs', '34%', '2.9', 'Competitor'],
-] as const;
+const DEMAND_VIEWS = ['Trends', 'Mentions & Citations', 'Query Fanout'] as const;
 const AGENT_PROMPT = 'What should we improve next?';
 const AGENT_TOOL_STEPS = [
   ['Read Site findings', '12 evidence-backed gaps'],
@@ -436,84 +431,10 @@ function DemandPreview({ phase }: PreviewProps) {
           </div>
         </div>
 
-        {activeView === 'Overview' ? <VisibilityOverviewPreview /> : null}
         {activeView === 'Trends' ? <VisibilityTrendsPreview /> : null}
         {activeView === 'Mentions & Citations' ? <VisibilityContentPreview /> : null}
         {activeView === 'Query Fanout' ? <VisibilityFanoutPreview /> : null}
       </section>
-    </div>
-  );
-}
-
-function VisibilityOverviewPreview() {
-  return (
-    <div className="p-4">
-      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
-        <p className="text-secondary min-w-0 flex-1 text-sm">
-          Acme Corp is mentioned in <strong className="text-foreground font-semibold">62%</strong>{' '}
-          of measured answers.
-        </p>
-        <div className="flex gap-5 text-xs">
-          <span className="text-muted">
-            Visibility <b className="text-foreground">62%</b>
-          </span>
-          <span className="text-muted">
-            Position <b className="text-foreground">1.8</b>
-          </span>
-          <span className="text-muted">
-            Rank <b className="text-foreground">#1</b>
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(250px,0.75fr)]">
-        <div className={cn(SUPPORTING_SURFACE, 'overflow-hidden')}>
-          <div className="border-border border-b px-4 py-3">
-            <h4 className="text-foreground text-sm font-semibold">Competitors</h4>
-            <p className="text-subtle mt-0.5 text-xs">Compared across the same answers</p>
-          </div>
-          <div className="border-border text-muted grid grid-cols-[minmax(0,1fr)_70px_70px] border-b px-4 py-2 text-[11px] font-medium">
-            <span>Brand</span>
-            <span>Share</span>
-            <span>Position</span>
-          </div>
-          {VISIBILITY_COMPETITORS.map(([name, share, position, type]) => (
-            <div
-              key={name}
-              className="border-border-subtle grid grid-cols-[minmax(0,1fr)_70px_70px] items-center border-b px-4 py-3 last:border-b-0"
-            >
-              <div className="min-w-0">
-                <p className="text-secondary truncate text-[13px] font-medium">{name}</p>
-                <p className="text-subtle mt-0.5 text-[11px]">{type}</p>
-              </div>
-              <span className="text-foreground text-xs font-semibold tabular-nums">{share}</span>
-              <span className="text-secondary text-xs tabular-nums">{position}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className={cn(SUPPORTING_SURFACE, 'p-4')}>
-          <h4 className="text-foreground text-sm font-semibold">Share of answers</h4>
-          <p className="text-subtle mt-0.5 text-xs">Brand mentions by engine</p>
-          <div className="mt-5 grid gap-4">
-            {[
-              ['ChatGPT', '71%', 'w-[71%]'],
-              ['Gemini', '59%', 'w-[59%]'],
-              ['Claude', '48%', 'w-[48%]'],
-            ].map(([engine, value, width]) => (
-              <div key={engine}>
-                <div className="mb-1.5 flex justify-between text-xs">
-                  <span className="text-secondary">{engine}</span>
-                  <span className="text-foreground font-medium">{value}</span>
-                </div>
-                <div className="bg-neutral-bg h-2 overflow-hidden rounded-full">
-                  <span className={cn('bg-accent block h-full rounded-full', width)} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

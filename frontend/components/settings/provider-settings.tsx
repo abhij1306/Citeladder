@@ -14,7 +14,7 @@ import { buildEngineCards } from '@/lib/providers/catalog';
 /**
  * BYOK Provider Settings panel (F8, v2 direct-provider retirement) — rendered
  * inside the Settings screen's "Provider Settings" tab (formerly the
- * standalone `/providers` page).
+ * settings-owned Providers tab).
  *
  * Renders one card per logical engine (ChatGPT / Gemini / Claude), each served
  * by a single fixed direct transport (ChatGPT/OpenAI, Gemini/Google,

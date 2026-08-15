@@ -14,7 +14,7 @@ import type { SiteHealthDashboard } from '@/lib/api/types';
 // next/navigation, which is unavailable in jsdom.
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  usePathname: () => '/site-health',
+  usePathname: () => '/site',
   useSearchParams: () => new URLSearchParams(),
 }));
 

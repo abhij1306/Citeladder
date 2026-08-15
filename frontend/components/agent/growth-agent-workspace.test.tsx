@@ -8,9 +8,6 @@ import { GrowthAgentWorkspace } from './growth-agent-workspace';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const RUN_ID = '22222222-2222-4222-8222-222222222222';
-let searchParams = new URLSearchParams();
-
-vi.mock('next/navigation', () => ({ useSearchParams: () => searchParams }));
 vi.mock('@/lib/project/project-context', () => ({
   useProjectContext: () => ({
     activeProject: { id: PROJECT_ID, name: 'Asian School' },
@@ -43,7 +40,6 @@ function run(status = 'running'): AgentTaskRun {
 describe('GrowthAgentWorkspace', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    searchParams = new URLSearchParams();
     vi.mocked(agentApi.listTasks).mockResolvedValue([run()]);
     vi.mocked(agentApi.getTask).mockResolvedValue(run());
     vi.mocked(agentApi.submitTask).mockResolvedValue(run('queued'));

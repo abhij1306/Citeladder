@@ -213,7 +213,7 @@ describe('IssuesCatalog', () => {
 
     expect(await screen.findByText('Add a JSON-LD WebSite schema.')).toBeInTheDocument();
     const link = await screen.findByRole('link', { name: /Homepage/ });
-    expect(link).toHaveAttribute('href', `/site-health/crawls/${CRAWL}/pages/${URL_A}`);
+    expect(link).toHaveAttribute('href', `/site/crawls/${CRAWL}/pages/${URL_A}`);
     // The affected page's v2 P1 type badge renders inside the row (scoped —
     // the filter <select> also lists the type label as an option).
     expect(within(link).getByText('Article')).toBeInTheDocument();

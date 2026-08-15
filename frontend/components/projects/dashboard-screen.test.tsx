@@ -22,6 +22,56 @@ const { project, downloadExecutiveReport, queryResult } = vi.hoisted(() => ({
 
 const commandCenter = {
   project,
+  facts: {
+    industry: 'Software',
+    description: 'Analytics for growth teams',
+    positioning: 'Evidence-first analytics',
+    products_services: ['Analytics'],
+    target_audience: 'Growth leaders',
+    competitors: [],
+  },
+  loop: {
+    connected: {
+      state: 'observed',
+      observed_at: '2026-07-27T00:00:00Z',
+      freshness: 'current',
+      coverage: ['gsc'],
+      limitations: [],
+    },
+    analyzed: {
+      state: 'partial',
+      observed_at: '2026-07-27T00:00:00Z',
+      freshness: 'current',
+      coverage: ['site_health'],
+      limitations: ['Search Demand has not refreshed yet.'],
+    },
+    acted: {
+      state: 'not_run',
+      observed_at: null,
+      freshness: 'unknown',
+      coverage: [],
+      limitations: ['No current-cycle implementation.'],
+    },
+    tracked: {
+      state: 'observed',
+      observed_at: '2026-07-28T00:00:00Z',
+      freshness: 'current',
+      coverage: ['chatgpt', 'gemini'],
+      limitations: [],
+    },
+  },
+  next_action: {
+    kind: 'monitor',
+    title: 'Monitor — no required action',
+    href: '/visibility?tab=trends',
+    opportunity_id: null,
+  },
+  track: {
+    citation_share: { value: 32.5, delta: 2.1 },
+    engine_coverage: 2,
+    observed_at: '2026-07-28T00:00:00Z',
+    limitations: [],
+  },
   measurement: {
     audit_id: '00000000-0000-4000-8000-000000000003',
     completed_at: '2026-07-28T00:00:00Z',
@@ -148,20 +198,41 @@ describe('DashboardScreen', () => {
     vi.unstubAllGlobals();
   });
 
-  it('treats a missing first measurement as an actionable empty state', async () => {
-    const onEditProject = vi.fn();
-    queryResult.data = undefined;
-    queryResult.error = { status: 404 };
-    queryResult.isError = true;
-    const user = userEvent.setup();
+  it('renders facts, loop evidence, and a real next action before the first audit', () => {
+    queryResult.data = {
+      ...commandCenter,
+      measurement: null,
+      report_available: false,
+      track: {
+        citation_share: { value: null, delta: null },
+        engine_coverage: 0,
+        observed_at: null,
+        limitations: ['No visibility audit has run yet.'],
+      },
+      loop: {
+        ...commandCenter.loop,
+        tracked: {
+          state: 'not_run',
+          observed_at: null,
+          freshness: 'unknown',
+          coverage: [],
+          limitations: ['No visibility audit has run yet.'],
+        },
+      },
+      next_action: {
+        kind: 'audit',
+        title: 'Run the first visibility audit',
+        href: '/runs',
+        opportunity_id: null,
+      },
+    };
 
-    render(<DashboardScreen onEditProject={onEditProject} />);
+    render(<DashboardScreen />);
 
-    expect(screen.getByRole('heading', { name: 'No completed runs yet' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Launch your first audit' })).toBeVisible();
-    expect(screen.queryByText(/command center could not be loaded/i)).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Review project' }));
-    expect(onEditProject).toHaveBeenCalledWith(project);
+    expect(screen.getByRole('heading', { name: 'Company facts' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Product loop' })).toBeVisible();
+    expect(screen.getByText('Run the first visibility audit')).toBeVisible();
+    expect(screen.getByText('Citation share —')).toBeVisible();
+    expect(screen.queryByRole('button', { name: /executive pdf/i })).not.toBeInTheDocument();
   });
 });

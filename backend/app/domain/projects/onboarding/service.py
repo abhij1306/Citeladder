@@ -23,6 +23,12 @@ from app.core.config.brand_discovery import (
     PRICE_TIERS,
     brand_discovery_settings,
 )
+from app.core.config.brand_profile import (
+    BRAND_PROFILE_FIELDS,
+    BRAND_PROFILE_REVIEW_CONFIRMED,
+    BRAND_PROFILE_REVIEW_EDITED,
+    BRAND_PROFILE_SOURCE_AI_SUGGESTED,
+)
 from app.core.config.prompts import ONBOARDING_PROMPT_SET_NAME
 from app.domain.projects.discovery_schemas import (
     BrandDiscoveryComplete,
@@ -38,10 +44,13 @@ from app.domain.projects.onboarding.normalization import (
     normalize_primary_market,
     normalize_website_url,
 )
+from app.domain.projects.onboarding.prompt_generation import (
+    fallback_portfolio,
+    validated_portfolio,
+)
 from app.domain.projects.onboarding.prompt_validation import (
     BRAND_RELEVANT,
     MARKET_VISIBILITY,
-    validate_portfolio,
 )
 from app.domain.projects.onboarding.research import research_brand
 from app.domain.projects.onboarding.site_resolution import (
@@ -247,7 +256,7 @@ async def process_discovery(session: AsyncSession, row: BrandDiscovery) -> None:
     row.profile = result.profile
     row.competitors = result.competitors
     row.topics = result.topics
-    row.prompt_suggestions = result.prompts
+    row.prompt_suggestions = []
     row.evidence = result.evidence
     row.warnings = result.warnings
     row.gaps = []
@@ -260,7 +269,7 @@ async def process_discovery(session: AsyncSession, row: BrandDiscovery) -> None:
         completed_steps=DISCOVERY_PROGRESS_TOTAL_STEPS - 1,
         pages_read=1,
         competitors_found=len(result.competitors),
-        prompts_prepared=len(result.prompts),
+        prompts_prepared=0,
         previous=row.progress,
     )
     session.add(
@@ -275,7 +284,6 @@ async def process_discovery(session: AsyncSession, row: BrandDiscovery) -> None:
                 "profile": result.profile,
                 "competitors": result.competitors,
                 "topics": result.topics,
-                "prompts": result.prompts,
             },
             field_confidence=result.profile.get("field_confidence", {}),
             evidence=result.evidence,
@@ -317,36 +325,27 @@ def _confirmed_competitors(
     return confirmed
 
 
-def _reviewed_prompts(
-    payload: BrandDiscoveryComplete,
+def _reviewed_profile_sources(
+    discovered: dict,
+    confirmed: dict,
     *,
-    brand_name: str,
-    primary_market: str,
-    competitors: list[dict],
-    context_terms: list[str],
-) -> list[dict]:
-    prompts = [
-        {**prompt.model_dump(), "theme": group.topic}
-        for group in payload.prompt_groups
-        for prompt in group.prompts
-    ]
-    quality = validate_portfolio(
-        prompts,
-        brand_terms=[brand_name],
-        competitor_terms=[
-            term
-            for competitor in competitors
-            for term in [competitor["name"], *(competitor.get("aliases") or [])]
-        ],
-        primary_market=primary_market,
-        context_terms=context_terms,
-    )
-    if quality.errors:
-        raise BrandDiscoveryError(
-            "Reviewed prompt portfolio must contain five neutral market queries and "
-            "five unbranded, brand-relevant queries"
-        )
-    return list(quality.accepted)
+    reviewer_id: uuid.UUID,
+) -> dict[str, dict[str, str]]:
+    reviewed_at = datetime.now(UTC).isoformat()
+    return {
+        field: {
+            "origin": BRAND_PROFILE_SOURCE_AI_SUGGESTED,
+            "review_state": (
+                BRAND_PROFILE_REVIEW_CONFIRMED
+                if discovered.get(field) == confirmed.get(field)
+                else BRAND_PROFILE_REVIEW_EDITED
+            ),
+            "reviewed_by": str(reviewer_id),
+            "reviewed_at": reviewed_at,
+        }
+        for field in BRAND_PROFILE_FIELDS
+        if confirmed.get(field)
+    }
 
 
 async def _persist_project(
@@ -356,6 +355,7 @@ async def _persist_project(
     row: BrandDiscovery,
     payload: BrandDiscoveryComplete,
     prompts: list[dict],
+    profile_sources: dict[str, dict[str, str]],
 ) -> uuid.UUID:
     data = row.input_data
     profile = payload.profile
@@ -380,6 +380,7 @@ async def _persist_project(
             target_audience=profile.target_audience,
         ),
         commit=False,
+        brand_profile_sources=profile_sources,
     )
     prompt_set = PromptSet(
         id=uuid.uuid4(), project_id=project.id, name=ONBOARDING_PROMPT_SET_NAME
@@ -435,6 +436,7 @@ async def complete_discovery(
     discovery_id: uuid.UUID,
     payload: BrandDiscoveryComplete,
     idempotency_key: str,
+    reviewer_id: uuid.UUID,
 ) -> tuple[BrandDiscovery, SiteCrawl | None]:
     key = idempotency_key.strip()
     if not key:
@@ -459,28 +461,11 @@ async def complete_discovery(
         return row, existing_crawl
     if row.status != DISCOVERY_STATUS_READY:
         raise BrandDiscoveryError("Discovery is not ready for completion")
-    domains = _confirmed_domains(payload.domains)
-    row.competitors = _confirmed_competitors(
-        payload.competitors,
-        brand_name=str(row.input_data["brand_name"]),
-        owned_domains=domains,
+    prompts, profile_sources = _prepare_confirmed_portfolio(
+        row, payload=payload, reviewer_id=reviewer_id
     )
-    row.domains = domains
-    _, prompt_context = industry_context(
-        str(row.input_data.get("industry") or "General")
-    )
-    prompts = _reviewed_prompts(
-        payload,
-        brand_name=str(row.input_data["brand_name"]),
-        primary_market=str(row.input_data["primary_market"]),
-        competitors=row.competitors,
-        context_terms=[
-            *payload.profile.products_services,
-            *(prompt_context.get("use_cases") or []),
-            *(prompt_context.get("topics") or []),
-        ],
-    )
-    row.profile = payload.profile.model_dump()
+    confirmed_profile = payload.profile.model_dump()
+    row.profile = confirmed_profile
     row.topics = list(dict.fromkeys(str(item["theme"]) for item in prompts))
     row.prompt_suggestions = prompts
     row.input_data = {**row.input_data, "completion_idempotency_key": key}
@@ -490,6 +475,7 @@ async def complete_discovery(
         row=row,
         payload=payload,
         prompts=prompts,
+        profile_sources=profile_sources,
     )
     row.project_id = project_id
     row.status = DISCOVERY_STATUS_PROJECT_CREATED
@@ -504,3 +490,52 @@ async def complete_discovery(
     await session.commit()
 
     return row, None
+
+
+def _prepare_confirmed_portfolio(
+    row: BrandDiscovery,
+    *,
+    payload: BrandDiscoveryComplete,
+    reviewer_id: uuid.UUID,
+) -> tuple[list[dict], dict[str, dict[str, str]]]:
+    domains = _confirmed_domains(payload.domains)
+    row.competitors = _confirmed_competitors(
+        payload.competitors,
+        brand_name=str(row.input_data["brand_name"]),
+        owned_domains=domains,
+    )
+    row.domains = domains
+    selected_industry, prompt_context = industry_context(
+        str(row.input_data.get("industry") or "General")
+    )
+    competitor_terms = [
+        term
+        for competitor in row.competitors
+        for term in [competitor["name"], *(competitor.get("aliases") or [])]
+    ]
+    context_terms = [
+        payload.profile.target_audience,
+        *payload.profile.products_services,
+        *(prompt_context.get("use_cases") or []),
+        *(prompt_context.get("topics") or []),
+    ]
+    fallback_prompts = fallback_portfolio(
+        primary_market=str(row.input_data["primary_market"]),
+        industry=selected_industry,
+        industry_context=prompt_context,
+        products_services=payload.profile.products_services,
+        target_audience=payload.profile.target_audience,
+        price_tier=payload.profile.price_tier,
+    )
+    prompts = validated_portfolio(
+        [],
+        fallback_prompts=fallback_prompts,
+        brand_name=str(row.input_data["brand_name"]),
+        primary_market=str(row.input_data["primary_market"]),
+        competitor_terms=competitor_terms,
+        context_terms=context_terms,
+    )
+    profile_sources = _reviewed_profile_sources(
+        dict(row.profile), payload.profile.model_dump(), reviewer_id=reviewer_id
+    )
+    return prompts, profile_sources

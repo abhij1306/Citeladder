@@ -139,7 +139,6 @@ export const brandDiscoverySchema = responseObject({
       'opening_website',
       'understanding_business',
       'finding_competitors',
-      'building_questions',
       'preparing_review',
       'complete',
     ]),

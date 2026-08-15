@@ -16,7 +16,7 @@ function discovery(phase: BrandDiscovery['progress']['phase']): BrandDiscovery {
       total_steps: 4,
       pages_read: 3,
       competitors_found: 2,
-      prompts_prepared: 8,
+      prompts_prepared: 0,
     },
     input_data: {},
     profile: {
@@ -50,7 +50,6 @@ describe('discoveryActivity', () => {
       'Opening your website',
       'Understanding what you offer',
       'Finding comparable brands',
-      'Building balanced questions',
       'Preparing your review',
     ]);
     expect(steps.map((step) => step.state)).toEqual([
@@ -58,16 +57,14 @@ describe('discoveryActivity', () => {
       'complete',
       'active',
       'pending',
-      'pending',
     ]);
     expect(JSON.stringify(steps)).not.toMatch(/finding_competitors|queue|provider/);
   });
 
   it('uses backend counts without inventing time or percentages', () => {
-    const steps = discoveryActivity(discovery('building_questions'));
+    const steps = discoveryActivity(discovery('preparing_review'));
 
     expect(steps[0]?.detail).toBe('3 useful pages read');
     expect(steps[2]?.detail).toBe('2 comparable brands found');
-    expect(steps[3]?.detail).toBe('8 balanced questions prepared');
   });
 });

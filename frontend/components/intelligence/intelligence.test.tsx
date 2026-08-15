@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { Insight, type InsightModel } from './insight';
 import { ProvenanceChip } from './provenance-chip';
 
-const EVIDENCE = { href: '/site-health/issues?filter=weak', label: '47 product pages' };
+const EVIDENCE = { href: '/issues?filter=weak', label: '47 product pages' };
 
 function insightFixture(overrides: Partial<InsightModel> = {}): InsightModel {
   return {
@@ -27,7 +27,7 @@ describe('Insight', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '47 product pages' })).toHaveAttribute(
       'href',
-      '/site-health/issues?filter=weak',
+      '/issues?filter=weak',
     );
 
     rerender(<Insight insight={insightFixture({ evidence: null })} />);

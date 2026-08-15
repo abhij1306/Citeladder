@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.brand_profile import (
     BRAND_PROFILE_FIELDS,
+    BRAND_PROFILE_REVIEW_CONFIRMED,
+    BRAND_PROFILE_REVIEW_EDITED,
     BRAND_PROFILE_SOURCE_MANUAL,
 )
 
@@ -90,9 +93,10 @@ async def upsert_manual_brand_profile(
     *,
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
+    user_id: uuid.UUID,
     payload: Any,
 ) -> BrandProfile:
-    """Apply supplied human edits and mark exactly those fields as manual."""
+    """Apply human edits while preserving each field's original origin."""
     project = await get_project(
         session, workspace_id=workspace_id, project_id=project_id
     )
@@ -119,7 +123,22 @@ async def upsert_manual_brand_profile(
         else:
             value = value.strip()
         setattr(profile, field, value)
-        sources[field] = BRAND_PROFILE_SOURCE_MANUAL
+        prior = sources.get(field)
+        origin = (
+            prior.get("origin", BRAND_PROFILE_SOURCE_MANUAL)
+            if isinstance(prior, dict)
+            else BRAND_PROFILE_SOURCE_MANUAL
+        )
+        sources[field] = {
+            "origin": origin,
+            "review_state": (
+                BRAND_PROFILE_REVIEW_EDITED
+                if isinstance(prior, dict)
+                else BRAND_PROFILE_REVIEW_CONFIRMED
+            ),
+            "reviewed_by": str(user_id),
+            "reviewed_at": datetime.now(UTC).isoformat(),
+        }
         artifact_ids.pop(field, None)
     profile.sources = sources
     profile.source_artifact_ids = artifact_ids

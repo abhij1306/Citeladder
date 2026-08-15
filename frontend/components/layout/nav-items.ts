@@ -2,75 +2,131 @@ import type { LucideIcon } from 'lucide-react';
 
 import { ICONS } from '@/lib/icons';
 
-/**
- * Sidebar navigation model. The three intelligence systems are the stable
- * headings; their primary workspaces remain directly reachable beneath them.
- * Sub-surfaces inside a workspace stay in that workspace's tab row.
- */
 export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** Optional right-aligned count chip (e.g. open issues). */
   count?: number;
+  commerceOnly?: boolean;
+  queryMatch?: { key: string; values: readonly string[]; defaultValue?: string };
 };
 
 export type NavGroup = {
-  title: string;
+  title: 'Overview' | 'Analyze' | 'Act' | 'Track' | 'Connect';
+  href: string;
+  icon: LucideIcon;
   items: readonly NavItem[];
 };
 
-/**
- * The five destinations the mobile bar shows, by href. Derived from
- * `NAV_GROUPS` below rather than hand-listed in `app-shell.tsx`, which is how
- * the mobile bar kept the verb grouping (Analyze / Resolve / Improve) for a
- * full migration after the sidebar had moved on.
- */
-const MOBILE_NAV_HREFS = ['/projects', '/site', '/content', '/demand', '/agent'] as const;
-
 export const NAV_GROUPS = [
   {
-    title: 'Workspace',
-    items: [
-      { label: 'Overview', href: '/projects', icon: ICONS.overview },
-      { label: 'Growth Agent', href: '/agent', icon: ICONS.agent },
-    ],
+    title: 'Overview',
+    href: '/projects',
+    icon: ICONS.overview,
+    items: [{ label: 'Overview', href: '/projects', icon: ICONS.overview }],
   },
   {
-    title: 'Site Health',
+    title: 'Analyze',
+    href: '/site?tab=pages',
+    icon: ICONS.site,
     items: [
-      { label: 'Website', href: '/site', icon: ICONS.site },
+      {
+        label: 'Website',
+        href: '/site?tab=pages',
+        icon: ICONS.site,
+        queryMatch: { key: 'tab', values: ['pages'], defaultValue: 'pages' },
+      },
       { label: 'Issues', href: '/issues', icon: ICONS.issues },
-      { label: 'Opportunities', href: '/opportunities', icon: ICONS.opportunities },
-      { label: 'Facts', href: '/knowledge-base', icon: ICONS.knowledgeBase },
+      { label: 'Search Demand', href: '/demand', icon: ICONS.demand },
+      { label: 'Traffic', href: '/traffic', icon: ICONS.traffic },
+      { label: 'Commerce', href: '/products', icon: ICONS.products, commerceOnly: true },
     ],
   },
   {
-    title: 'Content Intelligence',
-    items: [{ label: 'Content', href: '/content', icon: ICONS.content }],
+    title: 'Act',
+    href: '/opportunities',
+    icon: ICONS.opportunities,
+    items: [
+      { label: 'Opportunities', href: '/opportunities', icon: ICONS.opportunities },
+      { label: 'Content', href: '/content', icon: ICONS.content },
+    ],
   },
   {
-    title: 'Demand Intelligence',
+    title: 'Track',
+    href: '/visibility?tab=trends',
+    icon: ICONS.visibility,
     items: [
-      { label: 'Search Demand', href: '/demand', icon: ICONS.demand },
-      { label: 'AI Visibility', href: '/visibility', icon: ICONS.visibility },
-      { label: 'AI Referrals', href: '/ai-referrals', icon: ICONS.analytics },
-      { label: 'Traffic', href: '/traffic', icon: ICONS.traffic },
-      { label: 'Prompts', href: '/prompts', icon: ICONS.prompts },
-      { label: 'Commerce', href: '/products', icon: ICONS.products },
+      {
+        label: 'AI Visibility',
+        href: '/visibility?tab=trends',
+        icon: ICONS.visibility,
+        queryMatch: { key: 'tab', values: ['trends'], defaultValue: 'trends' },
+      },
       { label: 'Runs', href: '/runs', icon: ICONS.runs },
+      { label: 'AI Referrals', href: '/ai-referrals', icon: ICONS.analytics },
+    ],
+  },
+  {
+    title: 'Connect',
+    href: '/settings?tab=integrations',
+    icon: ICONS.setup,
+    items: [
+      {
+        label: 'Integrations',
+        href: '/settings?tab=integrations',
+        icon: ICONS.setup,
+        queryMatch: { key: 'tab', values: ['integrations'] },
+      },
+      {
+        label: 'Providers',
+        href: '/settings?tab=providers',
+        icon: ICONS.settings,
+        queryMatch: { key: 'tab', values: ['providers'] },
+      },
+      { label: 'Prompts', href: '/prompts', icon: ICONS.prompts },
+      {
+        label: 'Settings',
+        href: '/settings',
+        icon: ICONS.settings,
+        queryMatch: { key: 'tab', values: ['account', 'billing', 'danger'], defaultValue: 'account' },
+      },
     ],
   },
 ] as const satisfies readonly NavGroup[];
 
-const NAV_ITEMS = NAV_GROUPS.flatMap<NavItem>((group) => group.items);
+export const MOBILE_NAV_ITEMS = NAV_GROUPS.map(({ title, href, icon }) => ({
+  label: title,
+  href,
+  icon,
+}));
 
-/**
- * The mobile bar's five slots, in `MOBILE_NAV_HREFS` order. One source of
- * truth with the sidebar: a label or icon change lands in both.
- */
-export const MOBILE_NAV_ITEMS: NavItem[] = MOBILE_NAV_HREFS.map((href) => {
-  const item = NAV_ITEMS.find((candidate) => candidate.href === href);
-  if (!item) throw new Error(`MOBILE_NAV_HREFS references a missing destination: ${href}`);
-  return item;
-});
+export function visibleNavItems(group: NavGroup, hasCommerceEvidence: boolean): readonly NavItem[] {
+  return group.items.filter((item) => !item.commerceOnly || hasCommerceEvidence);
+}
+
+export function isNavItemActive(
+  pathname: string,
+  searchParams: URLSearchParams,
+  item: NavItem,
+): boolean {
+  const target = new URL(item.href, 'https://citeladder.local');
+  const pathMatches = pathname === target.pathname || pathname.startsWith(`${target.pathname}/`);
+  if (!pathMatches) return false;
+  if (!item.queryMatch) return true;
+  const current = searchParams.get(item.queryMatch.key) ?? item.queryMatch.defaultValue ?? '';
+  return item.queryMatch.values.includes(current);
+}
+
+export function activeStation(
+  pathname: string,
+  searchParams: URLSearchParams,
+  hasCommerceEvidence: boolean,
+): NavGroup {
+  return (
+    NAV_GROUPS.find((group) =>
+      visibleNavItems(group, hasCommerceEvidence).some((item) =>
+        isNavItemActive(pathname, searchParams, item),
+      ),
+    ) ?? NAV_GROUPS[0]
+  );
+}

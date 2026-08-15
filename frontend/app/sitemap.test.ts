@@ -81,14 +81,11 @@ describe('robots', () => {
         '/products',
         '/runs',
         '/content',
-        '/site-health',
+        '/site',
         '/issues',
         '/opportunities',
-        '/knowledge-base',
         '/projects',
         '/settings',
-        '/prompt-research',
-        '/providers',
       ]),
     );
   });

@@ -7,10 +7,10 @@ import { CommandPalette } from '@/components/ui/command-palette';
 import { LogoMark } from '@/components/ui/logo-mark';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-import { MOBILE_NAV_ITEMS } from './nav-items';
+import { AgentSheet } from './agent-sheet';
 import { PageHeader } from './page-header';
 import { ProjectSwitcher } from './project-switcher';
-import { SidebarNav } from './sidebar-nav';
+import { MobilePrimaryNavigation, MobileStationNavigation, SidebarNav } from './sidebar-nav';
 import { UserMenu } from './user-menu';
 
 /**
@@ -73,7 +73,9 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
               <LogoMark size={16} />
               <span className="font-display text-foreground font-bold">CiteLadder</span>
             </Link>
-            <div aria-hidden className="hidden md:block" />
+            <div className="flex justify-end">
+              <AgentSheet />
+            </div>
             <div className="min-w-0 flex-1 md:w-full md:max-w-105 md:justify-self-center">
               <CommandPalette />
             </div>
@@ -84,6 +86,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             id="main"
             className="content-scroll safe-bottom min-h-0 flex-1 overflow-y-auto pb-20 md:pb-0"
           >
+            <MobileStationNavigation />
             {/* `grid-cols-[minmax(0,1fr)]`, not the implicit `auto` track: an
                 implicit track is max-content-sized, so any descendant that
                 cannot shrink (an unbreakable URL, a wide table) widened the
@@ -96,24 +99,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
             </div>
           </main>
 
-          <nav
-            className="border-border bg-panel safe-bottom fixed inset-x-0 bottom-0 z-30 grid h-16 grid-cols-5 border-t md:hidden"
-            aria-label="Primary mobile navigation"
-          >
-            {MOBILE_NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="text-muted hover:text-accent-text text-2xs flex min-w-0 flex-col items-center justify-center gap-1 font-medium"
-                >
-                  <Icon className="size-4" aria-hidden />
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          <MobilePrimaryNavigation />
         </div>
       </div>
     </TooltipProvider>

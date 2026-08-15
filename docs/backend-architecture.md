@@ -48,6 +48,25 @@ causal claims.
 | Commerce | Catalog/product specialization |
 | Growth Agent | Standalone explain/roadmap runs and append-only typed-tool attempts |
 
+The workspace-authorized project list projects `has_commerce_evidence` from
+persisted Product or OrderFact rows. Navigation may hide Commerce when false;
+the `/products` route remains authorized and owns its honest empty state.
+
+The command-center read projection is useful before the first visibility audit.
+It composes Facts only from the workspace-authorized Project, BrandProfile, and
+Competitor owners; exposes Connect, Analyze, Act, and Track with explicit
+observed/partial/not-run/unavailable evidence states; and chooses exactly one
+next action by persisted opportunity first, then connect, crawl, configure
+prompts, audit, and monitor. Track returns unavailable measurement fields until
+an audit exists, and the report endpoint returns not-found rather than creating
+or repairing a report during a read.
+
+BrandProfile field provenance is structured as `origin`, `review_state`,
+`reviewed_by`, and `reviewed_at`. Onboarding discovery persists suggestions but
+does not generate prompts. Completion requires confirmed or edited positioning,
+target audience, and products/services, records the reviewer, and only then
+creates the initial deterministic prompt portfolio exactly once.
+
 Demand's `page_equivalence` module is the sole cross-source owned-page resolver.
 It uses exact `SiteUrl` matches plus persisted redirect/canonical evidence and
 returns `exact`, `resolved`, `ambiguous`, or `unresolved` with a versioned

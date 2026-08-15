@@ -98,7 +98,7 @@ export function VisibilityToolbar({
   onChangeCohort: (cohort: 'core' | 'comparison') => void;
 }>) {
   const evidence = isEvidenceTab(activeTab);
-  const showRun = activeTab === 'overview' || evidence;
+  const showRun = activeTab === 'trends' || evidence;
   const showPrompt = evidence;
   const showRange = activeTab === 'trends' || evidence;
   const showGranularity = activeTab === 'trends';

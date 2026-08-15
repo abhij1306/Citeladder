@@ -9,9 +9,9 @@ own scoring, page classification, lifecycle truth, or authorization.
 
 ## Locked rebuild route contract
 
-Navigation is organized into five loop stations. This is the target contract
-during the six-wave AEO rebuild; a route remains shipped until its atomic
-replacement slice migrates every caller and deletes it.
+Navigation is organized into five loop stations. This is the shipped contract;
+a replacement is complete only after every caller is migrated and the
+superseded path is deleted.
 
 | Station | Destination | Canonical browser location |
 |---|---|---|
@@ -31,6 +31,19 @@ active state from pathname plus recognized `tab`/`mode` values. The Growth
 Agent moves to an accessible top-bar sheet with typed persisted route context;
 it is not a sidebar destination. Retired internal routes receive no redirects.
 
+Desktop and mobile now consume that shared station owner. Commerce is included
+under Analyze only when the active project projection reports persisted
+commerce evidence. Providers and Integrations are Settings tabs, and prompt
+read/manage modes live only under `/prompts`.
+
+Overview renders before any audit: canonical Facts with an editable drawer,
+competitor suggestions, four evidence-labelled loop states, one server-selected
+next action, and a Track summary whose missing audit values remain unavailable.
+The standalone Facts route is deleted; the reusable BrandProfile editor remains
+the only editor owner. Onboarding's confirmation step edits the discovered ICP
+fields and requires positioning, target audience, and products/services before
+completion can create prompts.
+
 ## Core rules
 
 - Browser calls use relative `/api/*`; Next.js rewrites to server-only
@@ -48,7 +61,7 @@ The site area has exactly three destinations:
 
 | Route | Purpose |
 |---|---|
-| `/site-health` | Crawl lifecycle, score summary, scores by page kind, URL inventory |
+| `/site` | Crawl lifecycle, score summary, scores by page kind, URL inventory |
 | `/issues` | Grouped issue catalog with severity, affected pages, and page-kind scope |
 | `/opportunities` | Persisted prioritized actions |
 
@@ -67,7 +80,7 @@ continues polling through recovery, and calls a crawl stalled only when the
 backend reports an expired lease. It never infers failure from a quiet timer or
 from a completed counter that has stopped moving.
 
-Before the first crawl, `/site-health` renders one actionable empty placeholder
+Before the first crawl, `/site` renders one actionable empty placeholder
 with **Run new crawl**, rather than empty metrics or an intake workflow. After a
 crawl exists, its header has one contextual primary control: **Stop crawl** for
 an active persisted crawl, otherwise **Run new crawl**. **Export** is the
@@ -108,10 +121,9 @@ do not appear as passes or issues.
 |---|---|
 | `/content` | Content Intelligence |
 | `/demand`, `/traffic`, `/ai-referrals` | Demand Intelligence |
-| `/prompt-research`, `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
+| `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
 | `/products` | Commerce specialization |
-| `/agent` | Growth Agent explain/roadmap task history, typed results, and Data used disclosure |
-| `/providers`, `/settings` | Shared workspace/project configuration |
+| `/settings` | Shared workspace/project configuration, including Integrations and Providers |
 
 ## Authentication flow
 
@@ -144,6 +156,12 @@ such as Resolved neither creates nor replaces this action record.
 Overview/Search Demand/AI Visibility tabs. `/visibility` remains the standalone
 AI Visibility destination. Search Demand renders GSC-backed target rows and the
 honest no-snapshot, unavailable, observed-zero, and active-gap states.
+
+AI Visibility has exactly Trends, Mentions & Citations, and Query Fanout, with
+Trends as the default. Trends owns latest/start rankings, engine comparison, and
+prompt movement. Competitor suggestions live in Overview's Facts drawer, and no
+Visibility overview token, component, selected-run composition, or redirect is
+retained.
 
 Traffic treats Day/Week/Month as chart-interval controls. During an interval
 refetch, existing analytical content stays mounted, the analytical region is

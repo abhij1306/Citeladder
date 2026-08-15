@@ -83,12 +83,20 @@ export const promptGenerateResponseSchema = responseObject({
 });
 
 export const brandProfileSourceSchema = z.enum(['manual', 'web_evidence', 'ai_suggested']);
+export const brandProfileReviewStateSchema = z.enum(['unreviewed', 'confirmed', 'edited']);
+
+const brandProfileFieldProvenanceSchema = responseObject({
+  origin: brandProfileSourceSchema,
+  review_state: brandProfileReviewStateSchema,
+  reviewed_by: uuid().nullable(),
+  reviewed_at: z.string().nullable(),
+});
 
 const brandProfileFieldSourcesSchema = responseObject({
-  description: brandProfileSourceSchema.nullable(),
-  positioning: brandProfileSourceSchema.nullable(),
-  products_services: brandProfileSourceSchema.nullable(),
-  target_audience: brandProfileSourceSchema.nullable(),
+  description: brandProfileFieldProvenanceSchema.nullable(),
+  positioning: brandProfileFieldProvenanceSchema.nullable(),
+  products_services: brandProfileFieldProvenanceSchema.nullable(),
+  target_audience: brandProfileFieldProvenanceSchema.nullable(),
 });
 
 const brandProfileSourceArtifactsSchema = responseObject({
@@ -148,6 +156,7 @@ export const projectSchema = responseObject({
   language_code: z.string(),
   benchmark_mode: benchmarkModeSchema,
   default_repetitions: z.number().int(),
+  has_commerce_evidence: z.boolean().default(false),
   brand: responseObject({
     aliases: z.array(z.string()),
     logo_url: z.string().nullable().optional(),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,50 @@ class CommandCenterProject(BaseModel):
     name: str
     brand_name: str
     website_url: str
+
+
+class CommandCenterCompetitor(BaseModel):
+    id: uuid.UUID
+    name: str
+    domains: list[str] = Field(default_factory=list)
+
+
+class CommandCenterFacts(BaseModel):
+    industry: str = ""
+    description: str = ""
+    positioning: str = ""
+    products_services: list[str] = Field(default_factory=list)
+    target_audience: str = ""
+    competitors: list[CommandCenterCompetitor] = Field(default_factory=list)
+
+
+class EvidenceState(BaseModel):
+    state: Literal["observed", "partial", "not_run", "unavailable"]
+    observed_at: datetime | None = None
+    freshness: Literal["current", "unknown"]
+    coverage: list[str] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class CommandCenterLoop(BaseModel):
+    connected: EvidenceState
+    analyzed: EvidenceState
+    acted: EvidenceState
+    tracked: EvidenceState
+
+
+class CommandCenterNextAction(BaseModel):
+    kind: Literal[
+        "opportunity",
+        "connect",
+        "crawl",
+        "configure_prompts",
+        "audit",
+        "monitor",
+    ]
+    title: str
+    href: str
+    opportunity_id: uuid.UUID | None = None
 
 
 class CommandCenterMeasurement(BaseModel):
@@ -27,6 +72,13 @@ class CommandCenterMeasurement(BaseModel):
 class CommandCenterMetric(BaseModel):
     value: float | int | None = None
     delta: float | int | None = None
+
+
+class CommandCenterTrackSummary(BaseModel):
+    citation_share: CommandCenterMetric
+    engine_coverage: int = 0
+    observed_at: datetime | None = None
+    limitations: list[str] = Field(default_factory=list)
 
 
 class CommandCenterState(BaseModel):
@@ -51,7 +103,11 @@ class ResolvedActionSummary(BaseModel):
 
 class CommandCenterResponse(BaseModel):
     project: CommandCenterProject
-    measurement: CommandCenterMeasurement
+    facts: CommandCenterFacts
+    loop: CommandCenterLoop
+    next_action: CommandCenterNextAction
+    track: CommandCenterTrackSummary
+    measurement: CommandCenterMeasurement | None = None
     state: CommandCenterState
     movements: list[CommandCenterMovement] = Field(default_factory=list)
     actions: list[OpportunityItem] = Field(default_factory=list)

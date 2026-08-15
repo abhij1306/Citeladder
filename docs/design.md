@@ -223,9 +223,21 @@ scope is wrong.
 Desktop navigation groups destinations under Overview, Analyze, Act, Track,
 and Connect. The five-slot mobile bar uses those exact stations; one shared
 accessible secondary-navigation component exposes each station's destinations.
+Commerce is a conditional Analyze destination backed by persisted capability
+evidence; hidden navigation never changes direct-route authorization.
 The Agent is a top-bar button opening a right-side sheet, not a destination.
 Escape closes it, focus returns to the trigger, and its context is limited to
 typed workspace, project, canonical route, date range, and route filters.
+The shipped sheet reuses the bounded explain/roadmap workspace and clears its
+route preset when the active project changes; no DOM text or unpersisted page
+data enters Agent context.
+
+Overview stays useful without an audit. Its order is canonical Facts and edit
+drawer, the four evidence-labelled loop states, one next action, and Track.
+Unavailable Track values use text and an em dash rather than fabricated zeroes;
+report actions do not render until a persisted audit/report exists. Visibility
+uses three tabs—Trends, Mentions & Citations, and Query Fanout—with Trends as the
+default and no parallel Overview surface.
 
 #### The insight object
 
@@ -289,9 +301,9 @@ focused grid, then an optional CTA.
 - Keep body copy around 60–70 characters wide and use one H1 per page.
 - Auth uses the website type ladder and shared focus treatment; the form remains
   the primary task. The existing dark login/onboarding brand panel is preserved.
-- Onboarding review shows the discovered profile, owned domains, and competitors.
-  Generated prompt candidates stay out of setup chrome; they may seed the project
-  without becoming a separate review portfolio.
+- Onboarding review makes positioning, target audience, and products/services
+  editable and required, alongside owned domains and competitors. Prompt
+  generation begins only after the user confirms those structured ICP facts.
 - Website and app copy, data, feature claims, and workflow behaviour are outside
   this pass. Product previews may change layout, typography, colour, border,
   radius, or elevation only; their strings and scripted content stay unchanged.

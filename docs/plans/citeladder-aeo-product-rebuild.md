@@ -155,7 +155,7 @@ this plan with the evidence and a concrete replacement decision before continuin
 |---|---|---|---|---|
 | W1 | `feat/aeo-wave-1-foundations` | completed | R00 → X01 → D01 → D02 → A01 → A02 | Authorities, cross-source identity, window/honest-state primitives, branded classification, and the complete Act→Verify record. |
 | W2 | `feat/aeo-wave-2-site-health` | completed | S01 → S02 → S03 → S04 → S05 → S06 | Crawl correctness/speed/progress, terminal refresh, historical issue copy, and trustworthy defect/advisory semantics. |
-| W3 | `feat/aeo-wave-3-product-loop` | pending | I01 → I02 → I03 → P01 → O01 → O02 → O03 | Final route/navigation replacement, confirmed-ICP onboarding, useful no-audit Overview, Facts cutover, and Visibility cleanup. |
+| W3 | `feat/aeo-wave-3-product-loop` | ready_for_merge | I01 → I02 → I03 → P01 → O01 → O02 → O03 | Final route/navigation replacement, confirmed-ICP onboarding, useful no-audit Overview, Facts cutover, and Visibility cleanup. |
 | W4 | `feat/aeo-wave-4-demand-content` | pending | G01 → Q01 → Q02 → Q03 | Grounded generation plus bounded query evidence and all approved GSC detectors. |
 | W5 | `feat/aeo-wave-5-site-intelligence` | pending | L01 → L02 → E01 | Internal-link graph, link Opportunities/UI, and evidence-linked AEO Readiness. |
 | W6 | `feat/aeo-wave-6-change-final` | pending | C01 → C02 → Z01 | Comparable crawl changes, Opportunities/UI, schema/image/route debt closure, clean-stack proof, and final review audit. |
@@ -184,13 +184,13 @@ focused gate passed and its completion note was recorded; it does **not** create
 | S04 | W2 | completed | S03 | SH-4 exactly-once post-terminal Demand/Opportunity refresh for usable partial/cancelled evidence. |
 | S05 | W2 | completed | S04 | SH-5 frozen issue description schema/API and issue-row UI. |
 | S06 | W2 | completed | S05 | SH-6 defect/advisory semantics, intentional-indexing policy, headline counts, and views. |
-| I01 | W3 | pending | W2 | WS7 phase A: build `/site/crawls/...`, migrate callers, delete the `/site-health/**` browser route family, prove retained backend owner. |
-| I02 | W3 | pending | I01 | WS7 phase A: top-bar Agent sheet, typed context, delete `/agent` route/nav/title/tests. |
-| I03 | W3 | pending | I02 | WS7 phase A: five-station desktop/mobile navigation, conditional Commerce, settings-owned Providers, prompt route cleanup, and deletion of `/providers` + `/prompt-research`. |
-| P01 | W3 | pending | I03 | WS2 structured field provenance plus confirmed-ICP-before-prompt-generation lifecycle and UI, with all producers/consumers migrated atomically. |
-| O01 | W3 | pending | A02, P01 | WS1 no-audit command-center projection, evidence-state loop strip, next-action precedence, and capability projection. |
-| O02 | W3 | pending | O01 | WS1 Facts drawer and competitor suggestions on Overview; migrate callers and delete `/knowledge-base` plus caller-free UI. |
-| O03 | W3 | pending | O02 | WS1 Track summary; move retained Visibility capabilities to Trends, delete the Visibility `overview` surface, and finish WS7 phase B navigation cleanup. |
+| I01 | W3 | completed | W2 | WS7 phase A: build `/site/crawls/...`, migrate callers, delete the `/site-health/**` browser route family, prove retained backend owner. |
+| I02 | W3 | completed | I01 | WS7 phase A: top-bar Agent sheet, typed context, delete `/agent` route/nav/title/tests. |
+| I03 | W3 | completed | I02 | WS7 phase A: five-station desktop/mobile navigation, conditional Commerce, settings-owned Providers, prompt route cleanup, and deletion of `/providers` + `/prompt-research`. |
+| P01 | W3 | completed | I03 | WS2 structured field provenance plus confirmed-ICP-before-prompt-generation lifecycle and UI, with all producers/consumers migrated atomically. |
+| O01 | W3 | completed | A02, P01 | WS1 no-audit command-center projection, evidence-state loop strip, next-action precedence, and capability projection. |
+| O02 | W3 | completed | O01 | WS1 Facts drawer and competitor suggestions on Overview; migrate callers and delete `/knowledge-base` plus caller-free UI. |
+| O03 | W3 | completed | O02 | WS1 Track summary; move retained Visibility capabilities to Trends, delete the Visibility `overview` surface, and finish WS7 phase B navigation cleanup. |
 | G01 | W4 | pending | P01, O03 | WS7A frozen grounding envelope, adapter cutover, provider validation, truthful fallback/copy, and deletion of the superseded direct adapter path. |
 | Q01 | W4 | pending | X01, D02 | WS3A bounded query↔page↔time projection, lifecycle, API, schema, provenance, and pagination. |
 | Q02 | W4 | pending | Q01 | WS3B Wave 1 branded separation + striking-distance signals and Opportunity mapping. |
@@ -342,6 +342,83 @@ row is the removal condition. No other compatibility path is implied.
 - Evaluation artifact: `docs/evaluations/2026-08-15-w2-site-health.md`
 - Advanced to internal slice: wave close
 
+#### I01 — completed 2026-08-15
+- Wave / branch: W3 / `feat/aeo-wave-3-product-loop`
+- Owners: the `/site` App Router family and retained Site Health backend/API/component/query owners.
+- Implemented: canonical `/site` crawl dashboard plus `/site/crawls/[crawlId]/pages/[siteUrlId]`; migrated inventory, issue, rerun, Opportunity, robots, title, test, and E2E browser callers.
+- Deleted / retained until: deleted the complete `frontend/app/(app)/site-health/**` route family with no redirect; retained `/api/v1/.../site-health`, `components/site-health/**`, `lib/site-health/**`, schemas, API clients, and query keys because Site Health remains the single capability owner. Post-search found only backend/module/doc-name references and the plan's explicit replacement record.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 24
+- Local verification: focused frontend Vitest 67 passed; ESLint, contract check (10 passed), design/policy, frontend-architecture guard, TypeScript, production build, documentation validator, and `git diff --check` passed. Route build listed `/site` and `/site/crawls/[crawlId]/pages/[siteUrlId]` and no `/site-health` browser route.
+- Evaluation artifact: not applicable; route replacement used deterministic caller and build proofs.
+- Advanced to internal slice: I02
+
+#### I02 — completed 2026-08-15
+- Wave / branch: W3 / `feat/aeo-wave-3-product-loop`
+- Owners: authenticated app shell, shared Drawer primitive, and the retained bounded `GrowthAgentWorkspace` plus typed backend tools.
+- Implemented: top-bar Agent button and accessible right-side sheet; typed workspace/project/canonical-route/date-range/filter context; contextual Website launcher; Escape/close/focus-return behavior; project switching closes and clears the route preset.
+- Deleted / retained until: deleted `frontend/app/(app)/agent/page.tsx`, sidebar/mobile destination, page-title mapping, and route-specific E2E navigation with no redirect; retained Agent APIs, query keys, run history, worker, and typed tools because the sheet reuses their canonical owner.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 34
+- Local verification: focused Agent/layout Vitest 32 passed; ESLint, design/policy, frontend-architecture guard, TypeScript, production build, documentation validator, and `git diff --check` passed. Build emitted no `/agent` browser route; post-search survivors are backend/API/module paths and the plan's replacement record.
+- Evaluation artifact: not applicable; deterministic interaction and route-build proofs cover the cutover.
+- Advanced to internal slice: I03
+
+#### I03 — completed 2026-08-15
+- Wave / branch: W3 / `feat/aeo-wave-3-product-loop`
+- Owners: shared navigation configuration/rendering, workspace-authorized Project projection, Settings Providers/Integrations tabs, and canonical Prompts read/manage modes.
+- Implemented: exact Overview/Analyze/Act/Track/Connect desktop groups and mobile slots; one shared query-aware station-link renderer for desktop/mobile secondary navigation; `has_commerce_evidence` from Product or OrderFact rows with hidden-by-default Commerce navigation and unchanged direct-route authorization.
+- Deleted / retained until: deleted `/providers` and `/prompt-research` App Router pages, the prompt redirect test, title/robots entries, comments, and E2E callers with no redirects; retained provider API/components/catalog modules and `/settings?tab=providers`, plus `/prompts` and its `mode=manage` state as the sole owners.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 49
+- Local verification: backend Products API pytest 14 passed with false/no-evidence and true/Product fixtures; changed-owner Ruff and mypy passed. Focused navigation/route Vitest 32 passed, contract check 10 passed, ESLint, design/policy, frontend-architecture guard, TypeScript, production build, documentation validator, and `git diff --check` passed. Build emitted neither retired route.
+- Evaluation artifact: not applicable; deterministic capability and route-build proofs cover the cutover.
+- Advanced to internal slice: P01
+
+#### P01 — completed 2026-08-15
+- Wave / branch: W3 / `feat/aeo-wave-3-product-loop`
+- Owners: BrandProfile provenance, Brand Discovery completion, canonical prompt-set persistence, and onboarding confirmation UI.
+- Implemented: structured per-field origin/review/reviewer/time provenance; editable required positioning, target audience, and products/services; prompt-free discovery; and exactly-once deterministic prompt generation after confirmation.
+- Deleted / retained until: deleted discovery-time prompt candidates, prompt-review state, legacy source-token parsing, and the five-step setup copy; retained canonical BrandProfile, PromptSet, Prompt, and discovery owners.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 75
+- Local verification: focused backend pytest 43 passed at slice gate and 59 passed at wave close; focused frontend Vitest 20 passed at slice gate; changed-owner Ruff, mypy, ESLint, TypeScript, and deterministic positive/boundary fixtures passed.
+- Evaluation artifact: not applicable; deterministic lifecycle and boundary fixtures cover the slice.
+- Advanced to internal slice: O01
+
+#### O01 — completed 2026-08-15
+- Wave / branch: W3 / `feat/aeo-wave-3-product-loop`
+- Owners: workspace-authorized command-center read projection and existing Project, BrandProfile, Competitor, Integration, Site Health, Demand, Opportunity, and Audit evidence owners.
+- Implemented: useful no-audit response; explicit connected/analyzed/acted/tracked evidence states; current-snapshot implementation matching; and opportunity → connect → crawl → configure prompts → audit → monitor precedence.
+- Deleted / retained until: removed the read-path audit prerequisite and fabricated pre-audit metrics; retained the persisted-report endpoint with an explicit no-audit not-found guard.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 81
+- Local verification: command-center component fixtures cover audit and no-audit positive/boundary states; wave-close backend pytest 59 passed, Ruff/mypy passed, and complexity policy passed across 378 modules.
+- Evaluation artifact: not applicable; deterministic persisted-evidence fixtures cover the projection.
+- Advanced to internal slice: O02
+
+#### O02 — completed 2026-08-15
+- Wave / branch: W3 / `feat/aeo-wave-3-product-loop`
+- Owners: Overview dashboard, canonical BrandProfile editor, and existing Competitor suggestions.
+- Implemented: canonical Facts summary/drawer and competitor suggestions on Overview, including the useful no-audit state.
+- Deleted / retained until: deleted `/knowledge-base` and caller-free `BrandKnowledgeScreen` with no redirect; retained the reusable BrandProfile editor and canonical APIs as the single Facts owner.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 84
+- Local verification: focused Dashboard/BrandProfile Vitest and the Playwright no-audit Overview proof passed; post-search found no retired route caller.
+- Evaluation artifact: not applicable; deterministic UI/API fixtures cover the cutover.
+- Advanced to internal slice: O03
+
+#### O03 — completed 2026-08-15
+- Wave / branch: W3 / `feat/aeo-wave-3-product-loop`
+- Owners: Overview Track summary plus the retained AI Visibility Trends, Mentions & Citations, and Query Fanout surfaces.
+- Implemented: honest Track summary; Trends-owned latest/start rankings, engine comparison, and prompt movement; three-tab desktop/mobile Visibility with Trends default.
+- Deleted / retained until: deleted the Visibility `overview` token, `VisibilityOverview`, `OverviewSummary`, duplicate selected-run composition, overview-only marketing preview, tests, and comments; retained Commerce's unrelated product-visibility Overview and the legal section ID.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 95
+- Local verification: focused frontend Vitest 83 passed; ESLint, 10 contract tests, design/policy and architecture guards, TypeScript, and production build passed; selected Playwright route/navigation/empty-state suite passed after fixture repair; documentation validator and diff checks run at wave close.
+- Evaluation artifact: not applicable; deterministic browser and contract fixtures cover the cutover.
+- Advanced to internal slice: wave close
+
 Add one heading per completed row. Use this exact compact schema so a fresh session can audit it:
 
 ```text
@@ -381,46 +458,48 @@ The next wave chat reconciles this note from GitHub readback.
 - Retained review debt: none actionable from merged-head readback; Qodo was unavailable because its subscription was inactive, and the CodeRabbit docstring-coverage item was an advisory rather than a required check.
 - Synchronization: local `main` and `origin/main` both resolved to `78b4061ea5d9b7117c654ae49607b1228dfca70f` before W3 branched.
 
-### Current next-session handoff — W3
+### Current next-session handoff — W4
 
 Copy and paste this entire prompt into a fresh Codex chat:
 
 ```text
-Continue the CiteLadder AEO rebuild by implementing the complete W3 Product Loop delivery wave from
+Continue the CiteLadder AEO rebuild by implementing the complete W4 Demand + Content delivery wave from
 docs/plans/citeladder-aeo-product-rebuild.md in one fresh chat. One chat equals one PR. Use the
-citeladder-engineering skill throughout and finish with $ship-main. Implement all W3 internal
-sub-slices in order: I01 → I02 → I03 → P01 → O01 → O02 → O03. Do not start W4.
+citeladder-engineering skill throughout and finish with $ship-main. Implement all W4 internal
+sub-slices in order: G01 → Q01 → Q02 → Q03. Do not start W5.
 
 Bootstrap only from synchronized `main`. Read AGENTS.md, docs/invariants.md, the plan's Codex
-execution protocol, both ledgers, the merged W2 completion note, the W3 row, WS7 phases A/B, WS2,
-WS1, their gates, and the named architecture/design/frontend/backend/onboarding authorities.
-Reconcile W2's `ready_for_merge` ledger row and completion note from GitHub readback before editing.
+execution protocol, both ledgers, the merged W3 completion note, the W4 row, WS7A, WS3A, WS3B,
+their gates, and the named architecture/design/frontend/backend/content/demand authorities.
+Reconcile W3's `ready_for_merge` ledger row and completion note from GitHub readback before editing.
 Inspect git status/branch/upstream and preserve unrelated work.
 
-Before editing, inventory projected W3 files and the required migrate/delete/retain replacement
-map for routes, navigation, Agent entry points, Facts, ICP fields, and Visibility overview. Target
-at most 75 unique files, freeze additions at
-85, and close at no more than 95. Rebalance only whole trailing sub-slices among the existing six
-waves if required; never drop a gate or create a seventh PR. Create
-`feat/aeo-wave-3-product-loop` from synchronized main.
+Before editing, inventory projected W4 files and the required migrate/delete/retain replacement
+map for content grounding, the direct adapter path, query evidence, Demand projections, detector
+outputs, Opportunities, tests, and active documentation. Target at most 75 unique files, freeze
+additions at 85, and close at no more than 95. Rebalance only whole trailing sub-slices among the
+existing six waves if required; never drop a gate or create a seventh PR. Create
+`feat/aeo-wave-4-demand-content` from synchronized main.
 
-Execute I01–O03 sequentially with their replacement inventories, validation spikes, deterministic
-positive/boundary fixtures, and focused gates. Atomically replace the `/site-health/**` browser
-route family with `/site/crawls/**` while retaining the Site Health backend owner; replace the
-Agent route with the typed top-bar sheet; ship the five-station desktop/mobile navigation and
-delete retired provider/prompt routes; require confirmed structured ICP before prompt generation;
-ship the useful no-audit Overview, loop-state/next-action precedence, Facts drawer, competitor
-suggestions, and Track summary; then move retained Visibility capabilities to Trends and delete
-the Visibility overview. Do not leave redirects, duplicate owners, caller-free UI, or stale active
-documentation after each atomic cutover.
+Execute G01–Q03 sequentially with their replacement inventories, live read-only validation spikes,
+deterministic positive/boundary fixtures, and focused gates. Freeze the WS7A grounding envelope
+from confirmed BrandProfile facts plus exact crawl-observed website evidence; migrate every
+generation caller to it, validate provider inputs and truthful fallback/copy, and delete the
+superseded direct adapter path. Then ship the bounded query↔page↔time evidence projection with
+workspace authorization, provenance, lifecycle, API/schema, and pagination. Add branded
+separation and striking-distance detectors first, then cannibalization, property-relative CTR gap,
+and trend detectors with explicit abstention states and no mismatch placeholder. Map only approved
+signals into the existing Opportunity owner. Do not widen a read path, duplicate GSC truth, let a
+model own a metric, or leave caller-free code or stale active documentation after an atomic cutover.
 
-Run focused backend/frontend tests and the named route/navigation/empty-state browser proofs; do
-not run the repository-wide test suite locally. After O03, run the wave-close checks, update W3 to
-ready-for-merge, record every completion note and cumulative file count, replace this handoff with
-a concrete W4 prompt, and invoke $ship-main. Continue autonomously through one non-draft PR,
+Run the required live validation layer plus focused backend/frontend tests and the named Demand/
+Content browser proofs; do not run the repository-wide test suite locally. After Q03, run the
+wave-close checks, update W4 to ready-for-merge, record every completion note and cumulative file
+count, replace this handoff with a concrete W5 prompt, and invoke $ship-main. Continue autonomously
+through one non-draft PR,
 CodeRabbit/agent review, green required CI, merge, and local-main synchronization. In the final
 response report the PR, merge commit, checks, review disposition, final file count, replacement
-deletion proof, and repeat the W4 handoff prompt verbatim.
+deletion proof, and repeat the W5 handoff prompt verbatim.
 ```
 
 ---

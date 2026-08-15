@@ -125,8 +125,8 @@ export function UrlDetail({
   return (
     <div className="grid gap-6">
       <nav className="text-muted text-xs" aria-label="Breadcrumb">
-        <Link href="/site-health" className="hover:text-accent">
-          Site Health
+        <Link href="/site" className="hover:text-accent">
+          Website
         </Link>
         <span className="px-1.5" aria-hidden>
           /
@@ -175,7 +175,7 @@ export function UrlDetail({
                 : prev,
           );
           router.push(
-            `/site-health/crawls/${result.crawl_id}/pages/${result.site_url_id}?${RERUN_SEARCH_PARAM}=1`,
+            `/site/crawls/${result.crawl_id}/pages/${result.site_url_id}?${RERUN_SEARCH_PARAM}=1`,
           );
         }}
       />

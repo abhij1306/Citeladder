@@ -10,12 +10,15 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, union
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config.api import API_V1_PREFIX
-from app.core.config.brand_profile import BRAND_PROFILE_SOURCE_MANUAL
+from app.core.config.brand_profile import (
+    BRAND_PROFILE_REVIEW_CONFIRMED,
+    BRAND_PROFILE_SOURCE_MANUAL,
+)
 from app.core.config.entitlements import KEY_PROJECT_SLOTS
 from app.core.config.projects import MAX_PROJECT_COMPETITORS
 from app.domain.entitlements.enforcement import (
@@ -40,6 +43,8 @@ from app.models.brand import (
     OwnedDomain,
     UnintendedDomain,
 )
+from app.models.commerce import OrderFact
+from app.models.product import Product
 from app.models.project import Project
 from app.models.prompt import PromptSet
 
@@ -72,7 +77,9 @@ def _clean_list(values: list[str] | None) -> list[str]:
     return [str(v).strip() for v in (values or []) if str(v).strip()]
 
 
-def project_to_response(project: Project) -> ProjectResponse:
+def project_to_response(
+    project: Project, *, has_commerce_evidence: bool = False
+) -> ProjectResponse:
     """Project the normalized rows back into the flat response DTO."""
     brand = project.brand
     return ProjectResponse(
@@ -115,6 +122,7 @@ def project_to_response(project: Project) -> ProjectResponse:
         language_code=project.language_code,
         benchmark_mode=project.benchmark_mode,
         default_repetitions=project.default_repetitions,
+        has_commerce_evidence=has_commerce_evidence,
         created_at=project.created_at,
         updated_at=project.updated_at,
     )
@@ -158,7 +166,11 @@ def _build_competitors(items: list[Any] | None) -> list[Competitor]:
 
 
 def _seed_manual_brand_profile(
-    project: Project, *, workspace_id: uuid.UUID, payload: Any
+    project: Project,
+    *,
+    workspace_id: uuid.UUID,
+    payload: Any,
+    sources: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """Attach the human-authored brand profile to a freshly created project.
 
@@ -183,8 +195,15 @@ def _seed_manual_brand_profile(
         project_id=project.id,
         brand_id=project.brand.id,
         **profile_fields,
-        sources={
-            field: BRAND_PROFILE_SOURCE_MANUAL
+        sources=sources
+        if sources is not None
+        else {
+            field: {
+                "origin": BRAND_PROFILE_SOURCE_MANUAL,
+                "review_state": BRAND_PROFILE_REVIEW_CONFIRMED,
+                "reviewed_by": None,
+                "reviewed_at": None,
+            }
             for field, value in profile_fields.items()
             if value
         },
@@ -197,6 +216,7 @@ async def create_project(
     workspace_id: uuid.UUID,
     payload: Any,
     commit: bool = True,
+    brand_profile_sources: dict[str, dict[str, Any]] | None = None,
 ) -> Project:
     """Create a project + its normalized brand identity in one transaction.
 
@@ -235,7 +255,12 @@ async def create_project(
     ]
     session.add(project)
     await session.flush()
-    _seed_manual_brand_profile(project, workspace_id=workspace_id, payload=payload)
+    _seed_manual_brand_profile(
+        project,
+        workspace_id=workspace_id,
+        payload=payload,
+        sources=brand_profile_sources,
+    )
     if not commit:
         return project
     await session.commit()
@@ -251,6 +276,30 @@ async def list_projects(
         .order_by(Project.created_at.desc())
     )
     return list(result.scalars().unique().all())
+
+
+async def commerce_evidence_project_ids(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_ids: list[uuid.UUID],
+) -> set[uuid.UUID]:
+    """Projects with persisted catalog or order evidence in this workspace."""
+    if not project_ids:
+        return set()
+    statement = union(
+        select(Product.project_id)
+        .join(Project, Project.id == Product.project_id)
+        .where(
+            Project.workspace_id == workspace_id,
+            Product.project_id.in_(project_ids),
+        ),
+        select(OrderFact.project_id).where(
+            OrderFact.workspace_id == workspace_id,
+            OrderFact.project_id.in_(project_ids),
+        ),
+    )
+    return set(await session.scalars(statement))
 
 
 async def get_project(

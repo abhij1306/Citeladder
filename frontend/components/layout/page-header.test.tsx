@@ -19,19 +19,14 @@ function renderTitle(route: string) {
 
 describe('PageHeader', () => {
   it.each([
-    ['/visibility', 'Overview'],
+    ['/visibility', 'AI Visibility'],
     ['/ai-referrals', 'AI Referrals'],
     ['/traffic', 'Traffic'],
     ['/prompts', 'Prompts'],
     ['/opportunities', 'Opportunities'],
-    ['/site-health', 'Site health'],
-    // §9.3: the route persists, the label is "Facts".
-    ['/knowledge-base', 'Facts'],
-    ['/prompt-research', 'Prompt research'],
-    // The layer routes. `/site` must not be swallowed by `/site-health`.
-    ['/site', 'Site'],
+    ['/site', 'Website'],
+    // The canonical Website route owns crawl detail beneath `/site`.
     ['/demand', 'Search Demand'],
-    ['/agent', 'Growth Agent'],
   ])('resolves %s to the page title %s', (route, title) => {
     expect(renderTitle(route)).toBe(title);
   });
@@ -41,7 +36,7 @@ describe('PageHeader', () => {
     ['/runs/abc', 'Run detail'],
     ['/runs/abc/executions/def', 'Execution evidence'],
     ['/products/abc', 'Product evidence'],
-    ['/site-health/crawls/abc/pages/def', 'Page detail'],
+    ['/site/crawls/abc/pages/def', 'Page detail'],
   ])('resolves deeper route %s by longest-prefix match to %s', (route, title) => {
     expect(renderTitle(route)).toBe(title);
   });

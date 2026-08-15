@@ -74,12 +74,18 @@ def _product_payload(**overrides: object) -> dict:
 async def test_product_crud_round_trip(client: httpx.AsyncClient) -> None:
     await _register(client, "prod-crud@example.com")
     project = await _project(client)
+    projects_before = await client.get("/api/v1/projects")
+    assert projects_before.status_code == 200
+    assert projects_before.json()[0]["has_commerce_evidence"] is False
 
     created = await client.post(
         f"/api/v1/projects/{project['id']}/products", json=_product_payload()
     )
     assert created.status_code == 201
     body = created.json()
+    projects_after = await client.get("/api/v1/projects")
+    assert projects_after.status_code == 200
+    assert projects_after.json()[0]["has_commerce_evidence"] is True
     assert body["sku"] == "VC-EB500-GR"
     assert body["currency"] == "USD"  # normalized
     assert body["origin"] == "manual"

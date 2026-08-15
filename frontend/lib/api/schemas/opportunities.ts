@@ -54,12 +54,48 @@ const commandCenterMetricSchema = responseObject({
   delta: z.number().nullable(),
 });
 
+const evidenceStateSchema = responseObject({
+  state: z.enum(['observed', 'partial', 'not_run', 'unavailable']),
+  observed_at: z.string().nullable(),
+  freshness: z.enum(['current', 'unknown']),
+  coverage: z.array(z.string()),
+  limitations: z.array(z.string()),
+});
+
 export const commandCenterSchema = responseObject({
   project: responseObject({
     id: uuid(),
     name: z.string(),
     brand_name: z.string(),
     website_url: z.string(),
+  }),
+  facts: responseObject({
+    industry: z.string(),
+    description: z.string(),
+    positioning: z.string(),
+    products_services: z.array(z.string()),
+    target_audience: z.string(),
+    competitors: z.array(
+      responseObject({ id: uuid(), name: z.string(), domains: z.array(z.string()) }),
+    ),
+  }),
+  loop: responseObject({
+    connected: evidenceStateSchema,
+    analyzed: evidenceStateSchema,
+    acted: evidenceStateSchema,
+    tracked: evidenceStateSchema,
+  }),
+  next_action: responseObject({
+    kind: z.enum(['opportunity', 'connect', 'crawl', 'configure_prompts', 'audit', 'monitor']),
+    title: z.string(),
+    href: z.string(),
+    opportunity_id: uuid().nullable(),
+  }),
+  track: responseObject({
+    citation_share: commandCenterMetricSchema,
+    engine_coverage: z.number().int(),
+    observed_at: z.string().nullable(),
+    limitations: z.array(z.string()),
   }),
   measurement: responseObject({
     audit_id: uuid(),
@@ -68,7 +104,7 @@ export const commandCenterSchema = responseObject({
     benchmark_mode: z.string(),
     logical_engines: z.array(z.string()),
     comparable_audit_id: uuid().nullable(),
-  }),
+  }).nullable(),
   state: responseObject({
     visibility: commandCenterMetricSchema,
     share_of_voice: commandCenterMetricSchema,

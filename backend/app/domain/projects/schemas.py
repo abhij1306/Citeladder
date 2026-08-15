@@ -11,12 +11,11 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.brand_profile import (
     BRAND_PROFILE_PRODUCT_MAX_CHARS,
     BRAND_PROFILE_PRODUCTS_MAX_COUNT,
-    BRAND_PROFILE_SOURCE_TOKENS,
     BRAND_PROFILE_TEXT_MAX_CHARS,
 )
 from app.core.config.projects import (
@@ -36,13 +35,8 @@ from app.domain.prompts.schemas import PromptSetResponse
 BenchmarkMode = Literal["consumer_like", "controlled_localized", "forced_grounded"]
 
 
-def _validate_brand_profile_source(value: str) -> str:
-    if value not in BRAND_PROFILE_SOURCE_TOKENS:
-        raise ValueError(f"Unknown brand profile source: {value}")
-    return value
-
-
-BrandProfileSource = Annotated[str, AfterValidator(_validate_brand_profile_source)]
+BrandProfileOrigin = Literal["manual", "web_evidence", "ai_suggested"]
+BrandProfileReviewState = Literal["unreviewed", "confirmed", "edited"]
 
 
 # --------------------------------------------------------------------------
@@ -91,11 +85,18 @@ class ObservedCompetitorResponse(BaseModel):
     created_at: datetime
 
 
+class BrandProfileFieldProvenance(BaseModel):
+    origin: BrandProfileOrigin
+    review_state: BrandProfileReviewState
+    reviewed_by: uuid.UUID | None = None
+    reviewed_at: datetime | None = None
+
+
 class BrandProfileSources(BaseModel):
-    description: BrandProfileSource | None = None
-    positioning: BrandProfileSource | None = None
-    products_services: BrandProfileSource | None = None
-    target_audience: BrandProfileSource | None = None
+    description: BrandProfileFieldProvenance | None = None
+    positioning: BrandProfileFieldProvenance | None = None
+    products_services: BrandProfileFieldProvenance | None = None
+    target_audience: BrandProfileFieldProvenance | None = None
 
 
 class BrandProfileSourceArtifacts(BaseModel):
@@ -331,5 +332,6 @@ class ProjectResponse(BaseModel):
     language_code: str
     benchmark_mode: str
     default_repetitions: int
+    has_commerce_evidence: bool = False
     created_at: datetime
     updated_at: datetime

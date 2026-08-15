@@ -50,7 +50,15 @@ describe('BrandProfilePanel', () => {
         return HttpResponse.json({
           ...profile,
           description: 'A value-focused family retailer.',
-          sources: { ...profile.sources, description: 'manual' },
+          sources: {
+            ...profile.sources,
+            description: {
+              origin: 'manual',
+              review_state: 'confirmed',
+              reviewed_by: null,
+              reviewed_at: null,
+            },
+          },
         });
       }),
     );

@@ -15,6 +15,7 @@ from app.core.config.entitlements import KEY_PROJECT_SLOTS, KEY_PROMPT_SLOTS
 from app.domain.entitlements.types import GrantSpec
 from app.domain.projects.onboarding import service as onboarding_service
 from app.domain.projects.onboarding.site_resolution import SiteNotFoundError
+from app.models.brand import BrandProfile
 from app.models.discovery import BrandDiscovery, BrandDiscoveryTask
 from app.models.project import Project
 from app.models.prompt import Prompt
@@ -38,51 +39,17 @@ async def _register(client: httpx.AsyncClient, email: str) -> None:
 
 
 def _completion_payload() -> dict:
-    intents = ["discovery", "service", "comparison", "purchase", "local"]
-    market = [
-        "Which analytics platform should I use to automate workflows in US?",
-        "What analytics software can I use to integrate business data in US?",
-        "How do I compare analytics tools for improving my team's performance?",
-        "Which analytics platform gives my business strong integrations in US?",
-        "Where can I find analytics software with good support in US?",
-    ]
-    brand_relevant = [
-        "Which analytics tools can I use for automating workflows in US?",
-        "What analytics software is best for my marketing team in US?",
-        "How can I improve my team's attribution reporting in US?",
-        "What should I compare when choosing analytics software in US?",
-        "Where can I find dependable analytics reporting tools in US?",
-    ]
     return {
         "name": "Acme Visibility",
         "profile": {
             "industry": "Software",
             "business_type": "b2b",
+            "positioning": "A workflow analytics platform",
             "products_services": ["analytics software"],
+            "target_audience": "enterprise marketing teams",
         },
         "domains": ["acme.com"],
         "competitors": [{"name": "Globex", "domains": ["globex.com"]}],
-        "prompt_groups": [
-            {
-                "topic": "Analytics",
-                "prompts": [
-                    {
-                        "text": text,
-                        "intent": intents[index],
-                        "cohort": "market_visibility",
-                    }
-                    for index, text in enumerate(market)
-                ]
-                + [
-                    {
-                        "text": text,
-                        "intent": intents[index],
-                        "cohort": "brand_relevant",
-                    }
-                    for index, text in enumerate(brand_relevant)
-                ],
-            }
-        ],
     }
 
 
@@ -95,11 +62,11 @@ async def _seed_ready_discovery(
         stage="review",
         progress={
             "phase": "preparing_review",
-            "completed_steps": 4,
-            "total_steps": 5,
+            "completed_steps": 3,
+            "total_steps": 4,
             "pages_read": 1,
             "competitors_found": 1,
-            "prompts_prepared": 10,
+            "prompts_prepared": 0,
             "updated_at": "2026-08-04T00:00:00+00:00",
         },
         input_data={
@@ -111,6 +78,11 @@ async def _seed_ready_discovery(
             "language_code": "en",
         },
         domains=["acme.com"],
+        profile={
+            "positioning": "A workflow analytics platform",
+            "products_services": ["analytics software"],
+            "target_audience": "marketing teams",
+        },
         idempotency_key=f"discover-{uuid.uuid4()}",
     )
     session.add(row)
@@ -240,6 +212,13 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
         assert project.subindustry == "Analytics"
         assert project.primary_market == "US"
         assert await session.scalar(select(func.count()).select_from(Prompt)) == 10
+        profile = await session.scalar(select(BrandProfile))
+        assert profile is not None
+        assert profile.sources["positioning"]["review_state"] == "confirmed"
+        assert profile.sources["target_audience"]["review_state"] == "edited"
+        assert profile.sources["target_audience"]["origin"] == "ai_suggested"
+        assert profile.sources["target_audience"]["reviewed_by"] is not None
+        assert profile.sources["target_audience"]["reviewed_at"] is not None
         assert (
             await session.scalar(
                 select(func.count())

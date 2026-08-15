@@ -12,8 +12,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TrendChart } from '@/components/ui/trend-chart';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
 import { NO_RANKINGS_MESSAGE, RankingRowsTable } from '@/components/visibility/ranking-rows';
+import { EngineComparison } from '@/components/visibility/engine-comparison';
+import { PromptMovement } from '@/components/visibility/prompt-insights';
 import { cn } from '@/lib/utils';
-import type { VisibilityTrendPoint } from '@/lib/api/types';
+import type { PromptMetricItem, Visibility, VisibilityTrendPoint } from '@/lib/api/types';
+import type { VisibilityFilters } from '@/lib/visibility/dashboard';
 import {
   formatPointDate,
   rankingBookends,
@@ -42,10 +45,16 @@ import {
  */
 export function VisibilityTrends({
   query,
+  visibilityQuery,
+  promptQuery,
+  engineFilter,
   hasRuns,
   isFiltered,
 }: Readonly<{
   query: UseQueryResult<VisibilityTrendPoint[], unknown>;
+  visibilityQuery: UseQueryResult<Visibility, unknown>;
+  promptQuery: UseQueryResult<PromptMetricItem[], unknown>;
+  engineFilter: VisibilityFilters['engine'];
   hasRuns: boolean;
   isFiltered: boolean;
 }>) {
@@ -146,6 +155,12 @@ export function VisibilityTrends({
             emptyNote="Add another run to compare the start of the range."
           />
         </div>
+        {visibilityQuery.data ? (
+          <EngineComparison visibility={visibilityQuery.data} filter={engineFilter} />
+        ) : visibilityQuery.isError ? (
+          <Alert tone="danger">Could not load the latest model comparison.</Alert>
+        ) : null}
+        <PromptMovement promptQuery={promptQuery} />
       </section>
     </div>
   );

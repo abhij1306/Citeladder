@@ -46,7 +46,7 @@ export function OpportunitySummarySection({ detail }: Readonly<{ detail: Opportu
         {crawlId && siteUrlId ? (
           <SourceLink
             label="Website page"
-            href={`/site-health/crawls/${crawlId}/pages/${siteUrlId}`}
+            href={`/site/crawls/${crawlId}/pages/${siteUrlId}`}
             linkText="View page"
           />
         ) : null}

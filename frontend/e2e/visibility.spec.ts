@@ -5,7 +5,7 @@ import { expect, test, type Page, type Request } from '@playwright/test';
  *
  * All backend calls are stubbed at the network layer so the spec runs without a
  * live backend (mirrors `runs.spec.ts`). It asserts the four-tab IA — exactly
- * Overview, Trends, Mentions & Citations, Query Fanout (no Sources / Topics /
+ * Trends, Mentions & Citations, Query Fanout (no Overview / Sources / Topics /
  * Sentiment) — the WAI-ARIA tablist (pointer + keyboard navigation, one panel at
  * a time, `?tab=` URL sync), shared-filter persistence across tabs, the evidence
  * populated / empty / error states, the three Query Fanout query states, and a
@@ -338,7 +338,7 @@ function assertSameOriginApi(requests: Request[], baseURL: string) {
   }
 }
 
-test('four tabs in order, no Sources/Topics/Sentiment, Overview by default, one panel', async ({
+test('three tabs in order, no retired Overview, Trends by default, one panel', async ({
   page,
 }) => {
   await setup(page);
@@ -348,19 +348,21 @@ test('four tabs in order, no Sources/Topics/Sentiment, Overview by default, one 
   await expect(tablist).toBeVisible();
 
   const tabs = tablist.getByRole('tab');
-  await expect(tabs).toHaveText(['Overview', 'Trends', 'Mentions', 'Search queries']);
+  await expect(tabs).toHaveText(['Trends', 'Mentions', 'Search queries']);
 
   // Forbidden tabs are absent.
   await expect(tablist.getByRole('tab', { name: 'Sources' })).toHaveCount(0);
   await expect(tablist.getByRole('tab', { name: 'Topics' })).toHaveCount(0);
   await expect(tablist.getByRole('tab', { name: 'Sentiment' })).toHaveCount(0);
+  await expect(tablist.getByRole('tab', { name: 'Overview' })).toHaveCount(0);
 
-  // Overview is selected by default and its content is present.
-  await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+  // Trends is selected by default and its retained content is present.
+  await expect(page.getByRole('tab', { name: 'Trends' })).toHaveAttribute(
     'aria-selected',
     'true',
   );
-  await expect(page.getByTestId('overview-summary')).toContainText('67% of answers');
+  await expect(page.getByTestId('trend-chart-visibility_score')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'By model' })).toBeVisible();
 
   // Exactly one panel is rendered at a time.
   await expect(page.getByRole('tabpanel')).toHaveCount(1);
@@ -370,14 +372,8 @@ test('pointer navigation switches panels and syncs ?tab=', async ({ page, baseUR
   const { requests, evidenceUrls } = await setup(page, { evidence: fanoutStatesResponse() });
   await page.goto('/visibility');
 
-  await expect(page.getByTestId('overview-summary')).toContainText('67% of answers');
-
-  // Trends.
-  await page.getByRole('tab', { name: 'Trends' }).click();
-  await expect(page).toHaveURL(/[?&]tab=trends/);
   await expect(page.getByTestId('trend-chart-visibility_score')).toBeVisible();
   await expect(page.getByRole('tabpanel')).toHaveCount(1);
-  await expect(page.getByTestId('overview-summary')).toHaveCount(0);
 
   // Mentions & Citations.
   await page.getByRole('tab', { name: 'Mentions' }).click();
@@ -400,13 +396,13 @@ test('keyboard navigation moves selection with focus transfer (WAI-ARIA)', async
   await setup(page, { trends: [] });
   await page.goto('/visibility');
 
-  const overview = page.getByRole('tab', { name: 'Overview' });
-  await expect(overview).toHaveAttribute('aria-selected', 'true');
-  await overview.focus();
+  const trends = page.getByRole('tab', { name: 'Trends' });
+  await expect(trends).toHaveAttribute('aria-selected', 'true');
+  await trends.focus();
 
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'Trends' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tab', { name: 'Trends' })).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'Mentions' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: 'Mentions' })).toBeFocused();
 
   await page.keyboard.press('End');
   await expect(page.getByRole('tab', { name: 'Search queries' })).toHaveAttribute(
@@ -417,7 +413,7 @@ test('keyboard navigation moves selection with focus transfer (WAI-ARIA)', async
 
   // Wraps forward from the last tab back to the first.
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: 'Trends' })).toHaveAttribute(
     'aria-selected',
     'true',
   );
@@ -430,22 +426,22 @@ test('keyboard navigation moves selection with focus transfer (WAI-ARIA)', async
   );
 
   await page.keyboard.press('Home');
-  await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+  await expect(page.getByRole('tab', { name: 'Trends' })).toHaveAttribute(
     'aria-selected',
     'true',
   );
-  await expect(page.getByRole('tab', { name: 'Overview' })).toBeFocused();
+  await expect(page.getByRole('tab', { name: 'Trends' })).toBeFocused();
 });
 
 test('shared engine filter persists across tab switches', async ({ page }) => {
   const { evidenceUrls } = await setup(page);
   await page.goto('/visibility');
 
-  await expect(page.getByTestId('overview-summary')).toContainText('67% of answers');
+  await expect(page.getByRole('heading', { name: 'By model' })).toBeVisible();
 
-  // Pick an engine on Overview.
+  // Pick an engine on Trends.
   await page.getByRole('button', { name: 'Filter by model' }).click();
-  await page.getByRole('menuitem', { name: 'Gemini' }).click();
+  await page.getByRole('menuitemradio', { name: 'Gemini' }).click();
   await expect(page.getByRole('button', { name: 'Filter by model' })).toContainText('Gemini');
 
   // Switch to an evidence tab; the engine filter carries into the query params.
@@ -482,7 +478,7 @@ test('evidence empty state renders when items are empty (widened range)', async 
   // The default 90d preset counts as a narrowing filter; widen to All time so
   // the genuinely-empty (not filtered-empty) state is exercised.
   await page.getByRole('button', { name: 'Select date range' }).click();
-  await page.getByRole('menuitem', { name: 'All time' }).click();
+  await page.getByRole('menuitemradio', { name: 'All time' }).click();
 
   await expect(page.getByText('No mentions or citations yet')).toBeVisible();
 });
@@ -512,14 +508,14 @@ test('mobile viewport: tablist is a single horizontally-scrollable row, one pane
   // The selected tab carries the 2px accent underline, not a pill fill.
   await expect(tablist.getByRole('tab', { selected: true })).toHaveClass(/after:bg-accent/);
 
-  // All four tabs are still present in the one row.
-  await expect(tablist.getByRole('tab')).toHaveCount(4);
+  // All three retained tabs are still present in the one row.
+  await expect(tablist.getByRole('tab')).toHaveCount(3);
 
   // Inactive panels are NOT stacked — still exactly one panel in the DOM.
   await expect(page.getByRole('tabpanel')).toHaveCount(1);
 
   // Shared filters remain usable: the engine dropdown still opens + selects.
   await page.getByRole('button', { name: 'Filter by model' }).click();
-  await page.getByRole('menuitem', { name: 'Gemini' }).click();
+  await page.getByRole('menuitemradio', { name: 'Gemini' }).click();
   await expect(page.getByRole('button', { name: 'Filter by model' })).toContainText('Gemini');
 });

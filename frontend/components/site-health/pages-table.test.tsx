@@ -87,14 +87,14 @@ describe('PagesTable', () => {
     const view = screen.getByText('View');
     const anchor = view.closest('a');
     expect(anchor).not.toBeNull();
-    expect(anchor).toHaveAttribute('href', `/site-health/crawls/${CRAWL}/pages/${UUID}`);
+    expect(anchor).toHaveAttribute('href', `/site/crawls/${CRAWL}/pages/${UUID}`);
   });
 
   it('navigates to the per-URL detail when the row is clicked', () => {
     push.mockClear();
     render(<PagesTable pages={[page()]} crawlId={CRAWL} />);
     fireEvent.click(screen.getByText('Homepage'));
-    expect(push).toHaveBeenCalledWith(`/site-health/crawls/${CRAWL}/pages/${UUID}`);
+    expect(push).toHaveBeenCalledWith(`/site/crawls/${CRAWL}/pages/${UUID}`);
   });
 
   it('links an inherited discovered row to the crawl that owns its detail', () => {
@@ -106,7 +106,7 @@ describe('PagesTable', () => {
     );
     expect(screen.getByText('View').closest('a')).toHaveAttribute(
       'href',
-      `/site-health/crawls/${SOURCE_CRAWL}/pages/${UUID}`,
+      `/site/crawls/${SOURCE_CRAWL}/pages/${UUID}`,
     );
   });
 });

@@ -9,10 +9,10 @@ const TAB_ID = (tab: VisibilityTab) => `visibility-tab-${tab}`;
 const PANEL_ID = (tab: VisibilityTab) => `visibility-panel-${tab}`;
 
 /**
- * Accessible four-tab navigation for the Visibility workspace (WAI-ARIA tabs).
+ * Accessible three-tab navigation for the Visibility workspace (WAI-ARIA tabs).
  *
- * Exposes EXACTLY Overview, Trends, Mentions & Citations, and Query Fanout (in
- * that order). The tablist implements roving tabindex, `aria-selected`, and
+ * Exposes exactly Trends, Mentions & Citations, and Query Fanout. The tablist
+ * implements roving tabindex, `aria-selected`, and
  * keyboard Arrow/Home/End navigation with focus transfer + automatic
  * activation; only the active panel is rendered as the primary section, wired
  * to its tab via `aria-controls` / `aria-labelledby`.

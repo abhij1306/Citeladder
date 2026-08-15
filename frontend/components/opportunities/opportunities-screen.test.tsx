@@ -541,7 +541,7 @@ describe('OpportunitiesScreen', () => {
 
     const drawer = await screen.findByRole('dialog', { name: 'Opportunity detail' });
     const pageLink = within(drawer).getByRole('link', { name: 'View page' });
-    expect(pageLink).toHaveAttribute('href', `/site-health/crawls/${RUN}/pages/${SITE_URL}`);
+    expect(pageLink).toHaveAttribute('href', `/site/crawls/${RUN}/pages/${SITE_URL}`);
     // No visibility-run or prompt link for a site-sourced row.
     expect(within(drawer).queryByRole('link', { name: 'View result' })).not.toBeInTheDocument();
     expect(

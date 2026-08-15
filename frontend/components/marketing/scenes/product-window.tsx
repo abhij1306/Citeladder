@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, Pause, Play, Search } from 'lucide-react';
+import { Bot, ChevronDown, Pause, Play, Search } from 'lucide-react';
 import { m, useReducedMotion } from 'motion/react';
 
 import { NAV_GROUPS, type NavItem } from '@/components/layout/nav-items';
@@ -17,13 +17,14 @@ export const PREVIEW_HOLD_MS = 2400;
 const LAST_PHASE = 3;
 type NavGroupTitle = (typeof NAV_GROUPS)[number]['title'];
 type NavItemLabel = (typeof NAV_GROUPS)[number]['items'][number]['label'];
+type PreviewItemLabel = NavItemLabel | 'Growth Agent';
 
 const LAYERS = [
   {
     id: 'site',
     label: 'Site Health',
     shortLabel: 'Site',
-    group: 'Site Health' satisfies NavGroupTitle,
+    group: 'Analyze' satisfies NavGroupTitle,
     activeItem: 'Website' satisfies NavItemLabel,
     icon: ICONS.site,
   },
@@ -31,7 +32,7 @@ const LAYERS = [
     id: 'content',
     label: 'Content Intelligence',
     shortLabel: 'Content',
-    group: 'Content Intelligence' satisfies NavGroupTitle,
+    group: 'Act' satisfies NavGroupTitle,
     activeItem: 'Content' satisfies NavItemLabel,
     icon: ICONS.content,
   },
@@ -39,7 +40,7 @@ const LAYERS = [
     id: 'demand',
     label: 'Demand Intelligence',
     shortLabel: 'Demand',
-    group: 'Demand Intelligence' satisfies NavGroupTitle,
+    group: 'Track' satisfies NavGroupTitle,
     activeItem: 'AI Visibility' satisfies NavItemLabel,
     icon: ICONS.demand,
   },
@@ -47,8 +48,8 @@ const LAYERS = [
     id: 'agent',
     label: 'Growth Agent',
     shortLabel: 'Agent',
-    group: 'Workspace' satisfies NavGroupTitle,
-    activeItem: 'Growth Agent' satisfies NavItemLabel,
+    group: 'Overview' satisfies NavGroupTitle,
+    activeItem: 'Growth Agent' satisfies PreviewItemLabel,
     icon: ICONS.agent,
   },
 ] as const;
@@ -164,6 +165,14 @@ export function ProductWindow() {
               Illustrative workspace
             </span>
             <Button
+              variant={activeLayer.id === 'agent' ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-11 shrink-0 gap-1.5 px-2.5 sm:h-[var(--control-height-sm)]"
+            >
+              <Bot className="size-3.5" aria-hidden />
+              <span className="hidden sm:inline">Agent</span>
+            </Button>
+            <Button
               variant="secondary"
               size="sm"
               disabled={reduceMotion}
@@ -200,7 +209,7 @@ export function ProductWindow() {
   );
 }
 
-function PreviewSidebar({ activeItem }: Readonly<{ activeItem: NavItemLabel }>) {
+function PreviewSidebar({ activeItem }: Readonly<{ activeItem: PreviewItemLabel }>) {
   return (
     <aside className="border-border-subtle bg-sidebar hidden border-r lg:flex lg:flex-col">
       <div className="border-border-subtle flex h-13 items-center gap-2.5 border-b px-4">
@@ -269,7 +278,7 @@ function PreviewSidebar({ activeItem }: Readonly<{ activeItem: NavItemLabel }>) 
 function MobileSubnav({
   groupTitle,
   activeItem,
-}: Readonly<{ groupTitle: NavGroupTitle; activeItem: NavItemLabel }>) {
+}: Readonly<{ groupTitle: NavGroupTitle; activeItem: PreviewItemLabel }>) {
   const items = previewItems(groupTitle);
   return (
     <div className="border-border-subtle bg-panel flex gap-1 overflow-x-auto border-b px-3 py-2 lg:hidden">

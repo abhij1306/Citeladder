@@ -74,14 +74,18 @@ async def test_manual_upsert_marks_supplied_fields_and_preserves_others(
     body = first.json()
     assert body["description"] == "A practical retailer."
     assert body["products_services"] == ["Clothing", "Homewares"]
-    assert body["sources"]["description"] == "manual"
+    assert body["sources"]["description"]["origin"] == "manual"
+    assert body["sources"]["description"]["review_state"] == "confirmed"
+    assert body["sources"]["description"]["reviewed_by"] is not None
+    assert body["sources"]["description"]["reviewed_at"] is not None
     assert body["sources"]["target_audience"] is None
     second = await client.put(
         url, json={"target_audience": "Budget-conscious families"}
     )
     assert second.status_code == 200
     assert second.json()["positioning"] == "Value-priced family basics"
-    assert second.json()["sources"]["target_audience"] == "manual"
+    assert second.json()["sources"]["target_audience"]["origin"] == "manual"
+    assert second.json()["sources"]["target_audience"]["review_state"] == "confirmed"
 
 
 @pytest.mark.asyncio

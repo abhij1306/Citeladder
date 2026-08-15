@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import type { EngineFilter } from '@/components/visibility/visibility-toolbar';
-import type { VisibilityTrendPoint } from '@/lib/api/types';
 import { queryKeys } from '@/lib/api/query-keys';
 import { runsApi } from '@/lib/api/runs';
 import { visibilityApi } from '@/lib/api/visibility';
@@ -23,7 +22,6 @@ import { ACTIVE_RUN_POLL_MS, EVIDENCE_LIMIT } from '@/lib/config/operational';
 /** Compatibility exports for existing visibility consumers and tests. */
 export { ACTIVE_RUN_POLL_MS, EVIDENCE_LIMIT } from '@/lib/config/operational';
 import {
-  brandVisibilityHistory,
   rangeToFrom,
   type TrendGranularity,
   type TrendRange,
@@ -37,7 +35,7 @@ import {
  * re-syncs from the URL on back/forward navigation. Shared filter STATE lives
  * here and persists across tab switches; hidden controls keep their state.
  * Ownership (plan §IA): selected run → Overview + both evidence tabs; logical
- * engine → all four; prompt → both evidence tabs; date range → Trends + both
+ * engine → every tab; prompt → both evidence tabs; date range → Trends + both
  * evidence tabs; granularity → Trends only.
  */
 export function useVisibilityFilters() {
@@ -243,7 +241,7 @@ export function useVisibilityQueries(
   // it inline would call `new Date()` on every render and churn the query key.
   const fromParam = useMemo(() => rangeToFrom(range), [range]);
 
-  // Overview: the selected-run projection. Enabled only on the Overview tab.
+  // Trends retains the selected-run projection for model comparison.
   // The projection is NOT engine-scoped server-side (the endpoint takes only
   // `audit_id`); engine is applied client-side in `EngineComparison`. So engine
   // is deliberately absent from the key — including it would force a refetch of
@@ -256,7 +254,7 @@ export function useVisibilityQueries(
         { audit_id: activeRunId ?? undefined, cohort },
         { signal },
       ),
-    enabled: Boolean(projectId) && hasRuns && activeTab === 'overview',
+    enabled: Boolean(projectId) && hasRuns && activeTab === 'trends',
     placeholderData: keepPreviousData,
   });
 
@@ -279,25 +277,6 @@ export function useVisibilityQueries(
     placeholderData: keepPreviousData,
   });
 
-  // Overview's Competitors sparklines reuse the SAME trend series, but only if
-  // it is already in cache (i.e. the user has visited Trends this session).
-  // Read-only: this deliberately does NOT enable the query on Overview, which
-  // would break the one-request-per-tab contract the dashboard is built on.
-  // No cache entry simply means no sparkline column — never an invented one.
-  const queryClient = useQueryClient();
-  const cachedTrendPoints = queryClient.getQueryData<VisibilityTrendPoint[]>(
-    queryKeys.visibility.trends(projectId ?? '', {
-      engine: engineParam ?? null,
-      from: fromParam ?? null,
-      granularity,
-      cohort,
-    }),
-  );
-  const brandHistory = useMemo(
-    () => (cachedTrendPoints?.length ? brandVisibilityHistory(cachedTrendPoints) : undefined),
-    [cachedTrendPoints],
-  );
-
   // Shared execution-evidence + prompt options for the two evidence tabs.
   const { evidenceQuery, promptOptions } = useEvidenceQueries(
     projectId,
@@ -313,7 +292,6 @@ export function useVisibilityQueries(
     hasRuns,
     visibilityQuery,
     trendQuery,
-    brandHistory,
     evidenceQuery,
     promptOptions,
   };

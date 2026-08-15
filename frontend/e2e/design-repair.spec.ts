@@ -19,13 +19,6 @@ const catalog = {
   prompt_cohorts: ['market_visibility', 'brand_relevant'],
 };
 
-const prompts = Array.from({ length: 10 }, (_, index) => ({
-  text: `Which school option fits my family need ${index + 1}?`,
-  theme: index < 5 ? 'School selection' : 'Admissions',
-  intent: index % 2 === 0 ? 'discovery' : 'comparison',
-  cohort: index < 5 ? 'market_visibility' : 'brand_relevant',
-}));
-
 const readyDiscovery = {
   id: DISCOVERY_ID,
   workspace_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -33,11 +26,11 @@ const readyDiscovery = {
   status: 'ready',
   progress: {
     phase: 'preparing_review',
-    completed_steps: 4,
-    total_steps: 5,
+    completed_steps: 3,
+    total_steps: 4,
     pages_read: 1,
     competitors_found: 2,
-    prompts_prepared: 10,
+    prompts_prepared: 0,
   },
   input_data: {
     brand_name: 'The Asian School',
@@ -49,7 +42,7 @@ const readyDiscovery = {
   },
   profile: {
     description: 'A co-educational day cum boarding school in Dehradun, India.',
-    positioning: '',
+    positioning: 'A day and boarding school for families in Dehradun.',
     products_services: ['Education'],
     target_audience: 'Families',
     industry: 'Education',
@@ -79,7 +72,7 @@ const readyDiscovery = {
     },
   ],
   topics: ['School selection', 'Admissions'],
-  prompt_suggestions: prompts,
+  prompt_suggestions: [],
   evidence: [],
   warnings: [],
   gaps: [],
@@ -111,8 +104,8 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   expect(discoveryStage).not.toBeNull();
 
   const progress = page.getByRole('progressbar', { name: /steps complete/ });
-  await expect(progress).not.toHaveAttribute('aria-valuenow', '5');
-  await expect(progress).toHaveAttribute('aria-valuenow', '5', { timeout: 4_000 });
+  await expect(progress).not.toHaveAttribute('aria-valuenow', '4');
+  await expect(progress).toHaveAttribute('aria-valuenow', '4', { timeout: 4_000 });
 
   await page.getByRole('button', { name: 'Review' }).click();
   const reviewStage = await page.locator('main#main').boundingBox();
@@ -121,10 +114,83 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   expect(reviewStage?.height).toBeCloseTo(brandStage!.height, 0);
   expect(reviewStage?.width).toBeCloseTo(discoveryStage!.width, 0);
   expect(reviewStage?.height).toBeCloseTo(discoveryStage!.height, 0);
-  await expect(page.getByText('Discovered Profile')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Confirm your ICP' })).toBeVisible();
   await expect(page.getByText('theasianschool.net')).toBeVisible();
   await expect(page.getByText('The Doon School')).toBeVisible();
   await expect(page.getByText(/Starting Prompts/i)).toHaveCount(0);
+});
+
+test('Overview remains useful before the first visibility audit', async ({ page }) => {
+  const unavailable = {
+    state: 'not_run',
+    observed_at: null,
+    freshness: 'unknown',
+    coverage: [],
+    limitations: [],
+  };
+  await stubAuthedShell(page, [
+    [
+      `**/api/v1/projects/${PROJECT_ID}/command-center`,
+      {
+        project: {
+          id: PROJECT_ID,
+          name: 'Acme',
+          brand_name: 'Acme',
+          website_url: 'https://acme.example',
+        },
+        facts: {
+          industry: 'Software',
+          description: 'Evidence-led growth intelligence',
+          positioning: 'Make every answer traceable',
+          products_services: ['Analytics'],
+          target_audience: 'Growth teams',
+          competitors: [],
+        },
+        loop: {
+          connected: unavailable,
+          analyzed: { ...unavailable, state: 'partial', coverage: ['site_health'] },
+          acted: unavailable,
+          tracked: {
+            ...unavailable,
+            limitations: ['No visibility audit has run yet.'],
+          },
+        },
+        next_action: {
+          kind: 'connect',
+          title: 'Connect GSC or GA4',
+          href: '/settings?tab=integrations',
+          opportunity_id: null,
+        },
+        track: {
+          citation_share: { value: null, delta: null },
+          engine_coverage: 0,
+          observed_at: null,
+          limitations: ['No visibility audit has run yet.'],
+        },
+        measurement: null,
+        state: {
+          visibility: { value: null, delta: null },
+          share_of_voice: { value: null, delta: null },
+          brand_rank: { value: null, delta: null },
+        },
+        movements: [],
+        actions: [],
+        action_order_version: 0,
+        resolved_actions: { since_audit_id: null, count: 0, titles: [] },
+        report_available: false,
+        stale: false,
+      },
+    ],
+  ]);
+
+  await page.goto('/projects');
+  await expect(page.getByText('Make every answer traceable')).toBeVisible();
+  await expect(page.getByText('Connect GSC or GA4')).toBeVisible();
+  await expect(page.getByText('Citation share —')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Executive PDF/i })).toHaveCount(0);
+  for (const label of ['Connected', 'Analyzed', 'Acted', 'Tracked']) {
+    await expect(page.getByText(label, { exact: true })).toBeVisible();
+  }
 });
 
 test('Growth Agent opens as a bounded task workspace with plain-language data used', async ({
@@ -200,7 +266,9 @@ test('Growth Agent opens as a bounded task workspace with plain-language data us
     [`**/api/v1/agent/tasks/${CONVERSATION_ID}?*`, run],
   ]);
 
-  await page.goto('/agent');
+  await page.goto('/site');
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Growth Agent' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Build an admissions roadmap' })).toBeVisible();
   await expect(page.getByText('Prioritize the admissions journey first.')).toBeVisible();
   await expect(page.getByLabel('Objective')).toBeVisible();
@@ -248,16 +316,16 @@ function siteCrawl(analysisStatus: 'running' | 'stopped') {
     seed: '1',
     inventory_complete: true,
     visible_url_count: 2,
-    analyzed_count: running ? 0 : 1,
+    analyzed_count: 1,
     failed_count: 0,
     discovery_requested_count: 2,
     analysis_requested_count: 1,
     counters: {
       discovered: 2,
       selected: 1,
-      queued: running ? 1 : 0,
+      queued: 0,
       running: 0,
-      analyzed: running ? 0 : 1,
+      analyzed: 1,
       errors: 0,
       blocked: 0,
       failure_breakdown: { robots_denied: 0, http_4xx: 0, http_5xx: 0, timeout: 0 },
@@ -293,6 +361,8 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
     project_id: PROJECT_ID,
     crawl: siteCrawl(analysisStatus),
     score_summary: null,
+    phase: 'analyzing',
+    snapshot_id: null,
     quota: { used: 1, limit: 50 },
     root_errors: [],
     phase_runs: { discovery: null, analysis: null },
@@ -335,7 +405,7 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
       },
     ],
     [
-      `**/api/v1/site-crawls/${CRAWL_ID}/inventory?*`,
+      `**/api/v1/site-crawls/${CRAWL_ID}/inventory**`,
       {
         items: [
           {
@@ -361,11 +431,11 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
       },
     ],
     [
-      `**/api/v1/site-crawls/${CRAWL_ID}/pages?*`,
+      `**/api/v1/site-crawls/${CRAWL_ID}/pages**`,
       { items: [], next_cursor: null, root_errors: [] },
     ],
   ]);
-  await page.route(`**/api/v1/projects/${PROJECT_ID}/site-health`, (route) =>
+  await page.route(`**/api/v1/projects/${PROJECT_ID}/site-health**`, (route) =>
     route.fulfill({ json: dashboard() }),
   );
   await page.route(`**/api/v1/site-crawls/${CRAWL_ID}/cancel`, async (route) => {
@@ -376,7 +446,7 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
     await route.fulfill({ json: siteCrawl('stopped') });
   });
 
-  await page.goto('/site-health');
+  await page.goto('/site');
   const stopCrawl = page.getByRole('button', { name: 'Stop crawl' });
   await expect(stopCrawl).toBeVisible();
   await expect(page.getByText('Start discovery')).toHaveCount(0);
@@ -384,7 +454,6 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
   const urlWorkspace = page.getByRole('button', { name: 'Monitored' });
   await expect(urlWorkspace).toBeVisible();
   await expect(page.getByText('Crawler details')).toBeVisible();
-
   const inventoryTop = await urlWorkspace.evaluate(
     (element) => element.getBoundingClientRect().top,
   );
@@ -395,9 +464,6 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
 
   await stopCrawl.click();
   await expect(page.getByRole('button', { name: 'Stopping…' })).toBeVisible();
-  await expect(
-    page.getByTestId('inventory-section').getByText('https://acme.example/', { exact: true }),
-  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Run new crawl' })).toBeEnabled();
   await expect(page.getByRole('dialog', { name: 'Choose pages to crawl' })).toHaveCount(0);
 });

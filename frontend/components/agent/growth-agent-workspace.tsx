@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Clock3, FileSearch, Map, ShieldCheck, X } from 'lucide-react';
 
@@ -378,21 +377,28 @@ function TaskForm({
   );
 }
 
-export function GrowthAgentWorkspace() {
-  const search = useSearchParams();
+export type AgentRouteContext = {
+  workspaceId: string;
+  projectId: string;
+  canonicalRoute: string;
+  dateRange: { start: string; end: string } | null;
+  filters: Readonly<Record<string, readonly string[]>>;
+};
+
+export function GrowthAgentWorkspace({
+  initialTask = 'explain',
+  initialObjective = '',
+  routeContext,
+}: Readonly<{
+  initialTask?: AgentTaskType;
+  initialObjective?: string;
+  routeContext?: AgentRouteContext;
+}>) {
   const queryClient = useQueryClient();
   const { activeProject, isLoading: projectLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
-  const taskParam = requestedTask(search.get('task'));
-  const objectiveParam = search.get('objective') ?? '';
-  const [taskChoice, setTaskChoice] = useState({ searchValue: taskParam, value: taskParam });
-  const taskType = taskChoice.searchValue === taskParam ? taskChoice.value : taskParam;
-  const [objectiveDraft, setObjectiveDraft] = useState({
-    searchValue: objectiveParam,
-    value: objectiveParam,
-  });
-  const objective =
-    objectiveDraft.searchValue === objectiveParam ? objectiveDraft.value : objectiveParam;
+  const [taskType, setTaskType] = useState(() => requestedTask(initialTask));
+  const [objective, setObjective] = useState(initialObjective);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
   const [cancelError, setCancelError] = useState('');
@@ -427,7 +433,7 @@ export function GrowthAgentWorkspace() {
     },
     onSuccess: (run) => {
       setFormError('');
-      setObjectiveDraft({ searchValue: objectiveParam, value: '' });
+      setObjective('');
       setSelectedRunId(run.id);
       queryClient.setQueryData(queryKeys.agent.task(run.project_id, run.id), run);
       void queryClient.invalidateQueries({ queryKey: queryKeys.agent.tasks(run.project_id) });
@@ -473,7 +479,7 @@ export function GrowthAgentWorkspace() {
           </div>
           <div className="text-secondary flex items-center gap-2 text-xs">
             <ShieldCheck aria-hidden className="text-accent-text size-4" />
-            Read-only project evidence
+            Read-only project evidence{routeContext ? ` · ${routeContext.canonicalRoute}` : ''}
           </div>
         </header>
 
@@ -497,8 +503,8 @@ export function GrowthAgentWorkspace() {
           objective={objective}
           submitting={submit.isPending}
           error={formError}
-          onTaskTypeChange={(value) => setTaskChoice({ searchValue: taskParam, value })}
-          onObjectiveChange={(value) => setObjectiveDraft({ searchValue: objectiveParam, value })}
+          onTaskTypeChange={setTaskType}
+          onObjectiveChange={setObjective}
           onSubmit={() => submit.mutate()}
         />
       </section>

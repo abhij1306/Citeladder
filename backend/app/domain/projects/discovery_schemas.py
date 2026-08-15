@@ -7,14 +7,11 @@ from datetime import datetime
 from typing import Annotated, Literal, get_args
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.brand_discovery import (
     DISCOVERY_CONFIRM_DOMAIN_MAX_CHARS,
     DISCOVERY_CONFIRM_MAX_DOMAINS,
-    DISCOVERY_CONFIRM_MAX_PROMPTS,
-    DISCOVERY_CONFIRM_MAX_TOPICS,
-    DISCOVERY_CONFIRM_TOPIC_MAX_CHARS,
     PRICE_TIERS,
 )
 from app.core.config.projects import MAX_PROJECT_COMPETITORS
@@ -23,9 +20,6 @@ from app.domain.projects.schemas import CompetitorInput
 
 ConfirmedDomain = Annotated[
     str, Field(min_length=1, max_length=DISCOVERY_CONFIRM_DOMAIN_MAX_CHARS)
-]
-ConfirmedTopic = Annotated[
-    str, Field(min_length=1, max_length=DISCOVERY_CONFIRM_TOPIC_MAX_CHARS)
 ]
 PriceTier = Literal["budget", "mid_market", "premium", "luxury", "unknown"]
 assert set(get_args(PriceTier)) == set(PRICE_TIERS)
@@ -66,6 +60,14 @@ class DiscoveryProfile(BaseModel):
     field_confidence: dict[str, float] = Field(default_factory=dict)
 
 
+class ConfirmedDiscoveryProfile(DiscoveryProfile):
+    """The minimum structured ICP a person must confirm before generation."""
+
+    positioning: str = Field(min_length=1)
+    products_services: list[str] = Field(min_length=1)
+    target_audience: str = Field(min_length=1)
+
+
 class CompetitorQualification(BaseModel):
     product_substitutability: float = Field(ge=0, le=1)
     customer_use_case_overlap: float = Field(ge=0, le=1)
@@ -103,7 +105,6 @@ class BrandDiscoveryProgress(BaseModel):
         "opening_website",
         "understanding_business",
         "finding_competitors",
-        "building_questions",
         "preparing_review",
         "complete",
     ]
@@ -115,55 +116,21 @@ class BrandDiscoveryProgress(BaseModel):
     updated_at: datetime
 
 
-class DiscoverySynthesis(BaseModel):
-    profile: DiscoveryProfile
-    competitors: list[DiscoveryCompetitorSuggestion] = Field(
-        default_factory=list, max_length=MAX_PROJECT_COMPETITORS
-    )
-    topics: list[ConfirmedTopic] = Field(
-        min_length=1, max_length=DISCOVERY_CONFIRM_MAX_TOPICS
-    )
-    prompts: list[DiscoveryPromptSuggestion] = Field(min_length=1, max_length=50)
-
-
 class DiscoveryCompetitorCandidates(BaseModel):
     competitors: list[DiscoveryCompetitorSuggestion] = Field(
         default_factory=list, max_length=MAX_PROJECT_COMPETITORS
     )
 
 
-class GroupedDiscoveryPrompt(BaseModel):
-    text: str = Field(min_length=1, max_length=2000)
-    intent: Literal["discovery", "comparison", "purchase", "service", "local"]
-    cohort: Literal["market_visibility", "brand_relevant"]
-
-
-class DiscoveryPromptGroup(BaseModel):
-    topic: ConfirmedTopic
-    prompts: list[GroupedDiscoveryPrompt] = Field(
-        min_length=1, max_length=DISCOVERY_CONFIRM_MAX_PROMPTS
-    )
-
-
 class BrandDiscoveryComplete(BaseModel):
     name: str | None = Field(default=None, max_length=255)
-    profile: DiscoveryProfile
+    profile: ConfirmedDiscoveryProfile
     domains: list[ConfirmedDomain] = Field(
         min_length=1, max_length=DISCOVERY_CONFIRM_MAX_DOMAINS
     )
     competitors: list[CompetitorInput] = Field(
         default_factory=list, max_length=MAX_PROJECT_COMPETITORS
     )
-    prompt_groups: list[DiscoveryPromptGroup] = Field(min_length=1, max_length=50)
-
-    @model_validator(mode="after")
-    def _bounded_prompt_total(self) -> BrandDiscoveryComplete:
-        total = sum(len(group.prompts) for group in self.prompt_groups)
-        if total > DISCOVERY_CONFIRM_MAX_PROMPTS:
-            raise ValueError(
-                f"Reviewed prompt total cannot exceed {DISCOVERY_CONFIRM_MAX_PROMPTS}"
-            )
-        return self
 
 
 class BrandDiscoveryResponse(BaseModel):

@@ -22,16 +22,11 @@ from app.domain.projects.discovery_schemas import (
     DiscoveryCompetitorSuggestion,
     DiscoveryEvidence,
     DiscoveryProfile,
-    DiscoveryPromptSuggestion,
 )
 from app.domain.projects.onboarding.industry_library import library_version
 from app.domain.projects.onboarding.normalization import (
     InvalidWebsiteUrl,
     normalize_website_url,
-)
-from app.domain.projects.onboarding.prompt_generation import (
-    fallback_portfolio,
-    validated_portfolio,
 )
 from app.domain.projects.onboarding.site_resolution import (
     SiteNotFoundError,
@@ -43,16 +38,6 @@ class ResearchEnvelope(BaseModel):
     profile: DiscoveryProfile
     competitors: list[DiscoveryCompetitorSuggestion] = Field(default_factory=list)
     topics: list[str] = Field(min_length=1, max_length=20)
-    prompts: list[DiscoveryPromptSuggestion] = Field(
-        min_length=(
-            brand_discovery_settings.market_prompt_count
-            + brand_discovery_settings.brand_relevant_prompt_count
-        ),
-        max_length=(
-            brand_discovery_settings.market_prompt_count
-            + brand_discovery_settings.brand_relevant_prompt_count
-        ),
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,22 +45,10 @@ class ResearchResult:
     profile: dict
     competitors: list[dict]
     topics: list[str]
-    prompts: list[dict]
     evidence: list[dict]
     warnings: list[str]
     provider: str
     model: str
-
-
-def _prompt_topics(prompts: list[dict]) -> list[str]:
-    """Return non-blank prompt themes once, preserving first-seen order."""
-    return list(
-        dict.fromkeys(
-            theme
-            for prompt in prompts
-            if (theme := str(prompt.get("theme") or "").strip())
-        )
-    )
 
 
 def _site_text(page) -> str:
@@ -189,39 +162,16 @@ async def research_brand(
         model_available=model_result is not None,
         competitors_found=bool(verified),
     )
-    fallback = fallback_portfolio(
-        primary_market=primary_market,
-        industry=industry,
-        industry_context=industry_context,
-        products_services=profile.products_services,
-        price_tier=profile.price_tier,
-    )
-    model_prompts = (
-        [item.model_dump() for item in model_result.prompts]
+    topics = (
+        list(model_result.topics)
         if model_result is not None
-        else []
+        else [*(profile.products_services or []), industry]
     )
-    prompts = validated_portfolio(
-        model_prompts,
-        fallback_prompts=fallback,
-        brand_name=brand_name,
-        primary_market=primary_market,
-        context_terms=[
-            *profile.products_services,
-            *(industry_context.get("use_cases") or []),
-            *(industry_context.get("topics") or []),
-        ],
-        competitor_terms=[
-            term for item in verified for term in [item.name, *item.aliases]
-        ],
-    )
-    topics = _prompt_topics(prompts)
     evidence = _research_evidence(site, model_result, provider, model)
     return ResearchResult(
         profile=profile.model_dump(),
         competitors=[item.model_dump() for item in verified],
-        topics=topics,
-        prompts=prompts,
+        topics=list(dict.fromkeys(topic for topic in topics if topic.strip())),
         evidence=evidence,
         warnings=list(dict.fromkeys(warnings)),
         provider=provider,
@@ -284,7 +234,7 @@ def _research_evidence(site, model_result, provider, model):
                 model=model,
                 confidence=0.7,
                 captured_at=captured_at,
-                supports=["profile", "competitors", "topics", "prompts"],
+                supports=["profile", "competitors", "topics"],
             ).model_dump(mode="json")
         )
     return evidence

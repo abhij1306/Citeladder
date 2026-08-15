@@ -7,16 +7,15 @@ const PHASE_INDEX: Record<DiscoveryPhase, number> = {
   opening_website: 0,
   understanding_business: 1,
   finding_competitors: 2,
-  building_questions: 3,
-  preparing_review: 4,
-  complete: 5,
+  preparing_review: 3,
+  complete: 4,
 };
 
 const COMPLETE_STATUSES = new Set<BrandDiscovery['status']>(['ready', 'project_created']);
 
 function currentStep(discovery: BrandDiscovery | undefined): number {
   if (!discovery) return 0;
-  if (COMPLETE_STATUSES.has(discovery.status)) return 5;
+  if (COMPLETE_STATUSES.has(discovery.status)) return 4;
   return PHASE_INDEX[discovery.progress.phase];
 }
 
@@ -49,14 +48,12 @@ export function discoveryActivity(discovery: BrandDiscovery | undefined): Activi
     'Opening your website',
     'Understanding what you offer',
     'Finding comparable brands',
-    'Building balanced questions',
     'Preparing your review',
   ] as const;
   const details = [
     countDetail(progress?.pages_read, 'useful', 'page', 'pages', 'read'),
     undefined,
     countDetail(progress?.competitors_found, 'comparable', 'brand', 'brands', 'found'),
-    countDetail(progress?.prompts_prepared, 'balanced', 'question', 'questions', 'prepared'),
     undefined,
   ] as const;
   return labels.map((label, index) => ({

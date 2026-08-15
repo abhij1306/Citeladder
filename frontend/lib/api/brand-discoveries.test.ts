@@ -23,18 +23,6 @@ const completion: BrandDiscoveryCompletion = {
   },
   domains: ['acme.example'],
   competitors: [{ name: 'Globex', aliases: [], domains: ['globex.example'] }],
-  prompt_groups: [
-    {
-      topic: 'Product feed management',
-      prompts: [
-        {
-          text: 'How do product feeds improve retail operations?',
-          intent: 'discovery',
-          cohort: 'market_visibility',
-        },
-      ],
-    },
-  ],
 };
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
@@ -42,7 +30,7 @@ afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
 
 describe('brand discovery completion contract', () => {
-  it('sends grouped prompts once with an idempotency key and validates activation identity', async () => {
+  it('sends confirmed ICP once with an idempotency key and validates activation identity', async () => {
     let body: unknown;
     let idempotencyKey: string | null = null;
     mswServer.use(
@@ -73,6 +61,6 @@ describe('brand discovery completion contract', () => {
     });
     expect(idempotencyKey).toBe('complete-once');
     expect(body).toEqual(completion);
-    expect(JSON.stringify(body)).not.toContain('theme');
+    expect(JSON.stringify(body)).not.toContain('prompt_groups');
   });
 });

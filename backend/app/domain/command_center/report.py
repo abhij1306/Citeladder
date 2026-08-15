@@ -34,6 +34,9 @@ def _paragraph_text(value: object) -> str:
 
 
 def render_executive_pdf(command_center: CommandCenterResponse) -> bytes:
+    measurement = command_center.measurement
+    if measurement is None:
+        raise ValueError("An executive report requires a completed audit")
     """Render a provider-free report from the command-center projection."""
     buffer = BytesIO()
     document = SimpleDocTemplate(
@@ -76,8 +79,8 @@ def render_executive_pdf(command_center: CommandCenterResponse) -> bytes:
             title,
         ),
         Paragraph(
-            f"Completed {command_center.measurement.completed_at:%d %b %Y} · "
-            f"{_paragraph_text(command_center.measurement.measurement_mode)} "
+            f"Completed {measurement.completed_at:%d %b %Y} · "
+            f"{_paragraph_text(measurement.measurement_mode)} "
             "measurement",
             body,
         ),

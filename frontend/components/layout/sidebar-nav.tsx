@@ -1,31 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-
-import { cn } from '@/lib/utils';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 import { eyebrowClasses } from '@/components/ui/eyebrow';
+import { useProjectContext } from '@/lib/project/project-context';
+import { cn } from '@/lib/utils';
 
-import { NAV_GROUPS, type NavItem } from './nav-items';
-
-/**
- * SidebarNav — grouped sidebar navigation in the ADS shell language.
- *
- * Rows are 32px (`--nav-item-height`, ADS's default menu-item rung). Idle
- * labels run near-ink at 500. Active rows use the lightest blue selection
- * surface plus a darker blue label and leading rail, keeping the state clear
- * without turning the sidebar into a stack of saturated pills.
- *
- * Group labels use the shared `eyebrowClasses` recipe — 12/16 @600, sentence
- * case, matching ADS's side-nav heading item.
- *
- * Highlighting matches the current route or any nested route (e.g. `/runs/[id]`
- * highlights Runs).
- */
-function isActive(pathname: string, href: string) {
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+import {
+  MOBILE_NAV_ITEMS,
+  NAV_GROUPS,
+  activeStation,
+  isNavItemActive,
+  visibleNavItems,
+  type NavGroup,
+  type NavItem,
+} from './nav-items';
 
 function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>) {
   const Icon = item.icon;
@@ -43,38 +33,111 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
       {active ? (
         <span aria-hidden className="bg-accent absolute inset-y-1.5 start-0 w-1 rounded-e-sm" />
       ) : null}
-      <Icon
-        className={cn('size-4 shrink-0', active ? 'opacity-100' : 'opacity-80')}
-        aria-hidden
-        strokeWidth={2}
-      />
+      <Icon className={cn('size-4 shrink-0', active ? 'opacity-100' : 'opacity-80')} aria-hidden />
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {item.count !== undefined ? (
-        <span className="bg-neutral-bg text-secondary text-2xs mono min-w-6 rounded-xs px-1 py-0 text-center">
-          {item.count}
-        </span>
-      ) : null}
     </Link>
   );
 }
 
-export function SidebarNav({ className }: Readonly<{ className?: string }>) {
+export function StationLinks({
+  group,
+  hasCommerceEvidence,
+  compact = false,
+}: Readonly<{ group: NavGroup; hasCommerceEvidence: boolean; compact?: boolean }>) {
   const pathname = usePathname() ?? '';
+  const searchParams = useSearchParams();
+  const items = visibleNavItems(group, hasCommerceEvidence);
+  if (compact) {
+    return (
+      <nav aria-label={`${group.title} destinations`} className="overflow-x-auto md:hidden">
+        <ul className="flex min-w-max gap-1 px-[var(--content-gutter)] py-2">
+          {items.map((item) => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                aria-current={isNavItemActive(pathname, searchParams, item) ? 'page' : undefined}
+                className={cn(
+                  'focus-ring inline-flex min-h-11 items-center rounded-sm px-3 text-sm font-medium',
+                  isNavItemActive(pathname, searchParams, item)
+                    ? 'bg-accent-soft text-accent-hover'
+                    : 'text-secondary',
+                )}
+              >
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    );
+  }
+  return (
+    <ul className="flex flex-col gap-0.5">
+      {items.map((item) => (
+        <li key={item.href}>
+          <NavLink item={item} active={isNavItemActive(pathname, searchParams, item)} />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
+export function SidebarNav({ className }: Readonly<{ className?: string }>) {
+  const { activeProject } = useProjectContext();
+  const hasCommerceEvidence = activeProject?.has_commerce_evidence ?? false;
   return (
     <nav aria-label="Primary" className={cn('flex flex-col gap-3', className)}>
       {NAV_GROUPS.map((group) => (
         <div key={group.title} className="flex flex-col gap-0">
           <p className={cn(eyebrowClasses, 'px-1 pb-0.5')}>{group.title}</p>
-          <ul className="flex flex-col gap-0.5">
-            {group.items.map((item) => (
-              <li key={item.href}>
-                <NavLink item={item} active={isActive(pathname, item.href)} />
-              </li>
-            ))}
-          </ul>
+          <StationLinks group={group} hasCommerceEvidence={hasCommerceEvidence} />
         </div>
       ))}
+    </nav>
+  );
+}
+
+export function MobileStationNavigation() {
+  const pathname = usePathname() ?? '';
+  const searchParams = useSearchParams();
+  const { activeProject } = useProjectContext();
+  const hasCommerceEvidence = activeProject?.has_commerce_evidence ?? false;
+  const group = activeStation(pathname, searchParams, hasCommerceEvidence);
+  return <StationLinks group={group} hasCommerceEvidence={hasCommerceEvidence} compact />;
+}
+
+export function MobilePrimaryNavigation() {
+  const pathname = usePathname() ?? '';
+  const searchParams = useSearchParams();
+  const { activeProject } = useProjectContext();
+  const current = activeStation(
+    pathname,
+    searchParams,
+    activeProject?.has_commerce_evidence ?? false,
+  );
+  return (
+    <nav
+      className="border-border bg-panel safe-bottom fixed inset-x-0 bottom-0 z-30 grid h-16 grid-cols-5 border-t md:hidden"
+      aria-label="Primary mobile navigation"
+    >
+      {MOBILE_NAV_ITEMS.map((item) => {
+        const Icon = item.icon;
+        const active = item.label === current.title;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? 'page' : undefined}
+            className={cn(
+              'text-2xs flex min-w-0 flex-col items-center justify-center gap-1 font-medium',
+              active ? 'text-accent-text' : 'text-muted hover:text-accent-text',
+            )}
+          >
+            <Icon className="size-4" aria-hidden />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        );
+      })}
     </nav>
   );
 }

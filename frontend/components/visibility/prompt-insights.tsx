@@ -15,13 +15,45 @@ function movementDelta(delta: number | null): string {
   return ` · ${sign}${delta.toFixed(1)}`;
 }
 
-export function PromptInsights({
-  projectId,
+export function PromptMovement({
   promptQuery,
+}: Readonly<{
+  promptQuery: UseQueryResult<PromptMetricItem[], unknown>;
+}>) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Prompt movement</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {promptQuery.isError ? <Alert tone="danger">Could not load prompt scores.</Alert> : null}
+        {promptQuery.data?.length ? (
+          <ul className="border-border-subtle divide-border-subtle divide-y rounded-lg border">
+            {promptQuery.data.slice(0, 5).map((item) => (
+              <li key={item.id} className="grid gap-1 px-3 py-2 text-sm">
+                <span className="text-foreground line-clamp-2">{item.prompt_text}</span>
+                <span className="text-secondary">
+                  {item.composite_score.toFixed(1)} score
+                  {movementDelta(item.immediate_delta)}
+                  {item.decline_confirmed ? ' · confirmed decline' : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {!promptQuery.data?.length && !promptQuery.isLoading ? (
+          <p className="text-muted text-sm">Prompt movement appears after a completed audit.</p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function CompetitorSuggestions({
+  projectId,
   suggestionsQuery,
 }: Readonly<{
   projectId: string;
-  promptQuery: UseQueryResult<PromptMetricItem[], unknown>;
   suggestionsQuery: UseQueryResult<ObservedCompetitor[], unknown>;
 }>) {
   const queryClient = useQueryClient();
@@ -38,33 +70,7 @@ export function PromptInsights({
   });
 
   return (
-    <div className="grid gap-3 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle>Prompt movement</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {promptQuery.isError ? <Alert tone="danger">Could not load prompt scores.</Alert> : null}
-          {promptQuery.data?.length ? (
-            <ul className="border-border-subtle divide-border-subtle divide-y rounded-lg border">
-              {promptQuery.data.slice(0, 5).map((item) => (
-                <li key={item.id} className="grid gap-1 px-3 py-2 text-sm">
-                  <span className="text-foreground line-clamp-2">{item.prompt_text}</span>
-                  <span className="text-secondary">
-                    {item.composite_score.toFixed(1)} score
-                    {movementDelta(item.immediate_delta)}
-                    {item.decline_confirmed ? ' · confirmed decline' : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {!promptQuery.data?.length && !promptQuery.isLoading ? (
-            <p className="text-muted text-sm">Prompt movement appears after a completed audit.</p>
-          ) : null}
-        </CardContent>
-      </Card>
-      <Card>
+    <Card>
         <CardHeader>
           <CardTitle>Competitor suggestions</CardTitle>
         </CardHeader>
@@ -108,7 +114,6 @@ export function PromptInsights({
             <Alert tone="danger">Could not add that competitor. Try again.</Alert>
           ) : null}
         </CardContent>
-      </Card>
-    </div>
+    </Card>
   );
 }

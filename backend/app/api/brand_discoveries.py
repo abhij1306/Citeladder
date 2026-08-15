@@ -96,6 +96,7 @@ async def complete_brand_discovery(
             discovery_id=discovery_id,
             payload=payload,
             idempotency_key=idempotency_key,
+            reviewer_id=ctx.user.id,
         )
     except LookupError as exc:
         await session.rollback()

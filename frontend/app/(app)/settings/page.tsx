@@ -8,7 +8,7 @@ import { SettingsScreen } from '@/components/settings/settings-screen';
 /**
  * Settings page — tabbed settings reachable from the sidebar user dropdown:
  * Account (read-only session details + appearance), Provider Settings (BYOK
- * provider configuration, formerly `/providers`), and Danger Zone (project
+ * provider configuration), and Danger Zone (project
  * deletion). The page title renders in the top bar (F5).
  *
  * `<SettingsScreen>` reads `useSearchParams` (deep-linkable `?tab=`), so it

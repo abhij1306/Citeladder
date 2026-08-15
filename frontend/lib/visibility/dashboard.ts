@@ -25,25 +25,23 @@ const DASHBOARD_STATUSES: readonly AuditStatus[] = ['completed', 'partially_comp
 
 /**
  * The four Visibility workspace tabs, in display order. Exactly these four —
- * no Sources / Topics / Sentiment (plan §IA). `overview` is the default.
- *   - overview:            selected-run score / SOV / provider comparison / rankings
+ * no Overview / Sources / Topics / Sentiment. `trends` is the default.
  *   - trends:              cross-run metrics + charts + ranking movement
  *   - mentions-citations:  persisted mention/citation evidence
  *   - query-fanout:        frozen prompts + generated search-query evidence
  */
-export type VisibilityTab = 'overview' | 'trends' | 'mentions-citations' | 'query-fanout';
+export type VisibilityTab = 'trends' | 'mentions-citations' | 'query-fanout';
 
 /** The ordered tab definitions (id + human label) rendered by the tablist. */
 export const VISIBILITY_TABS: readonly { id: VisibilityTab; label: string }[] = [
   // NOTE: `id` is the persisted `?tab=` URL value — only labels are restyled.
-  { id: 'overview', label: 'Overview' },
   { id: 'trends', label: 'Trends' },
   { id: 'mentions-citations', label: 'Mentions' },
   { id: 'query-fanout', label: 'Search queries' },
 ] as const;
 
 /** The default (and invalid-value fallback) tab. */
-const DEFAULT_TAB: VisibilityTab = 'overview';
+const DEFAULT_TAB: VisibilityTab = 'trends';
 
 /** Narrow an arbitrary `?tab=` value to a known tab, else the default. */
 export function normalizeTab(value: string | null | undefined): VisibilityTab {

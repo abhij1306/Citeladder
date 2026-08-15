@@ -17,7 +17,10 @@ import { Input } from '@/components/ui/input';
 import { MarketSelect } from '@/components/ui/market-select';
 import { queryKeys } from '@/lib/api/query-keys';
 import { projectsApi } from '@/lib/api/projects';
-import { brandDiscoveriesApi } from '@/lib/api/brand-discoveries';
+import {
+  brandDiscoveriesApi,
+  type DiscoveryProfile,
+} from '@/lib/api/brand-discoveries';
 import {
   brandStepSchema,
   emptyBrandStep,
@@ -26,7 +29,6 @@ import {
   type BrandStepValues,
   type ReviewCompetitor,
   type ReviewDomain,
-  type ReviewPrompt,
 } from '@/lib/onboarding/forms';
 import { useBrandDiscovery } from '@/lib/onboarding/use-brand-discovery';
 import { discoveryActivity } from '@/lib/onboarding/discovery-activity';
@@ -35,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { COUNTRY_OPTIONS, LANGUAGE_OPTIONS } from '@/lib/setup/markets';
 
 import { ReviewStep } from './review-step';
+import { hasConfirmedIcp, IcpConfirmation } from './icp-confirmation';
 
 /**
  * Onboarding — the only way a project gets created (plan.md §10, decision 11;
@@ -61,7 +64,7 @@ import { ReviewStep } from './review-step';
 const STEPS = [
   { id: 'brand', title: 'Basic information', description: 'Name & domain details' },
   { id: 'discovery', title: 'AI Research', description: 'Auto-finding competitors' },
-  { id: 'review', title: 'Review & Confirm', description: 'Finalize tracking scope' },
+  { id: 'review', title: 'Confirm ICP', description: 'Finalize facts & tracking scope' },
 ] as const;
 const MARKET_OPTIONS = [{ value: 'GLOBAL', label: 'Global' }, ...COUNTRY_OPTIONS];
 type StepIndex = 0 | 1 | 2;
@@ -121,21 +124,8 @@ export function OnboardingScreen() {
   const [brand, setBrand] = useState<BrandStepValues | null>(null);
   const [domains, setDomains] = useState<ReviewDomain[]>([]);
   const [competitors, setCompetitors] = useState<ReviewCompetitor[]>([]);
-  const [prompts, setPrompts] = useState<ReviewPrompt[]>([]);
+  const [profile, setProfile] = useState<DiscoveryProfile | null>(null);
   const hasSelectedDomain = domains.some((item) => item.selected);
-  const hasSelectedPrompt = prompts.some((item) => item.selected);
-  const selectedPromptCount = prompts.filter((item) => item.selected).length;
-  const selectedMarketCount = prompts.filter(
-    (item) => item.selected && item.cohort === 'market_visibility',
-  ).length;
-  const selectedBrandRelevantCount = prompts.filter(
-    (item) => item.selected && item.cohort === 'brand_relevant',
-  ).length;
-  const hasCompletePromptPortfolio =
-    selectedPromptCount === 10 &&
-    selectedMarketCount === 5 &&
-    selectedBrandRelevantCount === 5 &&
-    prompts.filter((item) => item.selected).every((item) => item.text.trim().length > 0);
   const form = useForm<BrandStepValues>({
     resolver: zodResolver(brandStepSchema),
     defaultValues: emptyBrandStep,
@@ -212,15 +202,7 @@ export function OnboardingScreen() {
               selected: true,
             })),
       );
-      setPrompts((previous) =>
-        previous.length > 0
-          ? previous
-          : discoveryState.prompt_suggestions.map((prompt, index) => ({
-              ...prompt,
-              id: `prompt:${index}:${prompt.text}`,
-              selected: true,
-            })),
-      );
+      setProfile((previous) => previous ?? discoveryState.profile);
     }
   }, [discoveryState]);
 
@@ -243,25 +225,17 @@ export function OnboardingScreen() {
   // A retry therefore cannot leave behind or duplicate a partial project.
   const complete = useMutation({
     mutationFn: async () => {
-      if (!brand || !discovery.discovery) throw new Error('Discovery details are missing.');
-      const selectedPrompts = prompts.filter((item) => item.selected);
-      const groupedPrompts = new Map<string, typeof selectedPrompts>();
-      for (const prompt of selectedPrompts) {
-        const topic = (prompt.theme ?? '').trim() || brand.industry.trim() || 'General';
-        groupedPrompts.set(topic, [...(groupedPrompts.get(topic) ?? []), prompt]);
+      if (!brand || !discovery.discovery || !hasConfirmedIcp(profile)) {
+        throw new Error('Confirm the required ICP fields before creating the project.');
       }
 
       return brandDiscoveriesApi.complete(
         discovery.discovery.id,
         {
           name: brand.brand_name.trim(),
-          profile: discovery.discovery.profile,
+          profile,
           domains: selectedDomainValues(domains),
           competitors: selectedCompetitorValues(competitors),
-          prompt_groups: [...groupedPrompts.entries()].map(([topic, topicPrompts]) => ({
-            topic,
-            prompts: topicPrompts.map(({ text, intent, cohort }) => ({ text, intent, cohort })),
-          })),
         },
         `complete:${discovery.discovery.id}`,
       );
@@ -296,7 +270,7 @@ export function OnboardingScreen() {
     if (rediscovers) {
       setDomains([]);
       setCompetitors([]);
-      setPrompts([]);
+      setProfile(null);
       setResumeDiscoveryId(null);
     }
     setBrand(values);
@@ -650,7 +624,7 @@ export function OnboardingScreen() {
                     disabled={
                       discovery.isRunning ||
                       !discovery.discovery ||
-                      discovery.discovery.prompt_suggestions.length === 0
+                      discovery.discovery.status !== 'ready'
                     }
                     className="text-sm font-medium"
                   >
@@ -672,15 +646,7 @@ export function OnboardingScreen() {
                   </p>
                 </div>
 
-                {/* Discovered Profile at TOP */}
-                {discovery.discovery?.profile.description ? (
-                  <div className="border-border-subtle bg-well/40 rounded-lg border px-3.5 py-2.5">
-                    <p className="website-eyebrow text-muted">Discovered Profile</p>
-                    <p className="website-body text-foreground mt-0.5">
-                      {discovery.discovery.profile.description}
-                    </p>
-                  </div>
-                ) : null}
+                {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
 
                 <ReviewStep
                   domains={domains}
@@ -757,9 +723,9 @@ export function OnboardingScreen() {
                 {!hasSelectedDomain ? (
                   <Alert tone="warning">Keep at least one website address selected.</Alert>
                 ) : null}
-                {hasSelectedPrompt && !hasCompletePromptPortfolio ? (
+                {!hasConfirmedIcp(profile) ? (
                   <Alert tone="warning">
-                    Discovery did not finish preparing this project. Go back and retry the scan.
+                    Confirm positioning, target audience, and at least one product or service.
                   </Alert>
                 ) : null}
 
@@ -770,8 +736,7 @@ export function OnboardingScreen() {
                     disabled={
                       complete.isPending ||
                       !hasSelectedDomain ||
-                      !hasSelectedPrompt ||
-                      !hasCompletePromptPortfolio
+                      !hasConfirmedIcp(profile)
                     }
                     className="text-sm font-medium"
                   >

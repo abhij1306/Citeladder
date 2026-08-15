@@ -118,8 +118,9 @@ class BrandProfile(Base):
     """Extended brand knowledge base (1:1 with ``Brand``).
 
     Co-authored: assisted features may draft fields, while the user remains
-    authoritative. ``sources`` records per-field provenance using the tokens
-    in ``config/brand_profile.py``. Direct ``workspace_id`` + ``project_id``
+    authoritative. ``sources`` records per-field origin, review state,
+    reviewer, and review time using the contract in ``config/brand_profile.py``.
+    Direct ``workspace_id`` + ``project_id``
     keys allow every query to enforce tenant scope without relying on an
     unfiltered relationship traversal (invariant 5).
 
@@ -156,9 +157,8 @@ class BrandProfile(Base):
     products_services: Mapped[list[str]] = mapped_column(JSONB, default=list)
     # Who the brand serves.
     target_audience: Mapped[str] = mapped_column(Text, default="")
-    # Per-field source tokens: {field_name: "manual" | "ai_suggested"}.
-    # Absent key = field never set. Tokens in config/brand_profile.py.
-    sources: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
+    # Per-field structured provenance; absent key = field never set.
+    sources: Mapped[dict[str, dict]] = mapped_column(JSONB, default=dict)
     # For AI-suggested fields, maps field name -> immutable suggestion UUID.
     # Manual edits remove the corresponding entry.
     source_artifact_ids: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)

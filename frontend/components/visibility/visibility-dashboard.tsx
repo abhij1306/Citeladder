@@ -10,7 +10,6 @@ import { DashboardSkeleton } from '@/components/visibility/dashboard-skeleton';
 import { VisibilityEmptyState } from '@/components/visibility/empty-state';
 import { FanoutEvidence } from '@/components/visibility/fanout-evidence';
 import { MentionsCitations } from '@/components/visibility/mentions-citations';
-import { VisibilityOverview } from '@/components/visibility/visibility-overview';
 import { VisibilityTabs } from '@/components/visibility/visibility-tabs';
 import { VisibilityToolbar } from '@/components/visibility/visibility-toolbar';
 import { VisibilityTrends } from '@/components/visibility/visibility-trends';
@@ -48,7 +47,6 @@ export function VisibilityDashboard() {
     hasRuns,
     visibilityQuery,
     trendQuery,
-    brandHistory,
     evidenceQuery,
     promptOptions,
   } = useVisibilityQueries(projectId, filters);
@@ -57,12 +55,7 @@ export function VisibilityDashboard() {
     queryKey: queryKeys.visibility.prompts(projectId ?? '', activeRunId ?? undefined),
     queryFn: ({ signal }) =>
       visibilityApi.getPromptMetrics(projectId ?? '', activeRunId ?? undefined, { signal }),
-    enabled: filters.activeTab === 'overview' && Boolean(projectId) && Boolean(activeRunId),
-  });
-  const suggestionsQuery = useQuery({
-    queryKey: queryKeys.visibility.competitorSuggestions(projectId ?? ''),
-    queryFn: ({ signal }) => visibilityApi.listCompetitorSuggestions(projectId ?? '', { signal }),
-    enabled: filters.activeTab === 'overview' && Boolean(projectId),
+    enabled: filters.activeTab === 'trends' && Boolean(projectId) && Boolean(activeRunId),
   });
 
   const isBootstrapping = isProjectLoading || (Boolean(projectId) && auditsQuery.isLoading);
@@ -95,10 +88,17 @@ export function VisibilityDashboard() {
     );
   }
 
-  let panel: ReactNode;
+  let panel: ReactNode = null;
   if (filters.activeTab === 'trends') {
     panel = (
-      <VisibilityTrends query={trendQuery} hasRuns={hasRuns} isFiltered={filters.isTrendFiltered} />
+      <VisibilityTrends
+        query={trendQuery}
+        visibilityQuery={visibilityQuery}
+        promptQuery={promptQuery}
+        engineFilter={filters.engine}
+        hasRuns={hasRuns}
+        isFiltered={filters.isTrendFiltered}
+      />
     );
   } else if (filters.activeTab === 'mentions-citations') {
     panel = (
@@ -116,18 +116,6 @@ export function VisibilityDashboard() {
         isFiltered={filters.isFiltered}
         onClearFilters={filters.clearEvidenceFilters}
         limit={EVIDENCE_LIMIT}
-      />
-    );
-  } else {
-    panel = (
-      <VisibilityOverview
-        query={visibilityQuery}
-        engineFilter={filters.engine}
-        brandName={activeProject?.brand_name || activeProject?.name || 'Your brand'}
-        brandHistory={brandHistory}
-        projectId={projectId}
-        promptQuery={promptQuery}
-        suggestionsQuery={suggestionsQuery}
       />
     );
   }

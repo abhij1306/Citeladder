@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { TopInsights } from '@/components/intelligence/top-insights';
+import { BrandProfilePanel } from '@/components/knowledge-base/brand-profile-panel';
+import { CompetitorSuggestions } from '@/components/visibility/prompt-insights';
 import {
   ArrowDown,
   ArrowRight,
@@ -14,7 +16,7 @@ import {
   LoaderCircle,
   Pencil,
   Plus,
-  Rocket,
+  BookOpen,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -25,8 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { EmptyState } from '@/components/ui/empty-state';
-import { LaunchAuditButton } from '@/components/runs/launch-audit-button';
+import { Drawer } from '@/components/ui/drawer';
 import {
   Dropdown,
   DropdownContent,
@@ -37,9 +38,9 @@ import {
 } from '@/components/ui/dropdown';
 import { Skeleton } from '@/components/ui/skeleton';
 import { opportunitiesApi } from '@/lib/api/opportunities';
-import { httpErrorStatus } from '@/lib/api/errors';
 import { projectsApi } from '@/lib/api/projects';
 import { queryKeys } from '@/lib/api/query-keys';
+import { visibilityApi } from '@/lib/api/visibility';
 import { formatUtcTimestamp } from '@/lib/format';
 import type { CommandCenter, Opportunity, Project } from '@/lib/api/types';
 import { useProjectContext } from '@/lib/project/project-context';
@@ -286,6 +287,76 @@ function ProjectControls({
   );
 }
 
+function LoopStrip({ loop }: Readonly<{ loop: CommandCenter['loop'] }>) {
+  const stations = [
+    ['Connected', loop.connected],
+    ['Analyzed', loop.analyzed],
+    ['Acted', loop.acted],
+    ['Tracked', loop.tracked],
+  ] as const;
+  return (
+    <section aria-labelledby="loop-status" className="grid gap-3">
+      <h2 id="loop-status" className="text-foreground text-sm font-medium">
+        Product loop
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {stations.map(([label, evidence]) => (
+          <Card key={label} className="grid gap-2 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-foreground text-sm font-medium">{label}</span>
+              <Badge>{evidence.state.replace('_', ' ')}</Badge>
+            </div>
+            <p className="text-muted text-xs">
+              {evidence.observed_at
+                ? `Observed ${formatUtcTimestamp(evidence.observed_at)}`
+                : evidence.limitations[0] || 'Not run yet.'}
+            </p>
+            {evidence.coverage.length ? (
+              <p className="text-secondary text-xs">Coverage: {evidence.coverage.join(', ')}</p>
+            ) : null}
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FactsDrawer({ projectId }: Readonly<{ projectId: string }>) {
+  const [open, setOpen] = useState(false);
+  const profile = useQuery({
+    queryKey: queryKeys.projects.brandProfile(projectId),
+    queryFn: ({ signal }) => projectsApi.getBrandProfile(projectId, { signal }),
+    enabled: open,
+  });
+  const suggestions = useQuery({
+    queryKey: queryKeys.visibility.competitorSuggestions(projectId),
+    queryFn: ({ signal }) => visibilityApi.listCompetitorSuggestions(projectId, { signal }),
+    enabled: open,
+  });
+  return (
+    <>
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+        <BookOpen className="size-4" aria-hidden /> Edit facts
+      </Button>
+      <Drawer
+        open={open}
+        onOpenChange={setOpen}
+        title="Company facts"
+        description="Review the canonical facts and competitors used across CiteLadder."
+        closeLabel="Close company facts"
+      >
+        <div className="grid gap-4 p-4">
+          {profile.isError ? <Alert tone="danger">Company facts could not be loaded.</Alert> : null}
+          {profile.data ? (
+            <BrandProfilePanel projectId={projectId} profile={profile.data} />
+          ) : null}
+          <CompetitorSuggestions projectId={projectId} suggestionsQuery={suggestions} />
+        </div>
+      </Drawer>
+    </>
+  );
+}
+
 function CommandCenterContent({
   data,
   projects,
@@ -380,8 +451,9 @@ function CommandCenterContent({
               {data.project.brand_name || data.project.name}
             </h2>
             <p className="text-muted mt-1 text-xs">
-              Updated {formatUtcTimestamp(data.measurement.completed_at)} ·{' '}
-              {data.measurement.logical_engines.join(', ')}
+              {data.measurement
+                ? `Tracked ${formatUtcTimestamp(data.measurement.completed_at)} · ${data.measurement.logical_engines.join(', ')}`
+                : 'Ready before the first visibility audit'}
             </p>
           </div>
         </div>
@@ -393,14 +465,17 @@ function CommandCenterContent({
             setActiveProjectId={setActiveProjectId}
             onEditProject={onEditProject}
           />
-          <Button variant="secondary" size="sm" onClick={download} disabled={downloading}>
-            {downloading ? (
-              <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <Download className="size-4" aria-hidden />
-            )}
-            {downloading ? 'Preparing…' : 'Executive PDF'}
-          </Button>
+          <FactsDrawer projectId={activeProject.id} />
+          {data.report_available ? (
+            <Button variant="secondary" size="sm" onClick={download} disabled={downloading}>
+              {downloading ? (
+                <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <Download className="size-4" aria-hidden />
+              )}
+              {downloading ? 'Preparing…' : 'Executive PDF'}
+            </Button>
+          ) : null}
         </div>
       </section>
 
@@ -418,12 +493,69 @@ function CommandCenterContent({
         </Alert>
       ) : null}
 
+      <section aria-labelledby="company-facts" className="grid gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="company-facts" className="text-foreground text-sm font-medium">
+            Company facts
+          </h2>
+          <span className="text-muted text-xs">{data.facts.industry || 'Industry not set'}</span>
+        </div>
+        <Card className="grid gap-2 p-4 sm:grid-cols-2">
+          <p className="text-foreground text-sm">
+            {data.facts.positioning || data.facts.description || 'Add positioning in company facts.'}
+          </p>
+          <p className="text-muted text-sm">
+            {data.facts.target_audience
+              ? `Audience: ${data.facts.target_audience}`
+              : 'Target audience not set.'}
+          </p>
+          <p className="text-secondary text-xs sm:col-span-2">
+            {data.facts.products_services.length
+              ? `Offerings: ${data.facts.products_services.join(', ')}`
+              : 'Offerings not set.'}{' '}
+            · {data.facts.competitors.length} tracked competitor(s)
+          </p>
+        </Card>
+      </section>
+
+      <LoopStrip loop={data.loop} />
+
+      <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <div>
+          <p className="text-muted text-xs font-medium">Next action</p>
+          <p className="text-foreground mt-1 text-sm font-medium">{data.next_action.title}</p>
+        </div>
+        <Button asChild variant="primary" size="sm">
+          <Link href={data.next_action.href}>
+            {data.next_action.kind === 'monitor' ? 'View trends' : 'Continue'}
+            <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        </Button>
+      </Card>
+
+      <Card className="grid gap-2 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+        <div>
+          <p className="text-muted text-xs font-medium">Track</p>
+          <p className="text-foreground mt-1 text-lg font-medium">
+            Citation share {metricValue(data.track.citation_share.value, '%')}
+          </p>
+          <p className="text-muted text-xs">
+            {data.track.observed_at
+              ? `${data.track.engine_coverage} engine(s) · ${deltaLabel(data.track.citation_share.delta)}`
+              : data.track.limitations[0]}
+          </p>
+        </div>
+        <Button asChild variant="ghost" size="sm">
+          <Link href="/visibility?tab=trends">Open Trends</Link>
+        </Button>
+      </Card>
+
       <section aria-labelledby="project-state" className="grid gap-3">
         <div className="flex items-center justify-between gap-3">
           <h2 id="project-state" className="text-foreground text-sm font-medium">
             Project state
           </h2>
-          <Badge>{data.measurement.measurement_mode}</Badge>
+          <Badge>{data.measurement?.measurement_mode ?? 'not run'}</Badge>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           <StateMetric label="Visibility" {...data.state.visibility} />
@@ -502,9 +634,11 @@ function CommandCenterContent({
               movement is shown alongside completion without claiming causation.
             </p>
           </div>
-          <Button variant="secondary" size="sm" onClick={download} disabled={downloading}>
-            <Download className="size-4" aria-hidden /> Download PDF
-          </Button>
+          {data.report_available ? (
+            <Button variant="secondary" size="sm" onClick={download} disabled={downloading}>
+              <Download className="size-4" aria-hidden /> Download PDF
+            </Button>
+          ) : null}
         </section>
       </Card>
     </div>
@@ -529,26 +663,6 @@ export function DashboardScreen({
 
   if (isLoading || (activeProject && commandCenter.isLoading)) return <CommandCenterSkeleton />;
   if (!activeProject) return null;
-  if (commandCenter.isError && httpErrorStatus(commandCenter.error) === 404) {
-    return (
-      <EmptyState
-        icon={Rocket}
-        heading="No completed runs yet"
-        description="Launch an audit to turn your saved brand, competitors, and prompts into a command-center measurement."
-        action={
-          <>
-            <LaunchAuditButton size="md">Launch your first audit</LaunchAuditButton>
-            {onEditProject ? (
-              <Button variant="secondary" size="md" onClick={() => onEditProject(activeProject)}>
-                <Pencil className="size-4" aria-hidden />
-                Review project
-              </Button>
-            ) : null}
-          </>
-        }
-      />
-    );
-  }
   if (commandCenter.isError || !commandCenter.data) {
     return (
       <Alert tone="danger">

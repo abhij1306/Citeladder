@@ -412,7 +412,7 @@ describe('UrlDetail', () => {
     // identity's canonical detail route (with ?rerun=1 to auto-start polling
     // on the new mount) rather than continuing to poll the terminal source.
     await waitFor(() =>
-      expect(push).toHaveBeenCalledWith(`/site-health/crawls/${NEW_CRAWL}/pages/${URL_ID}?rerun=1`),
+      expect(push).toHaveBeenCalledWith(`/site/crawls/${NEW_CRAWL}/pages/${URL_ID}?rerun=1`),
     );
     expect(push).toHaveBeenCalledTimes(1);
   });

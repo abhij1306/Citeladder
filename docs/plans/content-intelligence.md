@@ -28,6 +28,13 @@ packages, validation state machines, revisions, publication claims, or later
 verification. Those PR #59 compatibility paths were removed because they were
 unreachable after Site Intelligence deletion and carried empty evidence.
 
+The initial prompt portfolio is created only after onboarding confirms the
+structured ICP. BrandProfile field sources carry `origin`, `review_state`,
+`reviewed_by`, and `reviewed_at`; positioning, target audience, and
+products/services must be confirmed or edited. Discovery suggestions are never
+generation truth, and completion seeds the deterministic portfolio exactly once
+from the submitted confirmed values.
+
 No autonomous publishing is permitted. Retained acceptance covers workspace
 isolation, source provenance, bounded omissions, queue leases, idempotency,
 cancellation, retry/regeneration, provider attempts, and feedback.

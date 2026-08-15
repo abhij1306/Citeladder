@@ -32,11 +32,12 @@ def fallback_portfolio(
     industry: str,
     industry_context: dict,
     products_services: list[str],
+    target_audience: str = "",
     price_tier: str = "unknown",
 ) -> list[dict]:
     """Build a complete editable portfolio when application-model research fails."""
     market_categories, brand_categories, uses, persona = _fallback_context(
-        industry, industry_context, products_services
+        industry, industry_context, products_services, target_audience
     )
     library = load_industry_library()
     market_templates, brand_templates = _fallback_templates(library, industry_context)
@@ -135,7 +136,7 @@ def _fallback_values(index, market, categories, uses, persona, price_tier):
     }
 
 
-def _fallback_context(industry, industry_context, products_services):
+def _fallback_context(industry, industry_context, products_services, target_audience):
     generic_category = {"General": "general options"}.get(industry, industry.casefold())
     market_categories = _normalized_categories(industry_context.get("topics"))
     if not market_categories:
@@ -144,7 +145,12 @@ def _fallback_context(industry, industry_context, products_services):
     if not brand_categories:
         brand_categories = list(market_categories)
     uses = _values_or_default(industry_context.get("use_cases"), "their needs")
-    persona = str(industry_context.get("buyer_persona") or "my needs").strip()
+    reviewed_audience = str(target_audience).strip()
+    persona = (
+        f"my needs as {reviewed_audience}"
+        if reviewed_audience
+        else str(industry_context.get("buyer_persona") or "my needs").strip()
+    )
     return market_categories, brand_categories, uses, persona
 
 
