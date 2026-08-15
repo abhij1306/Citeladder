@@ -23,7 +23,9 @@ truth or widen a read into a sync.
 The projection identity is workspace + project + exact window + source hash +
 analyzer version. An identical retry reuses the immutable snapshot; changed
 source evidence or versions append a snapshot that points to the prior one.
-The config-owned row cap is 5,000 and source-artifact cap is 100. Coverage is
+The config-owned row cap is 5,000 and source-artifact cap is 100. Latest-row
+selection and its one-row truncation sentinel are enforced in SQL before ORM
+rows are materialized. Coverage is
 `available`, `observed_zero`, or `unavailable`, with truncation and missing
 property evidence recorded as limitations.
 
@@ -60,8 +62,9 @@ classifier, and owned-page resolver versions.
   percentage points below the cohort median. Without such a cohort the
   detector state is `unavailable`; no universal curve is substituted.
 - `emerging_query` and `declining_query` compare adjacent, non-overlapping
-  14-day windows. Coverage must reach the first day of the prior window and
-  the selected window end; each query needs 50 total impressions and 10 per
+  14-day windows. The evidence set must cover every calendar day across both
+  windows; endpoint-only or otherwise sparse history abstains as
+  `insufficient_history`. Each query needs 50 total impressions and 10 per
   window. Emerging is at least 1.5x with +20 impressions; declining is at most
   0.67x with -20. Short coverage is `insufficient_history`.
 

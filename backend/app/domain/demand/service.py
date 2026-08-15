@@ -36,6 +36,7 @@ from app.domain.demand.query_evidence import (
     build_query_evidence,
     query_evidence_source_revision,
 )
+from app.domain.demand.query_evidence_reads import latest_query_evidence_snapshot
 from app.models.analytics import AnalyticsTask
 from app.models.demand import DemandSignal, DemandSnapshot
 from app.models.traffic import TrafficPageStat, TrafficQueryStat, TrafficSnapshot
@@ -294,6 +295,7 @@ async def recompute_demand(
             workspace_id=task.workspace_id,
             project_id=task.project_id,
             search_inputs=search_inputs,
+            query_inputs=query_detector_inputs,
         )
         metric_ids, artifact_ids = _source_ids(
             search_inputs,
@@ -428,11 +430,29 @@ async def demand_source_revision(
         window_start=window_start,
         window_end=window_end,
     )
+    query_evidence = await latest_query_evidence_snapshot(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        window_start=window_start,
+        window_end=window_end,
+    )
+    query_detector_inputs = (
+        await load_query_detector_inputs(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            snapshot=query_evidence,
+        )
+        if query_evidence is not None
+        else []
+    )
     classification_material = await classification_revision_material(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
         search_inputs=search_inputs,
+        query_inputs=query_detector_inputs,
     )
     return stable_hash(
         {

@@ -87,12 +87,13 @@ coverage, limitations, source IDs, and analyzer/resolver versions;
 identity, date, metrics, resolution evidence, and exact import provenance.
 Retries reuse identical immutable snapshots, while source or version changes
 append. Workspace-authorized list/summary APIs read only persisted rows, with
-config-owned 100/500 pagination and 5,000-row/100-artifact build bounds.
+config-owned 100/500 pagination and 5,000-row/100-artifact build bounds. The
+latest-row cap is applied in SQL before ORM materialization.
 
 Demand query detection is split along complexity boundaries: `projection.py`
 owns the baseline and branded/striking-distance separation,
 `query_detectors.py` owns cannibalization, property-relative CTR gap, and
-adjacent-window trends, and `detector_source.py` performs bounded classified
+complete-daily-coverage adjacent-window trends, and `detector_source.py` performs bounded classified
 input assembly. Detector states and limitations persist in the Demand snapshot
 summary. `opportunities/demand_hits.py` is the sole mapping seam from the
 approved actionable signal set into distinct existing Opportunity rules;

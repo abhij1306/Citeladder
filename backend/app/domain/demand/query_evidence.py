@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.demand import (
@@ -82,16 +82,41 @@ async def _source_rows(
     window_start: date,
     window_end: date,
 ) -> list[TrafficMetricRowInput]:
+    identity = (
+        IntegrationMetricRow.property_ref,
+        IntegrationMetricRow.provider,
+        IntegrationMetricRow.dataset,
+        IntegrationMetricRow.date,
+        IntegrationMetricRow.dimension_key,
+    )
+    ranked = (
+        select(
+            IntegrationMetricRow.id.label("row_id"),
+            func.row_number()
+            .over(
+                partition_by=identity,
+                order_by=(
+                    IntegrationMetricRow.resync_seq.desc(),
+                    IntegrationMetricRow.id.desc(),
+                ),
+            )
+            .label("revision_rank"),
+        )
+        .where(IntegrationMetricRow.workspace_id == workspace_id)
+        .where(IntegrationMetricRow.project_id == project_id)
+        .where(IntegrationMetricRow.dataset == DATASET_GSC_QUERY_PAGE_DAILY)
+        .where(IntegrationMetricRow.date >= window_start)
+        .where(IntegrationMetricRow.date <= window_end)
+        .subquery()
+    )
     rows = list(
         (
             await session.scalars(
                 select(IntegrationMetricRow)
-                .where(IntegrationMetricRow.workspace_id == workspace_id)
-                .where(IntegrationMetricRow.project_id == project_id)
-                .where(IntegrationMetricRow.dataset == DATASET_GSC_QUERY_PAGE_DAILY)
-                .where(IntegrationMetricRow.date >= window_start)
-                .where(IntegrationMetricRow.date <= window_end)
-                .order_by(IntegrationMetricRow.id)
+                .join(ranked, ranked.c.row_id == IntegrationMetricRow.id)
+                .where(ranked.c.revision_rank == 1)
+                .order_by(*identity, IntegrationMetricRow.id)
+                .limit(QUERY_EVIDENCE_MAX_ROWS + 1)
             )
         ).all()
     )
@@ -241,7 +266,7 @@ async def build_query_evidence(
     source_hash = _source_hash(
         window_start=window_start,
         window_end=window_end,
-        material=material,
+        material=selected,
         artifacts=artifacts,
     )
     existing = await session.scalar(
@@ -306,7 +331,7 @@ def _projection_limitations(
     selected: list[dict[str, Any]],
 ) -> list[str]:
     limitations: list[str] = []
-    if len(material) > len(selected):
+    if len(source_rows) > QUERY_EVIDENCE_MAX_ROWS or len(material) > len(selected):
         limitations.append("query_evidence_row_limit")
     if len(material) != len(source_rows):
         limitations.append("malformed_source_rows_excluded")
@@ -332,7 +357,8 @@ def _snapshot_record(inputs: _SnapshotInputs) -> QueryEvidenceSnapshot:
             "usable_row_count": len(inputs.material),
             "projected_row_count": len(inputs.selected),
             "row_limit": QUERY_EVIDENCE_MAX_ROWS,
-            "truncated": len(inputs.material) > len(inputs.selected),
+            "truncated": len(inputs.source_rows) > QUERY_EVIDENCE_MAX_ROWS
+            or len(inputs.material) > len(inputs.selected),
         },
         limitations=_projection_limitations(
             inputs.source_rows, inputs.material, inputs.selected
@@ -371,7 +397,9 @@ async def query_evidence_source_revision(
         window_start=window_start,
         window_end=window_end,
     )
-    material = [item for row in source_rows if (item := _row_material(row))]
+    material = [item for row in source_rows if (item := _row_material(row))][
+        :QUERY_EVIDENCE_MAX_ROWS
+    ]
     artifacts = await _zero_row_artifacts(
         session,
         workspace_id=workspace_id,

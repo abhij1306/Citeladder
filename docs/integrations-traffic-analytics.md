@@ -90,7 +90,8 @@ metric-row and artifact IDs, importer version, query, page, date, metrics, and
 versioned owned-page resolution. Identical source/window/version input is
 idempotent; changed input appends and supersedes. The read-only query-evidence
 API requires an exact window and exposes 100 rows by default, at most 500, from
-a projection capped at 5,000 rows and 100 artifacts. It never issues a provider
+a projection whose SQL latest-row selection is capped before materialization at
+5,000 rows (plus a truncation sentinel) and 100 artifacts. It never issues a provider
 request or duplicates normalized GSC metric truth.
 
 Each signal records window, source artifact/row IDs, identity joins, coverage, confidence,

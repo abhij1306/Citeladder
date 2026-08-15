@@ -74,12 +74,16 @@ async def classification_revision_material(
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     search_inputs: list[SearchDemandInput],
+    query_inputs: list[QueryEvidenceInput],
 ) -> list[dict[str, Any]]:
+    queries = {row.target for row in search_inputs if row.target_kind == "query"} | {
+        row.normalized_query for row in query_inputs
+    }
     classifications = await classify_project_queries(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
-        queries=[row.target for row in search_inputs if row.target_kind == "query"],
+        queries=sorted(queries),
     )
     return [
         {

@@ -312,11 +312,11 @@ row is the removal condition. No other compatibility path is implied.
 #### Q03 — completed 2026-08-15
 - Wave / branch: W4 / `feat/aeo-wave-4-demand-content`
 - Owners: Demand strict query detectors, persisted detector-state summary, Search Demand projection, and the extracted approved-signal Opportunity mapping seam.
-- Implemented: locked cannibalization, property-relative CTR-gap, emerging, and declining semantics; available/partial/unavailable/insufficient-history states; exact thresholds and positive/boundary fixtures; distinct Opportunity rules; labeled Search Demand rows and honest state notes. Complexity-driven seams keep projection, detector source, strict algorithms, and Opportunity mapping within repository limits.
+- Implemented: locked cannibalization, property-relative CTR-gap, emerging, and declining semantics; available/partial/unavailable/insufficient-history states; exact thresholds and positive/boundary fixtures; distinct Opportunity rules; labeled Search Demand rows and honest state notes. Complexity-driven seams keep projection, detector source, strict algorithms, and Opportunity mapping within repository limits. Agent-review follow-up added evidence-only override cache invalidation, complete 28-day trend coverage, and a pre-materialization SQL projection bound.
 - Deleted / retained until: no intended-page mismatch detector, token, flag, or UI placeholder exists; the superseded inline `_demand_hits` mapping was deleted from the oversized Opportunity service and replaced by `opportunities/demand_hits.py` as its sole caller-owned seam.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 61
-- Local verification: focused backend pytest 57 passed across detectors, query evidence, classifications, Demand lifecycle, Opportunity rules/mapping, and authorization; Ruff, targeted mypy, and the complete complexity policy passed. Focused Demand Vitest 4 passed with ESLint green.
+- Local verification: focused backend pytest 84 passed across all changed W4 test owners after review follow-up (including 16 targeted regression tests); Ruff, targeted mypy, and the complete complexity policy passed. Focused Demand Vitest 4 passed with ESLint green.
 - Evaluation artifact: `docs/evaluations/2026-08-15-w4-demand-content.md` (read-only live GSC and grounding envelope proof; zero provider calls)
 - Advanced to internal slice: wave close
 

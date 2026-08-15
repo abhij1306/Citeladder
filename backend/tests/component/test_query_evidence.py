@@ -6,6 +6,7 @@ import uuid
 from datetime import date
 
 import httpx
+import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -152,6 +153,30 @@ async def test_changed_source_supersedes_and_pagination_is_stable(
         await db_session.scalar(select(func.count()).select_from(QueryEvidenceSnapshot))
         == 2
     )
+
+
+async def test_projection_bounds_latest_rows_before_materialization(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace_id, project_id, _site_url, _seed = await _seed_rows(db_session, count=3)
+    monkeypatch.setattr("app.domain.demand.query_evidence.QUERY_EVIDENCE_MAX_ROWS", 2)
+
+    snapshot = await build_query_evidence(
+        db_session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        window_start=_WINDOW[0],
+        window_end=_WINDOW[1],
+    )
+
+    assert snapshot.coverage == {
+        "source_row_count": 3,
+        "usable_row_count": 3,
+        "projected_row_count": 2,
+        "row_limit": 2,
+        "truncated": True,
+    }
+    assert snapshot.limitations == ["query_evidence_row_limit"]
 
 
 async def _register_project(client: httpx.AsyncClient, label: str) -> dict:

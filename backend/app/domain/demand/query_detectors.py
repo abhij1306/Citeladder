@@ -228,9 +228,13 @@ def _ctr_gap_candidate(
 def detect_query_trends(
     rows: list[QueryEvidenceInput], *, window_end: date
 ) -> DetectorEvaluation:
-    dates = {row.observed_date for row in rows}
     coverage_start = window_end - timedelta(days=DEMAND_TREND_REQUIRED_DAYS - 1)
-    if not dates or min(dates) > coverage_start or max(dates) < window_end:
+    expected_dates = {
+        coverage_start + timedelta(days=offset)
+        for offset in range(DEMAND_TREND_REQUIRED_DAYS)
+    }
+    covered_dates = {row.observed_date for row in rows} & expected_dates
+    if covered_dates != expected_dates:
         return DetectorEvaluation(
             "insufficient_history",
             (),

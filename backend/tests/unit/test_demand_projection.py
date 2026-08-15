@@ -196,3 +196,13 @@ def test_query_trends_prove_both_classes_and_reject_26_day_history() -> None:
     thin = detect_query_trends(rows[4:], window_end=end)
     assert thin.state == "insufficient_history"
     assert thin.candidates == ()
+
+    sparse = detect_query_trends(
+        [
+            _query_row("sparse", impressions=30, observed_date=date(2026, 7, 1)),
+            _query_row("sparse", impressions=60, observed_date=end),
+        ],
+        window_end=end,
+    )
+    assert sparse.state == "insufficient_history"
+    assert sparse.candidates == ()
