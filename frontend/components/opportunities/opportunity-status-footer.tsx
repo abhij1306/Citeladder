@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { OpportunityStatusBadge } from '@/components/opportunities/opportunity-status-badge';
 import { useUpdateOpportunityStatus } from '@/components/opportunities/use-opportunity-status';
@@ -18,7 +18,14 @@ export function OpportunityStatusFooter({
   projectId,
 }: Readonly<{ detail: OpportunityDetail; projectId: string }>) {
   const updateStatus = useUpdateOpportunityStatus(projectId, detail.id);
-  const declaration = useMutation(opportunitiesMutations.createImplementationEvent());
+  const queryClient = useQueryClient();
+  const declaration = useMutation({
+    ...opportunitiesMutations.createImplementationEvent(),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: opportunitiesQueries.implementationEvents(projectId, detail.id).queryKey,
+      }),
+  });
   const declarations = useQuery(
     opportunitiesQueries.implementationEvents(projectId, detail.id),
   );
@@ -78,11 +85,13 @@ export function OpportunityStatusFooter({
       ) : null}
       {implementation ? (
         <p
-          className={
-            implementation.state === 'contradicted'
-              ? 'text-danger-text text-xs'
-              : 'text-success-text text-xs'
-          }
+          className={`${
+            implementation.state === 'verified'
+              ? 'text-success-text'
+              : implementation.state === 'contradicted'
+                ? 'text-danger-text'
+                : 'text-muted'
+          } text-xs`}
         >
           {implementation.state === 'declared'
             ? 'Declared for verification.'

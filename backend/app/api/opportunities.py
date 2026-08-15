@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, status
@@ -79,6 +79,10 @@ from app.domain.opportunities.service import (
     OpportunitySupersededError,
     OpportunityValidationError,
 )
+from app.models.opportunity import (
+    OpportunityImplementationEvent,
+    OpportunityVerificationEvent,
+)
 
 router = APIRouter(prefix="", tags=["opportunities"])
 
@@ -86,7 +90,7 @@ _WorkspaceDep = Annotated[WorkspaceContext, Depends(require_active_workspace)]
 _SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
 
-def _verification_view(row) -> VerificationEventView:
+def _verification_view(row: OpportunityVerificationEvent) -> VerificationEventView:
     return VerificationEventView(
         id=row.id,
         observation_kind=row.observation_kind,
@@ -102,7 +106,10 @@ def _verification_view(row) -> VerificationEventView:
     )
 
 
-def _implementation_view(row, verification_rows=()) -> ImplementationEventView:
+def _implementation_view(
+    row: OpportunityImplementationEvent,
+    verification_rows: Sequence[OpportunityVerificationEvent] = (),
+) -> ImplementationEventView:
     latest = verification_rows[-1] if verification_rows else None
     return ImplementationEventView(
         id=row.id,

@@ -13,7 +13,10 @@ from typing import Annotated, Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
-from app.core.config.opportunities import OPPORTUNITY_STATUSES
+from app.core.config.opportunities import (
+    IMPLEMENTATION_EXPECTED_CHECKS_MAX,
+    OPPORTUNITY_STATUSES,
+)
 
 
 class _Model(BaseModel):
@@ -88,7 +91,9 @@ class ImplementationEventCreate(_Model):
     target_site_url_ids: list[uuid.UUID] = Field(default_factory=list, max_length=64)
     generation_id: uuid.UUID | None = None
     declared_implemented_at: AwareDatetime
-    expected_checks: list[ExpectedCheck] = Field(min_length=1, max_length=32)
+    expected_checks: list[ExpectedCheck] = Field(
+        min_length=1, max_length=IMPLEMENTATION_EXPECTED_CHECKS_MAX
+    )
 
 
 class VerificationEventView(_Model):

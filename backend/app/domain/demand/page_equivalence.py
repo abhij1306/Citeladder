@@ -173,6 +173,8 @@ async def resolve_owned_page(
         requested = canonicalize(url)
     except UrlPolicyError:
         return PageResolution("unresolved", None, ())
+    preferred = _safe_canonicalize(preferred_origin) if preferred_origin else None
+    preferred_prefix = f"{preferred.rstrip('/')}/" if preferred else ""
     variants = _variant_urls(requested)
     rows = list(
         (
@@ -192,8 +194,11 @@ async def resolve_owned_page(
             site_url_id=row.id,
             normalized_url=row.normalized_url,
             sitemap_member=row.latest_source_kind == "sitemap",
-            preferred_origin=bool(preferred_origin)
-            and row.normalized_url.startswith(preferred_origin.rstrip("/") + "/"),
+            preferred_origin=bool(preferred)
+            and (
+                row.normalized_url == preferred
+                or row.normalized_url.startswith(preferred_prefix)
+            ),
         )
         for row in rows
     )

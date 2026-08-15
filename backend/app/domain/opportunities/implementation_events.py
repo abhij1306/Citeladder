@@ -183,11 +183,11 @@ async def _flush_declaration(
     row: OpportunityImplementationEvent,
     fingerprint: str,
 ) -> tuple[OpportunityImplementationEvent, bool]:
-    session.add(row)
     try:
-        await session.flush()
+        async with session.begin_nested():
+            session.add(row)
+            await session.flush()
     except IntegrityError:
-        await session.rollback()
         replay = await _idempotent_replay(
             session,
             workspace_id=row.workspace_id,
