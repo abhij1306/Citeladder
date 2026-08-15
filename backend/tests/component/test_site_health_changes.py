@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.site_change_intel import CHANGE_ANALYZER_VERSION
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
+from app.domain.site_health import change_intel as change_service
 from app.domain.site_health.change_intel import (
     build_change_snapshot,
     select_previous_comparable_crawl,
@@ -375,3 +376,30 @@ async def test_selection_skips_newer_incompatible_crawl_and_codes_no_match(
         snapshot = await build_change_snapshot(session, crawl_b=crawl_b)
         assert snapshot.state == "non_comparable"
         assert snapshot.reason_code == "crawl_scope_mismatch"
+
+
+async def test_page_evidence_cap_marks_snapshot_partial(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _register(client, "changes-cap@example.com")
+    async with session_factory() as session:
+        scenario = await _seed_scenario(session, email="changes-cap@example.com")
+        crawl = await session.get(SiteCrawl, scenario.crawl_id)
+        assert crawl is not None
+        analysis = await session.scalar(
+            select(SitePageAnalysis).where(SitePageAnalysis.crawl_id == crawl.id)
+        )
+        assert analysis is not None
+        artifact = await session.get(SiteFetchArtifact, analysis.artifact_id)
+        assert artifact is not None
+        crawl.analyzer_version = analysis.analyzer_version
+        crawl.extractor_version = artifact.extractor_version
+        monkeypatch.setattr(change_service, "CHANGE_MAX_PAGES", 0)
+
+        snapshot = await build_change_snapshot(session, crawl_b=crawl)
+
+        assert snapshot.complete_pair is False
+        assert snapshot.coverage["evidence_page_limit_reached"] is True
+        assert "evidence_page_limit_reached" in snapshot.limitations

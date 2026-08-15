@@ -23,8 +23,15 @@ export const siteHealthKeys = {
     ['site-health', 'link-graph-edges', projectId, crawlId ?? 'latest', cursor ?? 'first'] as const,
   aeoReadiness: (projectId: string, crawlId?: string) =>
     ['site-health', 'aeo-readiness', projectId, crawlId ?? 'latest'] as const,
-  changes: (projectId: string, cursor?: string) =>
-    ['site-health', 'changes', projectId, cursor ?? 'first'] as const,
+  changes: (projectId: string, crawlAId?: string, crawlBId?: string, cursor?: string) =>
+    [
+      'site-health',
+      'changes',
+      projectId,
+      crawlAId ?? 'unselected-a',
+      crawlBId ?? 'unselected-b',
+      cursor ?? 'first',
+    ] as const,
   changesSummary: (projectId: string) => ['site-health', 'changes-summary', projectId] as const,
   crawls: (projectId: string, filters: ListFilters = {}) =>
     ['site-health', 'crawls', projectId, filters] as const,

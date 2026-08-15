@@ -67,6 +67,24 @@ def test_classifies_rule_http_and_exact_expected_linkage() -> None:
     assert by_field["http_status"].change_class == "critical-regression"
 
 
+def test_classifies_rule_transition_when_extracted_value_is_unchanged() -> None:
+    before = _page()
+    after = ChangePage(
+        **{
+            **before.__dict__,
+            "analysis_id": uuid.uuid4(),
+            "artifact_id": uuid.uuid4(),
+            "rules": {"title": RuleState("fail", "high", uuid.uuid4())},
+        }
+    )
+
+    changes = compare_crawls([before], [after], complete_pair=True)
+
+    assert [(item.field, item.change_class) for item in changes] == [
+        ("title", "potential-regression")
+    ]
+
+
 def test_redirect_target_is_an_explicit_neutral_change() -> None:
     before = _page()
     after = ChangePage(

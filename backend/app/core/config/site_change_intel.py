@@ -36,6 +36,7 @@ CHANGE_FIELDS: Final = (
     "http_status",
     "redirect_target",
 )
+CHANGE_MAX_OBSERVATIONS: Final = CHANGE_MAX_PAGES * len(CHANGE_FIELDS)
 
 CHANGE_FIELD_RULES: Final[dict[str, str]] = {
     "title": "technical.title_present",

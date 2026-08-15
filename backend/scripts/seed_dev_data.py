@@ -64,7 +64,7 @@ from app.core.config.provider_catalog import (
     TRANSPORT_OPENAI,
     measurement_route,
 )
-from app.core.config.site_health import CRAWL_TERMINAL_STATUSES
+from app.core.config.site_health import CRAWL_STATUS_COMPLETED, CRAWL_TERMINAL_STATUSES
 from app.core.database import SessionLocal
 from app.core.security import encrypt_secret
 from app.domain.audits.planner import create_audit
@@ -154,15 +154,25 @@ class SeedEnvironmentError(RuntimeError):
     """The configured target is not an approved development database."""
 
 
-async def _drain_site_crawl(worker: SiteHealthWorker, crawl_id: uuid.UUID) -> None:
+async def _drain_site_crawl(
+    worker: SiteHealthWorker, *, workspace_id: uuid.UUID, crawl_id: uuid.UUID
+) -> None:
     """Drain delayed host-gated tasks until the selected crawl terminalizes."""
     for _ in range(120):
         await worker.run_until_idle()
         async with SessionLocal() as session:
             status = await session.scalar(
-                select(SiteCrawl.status).where(SiteCrawl.id == crawl_id)
+                select(SiteCrawl.status).where(
+                    SiteCrawl.id == crawl_id,
+                    SiteCrawl.workspace_id == workspace_id,
+                )
             )
         if status in CRAWL_TERMINAL_STATUSES:
+            if status != CRAWL_STATUS_COMPLETED:
+                raise RuntimeError(
+                    f"seed Site Health crawl terminalized unsuccessfully: "
+                    f"{crawl_id} ({status})"
+                )
             return
         await asyncio.sleep(0.25)
     raise RuntimeError(f"seed Site Health crawl did not terminalize: {crawl_id}")
@@ -710,7 +720,9 @@ async def seed() -> None:
         resolver=_FakeResolver(),
         transport=_site_transport(),
     )
-    await _drain_site_crawl(worker3, crawl1_id)
+    await _drain_site_crawl(
+        worker3, workspace_id=workspace_id, crawl_id=crawl1_id
+    )
     logger.info("Completed site health discovery crawl %s", crawl1_id)
 
     async with SessionLocal() as session:
@@ -732,7 +744,9 @@ async def seed() -> None:
             session, workspace_id=workspace_id, project_id=project_id, random_seed="100"
         )
         crawl2_id = crawl2.id
-    await _drain_site_crawl(worker3, crawl2_id)
+    await _drain_site_crawl(
+        worker3, workspace_id=workspace_id, crawl_id=crawl2_id
+    )
     logger.info("Completed site health analysis crawl %s", crawl2_id)
 
     # A second analysis recrawl supplies the immediate comparable A/B pair for
@@ -743,7 +757,9 @@ async def seed() -> None:
             session, workspace_id=workspace_id, project_id=project_id, random_seed="101"
         )
         crawl3_id = crawl3.id
-    await _drain_site_crawl(worker3, crawl3_id)
+    await _drain_site_crawl(
+        worker3, workspace_id=workspace_id, crawl_id=crawl3_id
+    )
     logger.info("Completed comparable site health crawl %s", crawl3_id)
 
     # 8. Materialize the first action set and resolve one item between two

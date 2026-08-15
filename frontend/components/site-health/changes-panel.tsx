@@ -77,9 +77,15 @@ function Evidence({ row }: Readonly<{ row: ChangeObservation }>) {
 export function ChangesPanel({ projectId }: Readonly<{ projectId: string }>) {
   const pager = useCursorStack();
   const summary = useQuery(siteHealthQueries.changesSummary(projectId));
-  const changes = useQuery(siteHealthQueries.changes(projectId, pager.cursor));
+  const crawlAId = summary.data?.crawl_a_id ?? undefined;
+  const crawlBId = summary.data?.crawl_b_id ?? undefined;
+  const pairAvailable = summary.data?.state === 'available' && Boolean(crawlAId && crawlBId);
+  const changes = useQuery({
+    ...siteHealthQueries.changes(projectId, crawlAId, crawlBId, pager.cursor),
+    enabled: pairAvailable,
+  });
 
-  if (summary.isLoading || changes.isLoading) {
+  if (summary.isLoading || (pairAvailable && changes.isLoading)) {
     return (
       <p role="status" className="text-secondary text-sm">
         Loading persisted website changes…
@@ -103,6 +109,9 @@ export function ChangesPanel({ projectId }: Readonly<{ projectId: string }>) {
         {summary.data.reason_code?.replaceAll('_', ' ') ?? 'scope or version mismatch'}).
       </Alert>
     );
+  }
+  if (!pairAvailable) {
+    return <Alert tone="danger">The persisted comparison is missing its exact crawl pair.</Alert>;
   }
 
   const rows = changes.data?.items ?? [];

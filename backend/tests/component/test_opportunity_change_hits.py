@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -67,6 +69,7 @@ async def test_only_unexpected_persisted_regressions_become_hits(
         await session.flush()
         for change_class, expected, field in (
             ("critical-regression", False, "http_status"),
+            ("potential-regression", False, "canonical"),
             ("potential-regression", True, "title"),
             ("neutral-change", False, "h1"),
         ):
@@ -88,6 +91,13 @@ async def test_only_unexpected_persisted_regressions_become_hits(
         hits = await load_change_hits(
             session, workspace_id=seed.workspace_id, crawl=crawl_b
         )
+        foreign_hits = await load_change_hits(
+            session, workspace_id=uuid.uuid4(), crawl=crawl_b
+        )
 
-    assert [hit.rule_id for hit in hits] == ["site_change_critical_regression"]
-    assert hits[0].source_metric_ids[0] == str(snapshot.id)
+    assert foreign_hits == []
+    assert [hit.rule_id for hit in hits] == [
+        "site_change_potential_regression",
+        "site_change_critical_regression",
+    ]
+    assert all(hit.source_metric_ids[0] == str(snapshot.id) for hit in hits)

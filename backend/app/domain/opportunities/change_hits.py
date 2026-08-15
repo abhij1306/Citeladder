@@ -11,7 +11,7 @@ from app.core.config.site_change_intel import (
     CHANGE_ANALYZER_VERSION,
     CHANGE_CLASS_CRITICAL,
     CHANGE_CLASS_REGRESSION,
-    CHANGE_MAX_PAGES,
+    CHANGE_MAX_OBSERVATIONS,
     CHANGE_STATE_AVAILABLE,
 )
 from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
@@ -61,7 +61,7 @@ async def load_change_hits(
                     SiteChangeObservation.field,
                     SiteChangeObservation.id,
                 )
-                .limit(CHANGE_MAX_PAGES)
+                .limit(CHANGE_MAX_OBSERVATIONS)
             )
         ).all()
     )

@@ -40,8 +40,15 @@ function handlers(state: 'available' | 'unavailable' | 'non_comparable', complet
   const base = `/api/v1/projects/${PROJECT}/site-health/changes`;
   mswServer.use(
     http.get(`${base}/summary`, () => HttpResponse.json(response(state, complete))),
-    http.get(base, () =>
-      HttpResponse.json({
+    http.get(base, ({ request }) => {
+      const url = new URL(request.url);
+      if (
+        url.searchParams.get('crawl_a_id') !== CRAWL_A ||
+        url.searchParams.get('crawl_b_id') !== CRAWL_B
+      ) {
+        return HttpResponse.json({ detail: 'exact pair required' }, { status: 422 });
+      }
+      return HttpResponse.json({
         ...response(state, complete),
         items:
           state === 'available'
@@ -67,8 +74,8 @@ function handlers(state: 'available' | 'unavailable' | 'non_comparable', complet
               ]
             : [],
         next_cursor: null,
-      }),
-    ),
+      });
+    }),
   );
 }
 

@@ -187,7 +187,7 @@ export function SiteHealthScreen() {
       ) : tab === 'link-graph' && crawl ? (
         <LinkGraphPanel projectId={projectId} crawlId={crawl.id} />
       ) : tab === 'changes' ? (
-        <ChangesPanel projectId={projectId} />
+        <ChangesPanel key={projectId} projectId={projectId} />
       ) : (
         <Alert tone="info">Run a crawl before opening Website analysis.</Alert>
       )}

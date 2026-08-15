@@ -121,7 +121,17 @@ def _paired_observations(
     for field in CHANGE_FIELDS:
         before_value = before.fields.get(field)
         after_value = after.fields.get(field)
-        if before_value == after_value:
+        before_rule = before.rules.get(field)
+        after_rule = after.rules.get(field)
+        rule_changed = (
+            before_rule is not None
+            and after_rule is not None
+            and (
+                before_rule.outcome != after_rule.outcome
+                or before_rule.severity != after_rule.severity
+            )
+        )
+        if before_value == after_value and not rule_changed:
             continue
         is_expected, event_id = _expected_link(
             expected,
@@ -129,8 +139,6 @@ def _paired_observations(
             field=field,
             after_value=after_value,
         )
-        before_rule = before.rules.get(field)
-        after_rule = after.rules.get(field)
         observations.append(
             ChangeObservation(
                 site_url_id=after.site_url_id,

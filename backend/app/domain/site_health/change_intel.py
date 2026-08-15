@@ -126,37 +126,56 @@ async def select_previous_comparable_crawl(
     return comparable or candidates[0]
 
 
-async def _page_rows(session: AsyncSession, crawl: SiteCrawl) -> list[_PageRow]:
-    rows = (
-        await session.execute(
-            select(SitePageAnalysis, SiteFetchArtifact, SiteUrl, SiteUrlObservation)
-            .join(
-                SiteFetchArtifact, SiteFetchArtifact.id == SitePageAnalysis.artifact_id
+async def _page_rows(
+    session: AsyncSession, crawl: SiteCrawl
+) -> tuple[list[_PageRow], bool]:
+    rows = list(
+        (
+            await session.execute(
+                select(
+                    SitePageAnalysis,
+                    SiteFetchArtifact,
+                    SiteUrl,
+                    SiteUrlObservation,
+                )
+                .join(
+                    SiteFetchArtifact,
+                    SiteFetchArtifact.id == SitePageAnalysis.artifact_id,
+                )
+                .join(SiteUrl, SiteUrl.id == SitePageAnalysis.site_url_id)
+                .join(
+                    SiteUrlObservation,
+                    (SiteUrlObservation.crawl_id == crawl.id)
+                    & (
+                        SiteUrlObservation.site_url_id
+                        == SitePageAnalysis.site_url_id
+                    ),
+                )
+                .where(
+                    SitePageAnalysis.workspace_id == crawl.workspace_id,
+                    SitePageAnalysis.project_id == crawl.project_id,
+                    SitePageAnalysis.crawl_id == crawl.id,
+                    SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
+                    SitePageAnalysis.is_current.is_(True),
+                    SitePageAnalysis.analyzer_version == crawl.analyzer_version,
+                    SiteFetchArtifact.extractor_version == crawl.extractor_version,
+                )
+                .order_by(SitePageAnalysis.site_url_id, SitePageAnalysis.id)
+                .limit(CHANGE_MAX_PAGES + 1)
             )
-            .join(SiteUrl, SiteUrl.id == SitePageAnalysis.site_url_id)
-            .join(
-                SiteUrlObservation,
-                (SiteUrlObservation.crawl_id == crawl.id)
-                & (SiteUrlObservation.site_url_id == SitePageAnalysis.site_url_id),
-            )
-            .where(
-                SitePageAnalysis.workspace_id == crawl.workspace_id,
-                SitePageAnalysis.project_id == crawl.project_id,
-                SitePageAnalysis.crawl_id == crawl.id,
-                SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
-                SitePageAnalysis.is_current.is_(True),
-                SitePageAnalysis.analyzer_version == crawl.analyzer_version,
-                SiteFetchArtifact.extractor_version == crawl.extractor_version,
-            )
-            .order_by(SitePageAnalysis.site_url_id, SitePageAnalysis.id)
-            .limit(CHANGE_MAX_PAGES)
-        )
-    ).all()
-    return [_PageRow(*row) for row in rows]
+        ).all()
+    )
+    return (
+        [_PageRow(*row) for row in rows[:CHANGE_MAX_PAGES]],
+        len(rows) > CHANGE_MAX_PAGES,
+    )
 
 
 async def _rules(
-    session: AsyncSession, analysis_ids: list[uuid.UUID]
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    analysis_ids: list[uuid.UUID],
 ) -> dict[uuid.UUID, dict[str, SiteRuleEvaluation]]:
     if not analysis_ids:
         return {}
@@ -164,6 +183,7 @@ async def _rules(
     rows = (
         await session.scalars(
             select(SiteRuleEvaluation).where(
+                SiteRuleEvaluation.workspace_id == workspace_id,
                 SiteRuleEvaluation.analysis_id.in_(analysis_ids),
                 SiteRuleEvaluation.rule_id.in_(set(CHANGE_FIELD_RULES.values())),
             )
@@ -175,7 +195,10 @@ async def _rules(
 
 
 async def _internal_link_counts(
-    session: AsyncSession, analysis_ids: list[uuid.UUID]
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    analysis_ids: list[uuid.UUID],
 ) -> dict[uuid.UUID, int]:
     if not analysis_ids:
         return {}
@@ -183,6 +206,7 @@ async def _internal_link_counts(
         await session.execute(
             select(SiteLinkReference.source_analysis_id, func.count())
             .where(
+                SiteLinkReference.workspace_id == workspace_id,
                 SiteLinkReference.source_analysis_id.in_(analysis_ids),
                 SiteLinkReference.is_internal.is_(True),
             )
@@ -239,12 +263,18 @@ def _change_page(
     )
 
 
-async def _pages(session: AsyncSession, crawl: SiteCrawl) -> list[ChangePage]:
-    rows = await _page_rows(session, crawl)
+async def _pages(
+    session: AsyncSession, crawl: SiteCrawl
+) -> tuple[list[ChangePage], bool]:
+    rows, capped = await _page_rows(session, crawl)
     analysis_ids = [row.analysis.id for row in rows]
-    evaluations = await _rules(session, analysis_ids)
-    link_counts = await _internal_link_counts(session, analysis_ids)
-    return [
+    evaluations = await _rules(
+        session, workspace_id=crawl.workspace_id, analysis_ids=analysis_ids
+    )
+    link_counts = await _internal_link_counts(
+        session, workspace_id=crawl.workspace_id, analysis_ids=analysis_ids
+    )
+    pages = [
         _change_page(
             row,
             evaluations=evaluations.get(row.analysis.id, {}),
@@ -252,6 +282,7 @@ async def _pages(session: AsyncSession, crawl: SiteCrawl) -> list[ChangePage]:
         )
         for row in rows
     ]
+    return pages, capped
 
 
 def _check_field(check: dict[str, Any]) -> tuple[str | None, Any]:
@@ -261,6 +292,7 @@ def _check_field(check: dict[str, Any]) -> tuple[str | None, Any]:
             *CHANGE_FIELD_RULES,
             "internal_link_count",
             "http_status",
+            "redirect_target",
         } else None, check.get("expected_value")
     if check.get("kind") == "site_rule":
         inverse = {rule_id: field for field, rule_id in CHANGE_FIELD_RULES.items()}
@@ -311,7 +343,9 @@ def _event_expected_changes(
     matches: list[tuple[tuple[uuid.UUID, str], ExpectedChange]] = []
     for check in event.expected_checks or []:
         target_raw = check.get("target_site_url_id")
-        if not target_raw:
+        if target_raw is None and len(targets) == 1:
+            target_raw = next(iter(targets))
+        if target_raw is None:
             continue
         target = uuid.UUID(str(target_raw))
         page = pages.get(target)
@@ -417,6 +451,7 @@ async def _persist_snapshot(
     state: str,
     reason: str | None,
     complete_pair: bool,
+    evidence_capped: bool,
     observations: tuple,
 ) -> SiteChangeSnapshot:
     all_pages = [*pages_a, *pages_b]
@@ -424,6 +459,8 @@ async def _persist_snapshot(
     limitations = [] if complete_pair else ["partial_crawl_shared_urls_only"]
     if reason:
         limitations.append(reason)
+    if evidence_capped:
+        limitations.append("evidence_page_limit_reached")
     counts = Counter(item.change_class for item in observations)
     snapshot = SiteChangeSnapshot(
         workspace_id=crawl_b.workspace_id,
@@ -449,6 +486,7 @@ async def _persist_snapshot(
                 {page.site_url_id for page in pages_a}
                 & {page.site_url_id for page in pages_b}
             ),
+            "evidence_page_limit_reached": evidence_capped,
         },
         summary={"total": len(observations), "counts_by_class": dict(counts)},
         limitations=limitations,
@@ -472,8 +510,11 @@ async def build_change_snapshot(
 ) -> SiteChangeSnapshot:
     """Build or return the immutable latest-pair projection for one newer crawl."""
     crawl_a = await select_previous_comparable_crawl(session, crawl_b=crawl_b)
-    pages_b = await _pages(session, crawl_b)
-    pages_a = await _pages(session, crawl_a) if crawl_a else []
+    pages_b, capped_b = await _pages(session, crawl_b)
+    if crawl_a is not None:
+        pages_a, capped_a = await _pages(session, crawl_a)
+    else:
+        pages_a, capped_a = [], False
     source_hash = _source_hash(crawl_a, crawl_b, [*pages_a, *pages_b])
     existing = await _existing_snapshot(
         session, crawl_a=crawl_a, crawl_b=crawl_b, source_hash=source_hash
@@ -481,7 +522,10 @@ async def build_change_snapshot(
     if existing is not None:
         return existing
     state, reason = _comparison_state(crawl_a, crawl_b, pages_a, pages_b)
-    complete_pair = bool(crawl_a and _complete(crawl_a) and _complete(crawl_b))
+    evidence_capped = capped_a or capped_b
+    complete_pair = bool(
+        crawl_a and _complete(crawl_a) and _complete(crawl_b) and not evidence_capped
+    )
     expected = (
         await _expected_changes(
             session, crawl_a=crawl_a, crawl_b=crawl_b, pages_b=pages_b
@@ -504,6 +548,7 @@ async def build_change_snapshot(
         state=state,
         reason=reason,
         complete_pair=complete_pair,
+        evidence_capped=evidence_capped,
         observations=observations,
     )
 
