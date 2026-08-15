@@ -38,7 +38,8 @@ describe('ProductWindow', () => {
     expect(document.querySelector('[data-preview-layer="site"]')).not.toBeNull();
     screen.getAllByText('Opportunities');
     const sidebar = screen.getByRole('navigation', { name: 'Product preview navigation' });
-    expect(within(sidebar).getByText('Growth Agent')).toBeInTheDocument();
+    expect(within(sidebar).queryByText('Growth Agent')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument();
     expect(within(sidebar).getByText('AI Visibility')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: 'Demand Intelligence' }));
@@ -73,15 +74,15 @@ describe('ProductWindow', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Demand Intelligence' }));
     const demand = within(document.querySelector('[data-preview-layer="demand"]') as HTMLElement);
-    expect(demand.getByText('Overview')).toHaveAttribute('aria-current', 'page');
+    expect(demand.getByText('Trends')).toHaveAttribute('aria-current', 'page');
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause product preview' }));
     act(() => vi.advanceTimersByTime(PREVIEW_STEP_MS * 2));
-    expect(demand.getByText('Overview')).toHaveAttribute('aria-current', 'page');
+    expect(demand.getByText('Trends')).toHaveAttribute('aria-current', 'page');
 
     fireEvent.click(screen.getByRole('button', { name: 'Play product preview' }));
     act(() => vi.advanceTimersByTime(PREVIEW_STEP_MS));
-    expect(demand.getByText('Trends')).toHaveAttribute('aria-current', 'page');
+    expect(demand.getByText('Mentions & Citations')).toHaveAttribute('aria-current', 'page');
   });
 
   it('pins the preview to its final phase when reduced motion is enabled', () => {
@@ -104,10 +105,10 @@ describe('ProductWindow', () => {
     const demand = within(document.querySelector('[data-preview-layer="demand"]') as HTMLElement);
 
     act(() => vi.advanceTimersByTime(PREVIEW_STEP_MS / 2));
-    expect(demand.getByText('Overview')).toHaveAttribute('aria-current', 'page');
+    expect(demand.getByText('Trends')).toHaveAttribute('aria-current', 'page');
 
     act(() => vi.advanceTimersByTime(PREVIEW_STEP_MS / 2));
-    expect(demand.getByText('Trends')).toHaveAttribute('aria-current', 'page');
+    expect(demand.getByText('Mentions & Citations')).toHaveAttribute('aria-current', 'page');
   });
 
   it('cycles through the shipped AI Visibility views inside Demand Intelligence', () => {
@@ -118,15 +119,15 @@ describe('ProductWindow', () => {
     const panel = document.querySelector('[data-preview-layer="demand"]');
     expect(panel).not.toBeNull();
     const demand = within(panel as HTMLElement);
-    expect(demand.getByText('Overview')).toHaveAttribute('aria-current', 'page');
-    expect(demand.getByRole('heading', { name: 'Competitors' })).toBeInTheDocument();
-
-    act(() => vi.advanceTimersByTime(PREVIEW_STEP_MS));
     expect(demand.getByText('Trends')).toHaveAttribute('aria-current', 'page');
     expect(demand.getByText('Across completed audits')).toBeInTheDocument();
 
     act(() => vi.advanceTimersByTime(PREVIEW_STEP_MS));
     expect(demand.getByText('Mentions & Citations')).toHaveAttribute('aria-current', 'page');
     expect(demand.getByRole('heading', { name: 'Cited content' })).toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(PREVIEW_STEP_MS));
+    expect(demand.getByText('Query Fanout')).toHaveAttribute('aria-current', 'page');
+    expect(demand.getByRole('heading', { name: 'Query fanout' })).toBeInTheDocument();
   });
 });
