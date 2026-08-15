@@ -323,6 +323,7 @@ function LoopStrip({ loop }: Readonly<{ loop: CommandCenter['loop'] }>) {
 
 function FactsDrawer({ projectId }: Readonly<{ projectId: string }>) {
   const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
   const profile = useQuery({
     queryKey: queryKeys.projects.brandProfile(projectId),
     queryFn: ({ signal }) => projectsApi.getBrandProfile(projectId, { signal }),
@@ -348,7 +349,15 @@ function FactsDrawer({ projectId }: Readonly<{ projectId: string }>) {
         <div className="grid gap-4 p-4">
           {profile.isError ? <Alert tone="danger">Company facts could not be loaded.</Alert> : null}
           {profile.data ? (
-            <BrandProfilePanel projectId={projectId} profile={profile.data} />
+            <BrandProfilePanel
+              projectId={projectId}
+              profile={profile.data}
+              onSaved={() =>
+                void queryClient.invalidateQueries({
+                  queryKey: queryKeys.projects.commandCenter(projectId),
+                })
+              }
+            />
           ) : null}
           <CompetitorSuggestions projectId={projectId} suggestionsQuery={suggestions} />
         </div>

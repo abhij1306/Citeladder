@@ -65,6 +65,7 @@ from app.models.discovery import (
     BrandDiscoveryTask,
     BrandResearchSnapshot,
 )
+from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet, Topic
 from app.models.site_health import SiteCrawl
 
@@ -348,6 +349,28 @@ def _reviewed_profile_sources(
     }
 
 
+async def _attach_research_source_artifacts(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    row: BrandDiscovery,
+    project: Project,
+    profile_sources: dict[str, dict[str, str]],
+) -> None:
+    research_snapshot_id = await session.scalar(
+        select(BrandResearchSnapshot.id)
+        .where(
+            BrandResearchSnapshot.workspace_id == workspace_id,
+            BrandResearchSnapshot.discovery_id == row.id,
+        )
+        .order_by(BrandResearchSnapshot.created_at.desc())
+    )
+    if research_snapshot_id and project.brand and project.brand.profile:
+        project.brand.profile.source_artifact_ids = {
+            field: str(research_snapshot_id) for field in profile_sources
+        }
+
+
 async def _persist_project(
     session: AsyncSession,
     *,
@@ -381,6 +404,13 @@ async def _persist_project(
         ),
         commit=False,
         brand_profile_sources=profile_sources,
+    )
+    await _attach_research_source_artifacts(
+        session,
+        workspace_id=workspace_id,
+        row=row,
+        project=project,
+        profile_sources=profile_sources,
     )
     prompt_set = PromptSet(
         id=uuid.uuid4(), project_id=project.id, name=ONBOARDING_PROMPT_SET_NAME

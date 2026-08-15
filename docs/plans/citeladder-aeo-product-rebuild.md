@@ -349,7 +349,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted the complete `frontend/app/(app)/site-health/**` route family with no redirect; retained `/api/v1/.../site-health`, `components/site-health/**`, `lib/site-health/**`, schemas, API clients, and query keys because Site Health remains the single capability owner. Post-search found only backend/module/doc-name references and the plan's explicit replacement record.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 24
-- Local verification: focused frontend Vitest 67 passed; ESLint, contract check (10 passed), design/policy, frontend-architecture guard, TypeScript, production build, documentation validator, and `git diff --check` passed. Route build listed `/site` and `/site/crawls/[crawlId]/pages/[siteUrlId]` and no `/site-health` browser route.
+- Local verification: `cd frontend && pnpm test -- components/site-health/issues-catalog.test.tsx components/site-health/pages-table.test.tsx components/site-health/site-health-screen.test.tsx components/site-health/url-detail.test.tsx components/opportunities/opportunities-screen.test.tsx app/sitemap.test.ts` (67 passed); `pnpm lint`, `pnpm check:contract` (10 passed), `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `pnpm build` passed; `python docs/validate_documentation.py` and `git diff --check` passed. The build listed `/site` and `/site/crawls/[crawlId]/pages/[siteUrlId]` and no `/site-health` browser route.
 - Evaluation artifact: not applicable; route replacement used deterministic caller and build proofs.
 - Advanced to internal slice: I02
 
@@ -360,7 +360,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted `frontend/app/(app)/agent/page.tsx`, sidebar/mobile destination, page-title mapping, and route-specific E2E navigation with no redirect; retained Agent APIs, query keys, run history, worker, and typed tools because the sheet reuses their canonical owner.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 34
-- Local verification: focused Agent/layout Vitest 32 passed; ESLint, design/policy, frontend-architecture guard, TypeScript, production build, documentation validator, and `git diff --check` passed. Build emitted no `/agent` browser route; post-search survivors are backend/API/module paths and the plan's replacement record.
+- Local verification: `cd frontend && pnpm test -- components/agent/growth-agent-workspace.test.tsx components/layout/agent-sheet.test.tsx components/layout/page-header.test.tsx components/layout/sidebar-nav.test.tsx` (32 passed); `pnpm lint`, `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `pnpm build` passed; `python docs/validate_documentation.py` and `git diff --check` passed. The build emitted no `/agent` browser route; post-search survivors are backend/API/module paths and the plan's replacement record.
 - Evaluation artifact: not applicable; deterministic interaction and route-build proofs cover the cutover.
 - Advanced to internal slice: I03
 
@@ -371,7 +371,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted `/providers` and `/prompt-research` App Router pages, the prompt redirect test, title/robots entries, comments, and E2E callers with no redirects; retained provider API/components/catalog modules and `/settings?tab=providers`, plus `/prompts` and its `mode=manage` state as the sole owners.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 49
-- Local verification: backend Products API pytest 14 passed with false/no-evidence and true/Product fixtures; changed-owner Ruff and mypy passed. Focused navigation/route Vitest 32 passed, contract check 10 passed, ESLint, design/policy, frontend-architecture guard, TypeScript, production build, documentation validator, and `git diff --check` passed. Build emitted neither retired route.
+- Local verification: `cd backend && uv run pytest tests/component/test_products_api.py -q` (14 passed); changed-owner `uv run ruff check ...` and `uv run mypy app` passed. `cd frontend && pnpm test -- components/layout/sidebar-nav.test.tsx components/layout/page-header.test.tsx app/sitemap.test.ts` (32 passed), `pnpm check:contract` (10 passed), `pnpm lint`, `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `pnpm build` passed; `python docs/validate_documentation.py` and `git diff --check` passed. The build emitted neither retired route.
 - Evaluation artifact: not applicable; deterministic capability and route-build proofs cover the cutover.
 - Advanced to internal slice: P01
 
@@ -382,7 +382,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: deleted discovery-time prompt candidates, prompt-review state, legacy source-token parsing, and the five-step setup copy; retained canonical BrandProfile, PromptSet, Prompt, and discovery owners.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 75
-- Local verification: focused backend pytest 43 passed at slice gate and 59 passed at wave close; focused frontend Vitest 20 passed at slice gate; changed-owner Ruff, mypy, ESLint, TypeScript, and deterministic positive/boundary fixtures passed.
+- Local verification: `cd backend && uv run pytest tests/unit/test_brand_discovery.py tests/component/test_brand_discovery_completion.py tests/component/test_command_center.py tests/component/test_products_api.py -q` (56 review-close tests passed; 43 slice-gate and 59 original wave-close tests passed); changed-owner `uv run ruff check ...`, `uv run mypy app`, and `uv run python -m scripts.check_complexity` passed. `cd frontend && pnpm test -- components/onboarding/onboarding-screen.test.tsx lib/api/brand-discoveries.test.ts lib/onboarding/discovery-activity.test.ts lib/onboarding/forms.test.ts` (20 slice-gate tests passed); `pnpm lint` and `pnpm exec tsc --noEmit` passed.
 - Evaluation artifact: not applicable; deterministic lifecycle and boundary fixtures cover the slice.
 - Advanced to internal slice: O01
 
@@ -393,7 +393,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: removed the read-path audit prerequisite and fabricated pre-audit metrics; retained the persisted-report endpoint with an explicit no-audit not-found guard.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 81
-- Local verification: command-center component fixtures cover audit and no-audit positive/boundary states; wave-close backend pytest 59 passed, Ruff/mypy passed, and complexity policy passed across 378 modules.
+- Local verification: `cd backend && uv run pytest tests/component/test_command_center.py -q` passed its audit/no-audit positive and boundary fixtures; the combined review-close command `uv run pytest tests/unit/test_brand_discovery.py tests/component/test_brand_discovery_completion.py tests/component/test_command_center.py tests/component/test_products_api.py -q` passed 56 tests. Changed-owner `uv run ruff check ...`, `uv run mypy app`, and `uv run python -m scripts.check_complexity` passed across 378 modules.
 - Evaluation artifact: not applicable; deterministic persisted-evidence fixtures cover the projection.
 - Advanced to internal slice: O02
 
@@ -403,8 +403,8 @@ row is the removal condition. No other compatibility path is implied.
 - Implemented: canonical Facts summary/drawer and competitor suggestions on Overview, including the useful no-audit state.
 - Deleted / retained until: deleted `/knowledge-base` and caller-free `BrandKnowledgeScreen` with no redirect; retained the reusable BrandProfile editor and canonical APIs as the single Facts owner.
 - Commit: wave commit
-- Cumulative changed files vs wave merge base: 84
-- Local verification: focused Dashboard/BrandProfile Vitest and the Playwright no-audit Overview proof passed; post-search found no retired route caller.
+- Cumulative changed files vs wave merge base: 85
+- Local verification: `cd frontend && pnpm test -- components/projects/dashboard-screen.test.tsx components/knowledge-base/brand-profile-panel.test.tsx` passed; `pnpm exec playwright test e2e/design-repair.spec.ts --grep "no-audit Overview"` passed; `rg` post-search found no retired `/knowledge-base` route caller.
 - Evaluation artifact: not applicable; deterministic UI/API fixtures cover the cutover.
 - Advanced to internal slice: O03
 
@@ -414,8 +414,8 @@ row is the removal condition. No other compatibility path is implied.
 - Implemented: honest Track summary; Trends-owned latest/start rankings, engine comparison, and prompt movement; three-tab desktop/mobile Visibility with Trends default.
 - Deleted / retained until: deleted the Visibility `overview` token, `VisibilityOverview`, `OverviewSummary`, duplicate selected-run composition, overview-only marketing preview, tests, and comments; retained Commerce's unrelated product-visibility Overview and the legal section ID.
 - Commit: wave commit
-- Cumulative changed files vs wave merge base: 94 (GitHub readback)
-- Local verification: focused frontend Vitest 83 passed; ESLint, 10 contract tests, design/policy and architecture guards, TypeScript, and production build passed; selected Playwright route/navigation/empty-state suite passed after fixture repair; documentation validator and diff checks run at wave close.
+- Cumulative changed files vs wave merge base: 95 (local merge-base readback)
+- Local verification: `cd frontend && pnpm test -- "app/(app)/visibility/page.test.tsx" components/intelligence/intelligence.test.tsx components/projects/dashboard-screen.test.tsx components/knowledge-base/brand-profile-panel.test.tsx components/layout/sidebar-nav.test.tsx` (83 wave-close tests passed); `pnpm lint`, `pnpm check:contract` (10 passed), `pnpm check:policy`, `pnpm exec tsc --noEmit`, and `pnpm build` passed. `pnpm exec playwright test e2e/design-repair.spec.ts e2e/providers.spec.ts e2e/visibility.spec.ts` passed the selected route/navigation/empty-state proofs after fixture repair; `python docs/validate_documentation.py` and `git diff --check` passed.
 - Evaluation artifact: not applicable; deterministic browser and contract fixtures cover the cutover.
 - Advanced to internal slice: wave close
 

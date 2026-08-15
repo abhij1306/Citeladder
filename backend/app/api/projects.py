@@ -161,6 +161,7 @@ async def create_project_endpoint(
             session,
             workspace_id=ctx.workspace_id,
             payload=payload,
+            reviewer_id=ctx.user.id,
         )
     )
     return await _project_response(

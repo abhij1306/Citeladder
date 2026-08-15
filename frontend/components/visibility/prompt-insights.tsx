@@ -41,7 +41,7 @@ export function PromptMovement({
             ))}
           </ul>
         ) : null}
-        {!promptQuery.data?.length && !promptQuery.isLoading ? (
+        {!promptQuery.data?.length && !promptQuery.isLoading && !promptQuery.isError ? (
           <p className="text-muted text-sm">Prompt movement appears after a completed audit.</p>
         ) : null}
       </CardContent>

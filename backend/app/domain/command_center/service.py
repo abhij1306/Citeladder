@@ -203,6 +203,7 @@ async def get_command_center(
         loop=loop,
         next_action=await _next_action(
             session,
+            workspace_id=workspace_id,
             project_id=project.id,
             actions=opportunities["items"],
             evidence=evidence,
@@ -273,7 +274,11 @@ async def _facts(
         (
             await session.scalars(
                 select(Competitor)
-                .where(Competitor.project_id == project_id)
+                .join(Project, Project.id == Competitor.project_id)
+                .where(
+                    Competitor.project_id == project_id,
+                    Project.workspace_id == workspace_id,
+                )
                 .order_by(Competitor.created_at, Competitor.id)
             )
         ).all()
@@ -483,6 +488,7 @@ def _tracked_state(audits: ComparableAudits | None) -> EvidenceState:
 async def _next_action(
     session: AsyncSession,
     *,
+    workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     actions: list[dict],
     evidence: dict[str, bool],
@@ -510,7 +516,12 @@ async def _next_action(
             select(func.count(Prompt.id))
             .select_from(Prompt)
             .join(PromptSet, PromptSet.id == Prompt.prompt_set_id)
-            .where(PromptSet.project_id == project_id, Prompt.status == "active")
+            .join(Project, Project.id == PromptSet.project_id)
+            .where(
+                PromptSet.project_id == project_id,
+                Project.workspace_id == workspace_id,
+                Prompt.status == "active",
+            )
         )
         or 0
     )
@@ -580,9 +591,10 @@ async def _resolved_action_summary(
         )
         .order_by(OpportunityStatusEvent.created_at.desc())
     )
-    if audits and audits.previous and audits.previous.completed_at:
+    if audits and audits.previous:
         resolved_query = resolved_query.where(
-            OpportunityStatusEvent.created_at > audits.previous.completed_at
+            OpportunityStatusEvent.created_at
+            > (audits.previous.completed_at or audits.previous.created_at)
         )
     if audits:
         resolved_query = resolved_query.where(

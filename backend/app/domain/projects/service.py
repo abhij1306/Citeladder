@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config.api import API_V1_PREFIX
 from app.core.config.brand_profile import (
     BRAND_PROFILE_REVIEW_CONFIRMED,
+    BRAND_PROFILE_REVIEW_UNREVIEWED,
     BRAND_PROFILE_SOURCE_MANUAL,
 )
 from app.core.config.entitlements import KEY_PROJECT_SLOTS
@@ -171,6 +172,7 @@ def _seed_manual_brand_profile(
     workspace_id: uuid.UUID,
     payload: Any,
     sources: dict[str, dict[str, Any]] | None = None,
+    reviewer_id: uuid.UUID | None = None,
 ) -> None:
     """Attach the human-authored brand profile to a freshly created project.
 
@@ -200,9 +202,13 @@ def _seed_manual_brand_profile(
         else {
             field: {
                 "origin": BRAND_PROFILE_SOURCE_MANUAL,
-                "review_state": BRAND_PROFILE_REVIEW_CONFIRMED,
-                "reviewed_by": None,
-                "reviewed_at": None,
+                "review_state": (
+                    BRAND_PROFILE_REVIEW_CONFIRMED
+                    if reviewer_id is not None
+                    else BRAND_PROFILE_REVIEW_UNREVIEWED
+                ),
+                "reviewed_by": str(reviewer_id) if reviewer_id else None,
+                "reviewed_at": datetime.now(UTC).isoformat() if reviewer_id else None,
             }
             for field, value in profile_fields.items()
             if value
@@ -217,6 +223,7 @@ async def create_project(
     payload: Any,
     commit: bool = True,
     brand_profile_sources: dict[str, dict[str, Any]] | None = None,
+    reviewer_id: uuid.UUID | None = None,
 ) -> Project:
     """Create a project + its normalized brand identity in one transaction.
 
@@ -260,6 +267,7 @@ async def create_project(
         workspace_id=workspace_id,
         payload=payload,
         sources=brand_profile_sources,
+        reviewer_id=reviewer_id,
     )
     if not commit:
         return project

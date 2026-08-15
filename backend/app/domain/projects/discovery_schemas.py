@@ -67,6 +67,22 @@ class ConfirmedDiscoveryProfile(DiscoveryProfile):
     products_services: list[str] = Field(min_length=1)
     target_audience: str = Field(min_length=1)
 
+    @field_validator("positioning", "target_audience")
+    @classmethod
+    def require_nonblank_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("confirmed ICP text must not be blank")
+        return value
+
+    @field_validator("products_services")
+    @classmethod
+    def require_nonblank_products(cls, values: list[str]) -> list[str]:
+        cleaned = [value.strip() for value in values if value.strip()]
+        if not cleaned:
+            raise ValueError("products_services must contain a non-blank value")
+        return cleaned
+
 
 class CompetitorQualification(BaseModel):
     product_substitutability: float = Field(ge=0, le=1)

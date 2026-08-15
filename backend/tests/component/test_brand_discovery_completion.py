@@ -16,7 +16,11 @@ from app.domain.entitlements.types import GrantSpec
 from app.domain.projects.onboarding import service as onboarding_service
 from app.domain.projects.onboarding.site_resolution import SiteNotFoundError
 from app.models.brand import BrandProfile
-from app.models.discovery import BrandDiscovery, BrandDiscoveryTask
+from app.models.discovery import (
+    BrandDiscovery,
+    BrandDiscoveryTask,
+    BrandResearchSnapshot,
+)
 from app.models.project import Project
 from app.models.prompt import Prompt
 from app.models.site_health import SiteCrawl
@@ -87,6 +91,15 @@ async def _seed_ready_discovery(
     )
     session.add(row)
     await session.flush()
+    session.add(
+        BrandResearchSnapshot(
+            workspace_id=workspace_id,
+            discovery_id=row.id,
+            research_version="brand-discovery-v2",
+            method="deterministic_fixture",
+            extracted_fields={"profile": row.profile},
+        )
+    )
     return row
 
 
@@ -219,6 +232,8 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
         assert profile.sources["target_audience"]["origin"] == "ai_suggested"
         assert profile.sources["target_audience"]["reviewed_by"] is not None
         assert profile.sources["target_audience"]["reviewed_at"] is not None
+        assert set(profile.source_artifact_ids) == set(profile.sources)
+        assert len(set(profile.source_artifact_ids.values())) == 1
         assert (
             await session.scalar(
                 select(func.count())

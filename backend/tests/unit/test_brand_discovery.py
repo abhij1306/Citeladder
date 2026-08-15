@@ -7,7 +7,10 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config.brand_discovery import _discovery_research_system_prompt
-from app.domain.projects.discovery_schemas import BrandDiscoveryCreate
+from app.domain.projects.discovery_schemas import (
+    BrandDiscoveryCreate,
+    ConfirmedDiscoveryProfile,
+)
 from app.domain.projects.onboarding import prompt_generation
 from app.domain.projects.onboarding.industry_library import (
     industry_context,
@@ -73,6 +76,23 @@ def test_research_prompt_defers_generation_until_icp_confirmation() -> None:
 
     assert "Do not generate search prompts" in prompt
     assert "after the user confirms or edits the ICP" in prompt
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"positioning": " ", "target_audience": "buyers", "products_services": ["x"]},
+        {"positioning": "value", "target_audience": " ", "products_services": ["x"]},
+        {
+            "positioning": "value",
+            "target_audience": "buyers",
+            "products_services": [" "],
+        },
+    ],
+)
+def test_confirmed_icp_rejects_blank_required_values(payload: dict) -> None:
+    with pytest.raises(ValueError):
+        ConfirmedDiscoveryProfile.model_validate(payload)
 
 
 def test_complete_research_does_not_warn_about_internal_fallbacks() -> None:

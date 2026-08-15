@@ -33,9 +33,11 @@ function parseProductsInput(value: string): string[] {
 export function BrandProfilePanel({
   projectId,
   profile,
+  onSaved,
 }: Readonly<{
   projectId: string;
   profile: BrandProfile;
+  onSaved?: () => void;
 }>) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(() => profileDraft(profile));
@@ -50,6 +52,7 @@ export function BrandProfilePanel({
       }),
     onSuccess: (next) => {
       queryClient.setQueryData(queryKeys.projects.brandProfile(projectId), next);
+      onSaved?.();
       setDraft(profileDraft(next));
       setProductsInput(next.products_services.join(', '));
       setNotice('Brand knowledge saved. These details now inform assisted features.');
