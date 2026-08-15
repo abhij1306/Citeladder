@@ -176,6 +176,27 @@ async def test_graph_build_is_idempotent_and_freezes_exact_analysis_provenance(
                     analyzer_version="v1",
                 )
             )
+        for index, target_url in enumerate(
+            (
+                "https://acme.test/missing?b=2&a=1#first",
+                "https://acme.test/missing?a=1&b=2#second",
+            ),
+            start=20,
+        ):
+            session.add(
+                SiteLinkReference(
+                    workspace_id=scenario.workspace_id,
+                    source_analysis_id=analyses[0].id,
+                    source_artifact_id=analyses[0].artifact_id,
+                    kind="anchor",
+                    target_url=target_url,
+                    target_hash=str(index).zfill(64),
+                    is_internal=True,
+                    anchor_text="Missing page",
+                    evidence_fingerprint=str(index + 20).zfill(64),
+                    analyzer_version="v1",
+                )
+            )
         await session.flush()
         first = await build_link_graph_snapshot(session, crawl=crawl)
         second = await build_link_graph_snapshot(session, crawl=crawl)
@@ -183,5 +204,16 @@ async def test_graph_build_is_idempotent_and_freezes_exact_analysis_provenance(
         assert first.id == second.id
         assert first.source_analysis_ids == [row.id for row in analyses]
         assert first.summary["node_count"] == 2
-        assert first.summary["edge_count"] == 2
+        assert first.summary["edge_count"] == 3
+        assert first.state == "available"
+        assert first.coverage["selected_url_count"] == 2
+        unresolved = await session.scalar(
+            select(SiteLinkGraphEdge).where(
+                SiteLinkGraphEdge.snapshot_id == first.id,
+                SiteLinkGraphEdge.target_site_url_id.is_(None),
+            )
+        )
+        assert unresolved is not None
+        assert unresolved.target_url == "https://acme.test/missing?a=1&b=2"
+        assert unresolved.occurrence_count == 2
         await session.commit()

@@ -35,6 +35,10 @@ disposable database.
 - Boundary fixture: the identical observed topology marked incomplete produced
   zero link Opportunities; a complete graph's non-indexable weak target also
   produced none.
+- Review boundaries: coverage uses the distinct crawl-scoped analyze-task
+  population (not the broader monitored selection), so inventory-only URLs do
+  not suppress complete HTML topology. Equivalent unresolved target variants
+  canonicalize to one retained edge and occurrence count.
 - Website fixture: the bounded followed-edge preview, page-authority table,
   page-detail source links, and descriptive partial-crawl disclosure render
   from persisted API rows. No client metric or alternate link store is used.

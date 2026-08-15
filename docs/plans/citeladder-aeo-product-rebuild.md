@@ -349,7 +349,7 @@ row is the removal condition. No other compatibility path is implied.
 - Deleted / retained until: retained Site Health evaluations, scoring, page detail, and current-analysis lifecycle as their sole truth owners. No readiness table, new score, guessed bucket, browser-side mapping, compatibility route, or work-triggering read exists.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 47
-- Local verification: pure and API reconciliation pytest 5 passed; combined Website/API Vitest 66 passed; both named Playwright browser proofs passed on `/site`; Ruff, mypy, ESLint, design policy, and complexity gates passed. Sanitized live read-only SQL reconciled 21 dimension rows across 150-, 114-, and 22-analysis corpora with exact expected totals.
+- Local verification: pure and API reconciliation pytest 5 passed; combined Website/API Vitest 66 passed; both named Playwright browser proofs passed on `/site`; Ruff, mypy, ESLint, design policy, and complexity gates passed. Sanitized live read-only SQL reconciled 21 dimension rows across 150-, 114-, and 22-analysis corpora with exact expected totals. Agent-review follow-up passed 9 focused graph/Opportunity tests and added boundaries for indexable Opportunity targets, canonical unresolved edges, and analyze-population coverage.
 - Evaluation artifact: `docs/evaluations/2026-08-15-w5-site-intelligence.md`
 - Advanced to internal slice: wave close
 

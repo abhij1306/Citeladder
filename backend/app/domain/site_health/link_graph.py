@@ -7,7 +7,7 @@ import json
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,10 +25,12 @@ from app.core.config.site_health import (
     LINK_KIND_ANCHOR,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_OUTCOME_PASS,
+    TASK_KIND_ANALYZE,
 )
 from app.domain.site_health.normalization import canonical_identity
 from app.models.site_health import (
     SiteCrawl,
+    SiteCrawlTask,
     SiteFetchArtifact,
     SiteLinkGraphEdge,
     SiteLinkGraphNode,
@@ -189,13 +191,19 @@ async def _references(
             if row.target_artifact_id is not None
             else None
         )
+        canonical_target = _canonical_or_empty(row.target_url)
         if target_id is None:
-            target_id = url_targets.get(_canonical_or_empty(row.target_url))
+            target_id = url_targets.get(canonical_target)
         references.append(
             LinkGraphReferenceInput(
                 source_site_url_id=source_url_ids[row.source_analysis_id],
                 target_site_url_id=target_id,
-                target_url=row.target_url,
+                # Resolved targets retain their persisted display URL. An
+                # unresolved target needs the same canonical identity used by
+                # resolution so equivalent fragments/query ordering/default
+                # ports collapse into one observation edge.
+                target_url=(row.target_url if target_id else canonical_target)
+                or row.target_url,
                 rel=row.rel,
                 anchor_text=row.anchor_text,
             )
@@ -203,18 +211,31 @@ async def _references(
     return references, external_count, truncated
 
 
+async def _expected_analysis_count(
+    session: AsyncSession, *, crawl_id: uuid.UUID
+) -> int:
+    """Count the distinct HTML-analysis population scheduled for this crawl."""
+    return int(
+        await session.scalar(
+            select(func.count(func.distinct(SiteCrawlTask.site_url_id))).where(
+                SiteCrawlTask.crawl_id == crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
+                SiteCrawlTask.site_url_id.is_not(None),
+            )
+        )
+        or 0
+    )
+
+
 def _coverage(
     crawl: SiteCrawl,
     *,
+    expected_count: int,
     node_count: int,
     nodes_truncated: bool,
     refs_truncated: bool,
 ) -> tuple[int, bool, tuple[str, ...]]:
-    selected = int(
-        (crawl.score_summary or {}).get("selected_count")
-        or crawl.analysis_requested_count
-        or node_count
-    )
+    selected = expected_count or node_count
     complete = (
         crawl.status == CRAWL_STATUS_COMPLETED
         and node_count >= selected
@@ -225,7 +246,7 @@ def _coverage(
     if not complete:
         limitations.append(
             f"Observed topology covers {node_count} of {selected} "
-            "selected HTML analyses."
+            "scheduled HTML analyses."
         )
     if nodes_truncated:
         limitations.append(
@@ -240,6 +261,7 @@ def _coverage(
 
 async def load_graph_inputs(session: AsyncSession, crawl: SiteCrawl) -> _GraphInputs:
     rows, nodes_truncated = await _selected_analyses(session, crawl)
+    expected_count = await _expected_analysis_count(session, crawl_id=crawl.id)
     analysis_ids = [analysis.id for analysis, _artifact, _url in rows]
     artifact_ids = [artifact.id for _analysis, artifact, _url in rows]
     indexable_ids = await _indexable_analysis_ids(session, analysis_ids)
@@ -256,6 +278,7 @@ async def load_graph_inputs(session: AsyncSession, crawl: SiteCrawl) -> _GraphIn
     )
     selected, complete, limitations = _coverage(
         crawl,
+        expected_count=expected_count,
         node_count=len(nodes),
         nodes_truncated=nodes_truncated,
         refs_truncated=refs_truncated,
