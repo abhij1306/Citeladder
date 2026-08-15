@@ -12,6 +12,14 @@ from __future__ import annotations
 
 from typing import Final
 
+from app.core.config.demand import (
+    DEMAND_SIGNAL_CANNIBALIZATION,
+    DEMAND_SIGNAL_CTR_GAP,
+    DEMAND_SIGNAL_DECLINING_QUERY,
+    DEMAND_SIGNAL_EMERGING_QUERY,
+    DEMAND_SIGNAL_HIGH_IMPRESSION_LOW_CTR,
+    DEMAND_SIGNAL_STRIKING_DISTANCE,
+)
 from app.core.config.projects import (
     PROMPT_INTENT_COMPARISON,
     PROMPT_INTENT_DISCOVERY,
@@ -28,8 +36,8 @@ from app.core.config.projects import (
 # catalog change, and ``FORMULA_VERSION`` on any scoring change so a derived
 # row is always traceable to the exact logic that produced it (mirrors
 # ``SCORING_RULE_VERSION`` in ``config/analysis.py``).
-ANALYZER_VERSION: Final = "opp-analyzer-2"
-RULE_VERSION: Final = "opp-rules-4"
+ANALYZER_VERSION: Final = "opp-analyzer-3"
+RULE_VERSION: Final = "opp-rules-5"
 FORMULA_VERSION: Final = "opp-formula-1"
 CONFIRMED_DECLINE_MIN_FACTOR: Final = 0.1
 CONFIRMED_DECLINE_GAP_NORMALIZER: Final = 10.0
@@ -99,9 +107,7 @@ CODE_OPPORTUNITY_GUIDANCE_IDEMPOTENCY_CONFLICT: Final = (
     "opportunity_guidance_idempotency_conflict"
 )
 CODE_IMPLEMENTATION_TARGET_CONFLICT: Final = "implementation_target_conflict"
-CODE_IMPLEMENTATION_IDEMPOTENCY_CONFLICT: Final = (
-    "implementation_idempotency_conflict"
-)
+CODE_IMPLEMENTATION_IDEMPOTENCY_CONFLICT: Final = "implementation_idempotency_conflict"
 IMPLEMENTATION_EVENT_DEFAULT_LIMIT: Final = 50
 IMPLEMENTATION_EVENT_MAX_LIMIT: Final = 200
 IMPLEMENTATION_IDEMPOTENCY_KEY_MAX_LEN: Final = 160
@@ -324,6 +330,56 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
         ),
     ),
     OpportunityRule(
+        rule_id="striking_distance_query",
+        opportunity_type=OPPORTUNITY_TYPE_TRAFFIC,
+        severity=SEVERITY_MEDIUM,
+        title="Query is within striking distance",
+        remediation=(
+            "Strengthen the resolved page for this non-branded query and "
+            "verify its next GSC window."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="query_cannibalization",
+        opportunity_type=OPPORTUNITY_TYPE_TRAFFIC,
+        severity=SEVERITY_MEDIUM,
+        title="Multiple pages compete for one query",
+        remediation=(
+            "Consolidate or differentiate the qualifying resolved pages, "
+            "then verify which page earns the query."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="property_relative_ctr_gap",
+        opportunity_type=OPPORTUNITY_TYPE_TRAFFIC,
+        severity=SEVERITY_MEDIUM,
+        title="CTR trails comparable property queries",
+        remediation=(
+            "Improve the page title and snippet against its property-relative "
+            "position cohort, then verify CTR."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="emerging_query",
+        opportunity_type=OPPORTUNITY_TYPE_TRAFFIC,
+        severity=SEVERITY_LOW,
+        title="Search demand is emerging",
+        remediation=(
+            "Expand the owned answer while demand is rising and verify the "
+            "next adjacent GSC window."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="declining_query",
+        opportunity_type=OPPORTUNITY_TYPE_TRAFFIC,
+        severity=SEVERITY_MEDIUM,
+        title="Search demand is declining",
+        remediation=(
+            "Refresh the owned answer for the declining query and verify "
+            "recovery in a later GSC window."
+        ),
+    ),
+    OpportunityRule(
         rule_id="low_share_of_voice_theme",
         opportunity_type=OPPORTUNITY_TYPE_TOPIC,
         severity=SEVERITY_MEDIUM,
@@ -353,6 +409,15 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
 # Fast lookup by rule id.
 OPPORTUNITY_RULES_BY_ID: Final[dict[str, OpportunityRule]] = {
     rule.rule_id: rule for rule in OPPORTUNITY_RULES
+}
+
+DEMAND_SIGNAL_RULE_IDS: Final[dict[str, str]] = {
+    DEMAND_SIGNAL_HIGH_IMPRESSION_LOW_CTR: "search_demand_content_gap",
+    DEMAND_SIGNAL_STRIKING_DISTANCE: "striking_distance_query",
+    DEMAND_SIGNAL_CANNIBALIZATION: "query_cannibalization",
+    DEMAND_SIGNAL_CTR_GAP: "property_relative_ctr_gap",
+    DEMAND_SIGNAL_EMERGING_QUERY: "emerging_query",
+    DEMAND_SIGNAL_DECLINING_QUERY: "declining_query",
 }
 
 

@@ -115,7 +115,10 @@ async def test_recompute_is_immutable_idempotent_and_preserves_provenance(
         )
         == snapshot.source_hash[:24]
     )
-    assert snapshot.coverage == {"search": "observed"}
+    assert snapshot.coverage == {
+        "search": "observed",
+        "query_evidence": "unavailable",
+    }
     assert snapshot.source_metric_row_ids == [source_row_id]
     signal = (await db_session.scalars(select(DemandSignal))).one()
     assert signal.metrics["clicks"] == 0

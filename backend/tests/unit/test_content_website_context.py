@@ -1,4 +1,4 @@
-"""Deterministic Website-context projection tests (real Postgres schema).
+"""Deterministic crawl-fragment selection tests (real Postgres schema).
 
 Seeds Site Health evidence rows (crawl -> url -> task -> artifact ->
 analysis) directly through the ORM and proves the projection is: newest
@@ -22,8 +22,6 @@ from app.core.config.content import (
     CONTENT_CONTEXT_PER_PAGE_BODY_CHARS,
     CONTEXT_MAX_H1,
     CONTEXT_MAX_H2,
-    CONTEXT_STATUS_INCLUDED,
-    CONTEXT_STATUS_UNAVAILABLE,
 )
 from app.core.config.site_health import (
     CRAWL_STATUS_COMPLETED,
@@ -31,7 +29,7 @@ from app.core.config.site_health import (
     CRAWL_STATUS_PARTIALLY_COMPLETED,
     CRAWL_STATUS_RUNNING,
 )
-from app.domain.content.website_context import build_website_context
+from app.domain.content.website_context import select_crawl_fragments
 from app.models.project import Project
 from app.models.site_health import (
     MonitoredSiteUrl,
@@ -199,16 +197,11 @@ async def test_unavailable_without_usable_crawl(
     """No crawl at all, and terminal crawls without facts, are unavailable."""
     async with session_factory() as session:
         ws_id, project_id, profile_id = await _seed_project(session)
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        assert context.status == CONTEXT_STATUS_UNAVAILABLE
         assert context.pages == []
-        assert context.snapshot() == {
-            "status": CONTEXT_STATUS_UNAVAILABLE,
-            "pages": [],
-            "summary": None,
-        }
+        assert context.summary is None
 
         # A terminal crawl whose only artifact has no normalized facts still
         # yields unavailable (the existence check requires usable facts).
@@ -221,10 +214,10 @@ async def test_unavailable_without_usable_crawl(
         )
         await _seed_page(session, crawl=crawl, url=f"{_ROOT}empty", facts=None)
         await session.commit()
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        assert context.status == CONTEXT_STATUS_UNAVAILABLE
+        assert context.pages == []
 
 
 async def test_allowlist_fields_and_heading_caps(
@@ -250,10 +243,9 @@ async def test_allowlist_fields_and_heading_caps(
             ),
         )
         await session.commit()
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        assert context.status == CONTEXT_STATUS_INCLUDED
         assert len(context.pages) == 1
         page = context.pages[0]
         assert set(page) == {
@@ -268,8 +260,8 @@ async def test_allowlist_fields_and_heading_caps(
         assert len(page["h1"]) == CONTEXT_MAX_H1
         assert len(page["h2"]) == CONTEXT_MAX_H2
         # Non-allowlisted fact content never leaks anywhere in the snapshot.
-        assert "secret" not in str(context.snapshot())
-        assert "app.js" not in str(context.snapshot())
+        assert "secret" not in str(context)
+        assert "app.js" not in str(context)
 
 
 async def test_ordering_homepage_then_monitored_then_stable(
@@ -311,7 +303,7 @@ async def test_ordering_homepage_then_monitored_then_stable(
         )
         await _seed_page(session, crawl=crawl, url=_ROOT, facts=_facts(title="Home"))
         await session.commit()
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
         titles = [page["title"] for page in context.pages]
@@ -344,7 +336,7 @@ async def test_sanitisation_and_field_caps(
             ),
         )
         await session.commit()
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
         page = context.pages[0]
@@ -379,10 +371,9 @@ async def test_page_and_char_budgets(
                 facts=_facts(title=f"Page {i:02d}", body="b" * 5000),
             )
         await session.commit()
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        assert context.status == CONTEXT_STATUS_INCLUDED
         assert len(context.pages) <= CONTENT_CONTEXT_MAX_PAGES
         assert context.summary is not None
         assert context.summary["char_count"] <= CONTENT_CONTEXT_MAX_CHARS
@@ -450,10 +441,9 @@ async def test_newest_usable_terminal_crawl_wins(
             created_at=_BASE_TIME + timedelta(hours=3),
         )
         await session.commit()
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        assert context.status == CONTEXT_STATUS_INCLUDED
         assert context.summary is not None
         assert context.summary["crawl_id"] == str(partial.id)
         assert [p["title"] for p in context.pages] == ["New partial"]
@@ -488,10 +478,9 @@ async def test_empty_facts_object_falls_back_to_older_crawl(
         )
         await _seed_page(session, crawl=empty, url=f"{_ROOT}empty", facts={})
         await session.commit()
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        assert context.status == CONTEXT_STATUS_INCLUDED
         assert context.summary is not None
         assert context.summary["crawl_id"] == str(old.id)
         assert [p["title"] for p in context.pages] == ["Old"]
@@ -519,13 +508,13 @@ async def test_deterministic_snapshot_and_provenance(
             facts=_facts(title="Blog"),
         )
         await session.commit()
-        first = await build_website_context(
+        first = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        second = await build_website_context(
+        second = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        assert first.snapshot() == second.snapshot()
+        assert first == second
         summary = first.summary
         assert summary is not None
         assert summary["crawl_id"] == str(crawl.id)
@@ -558,7 +547,7 @@ async def test_workspace_and_project_scoping(
             facts=_facts(title="Other tenant"),
         )
         await session.commit()
-        context = await build_website_context(
+        context = await select_crawl_fragments(
             session, workspace_id=ws_id, project_id=project_id
         )
-        assert context.status == CONTEXT_STATUS_UNAVAILABLE
+        assert context.pages == []

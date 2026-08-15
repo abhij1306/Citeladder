@@ -4,6 +4,7 @@ This owner never changes crawler identity. Scheme, ``www``, and trailing-slash
 variants are candidate discovery only; only an observed redirect or canonical
 declaration can resolve a non-exact URL.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -134,14 +135,11 @@ def _add_canonical_proof(
     candidate_by_url: dict[str, PageCandidate],
 ) -> None:
     facts = (
-        artifact.normalized_facts
-        if isinstance(artifact.normalized_facts, dict)
-        else {}
+        artifact.normalized_facts if isinstance(artifact.normalized_facts, dict) else {}
     )
     declared = _safe_canonicalize(str(facts.get("canonical_url") or ""))
     source_matches = requested == requested_url or any(
-        item.site_url_id == source_site_url_id
-        and item.normalized_url == requested_url
+        item.site_url_id == source_site_url_id and item.normalized_url == requested_url
         for item in candidate_by_url.values()
     )
     if not source_matches or declared not in candidate_by_url:
@@ -213,6 +211,130 @@ async def resolve_owned_page(
         candidate_ids=[candidate.site_url_id for candidate in candidates],
     )
     return _resolve_from_artifacts(requested, candidates, artifacts)
+
+
+async def resolve_owned_pages(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    urls: Sequence[str],
+    preferred_origin: str = "",
+) -> dict[str, PageResolution]:
+    """Resolve a bounded URL set with two workspace-scoped database reads."""
+    requested_urls = _canonical_batch(urls)
+    variants_by_url = {
+        url: _variant_urls(canonical) for url, canonical in requested_urls.items()
+    }
+    all_variants = sorted(
+        {variant for variants in variants_by_url.values() for variant in variants}
+    )
+    site_rows = await _load_batch_site_urls(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        variants=all_variants,
+    )
+    row_by_url = {row.normalized_url: row for row in site_rows}
+    preferred = _safe_canonicalize(preferred_origin) if preferred_origin else None
+    results, candidates_by_url, unresolved_ids = _partition_batch(
+        urls=urls,
+        requested_urls=requested_urls,
+        variants_by_url=variants_by_url,
+        row_by_url=row_by_url,
+        preferred=preferred,
+    )
+    artifacts = await _load_candidate_artifacts(
+        session, workspace_id=workspace_id, candidate_ids=sorted(unresolved_ids)
+    )
+    for url, candidates in candidates_by_url.items():
+        results[url] = _resolve_from_artifacts(
+            requested_urls[url], candidates, artifacts
+        )
+    return results
+
+
+def _canonical_batch(urls: Sequence[str]) -> dict[str, str]:
+    requested: dict[str, str] = {}
+    for url in sorted(set(urls)):
+        canonical = _safe_canonicalize(url)
+        if canonical is not None:
+            requested[url] = canonical
+    return requested
+
+
+async def _load_batch_site_urls(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    variants: list[str],
+) -> list[SiteUrl]:
+    return list(
+        (
+            await session.scalars(
+                select(SiteUrl)
+                .where(SiteUrl.workspace_id == workspace_id)
+                .where(SiteUrl.project_id == project_id)
+                .where(SiteUrl.normalized_url.in_(variants))
+                .order_by(SiteUrl.normalized_url, SiteUrl.id)
+            )
+        ).all()
+    )
+
+
+def _url_candidates(
+    variants: tuple[str, ...],
+    row_by_url: dict[str, SiteUrl],
+    preferred: str | None,
+) -> tuple[PageCandidate, ...]:
+    prefix = f"{preferred.rstrip('/')}/" if preferred else ""
+    rows = [row_by_url[value] for value in variants if value in row_by_url]
+    return tuple(
+        PageCandidate(
+            site_url_id=row.id,
+            normalized_url=row.normalized_url,
+            sitemap_member=row.latest_source_kind == "sitemap",
+            preferred_origin=bool(preferred)
+            and (
+                row.normalized_url == preferred or row.normalized_url.startswith(prefix)
+            ),
+        )
+        for row in rows[:PAGE_EQUIVALENCE_MAX_CANDIDATES]
+    )
+
+
+def _partition_batch(
+    *,
+    urls: Sequence[str],
+    requested_urls: dict[str, str],
+    variants_by_url: dict[str, tuple[str, ...]],
+    row_by_url: dict[str, SiteUrl],
+    preferred: str | None,
+) -> tuple[
+    dict[str, PageResolution],
+    dict[str, tuple[PageCandidate, ...]],
+    set[uuid.UUID],
+]:
+    results: dict[str, PageResolution] = {}
+    pending: dict[str, tuple[PageCandidate, ...]] = {}
+    candidate_ids: set[uuid.UUID] = set()
+    for url in urls:
+        canonical = requested_urls.get(url)
+        candidates = _url_candidates(
+            variants_by_url.get(url, ()), row_by_url, preferred
+        )
+        exact = next(
+            (item for item in candidates if item.normalized_url == canonical), None
+        )
+        if exact is not None:
+            results[url] = PageResolution("exact", exact.site_url_id, candidates)
+        elif canonical is None or not candidates:
+            results[url] = PageResolution("unresolved", None, ())
+        else:
+            pending[url] = candidates
+            candidate_ids.update(item.site_url_id for item in candidates)
+    return results, pending, candidate_ids
 
 
 async def _load_candidate_artifacts(

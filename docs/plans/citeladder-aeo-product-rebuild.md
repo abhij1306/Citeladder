@@ -155,8 +155,8 @@ this plan with the evidence and a concrete replacement decision before continuin
 |---|---|---|---|---|
 | W1 | `feat/aeo-wave-1-foundations` | completed | R00 → X01 → D01 → D02 → A01 → A02 | Authorities, cross-source identity, window/honest-state primitives, branded classification, and the complete Act→Verify record. |
 | W2 | `feat/aeo-wave-2-site-health` | completed | S01 → S02 → S03 → S04 → S05 → S06 | Crawl correctness/speed/progress, terminal refresh, historical issue copy, and trustworthy defect/advisory semantics. |
-| W3 | `feat/aeo-wave-3-product-loop` | ready_for_merge | I01 → I02 → I03 → P01 → O01 → O02 → O03 | Final route/navigation replacement, confirmed-ICP onboarding, useful no-audit Overview, Facts cutover, and Visibility cleanup. |
-| W4 | `feat/aeo-wave-4-demand-content` | pending | G01 → Q01 → Q02 → Q03 | Grounded generation plus bounded query evidence and all approved GSC detectors. |
+| W3 | `feat/aeo-wave-3-product-loop` | completed | I01 → I02 → I03 → P01 → O01 → O02 → O03 | Final route/navigation replacement, confirmed-ICP onboarding, useful no-audit Overview, Facts cutover, and Visibility cleanup. |
+| W4 | `feat/aeo-wave-4-demand-content` | ready_for_merge | G01 → Q01 → Q02 → Q03 | Grounded generation plus bounded query evidence and all approved GSC detectors. |
 | W5 | `feat/aeo-wave-5-site-intelligence` | pending | L01 → L02 → E01 | Internal-link graph, link Opportunities/UI, and evidence-linked AEO Readiness. |
 | W6 | `feat/aeo-wave-6-change-final` | pending | C01 → C02 → Z01 | Comparable crawl changes, Opportunities/UI, schema/image/route debt closure, clean-stack proof, and final review audit. |
 
@@ -191,10 +191,10 @@ focused gate passed and its completion note was recorded; it does **not** create
 | O01 | W3 | completed | A02, P01 | WS1 no-audit command-center projection, evidence-state loop strip, next-action precedence, and capability projection. |
 | O02 | W3 | completed | O01 | WS1 Facts drawer and competitor suggestions on Overview; migrate callers and delete `/knowledge-base` plus caller-free UI. |
 | O03 | W3 | completed | O02 | WS1 Track summary; move retained Visibility capabilities to Trends, delete the Visibility `overview` surface, and finish WS7 phase B navigation cleanup. |
-| G01 | W4 | pending | P01, O03 | WS7A frozen grounding envelope, adapter cutover, provider validation, truthful fallback/copy, and deletion of the superseded direct adapter path. |
-| Q01 | W4 | pending | X01, D02 | WS3A bounded query↔page↔time projection, lifecycle, API, schema, provenance, and pagination. |
-| Q02 | W4 | pending | Q01 | WS3B Wave 1 branded separation + striking-distance signals and Opportunity mapping. |
-| Q03 | W4 | pending | Q02 | WS3B Wave 2 cannibalization, property-relative CTR gap, trend detectors, abstention states, and no mismatch placeholder. |
+| G01 | W4 | completed | P01, O03 | WS7A frozen grounding envelope, adapter cutover, provider validation, truthful fallback/copy, and deletion of the superseded direct adapter path. |
+| Q01 | W4 | completed | X01, D02 | WS3A bounded query↔page↔time projection, lifecycle, API, schema, provenance, and pagination. |
+| Q02 | W4 | completed | Q01 | WS3B Wave 1 branded separation + striking-distance signals and Opportunity mapping. |
+| Q03 | W4 | completed | Q02 | WS3B Wave 2 cannibalization, property-relative CTR gap, trend detectors, abstention states, and no mismatch placeholder. |
 | L01 | W5 | pending | Q03, S06 | WS4 pure link-graph analysis plus immutable snapshot lifecycle/API/schema and post-crawl DAG. |
 | L02 | W5 | pending | L01 | WS4 link opportunities and bounded Website Link Graph surface with table fallback. |
 | E01 | W5 | pending | L02, S06 | WS5 config-owned AEO Readiness projection/API and evidence-linked Website surface; no score. |
@@ -274,6 +274,50 @@ row is the removal condition. No other compatibility path is implied.
 - Cumulative changed files vs wave merge base: 78
 - Local verification: focused backend pytest 58 passed across final W1 owners plus 2 baseline-migration tests; Ruff and targeted mypy passed; focused frontend Vitest 49 passed, lint/policy/build passed; empty disposable DB `alembic upgrade head` passed and final drift check passed after index reconciliation; documentation validator and `git diff --check` passed.
 - Evaluation artifact: not applicable (deterministic lifecycle fixtures cover every projection state)
+- Advanced to internal slice: wave close
+
+#### G01 — completed 2026-08-15
+- Wave / branch: W4 / `feat/aeo-wave-4-demand-content`
+- Owners: Content generation, confirmed BrandProfile provenance, and retained bounded crawl-fragment selection.
+- Implemented: one versioned `GroundingEnvelope` frozen before provider I/O; confirmed/edited facts, untrusted crawl observations, prohibited claim classes, deterministic conflicts, budgets/omissions, provider input and source-marker validation, and truthful unavailable-draft UI.
+- Deleted / retained until: deleted the callable `WebsiteContext`/`build_website_context` adapter, `website_context_*` database/wire fields, unavailable hard-failure, DTOs, types, tests, and stale empty-envelope authorities; retained `website_context.py` only as the internal bounded fragment selector used by `grounding.py`.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 27
+- Local verification: `cd backend && uv run pytest tests/unit/test_content_grounding.py tests/unit/test_content_message_builder.py tests/unit/test_content_website_context.py tests/component/test_content_api.py tests/component/test_task_queue_content.py -q` (26 passed); focused Ruff and mypy passed. `cd frontend && pnpm test -- lib/api/content.test.ts lib/content/use-content-generations.test.tsx components/content/content-screen.test.tsx` (19 passed). `python docs/validate_documentation.py` passed; post-cutover grep found old symbols only in explicit plan/deletion proof text.
+- Evaluation artifact: wave-level sanitized live read-only validation is recorded after Q03.
+- Advanced to internal slice: Q01
+
+#### Q01 — completed 2026-08-15
+- Wave / branch: W4 / `feat/aeo-wave-4-demand-content`
+- Owners: Demand query-evidence projection and reads; Integrations remains the sole immutable GSC metric owner and the owned-page resolver remains the sole cross-source identity owner.
+- Implemented: bounded query↔page↔date snapshots/rows, exact source-row/artifact/importer provenance, frozen resolution outcomes/candidates, available/observed-zero/unavailable coverage, idempotent retry, append-and-supersede lifecycle, required-window list/summary APIs, typed pagination/filters, and workspace isolation.
+- Deleted / retained until: no GSC truth was copied or widened and no read triggers work; retained Traffic aggregates for their existing public surface and the existing Demand queue for claim/lease/retry. Detector consumption advances in Q02/Q03.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 43
+- Local verification: focused backend pytest 36 passed across query evidence, Demand lifecycle, page equivalence, and Traffic projection; Ruff, targeted mypy, and complexity policy passed. A fresh isolated PostgreSQL database passed `alembic upgrade head` and `alembic check` (only the repository's known cyclic-FK ordering warning).
+- Evaluation artifact: wave-level sanitized live read-only validation is recorded after Q03.
+- Advanced to internal slice: Q02
+
+#### Q02 — completed 2026-08-15
+- Wave / branch: W4 / `feat/aeo-wave-4-demand-content`
+- Owners: Demand branded classification and baseline query detector; Opportunities remains the singular action store.
+- Implemented: one bounded batch classification read with append-only override precedence, visible branded cohort, exact/resolved non-branded striking-distance detection at 50 impressions and weighted positions 4–15 inclusive, explicit abstention for ambiguous/unresolved/missing-position evidence, full source/classifier provenance, and approved-only Opportunity mapping.
+- Deleted / retained until: retained the prior high-impression/low-CTR detector as a separate shipped signal; branded and ambiguous cohorts cannot become Opportunities. No alternate classifier or Opportunity store was added.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 47
+- Local verification: focused backend pytest 37 passed across pure thresholds, branded override batching, Demand lifecycle, and Opportunity inclusion/exclusion; focused Ruff, mypy, and complexity policy passed.
+- Evaluation artifact: `docs/evaluations/2026-08-15-w4-demand-content.md`
+- Advanced to internal slice: Q03
+
+#### Q03 — completed 2026-08-15
+- Wave / branch: W4 / `feat/aeo-wave-4-demand-content`
+- Owners: Demand strict query detectors, persisted detector-state summary, Search Demand projection, and the extracted approved-signal Opportunity mapping seam.
+- Implemented: locked cannibalization, property-relative CTR-gap, emerging, and declining semantics; available/partial/unavailable/insufficient-history states; exact thresholds and positive/boundary fixtures; distinct Opportunity rules; labeled Search Demand rows and honest state notes. Complexity-driven seams keep projection, detector source, strict algorithms, and Opportunity mapping within repository limits.
+- Deleted / retained until: no intended-page mismatch detector, token, flag, or UI placeholder exists; the superseded inline `_demand_hits` mapping was deleted from the oversized Opportunity service and replaced by `opportunities/demand_hits.py` as its sole caller-owned seam.
+- Commit: wave commit
+- Cumulative changed files vs wave merge base: 61
+- Local verification: focused backend pytest 57 passed across detectors, query evidence, classifications, Demand lifecycle, Opportunity rules/mapping, and authorization; Ruff, targeted mypy, and the complete complexity policy passed. Focused Demand Vitest 4 passed with ESLint green.
+- Evaluation artifact: `docs/evaluations/2026-08-15-w4-demand-content.md` (read-only live GSC and grounding envelope proof; zero provider calls)
 - Advanced to internal slice: wave close
 
 #### S01 — completed 2026-08-15
@@ -458,48 +502,58 @@ The next wave chat reconciles this note from GitHub readback.
 - Retained review debt: none actionable from merged-head readback; Qodo was unavailable because its subscription was inactive, and the CodeRabbit docstring-coverage item was an advisory rather than a required check.
 - Synchronization: local `main` and `origin/main` both resolved to `78b4061ea5d9b7117c654ae49607b1228dfca70f` before W3 branched.
 
-### Current next-session handoff — W4
+#### W3 — completed 2026-08-15
+- Branch / sub-slices: `feat/aeo-wave-3-product-loop`; I01 → I02 → I03 → P01 → O01 → O02 → O03.
+- Final unique-file count: 95 (GitHub readback against the W2 merge commit).
+- Pull request / merge: https://github.com/abhij1306/Citeladder/pull/73; merge commit `7263930cd6d0e2f34ea30313eee44fd1003038de`.
+- Required CI: 9 passed, 0 failed.
+- Review disposition: CodeRabbit and CodeAnt findings were audited; workspace authorization, audit-boundary, ICP validation, provenance, reviewer attribution, commerce capability, stale Trends cache, loading copy, refresh, and error-state findings were addressed through follow-up commit `5d72e826`. Agent route-context persistence was intentionally not added because I02 bounds that ephemeral shell context and a durable API/store would create an unauthorized second owner.
+- Retained review debt: none actionable from merged-head readback; Qodo was unavailable because its subscription was inactive, and CodeRabbit's docstring-coverage warning was advisory.
+- Synchronization: local `main` and `origin/main` both resolved to `7263930cd6d0e2f34ea30313eee44fd1003038de` before W4 branched.
+
+### Current next-session handoff — W5
 
 Copy and paste this entire prompt into a fresh Codex chat:
 
 ```text
-Continue the CiteLadder AEO rebuild by implementing the complete W4 Demand + Content delivery wave from
+Continue the CiteLadder AEO rebuild by implementing the complete W5 Site Intelligence delivery wave from
 docs/plans/citeladder-aeo-product-rebuild.md in one fresh chat. One chat equals one PR. Use the
-citeladder-engineering skill throughout and finish with $ship-main. Implement all W4 internal
-sub-slices in order: G01 → Q01 → Q02 → Q03. Do not start W5.
+citeladder-engineering skill throughout and finish with $ship-main. Implement all W5 internal
+sub-slices in order: L01 → L02 → E01. Do not start W6.
 
 Bootstrap only from synchronized `main`. Read AGENTS.md, docs/invariants.md, the plan's Codex
-execution protocol, both ledgers, the merged W3 completion note, the W4 row, WS7A, WS3A, WS3B,
-their gates, and the named architecture/design/frontend/backend/content/demand authorities.
-Reconcile W3's `ready_for_merge` ledger row and completion note from GitHub readback before editing.
-Inspect git status/branch/upstream and preserve unrelated work.
+execution protocol, both ledgers, the merged W4 completion note, the W5 row, WS4, WS5, their gates,
+and the named architecture/design/frontend/backend/site-health authorities. Reconcile W4's
+`ready_for_merge` ledger row and completion note from GitHub readback before editing. Inspect git
+status/branch/upstream and preserve unrelated work.
 
-Before editing, inventory projected W4 files and the required migrate/delete/retain replacement
-map for content grounding, the direct adapter path, query evidence, Demand projections, detector
-outputs, Opportunities, tests, and active documentation. Target at most 75 unique files, freeze
-additions at 85, and close at no more than 95. Rebalance only whole trailing sub-slices among the
-existing six waves if required; never drop a gate or create a seventh PR. Create
-`feat/aeo-wave-4-demand-content` from synchronized main.
+Before editing, inventory projected W5 files and the required migrate/delete/retain replacement map
+for crawl-scoped link evidence, graph analysis/persistence/queue/API, Opportunity mapping, Website
+Link Graph and AEO Readiness tabs, tests, and active documentation. Target at most 75 unique files,
+freeze additions at 85, and close at no more than 95. Rebalance only whole trailing sub-slices among
+the existing six waves if required; never drop a gate or create a seventh PR. Create
+`feat/aeo-wave-5-site-intelligence` from synchronized main.
 
-Execute G01–Q03 sequentially with their replacement inventories, live read-only validation spikes,
-deterministic positive/boundary fixtures, and focused gates. Freeze the WS7A grounding envelope
-from confirmed BrandProfile facts plus exact crawl-observed website evidence; migrate every
-generation caller to it, validate provider inputs and truthful fallback/copy, and delete the
-superseded direct adapter path. Then ship the bounded query↔page↔time evidence projection with
-workspace authorization, provenance, lifecycle, API/schema, and pagination. Add branded
-separation and striking-distance detectors first, then cannibalization, property-relative CTR gap,
-and trend detectors with explicit abstention states and no mismatch placeholder. Map only approved
-signals into the existing Opportunity owner. Do not widen a read path, duplicate GSC truth, let a
-model own a metric, or leave caller-free code or stale active documentation after an atomic cutover.
+Execute L01–E01 sequentially with replacement inventories, live read-only validation spikes,
+deterministic positive/boundary fixtures, and focused gates. In L01, ship the pure crawl-scoped link
+graph over current successful HTML analyses with collapsed followed topology, retained nofollow
+observations, deterministic PageRank/BFS, config-owned thresholds, honest partial coverage, exact
+source-analysis provenance, immutable lifecycle, bounded APIs/pagination, and the locked post-crawl
+DAG. Reuse the existing sitemap-orphan owner and add no embeddings or second link store. In L02,
+map only approved near-orphan/weak-authority link signals into the existing Opportunity owner and
+ship the bounded Website Link Graph tab with table fallback, source suggestions, and descriptive
+partial-crawl behavior. In E01, add the exact seven config-owned AEO Readiness dimensions as a
+read-only projection over persisted current evaluations, with pass/fail/not-applicable/coverage and
+bounded evidence links—never a new score or guessed bucket. Do not widen reads into work, mix crawl
+or analyzer versions, duplicate Site Health truth, or leave caller-free code or stale active docs.
 
-Run the required live validation layer plus focused backend/frontend tests and the named Demand/
-Content browser proofs; do not run the repository-wide test suite locally. After Q03, run the
-wave-close checks, update W4 to ready-for-merge, record every completion note and cumulative file
-count, replace this handoff with a concrete W5 prompt, and invoke $ship-main. Continue autonomously
-through one non-draft PR,
-CodeRabbit/agent review, green required CI, merge, and local-main synchronization. In the final
-response report the PR, merge commit, checks, review disposition, final file count, replacement
-deletion proof, and repeat the W5 handoff prompt verbatim.
+Run the required live graph/readiness validation layer plus focused backend/frontend tests and the
+named Website Link Graph/AEO Readiness browser proofs; do not run the repository-wide test suite
+locally. After E01, run wave-close checks, update W5 to ready-for-merge, record every completion note
+and cumulative file count, replace this handoff with a concrete W6 prompt, and invoke $ship-main.
+Continue autonomously through one non-draft PR, CodeRabbit/agent review, green required CI, merge,
+and local-main synchronization. In the final response report the PR, merge commit, checks, review
+disposition, final file count, replacement deletion proof, and repeat the W6 handoff prompt verbatim.
 ```
 
 ---

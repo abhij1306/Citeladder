@@ -119,7 +119,7 @@ do not appear as passes or issues.
 
 | Route family | Owner |
 |---|---|
-| `/content` | Content Intelligence |
+| `/content` | Content Intelligence; frozen grounding status and provenance summary |
 | `/demand`, `/traffic`, `/ai-referrals` | Demand Intelligence |
 | `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
 | `/products` | Commerce specialization |
@@ -154,8 +154,11 @@ such as Resolved neither creates nor replaces this action record.
 
 `/demand` is the single **Search Demand** screen; it does not provide nested
 Overview/Search Demand/AI Visibility tabs. `/visibility` remains the standalone
-AI Visibility destination. Search Demand renders GSC-backed target rows and the
-honest no-snapshot, unavailable, observed-zero, and active-gap states.
+AI Visibility destination. Search Demand renders labeled GSC-backed signal
+rows, branded demand as a non-actionable cohort, and the honest no-snapshot,
+unavailable, observed-zero, partial, insufficient-history, and active states.
+Detector absence never becomes a fabricated zero or an intended-page mismatch
+placeholder.
 
 AI Visibility has exactly Trends, Mentions & Citations, and Query Fanout, with
 Trends as the default. Trends owns latest/start rankings, engine comparison, and

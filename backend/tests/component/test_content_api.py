@@ -22,21 +22,25 @@ from app.models.project import Project
 from app.workers.content_worker import ContentWorker
 
 _API_KEY = "test-mistral-key-abc123"
+_REF_ID = "b" * 64
 _CONTEXT = {
-    "pages": [
-        {"final_url": "https://acme.example/", "title": "Acme", "body_text": "Facts."}
+    "status": "included",
+    "version": "grounding-envelope-v1",
+    "allowed_facts": [],
+    "prohibited_claims": [],
+    "source_refs": [
+        {
+            "source_ref_id": _REF_ID,
+            "source_kind": "crawl_fragment",
+            "source_id": "33333333-3333-4333-8333-333333333333",
+            "field_or_fragment": "Facts.",
+            "observed_at": "2026-07-15T00:00:00Z",
+            "origin": "crawl_observed",
+            "review_state": "observed_untrusted",
+        }
     ],
-    "summary": {
-        "crawl_id": "11111111-1111-4111-8111-111111111111",
-        "crawl_completed_at": "2026-07-15T00:00:00Z",
-        "extractor_version": "extractor-v1",
-        "analyzer_version": "analyzer-v1",
-        "page_count": 1,
-        "char_count": 6,
-        "site_url_ids": ["22222222-2222-4222-8222-222222222222"],
-        "artifact_ids": ["33333333-3333-4333-8333-333333333333"],
-        "content_hashes": ["a" * 64],
-    },
+    "omissions": [],
+    "budget": {"selected_count": 1, "omitted_count": 0, "character_count": 6},
 }
 
 
@@ -88,8 +92,8 @@ async def _seed_generation(
             output_type="website_page",
             skill_id="article",
             skill_version="content-v1",
-            website_context_status="included",
-            website_context_snapshot=_CONTEXT,
+            grounding_status="included",
+            grounding_envelope=_CONTEXT,
             request_fingerprint="a" * 64,
             idempotency_key=str(uuid.uuid4()),
             provider="mistral",
@@ -132,7 +136,7 @@ def _transport(
     return httpx.MockTransport(handler)
 
 
-async def test_enqueue_requires_persisted_website_context_and_legacy_routes_are_gone(
+async def test_enqueue_unavailable_grounding_and_legacy_routes_are_gone(
     client: httpx.AsyncClient,
 ) -> None:
     await _register(client, "content-context@example.com")
@@ -141,8 +145,8 @@ async def test_enqueue_requires_persisted_website_context_and_legacy_routes_are_
         "/api/v1/content/generations",
         json={"project_id": project_id, "prompt": "Write a page."},
     )
-    assert response.status_code == 409
-    assert response.json()["detail"] == "website_context_unavailable"
+    assert response.status_code == 201
+    assert response.json()["grounding_status"] == "unavailable"
     for path in ("strategy", "inventory", "briefs", "revisions", "verifications"):
         assert (
             await client.get(
@@ -163,16 +167,13 @@ async def test_worker_preserves_frozen_grounding_and_attempt_provenance(
 
     detail = (await client.get(f"/api/v1/content/generations/{generation_id}")).json()
     assert detail["status"] == TASK_STATUS_SUCCEEDED
-    assert (
-        detail["website_context_summary"]["artifact_ids"]
-        == _CONTEXT["summary"]["artifact_ids"]
-    )
+    assert detail["grounding_summary"]["crawl_fragment_count"] == 1
     assert detail["output_text"].startswith("# Acme")
     assert _API_KEY not in json.dumps(detail)
     assert seen[0].headers["authorization"] == f"Bearer {_API_KEY}"
     sent_messages = json.loads(seen[0].content)["messages"]
     assert len(sent_messages) == 3
-    assert "untrusted data" in sent_messages[-1]["content"]
+    assert "untrusted crawl observations" in sent_messages[-1]["content"]
 
     async with session_factory() as session:
         attempts = (

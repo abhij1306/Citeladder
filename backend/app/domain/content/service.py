@@ -23,7 +23,6 @@ from app.core.config.content import (
     CONTENT_GENERATOR_VERSION,
     CONTENT_KNOWN_PROVIDERS,
     CONTENT_LIST_MAX_LIMIT,
-    CONTEXT_STATUS_INCLUDED,
     FEEDBACK_ACCEPTED,
     FEEDBACK_REJECTED,
     content_settings,
@@ -35,16 +34,16 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.domain.abuse.service import reserve_workspace_capacity
+from app.domain.content.grounding import (
+    GroundingEnvelope,
+    build_grounding_envelope,
+)
 from app.domain.content.message_builder import build_messages
 from app.domain.content.schemas import (
     ContentGenerationDetail,
     ContentGenerationListItem,
-    WebsiteContextSummary,
+    GroundingEnvelopeSummary,
     prompt_preview,
-)
-from app.domain.content.website_context import (
-    WebsiteContext,
-    build_website_context,
 )
 from app.models.content import ContentGeneration
 from app.models.opportunity import Opportunity
@@ -65,10 +64,6 @@ class IdempotencyConflictError(RuntimeError):
 
 class CancelNotAllowedError(RuntimeError):
     """Cancel requested on a terminal record (-> 409)."""
-
-
-class WebsiteContextUnavailableError(RuntimeError):
-    """No persisted Site Health context can ground the generation (-> 409)."""
 
 
 async def _reserve_content_capacity(
@@ -127,30 +122,23 @@ async def _project_in_workspace(
     return project
 
 
-def _summary_dto(row: ContentGeneration) -> WebsiteContextSummary | None:
-    summary = _persisted_crawl_summary(row)
-    if summary is None:
-        return None
-    return WebsiteContextSummary(
-        crawl_id=str(summary.get("crawl_id", "")),
-        crawl_completed_at=summary.get("crawl_completed_at"),
-        extractor_version=summary.get("extractor_version", ""),
-        analyzer_version=summary.get("analyzer_version", ""),
-        page_count=int(summary.get("page_count", 0)),
-        char_count=int(summary.get("char_count", 0)),
-        site_url_ids=list(summary.get("site_url_ids", [])),
-        artifact_ids=list(summary.get("artifact_ids", [])),
-        content_hashes=list(summary.get("content_hashes", [])),
-        selection_policy_version=str(summary.get("selection_policy_version", "")),
-        omissions=list(summary.get("omissions", [])),
+def _summary_dto(row: ContentGeneration) -> GroundingEnvelopeSummary:
+    envelope = row.grounding_envelope or {}
+    refs = list(envelope.get("source_refs") or [])
+    prohibited = list(envelope.get("prohibited_claims") or [])
+    return GroundingEnvelopeSummary(
+        version=str(envelope.get("version") or ""),
+        allowed_fact_count=len(envelope.get("allowed_facts") or []),
+        source_ref_count=len(refs),
+        crawl_fragment_count=sum(
+            item.get("source_kind") == "crawl_fragment" for item in refs
+        ),
+        prohibited_claim_classes=[
+            str(item.get("claim_class") or "") for item in prohibited
+        ],
+        omissions=list(envelope.get("omissions") or []),
+        budget=dict(envelope.get("budget") or {}),
     )
-
-
-def _persisted_crawl_summary(row: ContentGeneration) -> dict | None:
-    summary = (row.website_context_snapshot or {}).get("summary")
-    if not summary or not summary.get("crawl_id"):
-        return None
-    return summary
 
 
 def to_list_item(row: ContentGeneration) -> ContentGenerationListItem:
@@ -160,29 +148,33 @@ def to_list_item(row: ContentGeneration) -> ContentGenerationListItem:
 
 
 def to_detail(row: ContentGeneration) -> ContentGenerationDetail:
-    detail = ContentGenerationDetail.model_validate(row)
-    detail.prompt_preview = prompt_preview(row.prompt)
-    detail.website_context_summary = _summary_dto(row)
-    return detail
+    payload = {
+        field_name: getattr(row, field_name)
+        for field_name in ContentGenerationDetail.model_fields
+        if field_name not in {"prompt_preview", "grounding_summary"}
+    }
+    payload["prompt_preview"] = prompt_preview(row.prompt)
+    payload["grounding_summary"] = _summary_dto(row)
+    return ContentGenerationDetail.model_validate(payload)
 
 
 async def _insert_generation(
     session: AsyncSession,
     *,
     row: ContentGeneration,
-    website_context: WebsiteContext,
+    grounding_envelope: GroundingEnvelope,
 ) -> ContentGeneration:
     messages, digest, message_snapshot = build_messages(
         prompt=row.prompt,
         output_type=row.output_type,
-        website_context=website_context,
+        grounding_envelope=grounding_envelope,
         skill_id=row.skill_id,
     )
     # ``messages`` itself is never persisted — the worker rebuilds it from the
     # frozen prompt + snapshot; only the digest + safe snapshot are stored.
     del messages
-    row.website_context_status = website_context.status
-    row.website_context_snapshot = website_context.snapshot()
+    row.grounding_status = grounding_envelope.status
+    row.grounding_envelope = grounding_envelope.snapshot()
     row.message_digest = digest
     row.message_snapshot = message_snapshot
     session.add(row)
@@ -255,11 +247,9 @@ async def enqueue_generation(
     if existing is not None:
         return existing, False
 
-    website_context = await build_website_context(
+    grounding_envelope = await build_grounding_envelope(
         session, workspace_id=workspace_id, project_id=project_id
     )
-    if website_context.status != CONTEXT_STATUS_INCLUDED or not website_context.pages:
-        raise WebsiteContextUnavailableError("website_context_unavailable")
     _require_provider_configured()
     await _reserve_content_capacity(session, workspace_id=workspace_id)
 
@@ -279,7 +269,7 @@ async def enqueue_generation(
             requested_model=content_settings.model,
             generator_version=CONTENT_GENERATOR_VERSION,
         ),
-        website_context=website_context,
+        grounding_envelope=grounding_envelope,
     )
     winner = await _commit_generation(
         session, workspace_id=workspace_id, key=key, fingerprint=fingerprint
@@ -461,14 +451,7 @@ async def try_again(
     )
     _require_provider_configured()
     await _reserve_content_capacity(session, workspace_id=workspace_id)
-    snapshot = source.website_context_snapshot or {}
-    frozen = WebsiteContext(
-        status=source.website_context_status,
-        pages=list(snapshot.get("pages") or []),
-        summary=snapshot.get("summary"),
-    )
-    if frozen.status != CONTEXT_STATUS_INCLUDED or not frozen.pages:
-        raise WebsiteContextUnavailableError("website_context_unavailable")
+    frozen = GroundingEnvelope.from_snapshot(source.grounding_envelope or {})
     fingerprint = request_fingerprint(
         project_id=source.project_id,
         prompt=source.prompt,
@@ -492,7 +475,7 @@ async def try_again(
             requested_model=content_settings.model,
             generator_version=CONTENT_GENERATOR_VERSION,
         ),
-        website_context=frozen,
+        grounding_envelope=frozen,
     )
     await session.commit()
     await session.refresh(row)

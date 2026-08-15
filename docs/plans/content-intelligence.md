@@ -1,40 +1,54 @@
 # Content Intelligence
 
-> **Status:** shipped authority for website-grounded content generation.
+> **Status:** shipped authority for bounded content generation.
 
 Delivery sequencing and the Act → Improve / Verify product contract are owned by
 [`citeladder-aeo-product-rebuild.md`](citeladder-aeo-product-rebuild.md).
 
-Content owns one bounded generation workflow. A user supplies an instruction
-and may link an Opportunity. The service selects a usable persisted Site Health
-snapshot, freezes a bounded website-context snapshot with exact source IDs,
-hashes, versions, excerpts, and omissions, and queues provider-neutral work.
+Content owns one generation workflow. A user supplies an instruction and may
+link an Opportunity. Before enqueue, `domain/content/grounding.py` freezes one
+authorized, bounded envelope; the worker rebuilds provider messages only from
+that immutable request material.
 
 ```text
-user instruction + optional Opportunity + persisted Site Health evidence
-  -> immutable bounded website context
+confirmed BrandProfile facts + exact crawl-observed fragments
+  -> frozen GroundingEnvelope
   -> queued ContentGeneration
   -> append-only provider attempts
   -> result, history, feedback, retry, or regeneration
 ```
 
-Generation is rejected with `website_context_unavailable` when usable website
-evidence cannot be assembled. Website text is untrusted provider input. Read
-APIs never crawl or repair state; retries create new attempts; no provider can
-change Site Health metrics.
+## Grounding envelope
 
-Content does not own strategy snapshots, inventory copies, briefs, context
-packages, validation state machines, revisions, publication claims, or later
-verification. Those PR #59 compatibility paths were removed because they were
-unreachable after Site Intelligence deletion and carried empty evidence.
+The v1 envelope records `status` (`included`, `unavailable`, or `conflicting`),
+`version`, `allowed_facts`, `prohibited_claims`, `source_refs`, `omissions`, and
+the selected/omitted/character budget. Every allowed fact has a stable fact ID,
+field, value, claim class, review state, limitations, and source-reference IDs.
+Every source reference records its source kind and exact persisted source ID,
+field or bounded fragment, observed time, origin, review state, and applicable
+extractor/content-hash provenance.
 
-The initial prompt portfolio is created only after onboarding confirms the
-structured ICP. BrandProfile field sources carry `origin`, `review_state`,
-`reviewed_by`, and `reviewed_at`; positioning, target audience, and
-products/services must be confirmed or edited. Discovery suggestions are never
-generation truth, and completion seeds the deterministic portfolio exactly once
-from the submitted confirmed values.
+Only BrandProfile values whose review state is `confirmed` or `edited` become
+allowed business facts. Crawl fragments are labelled `crawl_observed` and
+`observed_untrusted`; they support terminology, tone, structure, or an explicit
+“the current site says” attribution, never verified business truth. The v1
+selector is deterministic and lexical; it adds no embeddings or vector store.
 
-No autonomous publishing is permitted. Retained acceptance covers workspace
-isolation, source provenance, bounded omissions, queue leases, idempotency,
-cancellation, retry/regeneration, provider attempts, and feedback.
+Numeric, pricing, policy, regulated, date, safety, and identity claims are
+prohibited without an exact matching confirmed fact. Distinct confirmed values
+for one claim class make the envelope `conflicting`; all facts in that class are
+removed and the provider is instructed to omit the claim. An unavailable
+envelope is still frozen and the UI labels the output an ungrounded draft.
+
+`message_builder.build_messages()` accepts only `GroundingEnvelope`; the former
+direct `WebsiteContext` adapter and wire contract are deleted.
+`website_context.py` remains an internal bounded crawl-fragment selector used by
+the grounding owner. Envelope validation rejects an allowed fact whose source ID
+is absent. Provider output source markers use
+`[[source:<source_ref_id>]]`; the worker rejects markers not present in the
+frozen envelope.
+
+Content does not own strategy snapshots, inventory copies, briefs, validation
+state machines, revisions, publication claims, or later verification. No
+autonomous publishing is permitted. Reads never acquire or repair evidence;
+retries reuse the exact envelope, while regeneration freezes a new one.

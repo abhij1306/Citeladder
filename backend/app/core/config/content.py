@@ -47,11 +47,16 @@ CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {
 FEEDBACK_ACCEPTED: Final = "accepted"
 FEEDBACK_REJECTED: Final = "rejected"
 
-# --- Website-context statuses (frozen on the generation row) --------------
-CONTEXT_STATUS_INCLUDED: Final = "included"
-CONTEXT_STATUS_UNAVAILABLE: Final = "unavailable"
-CONTEXT_STATUSES: Final[frozenset[str]] = frozenset(
-    {CONTEXT_STATUS_INCLUDED, CONTEXT_STATUS_UNAVAILABLE}
+# --- Grounding-envelope contract (frozen on the generation row) -----------
+GROUNDING_STATUS_INCLUDED: Final = "included"
+GROUNDING_STATUS_UNAVAILABLE: Final = "unavailable"
+GROUNDING_STATUS_CONFLICTING: Final = "conflicting"
+GROUNDING_STATUSES: Final[frozenset[str]] = frozenset(
+    {
+        GROUNDING_STATUS_INCLUDED,
+        GROUNDING_STATUS_UNAVAILABLE,
+        GROUNDING_STATUS_CONFLICTING,
+    }
 )
 
 # --- Input caps ------------------------------------------------------------
@@ -66,7 +71,7 @@ CONTENT_HISTORY_TITLE_MAX_LEN: Final = 80
 CONTENT_LIST_DEFAULT_LIMIT: Final = 50
 CONTENT_LIST_MAX_LIMIT: Final = 100
 
-# --- Website-context projection caps (bounded, deterministic) -------------
+# --- Crawl-fragment selection caps (bounded, deterministic) ---------------
 CONTENT_CONTEXT_MAX_PAGES: Final = 10
 CONTEXT_MAX_H1: Final = 3
 CONTEXT_MAX_H2: Final = 8
@@ -74,17 +79,19 @@ CONTENT_CONTEXT_PER_PAGE_BODY_CHARS: Final = 2000
 CONTENT_CONTEXT_MAX_CHARS: Final = 16000
 # Per-field hard cap applied after sanitisation (title/meta/heading strings).
 CONTENT_CONTEXT_FIELD_MAX_CHARS: Final = 300
+CONTENT_GROUNDING_MAX_FACTS: Final = 16
+CONTENT_GROUNDING_MAX_SOURCE_REFS: Final = 32
 
 # --- Versioning + retry budget --------------------------------------------
-CONTENT_GENERATOR_VERSION: Final = "content-v1"
-CONTENT_WEBSITE_CONTEXT_VERSION: Final = "website-context-v1"
+CONTENT_GENERATOR_VERSION: Final = "content-v2"
+CONTENT_CRAWL_FRAGMENT_SELECTION_VERSION: Final = "crawl-fragment-selection-1"
+CONTENT_GROUNDING_ENVELOPE_VERSION: Final = "grounding-envelope-v1"
 CONTENT_MAX_ATTEMPTS: Final = 3
 
 # --- Error tokens specific to the content vertical -------------------------
 ERROR_PROVIDER_NOT_CONFIGURED: Final = "provider_not_configured"
 ERROR_IDEMPOTENCY_CONFLICT: Final = "idempotency_conflict"
 ERROR_CANCEL_NOT_ALLOWED: Final = "cancel_not_allowed"
-ERROR_WEBSITE_CONTEXT_UNAVAILABLE: Final = "website_context_unavailable"
 
 
 class ContentSettings(BaseSettings):

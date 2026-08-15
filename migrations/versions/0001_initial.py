@@ -739,11 +739,11 @@ def upgrade() -> None:
         sa.Column("skill_version", sa.String(32), nullable=False),
         sa.Column("feedback", sa.String(16), nullable=True),
         sa.Column("feedback_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("website_context_status", sa.String(length=16), nullable=False),
+        sa.Column("grounding_status", sa.String(length=16), nullable=False),
         sa.Column(
-            "website_context_snapshot",
+            "grounding_envelope",
             postgresql.JSONB(astext_type=Text()),
-            nullable=True,
+            nullable=False,
         ),
         sa.Column("request_fingerprint", sa.String(length=64), nullable=False),
         sa.Column("message_digest", sa.String(length=64), nullable=False),
@@ -5252,6 +5252,109 @@ def upgrade() -> None:
     )
 
     op.create_table(
+        "query_evidence_snapshots",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("window_start", sa.Date(), nullable=False),
+        sa.Column("window_end", sa.Date(), nullable=False),
+        sa.Column("source_hash", sa.String(length=64), nullable=False),
+        sa.Column("supersedes_snapshot_id", sa.UUID(), nullable=True),
+        sa.Column("state", sa.String(length=24), nullable=False),
+        sa.Column(
+            "source_metric_row_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column(
+            "source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("coverage", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("limitations", postgresql.JSONB(astext_type=Text()), nullable=False),
+        sa.Column("analyzer_version", sa.String(length=32), nullable=False),
+        sa.Column("resolver_version", sa.String(length=32), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["supersedes_snapshot_id"],
+            ["query_evidence_snapshots.id"],
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "workspace_id",
+            "project_id",
+            "window_start",
+            "window_end",
+            "source_hash",
+            "analyzer_version",
+            name="uq_query_evidence_snapshot_identity",
+        ),
+    )
+    _create_indexes(
+        "query_evidence_snapshots", ("workspace_id", "project_id", "created_at")
+    )
+    op.create_table(
+        "query_evidence_rows",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("date", sa.Date(), nullable=False),
+        sa.Column("normalized_query", sa.String(length=512), nullable=False),
+        sa.Column("observed_page_url", sa.String(length=2048), nullable=False),
+        sa.Column("site_url_id", sa.UUID(), nullable=True),
+        sa.Column("resolved_page_url", sa.String(length=2048), nullable=False),
+        sa.Column("resolution_outcome", sa.String(length=16), nullable=False),
+        sa.Column(
+            "resolution_candidates", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
+        sa.Column("property_ref", sa.String(length=512), nullable=False),
+        sa.Column("impressions", sa.Integer(), nullable=False),
+        sa.Column("clicks", sa.Integer(), nullable=False),
+        sa.Column("ctr", sa.Float(), nullable=True),
+        sa.Column("position", sa.Float(), nullable=True),
+        sa.Column("source_metric_row_id", sa.UUID(), nullable=False),
+        sa.Column("source_artifact_id", sa.UUID(), nullable=False),
+        sa.Column("importer_version", sa.String(length=64), nullable=False),
+        sa.Column("resolver_version", sa.String(length=32), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["site_url_id"], ["site_urls.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["snapshot_id"], ["query_evidence_snapshots.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "snapshot_id",
+            "source_metric_row_id",
+            name="uq_query_evidence_source_row",
+        ),
+    )
+    _create_indexes(
+        "query_evidence_rows",
+        (
+            "snapshot_id",
+            "workspace_id",
+            "project_id",
+            "date",
+            "normalized_query",
+            "resolution_outcome",
+        ),
+    )
+    op.create_index(
+        "ix_query_evidence_page_time",
+        "query_evidence_rows",
+        ["workspace_id", "project_id", "site_url_id", "date"],
+    )
+
+    op.create_table(
         "branded_query_overrides",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column(
@@ -5399,6 +5502,9 @@ def downgrade() -> None:
         table_name="branded_query_overrides",
     )
     op.drop_table("branded_query_overrides")
+    op.drop_index("ix_query_evidence_page_time", table_name="query_evidence_rows")
+    op.drop_table("query_evidence_rows")
+    op.drop_table("query_evidence_snapshots")
     op.drop_table("demand_signals")
     op.drop_constraint(
         "fk_opportunity_snapshots_demand_snapshot_id",

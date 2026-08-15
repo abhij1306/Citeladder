@@ -47,8 +47,11 @@ from app.core.config.task_queue import (
 )
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging
+from app.domain.content.grounding import (
+    GroundingEnvelope,
+    validate_provider_output,
+)
 from app.domain.content.message_builder import build_messages
-from app.domain.content.website_context import WebsiteContext
 from app.models.content import ContentGeneration, ContentGenerationAttempt
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.drain import DrainableWorkerMixin
@@ -160,16 +163,13 @@ class ContentWorker(DrainableWorkerMixin):
     async def _run_provider_call(self, claimed: ContentGeneration) -> None:
         # Rebuild the exact frozen messages from the immutable inputs (the
         # snapshot was truncated for provenance; the digest pins the content).
-        snapshot = claimed.website_context_snapshot or {}
-        website_context = WebsiteContext(
-            status=claimed.website_context_status,
-            pages=list(snapshot.get("pages") or []),
-            summary=snapshot.get("summary"),
+        grounding_envelope = GroundingEnvelope.from_snapshot(
+            claimed.grounding_envelope or {}
         )
         messages, _digest, _snapshot = build_messages(
             prompt=claimed.prompt,
             output_type=claimed.output_type,
-            website_context=website_context,
+            grounding_envelope=grounding_envelope,
             skill_id=claimed.skill_id,
         )
         request = DiscoveryRequest(
@@ -214,6 +214,16 @@ class ContentWorker(DrainableWorkerMixin):
                     retryable=True,
                 ),
             )
+        elif ok_response is not None:
+            try:
+                validate_provider_output(ok_response.output_text, grounding_envelope)
+            except ValueError as exc:
+                outcome = AttemptOutcome(
+                    response=None,
+                    error=ProviderError(
+                        str(exc), error_code=ERROR_PARSE, retryable=True
+                    ),
+                )
         await self.finalize_attempt(
             generation_id=claimed.id, owner=self.owner, outcome=outcome
         )

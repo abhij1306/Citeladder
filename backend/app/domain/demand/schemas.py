@@ -76,3 +76,51 @@ class BrandedQueryClassificationView(_Model):
     matched_terms: list[str]
     classifier_version: str
     override_id: uuid.UUID | None
+
+
+class QueryEvidenceRowView(_Model):
+    id: uuid.UUID
+    date: date
+    normalized_query: str
+    observed_page_url: str
+    site_url_id: uuid.UUID | None
+    resolved_page_url: str
+    resolution_outcome: Literal["exact", "resolved", "ambiguous", "unresolved"]
+    resolution_candidates: list[dict[str, Any]]
+    property_ref: str
+    impressions: int
+    clicks: int
+    ctr: float | None
+    position: float | None
+    source_metric_row_id: uuid.UUID
+    source_artifact_id: uuid.UUID
+    importer_version: str
+    resolver_version: str
+
+
+class QueryEvidenceSnapshotView(_Model):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    window_start: date
+    window_end: date
+    source_hash: str
+    supersedes_snapshot_id: uuid.UUID | None
+    state: Literal["available", "observed_zero", "unavailable"]
+    source_metric_row_ids: list[str]
+    source_artifact_ids: list[str]
+    coverage: dict[str, Any]
+    limitations: list[str]
+    analyzer_version: str
+    resolver_version: str
+    created_at: datetime
+
+
+class QueryEvidencePageView(_Model):
+    snapshot: QueryEvidenceSnapshotView
+    items: list[QueryEvidenceRowView]
+    next_cursor: str | None
+
+
+class QueryEvidenceSummaryView(_Model):
+    snapshot: QueryEvidenceSnapshotView
+    counts_by_resolution: dict[str, int]

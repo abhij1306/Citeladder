@@ -13,6 +13,16 @@ import { useProjectContext } from '@/lib/project/project-context';
 
 type DemandSignal = DemandSnapshot['signals'][number];
 
+const SIGNAL_LABELS: Record<string, string> = {
+  high_impression_low_ctr: 'Low CTR',
+  branded_query_performance: 'Branded cohort',
+  striking_distance: 'Striking distance',
+  query_cannibalization: 'Cannibalization',
+  property_relative_ctr_gap: 'CTR gap',
+  emerging_query: 'Emerging',
+  declining_query: 'Declining',
+};
+
 function numericMetric(signal: DemandSignal, key: string): number | null {
   const value = signal.metrics[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -49,13 +59,14 @@ function SearchSignalRow({ signal, rank }: Readonly<{ signal: DemandSignal; rank
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="neutral">{target.kind}</Badge>
+            <Badge variant="neutral">{SIGNAL_LABELS[signal.signal_type] ?? 'Demand signal'}</Badge>
             <p className="text-foreground min-w-0 text-sm font-medium break-words">
               {target.value}
             </p>
           </div>
         </div>
       </div>
-      <dl className="ml-9 grid grid-cols-3 gap-3">
+      <dl className="ml-9 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <dt className="text-muted text-xs">Impressions</dt>
           <dd className="text-foreground mt-1 text-sm font-medium tabular-nums">
@@ -72,6 +83,12 @@ function SearchSignalRow({ signal, rank }: Readonly<{ signal: DemandSignal; rank
           <dt className="text-muted text-xs">CTR</dt>
           <dd className="text-foreground mt-1 text-sm font-medium tabular-nums">
             {formatCtr(signal)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted text-xs">Position</dt>
+          <dd className="text-foreground mt-1 text-sm font-medium tabular-nums">
+            {numericMetric(signal, 'position')?.toFixed(1) ?? '—'}
           </dd>
         </div>
       </dl>
@@ -93,18 +110,19 @@ function SearchDemandSnapshot({ snapshot }: Readonly<{ snapshot: DemandSnapshot 
     new Set(snapshot.signals.flatMap((signal) => signal.limitations).filter(Boolean)),
   );
   const windowLabel = `${formatWindowDate(snapshot.window_start)} – ${formatWindowDate(snapshot.window_end)}`;
+  const detectorNotes = detectorStateNotes(snapshot.summary.detectors);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>
           {snapshot.signals.length === 1
-            ? '1 search gap needs attention'
-            : `${snapshot.signals.length} search gaps need attention`}
+            ? '1 demand signal observed'
+            : `${snapshot.signals.length} demand signals observed`}
         </CardTitle>
         <CardDescription>
-          High-impression, low-click queries and pages for {windowLabel}. Highest-priority gaps are
-          shown first.
+          Versioned GSC query evidence for {windowLabel}. Highest-priority signals are shown first;
+          branded demand remains a separate, non-actionable cohort.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -116,10 +134,17 @@ function SearchDemandSnapshot({ snapshot }: Readonly<{ snapshot: DemandSnapshot 
           </div>
         ) : (
           <p className="text-secondary text-sm">
-            Search Console data was observed, but no query or page met the configured
-            high-impression, low-click criteria in this window.
+            Search Console data was observed, but no configured detector emitted a signal in this
+            window.
           </p>
         )}
+        {detectorNotes.length ? (
+          <ul className="text-muted border-border-subtle mt-4 list-disc border-t pt-3 pl-5 text-xs">
+            {detectorNotes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        ) : null}
         {limitations.length ? (
           <p className="text-muted border-border-subtle mt-4 border-t pt-3 text-xs">
             {limitations.join(' ')}
@@ -128,6 +153,25 @@ function SearchDemandSnapshot({ snapshot }: Readonly<{ snapshot: DemandSnapshot 
       </CardContent>
     </Card>
   );
+}
+
+function detectorStateNotes(value: unknown): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+  const labels: Record<string, string> = {
+    cannibalization: 'Cannibalization',
+    property_relative_ctr_gap: 'CTR gap',
+    query_trends: 'Query trends',
+    striking_distance: 'Striking distance',
+  };
+  const notes: string[] = [];
+  for (const [key, raw] of Object.entries(value)) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const state = (raw as Record<string, unknown>).state;
+    if (state === 'unavailable' || state === 'insufficient_history' || state === 'partial') {
+      notes.push(`${labels[key] ?? key}: ${String(state).replace('_', ' ')}.`);
+    }
+  }
+  return notes;
 }
 
 export function DemandProjection() {

@@ -76,6 +76,8 @@ from app.models.demand import (
     BrandedQueryOverride,
     DemandSignal,
     DemandSnapshot,
+    QueryEvidenceRow,
+    QueryEvidenceSnapshot,
 )
 from app.models.discovery import BrandDiscovery, BrandResearchSnapshot
 from app.models.integrations import (
@@ -178,6 +180,8 @@ __all__ = [
     "DiscoveryModelConfig",
     "DemandSignal",
     "DemandSnapshot",
+    "QueryEvidenceRow",
+    "QueryEvidenceSnapshot",
     "ExecutionCostProjection",
     "FeedIssue",
     "GrantRevocation",

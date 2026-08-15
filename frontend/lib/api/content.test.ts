@@ -25,7 +25,7 @@ const listItem = {
   output_type: 'website_page' as const,
   skill_id: 'article' as const,
   opportunity_id: null,
-  website_context_status: 'included' as const,
+  grounding_status: 'included' as const,
   requested_model: 'mistral-small-latest',
   returned_model: null,
   provider: 'mistral',
@@ -42,16 +42,14 @@ const detail = {
   feedback: null,
   feedback_at: null,
   prompt: 'Write a landing page for Acme.',
-  website_context_summary: {
-    crawl_id: PROJECT_ID,
-    crawl_completed_at: '2026-07-14T00:00:00Z',
-    extractor_version: 'ex-v1',
-    analyzer_version: 'an-v1',
-    page_count: 3,
-    char_count: 1200,
-    site_url_ids: [GENERATION_ID],
-    artifact_ids: [PROJECT_ID],
-    content_hashes: ['abc123'],
+  grounding_summary: {
+    version: 'grounding-envelope-v1',
+    allowed_fact_count: 3,
+    source_ref_count: 4,
+    crawl_fragment_count: 1,
+    prohibited_claim_classes: ['pricing'],
+    omissions: [],
+    budget: { selected_count: 4, omitted_count: 0, character_count: 1200 },
   },
   finish_reason: null,
   output_truncated: false,
@@ -102,7 +100,7 @@ describe('content generation API', () => {
       { project_id: PROJECT_ID, prompt: 'Write a landing page for Acme.', skill_id: 'article' },
       'idem-key-1',
     );
-    expect(result.website_context_summary?.page_count).toBe(3);
+    expect(result.grounding_summary.allowed_fact_count).toBe(3);
     expect(key).toBe('idem-key-1');
     expect(body).toEqual({
       project_id: PROJECT_ID,

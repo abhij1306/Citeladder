@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.demand.query_classification import (
     append_override,
+    classify_project_queries,
     classify_project_query,
 )
 from app.models.brand import Brand, BrandAlias, OwnedDomain
@@ -31,9 +32,7 @@ async def test_latest_append_only_override_wins_and_stays_workspace_scoped(
     await db_session.flush()
     brand = Brand(project_id=project.id, name="Cube")
     brand.aliases = [BrandAlias(alias="Cube Inc")]
-    db_session.add_all(
-        [brand, OwnedDomain(project_id=project.id, domain="cube27.com")]
-    )
+    db_session.add_all([brand, OwnedDomain(project_id=project.id, domain="cube27.com")])
     await db_session.flush()
 
     automatic = await classify_project_query(
@@ -81,6 +80,14 @@ async def test_latest_append_only_override_wins_and_stays_workspace_scoped(
     assert effective is not None
     assert effective.classification == "non_branded"
     assert effective.override_id == second.id
+    batch = await classify_project_queries(
+        db_session,
+        workspace_id=workspace.id,
+        project_id=project.id,
+        queries=["Cube Pricing", "independent research"],
+    )
+    assert batch["cube pricing"].override_id == second.id
+    assert batch["independent research"].classification == "non_branded"
     assert (
         await classify_project_query(
             db_session,

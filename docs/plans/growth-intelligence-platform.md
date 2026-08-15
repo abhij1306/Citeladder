@@ -49,13 +49,12 @@ kernel, corrections, and snapshot-comparison system were removed in the
 - Preserve HTML and JS-shell guards when narrowing applicability.
 - Keep Site Health, Issues, and Opportunities as the only site surfaces.
 
-### G2 — Content grounding decision
+### G2 — Content grounding envelope
 
-The removed knowledge assertions previously supplied `allowed_facts`,
-`prohibited_claims`, and `source_refs`. The current empty envelope is explicit
-but not sufficient for evidence-grounded generation. Choose and implement one
-replacement source as its own gated slice; do not infer durable facts from
-generated text.
+The shipped Content owner freezes confirmed or edited BrandProfile facts and
+exact crawl-observed fragments into one bounded envelope. Provider inputs and
+source markers are validated against that frozen manifest; unavailable evidence
+is labelled ungrounded. Generated text never becomes a durable fact.
 
 ### G3 — Demand evidence
 

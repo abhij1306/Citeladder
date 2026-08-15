@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Identity,
     Index,
+    Integer,
     String,
     UniqueConstraint,
 )
@@ -153,6 +154,107 @@ class BrandedQueryOverride(Base):
     actor_user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT")
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+
+
+class QueryEvidenceSnapshot(Base):
+    """Immutable bounded query↔page↔date projection header."""
+
+    __tablename__ = "query_evidence_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "project_id",
+            "window_start",
+            "window_end",
+            "source_hash",
+            "analyzer_version",
+            name="uq_query_evidence_snapshot_identity",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"), index=True
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
+    )
+    window_start: Mapped[date] = mapped_column(Date)
+    window_end: Mapped[date] = mapped_column(Date)
+    source_hash: Mapped[str] = mapped_column(String(64))
+    supersedes_snapshot_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("query_evidence_snapshots.id", ondelete=_SET_NULL),
+        nullable=True,
+    )
+    state: Mapped[str] = mapped_column(String(24))
+    source_metric_row_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    source_artifact_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    coverage: Mapped[dict] = mapped_column(JSONB, default=dict)
+    limitations: Mapped[list] = mapped_column(JSONB, default=list)
+    analyzer_version: Mapped[str] = mapped_column(String(32))
+    resolver_version: Mapped[str] = mapped_column(String(32))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True
+    )
+
+
+class QueryEvidenceRow(Base):
+    """One frozen normalized GSC query/page/date observation."""
+
+    __tablename__ = "query_evidence_rows"
+    __table_args__ = (
+        UniqueConstraint(
+            "snapshot_id", "source_metric_row_id", name="uq_query_evidence_source_row"
+        ),
+        Index(
+            "ix_query_evidence_page_time",
+            "workspace_id",
+            "project_id",
+            "site_url_id",
+            "date",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    snapshot_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("query_evidence_snapshots.id", ondelete="CASCADE"),
+        index=True,
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_WORKSPACE_FK, ondelete="CASCADE"), index=True
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey(_PROJECT_FK, ondelete="CASCADE"), index=True
+    )
+    date: Mapped[date] = mapped_column(Date, index=True)
+    normalized_query: Mapped[str] = mapped_column(String(512), index=True)
+    observed_page_url: Mapped[str] = mapped_column(String(2048))
+    site_url_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("site_urls.id", ondelete=_SET_NULL),
+        nullable=True,
+    )
+    resolved_page_url: Mapped[str] = mapped_column(String(2048), default="")
+    resolution_outcome: Mapped[str] = mapped_column(String(16), index=True)
+    resolution_candidates: Mapped[list] = mapped_column(JSONB, default=list)
+    property_ref: Mapped[str] = mapped_column(String(512))
+    impressions: Mapped[int] = mapped_column(Integer)
+    clicks: Mapped[int] = mapped_column(Integer)
+    ctr: Mapped[float | None] = mapped_column(Float, nullable=True)
+    position: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_metric_row_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
+    source_artifact_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True))
+    importer_version: Mapped[str] = mapped_column(String(64))
+    resolver_version: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

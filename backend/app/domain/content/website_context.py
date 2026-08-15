@@ -1,4 +1,4 @@
-"""Deterministic Website-context projection from persisted Site Health evidence.
+"""Deterministic crawl-fragment selection from persisted Site Health evidence.
 
 Pure DB projection (invariant 7): no fetch, no extraction, no provider call.
 Selects the newest terminal crawl with usable artifacts, orders pages
@@ -24,11 +24,9 @@ from app.core.config.content import (
     CONTENT_CONTEXT_MAX_CHARS,
     CONTENT_CONTEXT_MAX_PAGES,
     CONTENT_CONTEXT_PER_PAGE_BODY_CHARS,
-    CONTENT_WEBSITE_CONTEXT_VERSION,
+    CONTENT_CRAWL_FRAGMENT_SELECTION_VERSION,
     CONTEXT_MAX_H1,
     CONTEXT_MAX_H2,
-    CONTEXT_STATUS_INCLUDED,
-    CONTEXT_STATUS_UNAVAILABLE,
 )
 from app.core.config.site_health import CRAWL_TERMINAL_STATUSES
 from app.models.site_health import (
@@ -66,22 +64,11 @@ def _facts_usable() -> ColumnElement[bool]:
 
 
 @dataclass(frozen=True)
-class WebsiteContext:
-    """The frozen context snapshot + provenance for one generation."""
+class CrawlFragmentSelection:
+    """Bounded crawl-observed fragments consumed only by grounding."""
 
-    status: str
-    # Ordered allowlisted page blocks (empty when unavailable/disabled).
     pages: list[dict] = field(default_factory=list)
-    # Provenance: crawl identity + versions + source ids + counts.
     summary: dict | None = None
-
-    def snapshot(self) -> dict:
-        """The JSON persisted on the ``ContentGeneration`` row."""
-        return {
-            "status": self.status,
-            "pages": self.pages,
-            "summary": self.summary,
-        }
 
 
 def _clean(value: object, *, max_chars: int) -> str:
@@ -237,9 +224,9 @@ def _bounded_projection(rows: list[_ContextRow]) -> _ContextProjection:
     )
 
 
-def _included_context(
+def _included_selection(
     crawl: SiteCrawl, projection: _ContextProjection
-) -> WebsiteContext:
+) -> CrawlFragmentSelection:
     summary = {
         "crawl_id": str(crawl.id),
         "crawl_completed_at": (
@@ -253,14 +240,10 @@ def _included_context(
         "artifact_ids": projection.artifact_ids,
         "content_hashes": projection.content_hashes,
         "fetched_at": projection.fetched_ats,
-        "selection_policy_version": CONTENT_WEBSITE_CONTEXT_VERSION,
+        "selection_policy_version": CONTENT_CRAWL_FRAGMENT_SELECTION_VERSION,
         "omissions": projection.omissions,
     }
-    return WebsiteContext(
-        status=CONTEXT_STATUS_INCLUDED,
-        pages=projection.pages,
-        summary=summary,
-    )
+    return CrawlFragmentSelection(pages=projection.pages, summary=summary)
 
 
 async def _newest_usable_crawl(
@@ -294,15 +277,15 @@ async def _newest_usable_crawl(
     )
 
 
-async def build_website_context(
+async def select_crawl_fragments(
     session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
-) -> WebsiteContext:
-    """Build the bounded, deterministic, sanitised context projection."""
+) -> CrawlFragmentSelection:
+    """Select bounded crawl fragments for the grounding-envelope owner."""
     crawl = await _newest_usable_crawl(
         session, workspace_id=workspace_id, project_id=project_id
     )
     if crawl is None:
-        return WebsiteContext(status=CONTEXT_STATUS_UNAVAILABLE)
+        return CrawlFragmentSelection()
 
     profile = await session.scalar(
         select(SiteHealthProfile).where(SiteHealthProfile.project_id == project_id)
@@ -340,5 +323,5 @@ async def build_website_context(
     )
     projection = _bounded_projection(ordered_rows)
     if not projection.pages:
-        return WebsiteContext(status=CONTEXT_STATUS_UNAVAILABLE)
-    return _included_context(crawl, projection)
+        return CrawlFragmentSelection()
+    return _included_selection(crawl, projection)

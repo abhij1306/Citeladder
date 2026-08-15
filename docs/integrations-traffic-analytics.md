@@ -82,6 +82,17 @@ Demand Intelligence creates versioned `DemandSignal` and `DemandSnapshot` projec
 - Site and Content coverage;
 - active prompt and Visibility evidence.
 
+For GSC query analysis, the integration owner remains the sole raw-truth owner:
+`gsc_query_page_daily` is immutable input. The Demand refresh selects the latest
+row per property/date/dimension key, then persists a separate bounded
+`QueryEvidenceSnapshot` before detector computation. Its rows retain exact
+metric-row and artifact IDs, importer version, query, page, date, metrics, and
+versioned owned-page resolution. Identical source/window/version input is
+idempotent; changed input appends and supersedes. The read-only query-evidence
+API requires an exact window and exposes 100 rows by default, at most 500, from
+a projection capped at 5,000 rows and 100 artifacts. It never issues a provider
+request or duplicates normalized GSC metric truth.
+
 Each signal records window, source artifact/row IDs, identity joins, coverage, confidence,
 limitations, formula/analyzer version, and related page/entity/journey/question.
 

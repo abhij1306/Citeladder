@@ -35,10 +35,11 @@ runtime does not own validation state machines, user revisions, save decisions,
 publication claims, or later verification. Generated prose is never promoted
 to business truth automatically.
 
-The former knowledge-assertion source for content fact grounding was removed
-with the Site Intelligence simplification. Until a replacement evidence source
-is approved, the runtime exposes an explicit empty fact/source envelope rather
-than fabricating grounding.
+Each generation freezes one bounded grounding envelope. Confirmed or edited
+BrandProfile fields are the only allowed business facts; exact crawl fragments
+remain untrusted observations for terminology, structure, tone, or explicit
+attribution. Conflicts prohibit the affected claim class, and missing evidence
+is exposed as an ungrounded draft rather than fabricated grounding.
 
 ### Demand Intelligence and Track
 

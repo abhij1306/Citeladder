@@ -31,7 +31,14 @@ const snapshot = {
       excluded_pages: 2,
     },
   },
-  summary: { signal_count: 1 },
+  summary: {
+    signal_count: 1,
+    detectors: {
+      striking_distance: { state: 'available' },
+      property_relative_ctr_gap: { state: 'unavailable' },
+      query_trends: { state: 'insufficient_history' },
+    },
+  },
   comparison: null,
   formula_version: 'demand-priority-1',
   analyzer_version: 'demand-analyzer-1',
@@ -77,13 +84,15 @@ describe('DemandProjection', () => {
   it('renders one Search Demand view with useful GSC metrics and no raw score', async () => {
     renderProjection();
 
-    expect(await screen.findByText('1 search gap needs attention')).toBeInTheDocument();
+    expect(await screen.findByText('1 demand signal observed')).toBeInTheDocument();
     expect(screen.getByText('Query')).toBeInTheDocument();
     expect(screen.getByText('school fees')).toBeInTheDocument();
     expect(screen.getByText('100')).toBeInTheDocument();
     expect(screen.getByText('0')).toBeInTheDocument();
     expect(screen.getByText('0.0%')).toBeInTheDocument();
     expect(screen.getByText('Privacy-filtered queries may be omitted.')).toBeInTheDocument();
+    expect(screen.getByText('CTR gap: unavailable.')).toBeInTheDocument();
+    expect(screen.getByText('Query trends: insufficient history.')).toBeInTheDocument();
     expect(screen.queryByText('50')).not.toBeInTheDocument();
     expect(screen.queryByText(/Demand overview/i)).not.toBeInTheDocument();
   });
@@ -115,10 +124,6 @@ describe('DemandProjection', () => {
     vi.mocked(demandApi.getLatest).mockResolvedValue({ ...snapshot, signals: [] });
     renderProjection();
 
-    expect(
-      await screen.findByText(
-        /no query or page met the configured high-impression, low-click criteria/i,
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/no configured detector emitted a signal/i)).toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 """Versioned deterministic branded-query classification and overrides."""
+
 from __future__ import annotations
 
 import re
@@ -60,17 +61,14 @@ def classify_query(
     tokens = normalized.split()
     domain_terms = _domain_spellings(owned_domains)
     vocabulary = {
-        term
-        for value in [brand_name, *aliases]
-        if (term := normalize_query(value))
+        term for value in [brand_name, *aliases] if (term := normalize_query(value))
     }
     vocabulary.update(domain_terms)
     matched = tuple(
         sorted(
             term
             for term in vocabulary
-            if term in normalized
-            and _contains_term(tokens, term.split())
+            if term in normalized and _contains_term(tokens, term.split())
         )
     )
     if not matched:
@@ -99,25 +97,44 @@ async def classify_project_query(
     project_id: uuid.UUID,
     query: str,
 ) -> QueryClassification | None:
-    normalized = normalize_query(query)
-    override = await session.scalar(
-        select(BrandedQueryOverride)
-        .where(BrandedQueryOverride.workspace_id == workspace_id)
-        .where(BrandedQueryOverride.project_id == project_id)
-        .where(BrandedQueryOverride.normalized_query == normalized)
-        .order_by(
-            BrandedQueryOverride.ordinal.desc(),
-        )
-        .limit(1)
+    results = await classify_project_queries(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        queries=[query],
     )
-    if override is not None:
-        return QueryClassification(
-            normalized,
-            override.classification,
-            (),
-            override.classifier_version,
-            override.id,
-        )
+    return results.get(normalize_query(query))
+
+
+async def classify_project_queries(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    queries: list[str],
+) -> dict[str, QueryClassification]:
+    """Classify a bounded query set with one override read and one brand read."""
+    normalized_queries = sorted({normalize_query(value) for value in queries if value})
+    if not normalized_queries:
+        return {}
+    override_rows = list(
+        (
+            await session.scalars(
+                select(BrandedQueryOverride)
+                .where(BrandedQueryOverride.workspace_id == workspace_id)
+                .where(BrandedQueryOverride.project_id == project_id)
+                .where(BrandedQueryOverride.normalized_query.in_(normalized_queries))
+                .distinct(BrandedQueryOverride.normalized_query)
+                .order_by(
+                    BrandedQueryOverride.normalized_query,
+                    BrandedQueryOverride.ordinal.desc(),
+                )
+            )
+        ).all()
+    )
+    overrides: dict[str, BrandedQueryOverride] = {}
+    for row in override_rows:
+        overrides.setdefault(row.normalized_query, row)
     project = await session.scalar(
         select(Project)
         .where(Project.workspace_id == workspace_id, Project.id == project_id)
@@ -127,19 +144,33 @@ async def classify_project_query(
         )
     )
     if project is None:
-        return None
+        return {}
     brand_name = project.brand.name if project.brand is not None else project.brand_name
     aliases = (
         [item.alias for item in project.brand.aliases]
         if project.brand is not None
         else []
     )
-    return classify_query(
-        query,
-        brand_name=brand_name,
-        aliases=aliases,
-        owned_domains=[item.domain for item in project.owned_domains],
-    )
+    domains = [item.domain for item in project.owned_domains]
+    results: dict[str, QueryClassification] = {}
+    for normalized in normalized_queries:
+        override = overrides.get(normalized)
+        if override is not None:
+            results[normalized] = QueryClassification(
+                normalized,
+                override.classification,
+                (),
+                override.classifier_version,
+                override.id,
+            )
+        else:
+            results[normalized] = classify_query(
+                normalized,
+                brand_name=brand_name,
+                aliases=aliases,
+                owned_domains=domains,
+            )
+    return results
 
 
 async def append_override(

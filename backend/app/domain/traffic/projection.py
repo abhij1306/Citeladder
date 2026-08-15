@@ -101,6 +101,7 @@ class TrafficMetricRowInput:
     metrics: Mapping[str, Any] | None
     source_artifact_id: uuid.UUID
     resync_seq: int
+    importer_version: str = ""
 
 
 @dataclass(frozen=True)

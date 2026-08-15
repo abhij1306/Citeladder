@@ -58,13 +58,11 @@ from app.core.config.audits import (
     AUDIT_STATUS_COMPLETED,
     AUDIT_STATUS_PARTIALLY_COMPLETED,
 )
-from app.core.config.demand import DEMAND_SIGNAL_HIGH_IMPRESSION_LOW_CTR
 from app.core.config.opportunities import (
     ANALYZER_VERSION,
     CODE_OPPORTUNITY_SUPERSEDED,
     CONFIRMED_DECLINE_GAP_NORMALIZER,
     CONFIRMED_DECLINE_MIN_FACTOR,
-    DEMAND_SIGNAL_GAP_FACTOR,
     FORMULA_VERSION,
     GUIDANCE_ENABLED_ENVIRONMENTS,
     GUIDANCE_GENERATOR_VERSION,
@@ -107,6 +105,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_RETRY_WAIT,
     TASK_STATUS_RUNNING,
 )
+from app.domain.opportunities.demand_hits import load_demand_hits
 from app.domain.opportunities.site_coverage import site_coverage
 from app.domain.opportunities.snapshot_projection import project_snapshot
 from app.domain.products.visibility import select_current_snapshots
@@ -125,7 +124,7 @@ from app.models.analysis import (
 from app.models.analytics import AnalyticsTask
 from app.models.audit import Audit, AuditPromptSnapshot
 from app.models.brand import OwnedDomain
-from app.models.demand import DemandSignal, DemandSnapshot
+from app.models.demand import DemandSnapshot
 from app.models.opportunity import (
     Opportunity,
     OpportunityGuidance,
@@ -661,68 +660,6 @@ async def _confirmed_decline_hits(
     ]
 
 
-def _demand_hit(snapshot: DemandSnapshot, signal: DemandSignal) -> DetectorHit | None:
-    evidence = dict(signal.evidence or {})
-    target_kind = str(evidence.get("target_kind") or "")
-    target = str(evidence.get("target") or "")
-    if not target:
-        return None
-    return DetectorHit(
-        rule_id="search_demand_content_gap",
-        target_key=f"demand:{signal.identity_hash}",
-        target_prompt_id=None,
-        target_url=target if target_kind == "page" else None,
-        target_theme=target if target_kind == "query" else None,
-        evidence={
-            "demand_snapshot_id": str(snapshot.id),
-            "demand_signal_id": str(signal.id),
-            "signal_type": signal.signal_type,
-            "metrics": dict(signal.metrics or {}),
-            "coverage": dict(signal.coverage or {}),
-            "limitations": list(signal.limitations or []),
-        },
-        source_analysis_ids=(),
-        source_issue_ids=(),
-        source_metric_ids=tuple(evidence.get("source_metric_row_ids") or []),
-        value_factor=max(0.01, min(1.0, float(signal.priority_score or 0) / 100)),
-        gap_factor=DEMAND_SIGNAL_GAP_FACTOR,
-    )
-
-
-async def _demand_hits(
-    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
-) -> tuple[DemandSnapshot | None, list[DetectorHit]]:
-    """Map the latest persisted Demand candidates into the shared action store."""
-    snapshot = await session.scalar(
-        select(DemandSnapshot)
-        .where(
-            DemandSnapshot.workspace_id == workspace_id,
-            DemandSnapshot.project_id == project_id,
-        )
-        .order_by(DemandSnapshot.created_at.desc(), DemandSnapshot.id.desc())
-        .limit(1)
-    )
-    if snapshot is None:
-        return None, []
-    signals = list(
-        (
-            await session.scalars(
-                select(DemandSignal)
-                .where(
-                    DemandSignal.workspace_id == workspace_id,
-                    DemandSignal.project_id == project_id,
-                    DemandSignal.snapshot_id == snapshot.id,
-                    DemandSignal.signal_type == DEMAND_SIGNAL_HIGH_IMPRESSION_LOW_CTR,
-                    DemandSignal.state == "active",
-                )
-                .order_by(DemandSignal.identity_hash, DemandSignal.id)
-            )
-        ).all()
-    )
-    hits = [hit for signal in signals if (hit := _demand_hit(snapshot, signal))]
-    return snapshot, hits
-
-
 # =========================================================================
 # Recompute (supersede-not-mutate write path, one transaction)
 # =========================================================================
@@ -736,7 +673,7 @@ async def _collect_recompute_hits(
     explicit_audit: bool,
 ) -> tuple[Audit | None, DemandSnapshot | None, list[DetectorHit]]:
     hits: list[DetectorHit] = []
-    demand_snapshot, demand_hits = await _demand_hits(
+    demand_snapshot, demand_hits = await load_demand_hits(
         session, workspace_id=workspace_id, project_id=project_id
     )
     hits.extend(demand_hits)

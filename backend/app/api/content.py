@@ -16,7 +16,6 @@ from app.core.config.content import (
     ERROR_CANCEL_NOT_ALLOWED,
     ERROR_IDEMPOTENCY_CONFLICT,
     ERROR_PROVIDER_NOT_CONFIGURED,
-    ERROR_WEBSITE_CONTEXT_UNAVAILABLE,
 )
 from app.domain.abuse.service import UsageLimitExceededError
 from app.domain.content.schemas import (
@@ -30,7 +29,6 @@ from app.domain.content.service import (
     ContentGenerationNotFoundError,
     IdempotencyConflictError,
     ProviderNotConfiguredError,
-    WebsiteContextUnavailableError,
     cancel_generation,
     enqueue_generation,
     get_generation,
@@ -63,8 +61,6 @@ def _usage_limited(exc: UsageLimitExceededError) -> HTTPException:
 def _enqueue_conflict(exc: Exception) -> HTTPException:
     if isinstance(exc, ProviderNotConfiguredError):
         detail = ERROR_PROVIDER_NOT_CONFIGURED
-    elif isinstance(exc, WebsiteContextUnavailableError):
-        detail = ERROR_WEBSITE_CONTEXT_UNAVAILABLE
     else:
         detail = ERROR_IDEMPOTENCY_CONFLICT
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
@@ -121,7 +117,6 @@ async def enqueue_generation_endpoint(
     except (
         ProviderNotConfiguredError,
         IdempotencyConflictError,
-        WebsiteContextUnavailableError,
     ) as exc:
         raise _enqueue_conflict(exc) from exc
     except UsageLimitExceededError as exc:
@@ -180,7 +175,7 @@ async def _repeat_generation(
         )
     except ContentGenerationNotFoundError as exc:
         raise _not_found(exc) from exc
-    except (ProviderNotConfiguredError, WebsiteContextUnavailableError) as exc:
+    except ProviderNotConfiguredError as exc:
         raise _enqueue_conflict(exc) from exc
     except UsageLimitExceededError as exc:
         raise _usage_limited(exc) from exc

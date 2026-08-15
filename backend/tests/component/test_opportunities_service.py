@@ -149,6 +149,90 @@ async def test_unchanged_demand_snapshot_remains_fresh_and_ready(
     assert opportunity.evidence["demand_signal_id"]
 
 
+async def test_only_approved_query_detector_signal_becomes_an_opportunity(
+    db_session: AsyncSession,
+) -> None:
+    workspace_id, project_id, _prompt_ids = await _seed_base(db_session)
+    demand = DemandSnapshot(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        window_start=date(2026, 7, 1),
+        window_end=date(2026, 7, 14),
+        source_hash="e" * 64,
+        source_artifact_ids=[],
+        source_metric_row_ids=[],
+        coverage={"query_evidence": "available"},
+        summary={},
+        formula_version="demand-priority-1",
+        analyzer_version="demand-analyzer-3",
+    )
+    db_session.add(demand)
+    await db_session.flush()
+    source_metric_id = str(uuid.uuid4())
+    common = {
+        "workspace_id": workspace_id,
+        "project_id": project_id,
+        "snapshot_id": demand.id,
+        "state": "active",
+        "page_url": "https://example.com/guide",
+        "evidence": {
+            "target_kind": "query",
+            "target": "answer engine guide",
+            "resolved_page_url": "https://example.com/guide",
+            "source_metric_row_ids": [source_metric_id],
+        },
+        "metrics": {"impressions": 100, "position": 7.0},
+        "coverage": {"query_evidence": "observed"},
+        "limitations": [],
+        "priority_score": 60,
+        "priority_inputs": {},
+        "analyzer_version": "demand-analyzer-3",
+        "rule_version": "demand-rules-3",
+        "formula_version": "demand-priority-1",
+    }
+    db_session.add_all(
+        [
+            DemandSignal(
+                **common,
+                identity_hash="t" * 64,
+                signal_type="striking_distance",
+                topic_cluster="answer engine guide",
+            ),
+            DemandSignal(
+                **common,
+                identity_hash="b" * 64,
+                signal_type="branded_query_performance",
+                topic_cluster="example guide",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    await service.recompute(
+        db_session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        skip_if_current=False,
+    )
+
+    opportunities = list(
+        (
+            await db_session.scalars(
+                select(Opportunity).where(
+                    Opportunity.project_id == project_id,
+                    Opportunity.superseded_at.is_(None),
+                )
+            )
+        ).all()
+    )
+    demand_rows = [
+        row for row in opportunities if row.rule_id == "striking_distance_query"
+    ]
+    assert len(demand_rows) == 1
+    assert demand_rows[0].target_url == "https://example.com/guide"
+    assert demand_rows[0].target_theme == "answer engine guide"
+
+
 async def test_automatic_refresh_task_is_unique_and_manual_success_is_ready(
     db_session: AsyncSession,
 ) -> None:

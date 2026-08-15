@@ -165,6 +165,7 @@ def _to_input(row: IntegrationMetricRow) -> TrafficMetricRowInput:
         metrics=row.metrics,
         source_artifact_id=row.source_artifact_id,
         resync_seq=row.resync_seq,
+        importer_version=row.importer_version,
     )
 
 

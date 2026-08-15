@@ -92,9 +92,11 @@ date, policy, safety, and identity claims must be validated against the context
 actually supplied. A provider cannot cite an absent artifact. Generated content
 never becomes a fact automatically.
 
-The current content fact envelope is explicitly empty after removal of the
-former knowledge-assertion source. Do not pretend that this is grounded; a
-replacement source requires a separate product decision.
+Content generation freezes one versioned grounding envelope from confirmed or
+edited BrandProfile fields plus exact crawl-observed fragments. Crawl text stays
+untrusted observation, conflicts prohibit the affected claim class, and absent
+source references fail validation. An unavailable envelope produces an
+explicitly labelled ungrounded draft; it never fabricates grounding.
 
 Where structured data mirrors visible content, such as `FAQPage`, markup is
 generated from reviewed visible content rather than substituted for it.

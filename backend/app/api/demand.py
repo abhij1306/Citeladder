@@ -3,15 +3,26 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
+from app.core.config.demand import (
+    QUERY_EVIDENCE_DEFAULT_LIMIT,
+    QUERY_EVIDENCE_MAX_LIMIT,
+)
 from app.core.http_errors import raise_not_found
 from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
 from app.domain.demand.query_classification import append_override
+from app.domain.demand.query_evidence_reads import (
+    QueryEvidenceCursorError,
+    latest_query_evidence_snapshot,
+    list_query_evidence,
+    query_evidence_resolution_counts,
+)
 from app.domain.demand.schemas import (
     BrandedQueryClassificationView,
     BrandedQueryOverrideRequest,
@@ -19,6 +30,10 @@ from app.domain.demand.schemas import (
     DemandRecomputeResponse,
     DemandSignalView,
     DemandSnapshotView,
+    QueryEvidencePageView,
+    QueryEvidenceRowView,
+    QueryEvidenceSnapshotView,
+    QueryEvidenceSummaryView,
 )
 from app.domain.demand.service import (
     demand_source_revision,
@@ -30,6 +45,10 @@ from app.domain.projects.service import ProjectNotFoundError, get_project
 router = APIRouter(prefix="/projects", tags=["demand"])
 _WorkspaceDep = Annotated[WorkspaceContext, Depends(require_active_workspace)]
 _SessionDep = Annotated[AsyncSession, Depends(get_db)]
+
+
+def _query_snapshot_view(row) -> QueryEvidenceSnapshotView:
+    return QueryEvidenceSnapshotView.model_validate(row)
 
 
 async def _authorize(
@@ -109,6 +128,100 @@ async def recompute(
     await session.commit()
     return DemandRecomputeResponse(
         task_id=task_id, status="queued" if task_id else "already_queued"
+    )
+
+
+async def _required_query_snapshot(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    window_start,
+    window_end,
+):
+    row = await latest_query_evidence_snapshot(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        window_start=window_start,
+        window_end=window_end,
+    )
+    if row is None:
+        raise_not_found("Query evidence snapshot")
+    return row
+
+
+@router.get("/{project_id}/demand/query-evidence", response_model=QueryEvidencePageView)
+async def query_evidence(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    window_start: Annotated[date, Query()],
+    window_end: Annotated[date, Query()],
+    cursor: Annotated[str | None, Query(max_length=512)] = None,
+    limit: Annotated[int, Query(ge=1, le=QUERY_EVIDENCE_MAX_LIMIT)] = (
+        QUERY_EVIDENCE_DEFAULT_LIMIT
+    ),
+    query: Annotated[str | None, Query(max_length=512)] = None,
+    site_url_id: Annotated[uuid.UUID | None, Query()] = None,
+    resolution_outcome: Annotated[
+        Literal["exact", "resolved", "ambiguous", "unresolved"] | None, Query()
+    ] = None,
+) -> QueryEvidencePageView:
+    await _authorize(session, ctx.workspace_id, project_id)
+    snapshot = await _required_query_snapshot(
+        session,
+        workspace_id=ctx.workspace_id,
+        project_id=project_id,
+        window_start=window_start,
+        window_end=window_end,
+    )
+    try:
+        page = await list_query_evidence(
+            session,
+            snapshot=snapshot,
+            limit=limit,
+            cursor=cursor,
+            query=query,
+            site_url_id=site_url_id,
+            resolution_outcome=resolution_outcome,
+        )
+    except QueryEvidenceCursorError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="query_evidence_cursor_invalid",
+        ) from exc
+    return QueryEvidencePageView(
+        snapshot=_query_snapshot_view(snapshot),
+        items=[QueryEvidenceRowView.model_validate(row) for row in page.rows],
+        next_cursor=page.next_cursor,
+    )
+
+
+@router.get(
+    "/{project_id}/demand/query-evidence/summary",
+    response_model=QueryEvidenceSummaryView,
+)
+async def query_evidence_summary(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    window_start: Annotated[date, Query()],
+    window_end: Annotated[date, Query()],
+) -> QueryEvidenceSummaryView:
+    await _authorize(session, ctx.workspace_id, project_id)
+    snapshot = await _required_query_snapshot(
+        session,
+        workspace_id=ctx.workspace_id,
+        project_id=project_id,
+        window_start=window_start,
+        window_end=window_end,
+    )
+    return QueryEvidenceSummaryView(
+        snapshot=_query_snapshot_view(snapshot),
+        counts_by_resolution=await query_evidence_resolution_counts(
+            session, snapshot=snapshot
+        ),
     )
 
 

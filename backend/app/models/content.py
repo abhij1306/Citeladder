@@ -89,10 +89,9 @@ class ContentGeneration(Base):
     skill_id: Mapped[str] = mapped_column(String(64), default="article")
     skill_version: Mapped[str] = mapped_column(String(32), default="content-v1")
     output_type: Mapped[str] = mapped_column(String(32))
-    # Website grounding is mandatory for every accepted generation.
-    website_context_status: Mapped[str] = mapped_column(String(16), default="")
-    # Allowlisted page facts + provenance ids/counts. Never the key.
-    website_context_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Frozen confirmed-fact + crawl-observation envelope. Never the key.
+    grounding_status: Mapped[str] = mapped_column(String(16), default="")
+    grounding_envelope: Mapped[dict] = mapped_column(JSONB, default=dict)
     # Stable hash over (project_id, prompt, output_type, context flag): the
     # idempotency replay/conflict comparator.
     request_fingerprint: Mapped[str] = mapped_column(String(64), index=True)

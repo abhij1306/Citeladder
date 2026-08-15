@@ -96,8 +96,8 @@ import type {
   contentGenerationListItemSchema,
   contentGenerationStatusSchema,
   contentOutputTypeSchema,
-  websiteContextStatusSchema,
-  websiteContextSummarySchema,
+  groundingStatusSchema,
+  groundingEnvelopeSummarySchema,
   // Products (agentic commerce)
   buyerDestinationKindSchema,
   buyerDestinationMixSchema,
@@ -257,8 +257,8 @@ export type VisibilityEvidenceResponse = z.infer<typeof visibilityEvidenceRespon
 // --- Content ---
 export type ContentGenerationStatus = z.infer<typeof contentGenerationStatusSchema>;
 export type ContentOutputType = z.infer<typeof contentOutputTypeSchema>;
-export type WebsiteContextStatus = z.infer<typeof websiteContextStatusSchema>;
-export type WebsiteContextSummary = z.infer<typeof websiteContextSummarySchema>;
+export type GroundingStatus = z.infer<typeof groundingStatusSchema>;
+export type GroundingEnvelopeSummary = z.infer<typeof groundingEnvelopeSummarySchema>;
 export type ContentGenerationListItem = z.infer<typeof contentGenerationListItemSchema>;
 export type ContentGenerationDetail = z.infer<typeof contentGenerationDetailSchema>;
 

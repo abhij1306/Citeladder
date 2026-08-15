@@ -23,26 +23,20 @@ export const contentGenerationStatusSchema = z.enum([
 
 // Frozen on the row at enqueue: Website context was either projected in or
 // unavailable because no usable crawl evidence existed.
-export const websiteContextStatusSchema = z.enum(['included', 'unavailable']);
+export const groundingStatusSchema = z.enum(['included', 'unavailable', 'conflicting']);
 
 export const contentOutputTypeSchema = z.enum(['website_page']);
 export const contentSkillSchema = z.enum(['youtube', 'reddit', 'blog', 'article']);
 
-// Provenance for the frozen Website-context snapshot (backend
-// `WebsiteContextSummary`) — which crawl, how fresh, which sources. Never
-// page bodies, never the key.
-export const websiteContextSummarySchema = responseObject({
-  crawl_id: uuid(),
-  crawl_completed_at: z.string().nullable(),
-  extractor_version: z.string(),
-  analyzer_version: z.string(),
-  page_count: z.number().int(),
-  char_count: z.number().int(),
-  site_url_ids: z.array(uuid()),
-  artifact_ids: z.array(uuid()),
-  content_hashes: z.array(z.string()),
-  selection_policy_version: z.string().default(''),
+// Public summary of the frozen grounding envelope. Never fragment bodies.
+export const groundingEnvelopeSummarySchema = responseObject({
+  version: z.string(),
+  allowed_fact_count: z.number().int().nonnegative(),
+  source_ref_count: z.number().int().nonnegative(),
+  crawl_fragment_count: z.number().int().nonnegative(),
+  prohibited_claim_classes: z.array(z.string()),
   omissions: z.array(z.record(z.string(), z.unknown())).default([]),
+  budget: z.record(z.string(), z.unknown()),
 });
 
 // Bounded history-list projection (backend `ContentGenerationListItem`) —
@@ -55,7 +49,7 @@ export const contentGenerationListItemSchema = responseObject({
   output_type: contentOutputTypeSchema,
   skill_id: contentSkillSchema,
   opportunity_id: uuid().nullable(),
-  website_context_status: websiteContextStatusSchema,
+  grounding_status: groundingStatusSchema,
   requested_model: z.string(),
   returned_model: z.string().nullable(),
   provider: z.string().nullable(),
@@ -78,7 +72,7 @@ export const contentGenerationDetailSchema = responseObject({
   skill_version: z.string(),
   feedback: z.enum(['accepted', 'rejected']).nullable(),
   feedback_at: z.string().nullable(),
-  website_context_status: websiteContextStatusSchema,
+  grounding_status: groundingStatusSchema,
   requested_model: z.string(),
   returned_model: z.string().nullable(),
   provider: z.string().nullable(),
@@ -88,7 +82,7 @@ export const contentGenerationDetailSchema = responseObject({
   error_code: z.string(),
   prompt_preview: z.string(),
   prompt: z.string(),
-  website_context_summary: websiteContextSummarySchema.nullable(),
+  grounding_summary: groundingEnvelopeSummarySchema,
   finish_reason: z.string().nullable(),
   output_truncated: z.boolean(),
   output_text: z.string().nullable(),

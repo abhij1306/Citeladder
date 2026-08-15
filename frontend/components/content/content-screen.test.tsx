@@ -45,7 +45,7 @@ function generation(overrides: Record<string, unknown> = {}) {
     opportunity_id: null,
     feedback: null,
     feedback_at: null,
-    website_context_status: 'included',
+    grounding_status: 'included',
     requested_model: 'mistral-small-latest',
     returned_model: null,
     provider: 'mistral',
@@ -55,16 +55,14 @@ function generation(overrides: Record<string, unknown> = {}) {
     error_code: '',
     prompt_preview: 'Write a landing page',
     prompt: 'Write a landing page for Acme.',
-    website_context_summary: {
-      crawl_id: '44444444-4444-4444-8444-444444444444',
-      crawl_completed_at: '2026-07-14T00:00:00Z',
-      extractor_version: 'ex-v1',
-      analyzer_version: 'an-v1',
-      page_count: 3,
-      char_count: 1200,
-      site_url_ids: [],
-      artifact_ids: [],
-      content_hashes: [],
+    grounding_summary: {
+      version: 'grounding-envelope-v1',
+      allowed_fact_count: 3,
+      source_ref_count: 4,
+      crawl_fragment_count: 1,
+      prohibited_claim_classes: ['pricing'],
+      omissions: [],
+      budget: {},
     },
     finish_reason: null,
     output_truncated: false,
@@ -114,7 +112,7 @@ describe('ContentScreen — ready state', () => {
     const generate = await screen.findByRole('button', { name: 'Generate' });
     expect(generate).toBeDisabled();
 
-    expect(screen.getByText(/grounded in persisted website evidence/i)).toBeInTheDocument();
+    expect(screen.getByText(/uses confirmed facts and crawl evidence/i)).toBeInTheDocument();
 
     await userEvent.type(
       screen.getByRole('textbox', { name: /describe the website content/i }),
@@ -171,7 +169,7 @@ describe('ContentScreen — generate flow', () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/requested model: mistral-small-latest/i)).toBeInTheDocument();
     expect(screen.getByText(/returned model: mistral-small-2506/i)).toBeInTheDocument();
-    expect(screen.getByText(/website context: 3 pages/i)).toBeInTheDocument();
+    expect(screen.getByText(/grounding: 3 confirmed facts · 1 crawl fragments/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /regenerate/i })).toBeInTheDocument();
     expect(screen.queryByText(/hit the length limit/i)).not.toBeInTheDocument();
   });
@@ -273,11 +271,27 @@ describe('ContentScreen — error state', () => {
     expect(textarea).toBeEnabled();
   });
 
-  it('explains when persisted website evidence is unavailable', async () => {
+  it('truthfully labels a generated draft when grounding is unavailable', async () => {
     mockBase();
     mswServer.use(
       http.post('/api/v1/content/generations', () =>
-        HttpResponse.json({ detail: 'website_context_unavailable' }, { status: 409 }),
+        HttpResponse.json(
+          generation({
+            status: 'succeeded',
+            grounding_status: 'unavailable',
+            grounding_summary: {
+              version: 'grounding-envelope-v1',
+              allowed_fact_count: 0,
+              source_ref_count: 0,
+              crawl_fragment_count: 0,
+              prohibited_claim_classes: ['identity', 'pricing'],
+              omissions: [{ reason_code: 'crawl_evidence_unavailable' }],
+              budget: {},
+            },
+            output_text: 'Draft',
+          }),
+          { status: 202 },
+        ),
       ),
     );
     renderScreen();
@@ -286,7 +300,7 @@ describe('ContentScreen — error state', () => {
       'My prompt text',
     );
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/complete a site health crawl/i);
+    expect(await screen.findByText(/unavailable — ungrounded draft/i)).toBeInTheDocument();
   });
 
   it('a failed generation offers Try again, which enqueues a new record', async () => {

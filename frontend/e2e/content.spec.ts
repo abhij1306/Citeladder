@@ -55,7 +55,7 @@ function generation(overrides: Record<string, unknown> = {}) {
     skill_version: 'content-v1',
     feedback: null,
     feedback_at: null,
-    website_context_status: 'included',
+    grounding_status: 'included',
     requested_model: 'mistral-small-latest',
     returned_model: null,
     provider: 'mistral',
@@ -65,7 +65,15 @@ function generation(overrides: Record<string, unknown> = {}) {
     error_code: '',
     prompt_preview: 'Write an about page',
     prompt: 'Write an about page for Acme.',
-    website_context_summary: null,
+    grounding_summary: {
+      version: 'grounding-envelope-v1',
+      allowed_fact_count: 2,
+      source_ref_count: 3,
+      crawl_fragment_count: 1,
+      prohibited_claim_classes: ['pricing'],
+      omissions: [],
+      budget: {},
+    },
     finish_reason: null,
     output_truncated: false,
     output_text: null,
@@ -128,12 +136,16 @@ test('content nav link is live and the enqueue → output flow renders sanitised
   await expect(page).toHaveURL(/\/content$/);
 
   const promptBox = page.getByRole('textbox', { name: /describe the website content/i });
+  await expect(
+    page.getByText('Uses confirmed facts and crawl evidence when available'),
+  ).toBeVisible();
   await promptBox.fill('Write an about page for Acme.');
   await page.getByRole('button', { name: 'Generate' }).click();
 
   // The queued state may resolve before the browser paints; assert the durable result.
   await expect(page.getByRole('heading', { name: 'About Acme' })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/returned model: mistral-small-2506/i)).toBeVisible();
+  await expect(page.getByText(/Grounding: 2 confirmed facts · 1 crawl fragments/i)).toBeVisible();
 });
 
 test('cancel during generation returns the screen to a non-generating state', async ({ page }) => {

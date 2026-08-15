@@ -73,7 +73,7 @@ class ContentGenerationListItem(BaseModel):
     output_type: str
     skill_id: str = CONTENT_DEFAULT_SKILL
     opportunity_id: uuid.UUID | None = None
-    website_context_status: str
+    grounding_status: str
     requested_model: str
     returned_model: str | None = None
     provider: str | None = None
@@ -84,21 +84,16 @@ class ContentGenerationListItem(BaseModel):
     prompt_preview: str = ""
 
 
-class WebsiteContextSummary(BaseModel):
-    """Provenance for the frozen Website-context snapshot (which crawl,
-    how fresh, which sources). Never page bodies, never the key."""
+class GroundingEnvelopeSummary(BaseModel):
+    """Bounded public provenance summary; never source-fragment bodies."""
 
-    crawl_id: str
-    crawl_completed_at: str | None = None
-    extractor_version: str = ""
-    analyzer_version: str = ""
-    page_count: int = 0
-    char_count: int = 0
-    site_url_ids: list[str] = []
-    artifact_ids: list[str] = []
-    content_hashes: list[str] = []
-    selection_policy_version: str = ""
+    version: str
+    allowed_fact_count: int = 0
+    source_ref_count: int = 0
+    crawl_fragment_count: int = 0
+    prohibited_claim_classes: list[str] = []
     omissions: list[dict] = []
+    budget: dict = {}
 
 
 class ContentGenerationDetail(BaseModel):
@@ -115,7 +110,7 @@ class ContentGenerationDetail(BaseModel):
     skill_version: str = ""
     feedback: str | None = None
     feedback_at: datetime | None = None
-    website_context_status: str
+    grounding_status: str
     requested_model: str
     returned_model: str | None = None
     provider: str | None = None
@@ -125,7 +120,7 @@ class ContentGenerationDetail(BaseModel):
     error_code: str = ""
     prompt_preview: str = ""
     prompt: str
-    website_context_summary: WebsiteContextSummary | None = None
+    grounding_summary: GroundingEnvelopeSummary
     finish_reason: str | None = None
     output_truncated: bool = False
     output_text: str | None = None

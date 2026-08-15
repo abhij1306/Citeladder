@@ -70,6 +70,11 @@ def test_v2_enabled_rule_set() -> None:
         "price_mention_mismatch",
         "confirmed_prompt_decline",
         "search_demand_content_gap",
+        "striking_distance_query",
+        "query_cannibalization",
+        "property_relative_ctr_gap",
+        "emerging_query",
+        "declining_query",
     }
 
 

@@ -45,9 +45,6 @@ function actionErrorMessage(error: unknown): string {
     if (body.includes('idempotency_conflict')) {
       return 'A different request was already submitted with this key. Please try again.';
     }
-    if (body.includes('website_context_unavailable')) {
-      return 'Website evidence is not ready. Complete a Site Health crawl before generating content.';
-    }
   }
   return 'Something went wrong while generating your content. You can try again.';
 }
@@ -165,7 +162,7 @@ function ContentComposer({
             className="text-secondary inline-flex items-center gap-2 text-xs font-medium"
           >
             <Sparkles className="size-3" aria-hidden />
-            Grounded in persisted website evidence
+            Uses confirmed facts and crawl evidence when available
           </div>
           <div className="ml-auto">
             <Button
@@ -308,10 +305,12 @@ function GenerationResult({
           <span>Requested model: {detail.requested_model}</span>
           {detail.returned_model ? <span>Returned model: {detail.returned_model}</span> : null}
           <span>
-            Website context:{' '}
-            {detail.website_context_status === 'included'
-              ? `${detail.website_context_summary?.page_count ?? 0} pages`
-              : detail.website_context_status}
+            Grounding:{' '}
+            {detail.grounding_status === 'included'
+              ? `${detail.grounding_summary.allowed_fact_count} confirmed facts · ${detail.grounding_summary.crawl_fragment_count} crawl fragments`
+              : detail.grounding_status === 'conflicting'
+                ? 'Conflicting facts omitted'
+                : 'Unavailable — ungrounded draft'}
           </span>
         </div>
         <div className="flex gap-2">
