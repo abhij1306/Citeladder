@@ -146,3 +146,36 @@ async def test_partial_graph_emits_no_link_opportunities(
         )
     )
     assert count == 0
+
+
+async def test_complete_graph_does_not_promote_a_non_indexable_weak_target(
+    db_session: AsyncSession,
+) -> None:
+    scenario, snapshot = await _add_graph(db_session, complete=True)
+    target = await db_session.scalar(
+        select(SiteLinkGraphNode).where(
+            SiteLinkGraphNode.snapshot_id == snapshot.id,
+            SiteLinkGraphNode.weak_authority.is_(True),
+        )
+    )
+    assert target is not None
+    target.indexable = False
+    await db_session.commit()
+
+    await service.recompute(
+        db_session,
+        workspace_id=scenario.workspace_id,
+        project_id=scenario.project_id,
+    )
+    count = await db_session.scalar(
+        select(func.count())
+        .select_from(Opportunity)
+        .where(
+            Opportunity.project_id == scenario.project_id,
+            Opportunity.rule_id.in_(
+                ["site_link_near_orphan", "site_link_weak_authority"]
+            ),
+            Opportunity.superseded_at.is_(None),
+        )
+    )
+    assert count == 0

@@ -171,7 +171,8 @@ and `edges` endpoints. Optional `crawl_id` selects an exact persisted snapshot;
 omission selects the latest. Node and edge pages use snapshot-bound cursors and
 never compute, repair, crawl, or enqueue work.
 
-Only complete `available` graph snapshots can produce link Opportunities. The
+Only complete `available` graph snapshots can produce link Opportunities, and
+their target must be indexable. The
 existing Opportunity owner maps `near_orphan` and `weak_authority` separately,
 freezes the graph snapshot/node plus exact target/source analysis provenance,
 and includes the analyzer's bounded suggested source pages. An incomplete

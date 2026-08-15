@@ -33,7 +33,8 @@ disposable database.
   deterministic suggested source produced exactly two distinct Opportunities,
   each with the graph snapshot/node and both source-analysis IDs.
 - Boundary fixture: the identical observed topology marked incomplete produced
-  zero link Opportunities.
+  zero link Opportunities; a complete graph's non-indexable weak target also
+  produced none.
 - Website fixture: the bounded followed-edge preview, page-authority table,
   page-detail source links, and descriptive partial-crawl disclosure render
   from persisted API rows. No client metric or alternate link store is used.

@@ -334,7 +334,7 @@ row is the removal condition. No other compatibility path is implied.
 #### L02 — completed 2026-08-15
 - Wave / branch: W5 / `feat/aeo-wave-5-site-intelligence`
 - Owners: immutable Site Health graph evidence, the singular Opportunity store, and the Website tab surface.
-- Implemented: complete-coverage-only mapping of the approved near-orphan and weak-authority signals with exact graph/node/analysis provenance and bounded source suggestions; a bounded followed-edge Website preview; and an always-present page-authority table fallback with crawl-bounded page links and descriptive incomplete coverage.
+- Implemented: complete-coverage/indexable-target-only mapping of the approved near-orphan and weak-authority signals with exact graph/node/analysis provenance and bounded source suggestions; a bounded followed-edge Website preview; and an always-present page-authority table fallback with crawl-bounded page links and descriptive incomplete coverage.
 - Deleted / retained until: retained the existing Opportunity supersede lifecycle, `SiteLinkReference`, graph projections, Site Health page detail, and sitemap-orphan evaluator as their sole owners. No alternate recommendation store, embeddings, client metric, or partial-crawl link Opportunity exists.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 39

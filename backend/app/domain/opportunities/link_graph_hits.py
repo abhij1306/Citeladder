@@ -142,6 +142,7 @@ async def load_link_graph_hits(
                         SiteLinkGraphNode.near_orphan.is_(True),
                         SiteLinkGraphNode.weak_authority.is_(True),
                     ),
+                    SiteLinkGraphNode.indexable.is_(True),
                 )
                 .order_by(SiteLinkGraphNode.normalized_url, SiteLinkGraphNode.id)
                 .limit(LINK_GRAPH_MAX_NODES)
