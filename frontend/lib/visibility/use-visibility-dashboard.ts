@@ -220,8 +220,8 @@ function useEvidenceQueries(
 
 /**
  * The Visibility workspace's per-tab queries. Only the relevant query runs per
- * tab: the selected-run projection for Overview, the trend series for Trends,
- * and the shared execution-evidence query (one identical cache key) for either
+ * tab: the selected-run projection and trend series for Trends, and the shared
+ * execution-evidence query (one identical cache key) for either
  * evidence tab — so switching between the two evidence tabs reuses the cache.
  */
 export function useVisibilityQueries(
@@ -255,7 +255,6 @@ export function useVisibilityQueries(
         { signal },
       ),
     enabled: Boolean(projectId) && hasRuns && activeTab === 'trends',
-    placeholderData: keepPreviousData,
   });
 
   // Trends: the cross-run series. Enabled only on the Trends tab. Engine, date

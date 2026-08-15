@@ -86,6 +86,9 @@ async def test_product_crud_round_trip(client: httpx.AsyncClient) -> None:
     projects_after = await client.get("/api/v1/projects")
     assert projects_after.status_code == 200
     assert projects_after.json()[0]["has_commerce_evidence"] is True
+    project_after = await client.get(f"/api/v1/projects/{project['id']}")
+    assert project_after.status_code == 200
+    assert project_after.json()["has_commerce_evidence"] is True
     assert body["sku"] == "VC-EB500-GR"
     assert body["currency"] == "USD"  # normalized
     assert body["origin"] == "manual"
