@@ -25,6 +25,7 @@ import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.config.analytics import ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH
 from app.core.config.site_health import (
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_COMPLETED,
@@ -392,16 +393,19 @@ async def test_standard_crawl_completes_when_advanced_controls_are_available(
             )
             is not None
         )
-        # A discovery-only terminal crawl has no usable analysis evidence, so
-        # it must not start either downstream refresh chain.
-        assert (
-            await session.scalar(
-                select(AnalyticsTask.id).where(
-                    AnalyticsTask.project_id == seed.project_id
-                )
+        # With no usable analysis evidence, no graph is invented. The crawl
+        # provenance still refreshes Opportunities so stale signals are cleared.
+        refresh = await session.scalar(
+            select(AnalyticsTask).where(
+                AnalyticsTask.project_id == seed.project_id,
+                AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
             )
-            is None
         )
+        assert refresh is not None
+        assert refresh.payload == {
+            "trigger_kind": "site_crawl",
+            "trigger_id": str(seed.crawl_id),
+        }
 
 
 @pytest.mark.asyncio
