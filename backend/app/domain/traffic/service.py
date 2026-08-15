@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 
-from sqlalchemy import Float, and_, cast, delete, or_, select
+from sqlalchemy import Float, and_, cast, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -213,6 +213,7 @@ async def _upsert_snapshot(
                 "source_artifact_ids": projection.source_artifact_ids,
                 "formula_version": TRAFFIC_FORMULA_VERSION,
                 "normalization_version": TRAFFIC_NORMALIZATION_VERSION,
+                "created_at": func.now(),
             },
         )
         .returning(TrafficSnapshot.id)
@@ -379,6 +380,19 @@ async def refresh_traffic_snapshot(
             await _replace_query_stats(
                 session, task=task, snapshot_id=snapshot_id, projection=projection
             )
+            if granularity == TRAFFIC_DEFAULT_GRANULARITY:
+                from app.domain.opportunities.verification import (
+                    enqueue_implementation_verification,
+                )
+
+                await enqueue_implementation_verification(
+                    session,
+                    workspace_id=task.workspace_id,
+                    project_id=task.project_id,
+                    trigger_kind="traffic_snapshot",
+                    trigger_id=snapshot_id,
+                    trigger_revision=str(task.id),
+                )
         await _enqueue_demand_refresh(
             session,
             task=task,

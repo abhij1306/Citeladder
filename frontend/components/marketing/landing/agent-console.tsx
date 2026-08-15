@@ -18,7 +18,7 @@ import { LANDING_ICONS } from './landing-icons';
 const SCRIPT = [
   {
     icon: 'site' as const,
-    name: 'Site Intelligence',
+    name: 'Site Health',
     role: 'Crawls and classifies every page, then re-verifies after changes.',
     prompt: 'Recrawl complete — gap rules flagged uncovered questions on the service pages.',
     reply: 'Queuing an evidence-grounded brief for each gap. Saving a draft stays your decision.',

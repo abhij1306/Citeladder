@@ -6,10 +6,12 @@ import uuid
 from datetime import UTC, date, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Date,
     DateTime,
     Float,
     ForeignKey,
+    Identity,
     Index,
     String,
     UniqueConstraint,
@@ -125,13 +127,15 @@ class BrandedQueryOverride(Base):
             "workspace_id",
             "project_id",
             "normalized_query",
-            "created_at",
-            "id",
+            "ordinal",
         ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    ordinal: Mapped[int] = mapped_column(
+        BigInteger, Identity(always=False), unique=True
     )
     workspace_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),

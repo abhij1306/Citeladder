@@ -19,7 +19,9 @@ export function OpportunityStatusFooter({
 }: Readonly<{ detail: OpportunityDetail; projectId: string }>) {
   const updateStatus = useUpdateOpportunityStatus(projectId, detail.id);
   const declaration = useMutation(opportunitiesMutations.createImplementationEvent());
-  const declarations = useQuery(opportunitiesQueries.implementationEvents(projectId));
+  const declarations = useQuery(
+    opportunitiesQueries.implementationEvents(projectId, detail.id),
+  );
   const [idempotencyKey] = useState(
     () => globalThis.crypto?.randomUUID?.() ?? `${detail.id}-${Date.now()}`,
   );
@@ -42,8 +44,9 @@ export function OpportunityStatusFooter({
         }
       : {
           kind: detail.opportunity_type === 'traffic' ? 'traffic_metric' : 'visibility_metric',
-          metric: detail.rule_id,
+          metric: detail.opportunity_type === 'traffic' ? 'clicks' : 'visibility_score',
           direction: 'increase',
+          expected_value: 1,
         };
   const persistedDeclaration = declarations.data?.items.find(
     (item) => item.opportunity_id === detail.id,
@@ -74,7 +77,13 @@ export function OpportunityStatusFooter({
         />
       ) : null}
       {implementation ? (
-        <p className="text-success-text text-xs">
+        <p
+          className={
+            implementation.state === 'contradicted'
+              ? 'text-danger-text text-xs'
+              : 'text-success-text text-xs'
+          }
+        >
           {implementation.state === 'declared'
             ? 'Declared for verification.'
             : `Verification: ${implementation.state}.`}

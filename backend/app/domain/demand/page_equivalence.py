@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.web_evidence.url_policy import UrlPolicyError, canonicalize
 from app.core.config.demand import (
+    PAGE_EQUIVALENCE_MAX_ARTIFACTS,
     PAGE_EQUIVALENCE_MAX_CANDIDATES,
     PAGE_EQUIVALENCE_RESOLVER_VERSION,
 )
@@ -168,7 +169,10 @@ async def resolve_owned_page(
     preferred_origin: str = "",
 ) -> PageResolution:
     """Resolve one external URL using persisted workspace-owned evidence."""
-    requested = canonicalize(url)
+    try:
+        requested = canonicalize(url)
+    except UrlPolicyError:
+        return PageResolution("unresolved", None, ())
     variants = _variant_urls(requested)
     rows = list(
         (
@@ -219,6 +223,8 @@ async def _load_candidate_artifacts(
             .where(SiteFetchArtifact.workspace_id == workspace_id)
             .where(SiteCrawlTask.workspace_id == workspace_id)
             .where(SiteCrawlTask.site_url_id.in_(candidate_ids))
+            .order_by(SiteFetchArtifact.created_at.desc(), SiteFetchArtifact.id.desc())
+            .limit(PAGE_EQUIVALENCE_MAX_ARTIFACTS)
         )
     ).all()
     return [(artifact, site_url_id) for artifact, site_url_id in rows]

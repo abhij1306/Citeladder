@@ -22,6 +22,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -306,6 +307,9 @@ class OpportunityImplementationEvent(Base):
             "idempotency_key",
             name="uq_opportunity_implementation_ws_idem",
         ),
+        UniqueConstraint(
+            "workspace_id", "id", name="uq_opportunity_implementation_ws_id"
+        ),
         Index(
             "ix_opportunity_implementation_project_created",
             "project_id",
@@ -340,7 +344,7 @@ class OpportunityImplementationEvent(Base):
     target_site_url_ids: Mapped[list] = mapped_column(JSONB, default=list)
     generation_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("content_generations.id", ondelete=ON_DELETE_SET_NULL),
+        ForeignKey("content_generations.id", ondelete="RESTRICT"),
         nullable=True,
     )
     declared_implemented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -360,6 +364,15 @@ class OpportunityVerificationEvent(Base):
 
     __tablename__ = "opportunity_verification_events"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["workspace_id", "implementation_event_id"],
+            [
+                "opportunity_implementation_events.workspace_id",
+                "opportunity_implementation_events.id",
+            ],
+            ondelete=_ON_DELETE_CASCADE,
+            name="fk_opportunity_verification_implementation_workspace",
+        ),
         UniqueConstraint(
             "workspace_id",
             "idempotency_key",
@@ -388,7 +401,6 @@ class OpportunityVerificationEvent(Base):
     )
     implementation_event_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("opportunity_implementation_events.id", ondelete=_ON_DELETE_CASCADE),
         index=True,
     )
     observation_kind: Mapped[str] = mapped_column(String(16))

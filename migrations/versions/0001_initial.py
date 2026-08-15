@@ -2180,7 +2180,7 @@ def upgrade() -> None:
             ondelete="RESTRICT",
         ),
         sa.ForeignKeyConstraint(
-            ["generation_id"], ["content_generations.id"], ondelete="SET NULL"
+            ["generation_id"], ["content_generations.id"], ondelete="RESTRICT"
         ),
         sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
@@ -2188,6 +2188,9 @@ def upgrade() -> None:
             "workspace_id",
             "idempotency_key",
             name="uq_opportunity_implementation_ws_idem",
+        ),
+        sa.UniqueConstraint(
+            "workspace_id", "id", name="uq_opportunity_implementation_ws_id"
         ),
     )
     _create_indexes(
@@ -2232,9 +2235,13 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["workspace_id"], ["workspaces.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
-            ["implementation_event_id"],
-            ["opportunity_implementation_events.id"],
+            ["workspace_id", "implementation_event_id"],
+            [
+                "opportunity_implementation_events.workspace_id",
+                "opportunity_implementation_events.id",
+            ],
             ondelete="CASCADE",
+            name="fk_opportunity_verification_implementation_workspace",
         ),
         sa.ForeignKeyConstraint(["crawl_id"], ["site_crawls.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="SET NULL"),
@@ -5234,6 +5241,12 @@ def upgrade() -> None:
     op.create_table(
         "branded_query_overrides",
         sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column(
+            "ordinal",
+            sa.BigInteger(),
+            sa.Identity(always=False),
+            nullable=False,
+        ),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("normalized_query", sa.String(length=512), nullable=False),
@@ -5245,6 +5258,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["actor_user_id"], ["users.id"], ondelete="RESTRICT"),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("ordinal"),
     )
     _create_indexes(
         "branded_query_overrides", ("workspace_id", "project_id")
@@ -5252,7 +5266,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_branded_query_override_lookup",
         "branded_query_overrides",
-        ["workspace_id", "project_id", "normalized_query", "created_at", "id"],
+        ["workspace_id", "project_id", "normalized_query", "ordinal"],
     )
 
     # --- Bounded Growth Agent --------------------------------------------

@@ -261,6 +261,7 @@ async def create_implementation_event_endpoint(
     payload: ImplementationEventCreate,
     ctx: _WorkspaceDep,
     session: _SessionDep,
+    response: Response,
     idempotency_key: Annotated[
         str | None,
         Header(
@@ -308,10 +309,15 @@ async def create_implementation_event_endpoint(
             CODE_IMPLEMENTATION_TARGET_CONFLICT,
             str(exc),
         ) from exc
-    response = _implementation_view(row)
     if not created:
-        return response
-    return response
+        response.status_code = status.HTTP_200_OK
+    verification = await list_verification_events(
+        session,
+        workspace_id=ctx.workspace_id,
+        project_id=project_id,
+        implementation_event_ids=[row.id],
+    )
+    return _implementation_view(row, verification.get(row.id, []))
 
 
 @router.get(
@@ -325,6 +331,7 @@ async def list_implementation_events_endpoint(
     limit: Annotated[
         int, Query(ge=1, le=IMPLEMENTATION_EVENT_MAX_LIMIT)
     ] = IMPLEMENTATION_EVENT_DEFAULT_LIMIT,
+    opportunity_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> ImplementationEventsPage:
     try:
         rows = await list_implementation_events(
@@ -332,6 +339,7 @@ async def list_implementation_events_endpoint(
             workspace_id=ctx.workspace_id,
             project_id=project_id,
             limit=limit,
+            opportunity_id=opportunity_id,
         )
     except ImplementationNotFoundError as exc:
         raise ApiException(status.HTTP_404_NOT_FOUND, CODE_NOT_FOUND, str(exc)) from exc

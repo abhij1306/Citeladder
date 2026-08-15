@@ -7,13 +7,13 @@ import { Section, SectionHeader } from '../primitives/section';
 import { LANDING_ICONS } from './landing-icons';
 
 /**
- * Use cases — six industry packs, each with an icon, a name, and the concrete
+ * Use cases — six business contexts, each with an icon, a name, and concrete
  * checks it supports.
  */
 export function Packs() {
   const { packs } = LANDING_CONTENT;
   return (
-    <Section id="industry-packs" tone="paper" rhythm="base" aria-labelledby="packs-title">
+    <Section id="use-cases" tone="paper" rhythm="base" aria-labelledby="packs-title">
       <SectionHeader
         eyebrow={packs.kicker}
         title={packs.title}

@@ -23,6 +23,7 @@ DEMAND_LIST_MAX_LIMIT: Final = 200
 # identity. Bump whenever evidence precedence or candidate construction changes.
 PAGE_EQUIVALENCE_RESOLVER_VERSION: Final = "owned-page-resolver-1"
 PAGE_EQUIVALENCE_MAX_CANDIDATES: Final = 16
+PAGE_EQUIVALENCE_MAX_ARTIFACTS: Final = 1000
 
 BRANDED_QUERY_CLASSIFIER_VERSION: Final = "branded-query-1"
 BRANDED_QUERY_CLASSES: Final[frozenset[str]] = frozenset(

@@ -82,7 +82,7 @@ describe('Landing page (public marketing `/`)', () => {
       '#platform',
       '#see-it',
       '#how-it-works',
-      '#industry-packs',
+      '#use-cases',
       '#get-started',
     ]) {
       expect(container.querySelector(hash)).not.toBeNull();
@@ -148,7 +148,7 @@ describe('Landing page (public marketing `/`)', () => {
     // around the canonical four-layer hierarchy.
     const product = container.querySelector('#see-it');
     expect(product).not.toBeNull();
-    expect(product).toHaveTextContent(/Site Intelligence/i);
+    expect(product).toHaveTextContent(/Site Health/i);
     expect(product).toHaveTextContent(/Content Intelligence/i);
     expect(product).toHaveTextContent(/Demand Intelligence/i);
     expect(product).toHaveTextContent(/Growth Agent/i);

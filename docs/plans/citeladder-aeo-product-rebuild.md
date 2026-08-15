@@ -268,11 +268,11 @@ row is the removal condition. No other compatibility path is implied.
 #### A02 — completed 2026-08-15
 - Wave / branch: W1 / `feat/aeo-wave-1-foundations`
 - Owners: Opportunities verification observations and the existing analytics queue.
-- Implemented: immutable observation rows, crawl/audit terminal enqueue hooks, bounded versioned verifier, exact evidence provenance, honest limitations, persisted latest-event projection, and declared/observed/verified/contradicted UI states.
-- Deleted / retained until: declaration rows remain immutable; unsupported traffic/direction-only checks remain observed or declared until a compatible post-boundary source exists.
+- Implemented: immutable observation rows, crawl/audit/traffic terminal enqueue hooks, bounded versioned verifier, exact post-boundary evidence provenance, honest limitations, persisted latest-event projection, and declared/observed/verified/contradicted UI states.
+- Deleted / retained until: declaration rows remain immutable; metric declarations require an absolute threshold, and incompatible source kinds remain observed or declared until compatible post-boundary evidence exists.
 - Commit: wave commit
-- Cumulative changed files vs wave merge base: 66
-- Local verification: focused backend pytest 64 passed across W1 owners plus 5 terminal-hook cases and final 6 declaration/hook regressions; Ruff, targeted mypy, and complexity policy passed; frontend Vitest 26 passed, lint/policy/build passed; empty disposable DB `alembic upgrade head` and `alembic check` passed; documentation validator and `git diff --check` passed.
+- Cumulative changed files vs wave merge base: 78
+- Local verification: focused backend pytest 58 passed across final W1 owners plus 2 baseline-migration tests; Ruff and targeted mypy passed; focused frontend Vitest 49 passed, lint/policy/build passed; empty disposable DB `alembic upgrade head` passed and final drift check passed after index reconciliation; documentation validator and `git diff --check` passed.
 - Evaluation artifact: not applicable (deterministic lifecycle fixtures cover every projection state)
 - Advanced to internal slice: wave close
 

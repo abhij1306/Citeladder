@@ -54,9 +54,12 @@ async def test_shopify_callback_bad_hmac_rejected_before_any_exchange(
     assert await oauth_tests._grants(db_session) == []
     state_row = (await db_session.execute(select(IntegrationOAuthState))).scalar_one()
     assert state_row.consumed_at is None
-    assert (await oauth_tests._shopify_callback(client, state)).headers[
-        "location"
-    ] == oauth_tests._landing("connected=shopify")
+    retry = await oauth_tests._shopify_callback(client, state)
+    assert retry.headers["location"] == oauth_tests._landing(
+        "error=oauth_state_invalid"
+    )
+    assert _fake_oauth.shopify_token_calls() == []
+    assert await oauth_tests._grants(db_session) == []
 
 
 @pytest.mark.asyncio

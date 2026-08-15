@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.opportunities import OPPORTUNITY_STATUSES
 
@@ -73,7 +73,7 @@ class MetricExpectedCheck(_Model):
     kind: Literal["visibility_metric", "traffic_metric"]
     metric: str = Field(min_length=1, max_length=128)
     direction: Literal["increase", "decrease", "equal"]
-    expected_value: float | None = None
+    expected_value: float
     tolerance: float = Field(default=0, ge=0)
 
 
@@ -87,7 +87,7 @@ class ImplementationEventCreate(_Model):
     opportunity_id: uuid.UUID
     target_site_url_ids: list[uuid.UUID] = Field(default_factory=list, max_length=64)
     generation_id: uuid.UUID | None = None
-    declared_implemented_at: datetime
+    declared_implemented_at: AwareDatetime
     expected_checks: list[ExpectedCheck] = Field(min_length=1, max_length=32)
 
 

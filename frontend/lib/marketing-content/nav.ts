@@ -44,7 +44,7 @@ export const NAV_DROPS: readonly NavDrop[] = [
           {
             title: 'Industry packs',
             desc: 'Built for how your business works',
-            href: '/#industry-packs',
+            href: '/#use-cases',
           },
         ],
       },

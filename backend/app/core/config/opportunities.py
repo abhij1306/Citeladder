@@ -109,6 +109,7 @@ IMPLEMENTATION_EXPECTED_CHECKS_MAX: Final = 32
 IMPLEMENTATION_TARGETS_MAX: Final = 64
 IMPLEMENTATION_VERIFIER_VERSION: Final = "implementation-verifier-1"
 IMPLEMENTATION_VERIFICATION_BATCH_MAX: Final = 100
+IMPLEMENTATION_VERIFICATION_HISTORY_MAX: Final = 50
 
 # =========================================================================
 # Rule catalog

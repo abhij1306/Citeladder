@@ -110,10 +110,10 @@ const implementationEvent = {
   declared_implemented_at: '2026-07-24T00:00:00Z',
   expected_checks: [
     {
-      kind: 'site_rule',
+      kind: 'site_rule' as const,
       target_site_url_id: CRAWL,
       rule_id: 'aeo.structured_data_present',
-      expected_outcome: 'pass',
+      expected_outcome: 'pass' as const,
     },
   ],
   state: 'verified' as const,

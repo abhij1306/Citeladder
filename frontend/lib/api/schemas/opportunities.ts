@@ -161,6 +161,31 @@ export const recomputeResponseSchema = responseObject({
   created_at: z.string(),
 });
 
+const siteRuleExpectedCheckSchema = responseObject({
+  kind: z.literal('site_rule'),
+  target_site_url_id: uuid().optional(),
+  rule_id: z.string(),
+  expected_outcome: z.enum(['pass', 'fail']),
+});
+const pageFactExpectedCheckSchema = responseObject({
+  kind: z.literal('page_fact'),
+  target_site_url_id: uuid().optional(),
+  fact_key: z.string(),
+  expected_value: z.unknown(),
+});
+const metricExpectedCheckSchema = responseObject({
+  kind: z.enum(['visibility_metric', 'traffic_metric']),
+  metric: z.string(),
+  direction: z.enum(['increase', 'decrease', 'equal']),
+  expected_value: z.number(),
+  tolerance: z.number(),
+});
+const expectedCheckSchema = z.discriminatedUnion('kind', [
+  siteRuleExpectedCheckSchema,
+  pageFactExpectedCheckSchema,
+  metricExpectedCheckSchema,
+]);
+
 export const implementationEventSchema = responseObject({
   id: uuid(),
   project_id: uuid(),
@@ -169,7 +194,7 @@ export const implementationEventSchema = responseObject({
   target_site_url_ids: z.array(uuid()),
   generation_id: uuid().nullable(),
   declared_implemented_at: z.string(),
-  expected_checks: z.array(z.record(z.string(), z.unknown())),
+  expected_checks: z.array(expectedCheckSchema),
   state: implementationStateSchema,
   limitations: z.array(z.string()),
   verification_events: z.array(

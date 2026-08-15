@@ -106,8 +106,7 @@ async def classify_project_query(
         .where(BrandedQueryOverride.project_id == project_id)
         .where(BrandedQueryOverride.normalized_query == normalized)
         .order_by(
-            BrandedQueryOverride.created_at.desc(),
-            BrandedQueryOverride.id.desc(),
+            BrandedQueryOverride.ordinal.desc(),
         )
         .limit(1)
     )
@@ -154,11 +153,14 @@ async def append_override(
 ) -> BrandedQueryOverride:
     if classification not in BRANDED_QUERY_CLASSES:
         raise ValueError("unknown branded query classification")
+    normalized_query = normalize_query(query)
+    if not normalized_query:
+        raise ValueError("query must contain searchable characters")
     row = BrandedQueryOverride(
         workspace_id=workspace_id,
         project_id=project_id,
         actor_user_id=actor_user_id,
-        normalized_query=normalize_query(query),
+        normalized_query=normalized_query,
         classification=classification,
         classifier_version=BRANDED_QUERY_CLASSIFIER_VERSION,
     )

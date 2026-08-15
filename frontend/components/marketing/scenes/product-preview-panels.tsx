@@ -169,7 +169,7 @@ function SitePreview({ phase }: PreviewProps) {
     <div data-preview-layer="site" className="p-4 sm:p-5">
       <ScreenHeader
         icon={<Globe className="size-4" aria-hidden />}
-        title="Site Intelligence"
+        title="Site Health"
         description="Inventory, evidence, page understanding, gaps, and recrawl verification."
         action={
           <PreviewButton>
@@ -306,7 +306,7 @@ function ContentPreview({ phase, reduceMotion }: PreviewProps) {
               <div className="border-border bg-panel shadow-card max-w-[88%] rounded-lg border px-4 py-3">
                 <div className="text-accent-text flex items-center gap-2 text-xs font-medium">
                   <Search className="size-3.5" aria-hidden />
-                  Read Site Intelligence gaps
+                  Read Site Health gaps
                 </div>
                 <p className="text-secondary mt-2 text-[13px] leading-relaxed">
                   I found three uncovered admissions questions and matched them to persisted project

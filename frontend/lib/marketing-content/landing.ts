@@ -2,9 +2,9 @@
  * Landing-page copy for the public marketing surface.
  *
  * Structure and copy follow the governed product loop. Durable Site, Content,
- * Demand, Opportunities, and Agent capabilities sit behind user-facing loop
+ * Demand, and Agent capabilities sit behind user-facing loop
  * stations. Sections carry icons and the prototype's fuller detail (module feature
- * lists, a four-step loop, industry-pack item lists, a security ledger). Only the
+ * lists, a four-step loop, use-case item lists, and a security ledger). Only the
  * hero tagline, the product visual, and the type scale/weight are ours.
  *
  * Icons are named here as string keys and resolved to lucide components in the
@@ -82,8 +82,8 @@ export const LANDING_CONTENT = {
     summary: [
       {
         icon: 'site' as IconKey,
-        name: 'Site Intelligence',
-        desc: 'Crawl, classify, and index every page and asset.',
+        name: 'Site Health',
+        desc: 'Crawl, classify, and evaluate every owned page.',
       },
       {
         icon: 'content' as IconKey,
@@ -106,14 +106,14 @@ export const LANDING_CONTENT = {
       {
         num: '01',
         icon: 'site' as IconKey,
-        title: 'Site Intelligence',
+        title: 'Site Health',
         description:
-          'Crawls and understands every page and document, builds verified knowledge, detects industry-specific gaps, and confirms changes after every recrawl.',
+          'Securely crawls owned pages, classifies their structural purpose, applies deterministic checks, and confirms observable changes after a recrawl.',
         features: [
-          'Automated crawl and page-role classification',
-          'Industry-specific gap detection rules',
+          'Safe crawl and structural page classification',
+          'Page-kind-scoped deterministic checks',
           'Recrawl verification after changes',
-          'Versioned working-knowledge store',
+          'Persisted issues, scores, and evidence',
         ],
       },
       {
@@ -151,7 +151,7 @@ export const LANDING_CONTENT = {
         features: [
           'Two decisions: save content, and run an audit',
           'Typed tool calls with an audit log',
-          'Versioned industry packs',
+          'Typed tools across the product systems',
           'Project-scoped facts, never shared',
         ],
       },
@@ -179,7 +179,7 @@ export const LANDING_CONTENT = {
         num: '02',
         icon: 'analyze' as IconKey,
         label: 'Analyze & prioritize',
-        desc: 'Apply industry-pack rules. Score every gap by business impact. Rank the queue by evidence strength.',
+        desc: 'Apply deterministic checks and measured signals. Score every gap by business impact. Rank the queue by evidence strength.',
       },
       {
         num: '03',
@@ -199,7 +199,7 @@ export const LANDING_CONTENT = {
   packs: {
     kicker: 'Use cases',
     title: 'Built around how your industry actually works.',
-    lead: 'Each project runs one primary industry pack plus the reviewed capabilities it needs — page roles, gap rules, and schema expectations, versioned together.',
+    lead: 'The same evidence loop adapts to different business models while page classification, checks, and provenance stay explicit.',
     items: [
       {
         icon: 'education' as IconKey,
@@ -290,9 +290,9 @@ export const LANDING_CONTENT = {
       },
       {
         icon: 'versioned' as IconKey,
-        title: 'Versioned knowledge',
+        title: 'Versioned analysis',
         description:
-          'Shared industry knowledge is release-managed; customer facts are never shared.',
+          'Classifiers, rules, formulas, and source evidence stay versioned and inspectable.',
       },
     ],
   },

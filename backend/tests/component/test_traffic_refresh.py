@@ -561,7 +561,7 @@ async def test_worker_routes_traffic_snapshot_refresh_kind(
 
     worker = AnalyticsWorker(session_factory=session_factory, owner="traffic-test")
     # Traffic completion chains Demand and then Opportunity refresh.
-    assert await worker.run_until_idle() == 3
+    assert await worker.run_until_idle() == 4
 
     async with session_factory() as session:
         row = await session.get(AnalyticsTask, task_id)

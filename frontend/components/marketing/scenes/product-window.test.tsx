@@ -23,7 +23,7 @@ describe('ProductWindow', () => {
     renderWithProviders(<ProductWindow />);
 
     for (const label of [
-      'Site Intelligence',
+      'Site Health',
       'Content Intelligence',
       'Demand Intelligence',
       'Growth Agent',
@@ -31,7 +31,7 @@ describe('ProductWindow', () => {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
 
-    expect(screen.getByRole('tab', { name: 'Site Intelligence' })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: 'Site Health' })).toHaveAttribute(
       'aria-selected',
       'true',
     );

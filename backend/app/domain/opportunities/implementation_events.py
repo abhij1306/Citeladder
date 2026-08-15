@@ -7,11 +7,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.opportunities import IMPLEMENTATION_TARGETS_MAX
+from app.core.config.opportunities import (
+    IMPLEMENTATION_TARGETS_MAX,
+    IMPLEMENTATION_VERIFICATION_HISTORY_MAX,
+)
 from app.domain.demand.page_equivalence import resolve_owned_page
 from app.models.content import ContentGeneration
 from app.models.opportunity import (
@@ -208,6 +211,22 @@ async def create_implementation_event(
     idempotency_key: str,
     declaration: ImplementationDeclaration,
 ) -> tuple[OpportunityImplementationEvent, bool]:
+    request_payload = {
+        "opportunity_id": declaration.opportunity_id,
+        "target_site_url_ids": declaration.target_site_url_ids,
+        "generation_id": declaration.generation_id,
+        "declared_implemented_at": declaration.declared_implemented_at,
+        "expected_checks": declaration.expected_checks,
+    }
+    fingerprint = _fingerprint(request_payload)
+    existing = await _idempotent_replay(
+        session,
+        workspace_id=workspace_id,
+        idempotency_key=idempotency_key,
+        fingerprint=fingerprint,
+    )
+    if existing is not None:
+        return existing, False
     project, opportunity = await _project_and_opportunity(
         session,
         workspace_id=workspace_id,
@@ -229,23 +248,6 @@ async def create_implementation_event(
         project_id=project_id,
         generation_id=declaration.generation_id,
     )
-    frozen = {
-        "opportunity_id": declaration.opportunity_id,
-        "snapshot_id": snapshot.id,
-        "targets": targets,
-        "generation_id": declaration.generation_id,
-        "declared_at": declaration.declared_implemented_at,
-        "expected_checks": declaration.expected_checks,
-    }
-    fingerprint = _fingerprint(frozen)
-    existing = await _idempotent_replay(
-        session,
-        workspace_id=workspace_id,
-        idempotency_key=idempotency_key,
-        fingerprint=fingerprint,
-    )
-    if existing is not None:
-        return existing, False
     row = OpportunityImplementationEvent(
         workspace_id=workspace_id,
         project_id=project_id,
@@ -268,6 +270,7 @@ async def list_implementation_events(
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     limit: int,
+    opportunity_id: uuid.UUID | None = None,
 ) -> list[OpportunityImplementationEvent]:
     project = await session.scalar(
         select(Project.id).where(
@@ -276,14 +279,18 @@ async def list_implementation_events(
     )
     if project is None:
         raise ImplementationNotFoundError("Project not found")
+    statement = select(OpportunityImplementationEvent).where(
+        OpportunityImplementationEvent.workspace_id == workspace_id,
+        OpportunityImplementationEvent.project_id == project_id,
+    )
+    if opportunity_id is not None:
+        statement = statement.where(
+            OpportunityImplementationEvent.opportunity_id == opportunity_id
+        )
     return list(
         (
             await session.scalars(
-                select(OpportunityImplementationEvent)
-                .where(
-                    OpportunityImplementationEvent.workspace_id == workspace_id,
-                    OpportunityImplementationEvent.project_id == project_id,
-                )
+                statement
                 .order_by(
                     OpportunityImplementationEvent.created_at.desc(),
                     OpportunityImplementationEvent.id.desc(),
@@ -322,17 +329,34 @@ async def list_verification_events(
 ) -> dict[uuid.UUID, list[OpportunityVerificationEvent]]:
     if not implementation_event_ids:
         return {}
+    ranked = (
+        select(
+            OpportunityVerificationEvent.id.label("id"),
+            func.row_number()
+            .over(
+                partition_by=OpportunityVerificationEvent.implementation_event_id,
+                order_by=(
+                    OpportunityVerificationEvent.created_at.desc(),
+                    OpportunityVerificationEvent.id.desc(),
+                ),
+            )
+            .label("rank"),
+        )
+        .where(
+            OpportunityVerificationEvent.workspace_id == workspace_id,
+            OpportunityVerificationEvent.project_id == project_id,
+            OpportunityVerificationEvent.implementation_event_id.in_(
+                implementation_event_ids
+            ),
+        )
+        .subquery()
+    )
     rows = list(
         (
             await session.scalars(
                 select(OpportunityVerificationEvent)
-                .where(
-                    OpportunityVerificationEvent.workspace_id == workspace_id,
-                    OpportunityVerificationEvent.project_id == project_id,
-                    OpportunityVerificationEvent.implementation_event_id.in_(
-                        implementation_event_ids
-                    ),
-                )
+                .join(ranked, ranked.c.id == OpportunityVerificationEvent.id)
+                .where(ranked.c.rank <= IMPLEMENTATION_VERIFICATION_HISTORY_MAX)
                 .order_by(
                     OpportunityVerificationEvent.created_at.asc(),
                     OpportunityVerificationEvent.id.asc(),

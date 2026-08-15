@@ -21,7 +21,7 @@ type NavItemLabel = (typeof NAV_GROUPS)[number]['items'][number]['label'];
 const LAYERS = [
   {
     id: 'site',
-    label: 'Site Intelligence',
+    label: 'Site Health',
     shortLabel: 'Site',
     group: 'Site Health' satisfies NavGroupTitle,
     activeItem: 'Website' satisfies NavItemLabel,

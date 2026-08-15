@@ -92,9 +92,15 @@ async def test_declaration_is_idempotent_and_projects_declared_state(
     )
 
     created = await client.post(url, headers=headers, json=payload)
+    refreshed = await client.post(
+        f"/api/v1/projects/{scenario.project_id}/opportunities/recompute",
+        headers={"X-Workspace-Id": str(scenario.workspace_id)},
+    )
+    assert refreshed.status_code == 200
     replay = await client.post(url, headers=headers, json=payload)
 
-    assert created.status_code == replay.status_code == 201
+    assert created.status_code == 201
+    assert replay.status_code == 200
     assert created.json() == replay.json()
     assert created.json()["state"] == "declared"
     assert created.json()["limitations"] == []
@@ -195,7 +201,14 @@ async def test_terminal_crawl_appends_all_persisted_projection_states(
     }
     declared = await declare(
         "state-declared",
-        [{"kind": "traffic_metric", "metric": "clicks", "direction": "increase"}],
+        [
+            {
+                "kind": "traffic_metric",
+                "metric": "clicks",
+                "direction": "increase",
+                "expected_value": 1,
+            }
+        ],
     )
     verified = await declare(
         "state-verified", [{**site_check, "expected_outcome": "fail"}]
@@ -207,7 +220,12 @@ async def test_terminal_crawl_appends_all_persisted_projection_states(
         "state-observed",
         [
             {**site_check, "expected_outcome": "fail"},
-            {"kind": "traffic_metric", "metric": "clicks", "direction": "increase"},
+            {
+                "kind": "traffic_metric",
+                "metric": "clicks",
+                "direction": "increase",
+                "expected_value": 1,
+            },
         ],
     )
     async with session_factory() as session:

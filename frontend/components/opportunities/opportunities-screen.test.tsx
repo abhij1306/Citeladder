@@ -437,8 +437,10 @@ describe('OpportunitiesScreen', () => {
               expected_checks: [
                 {
                   kind: 'visibility_metric',
-                  metric: 'brand_absent_high_value_prompt',
+                  metric: 'visibility_score',
                   direction: 'increase',
+                  expected_value: 1,
+                  tolerance: 0,
                 },
               ],
               state: 'declared',

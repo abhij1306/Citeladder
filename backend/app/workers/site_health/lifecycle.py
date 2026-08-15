@@ -310,6 +310,13 @@ def _stop_completed_manual_phase(crawl: SiteCrawl, phase: str) -> None:
         apply_analysis_status(crawl, ANALYSIS_STATUS_STOPPED)
 
 
+def _uses_phase_lifecycle(crawl: SiteCrawl) -> bool:
+    """Whether persisted phase-run bookkeeping participates in reconciliation."""
+    return crawl.sample_mode or bool(
+        (crawl.configuration or {}).get(MANUAL_PHASE_LIFECYCLE_KEY)
+    )
+
+
 def _is_crawl_finalize_rule(rule_id: str) -> bool:
     """Whether a catalog rule is scoped ``crawl_finalize`` (finalize-owned)."""
     rule = SITE_HEALTH_RULES_BY_ID.get(rule_id)
@@ -599,7 +606,7 @@ class CrawlLifecycle:
         crawl: SiteCrawl,
         counts: dict[str, int],
     ) -> bool:
-        if not (crawl.configuration or {}).get(MANUAL_PHASE_LIFECYCLE_KEY):
+        if not _uses_phase_lifecycle(crawl):
             return False
         phase_runs = list(
             (

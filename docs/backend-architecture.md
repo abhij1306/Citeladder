@@ -225,8 +225,9 @@ after the Site Intelligence removal.
 - Raw evidence and provider attempts are append-only.
 - Opportunity implementation declarations and verification observations are
   append-only; deleting their owning workspace/project follows the baseline
-  cascade, while nullable crawl/audit/generation provenance survives source
-  retention through `SET NULL` where configured.
+  cascade. Nullable crawl/audit provenance survives source retention through
+  `SET NULL`; a linked content generation is retained while a declaration
+  references it.
 - Derived data carries direct source IDs and relevant versions.
 - Configuration and product policy live under `app/core/config/*`.
 - PostgreSQL remains the durable queue; do not add Redis without measured need.

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -34,6 +34,7 @@ from app.models.site_health import (
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
+from app.models.traffic import TrafficSnapshot
 
 
 @dataclass(slots=True)
@@ -135,12 +136,17 @@ async def _site_evidence(
             continue
         analysis = await session.scalar(
             select(SitePageAnalysis)
+            .join(
+                SiteFetchArtifact,
+                SiteFetchArtifact.id == SitePageAnalysis.artifact_id,
+            )
             .where(
                 SitePageAnalysis.workspace_id == declaration.workspace_id,
                 SitePageAnalysis.project_id == declaration.project_id,
                 SitePageAnalysis.crawl_id == crawl_id,
                 SitePageAnalysis.site_url_id == target_id,
                 SitePageAnalysis.is_current.is_(True),
+                SiteFetchArtifact.fetched_at > declaration.declared_implemented_at,
             )
             .order_by(SitePageAnalysis.created_at.desc(), SitePageAnalysis.id.desc())
             .limit(1)
@@ -175,6 +181,7 @@ async def _audit_evidence(
             MetricSnapshot.workspace_id == declaration.workspace_id,
             MetricSnapshot.project_id == declaration.project_id,
             MetricSnapshot.audit_id == audit_id,
+            MetricSnapshot.created_at > declaration.declared_implemented_at,
         )
     )
     for check in declaration.expected_checks or []:
@@ -184,6 +191,65 @@ async def _audit_evidence(
             continue
         _evaluate_visibility_metric(snapshot=snapshot, check=check, result=result)
     return result
+
+
+async def _traffic_evidence(
+    session: AsyncSession,
+    *,
+    declaration: OpportunityImplementationEvent,
+    snapshot_id: uuid.UUID,
+) -> _Evaluation:
+    result = _Evaluation()
+    snapshot = await session.scalar(
+        select(TrafficSnapshot).where(
+            TrafficSnapshot.workspace_id == declaration.workspace_id,
+            TrafficSnapshot.project_id == declaration.project_id,
+            TrafficSnapshot.id == snapshot_id,
+            TrafficSnapshot.created_at > declaration.declared_implemented_at,
+        )
+    )
+    totals = ((snapshot.metrics or {}).get("totals") or {}) if snapshot else {}
+    for check in declaration.expected_checks or []:
+        if check.get("kind") != "traffic_metric":
+            result.limitations.append(
+                f"{check.get('kind')}: unavailable from a traffic snapshot"
+            )
+            continue
+        _evaluate_traffic_metric(
+            snapshot=snapshot,
+            totals=totals,
+            check=check,
+            result=result,
+        )
+    return result
+
+
+def _evaluate_traffic_metric(
+    *,
+    snapshot: TrafficSnapshot | None,
+    totals: dict,
+    check: dict[str, Any],
+    result: _Evaluation,
+) -> None:
+    metric_name = str(check.get("metric") or "")
+    value = totals.get(metric_name)
+    expected = check.get("expected_value")
+    if snapshot is None or not isinstance(value, (int, float)) or not isinstance(
+        expected, (int, float)
+    ):
+        result.limitations.append(f"traffic_metric: {metric_name} unavailable")
+        return
+    result.observed += 1
+    result.metric_ids.add(snapshot.id)
+    if _metric_matches(
+        direction=check.get("direction"),
+        value=float(value),
+        expected=float(expected),
+        tolerance=float(check.get("tolerance") or 0),
+    ):
+        result.matched += 1
+    else:
+        result.contradicted = True
 
 
 def _metric_matches(
@@ -247,10 +313,11 @@ async def enqueue_implementation_verification(
     project_id: uuid.UUID,
     trigger_kind: str,
     trigger_id: uuid.UUID,
+    trigger_revision: str | None = None,
 ) -> None:
     idempotency_key = (
         f"implementation-verification:{trigger_kind}:{trigger_id}:"
-        f"{IMPLEMENTATION_VERIFIER_VERSION}"
+        f"{IMPLEMENTATION_VERIFIER_VERSION}:{trigger_revision or 'terminal'}"
     )
     await session.execute(
         pg_insert(AnalyticsTask)
@@ -320,6 +387,15 @@ async def _verification_source(
             )
         )
         observed_at = audit.completed_at if audit is not None else None
+    elif trigger_kind == "traffic_snapshot":
+        snapshot = await session.scalar(
+            select(TrafficSnapshot).where(
+                TrafficSnapshot.workspace_id == task.workspace_id,
+                TrafficSnapshot.project_id == task.project_id,
+                TrafficSnapshot.id == trigger_id,
+            )
+        )
+        observed_at = snapshot.created_at if snapshot is not None else None
     else:
         raise ValueError("Implementation verification trigger kind is invalid")
     if observed_at is None:
@@ -328,19 +404,35 @@ async def _verification_source(
 
 
 async def _eligible_declarations(
-    session: AsyncSession, *, task: AnalyticsTask, observed_at: datetime
+    session: AsyncSession,
+    *,
+    task: AnalyticsTask,
+    observed_at: datetime,
+    after: tuple[datetime, uuid.UUID] | None,
 ) -> list[OpportunityImplementationEvent]:
+    statement = select(OpportunityImplementationEvent).where(
+        OpportunityImplementationEvent.workspace_id == task.workspace_id,
+        OpportunityImplementationEvent.project_id == task.project_id,
+        OpportunityImplementationEvent.declared_implemented_at <= observed_at,
+    )
+    if after is not None:
+        created_at, event_id = after
+        statement = statement.where(
+            or_(
+                OpportunityImplementationEvent.created_at > created_at,
+                and_(
+                    OpportunityImplementationEvent.created_at == created_at,
+                    OpportunityImplementationEvent.id > event_id,
+                ),
+            )
+        )
     return list(
         (
             await session.scalars(
-                select(OpportunityImplementationEvent)
-                .where(
-                    OpportunityImplementationEvent.workspace_id == task.workspace_id,
-                    OpportunityImplementationEvent.project_id == task.project_id,
-                    OpportunityImplementationEvent.declared_implemented_at
-                    <= observed_at,
+                statement.order_by(
+                    OpportunityImplementationEvent.created_at.asc(),
+                    OpportunityImplementationEvent.id.asc(),
                 )
-                .order_by(OpportunityImplementationEvent.created_at.asc())
                 .limit(IMPLEMENTATION_VERIFICATION_BATCH_MAX)
             )
         ).all()
@@ -356,9 +448,10 @@ async def _append_observation(
     observation_kind: str,
     source: _Source,
 ) -> None:
+    source_revision = int(source.observed_at.timestamp() * 1_000_000)
     event_key = (
         f"verification:{declaration.id}:{source.kind}:{source.id}:"
-        f"{IMPLEMENTATION_VERIFIER_VERSION}"
+        f"{source_revision}:{IMPLEMENTATION_VERIFIER_VERSION}"
     )
     await session.execute(
         pg_insert(OpportunityVerificationEvent)
@@ -391,28 +484,38 @@ async def verify_implementation_events(
         raise ValueError("Implementation verification requires project_id")
     async with session_factory() as session:
         source = await _verification_source(session, task=task)
-        declarations = await _eligible_declarations(
-            session, task=task, observed_at=source.observed_at
-        )
-        for declaration in declarations:
-            result = (
-                await _site_evidence(
-                    session, declaration=declaration, crawl_id=source.id
-                )
-                if source.kind == "site_crawl"
-                else await _audit_evidence(
-                    session, declaration=declaration, audit_id=source.id
-                )
+        after: tuple[datetime, uuid.UUID] | None = None
+        while True:
+            declarations = await _eligible_declarations(
+                session, task=task, observed_at=source.observed_at, after=after
             )
-            kind = _observation_kind(result, len(declaration.expected_checks or []))
-            if kind is None:
-                continue
-            await _append_observation(
-                session,
-                task=task,
-                declaration=declaration,
-                result=result,
-                observation_kind=kind,
-                source=source,
-            )
+            for declaration in declarations:
+                if source.kind == "site_crawl":
+                    result = await _site_evidence(
+                        session, declaration=declaration, crawl_id=source.id
+                    )
+                elif source.kind == "audit":
+                    result = await _audit_evidence(
+                        session, declaration=declaration, audit_id=source.id
+                    )
+                else:
+                    result = await _traffic_evidence(
+                        session, declaration=declaration, snapshot_id=source.id
+                    )
+                kind = _observation_kind(
+                    result, len(declaration.expected_checks or [])
+                )
+                if kind is not None:
+                    await _append_observation(
+                        session,
+                        task=task,
+                        declaration=declaration,
+                        result=result,
+                        observation_kind=kind,
+                        source=source,
+                    )
+            if len(declarations) < IMPLEMENTATION_VERIFICATION_BATCH_MAX:
+                break
+            last = declarations[-1]
+            after = (last.created_at, last.id)
         await session.commit()

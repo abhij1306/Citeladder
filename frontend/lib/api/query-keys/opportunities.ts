@@ -11,8 +11,8 @@ export const opportunityKeys = {
     ['opportunities', 'list', projectId, filters] as const,
   detail: (opportunityId: string) => ['opportunities', 'detail', opportunityId] as const,
   summary: (projectId: string) => ['opportunities', 'summary', projectId] as const,
-  implementationEvents: (projectId: string) =>
-    ['opportunities', 'implementation-events', projectId] as const,
+  implementationEvents: (projectId: string, opportunityId?: string) =>
+    ['opportunities', 'implementation-events', projectId, opportunityId ?? null] as const,
   implementationEvent: (projectId: string, eventId: string) =>
     ['opportunities', 'implementation-events', projectId, eventId] as const,
 };

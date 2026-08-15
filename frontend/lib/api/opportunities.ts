@@ -72,7 +72,7 @@ export type ExpectedCheck =
       kind: 'visibility_metric' | 'traffic_metric';
       metric: string;
       direction: 'increase' | 'decrease' | 'equal';
-      expected_value?: number;
+      expected_value: number;
       tolerance?: number;
     };
 export type ImplementationEventCreate = {
@@ -141,9 +141,16 @@ export const opportunitiesApi = {
     );
     return strictValidate(implementationEventSchema, res, 'opportunities.implementation.create');
   },
-  listImplementationEvents: async (projectId: string, options?: ApiRequestOptions) => {
+  listImplementationEvents: async (
+    projectId: string,
+    opportunityId?: string,
+    options?: ApiRequestOptions,
+  ) => {
     const res = await apiClient.get(
-      `/projects/${projectId}/opportunities/implementation-events`,
+      withQuery(
+        `/projects/${projectId}/opportunities/implementation-events`,
+        definedQuery({ opportunity_id: opportunityId }),
+      ),
       options,
     );
     return strictValidate(
@@ -223,11 +230,11 @@ export const opportunitiesQueries = {
       placeholderData: (previousData, previousQuery) =>
         isSameProjectQuery(previousQuery, projectId) ? previousData : undefined,
     }),
-  implementationEvents: (projectId: string) =>
+  implementationEvents: (projectId: string, opportunityId?: string) =>
     queryOptions({
-      queryKey: queryKeys.opportunities.implementationEvents(projectId),
+      queryKey: queryKeys.opportunities.implementationEvents(projectId, opportunityId),
       queryFn: ({ signal }) =>
-        opportunitiesApi.listImplementationEvents(projectId, { signal }),
+        opportunitiesApi.listImplementationEvents(projectId, opportunityId, { signal }),
     }),
 };
 

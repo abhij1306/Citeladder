@@ -34,7 +34,7 @@ export const PLAN_PRESENTATION: Readonly<Record<PlanKey, PlanPresentation>> = {
   },
   tier_3: { blurb: 'Higher limits for growing sites and teams.' },
   enterprise: {
-    blurb: 'Custom scale, security, and industry-pack support.',
+    blurb: 'Custom scale, security, and evidence-workflow support.',
   },
 };
 

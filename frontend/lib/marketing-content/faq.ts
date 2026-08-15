@@ -28,7 +28,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
       },
       {
         q: 'How is the product organized?',
-        a: `Five stations form one loop: Connect, Analyze, Act, Improve / Verify, and Track. Site Health, Content, Demand, Opportunities, and the bounded Growth Agent retain clear ownership behind those stations.`,
+        a: `Five stations form one loop: Connect, Analyze, Act, Improve / Verify, and Track. Site Health, Content Intelligence, Demand Intelligence, and the bounded Growth Agent retain clear ownership behind those stations; Opportunities is their shared action projection.`,
       },
       {
         q: 'How does the growth loop work?',
@@ -64,16 +64,16 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
     heading: 'Industry packs',
     items: [
       {
-        q: 'What is an industry pack?',
+        q: 'How does CiteLadder adapt to different businesses?',
         a: `A versioned pack encodes the page roles, gap-detection rules, and schema expectations of a specific business model, so classification and gap-finding are judged the way your industry actually works rather than by one generic rule. A project runs one primary pack plus the reviewed capabilities it needs, and every finding records the pack ID and version that produced it.`,
       },
       {
         q: 'Which industries are covered?',
-        a: `CiteLadder includes industry packs for education, commerce, professional services, enterprise SaaS, media, and financial services. Each pack defines the page roles, gap rules, and schema expectations used to evaluate that business model, and every finding records the pack and version that produced it.`,
+        a: `CiteLadder classifies each page by structural purpose, applies the matching deterministic checks, and combines those findings with the project's own demand evidence. Every derived result records the versions and source evidence that produced it.`,
       },
       {
         q: 'Do packs share my data with other customers?',
-        a: `No. Industry knowledge is shared and versioned across the platform; your customer facts are not. A pack carries rules and expectations, never another company’s data.`,
+        a: `No. Project evidence remains workspace-authorized and isolated. Shared product rules contain deterministic checks and thresholds, never another company’s data.`,
       },
     ],
   },
@@ -82,7 +82,7 @@ export const FAQ_GROUPS: readonly FaqGroup[] = [
     items: [
       {
         q: 'How is my data isolated?',
-        a: `Every customer fact is scoped to its project and never crosses workspaces. Shared industry packs are the only thing versioned across the platform — customer data never is.`,
+        a: `Every customer fact is scoped to its project and never crosses workspaces. Product rules and analyzers are versioned independently so historical results remain reproducible.`,
       },
       {
         q: 'Can I see the evidence behind a recommendation?',
