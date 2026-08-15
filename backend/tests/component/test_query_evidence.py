@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import httpx
 import pytest
@@ -17,9 +17,16 @@ from app.core.config.integrations import (
 from app.domain.demand.query_evidence import (
     build_query_evidence,
 )
-from app.domain.demand.query_evidence_reads import list_query_evidence
+from app.domain.demand.query_evidence_reads import (
+    QueryEvidenceCursorError,
+    list_query_evidence,
+)
 from app.domain.site_health.normalization import url_hash
 from app.models.demand import QueryEvidenceRow, QueryEvidenceSnapshot
+from app.models.integrations import (
+    IntegrationImportArtifact,
+    IntegrationPropertyMapping,
+)
 from app.models.site_health import SiteUrl
 from tests.component.analytics_helpers import (
     seed_ga4_import,
@@ -149,6 +156,13 @@ async def test_changed_source_supersedes_and_pagination_is_stable(
     await db_session.commit()
     assert second.id != first.id
     assert second.supersedes_snapshot_id == first.id
+    with pytest.raises(QueryEvidenceCursorError):
+        await list_query_evidence(
+            db_session,
+            snapshot=second,
+            limit=2,
+            cursor=page_one.next_cursor,
+        )
     assert (
         await db_session.scalar(select(func.count()).select_from(QueryEvidenceSnapshot))
         == 2
@@ -177,6 +191,59 @@ async def test_projection_bounds_latest_rows_before_materialization(
         "truncated": True,
     }
     assert snapshot.limitations == ["query_evidence_row_limit"]
+
+
+async def test_zero_row_artifact_window_is_filtered_before_limit(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace_id, project_id, _site_url, seed = await _seed_rows(db_session, count=0)
+    matching = await db_session.get(IntegrationImportArtifact, seed.artifact_id)
+    assert matching is not None
+    matching.query_snapshot = {
+        "start_date": _WINDOW[0].isoformat(),
+        "end_date": _WINDOW[1].isoformat(),
+    }
+    db_session.add(
+        IntegrationPropertyMapping(
+            workspace_id=workspace_id,
+            connection_id=matching.connection_id,
+            provider=INTEGRATION_PROVIDER_GSC,
+            property_ref=seed.property_ref,
+            project_id=project_id,
+        )
+    )
+    db_session.add(
+        IntegrationImportArtifact(
+            workspace_id=workspace_id,
+            sync_run_id=matching.sync_run_id,
+            connection_id=matching.connection_id,
+            provider=INTEGRATION_PROVIDER_GSC,
+            dataset=DATASET_GSC_QUERY_PAGE_DAILY,
+            query_snapshot={
+                "start_date": "2026-08-01",
+                "end_date": "2026-08-14",
+            },
+            payload_hash="f" * 64,
+            fetched_at=matching.fetched_at + timedelta(seconds=1),
+            row_count=0,
+            payload={"rows": []},
+        )
+    )
+    await db_session.commit()
+    monkeypatch.setattr(
+        "app.domain.demand.query_evidence.QUERY_EVIDENCE_MAX_ARTIFACTS", 1
+    )
+
+    snapshot = await build_query_evidence(
+        db_session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        window_start=_WINDOW[0],
+        window_end=_WINDOW[1],
+    )
+
+    assert snapshot.state == "observed_zero"
+    assert len(snapshot.source_artifact_ids) == 1
 
 
 async def _register_project(client: httpx.AsyncClient, label: str) -> dict:
@@ -213,7 +280,7 @@ async def test_api_requires_window_rejects_bad_cursor_and_is_workspace_safe(
         coverage={"projected_row_count": 0},
         limitations=[],
         analyzer_version="query-evidence-1",
-        resolver_version="owned-page-resolver-1",
+        resolver_version="owned-page-resolver-2",
     )
     db_session.add(snapshot)
     await db_session.commit()

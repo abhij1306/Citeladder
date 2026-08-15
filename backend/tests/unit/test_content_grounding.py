@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.domain.content import grounding
 from app.domain.content.grounding import (
     freeze_grounding_envelope,
     validate_provider_output,
@@ -47,12 +48,33 @@ def test_confirmed_fact_is_allowed_and_exact_source_marker_validates() -> None:
     validate_provider_output(f"Acme [[source:{_REF_A}]]", envelope)
 
 
-def test_absent_fact_source_and_provider_source_are_rejected() -> None:
-    with pytest.raises(ValueError, match="absent source reference"):
-        freeze_grounding_envelope([_fact("Acme", _REF_B)], [_source()], [])
+def test_absent_fact_source_is_omitted_and_provider_sources_are_rejected() -> None:
+    missing_fact_source = freeze_grounding_envelope(
+        [_fact("Acme", _REF_B)], [_source()], []
+    )
+    assert missing_fact_source.allowed_facts == []
+    assert missing_fact_source.omissions == [
+        {"reason_code": "grounding_budget", "count": 1}
+    ]
     envelope = freeze_grounding_envelope([_fact("Acme")], [_source()], [])
     with pytest.raises(ValueError, match="absent grounding source"):
         validate_provider_output(f"Claim [[source:{_REF_B}]]", envelope)
+    with pytest.raises(ValueError, match="absent grounding source"):
+        validate_provider_output("Claim [[source:not-a-digest]]", envelope)
+
+
+def test_reference_budget_keeps_fact_citations_or_drops_the_fact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(grounding, "CONTENT_GROUNDING_MAX_SOURCE_REFS", 1)
+    envelope = freeze_grounding_envelope(
+        [_fact("Acme", _REF_B)],
+        [_source(_REF_A), _source(_REF_B)],
+        [],
+    )
+    assert envelope.allowed_facts == [_fact("Acme", _REF_B)]
+    assert [item["source_ref_id"] for item in envelope.source_refs] == [_REF_B]
+    assert envelope.omissions == [{"reason_code": "grounding_budget", "count": 1}]
 
 
 def test_conflicting_confirmed_identity_facts_are_omitted() -> None:

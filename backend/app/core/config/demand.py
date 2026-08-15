@@ -2,9 +2,9 @@
 
 from typing import Final
 
-DEMAND_ANALYZER_VERSION: Final = "demand-analyzer-5"
+DEMAND_ANALYZER_VERSION: Final = "demand-analyzer-6"
 DEMAND_FORMULA_VERSION: Final = "demand-priority-1"
-DEMAND_RULE_VERSION: Final = "demand-rules-5"
+DEMAND_RULE_VERSION: Final = "demand-rules-6"
 
 DEMAND_SIGNAL_HIGH_IMPRESSION_LOW_CTR: Final = "high_impression_low_ctr"
 DEMAND_SIGNAL_BRANDED_QUERY: Final = "branded_query_performance"
@@ -64,7 +64,7 @@ DEMAND_TREND_MIN_ABSOLUTE_CHANGE: Final = 20
 DEMAND_TREND_GAP_WEIGHT: Final = 1.1
 DEMAND_LIST_MAX_LIMIT: Final = 200
 
-QUERY_EVIDENCE_ANALYZER_VERSION: Final = "query-evidence-2"
+QUERY_EVIDENCE_ANALYZER_VERSION: Final = "query-evidence-3"
 QUERY_EVIDENCE_DEFAULT_LIMIT: Final = 100
 QUERY_EVIDENCE_MAX_LIMIT: Final = 500
 QUERY_EVIDENCE_MAX_ROWS: Final = 5000
@@ -75,9 +75,10 @@ QUERY_EVIDENCE_STATE_UNAVAILABLE: Final = "unavailable"
 
 # Cross-source owned-page equivalence is deliberately separate from crawler
 # identity. Bump whenever evidence precedence or candidate construction changes.
-PAGE_EQUIVALENCE_RESOLVER_VERSION: Final = "owned-page-resolver-1"
+PAGE_EQUIVALENCE_RESOLVER_VERSION: Final = "owned-page-resolver-2"
 PAGE_EQUIVALENCE_MAX_CANDIDATES: Final = 16
 PAGE_EQUIVALENCE_MAX_ARTIFACTS: Final = 1000
+PAGE_EQUIVALENCE_QUERY_CHUNK_SIZE: Final = 500
 
 BRANDED_QUERY_CLASSIFIER_VERSION: Final = "branded-query-1"
 BRANDED_QUERY_CLASSES: Final[frozenset[str]] = frozenset(

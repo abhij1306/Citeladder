@@ -43,7 +43,7 @@ const detail = {
   feedback_at: null,
   prompt: 'Write a landing page for Acme.',
   grounding_summary: {
-    version: 'grounding-envelope-v1',
+    version: 'grounding-envelope-v2',
     allowed_fact_count: 3,
     source_ref_count: 4,
     crawl_fragment_count: 1,

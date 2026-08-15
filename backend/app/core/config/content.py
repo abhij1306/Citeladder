@@ -85,7 +85,7 @@ CONTENT_GROUNDING_MAX_SOURCE_REFS: Final = 32
 # --- Versioning + retry budget --------------------------------------------
 CONTENT_GENERATOR_VERSION: Final = "content-v2"
 CONTENT_CRAWL_FRAGMENT_SELECTION_VERSION: Final = "crawl-fragment-selection-1"
-CONTENT_GROUNDING_ENVELOPE_VERSION: Final = "grounding-envelope-v1"
+CONTENT_GROUNDING_ENVELOPE_VERSION: Final = "grounding-envelope-v2"
 CONTENT_MAX_ATTEMPTS: Final = 3
 
 # --- Error tokens specific to the content vertical -------------------------

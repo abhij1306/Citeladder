@@ -44,7 +44,7 @@ _RESTRICTED_CLASSES = (
     "safety",
     "identity",
 )
-_SOURCE_MARKER = re.compile(r"\[\[source:([a-f0-9]{64})\]\]")
+_SOURCE_MARKER = re.compile(r"\[\[source:([^\]]*)\]\]")
 
 
 @dataclass(frozen=True)
@@ -161,8 +161,7 @@ def freeze_grounding_envelope(
     omissions: list[dict[str, Any]],
 ) -> GroundingEnvelope:
     """Bound, conflict-check, and validate an immutable envelope."""
-    bounded_facts = facts[:CONTENT_GROUNDING_MAX_FACTS]
-    bounded_refs = source_refs[:CONTENT_GROUNDING_MAX_SOURCE_REFS]
+    bounded_facts, bounded_refs = _citation_safe_bounds(facts, source_refs)
     omitted = len(facts) - len(bounded_facts) + len(source_refs) - len(bounded_refs)
     if omitted:
         omissions = [*omissions, {"reason_code": "grounding_budget", "count": omitted}]
@@ -190,6 +189,44 @@ def freeze_grounding_envelope(
     )
     validate_grounding_envelope(envelope)
     return envelope
+
+
+def _citation_safe_bounds(
+    facts: list[dict[str, Any]], source_refs: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Retain cited references ahead of optional crawl observations."""
+    candidate_facts = facts[:CONTENT_GROUNDING_MAX_FACTS]
+    ref_by_id = {str(item.get("source_ref_id") or ""): item for item in source_refs}
+    bounded_facts: list[dict[str, Any]] = []
+    required_ref_ids: set[str] = set()
+    for fact in candidate_facts:
+        cited = {str(item) for item in fact.get("source_ref_ids") or []}
+        if (
+            not cited
+            or not cited.issubset(ref_by_id)
+            or len(required_ref_ids | cited) > CONTENT_GROUNDING_MAX_SOURCE_REFS
+        ):
+            continue
+        bounded_facts.append(fact)
+        required_ref_ids.update(cited)
+    required_refs, optional_refs = _ordered_source_refs(source_refs, required_ref_ids)
+    bounded_refs = [*required_refs, *optional_refs][:CONTENT_GROUNDING_MAX_SOURCE_REFS]
+    return bounded_facts, bounded_refs
+
+
+def _ordered_source_refs(
+    source_refs: list[dict[str, Any]], required_ref_ids: set[str]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    required: list[dict[str, Any]] = []
+    optional: list[dict[str, Any]] = []
+    selected: set[str] = set()
+    for item in source_refs:
+        ref_id = str(item.get("source_ref_id") or "")
+        if ref_id in selected:
+            continue
+        selected.add(ref_id)
+        (required if ref_id in required_ref_ids else optional).append(item)
+    return required, optional
 
 
 def _prohibited_claims(

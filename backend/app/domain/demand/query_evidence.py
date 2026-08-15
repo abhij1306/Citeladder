@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.demand import (
@@ -28,6 +29,7 @@ from app.domain.demand.page_equivalence import PageResolution, resolve_owned_pag
 from app.domain.demand.projection import stable_hash
 from app.domain.demand.query_classification import normalize_query
 from app.domain.demand.query_evidence_reads import latest_query_evidence_snapshot
+from app.domain.integrations.sync import integrity_constraint_name
 from app.domain.traffic.projection import TrafficMetricRowInput, select_latest_rows
 from app.models.demand import QueryEvidenceRow, QueryEvidenceSnapshot
 from app.models.integrations import (
@@ -157,6 +159,30 @@ async def _zero_row_artifacts(
                 .where(IntegrationPropertyMapping.project_id == project_id)
                 .where(
                     IntegrationImportArtifact.dataset == DATASET_GSC_QUERY_PAGE_DAILY
+                )
+                .where(
+                    or_(
+                        and_(
+                            IntegrationImportArtifact.query_snapshot[
+                                "start_date"
+                            ].as_string()
+                            == window_start.isoformat(),
+                            IntegrationImportArtifact.query_snapshot[
+                                "end_date"
+                            ].as_string()
+                            == window_end.isoformat(),
+                        ),
+                        and_(
+                            IntegrationImportArtifact.query_snapshot[
+                                "startDate"
+                            ].as_string()
+                            == window_start.isoformat(),
+                            IntegrationImportArtifact.query_snapshot[
+                                "endDate"
+                            ].as_string()
+                            == window_end.isoformat(),
+                        ),
+                    )
                 )
                 .order_by(
                     IntegrationImportArtifact.fetched_at.desc(),
@@ -308,10 +334,37 @@ async def build_query_evidence(
             artifacts=artifacts,
         )
     )
-    session.add(snapshot)
-    await session.flush()
+    persisted = await _insert_snapshot_or_get_existing(session, snapshot)
+    if persisted is not snapshot:
+        return persisted
     _add_evidence_rows(session, snapshot, selected, resolutions)
     await session.flush()
+    return snapshot
+
+
+async def _insert_snapshot_or_get_existing(
+    session: AsyncSession, snapshot: QueryEvidenceSnapshot
+) -> QueryEvidenceSnapshot:
+    try:
+        async with session.begin_nested():
+            session.add(snapshot)
+            await session.flush()
+    except IntegrityError as exc:
+        if integrity_constraint_name(exc) != "uq_query_evidence_snapshot_identity":
+            raise
+        concurrent = await session.scalar(
+            select(QueryEvidenceSnapshot).where(
+                QueryEvidenceSnapshot.workspace_id == snapshot.workspace_id,
+                QueryEvidenceSnapshot.project_id == snapshot.project_id,
+                QueryEvidenceSnapshot.window_start == snapshot.window_start,
+                QueryEvidenceSnapshot.window_end == snapshot.window_end,
+                QueryEvidenceSnapshot.source_hash == snapshot.source_hash,
+                QueryEvidenceSnapshot.analyzer_version == snapshot.analyzer_version,
+            )
+        )
+        if concurrent is None:
+            raise
+        return concurrent
     return snapshot
 
 

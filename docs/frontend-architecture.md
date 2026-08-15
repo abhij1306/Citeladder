@@ -154,7 +154,7 @@ such as Resolved neither creates nor replaces this action record.
 
 `/demand` is the single **Search Demand** screen; it does not provide nested
 Overview/Search Demand/AI Visibility tabs. `/visibility` remains the standalone
-AI Visibility destination. Search Demand renders labeled GSC-backed signal
+AI Visibility destination. Search Demand renders labelled GSC-backed signal
 rows, branded demand as a non-actionable cohort, and the honest no-snapshot,
 unavailable, observed-zero, partial, insufficient-history, and active states.
 Detector absence never becomes a fabricated zero or an intended-page mismatch

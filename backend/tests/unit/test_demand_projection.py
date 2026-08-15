@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import uuid
 from datetime import date, timedelta
+
+import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.domain.demand.projection import (
     QueryEvidenceInput,
@@ -13,6 +17,8 @@ from app.domain.demand.query_detectors import (
     detect_property_relative_ctr_gap,
     detect_query_trends,
 )
+from app.domain.demand.query_evidence import _insert_snapshot_or_get_existing
+from app.models.demand import QueryEvidenceSnapshot
 
 
 def test_search_detector_preserves_zero_and_unavailable_distinction() -> None:
@@ -94,6 +100,9 @@ def test_striking_distance_includes_exact_thresholds_and_branded_cohort() -> Non
         "non_branded": 2,
         "ambiguous": 0,
     }
+    assert evaluation.candidates[0].evidence["classifier_versions"] == [
+        "branded-query-1"
+    ]
 
 
 def test_striking_distance_abstains_for_boundaries_without_evidence() -> None:
@@ -108,7 +117,8 @@ def test_striking_distance_abstains_for_boundaries_without_evidence() -> None:
     )
 
     assert evaluation.candidates == ()
-    assert evaluation.state == "available"
+    assert evaluation.state == "partial"
+    assert evaluation.limitations
 
 
 def test_striking_distance_reports_unavailable_without_rows() -> None:
@@ -132,6 +142,7 @@ def test_cannibalization_requires_two_resolved_pages_at_both_thresholds() -> Non
         "query_cannibalization"
     ]
     assert positive.candidates[0].metrics["qualifying_page_count"] == 2
+    assert positive.candidates[0].evidence["classifier_versions"] == ["branded-query-1"]
 
     boundary = detect_cannibalization(
         [
@@ -164,6 +175,12 @@ def test_property_relative_ctr_gap_uses_only_qualified_property_cohort() -> None
     thin = detect_property_relative_ctr_gap(rows[:19])
     assert thin.state == "unavailable"
     assert thin.candidates == ()
+
+    zero_impression = detect_property_relative_ctr_gap(
+        [_query_row("zero", impressions=0, clicks=0, position=5.0)]
+    )
+    assert zero_impression.state == "unavailable"
+    assert zero_impression.candidates == ()
 
 
 def test_query_trends_prove_both_classes_and_reject_26_day_history() -> None:
@@ -206,3 +223,63 @@ def test_query_trends_prove_both_classes_and_reject_26_day_history() -> None:
     )
     assert sparse.state == "insufficient_history"
     assert sparse.candidates == ()
+
+
+@pytest.mark.asyncio
+async def test_equal_concurrent_query_snapshot_insert_reuses_winner() -> None:
+    snapshot = QueryEvidenceSnapshot(
+        workspace_id=uuid.uuid4(),
+        project_id=uuid.uuid4(),
+        window_start=date(2026, 7, 1),
+        window_end=date(2026, 7, 28),
+        source_hash="a" * 64,
+        state="available",
+        source_metric_row_ids=[],
+        source_artifact_ids=[],
+        coverage={},
+        limitations=[],
+        analyzer_version="query-evidence-3",
+        resolver_version="owned-page-resolver-2",
+    )
+    winner = QueryEvidenceSnapshot(
+        workspace_id=snapshot.workspace_id,
+        project_id=snapshot.project_id,
+        window_start=snapshot.window_start,
+        window_end=snapshot.window_end,
+        source_hash=snapshot.source_hash,
+        state="available",
+        source_metric_row_ids=[],
+        source_artifact_ids=[],
+        coverage={},
+        limitations=[],
+        analyzer_version=snapshot.analyzer_version,
+        resolver_version=snapshot.resolver_version,
+    )
+
+    class _UniqueViolation(Exception):
+        constraint_name = "uq_query_evidence_snapshot_identity"
+
+    class _Nested:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+    class _Session:
+        def begin_nested(self):
+            return _Nested()
+
+        def add(self, _row):
+            return None
+
+        async def flush(self):
+            raise IntegrityError("insert", {}, _UniqueViolation())
+
+        async def scalar(self, _statement):
+            return winner
+
+    result = await _insert_snapshot_or_get_existing(  # type: ignore[arg-type]
+        _Session(), snapshot
+    )
+    assert result is winner

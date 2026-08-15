@@ -66,7 +66,7 @@ function generation(overrides: Record<string, unknown> = {}) {
     prompt_preview: 'Write an about page',
     prompt: 'Write an about page for Acme.',
     grounding_summary: {
-      version: 'grounding-envelope-v1',
+      version: 'grounding-envelope-v2',
       allowed_fact_count: 2,
       source_ref_count: 3,
       crawl_fragment_count: 1,

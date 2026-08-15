@@ -146,9 +146,15 @@ def detect_striking_distance(rows: list[QueryEvidenceInput]) -> DetectorEvaluati
     """Separate branded demand and detect only resolved non-branded candidates."""
     grouped: dict[tuple[str, str, str], list[QueryEvidenceInput]] = {}
     counts = {"branded": 0, "non_branded": 0, "ambiguous": 0}
+    abstained = 0
     for row in rows:
         counts[row.classification] = counts.get(row.classification, 0) + 1
-        if row.resolution_outcome not in {"exact", "resolved"} or row.position is None:
+        if (
+            row.classification == "ambiguous"
+            or row.resolution_outcome not in {"exact", "resolved"}
+            or row.position is None
+        ):
+            abstained += 1
             continue
         grouped.setdefault(
             (row.classification, row.normalized_query, row.resolved_page_url), []
@@ -178,9 +184,14 @@ def detect_striking_distance(rows: list[QueryEvidenceInput]) -> DetectorEvaluati
                     gap_weight=DEMAND_STRIKING_DISTANCE_GAP_WEIGHT,
                 )
             )
-    state = "available" if rows else "unavailable"
+    state = "partial" if abstained else ("available" if rows else "unavailable")
     limitations = (
-        "Ambiguous branded classifications and unresolved page identities abstain.",
+        (
+            f"{abstained} rows abstained on ambiguous classification, "
+            "unresolved page identity, or missing position.",
+        )
+        if abstained
+        else ()
     )
     return DetectorEvaluation(state, tuple(candidates), counts, limitations)
 
@@ -193,11 +204,13 @@ def _aggregate_query_rows(rows: list[QueryEvidenceInput]) -> dict[str, Any]:
     metric_ids: set[str] = set()
     artifact_ids: set[str] = set()
     override_ids: set[str] = set()
+    classifier_versions: set[str] = set()
     for row in rows:
         impressions += row.impressions
         clicks += row.clicks
         metric_ids.add(row.source_metric_row_id)
         artifact_ids.add(row.source_artifact_id)
+        classifier_versions.add(row.classifier_version)
         if row.position is not None and row.impressions > 0:
             has_position = True
             weighted_total += row.position * row.impressions
@@ -213,7 +226,7 @@ def _aggregate_query_rows(rows: list[QueryEvidenceInput]) -> dict[str, Any]:
         "position": weighted_position,
         "source_metric_row_ids": sorted(metric_ids),
         "source_artifact_ids": sorted(artifact_ids),
-        "classifier_version": rows[0].classifier_version,
+        "classifier_versions": sorted(classifier_versions),
         "classification_override_ids": sorted(override_ids),
     }
 
@@ -248,7 +261,7 @@ def _query_candidate(
         "resolved_page_url": page_url,
         "source_metric_row_ids": aggregate["source_metric_row_ids"],
         "source_artifact_ids": aggregate["source_artifact_ids"],
-        "classifier_version": aggregate["classifier_version"],
+        "classifier_versions": aggregate["classifier_versions"],
         "classification_override_ids": aggregate["classification_override_ids"],
     }
     return DemandSignalCandidate(

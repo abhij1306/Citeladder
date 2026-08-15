@@ -56,7 +56,7 @@ function generation(overrides: Record<string, unknown> = {}) {
     prompt_preview: 'Write a landing page',
     prompt: 'Write a landing page for Acme.',
     grounding_summary: {
-      version: 'grounding-envelope-v1',
+      version: 'grounding-envelope-v2',
       allowed_fact_count: 3,
       source_ref_count: 4,
       crawl_fragment_count: 1,
@@ -280,7 +280,7 @@ describe('ContentScreen — error state', () => {
             status: 'succeeded',
             grounding_status: 'unavailable',
             grounding_summary: {
-              version: 'grounding-envelope-v1',
+              version: 'grounding-envelope-v2',
               allowed_fact_count: 0,
               source_ref_count: 0,
               crawl_fragment_count: 0,

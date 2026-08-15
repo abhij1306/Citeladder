@@ -20,6 +20,7 @@ from app.connectors.web_evidence.url_policy import UrlPolicyError, canonicalize
 from app.core.config.demand import (
     PAGE_EQUIVALENCE_MAX_ARTIFACTS,
     PAGE_EQUIVALENCE_MAX_CANDIDATES,
+    PAGE_EQUIVALENCE_QUERY_CHUNK_SIZE,
     PAGE_EQUIVALENCE_RESOLVER_VERSION,
 )
 from app.models.site_health import SiteCrawlTask, SiteFetchArtifact, SiteUrl
@@ -244,8 +245,12 @@ async def resolve_owned_pages(
         row_by_url=row_by_url,
         preferred=preferred,
     )
-    artifacts = await _load_candidate_artifacts(
-        session, workspace_id=workspace_id, candidate_ids=sorted(unresolved_ids)
+    artifacts = (
+        await _load_candidate_artifacts(
+            session, workspace_id=workspace_id, candidate_ids=sorted(unresolved_ids)
+        )
+        if unresolved_ids
+        else []
     )
     for url, candidates in candidates_by_url.items():
         results[url] = _resolve_from_artifacts(
@@ -270,16 +275,26 @@ async def _load_batch_site_urls(
     project_id: uuid.UUID,
     variants: list[str],
 ) -> list[SiteUrl]:
-    return list(
-        (
-            await session.scalars(
-                select(SiteUrl)
-                .where(SiteUrl.workspace_id == workspace_id)
-                .where(SiteUrl.project_id == project_id)
-                .where(SiteUrl.normalized_url.in_(variants))
-                .order_by(SiteUrl.normalized_url, SiteUrl.id)
-            )
-        ).all()
+    rows: list[SiteUrl] = []
+    for chunk in _query_chunks(variants):
+        rows.extend(
+            (
+                await session.scalars(
+                    select(SiteUrl)
+                    .where(SiteUrl.workspace_id == workspace_id)
+                    .where(SiteUrl.project_id == project_id)
+                    .where(SiteUrl.normalized_url.in_(chunk))
+                    .order_by(SiteUrl.normalized_url, SiteUrl.id)
+                )
+            ).all()
+        )
+    return rows
+
+
+def _query_chunks(values: list[str]) -> tuple[list[str], ...]:
+    return tuple(
+        values[offset : offset + PAGE_EQUIVALENCE_QUERY_CHUNK_SIZE]
+        for offset in range(0, len(values), PAGE_EQUIVALENCE_QUERY_CHUNK_SIZE)
     )
 
 

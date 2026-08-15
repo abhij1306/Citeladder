@@ -5,6 +5,7 @@ import uuid
 from app.domain.demand.page_equivalence import (
     PageCandidate,
     _artifact_proofs,
+    _query_chunks,
     _variant_urls,
 )
 
@@ -22,11 +23,18 @@ def test_variant_discovery_does_not_decode_or_merge_path_content() -> None:
     assert all("/a/b" not in value for value in variants)
 
 
+def test_variant_queries_are_split_at_the_configured_boundary() -> None:
+    chunks = _query_chunks([str(index) for index in range(501)])
+    assert [len(chunk) for chunk in chunks] == [500, 1]
+
+
 def test_redirect_and_canonical_are_the_only_resolution_proofs() -> None:
     target_id = uuid.uuid4()
     source_id = uuid.uuid4()
     candidates = {
-        "https://example.com/page": PageCandidate(target_id, "https://example.com/page"),
+        "https://example.com/page": PageCandidate(
+            target_id, "https://example.com/page"
+        ),
         "http://www.example.com/page/": PageCandidate(
             source_id, "http://www.example.com/page/"
         ),

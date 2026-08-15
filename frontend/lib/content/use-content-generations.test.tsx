@@ -22,7 +22,7 @@ const listItem = {
   opportunity_id: null,
   feedback: null,
   feedback_at: null,
-  grounding_status: 'included',
+  grounding_status: 'unavailable',
   requested_model: 'mistral-small-latest',
   returned_model: null,
   provider: 'mistral',
@@ -37,7 +37,7 @@ const detail = {
   ...listItem,
   prompt: 'Write a landing page for Acme.',
   grounding_summary: {
-    version: 'grounding-envelope-v1',
+    version: 'grounding-envelope-v2',
     allowed_fact_count: 0,
     source_ref_count: 0,
     crawl_fragment_count: 0,

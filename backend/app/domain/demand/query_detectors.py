@@ -122,7 +122,23 @@ def _cannibalization_candidate(
         query=query,
         page_url=page_evidence[0]["url"],
         metrics={"impressions": total, "qualifying_page_count": len(pages)},
-        evidence={"pages": page_evidence},
+        evidence={
+            "pages": page_evidence,
+            "classifier_versions": sorted(
+                {
+                    version
+                    for item in pages.values()
+                    for version in item["classifier_versions"]
+                }
+            ),
+            "classification_override_ids": sorted(
+                {
+                    override
+                    for item in pages.values()
+                    for override in item["classification_override_ids"]
+                }
+            ),
+        },
         source_metric_row_ids=all_rows,
         source_artifact_ids=artifacts,
         gap_weight=DEMAND_CANNIBALIZATION_GAP_WEIGHT,
@@ -136,7 +152,9 @@ def detect_property_relative_ctr_gap(
     grouped = _group_aggregates(eligible, include_property=True)
     cohorts: dict[tuple[str, int], list[tuple[tuple[str, ...], dict[str, Any]]]] = {}
     for key, aggregate in grouped.items():
-        band = math.floor(float(aggregate["position"]))
+        band = _position_band(aggregate)
+        if band is None:
+            continue
         cohorts.setdefault((key[0], band), []).append((key, aggregate))
     candidates: list[DemandSignalCandidate] = []
     usable_cohorts = 0
@@ -163,6 +181,7 @@ def _eligible_ctr_row(row: QueryEvidenceInput) -> bool:
         row.classification == "non_branded"
         and row.resolution_outcome in {"exact", "resolved"}
         and row.position is not None
+        and row.impressions > 0
     )
 
 
@@ -183,7 +202,9 @@ def _ctr_candidates(
     for key, aggregate in cohort:
         ctr = float(aggregate["ctr"] or 0.0)
         if _is_ctr_gap(aggregate["impressions"], ctr, median_ctr):
-            candidates.append(_ctr_gap_candidate(key, aggregate, median_ctr, cohort))
+            candidate = _ctr_gap_candidate(key, aggregate, median_ctr, cohort)
+            if candidate is not None:
+                candidates.append(candidate)
     return candidates
 
 
@@ -200,8 +221,11 @@ def _ctr_gap_candidate(
     aggregate: dict[str, Any],
     median_ctr: float,
     cohort: list[tuple[tuple[str, ...], dict[str, Any]]],
-) -> DemandSignalCandidate:
+) -> DemandSignalCandidate | None:
     property_ref, query, page_url = key
+    position_band = _position_band(aggregate)
+    if position_band is None:
+        return None
     return _custom_query_candidate(
         signal_type=DEMAND_SIGNAL_CTR_GAP,
         query=query,
@@ -217,7 +241,9 @@ def _ctr_gap_candidate(
         },
         evidence={
             "property_ref": property_ref,
-            "position_band": math.floor(aggregate["position"]),
+            "position_band": position_band,
+            "classifier_versions": aggregate["classifier_versions"],
+            "classification_override_ids": aggregate["classification_override_ids"],
         },
         source_metric_row_ids=aggregate["source_metric_row_ids"],
         source_artifact_ids=aggregate["source_artifact_ids"],
@@ -321,7 +347,17 @@ def _trend_candidate(
             "prior_impressions": prior,
             "recent_impressions": recent,
         },
-        evidence={"resolved_pages": resolved_pages},
+        evidence={
+            "resolved_pages": resolved_pages,
+            "classifier_versions": sorted({row.classifier_version for row in rows}),
+            "classification_override_ids": sorted(
+                {
+                    row.classification_override_id
+                    for row in rows
+                    if row.classification_override_id
+                }
+            ),
+        },
         source_metric_row_ids=sorted({row.source_metric_row_id for row in rows}),
         source_artifact_ids=sorted({row.source_artifact_id for row in rows}),
         gap_weight=DEMAND_TREND_GAP_WEIGHT,
@@ -345,6 +381,11 @@ def _classification_counts(rows: list[QueryEvidenceInput]) -> dict[str, int]:
     for row in rows:
         counts[row.classification] = counts.get(row.classification, 0) + 1
     return counts
+
+
+def _position_band(aggregate: dict[str, Any]) -> int | None:
+    position = aggregate.get("position")
+    return math.floor(float(position)) if isinstance(position, int | float) else None
 
 
 def _custom_query_candidate(

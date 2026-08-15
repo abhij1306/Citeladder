@@ -31,8 +31,10 @@ property evidence recorded as limitations.
 
 Workspace-authorized persisted reads require `window_start` and `window_end`:
 
-- `GET /api/v1/projects/{project_id}/demand/query-evidence` supports a typed
-  cursor, filters, a default page size of 100, and hard maximum of 500.
+- `GET /api/v1/projects/{project_id}/demand/query-evidence` supports a typed,
+  snapshot-bound cursor, filters, a default page size of 100, and hard maximum
+  of 500. A cursor from a superseded snapshot is rejected instead of crossing
+  immutable evidence sets.
 - `GET /api/v1/projects/{project_id}/demand/query-evidence/summary` returns the
   snapshot and resolution counts without pagination.
 
@@ -45,7 +47,8 @@ in `domain/demand/projection.py`; the stricter query-evidence algorithms are
 split into `query_detectors.py`, while `detector_source.py` performs the one
 bounded workspace/project-scoped input assembly. Every emitted signal carries
 the exact source metric-row and artifact IDs plus analyzer, rule, formula,
-classifier, and owned-page resolver versions.
+classifier, and owned-page resolver versions. Multi-row signals retain the
+complete sorted classifier-version and override-ID sets.
 
 - Branded classification runs before all query detectors. Branded rows emit
   only `branded_query_performance`, remain visible as their own cohort, and

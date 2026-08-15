@@ -43,10 +43,11 @@ envelope is still frozen and the UI labels the output an ungrounded draft.
 `message_builder.build_messages()` accepts only `GroundingEnvelope`; the former
 direct `WebsiteContext` adapter and wire contract are deleted.
 `website_context.py` remains an internal bounded crawl-fragment selector used by
-the grounding owner. Envelope validation rejects an allowed fact whose source ID
-is absent. Provider output source markers use
-`[[source:<source_ref_id>]]`; the worker rejects markers not present in the
-frozen envelope.
+the grounding owner. Budgeting retains every source cited by an allowed fact or
+drops that fact with an explicit grounding-budget omission. Envelope validation
+rejects an allowed fact whose source ID is absent. Provider output source
+markers use `[[source:<source_ref_id>]]`; the worker rejects malformed markers
+and markers not present in the frozen envelope.
 
 Content does not own strategy snapshots, inventory copies, briefs, validation
 state machines, revisions, publication claims, or later verification. No

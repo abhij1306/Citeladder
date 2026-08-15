@@ -31,7 +31,7 @@ Deterministic fixtures, not these site-specific results, own threshold proof.
 - Property-relative CTR gap: `unavailable`, 0 signals because no cohort met
   the locked 20-row / 500-impression coverage gate.
 - Trends: `insufficient_history`, 0 signals because 26 days is below the
-  required adjacent 14 + 14 day coverage.
+  required adjacent 14 + 14-day coverage.
 
 The thin-data result therefore emitted fewer signals with explicit states and
 did not fabricate a CTR baseline, trend, or intended-page mismatch.

@@ -71,7 +71,8 @@ Demand's `page_equivalence` module is the sole cross-source owned-page resolver.
 It uses exact `SiteUrl` matches plus persisted redirect/canonical evidence and
 returns `exact`, `resolved`, `ambiguous`, or `unresolved` with a versioned
 candidate projection. Sitemap/preferred-origin signals rank but never prove a
-mapping. All resolver queries are workspace- and project-scoped.
+mapping. All resolver queries are workspace- and project-scoped; large variant
+sets are split into config-bounded SQL batches.
 
 Traffic's existing `load_snapshot` resolver is exact-window when both dates are
 present and explicit-latest only when they are omitted. Dashboard projections
@@ -87,8 +88,10 @@ coverage, limitations, source IDs, and analyzer/resolver versions;
 identity, date, metrics, resolution evidence, and exact import provenance.
 Retries reuse identical immutable snapshots, while source or version changes
 append. Workspace-authorized list/summary APIs read only persisted rows, with
-config-owned 100/500 pagination and 5,000-row/100-artifact build bounds. The
-latest-row cap is applied in SQL before ORM materialization.
+config-owned 100/500 pagination and 5,000-row/100-artifact build bounds. Cursors
+are bound to the immutable snapshot ID. Latest-row and exact-window artifact
+caps are applied in SQL before ORM materialization, and equal concurrent
+snapshot inserts converge through the unique identity.
 
 Demand query detection is split along complexity boundaries: `projection.py`
 owns the baseline and branded/striking-distance separation,

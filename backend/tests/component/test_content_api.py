@@ -25,7 +25,7 @@ _API_KEY = "test-mistral-key-abc123"
 _REF_ID = "b" * 64
 _CONTEXT = {
     "status": "included",
-    "version": "grounding-envelope-v1",
+    "version": "grounding-envelope-v2",
     "allowed_facts": [],
     "prohibited_claims": [],
     "source_refs": [

@@ -50,18 +50,24 @@ async def latest_query_evidence_snapshot(
     )
 
 
-def _encode_cursor(row: QueryEvidenceRow) -> str:
-    raw = json.dumps([row.date.isoformat(), str(row.id)], separators=(",", ":"))
+def _encode_cursor(row: QueryEvidenceRow, snapshot_id: uuid.UUID) -> str:
+    raw = json.dumps(
+        [str(snapshot_id), row.date.isoformat(), str(row.id)], separators=(",", ":")
+    )
     return base64.urlsafe_b64encode(raw.encode()).decode().rstrip("=")
 
 
-def _decode_cursor(value: str) -> tuple[date, uuid.UUID]:
+def _decode_cursor(value: str) -> tuple[uuid.UUID, date, uuid.UUID]:
     try:
         padded = value + "=" * (-len(value) % 4)
         raw = json.loads(base64.urlsafe_b64decode(padded).decode())
-        if not isinstance(raw, list) or len(raw) != 2:
+        if not isinstance(raw, list) or len(raw) != 3:
             raise ValueError
-        return date.fromisoformat(str(raw[0])), uuid.UUID(str(raw[1]))
+        return (
+            uuid.UUID(str(raw[0])),
+            date.fromisoformat(str(raw[1])),
+            uuid.UUID(str(raw[2])),
+        )
     except (ValueError, TypeError, json.JSONDecodeError, binascii.Error) as exc:
         raise QueryEvidenceCursorError("query_evidence_cursor_invalid") from exc
 
@@ -93,7 +99,9 @@ async def list_query_evidence(
             QueryEvidenceRow.resolution_outcome == resolution_outcome
         )
     if cursor:
-        cursor_date, cursor_id = _decode_cursor(cursor)
+        cursor_snapshot_id, cursor_date, cursor_id = _decode_cursor(cursor)
+        if cursor_snapshot_id != snapshot.id:
+            raise QueryEvidenceCursorError("query_evidence_cursor_invalid")
         statement = statement.where(
             or_(
                 QueryEvidenceRow.date > cursor_date,
@@ -114,7 +122,11 @@ async def list_query_evidence(
     )
     return QueryEvidencePage(
         rows=rows[:capped],
-        next_cursor=_encode_cursor(rows[capped - 1]) if len(rows) > capped else None,
+        next_cursor=(
+            _encode_cursor(rows[capped - 1], snapshot.id)
+            if len(rows) > capped
+            else None
+        ),
     )
 
 
