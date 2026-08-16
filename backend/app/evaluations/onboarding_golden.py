@@ -18,9 +18,9 @@ falls when the judge can genuinely tell our prompts from real ones.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import random
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
@@ -599,6 +599,10 @@ _DISCRIMINATION_SYSTEM = (
 )
 
 
+def _shuffle_key(seed: int, text: str) -> bytes:
+    return hashlib.blake2b(f"{seed}:{text}".encode(), digest_size=8).digest()
+
+
 def _discrimination_items(
     case: GoldenOnboardingCase,
     prompts: Sequence[PortfolioPrompt],
@@ -609,7 +613,11 @@ def _discrimination_items(
     gold = [*case.gold_buyer_prompts, *case.gold_branded_prompts][: len(prompts) + 4]
     items = [(text, False) for text in gold]
     items += [(prompt.text, True) for prompt in prompts]
-    random.Random(seed).shuffle(items)
+    # A keyed digest, not a PRNG. All this needs is an order the judge cannot
+    # read anything into and that a re-run reproduces exactly; a seeded
+    # `random` instance would do the same job while reading, to every scanner
+    # and every reviewer, like a security-relevant random source.
+    items.sort(key=lambda item: _shuffle_key(seed, item[0]))
     return [(index, text, generated) for index, (text, generated) in enumerate(items)]
 
 

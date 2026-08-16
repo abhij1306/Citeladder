@@ -43,12 +43,14 @@ export function ReviewSection({
   return (
     <section className="space-y-1.5 py-2.5 first:pt-0 last:pb-0">
       <div className="flex min-h-5 items-center justify-between gap-3">
-        {/* 14px, the screen's baseline. Section titles are structure, not
-            display type — a heading two steps up the scale made a four-question
-            form read like four separate pages. */}
+        {/* `website-label` — 14px, the screen's baseline, and the named role
+            rather than a raw size. Section titles are structure, not display
+            type: a heading two steps up the scale made a four-question form
+            read like four separate pages. Colour and weight are stated here
+            because the role defaults to muted. */}
         <h2
           className={cn(
-            'text-sm leading-5',
+            'website-label',
             emphasis ? 'text-foreground font-semibold' : 'text-secondary font-medium',
           )}
         >

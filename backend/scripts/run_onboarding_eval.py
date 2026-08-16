@@ -396,7 +396,15 @@ async def main() -> int:
         "cross_brand_collision": collision,
     }
     if args.out:
-        pathlib.Path(args.out).write_text(
+        # `--out` is a path from the command line, so it is resolved and pinned
+        # inside the repository before anything is written. A run that fat-
+        # fingers a `../` should fail loudly, not drop a results file somewhere
+        # outside the working tree.
+        destination = pathlib.Path(args.out).expanduser().resolve()
+        if not destination.is_relative_to(REPOSITORY):
+            raise SystemExit(f"--out must stay inside {REPOSITORY}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
         )
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")

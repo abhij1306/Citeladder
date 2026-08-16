@@ -619,8 +619,10 @@ export function OnboardingScreen() {
                     full-width paragraph spent the top of the screen announcing
                     a question the content answers by itself. */}
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h1 className="text-foreground text-base font-semibold">Does this look right?</h1>
-                  <p className="text-muted text-xs">
+                  <h1 className="website-body text-foreground font-semibold">
+                    Does this look right?
+                  </h1>
+                  <p className="website-label text-muted">
                     Deselect anything you don&apos;t want — you can change all of it after setup.
                   </p>
                 </div>

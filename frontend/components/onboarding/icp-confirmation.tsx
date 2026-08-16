@@ -75,7 +75,7 @@ export function IcpConfirmation({
   return (
     <>
       <ReviewSection title="What you sell" emphasis>
-        <p className="text-subtle -mt-1 text-xs">
+        <p className="website-label text-subtle -mt-1">
           Your competitors and tracked questions are built from this.
         </p>
         <ChipRow>
