@@ -51,21 +51,27 @@ def _valid_portfolio(case) -> list[PortfolioPrompt]:
 
 
 def test_corpus_covers_the_agreed_cases() -> None:
+    # Membership is the contract, not ordering: the cases are assembled from the
+    # commerce and services modules, so their order follows that split rather
+    # than the sequence they were first written in. Sorted comparison still
+    # fails on a missing, added, or duplicated case.
     slugs = [case.slug for case in GOLDEN_ONBOARDING_CASES]
-    assert slugs == [
-        "flipkart-india",
-        "best-less-australia",
-        "feedonomics-united-states",
-        "canva-australia",
-        "puma-india",
-        "urban-company-india",
-        "jupiter-india",
-        "zoho-india",
-        "graza-united-states",
-        "wakefit-india",
-        "burrow-united-states",
-        "valtech-global",
-    ]
+    assert sorted(slugs) == sorted(
+        [
+            "flipkart-india",
+            "best-less-australia",
+            "feedonomics-united-states",
+            "canva-australia",
+            "puma-india",
+            "urban-company-india",
+            "jupiter-india",
+            "zoho-india",
+            "graza-united-states",
+            "wakefit-india",
+            "burrow-united-states",
+            "valtech-global",
+        ]
+    )
     assert len(set(slugs)) == len(slugs)
     assert all(slug in CASES_BY_SLUG for slug in COLLISION_PAIR)
 
