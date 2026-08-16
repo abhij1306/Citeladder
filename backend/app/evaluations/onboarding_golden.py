@@ -647,10 +647,15 @@ def _score_discrimination(
     labels = review.get("labels")
     if not isinstance(labels, list):
         raise ValueError("judge response must contain a labels array")
+    # Through `_label_id`, so a verdict that omits an id is one dropped label
+    # rather than a `KeyError` the caller does not catch -- the whole point of
+    # this path is that a malformed judge reply skips the measurement.
     called_machine = {
-        int(entry["id"])
+        label_id
         for entry in labels
-        if isinstance(entry, dict) and str(entry.get("source", "")).lower() == "machine"
+        if isinstance(entry, dict)
+        and str(entry.get("source", "")).lower() == "machine"
+        and (label_id := _label_id(entry)) is not None
     }
     generated = [index for index, _, is_generated in items if is_generated]
     human = [index for index, _, is_generated in items if not is_generated]

@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from types import SimpleNamespace
 
 import pytest
 
-from app.core.config.brand_discovery import _discovery_research_system_prompt
+from app.core.config.brand_discovery import (
+    _discovery_research_system_prompt,
+    brand_discovery_settings,
+)
 from app.domain.projects.discovery_schemas import (
     BrandDiscoveryCreate,
     CompetitorQualification,
     ConfirmedDiscoveryProfile,
     DiscoveryCompetitorSuggestion,
 )
-from app.domain.projects.onboarding import prompt_generation
+from app.domain.projects.onboarding import portfolio_generation, prompt_generation
 from app.domain.projects.onboarding.industry_library import (
     industry_context,
     industry_names,
@@ -468,3 +473,36 @@ def test_catalog_exposes_only_current_research_methods_and_cohorts() -> None:
         "website_url",
         "primary_market",
     ]
+
+
+@pytest.mark.asyncio
+async def test_portfolio_generation_budget_covers_every_retry(monkeypatch) -> None:
+    """One deadline for the whole retry loop, not one per attempt.
+
+    `complete_discovery` awaits this while holding the discovery row
+    `FOR UPDATE`, so a per-attempt timeout multiplied by `synthesis_max_attempts`
+    would hold the lock for twice the configured ceiling and time out every
+    concurrent write on the row.
+    """
+    attempts = 0
+
+    async def never_answers(_request):
+        nonlocal attempts
+        attempts += 1
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(
+        brand_discovery_settings, "portfolio_generation_timeout_seconds", 0.2
+    )
+    monkeypatch.setattr(brand_discovery_settings, "synthesis_max_attempts", 3)
+    monkeypatch.setattr(portfolio_generation, "_model_portfolio", never_answers)
+
+    started = time.perf_counter()
+    prompts, shortfall = await portfolio_generation.generate_portfolio(
+        brand_name="Acme", primary_market="US", profile={}, competitors=[]
+    )
+    elapsed = time.perf_counter() - started
+
+    assert (prompts, shortfall) == ([], "")
+    assert attempts == 1
+    assert elapsed < 0.2 * 2

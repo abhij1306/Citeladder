@@ -233,11 +233,16 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
         assert await session.scalar(select(func.count()).select_from(Prompt)) == 10
         profile = await session.scalar(select(BrandProfile))
         assert profile is not None
-        assert profile.sources["positioning"]["review_state"] == "confirmed"
-        assert profile.sources["target_audience"]["review_state"] == "edited"
+        # The confirm screen asks what you sell, who buys it and where; the
+        # prose fields are not on it. Whatever arrives in them is the model's
+        # suggestion — or a default derived from the confirmed category — so it
+        # is recorded unreviewed, with no reviewer attributed to a sentence no
+        # user was shown.
+        assert profile.sources["positioning"]["review_state"] == "unreviewed"
+        assert profile.sources["target_audience"]["review_state"] == "unreviewed"
         assert profile.sources["target_audience"]["origin"] == "ai_suggested"
-        assert profile.sources["target_audience"]["reviewed_by"] is not None
-        assert profile.sources["target_audience"]["reviewed_at"] is not None
+        assert profile.sources["target_audience"].get("reviewed_by") is None
+        assert profile.sources["target_audience"].get("reviewed_at") is None
         assert set(profile.source_artifact_ids) == set(profile.sources)
         # The confirmed business context must survive project creation. Before
         # this existed, `business_type` and `price_tier` were collected, shown,

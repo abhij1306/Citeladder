@@ -170,6 +170,10 @@ class BrandProfileResponse(BaseModel):
     positioning: str
     products_services: list[str] = Field(default_factory=list)
     target_audience: str
+    # Readable, not just writable. The confirmed onboarding context drives
+    # competitors and prompts, so a client that cannot fetch it back cannot
+    # show what the project was built from, let alone round-trip an edit.
+    business_context: dict[str, Any] = Field(default_factory=dict)
     sources: BrandProfileSources = Field(default_factory=BrandProfileSources)
     source_artifact_ids: BrandProfileSourceArtifacts = Field(
         default_factory=BrandProfileSourceArtifacts

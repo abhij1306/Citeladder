@@ -159,30 +159,39 @@ async def generate_portfolio(
         competitors=competitors,
     )
     best: list[dict] = []
-    for _attempt in range(brand_discovery_settings.synthesis_max_attempts):
-        try:
-            async with asyncio.timeout(
-                brand_discovery_settings.portfolio_generation_timeout_seconds
-            ):
-                payload = await _model_portfolio(request)
-        except (
-            AgentNotConfiguredError,
-            ProviderError,
-            ValidationError,
-            ValueError,
-            json.JSONDecodeError,
-            TimeoutError,
+    # ONE deadline for every attempt, not one per attempt. The caller holds a
+    # FOR UPDATE row lock across this call, so the retry budget is what bounds
+    # the lock -- a per-attempt timeout multiplied by `synthesis_max_attempts`
+    # and quietly doubled the hold that the configured ceiling promises.
+    try:
+        async with asyncio.timeout(
+            brand_discovery_settings.portfolio_generation_timeout_seconds
         ):
-            return best, ""
-        prompts, shortfall = _parse_prompts(payload)
-        # Retry a thin reply, not just an empty one. A reply of three prompts
-        # cannot clear the portfolio floor, so accepting it silently hands the
-        # portfolio to the templates -- which the eval sees as template_tell
-        # snapping back to 1.0 for that brand. An explicit shortfall_reason is
-        # the model saying it knows little, and is taken at its word.
-        if len(prompts) >= PORTFOLIO_PROMPT_MIN or (prompts and shortfall):
-            return prompts, shortfall
-        best = max((best, prompts), key=len) if prompts else best
+            for _attempt in range(brand_discovery_settings.synthesis_max_attempts):
+                try:
+                    payload = await _model_portfolio(request)
+                except (
+                    AgentNotConfiguredError,
+                    ProviderError,
+                    ValidationError,
+                    # Covers `json.JSONDecodeError`, which subclasses it.
+                    ValueError,
+                ):
+                    return best, ""
+                prompts, shortfall = _parse_prompts(payload)
+                # Retry a thin reply, not just an empty one. A reply of three
+                # prompts cannot clear the portfolio floor, so accepting it
+                # silently hands the portfolio to the templates -- which the
+                # eval sees as template_tell snapping back to 1.0 for that
+                # brand. An explicit shortfall_reason is the model saying it
+                # knows little, and is taken at its word.
+                if len(prompts) >= PORTFOLIO_PROMPT_MIN or (prompts and shortfall):
+                    return prompts, shortfall
+                best = max((best, prompts), key=len) if prompts else best
+    except TimeoutError:
+        # Whatever the earlier attempts produced beats nothing; the caller
+        # falls back to the deterministic templates when it is empty.
+        return best, ""
     return best, ""
 
 

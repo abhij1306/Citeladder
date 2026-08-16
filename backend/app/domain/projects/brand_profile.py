@@ -54,6 +54,7 @@ def brand_profile_to_response(profile: BrandProfile) -> BrandProfileResponse:
         positioning=profile.positioning,
         products_services=list(profile.products_services or []),
         target_audience=profile.target_audience,
+        business_context=dict(profile.business_context or {}),
         sources=BrandProfileSources(
             **{
                 field: sources[field]

@@ -25,8 +25,7 @@ from app.core.config.brand_discovery import (
 )
 from app.core.config.brand_profile import (
     BRAND_PROFILE_FIELDS,
-    BRAND_PROFILE_REVIEW_CONFIRMED,
-    BRAND_PROFILE_REVIEW_EDITED,
+    BRAND_PROFILE_REVIEW_UNREVIEWED,
     BRAND_PROFILE_SOURCE_AI_SUGGESTED,
 )
 from app.core.config.prompts import ONBOARDING_PROMPT_SET_NAME
@@ -332,23 +331,21 @@ def _confirmed_competitors(
     return confirmed
 
 
-def _reviewed_profile_sources(
-    discovered: dict,
-    confirmed: dict,
-    *,
-    reviewer_id: uuid.UUID,
-) -> dict[str, dict[str, str]]:
-    reviewed_at = datetime.now(UTC).isoformat()
+def _reviewed_profile_sources(confirmed: dict) -> dict[str, dict[str, str]]:
+    """Record provenance for the brand-knowledge fields.
+
+    None of these four are on the confirm screen any more -- it asks what you
+    sell, who buys it and where, and the prose fields moved to the brand screen
+    inside the app. So they cannot be stamped as reviewed: the client fills the
+    empties from the confirmed category, and calling a generated string like
+    "Buyers searching for ..." user-confirmed would make later consumers trust
+    a sentence no user ever read. They stay AI-suggested and unreviewed until
+    someone actually edits them where that work belongs.
+    """
     return {
         field: {
             "origin": BRAND_PROFILE_SOURCE_AI_SUGGESTED,
-            "review_state": (
-                BRAND_PROFILE_REVIEW_CONFIRMED
-                if discovered.get(field) == confirmed.get(field)
-                else BRAND_PROFILE_REVIEW_EDITED
-            ),
-            "reviewed_by": str(reviewer_id),
-            "reviewed_at": reviewed_at,
+            "review_state": BRAND_PROFILE_REVIEW_UNREVIEWED,
         }
         for field in BRAND_PROFILE_FIELDS
         if confirmed.get(field)
@@ -618,7 +615,5 @@ async def _prepare_confirmed_portfolio(
     shortfall = portfolio_shortfall_warning(len(prompts), shortfall_reason)
     if shortfall:
         row.warnings = list(dict.fromkeys([*(row.warnings or []), shortfall]))
-    profile_sources = _reviewed_profile_sources(
-        dict(row.profile), payload.profile.model_dump(), reviewer_id=reviewer_id
-    )
+    profile_sources = _reviewed_profile_sources(payload.profile.model_dump())
     return prompts, profile_sources
