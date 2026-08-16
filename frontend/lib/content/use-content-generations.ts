@@ -88,7 +88,9 @@ export function useContentGenerations(
   };
 
   const enqueueMutation = useMutation({
-    mutationFn: (input: { prompt: string; skillId: 'youtube' | 'reddit' | 'blog' | 'article' }) =>
+    // `skillId` is validated against the server-owned catalog, not a frontend
+    // union — a skill added backend-side must not need a client release.
+    mutationFn: (input: { prompt: string; skillId: string }) =>
       contentApi.enqueueGeneration(
         {
           project_id: projectId ?? '',

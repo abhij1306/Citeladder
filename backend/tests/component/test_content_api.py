@@ -11,7 +11,11 @@ from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.content import content_settings
+from app.core.config.content import (
+    CONTENT_GENERATOR_VERSION,
+    CONTENT_SKILL_CATALOG_VERSION,
+    content_settings,
+)
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
     TASK_STATUS_FAILED,
@@ -235,3 +239,51 @@ async def test_read_actions_and_workspace_isolation(
             client.get(path) if path.endswith(generation_id) else client.post(path)
         )
         assert response.status_code == 404
+
+
+async def test_skill_catalog_is_served_and_drives_enqueue_validation(
+    client: httpx.AsyncClient,
+) -> None:
+    # The catalog is the frontend's only source of skill ids, so it must be
+    # readable, ordered, and consistent with what enqueue will accept.
+    assert (await client.get("/api/v1/content/skills")).status_code == 401
+
+    await _register(client, "content-skills@example.com")
+    response = await client.get("/api/v1/content/skills")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["default_skill_id"] == "content_page"
+
+    skills = body["skills"]
+    ids = [skill["id"] for skill in skills]
+    assert ids[0] == "content_page"
+    # Legacy ids persisted on existing rows must remain offered.
+    for legacy in ("article", "blog", "youtube", "reddit"):
+        assert legacy in ids
+    # Every skill explains itself to the picker without exposing the directive.
+    for skill in skills:
+        assert skill["description"]
+        assert skill["structure"]
+        assert "directive" not in skill
+
+    project_id = await _create_project(client)
+    accepted = await client.post(
+        "/api/v1/content/generations",
+        json={
+            "project_id": project_id,
+            "prompt": "Write a post.",
+            "skill_id": "linkedin",
+        },
+    )
+    assert accepted.status_code == 201
+    body = accepted.json()
+    assert body["skill_id"] == "linkedin"
+    # Provenance keeps the skill catalog and the generator versions apart.
+    assert body["skill_version"] == CONTENT_SKILL_CATALOG_VERSION
+    assert body["generator_version"] == CONTENT_GENERATOR_VERSION
+
+    rejected = await client.post(
+        "/api/v1/content/generations",
+        json={"project_id": project_id, "prompt": "Write a post.", "skill_id": "nope"},
+    )
+    assert rejected.status_code == 422

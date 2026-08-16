@@ -37,11 +37,27 @@ const snapshotSchema = z.strictObject({
   signals: z.array(signalSchema),
 });
 
+export type DemandSignal = z.infer<typeof signalSchema>;
 export type DemandSnapshot = z.infer<typeof snapshotSchema>;
+
+const recomputeResponseSchema = z.strictObject({
+  task_id: z.uuid().nullable(),
+  status: z.string(),
+});
+
+export type DemandRecomputeResponse = z.infer<typeof recomputeResponseSchema>;
 
 export const demandApi = {
   getLatest: async (projectId: string, options?: ApiRequestOptions) =>
     snapshotSchema.parse(
       await apiClient.get<unknown>(`/projects/${projectId}/demand/latest`, options),
+    ),
+  recompute: async (
+    projectId: string,
+    payload: { window_start: string; window_end: string },
+    options?: ApiRequestOptions,
+  ) =>
+    recomputeResponseSchema.parse(
+      await apiClient.post<unknown>(`/projects/${projectId}/demand/recompute`, payload, options),
     ),
 };

@@ -9,6 +9,7 @@ const { project, downloadExecutiveReport, queryResult } = vi.hoisted(() => ({
     name: 'Acme',
     brand_name: 'Acme',
     website_url: 'https://acme.com',
+    brand: { aliases: [], logo_url: null },
   },
   downloadExecutiveReport: vi.fn().mockResolvedValue(new Blob(['pdf'])),
   queryResult: {

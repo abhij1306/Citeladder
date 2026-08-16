@@ -86,24 +86,284 @@ const succeededGen = generation({
   completed_at: '2026-07-15T00:01:00Z',
 });
 
+/** A bounded stand-in for the server-owned skill catalog. */
+const skillCatalog = {
+  version: 'content-skills-v2',
+  default_skill_id: 'content_page',
+  skills: [
+    {
+      id: 'content_page',
+      label: 'Website content page',
+      channel: 'web',
+      description: 'A publish-ready page spec.',
+      structure: ['The final H1.'],
+      tone: 'Clear and specific.',
+      length_hint: '500–800 words.',
+    },
+    {
+      id: 'article',
+      label: 'Article',
+      channel: 'web',
+      description: 'Authoritative long-form piece.',
+      structure: ['A specific H1.'],
+      tone: 'Expert.',
+      length_hint: '900–1400 words.',
+    },
+    {
+      id: 'blog',
+      label: 'Blog post',
+      channel: 'web',
+      description: 'Answer-first post with worked examples.',
+      structure: ['H1 phrased as a search.'],
+      tone: 'Conversational.',
+      length_hint: '600–900 words.',
+    },
+    {
+      id: 'linkedin',
+      label: 'LinkedIn post',
+      channel: 'social',
+      description: 'Professional post carrying one idea.',
+      structure: ['An opening line.'],
+      tone: 'Professional.',
+      length_hint: '150–300 words.',
+    },
+  ],
+};
+
 function mockBase(listItems: Record<string, unknown>[] = []) {
   mswServer.use(
     http.get('/api/v1/projects', () => HttpResponse.json([project])),
+    http.get('/api/v1/content/skills', () => HttpResponse.json(skillCatalog)),
     http.get('/api/v1/content/generations', () => HttpResponse.json(listItems)),
+    // ProjectProvider kicks off a background logo refresh; stubbed so it does
+    // not surface as an unhandled request in longer-running tests.
+    http.post(`/api/v1/projects/${PROJECT}/logos/refresh`, () => HttpResponse.json({})),
   );
 }
 
-function renderScreen() {
+function renderScreen(props: { demandSignalId?: string } = {}) {
   return renderWithProviders(
     <ProjectProvider>
-      <ContentScreen />
+      <ContentScreen demandSignalId={props.demandSignalId} />
     </ProjectProvider>,
   );
 }
 
+const DEMAND_SIGNAL = '77777777-7777-4777-8777-777777777777';
+
+/** Latest demand snapshot carrying one striking-distance signal. */
+const demandSnapshot = {
+  id: '88888888-8888-4888-8888-888888888888',
+  project_id: PROJECT,
+  window_start: '2026-07-01',
+  window_end: '2026-07-07',
+  source_hash: 'hash',
+  prior_snapshot_id: null,
+  source_artifact_ids: [],
+  source_metric_row_ids: [],
+  coverage: { search: 'observed' },
+  summary: {},
+  comparison: null,
+  formula_version: 'v1',
+  analyzer_version: 'v1',
+  created_at: '2026-07-08T00:00:00Z',
+  signals: [
+    {
+      id: DEMAND_SIGNAL,
+      snapshot_id: '88888888-8888-4888-8888-888888888888',
+      signal_type: 'striking_distance',
+      state: 'active',
+      topic_cluster: 'ai marketing tools',
+      page_url: 'https://acme.com/ai-tools',
+      evidence: { target_kind: 'query', target: 'ai marketing tools' },
+      metrics: { impressions: 250, clicks: 12, ctr: 0.048, position: 7.2 },
+      coverage: {},
+      limitations: [],
+      priority_score: 85,
+      priority_inputs: {},
+      created_at: '2026-07-08T00:00:00Z',
+    },
+  ],
+};
+
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
+
+describe('ContentScreen — search demand handoff', () => {
+  it('arrives from a demand signal with a written brief instead of an empty box', async () => {
+    mockBase();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/demand/latest`, () =>
+        HttpResponse.json(demandSnapshot),
+      ),
+    );
+    renderScreen({ demandSignalId: DEMAND_SIGNAL });
+
+    const box = (await screen.findByRole('textbox', {
+      name: /describe the website content/i,
+    })) as HTMLTextAreaElement;
+    await waitFor(() => expect(box.value).toContain('ai marketing tools'));
+
+    const brief = box.value;
+    // A query signal asks for NEW content built to rank, not a page rewrite.
+    expect(brief).toContain('built to rank for the search query "ai marketing tools"');
+    expect(brief).toContain('To rank for it, the content must:');
+    expect(brief).not.toContain('Rewrite the existing page');
+    expect(brief).toContain('Impressions: 250');
+    expect(brief).toContain('Average position: 7.2');
+    expect(brief).toContain('Write on behalf of Acme.');
+    // Query signals default to the blog skill.
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: /Blog post/i })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      ),
+    );
+    // Provenance is visible, and Generate is immediately available.
+    expect(screen.getByText(/Brief written from the search demand signal/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Generate' })).toBeEnabled();
+  });
+
+  it('writes a corrective rewrite brief when the signal names an existing URL', async () => {
+    mockBase();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/demand/latest`, () =>
+        HttpResponse.json({
+          ...demandSnapshot,
+          signals: [
+            {
+              ...demandSnapshot.signals[0],
+              signal_type: 'property_relative_ctr_gap',
+              evidence: { target_kind: 'page', target: 'https://acme.com/ai-tools' },
+              metrics: { impressions: 900, clicks: 4, ctr: 0.004, cohort_median_ctr: 0.031 },
+            },
+          ],
+        }),
+      ),
+    );
+    renderScreen({ demandSignalId: DEMAND_SIGNAL });
+
+    const box = (await screen.findByRole('textbox', {
+      name: /describe the website content/i,
+    })) as HTMLTextAreaElement;
+    await waitFor(() => expect(box.value).toContain('Rewrite the existing page'));
+
+    const brief = box.value;
+    // The known defect drives named, specific corrections.
+    expect(brief).toContain('https://acme.com/ai-tools');
+    expect(brief).toContain('What is wrong with it:');
+    expect(brief).toContain('Fix these specific things:');
+    expect(brief).toContain('Rewrite the meta title');
+    expect(brief).toContain('current route');
+    // Both sides of the observed CTR gap are quoted.
+    expect(brief).toContain('Click-through rate: 0.4%');
+    expect(brief).toContain('Median click-through rate for this position band: 3.1%');
+    // A URL fix is page work.
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: /Website content page/i })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      ),
+    );
+  });
+
+  it('never quotes a metric the signal did not carry', async () => {
+    mockBase();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/demand/latest`, () =>
+        HttpResponse.json({
+          ...demandSnapshot,
+          signals: [{ ...demandSnapshot.signals[0], metrics: { impressions: 250 } }],
+        }),
+      ),
+    );
+    renderScreen({ demandSignalId: DEMAND_SIGNAL });
+
+    const box = (await screen.findByRole('textbox', {
+      name: /describe the website content/i,
+    })) as HTMLTextAreaElement;
+    await waitFor(() => expect(box.value).toContain('Impressions: 250'));
+
+    const brief = box.value;
+    expect(brief).not.toContain('Clicks:');
+    expect(brief).not.toContain('Average position:');
+    expect(brief).not.toContain('Click-through rate:');
+  });
+
+  it('distinguishes a failed demand fetch from a genuinely missing signal', async () => {
+    mockBase();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/demand/latest`, () =>
+        HttpResponse.json({ detail: 'boom' }, { status: 500 }),
+      ),
+    );
+    renderScreen({ demandSignalId: DEMAND_SIGNAL });
+
+    // Telling the user the signal is gone would send them to rebuild work
+    // that still exists — the request failed, the signal did not vanish.
+    expect(
+      await screen.findByText(/Search demand could not be loaded/i, {}, { timeout: 5000 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/no longer in the latest snapshot/i)).not.toBeInTheDocument();
+  });
+
+  it('explains the handoff failure when the signal is no longer in the snapshot', async () => {
+    mockBase();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/demand/latest`, () =>
+        HttpResponse.json({ ...demandSnapshot, signals: [] }),
+      ),
+    );
+    renderScreen({ demandSignalId: DEMAND_SIGNAL });
+
+    expect(await screen.findByText(/no longer in the latest snapshot/i)).toBeInTheDocument();
+  });
+});
+
+describe('ContentScreen — platform skills', () => {
+  it('defaults to the catalog default and sends the platform the user picks', async () => {
+    mockBase();
+    const sent: Record<string, unknown>[] = [];
+    mswServer.use(
+      http.post('/api/v1/content/generations', async ({ request }) => {
+        sent.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json(generation(), { status: 201 });
+      }),
+      http.get(`/api/v1/content/generations/${GEN}`, () => HttpResponse.json(generation())),
+    );
+    renderScreen();
+
+    // The website content page is preselected — no hardcoded 'article'.
+    const pageOption = await screen.findByRole('radio', { name: /Website content page/i });
+    await waitFor(() => expect(pageOption).toHaveAttribute('aria-checked', 'true'));
+
+    // Picking a platform switches the skill sent with the generation.
+    await userEvent.click(screen.getByRole('radio', { name: /LinkedIn post/i }));
+    expect(screen.getByRole('radio', { name: /LinkedIn post/i })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /describe the website content/i }),
+      'Announce the new pricing',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].skill_id).toBe('linkedin');
+  });
+
+  it('groups the catalog by channel so platforms are discoverable', async () => {
+    mockBase();
+    renderScreen();
+
+    expect(await screen.findByText('Web')).toBeInTheDocument();
+    expect(screen.getByText('Social')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Article/i })).toBeInTheDocument();
+  });
+});
 
 describe('ContentScreen — ready state', () => {
   it('disables Generate until a prompt is typed and explains required grounding', async () => {

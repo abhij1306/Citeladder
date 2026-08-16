@@ -20,9 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.abuse import abuse_settings
 from app.core.config.content import (
+    CONTENT_DEFAULT_SKILL,
     CONTENT_GENERATOR_VERSION,
     CONTENT_KNOWN_PROVIDERS,
     CONTENT_LIST_MAX_LIMIT,
+    CONTENT_SKILL_CATALOG_VERSION,
     FEEDBACK_ACCEPTED,
     FEEDBACK_REJECTED,
     content_settings,
@@ -88,7 +90,7 @@ def request_fingerprint(
     project_id: uuid.UUID,
     prompt: str,
     output_type: str,
-    skill_id: str = "article",
+    skill_id: str = CONTENT_DEFAULT_SKILL,
     opportunity_id: uuid.UUID | None = None,
 ) -> str:
     """Stable comparator for idempotency replay-vs-conflict decisions."""
@@ -203,7 +205,7 @@ async def enqueue_generation(
     prompt: str,
     output_type: str,
     idempotency_key: str = "",
-    skill_id: str = "article",
+    skill_id: str = CONTENT_DEFAULT_SKILL,
     opportunity_id: uuid.UUID | None = None,
 ) -> tuple[ContentGeneration, bool]:
     """Enqueue one generation. Returns ``(row, created)``.
@@ -264,7 +266,10 @@ async def enqueue_generation(
             request_fingerprint=fingerprint,
             skill_id=skill_id,
             opportunity_id=opportunity_id,
-            skill_version=CONTENT_GENERATOR_VERSION,
+            # The skill catalog and the generator version independently: a
+            # reworded directive changes what was asked for even when the
+            # generator is untouched, so provenance must record both.
+            skill_version=CONTENT_SKILL_CATALOG_VERSION,
             provider=content_settings.provider,
             requested_model=content_settings.model,
             generator_version=CONTENT_GENERATOR_VERSION,

@@ -1,21 +1,25 @@
 'use client';
 
-import { Check, Copy, Download, RefreshCw, Sparkles, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Check, Copy, Download, RefreshCw, Sparkles, TrendingUp, X } from 'lucide-react';
 import Link from 'next/link';
-import { type RefObject, useEffect, useRef, useState } from 'react';
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 
+import { SkillPicker } from '@/components/content/skill-picker';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { Textarea } from '@/components/ui/input';
-import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Skeleton } from '@/components/ui/skeleton';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
 import type { RunStatusValue } from '@/components/ui/badge-variants';
-import { CONTENT_PROMPT_MAX_LEN } from '@/lib/api/content';
+import { CONTENT_PROMPT_MAX_LEN, contentApi, type ContentSkillView } from '@/lib/api/content';
+import { demandApi } from '@/lib/api/demand';
+import { queryKeys } from '@/lib/api/query-keys';
 import { ApiError, httpErrorStatus } from '@/lib/api/errors';
+import { buildDemandBrief } from '@/lib/demand/content-brief';
 import type {
   ContentGenerationDetail,
   ContentGenerationListItem,
@@ -60,12 +64,69 @@ const STATUS_BADGE: Record<ContentGenerationStatus, RunStatusValue> = {
   cancelled: 'cancelled',
 };
 
-const CONTENT_SKILLS = ['article', 'blog', 'youtube', 'reddit'] as const;
-type ContentSkill = (typeof CONTENT_SKILLS)[number];
-const CONTENT_SKILL_OPTIONS = CONTENT_SKILLS.map((skill) => ({ value: skill, label: skill }));
+/** Used only until the catalog loads and reports its own default. */
+const FALLBACK_SKILL_ID = 'content_page';
+
+/** No handoff in progress; every demand-brief outcome is spread from this. */
+const IDLE_BRIEF = {
+  brief: null as ReturnType<typeof buildDemandBrief> | null,
+  loading: false,
+  notFound: false,
+  failed: false,
+} as const;
 
 function historyLabel(item: ContentGenerationListItem): string {
   return item.prompt_preview || 'Untitled generation';
+}
+
+/** The server-owned skill catalog. Static config, so it never refetches. */
+function useSkillCatalog() {
+  return useQuery({
+    queryKey: queryKeys.content.skills(),
+    queryFn: ({ signal }) => contentApi.listSkills({ signal }),
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * Rebuilds the brief for a demand signal arriving via `?demand_signal_id=`.
+ *
+ * Only the id travels in the URL; the numbers are read from the live snapshot
+ * so a bookmarked link can never quote figures that have since been
+ * recomputed.
+ *
+ * `notFound` and `failed` are distinct outcomes: the signal genuinely being
+ * absent from the latest snapshot (recomputed away, or another project's) is
+ * not the same as the request failing, and telling a user their signal is gone
+ * because the network blipped sends them to rebuild work that still exists.
+ */
+function useDemandBrief(projectId: string, demandSignalId?: string | null) {
+  const snapshot = useQuery({
+    queryKey: ['demand', projectId, 'latest'],
+    queryFn: ({ signal }) => demandApi.getLatest(projectId, { signal }),
+    enabled: Boolean(demandSignalId),
+  });
+  const activeProject = useActiveProject();
+  const signals = snapshot.data?.signals;
+  const brandName = activeProject?.brand_name;
+
+  // Memoised so the brief keeps a stable identity across renders — it seeds
+  // the composer through an effect, which must not re-fire on every keystroke.
+  const { isLoading, isError } = snapshot;
+
+  return useMemo(() => {
+    if (!demandSignalId) return IDLE_BRIEF;
+    if (isLoading) return { ...IDLE_BRIEF, loading: true };
+    // A failed request is not a missing signal.
+    if (isError || !signals) return { ...IDLE_BRIEF, failed: true };
+
+    const match = signals.find((item) => item.id === demandSignalId);
+    if (!match) return { ...IDLE_BRIEF, notFound: true };
+    return {
+      ...IDLE_BRIEF,
+      brief: buildDemandBrief(match, brandName ? { brand_name: brandName } : null),
+    };
+  }, [demandSignalId, signals, isLoading, isError, brandName]);
 }
 
 /**
@@ -75,7 +136,10 @@ function historyLabel(item: ContentGenerationListItem): string {
  * Markdown + provenance + truncation warning + Copy/Regenerate), error
  * (editable prompt + Try again + Dismiss preserving the prompt).
  */
-export function ContentScreen({ opportunityId }: Readonly<{ opportunityId?: string | null }>) {
+export function ContentScreen({
+  opportunityId,
+  demandSignalId,
+}: Readonly<{ opportunityId?: string | null; demandSignalId?: string | null }>) {
   const activeProject = useActiveProject();
   const projectId = activeProject?.id ?? null;
 
@@ -100,7 +164,12 @@ export function ContentScreen({ opportunityId }: Readonly<{ opportunityId?: stri
   // `key` remounts on project switch so all transient state (prompt, toggle,
   // selection, mutation surfaces) resets — no cross-project bleed-through.
   return (
-    <ProjectContentScreen key={projectId} projectId={projectId} opportunityId={opportunityId} />
+    <ProjectContentScreen
+      key={projectId}
+      projectId={projectId}
+      opportunityId={opportunityId}
+      demandSignalId={demandSignalId}
+    />
   );
 }
 
@@ -108,8 +177,11 @@ function ContentComposer({
   prompt,
   promptRef,
   opportunityId,
+  demandSource,
   generating,
   skillId,
+  skills,
+  skillsLoading,
   canGenerate,
   onPromptChange,
   onSkillChange,
@@ -118,11 +190,15 @@ function ContentComposer({
   prompt: string;
   promptRef: RefObject<HTMLTextAreaElement | null>;
   opportunityId?: string | null;
+  /** Provenance label when the brief was seeded from a demand signal. */
+  demandSource?: string | null;
   generating: boolean;
-  skillId: ContentSkill;
+  skillId: string;
+  skills: readonly ContentSkillView[];
+  skillsLoading: boolean;
   canGenerate: boolean;
   onPromptChange: (value: string) => void;
-  onSkillChange: (value: ContentSkill) => void;
+  onSkillChange: (value: string) => void;
   onGenerate: () => void;
 }>) {
   return (
@@ -135,28 +211,40 @@ function ContentComposer({
         {opportunityId ? (
           <Alert tone="info">This draft will keep a link to the selected opportunity.</Alert>
         ) : null}
+        {demandSource ? (
+          <div
+            data-component-id="content-demand-source"
+            className="border-accent-border bg-accent-soft/40 text-secondary flex items-start gap-2 rounded-md border p-2.5 text-xs"
+          >
+            <TrendingUp className="text-accent-text mt-0.5 size-3.5 shrink-0" aria-hidden />
+            <span>
+              Brief written from the search demand signal{' '}
+              <span className="text-foreground font-medium">{demandSource}</span>. Edit anything
+              below before generating.
+            </span>
+          </div>
+        ) : null}
         <Textarea
           ref={promptRef}
           value={prompt}
           onChange={(event) => onPromptChange(event.target.value)}
           disabled={generating}
           maxLength={CONTENT_PROMPT_MAX_LEN}
-          rows={4}
+          rows={demandSource ? 10 : 4}
           aria-label="Describe the website content you want to create"
           placeholder="Describe the website content you want to create…"
+        />
+        <SkillPicker
+          skills={skills}
+          value={skillId}
+          onChange={onSkillChange}
+          disabled={generating}
+          loading={skillsLoading}
         />
         <div className="flex flex-wrap items-center gap-2">
           <Badge data-component-id="content-output-type" aria-label="Output type: Website page">
             Website page
           </Badge>
-          <SegmentedControl
-            value={skillId}
-            onChange={onSkillChange}
-            options={CONTENT_SKILL_OPTIONS}
-            ariaLabel="Content format"
-            disabled={generating}
-            className="[&_button]:capitalize"
-          />
           <div
             data-component-id="content-website-context-required"
             className="text-secondary inline-flex items-center gap-2 text-xs font-medium"
@@ -412,12 +500,34 @@ function GenerationHistory({
 function ProjectContentScreen({
   projectId,
   opportunityId,
-}: Readonly<{ projectId: string; opportunityId?: string | null }>) {
+  demandSignalId,
+}: Readonly<{
+  projectId: string;
+  opportunityId?: string | null;
+  demandSignalId?: string | null;
+}>) {
   const [prompt, setPrompt] = useState('');
-  const [skillId, setSkillId] = useState<ContentSkill>('article');
+  // `null` = the user has not chosen, so the catalog's default applies. A
+  // concrete initial value would instead pin the selection to a stale id.
+  const [chosenSkillId, setChosenSkillId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
   const promptRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const skillCatalog = useSkillCatalog();
+  const skills = skillCatalog.data?.skills ?? [];
+  const demand = useDemandBrief(projectId, demandSignalId);
+
+  // Seed the composer from the demand brief exactly once. Keyed on the brief's
+  // prompt text so a later recompute does not overwrite the user's edits.
+  const seededRef = useRef<string | null>(null);
+  useEffect(() => {
+    const brief = demand.brief;
+    if (!brief || seededRef.current === brief.prompt) return;
+    seededRef.current = brief.prompt;
+    setPrompt(brief.prompt);
+    setChosenSkillId(brief.suggestedSkillId);
+  }, [demand.brief]);
 
   const {
     listQuery,
@@ -451,13 +561,21 @@ function ProjectContentScreen({
   }, [showErrorPanel]);
 
   const trimmed = prompt.trim();
+  // The catalog owns the default, and an id it no longer offers (a stale
+  // selection after a catalog change) must not be sent for the backend to
+  // reject — in both cases fall back to the catalog's own default.
+  const catalogDefault = skillCatalog.data?.default_skill_id ?? FALLBACK_SKILL_ID;
+  const effectiveSkillId =
+    chosenSkillId && (skills.length === 0 || skills.some((s) => s.id === chosenSkillId))
+      ? chosenSkillId
+      : catalogDefault;
   const canGenerate = trimmed.length > 0 && trimmed.length <= CONTENT_PROMPT_MAX_LEN && !generating;
 
   const handleGenerate = () => {
     if (!canGenerate) return;
     cancelMutation.reset();
     feedbackMutation.reset();
-    enqueueMutation.mutate({ prompt: trimmed, skillId });
+    enqueueMutation.mutate({ prompt: trimmed, skillId: effectiveSkillId });
   };
 
   const handleDismiss = () => {
@@ -509,15 +627,30 @@ function ProjectContentScreen({
 
   return (
     <div className="grid gap-6">
+      {demand.notFound ? (
+        <Alert tone="warning">
+          That demand signal is no longer in the latest snapshot — it may have been recomputed away.
+          Start from a current signal on Search Demand, or write your own brief below.
+        </Alert>
+      ) : null}
+      {demand.failed ? (
+        <Alert tone="danger">
+          Search demand could not be loaded, so the brief for this signal could not be built. The
+          signal itself may still exist — reload to try again, or write your own brief below.
+        </Alert>
+      ) : null}
       <ContentComposer
         prompt={prompt}
         promptRef={promptRef}
         opportunityId={opportunityId}
+        demandSource={demand.brief?.sourceLabel ?? null}
         generating={generating}
-        skillId={skillId}
+        skillId={effectiveSkillId}
+        skills={skills}
+        skillsLoading={skillCatalog.isLoading}
         canGenerate={canGenerate}
         onPromptChange={setPrompt}
-        onSkillChange={setSkillId}
+        onSkillChange={setChosenSkillId}
         onGenerate={handleGenerate}
       />
 

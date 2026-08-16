@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from app.core.config.content import CONTENT_SKILL_DIRECTIVES
+from app.core.config.content import skill_directive
 from app.domain.content.grounding import GroundingEnvelope, validate_grounding_envelope
 
 # Fixed system prompt per output type. The untrusted-data directive is part of
@@ -77,13 +77,13 @@ def build_messages(
     return messages, digest, snapshot
 
 
-def _skill_instruction(prompt, skill_id):
+def _skill_instruction(prompt: str, skill_id: str | None) -> str:
+    """Prepend the skill's rendered directive (format/structure/tone/length)
+    to the user's instruction. An unknown id falls back to the default skill
+    rather than dropping the directive entirely."""
     if skill_id is None:
         return prompt
-    directive = CONTENT_SKILL_DIRECTIVES.get(
-        skill_id, CONTENT_SKILL_DIRECTIVES["article"]
-    )
-    return f"{directive}\n\n{prompt}"
+    return f"{skill_directive(skill_id)}\n\n{prompt}"
 
 
 def _grounding_messages(envelope: GroundingEnvelope) -> list[dict[str, str]]:

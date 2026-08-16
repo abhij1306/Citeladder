@@ -23,6 +23,8 @@ from app.domain.content.schemas import (
     ContentGenerationCreate,
     ContentGenerationDetail,
     ContentGenerationListItem,
+    ContentSkillCatalog,
+    skill_catalog,
 )
 from app.domain.content.service import (
     CancelNotAllowedError,
@@ -64,6 +66,18 @@ def _enqueue_conflict(exc: Exception) -> HTTPException:
     else:
         detail = ERROR_IDEMPOTENCY_CONFLICT
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+
+@router.get("/skills", response_model=ContentSkillCatalog)
+async def list_skills_endpoint(ctx: _WorkspaceDep) -> ContentSkillCatalog:
+    """The reusable output formats a generation may request.
+
+    Static config rather than workspace data, but kept behind the workspace
+    dependency like the rest of the router — the directive scaffolding is not
+    something to serve anonymously.
+    """
+    del ctx
+    return skill_catalog()
 
 
 @router.get("/generations", response_model=list[ContentGenerationListItem])

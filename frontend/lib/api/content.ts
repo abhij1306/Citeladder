@@ -13,7 +13,8 @@ import { apiClient, type ApiRequestOptions } from './client';
 import {
   contentGenerationDetailSchema,
   contentGenerationListItemSchema,
-  contentSkillSchema,
+  contentSkillCatalogSchema,
+  contentSkillViewSchema,
   strictValidate,
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
@@ -27,7 +28,11 @@ export {
 } from '@/lib/config/operational';
 
 export const CONTENT_OUTPUT_TYPE_WEBSITE_PAGE = 'website_page';
-export type ContentSkill = z.infer<typeof contentSkillSchema>;
+
+/** A skill id. The catalog is server-owned — never hardcode the set. */
+export type ContentSkill = string;
+export type ContentSkillView = z.infer<typeof contentSkillViewSchema>;
+export type ContentSkillCatalog = z.infer<typeof contentSkillCatalogSchema>;
 
 const contentGenerationListSchema = z.array(contentGenerationListItemSchema);
 
@@ -40,6 +45,12 @@ export type EnqueueGenerationInput = {
 };
 
 export const contentApi = {
+  /** The reusable output formats a generation may request. */
+  listSkills: async (options?: ApiRequestOptions): Promise<ContentSkillCatalog> => {
+    const response = await apiClient.get<unknown>('/content/skills', options);
+    return strictValidate(contentSkillCatalogSchema, response, 'content.listSkills');
+  },
+
   listGenerations: async (
     projectId: string,
     limit: number = CONTENT_LIST_DEFAULT_LIMIT,

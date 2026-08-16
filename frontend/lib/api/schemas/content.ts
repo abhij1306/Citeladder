@@ -26,7 +26,33 @@ export const contentGenerationStatusSchema = z.enum([
 export const groundingStatusSchema = z.enum(['included', 'unavailable', 'conflicting']);
 
 export const contentOutputTypeSchema = z.enum(['website_page']);
-export const contentSkillSchema = z.enum(['youtube', 'reddit', 'blog', 'article']);
+
+// The skill catalog is served by `GET /content/skills`, so the set of valid
+// ids is the backend's to decide — mirroring it as a frontend enum here would
+// reject any newly added skill on a persisted row. Ids are bounded by the
+// `skill_id` column width.
+export const contentSkillSchema = z.string().min(1).max(64);
+
+export const contentSkillChannelSchema = z.enum(['web', 'social', 'video', 'community', 'email']);
+
+// One reusable output format. `structure`/`tone`/`length_hint` describe the
+// craft constraints the backend applies, shown to the user so the picker can
+// explain a skill without restating any directive text client-side.
+export const contentSkillViewSchema = responseObject({
+  id: contentSkillSchema,
+  label: z.string(),
+  channel: contentSkillChannelSchema,
+  description: z.string(),
+  structure: z.array(z.string()).default([]),
+  tone: z.string(),
+  length_hint: z.string(),
+});
+
+export const contentSkillCatalogSchema = responseObject({
+  version: z.string(),
+  default_skill_id: contentSkillSchema,
+  skills: z.array(contentSkillViewSchema),
+});
 
 // Public summary of the frozen grounding envelope. Never fragment bodies.
 export const groundingEnvelopeSummarySchema = responseObject({

@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.config import content_skills as _skills
 from app.core.config.task_queue import (
     ERROR_MAX_ATTEMPTS,
     PostgresQueueSpec,
@@ -34,16 +35,17 @@ CONTENT_OUTPUT_TYPES: Final[frozenset[str]] = frozenset(
     {CONTENT_OUTPUT_TYPE_WEBSITE_PAGE}
 )
 CONTENT_DEFAULT_OUTPUT_TYPE: Final = CONTENT_OUTPUT_TYPE_WEBSITE_PAGE
-CONTENT_SKILLS: Final[frozenset[str]] = frozenset(
-    {"youtube", "reddit", "blog", "article"}
-)
-CONTENT_DEFAULT_SKILL: Final = "article"
-CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {
-    "youtube": "Write a YouTube video script with a strong hook and clear sections.",
-    "reddit": "Write a useful, conversational Reddit post without promotional hype.",
-    "blog": "Write an answer-first blog post with practical examples.",
-    "article": "Write an authoritative, evidence-led article.",
-}
+# The skill catalog lives in its own module (it is large and self-contained);
+# re-exported here so ``app.core.config.content`` stays the one import site
+# for content configuration.
+CONTENT_SKILL_CATALOG_VERSION: Final = _skills.CONTENT_SKILL_CATALOG_VERSION
+CONTENT_SKILL_IDS: Final[tuple[str, ...]] = _skills.CONTENT_SKILL_IDS
+CONTENT_SKILLS: Final[frozenset[str]] = _skills.CONTENT_SKILLS
+CONTENT_DEFAULT_SKILL: Final = _skills.CONTENT_DEFAULT_SKILL
+CONTENT_SKILL_REGISTRY: Final = _skills.CONTENT_SKILL_REGISTRY
+CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = _skills.CONTENT_SKILL_DIRECTIVES
+skill_directive = _skills.skill_directive
+
 FEEDBACK_ACCEPTED: Final = "accepted"
 FEEDBACK_REJECTED: Final = "rejected"
 

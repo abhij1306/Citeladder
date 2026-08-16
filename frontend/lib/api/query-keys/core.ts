@@ -45,4 +45,6 @@ export const contentKeys = {
   // `limit` is part of the key so different caps cache separately.
   list: (projectId: string, limit: number) => ['content', 'list', projectId, limit] as const,
   detail: (generationId: string) => ['content', 'detail', generationId] as const,
+  // Static server config — not invalidated by any generation mutation.
+  skills: () => ['content', 'skills'] as const,
 };

@@ -18,8 +18,54 @@ from app.core.config.content import (
     CONTENT_HISTORY_TITLE_MAX_LEN,
     CONTENT_OUTPUT_TYPES,
     CONTENT_PROMPT_MAX_LEN,
+    CONTENT_SKILL_CATALOG_VERSION,
+    CONTENT_SKILL_REGISTRY,
     CONTENT_SKILLS,
 )
+
+
+class ContentSkillView(BaseModel):
+    """One reusable output format, as offered to the picker.
+
+    Carries the user-facing copy plus the craft constraints, so the client can
+    explain a skill without duplicating any directive text of its own.
+    """
+
+    id: str
+    label: str
+    channel: str
+    description: str
+    structure: list[str] = []
+    tone: str = ""
+    length_hint: str = ""
+
+
+class ContentSkillCatalog(BaseModel):
+    """The full skill catalog and the version that produced its directives."""
+
+    version: str
+    default_skill_id: str
+    skills: list[ContentSkillView]
+
+
+def skill_catalog() -> ContentSkillCatalog:
+    """Project the config registry onto the wire, in registry (UI) order."""
+    return ContentSkillCatalog(
+        version=CONTENT_SKILL_CATALOG_VERSION,
+        default_skill_id=CONTENT_DEFAULT_SKILL,
+        skills=[
+            ContentSkillView(
+                id=definition.id,
+                label=definition.label,
+                channel=definition.channel,
+                description=definition.description,
+                structure=list(definition.structure),
+                tone=definition.tone,
+                length_hint=definition.length_hint,
+            )
+            for definition in CONTENT_SKILL_REGISTRY.values()
+        ],
+    )
 
 
 class ContentGenerationCreate(BaseModel):
