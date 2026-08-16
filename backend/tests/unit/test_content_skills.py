@@ -80,8 +80,16 @@ def test_directive_carries_format_structure_tone_and_length() -> None:
 
 def test_directive_rendering_is_deterministic() -> None:
     # The digest over the built messages is provenance; a directive that
-    # rendered differently per call would make it meaningless.
-    assert skill_directive("faq") == skill_directive("faq")
+    # rendered differently per call would make it meaningless. Checked across
+    # the whole catalog, and against the definitions themselves, so an
+    # unordered set or a mutated default in any one skill would show up.
+    first = [skill_directive(skill_id) for skill_id in CONTENT_SKILL_IDS]
+    second = [skill_directive(skill_id) for skill_id in CONTENT_SKILL_IDS]
+    assert first == second
+    assert first == [
+        CONTENT_SKILL_REGISTRY[skill_id].render_directive()
+        for skill_id in CONTENT_SKILL_IDS
+    ]
 
 
 @pytest.mark.parametrize("unknown", ["", "does-not-exist", None])
