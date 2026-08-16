@@ -34,7 +34,7 @@ from app.core.config.prompts import (
     prompt_generation_settings,
 )
 from app.domain.projects.knowledge_base import build_brand_knowledge_data
-from app.domain.projects.shim import project_scoring_identity
+from app.domain.projects.shim import project_business_context, project_scoring_identity
 from app.domain.prompts.generation_contract import (
     GenerationOutputError,
     SuggestedPrompt,
@@ -480,6 +480,9 @@ def _generation_brand_context(
 ) -> dict[str, Any]:
     context = project_scoring_identity(project)
     context["knowledge_base"] = build_brand_knowledge_data(project)
+    # Composed here rather than by widening `build_brand_knowledge_data`,
+    # which has its own owner and consumers.
+    context["business_context"] = project_business_context(project)
     context["demand_signals"] = [
         {
             "id": str(signal.id),

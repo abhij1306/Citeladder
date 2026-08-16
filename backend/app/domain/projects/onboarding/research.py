@@ -13,18 +13,25 @@ from app.connectors.agent.client import AgentNotConfiguredError
 from app.connectors.agent.factory import create_model_gateway
 from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.brand_discovery import (
+    BUSINESS_MODELS,
+    BUYER_REGISTERS,
     CAPTURE_METHOD_APPLICATION_MODEL,
     CAPTURE_METHOD_CRAWLER,
+    CONTEXT_PROFILE_VERSION,
     DISCOVERY_RESEARCH_SYSTEM_PROMPT,
+    KNOWLEDGE_STRENGTHS,
+    MARKET_SCOPES,
+    SECTORS,
     brand_discovery_settings,
+    same_business_class,
 )
 from app.core.config.observed_competitors import EXCLUDED_RESEARCH_DOMAINS
+from app.domain.projects.brand_evidence import collect_brand_evidence
 from app.domain.projects.discovery_schemas import (
     DiscoveryCompetitorSuggestion,
     DiscoveryEvidence,
     DiscoveryProfile,
 )
-from app.domain.projects.onboarding.industry_library import library_version
 from app.domain.projects.onboarding.normalization import (
     InvalidWebsiteUrl,
     normalize_website_url,
@@ -33,6 +40,11 @@ from app.domain.projects.onboarding.site_resolution import (
     SiteNotFoundError,
     resolve_site,
 )
+
+# Verify more candidates than we can keep. Domain resolution is the main
+# source of loss, and it is not correlated with how good a competitor is, so a
+# deeper pool converts directly into recall.
+COMPETITOR_POOL_MULTIPLIER = 3
 
 
 class ResearchEnvelope(BaseModel):
@@ -58,6 +70,26 @@ def _site_text(page) -> str:
     return "\n".join(
         item for item in (page.title, page.meta_description, page.text) if item
     )[: brand_discovery_settings.synthesis_evidence_max_chars]
+
+
+async def _site_evidence(site) -> str:
+    """Read a few high-signal pages, not just the homepage.
+
+    A homepage is often a slogan and a hero image, which is exactly the case
+    where the model has to guess -- and guessing is what produces confident
+    nonsense for brands it does not know. `collect_brand_evidence` reads /about,
+    /products, /services and /pricing when the homepage is thin, inside a fixed
+    wall-clock budget, with an in-process cache and single-flight. It never
+    raises, so a blocked or slow site degrades to homepage text rather than
+    failing onboarding.
+    """
+    try:
+        evidence = await collect_brand_evidence(site.canonical_url)
+    except Exception:  # noqa: BLE001 - evidence is best-effort by contract
+        return ""
+    if not evidence.pages:
+        return ""
+    return evidence.serialize()[: brand_discovery_settings.synthesis_evidence_max_chars]
 
 
 def _fallback_profile(*, brand_name: str, industry: str) -> DiscoveryProfile:
@@ -97,14 +129,38 @@ def _is_excluded_research_url(value: str) -> bool:
     )
 
 
+def _is_peer_company(
+    candidate: DiscoveryCompetitorSuggestion, *, brand_model: str
+) -> bool:
+    """Reject a competitor that is a different KIND of company than the brand.
+
+    The four qualification dimensions measure overlap -- substitutability, use
+    case, geography, question visibility -- and every one of them can score high
+    across the service/product line. An ecommerce implementation agency was
+    returned with Shopify Plus, BigCommerce, Salesforce Commerce Cloud, SAP
+    Commerce Cloud and commercetools: same words, same buyers, same questions,
+    and not one of them is something you hire instead of the agency. Kind is the
+    dimension that was missing, so it is checked separately.
+
+    Abstains when the model declined to classify the competitor, because an
+    unstated model is not evidence of a mismatch.
+    """
+    if candidate.business_model is None:
+        return True
+    return same_business_class(candidate.business_model, brand_model)
+
+
 async def _verified_competitor(
     candidate: DiscoveryCompetitorSuggestion,
     *,
     owned_domain: str,
+    brand_model: str,
     semaphore: asyncio.Semaphore,
 ) -> DiscoveryCompetitorSuggestion | None:
     qualification = candidate.qualification
     if qualification is None:
+        return None
+    if not _is_peer_company(candidate, brand_model=brand_model):
         return None
     floor = brand_discovery_settings.competitor_min_dimension_score
     if (
@@ -139,8 +195,22 @@ async def _verified_competitor(
 
 
 async def _verify_competitors(
-    candidates: list[DiscoveryCompetitorSuggestion], *, owned_domain: str
+    candidates: list[DiscoveryCompetitorSuggestion],
+    *,
+    owned_domain: str,
+    brand_model: str,
 ) -> list[DiscoveryCompetitorSuggestion]:
+    """Verify a pool, then keep the best survivors.
+
+    The cap used to be applied *before* verification, so a candidate whose
+    domain failed to resolve simply vanished and nothing took its place -- five
+    proposals minus two unreachable sites shipped three competitors, while a
+    perfectly good sixth candidate was never even considered. Verifying a larger
+    pool and truncating afterwards is what makes the cap a cap rather than a
+    quota that silently under-fills.
+    """
+    limit = brand_discovery_settings.maximum_competitors
+    pool = candidates[: limit * COMPETITOR_POOL_MULTIPLIER]
     semaphore = asyncio.Semaphore(
         brand_discovery_settings.competitor_verification_concurrency
     )
@@ -149,15 +219,19 @@ async def _verify_competitors(
             _verified_competitor(
                 item,
                 owned_domain=owned_domain,
+                brand_model=brand_model,
                 semaphore=semaphore,
             )
-            for item in candidates[: brand_discovery_settings.maximum_competitors]
+            for item in pool
         ),
         return_exceptions=True,
     )
-    return [
+    # Model order is its own confidence ranking, so first-past-the-post over the
+    # verified set preserves it without inventing a second scoring rule.
+    survivors = [
         item for item in verified if isinstance(item, DiscoveryCompetitorSuggestion)
     ]
+    return survivors[:limit]
 
 
 async def research_brand(
@@ -170,6 +244,7 @@ async def research_brand(
     site,
     industry_context: dict,
 ) -> ResearchResult:
+    site_evidence = await _site_evidence(site)
     model_result, provider, model = await _research_model(
         brand_name=brand_name,
         site=site,
@@ -178,6 +253,7 @@ async def research_brand(
         primary_market=primary_market,
         language_code=language_code,
         industry_context=industry_context,
+        site_evidence=site_evidence,
     )
     profile = (
         model_result.profile
@@ -235,7 +311,9 @@ async def _verified_from_model(model_result, owned_domain):
     if model_result is None:
         return []
     return await _verify_competitors(
-        model_result.competitors, owned_domain=owned_domain
+        model_result.competitors,
+        owned_domain=owned_domain,
+        brand_model=model_result.profile.business_model,
     )
 
 
@@ -276,19 +354,31 @@ def _research_request(
     primary_market,
     language_code,
     industry_context,
+    site_evidence="",
 ):
+    # The industry pair is passed as a *hint* only. It used to supply the topic
+    # list that filled prompt slots, which is why every Software brand asked
+    # about "analytics software"; the model now resolves its own category and
+    # the hint merely disambiguates when site evidence is thin.
     return json.dumps(
         {
             "brand_name": brand_name,
             "official_website": site.canonical_url,
-            "official_site_text": _site_text(site.page),
-            "industry": industry,
-            "subindustry": subindustry,
+            "official_site_text": site_evidence or _site_text(site.page),
+            "user_supplied_industry_hint": industry,
+            "user_supplied_subindustry_hint": subindustry,
             "primary_market": primary_market,
             "language_code": language_code,
-            "industry_library_version": library_version(),
-            "industry_context": industry_context,
-            "competitor_limit": brand_discovery_settings.maximum_competitors,
+            "context_profile_version": CONTEXT_PROFILE_VERSION,
+            "allowed_business_models": list(BUSINESS_MODELS),
+            "allowed_market_scopes": list(MARKET_SCOPES),
+            "allowed_buyer_registers": list(BUYER_REGISTERS),
+            "allowed_sectors": list(SECTORS),
+            "allowed_knowledge_strengths": list(KNOWLEDGE_STRENGTHS),
+            "competitor_limit": (
+                brand_discovery_settings.maximum_competitors
+                * COMPETITOR_POOL_MULTIPLIER
+            ),
         },
         ensure_ascii=False,
     )

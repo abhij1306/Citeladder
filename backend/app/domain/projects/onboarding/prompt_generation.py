@@ -226,34 +226,55 @@ def validated_portfolio(
     primary_market: str,
     competitor_terms: list[str],
     context_terms: list[str],
+    banned_patterns: list[re.Pattern[str]] | None = None,
 ) -> list[dict]:
-    result: PromptQualityResult = validate_portfolio(
-        model_prompts,
-        brand_terms=[brand_name],
-        competitor_terms=competitor_terms,
-        primary_market=primary_market,
-        context_terms=context_terms,
-        expected_market_count=brand_discovery_settings.market_prompt_count,
-        expected_brand_relevant_count=(
-            brand_discovery_settings.brand_relevant_prompt_count
-        ),
-    )
-    if not result.errors:
-        return list(result.accepted)
-    fallback_result = validate_portfolio(
-        fallback_prompts,
-        brand_terms=[brand_name],
-        competitor_terms=competitor_terms,
-        primary_market=primary_market,
-        context_terms=context_terms,
-        expected_market_count=brand_discovery_settings.market_prompt_count,
-        expected_brand_relevant_count=(
-            brand_discovery_settings.brand_relevant_prompt_count
-        ),
-    )
-    if fallback_result.errors:
-        raise RuntimeError(
-            "Config-owned onboarding fallback failed validation: "
-            + ", ".join(fallback_result.errors)
+    """Prefer the model's portfolio; fall back to templates; never raise.
+
+    This used to raise ``RuntimeError`` when the deterministic fallback failed
+    its own gate, which is not a theoretical path: running the real pipeline
+    over eleven well-known brands crashed on two of them, because a discovered
+    offering happened to contain a competitor's name. That exception propagated
+    out of ``complete_discovery``, so the user could not create the project at
+    all.
+
+    A partial portfolio is always better than a failed onboarding, so the worst
+    case now degrades to the largest surviving set and lets the caller warn.
+    """
+
+    def _run(candidates: list[dict], *, ban_templates: bool) -> PromptQualityResult:
+        return validate_portfolio(
+            candidates,
+            brand_terms=[brand_name],
+            competitor_terms=competitor_terms,
+            primary_market=primary_market,
+            context_terms=context_terms,
+            banned_patterns=banned_patterns if ban_templates else None,
         )
-    return list(fallback_result.accepted)
+
+    # The template ban applies to the model's reply only. Applying it to the
+    # fallback would make that path reject itself -- these prompts *are* the
+    # templates, and a degraded portfolio is still better than none.
+    result = _run(model_prompts, ban_templates=True)
+    if _is_usable(result):
+        return list(result.accepted)
+    fallback_result = _run(fallback_prompts, ban_templates=False)
+    if not fallback_result.errors:
+        return list(fallback_result.accepted)
+    best = max((result.accepted, fallback_result.accepted), key=len)
+    return list(best)
+
+
+def _is_usable(result: PromptQualityResult) -> bool:
+    """Keep the model's portfolio unless something is wrong with it *as a set*.
+
+    Per-prompt rejections are the gate doing its job, not a reason to throw the
+    portfolio away: discarding twelve good model-written prompts because a
+    thirteenth was a duplicate silently handed the whole portfolio back to the
+    templates, and the eval caught it as `template_tell` snapping back to 1.0.
+    Only portfolio-level faults -- too few prompts, no grounding, no intent
+    spread -- justify falling back.
+    """
+    portfolio_errors = [
+        error for error in result.errors if not error.startswith("prompt[")
+    ]
+    return bool(result.accepted) and not portfolio_errors

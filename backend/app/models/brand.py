@@ -157,6 +157,13 @@ class BrandProfile(Base):
     products_services: Mapped[list[str]] = mapped_column(JSONB, default=list)
     # Who the brand serves.
     target_audience: Mapped[str] = mapped_column(Text, default="")
+    # The resolved business context: open-vocabulary category plus the closed
+    # facets (business model, market scope, buyer type, register). This replaces
+    # the industry/sub-industry pair, which could not express what a business
+    # actually sells -- see `onboarding/context_profile.py`. Stored as one
+    # document because the facet set is still settling and nothing filters on it
+    # yet; promote individual facets to columns when reporting needs an index.
+    business_context: Mapped[dict] = mapped_column(JSONB, default=dict)
     # Per-field structured provenance; absent key = field never set.
     sources: Mapped[dict[str, dict]] = mapped_column(JSONB, default=dict)
     # For AI-suggested fields, maps field name -> immutable suggestion UUID.

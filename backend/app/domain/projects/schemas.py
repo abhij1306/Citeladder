@@ -7,9 +7,10 @@
 # ``brand.aliases`` and the project response embeds its ``prompt_sets``.
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -33,6 +34,12 @@ from app.domain.projects.normalization import normalize_primary_market
 from app.domain.prompts.schemas import PromptSetResponse
 
 BenchmarkMode = Literal["consumer_like", "controlled_localized", "forced_grounded"]
+
+# The resolved business context is a small, known document; these bound what a
+# client can persist into the JSONB column without pinning the exact field set,
+# which is still settling.
+BUSINESS_CONTEXT_MAX_KEYS = 32
+BUSINESS_CONTEXT_MAX_CHARS = 8_000
 
 
 BrandProfileOrigin = Literal["manual", "web_evidence", "ai_suggested"]
@@ -122,6 +129,19 @@ class BrandKnowledgeFields(BaseModel):
         Annotated[str, Field(max_length=BRAND_PROFILE_PRODUCT_MAX_CHARS)]
     ] = Field(default_factory=list, max_length=BRAND_PROFILE_PRODUCTS_MAX_COUNT)
     target_audience: str = Field(default="", max_length=BRAND_PROFILE_TEXT_MAX_CHARS)
+    # The resolved business context, carried from the confirmed discovery
+    # profile. Bounded rather than free-form: this lands in a JSONB column, so an
+    # unconstrained dict would let a client persist arbitrary payload size.
+    business_context: dict[str, Any] = Field(
+        default_factory=dict, max_length=BUSINESS_CONTEXT_MAX_KEYS
+    )
+
+    @field_validator("business_context")
+    @classmethod
+    def bound_business_context(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if len(json.dumps(value, default=str)) > BUSINESS_CONTEXT_MAX_CHARS:
+            raise ValueError("business_context is too large")
+        return value
 
 
 class BrandProfileUpsert(BaseModel):

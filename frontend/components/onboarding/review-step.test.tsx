@@ -83,8 +83,8 @@ describe('ReviewStep competitor limit', () => {
       />,
     );
 
-    expect(screen.getByText('5 of 5')).toBeInTheDocument();
-    const button = screen.getByRole('button', { name: 'Add competitor' });
+    expect(screen.getByText('5 of 5 tracked')).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'Add' });
     expect(button).toBeDisabled();
     await userEvent.click(button);
     expect(add).not.toHaveBeenCalled();

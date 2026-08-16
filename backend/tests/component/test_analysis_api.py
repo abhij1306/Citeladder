@@ -47,6 +47,7 @@ from app.core.config.provider_catalog import (
     measurement_route,
 )
 from app.domain.analysis import service as analysis_service
+from app.domain.analysis import trend_folding as analysis_trend_folding
 from app.domain.analysis.schemas import VisibilityFanoutState
 from app.domain.analysis.service import (
     AnalysisNotFoundError,
@@ -1015,8 +1016,10 @@ async def test_trends_mixed_version_strict_fallback_and_non_strict_marking(
         assert all(len(p.source_snapshot_ids) == 1 for p in strict)
 
         # Non-strict: the mixed bucket is emitted + flagged with both versions.
+        # The flag is read where the bucketing happens, which now lives in
+        # `trend_folding` after that module was split out of `service`.
         monkeypatch.setattr(
-            analysis_service, "VISIBILITY_TRENDS_STRICT_VERSION_BUCKETS", False
+            analysis_trend_folding, "VISIBILITY_TRENDS_STRICT_VERSION_BUCKETS", False
         )
         marked = await get_visibility_trends(
             session,

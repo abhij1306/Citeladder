@@ -72,3 +72,14 @@ def _competitors(rows) -> list[dict]:
 def _products_services(project: Project) -> list[str]:
     profile = project.brand.profile if project.brand is not None else None
     return list(profile.products_services or []) if profile is not None else []
+
+
+def project_business_context(project: Project) -> dict[str, Any]:
+    """The confirmed business context, or an empty document when absent.
+
+    Projects created before onboarding resolved a context have no document, and
+    an empty dict is the honest representation of that -- not a fabricated
+    default that would read as a confirmed fact.
+    """
+    profile = getattr(getattr(project, "brand", None), "profile", None)
+    return dict(getattr(profile, "business_context", None) or {})

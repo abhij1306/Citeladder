@@ -27,6 +27,27 @@ export type DiscoveryProfile = {
   business_type: 'b2b' | 'b2c' | 'both';
   price_tier: string;
   field_confidence: Record<string, number>;
+  /**
+   * The resolved business context. `category` and `category_terms` are open
+   * vocabulary and decide what the generated questions are about; the rest are
+   * closed facets that select which kinds of question apply. This replaces the
+   * industry / sub-industry pair the user used to pick from a dropdown.
+   */
+  category: string;
+  /** Alternative phrasings offered as choices, so the user picks instead of types. */
+  category_options: string[];
+  category_aliases: string[];
+  category_terms: string[];
+  jobs_to_be_done: string[];
+  sector: string;
+  business_model: string;
+  secondary_business_models: string[];
+  market_scope: 'global' | 'national' | 'regional' | 'local';
+  buyer_register: string;
+  buyer_roles: string[];
+  service_areas: string[];
+  /** How much the model actually recognised the brand; drives the thin-data notice. */
+  knowledge_strength: 'strong' | 'weak' | 'none';
 };
 
 type DiscoveryCompetitor = { name: string; aliases: string[]; domains: string[] };

@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.analysis.service import _mention_sov_of, _normalize_events
+from app.domain.analysis.service import _normalize_events
+from app.domain.analysis.trend_folding import _mention_sov_of
 
 
 def test_normalize_events_skips_malformed_entries() -> None:

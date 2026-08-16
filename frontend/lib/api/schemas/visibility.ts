@@ -109,13 +109,29 @@ const discoveryProfileSchema = responseObject({
   business_type: z.enum(['b2b', 'b2c', 'both']),
   price_tier: z.string(),
   field_confidence: z.record(z.string(), z.number()),
+  // Resolved business context. `category` and `category_terms` are open
+  // vocabulary and carry the specificity; the rest are closed facets that
+  // decide which kinds of question get generated.
+  category: z.string().default(''),
+  category_options: z.array(z.string()).default([]),
+  category_aliases: z.array(z.string()).default([]),
+  category_terms: z.array(z.string()).default([]),
+  jobs_to_be_done: z.array(z.string()).default([]),
+  sector: z.string().default('Other'),
+  business_model: z.string().default('d2c_product'),
+  secondary_business_models: z.array(z.string()).default([]),
+  market_scope: z.enum(['global', 'national', 'regional', 'local']).default('national'),
+  buyer_register: z.string().default('research_comparative'),
+  buyer_roles: z.array(z.string()).default([]),
+  service_areas: z.array(z.string()).default([]),
+  knowledge_strength: z.enum(['strong', 'weak', 'none']).default('none'),
 });
 
 const discoveryPromptSuggestionSchema = responseObject({
   text: z.string(),
   theme: z.string().default(''),
   intent: z.enum(['discovery', 'comparison', 'purchase', 'service', 'local']),
-  cohort: z.enum(['market_visibility', 'brand_relevant']),
+  cohort: z.enum(['market_visibility', 'brand_relevant', 'brand_diagnostic', 'comparison']),
 });
 
 const discoveryEvidenceSchema = responseObject({

@@ -21,7 +21,10 @@ from app.core.config.brand_evidence import (
     BRAND_EVIDENCE_REQUEST_TIMEOUT_SECONDS,
     BRAND_EVIDENCE_USER_AGENT,
 )
-from app.core.config.site_health import FETCH_PURPOSE_ANALYZE
+from app.core.config.site_health import (
+    ERROR_RESPONSE_TOO_LARGE,
+    FETCH_PURPOSE_ANALYZE,
+)
 
 
 class SiteNotFoundError(ValueError):
@@ -47,7 +50,7 @@ async def resolve_site(entered_url: str, normalized_url: str) -> ResolvedSite:
     request_urls = [normalized_url]
     if urlsplit(normalized_url).scheme == "https":
         request_urls.append(_http_variant(normalized_url))
-    last_error = ""
+    errors: list[str] = []
     async with SecureFetcher(
         resolver=SystemDnsResolver(),
         settings=ONBOARDING_DIRECT_FETCH_SETTINGS,
@@ -66,10 +69,10 @@ async def resolve_site(entered_url: str, normalized_url: str) -> ResolvedSite:
                     )
                 )
             except (FetchError, UrlPolicyError) as exc:
-                last_error = getattr(exc, "error_code", type(exc).__name__)
+                errors.append(getattr(exc, "error_code", type(exc).__name__))
                 continue
             if result.status_code == 404:
-                last_error = "http_404"
+                errors.append("http_404")
                 continue
             final_url = result.final_url or request_url
             domain = registrable_domain(final_url)
@@ -96,4 +99,35 @@ async def resolve_site(entered_url: str, normalized_url: str) -> ResolvedSite:
                 page=page,
                 warning=warning,
             )
-    raise SiteNotFoundError(last_error or "site_not_found")
+    return _unreadable_site(entered_url, normalized_url, errors)
+
+
+# Failures that prove the site EXISTS but could not be read. Treating these as
+# "site not found" aborted onboarding for real brands -- burrow.com is an
+# ordinary storefront whose homepage simply exceeds the byte cap. The site is
+# not missing, so the honest outcome is a resolved site with no page text and a
+# degraded-research warning; the model prior still has something to work with.
+_READABLE_SITE_FAILURES = frozenset({ERROR_RESPONSE_TOO_LARGE})
+
+
+def _unreadable_site(
+    entered_url: str, normalized_url: str, errors: list[str]
+) -> ResolvedSite:
+    """Decide from *every* attempt, not just the last one.
+
+    The https attempt can prove the site exists by being too large while the
+    http fallback then 404s; keeping only the final error threw that proof away
+    and reported a live site as missing.
+    """
+    domain = registrable_domain(normalized_url)
+    readable = any(code in _READABLE_SITE_FAILURES for code in errors)
+    if not readable or not domain:
+        raise SiteNotFoundError(next(iter(errors), "") or "site_not_found")
+    return ResolvedSite(
+        entered_url=entered_url,
+        canonical_url=normalized_url,
+        registrable_domain=domain,
+        status_code=0,
+        page=None,
+        warning="research_degraded",
+    )

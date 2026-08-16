@@ -1638,9 +1638,9 @@ states; record API/UI fixtures and the flipkart live result in the S03 completio
 
 ```python
 if crawl.status != CRAWL_STATUS_RUNNING:
-    return                      # ← cancel already moved status off RUNNING
+    return  # ← cancel already moved status off RUNNING
 ...
-await _enqueue_post_crawl_refresh(session, crawl=crawl)   # never reached
+await _enqueue_post_crawl_refresh(session, crawl=crawl)  # never reached
 ```
 
 Cancelling moves the crawl off `RUNNING`, so terminalization returns early and

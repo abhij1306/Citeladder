@@ -35,6 +35,7 @@ from app.domain.projects.discovery_schemas import (
     BrandDiscoveryCreate,
 )
 from app.domain.projects.onboarding.industry_library import (
+    archetype_templates,
     industry_context,
     industry_names,
     subindustries_by_industry,
@@ -44,6 +45,10 @@ from app.domain.projects.onboarding.normalization import (
     normalize_primary_market,
     normalize_website_url,
 )
+from app.domain.projects.onboarding.portfolio_generation import (
+    generate_portfolio,
+    portfolio_shortfall_warning,
+)
 from app.domain.projects.onboarding.prompt_generation import (
     fallback_portfolio,
     validated_portfolio,
@@ -51,6 +56,7 @@ from app.domain.projects.onboarding.prompt_generation import (
 from app.domain.projects.onboarding.prompt_validation import (
     BRAND_RELEVANT,
     MARKET_VISIBILITY,
+    template_patterns,
 )
 from app.domain.projects.onboarding.research import research_brand
 from app.domain.projects.onboarding.site_resolution import (
@@ -401,6 +407,7 @@ async def _persist_project(
             positioning=profile.positioning,
             products_services=profile.products_services,
             target_audience=profile.target_audience,
+            business_context=_business_context(profile),
         ),
         commit=False,
         brand_profile_sources=profile_sources,
@@ -491,7 +498,7 @@ async def complete_discovery(
         return row, existing_crawl
     if row.status != DISCOVERY_STATUS_READY:
         raise BrandDiscoveryError("Discovery is not ready for completion")
-    prompts, profile_sources = _prepare_confirmed_portfolio(
+    prompts, profile_sources = await _prepare_confirmed_portfolio(
         row, payload=payload, reviewer_id=reviewer_id
     )
     confirmed_profile = payload.profile.model_dump()
@@ -522,7 +529,37 @@ async def complete_discovery(
     return row, None
 
 
-def _prepare_confirmed_portfolio(
+# The context fields that survive onboarding. `business_type` and `price_tier`
+# were previously dropped on the floor at project creation -- collected, shown,
+# confirmed, then silently discarded -- so every downstream consumer had to
+# re-derive facts the user had already supplied.
+_BUSINESS_CONTEXT_FIELDS = (
+    "category",
+    "category_aliases",
+    "category_terms",
+    "jobs_to_be_done",
+    "sector",
+    "business_model",
+    "secondary_business_models",
+    "market_scope",
+    "buyer_register",
+    "buyer_roles",
+    "service_areas",
+    "business_type",
+    "price_tier",
+    "knowledge_strength",
+)
+
+
+def _business_context(profile) -> dict:
+    """Snapshot the confirmed context for persistence."""
+    dumped = profile.model_dump()
+    return {
+        field: dumped[field] for field in _BUSINESS_CONTEXT_FIELDS if field in dumped
+    }
+
+
+async def _prepare_confirmed_portfolio(
     row: BrandDiscovery,
     *,
     payload: BrandDiscoveryComplete,
@@ -557,14 +594,30 @@ def _prepare_confirmed_portfolio(
         target_audience=payload.profile.target_audience,
         price_tier=payload.profile.price_tier,
     )
+    # Ask the model to write the portfolio from the *confirmed* profile. The
+    # templates below stay as the fallback for when that call fails; they are
+    # also passed as banned patterns, so a model reply that merely reproduces a
+    # template skeleton is rejected rather than accepted as "model-authored".
+    brand_name = str(row.input_data["brand_name"])
+    primary_market = str(row.input_data["primary_market"])
+    model_prompts, shortfall_reason = await generate_portfolio(
+        brand_name=brand_name,
+        primary_market=primary_market,
+        profile=payload.profile.model_dump(),
+        competitors=[competitor["name"] for competitor in row.competitors],
+    )
     prompts = validated_portfolio(
-        [],
+        model_prompts,
         fallback_prompts=fallback_prompts,
-        brand_name=str(row.input_data["brand_name"]),
-        primary_market=str(row.input_data["primary_market"]),
+        brand_name=brand_name,
+        primary_market=primary_market,
         competitor_terms=competitor_terms,
         context_terms=context_terms,
+        banned_patterns=template_patterns(archetype_templates()),
     )
+    shortfall = portfolio_shortfall_warning(len(prompts), shortfall_reason)
+    if shortfall:
+        row.warnings = list(dict.fromkeys([*(row.warnings or []), shortfall]))
     profile_sources = _reviewed_profile_sources(
         dict(row.profile), payload.profile.model_dump(), reviewer_id=reviewer_id
     )

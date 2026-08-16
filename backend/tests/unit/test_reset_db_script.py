@@ -94,6 +94,74 @@ def test_database_url_reports_every_supported_source(
         reset_db._database_url()
 
 
+def test_reset_refuses_outside_development(monkeypatch) -> None:
+    reset_db = _load_reset_db_module()
+    monkeypatch.setattr(reset_db, "_configuration", lambda: {"APP_ENV": "production"})
+
+    with pytest.raises(RuntimeError, match="Refusing to drop the database"):
+        reset_db.authorize_reset()
+
+
+def test_reset_refuses_when_app_env_is_unset(monkeypatch) -> None:
+    # The dangerous default: nothing exported, so nothing declares the database
+    # disposable and the drop must not proceed on silence alone.
+    reset_db = _load_reset_db_module()
+    monkeypatch.setattr(reset_db, "_configuration", dict)
+
+    with pytest.raises(RuntimeError, match=r"\(unset\)"):
+        reset_db.authorize_reset()
+
+
+def test_reset_is_authorized_by_development_or_explicit_token(monkeypatch) -> None:
+    reset_db = _load_reset_db_module()
+    monkeypatch.setattr(reset_db, "_configuration", lambda: {"APP_ENV": "development"})
+    reset_db.authorize_reset()
+
+    monkeypatch.setattr(
+        reset_db,
+        "_configuration",
+        lambda: {
+            "APP_ENV": "staging",
+            reset_db.DESTRUCTIVE_RESET_VARIABLE: reset_db.DESTRUCTIVE_RESET_TOKEN,
+        },
+    )
+    reset_db.authorize_reset()
+
+
+def test_connection_details_redact_credentials_in_query_and_userinfo() -> None:
+    reset_db = _load_reset_db_module()
+    _admin, redacted, target = reset_db._connection_details(
+        "postgresql+asyncpg://user:hunter2@db.example.com:5432/citeladder"
+        "?password=hunter2&sslmode=require#hunter2"
+    )
+
+    assert target == "citeladder"
+    assert "hunter2" not in redacted
+    assert redacted == "postgresql://user:***@db.example.com:5432/postgres"
+
+
+def test_migration_timeout_reads_env_files(monkeypatch) -> None:
+    reset_db = _load_reset_db_module()
+    monkeypatch.setattr(
+        reset_db,
+        "_configuration",
+        lambda: {"RESET_MIGRATION_TIMEOUT_SECONDS": "7"},
+    )
+    monkeypatch.delenv("RESET_MIGRATION_TIMEOUT_SECONDS", raising=False)
+    seen: dict[str, float | None] = {}
+
+    def capture(*_args, **kwargs):
+        seen["timeout"] = kwargs["timeout"]
+        raise subprocess.TimeoutExpired("alembic", kwargs["timeout"])
+
+    monkeypatch.setattr(reset_db.subprocess, "run", capture)
+
+    with pytest.raises(SystemExit):
+        reset_db.run_migrations("postgresql://localhost/app")
+
+    assert seen["timeout"] == 7.0
+
+
 def test_development_reset_requires_dev_login_configuration(
     monkeypatch, tmp_path: Path
 ) -> None:

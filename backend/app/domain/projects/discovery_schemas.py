@@ -10,8 +10,12 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.brand_discovery import (
+    BUSINESS_MODELS,
+    BUYER_REGISTERS,
     DISCOVERY_CONFIRM_DOMAIN_MAX_CHARS,
     DISCOVERY_CONFIRM_MAX_DOMAINS,
+    KNOWLEDGE_STRENGTHS,
+    MARKET_SCOPES,
     PRICE_TIERS,
 )
 from app.core.config.projects import MAX_PROJECT_COMPETITORS
@@ -23,6 +27,33 @@ ConfirmedDomain = Annotated[
 ]
 PriceTier = Literal["budget", "mid_market", "premium", "luxury", "unknown"]
 assert set(get_args(PriceTier)) == set(PRICE_TIERS)
+
+# Business-context facets. Declared here rather than in the onboarding package
+# because `onboarding/__init__` pulls in the service, which imports this module.
+# Each is locked to its config vocabulary so the two cannot drift.
+BusinessModel = Literal[
+    "b2b_saas",
+    "marketplace",
+    "d2c_product",
+    "retail",
+    "local_service",
+    "professional_service",
+    "regulated_finance",
+    "healthcare_provider",
+    "education_provider",
+]
+MarketScope = Literal["global", "national", "regional", "local"]
+KnowledgeStrength = Literal["strong", "weak", "none"]
+BuyerRegister = Literal[
+    "terse_transactional",
+    "research_comparative",
+    "advice_seeking",
+    "local_urgent",
+]
+assert set(get_args(BusinessModel)) == set(BUSINESS_MODELS)
+assert set(get_args(MarketScope)) == set(MARKET_SCOPES)
+assert set(get_args(KnowledgeStrength)) == set(KNOWLEDGE_STRENGTHS)
+assert set(get_args(BuyerRegister)) == set(BUYER_REGISTERS)
 
 
 class BrandDiscoveryCreate(BaseModel):
@@ -50,6 +81,15 @@ class DiscoveryEvidence(BaseModel):
 
 
 class DiscoveryProfile(BaseModel):
+    """The reviewable business context, wire-side.
+
+    `category` and `category_terms` are open vocabulary and carry the real
+    specificity -- they are what reaches prompt generation. The remaining facets
+    are a closed vocabulary that routes archetype selection and buyer register.
+    See `onboarding.context_profile` for why a fixed industry tree cannot do
+    this job.
+    """
+
     description: str = ""
     positioning: str = ""
     products_services: list[str] = Field(default_factory=list)
@@ -58,6 +98,27 @@ class DiscoveryProfile(BaseModel):
     business_type: Literal["b2b", "b2c", "both"] = "both"
     price_tier: PriceTier = "unknown"
     field_confidence: dict[str, float] = Field(default_factory=dict)
+
+    # --- resolved business context ---------------------------------------
+    category: str = ""
+    # Alternative phrasings of the same category, offered to the user as
+    # choices. Onboarding is a confirmation step, not an authoring step: people
+    # will pick the right label out of a list and will not write one.
+    category_options: list[str] = Field(default_factory=list, max_length=5)
+    category_aliases: list[str] = Field(default_factory=list)
+    category_terms: list[str] = Field(default_factory=list)
+    jobs_to_be_done: list[str] = Field(default_factory=list)
+    sector: str = "Other"
+    business_model: BusinessModel = "d2c_product"
+    # Real businesses are often composite: Urban Company is a marketplace AND a
+    # local service, and the half a single enum discards is exactly the half
+    # that drives a whole family of buyer queries ("plumber near me").
+    secondary_business_models: list[BusinessModel] = Field(default_factory=list)
+    market_scope: MarketScope = "national"
+    buyer_register: BuyerRegister = "research_comparative"
+    buyer_roles: list[str] = Field(default_factory=list)
+    service_areas: list[str] = Field(default_factory=list)
+    knowledge_strength: KnowledgeStrength = "none"
 
 
 class ConfirmedDiscoveryProfile(DiscoveryProfile):
@@ -93,6 +154,12 @@ class CompetitorQualification(BaseModel):
 
 class DiscoveryCompetitorSuggestion(CompetitorInput):
     qualification: CompetitorQualification | None = None
+    # What kind of company THIS competitor is. The four qualification dimensions
+    # all measure overlap and none of them measures *kind*, so a services firm
+    # scored the platforms it implements as near-perfect substitutes -- every
+    # dimension agreed, and the set was still wrong. Left unset when the model
+    # declines to commit, in which case the peer-class filter abstains.
+    business_model: BusinessModel | None = None
     reasoning: str = Field(default="", max_length=2000)
     evidence_urls: list[str] = Field(
         default_factory=list, max_length=DISCOVERY_CONFIRM_MAX_DOMAINS

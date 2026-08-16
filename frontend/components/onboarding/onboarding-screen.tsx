@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { Controller, useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Check } from 'lucide-react';
 
 import { AuthWordmark, BrandCanvas } from '@/components/auth/brand-panel';
@@ -37,15 +37,35 @@ import { ReviewStep } from './review-step';
 import { hasConfirmedIcp, IcpConfirmation } from './icp-confirmation';
 
 /**
+ * Fill brand-knowledge fields the confirm screen no longer asks for.
+ *
+ * They remain required by the completion contract and editable later on the
+ * brand screen; onboarding just stops making the user author them. Falling back
+ * to the confirmed category keeps the payload truthful rather than inventing
+ * marketing copy.
+ */
+function withBrandKnowledgeDefaults(profile: DiscoveryProfile): DiscoveryProfile {
+  const category = profile.category.trim();
+  const products = profile.products_services.filter((item) => item.trim());
+  return {
+    ...profile,
+    positioning: profile.positioning.trim() || category,
+    target_audience: profile.target_audience.trim() || 'Buyers searching for ' + category,
+    products_services: products.length > 0 ? products : [category],
+  };
+}
+
+/**
  * Onboarding — the only way a project gets created (plan.md §10, decision 11;
  * `/setup` is retired).
  *
  * Three steps: Brand → Discovery → Review, framed by a slim header
- * (logo + compact inline stepper) and a centered card per step. The review
- * step keeps the same content rail as the other two stages while using a
- * compact two-column grid inside it. Discovery fires all three suggestion
- * calls automatically on entry; there is no Generate button, because
- * discovery is the reason the screen exists.
+ * (logo + compact inline stepper) and a centered card per step. Brand and
+ * Discovery hold a narrow measure; Review widens to the pane and splits into
+ * confirm-on-the-left / discovered-on-the-right, because it is a dense grid of
+ * chips rather than a short form. Discovery fires all three suggestion calls
+ * automatically on entry; there is no Generate button, because discovery is
+ * the reason the screen exists.
  *
  * Second project onward (`?new=1`) runs the identical flow — the discovery is
  * the value, not a first-run formality — with two differences: the copy drops
@@ -147,14 +167,6 @@ export function OnboardingScreen() {
     staleTime: Number.POSITIVE_INFINITY,
   });
   const maximumCompetitors = discoveryCatalog.data?.maximum_competitors;
-  const selectedIndustry = useWatch({ control: form.control, name: 'industry' });
-  const industryOptions = (discoveryCatalog.data?.industries ?? ['General']).map((value) => ({
-    value,
-    label: value,
-  }));
-  const subindustryOptions = (discoveryCatalog.data?.subindustries[selectedIndustry] ?? []).map(
-    (value) => ({ value, label: value }),
-  );
   // Seed the editable review lists once each section lands. Guarded on length
   // so re-renders never clobber the user's selections mid-review.
   const discoveryState = discovery.discovery;
@@ -230,7 +242,7 @@ export function OnboardingScreen() {
         discovery.discovery.id,
         {
           name: brand.brand_name.trim(),
-          profile,
+          profile: withBrandKnowledgeDefaults(profile),
           domains: selectedDomainValues(domains),
           competitors: selectedCompetitorValues(competitors),
         },
@@ -406,13 +418,22 @@ export function OnboardingScreen() {
             than the viewport — or any step on a short laptop — clipped its
             own action row with nothing able to scroll to it. `min-h-0` is
             what lets a flex child shrink below its content and actually
-            scroll instead of stretching the column. The scrollbar stays
-            visually hidden so ordinary laptop viewports never gain a stray
-            rail, while wheel, touch, and keyboard scrolling remain available
-            for short screens and unusually long discovered content. */}
+            scroll instead of stretching the column, and `overflow-y-auto` is
+            what makes the overflow reachable at all — without it the rail is
+            declared and nothing scrolls. `auto` keeps ordinary laptop
+            viewports free of a stray scrollbar while short screens and
+            unusually long discovered content stay reachable. */}
+        {/* The rail WIDTH follows the step's content, it is not one constant.
+            A two-field form wants a narrow measure; the review step is a dense
+            grid of chips that was being squeezed into the same 576px and
+            stacked into a tall vertical ribbon with most of the pane empty
+            beside it. Same rail for both meant one of them was always wrong. */}
         <main
           id="main"
-          className="mx-auto flex min-h-0 w-full max-w-xl flex-1 [scrollbar-width:none] flex-col justify-start overflow-y-auto py-2 sm:py-3 lg:py-4 [&::-webkit-scrollbar]:hidden"
+          className={cn(
+            'mx-auto flex min-h-0 w-full flex-1 flex-col justify-center overflow-y-auto py-2 text-sm sm:py-3 lg:py-4',
+            step === 2 ? 'max-w-6xl' : 'max-w-xl',
+          )}
         >
           <div className="p-1 sm:p-2">
             {step === 0 ? (
@@ -457,54 +478,11 @@ export function OnboardingScreen() {
                       />
                     )}
                   </Field>
-                  {/* Row 2: Industry on left, Subindustry on RIGHT */}
-                  <Field label="Industry" error={form.formState.errors.industry?.message}>
-                    {(props) => (
-                      <Controller
-                        control={form.control}
-                        name="industry"
-                        render={({ field }) => (
-                          <MarketSelect
-                            {...props}
-                            ariaLabel="Industry"
-                            value={field.value}
-                            onChange={(value) => {
-                              field.onChange(value);
-                              form.setValue('subindustry', '');
-                            }}
-                            onBlur={field.onBlur}
-                            options={industryOptions}
-                          />
-                        )}
-                      />
-                    )}
-                  </Field>
-
-                  {selectedIndustry !== 'General' && subindustryOptions.length > 0 ? (
-                    <Field label="Subindustry" error={form.formState.errors.subindustry?.message}>
-                      {(props) => (
-                        <Controller
-                          control={form.control}
-                          name="subindustry"
-                          render={({ field }) => (
-                            <MarketSelect
-                              {...props}
-                              ariaLabel="Subindustry"
-                              value={field.value}
-                              onChange={field.onChange}
-                              onBlur={field.onBlur}
-                              options={subindustryOptions}
-                              placeholder="Choose a subindustry"
-                            />
-                          )}
-                        />
-                      )}
-                    </Field>
-                  ) : (
-                    <div className="hidden sm:block" aria-hidden="true" />
-                  )}
-
-                  {/* Row 3: Primary market on left, Language on right */}
+                  {/* Industry and sub-industry are no longer asked for: they
+                      are resolved from the site and the model, then shown for
+                      confirmation on the review step. Asking produced worse
+                      results than inferring, because a fixed list has no entry
+                      for most real businesses. */}
                   <Field
                     label="Primary market"
                     error={form.formState.errors.primary_market?.message}
@@ -636,72 +614,91 @@ export function OnboardingScreen() {
 
             {step === 2 ? (
               <div className="space-y-3">
-                <div className="space-y-1">
-                  <h1 className="website-feature-heading text-foreground">Does this look right?</h1>
-                  <p className="website-body text-muted">
+                {/* The title sits on the action row rather than above it. This
+                    step is a review, not a page: a 24px display heading over a
+                    full-width paragraph spent the top of the screen announcing
+                    a question the content answers by itself. */}
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <h1 className="text-foreground text-base font-semibold">Does this look right?</h1>
+                  <p className="text-muted text-xs">
                     Deselect anything you don&apos;t want — you can change all of it after setup.
                   </p>
                 </div>
 
-                {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
+                {/* ONE panel, split into two columns on a wide screen: what the
+                    user CONFIRMS on the left, what we DISCOVERED on the right.
+                    They stacked before, so a review that fits side by side ran
+                    down a 576px ribbon with two-thirds of the pane empty next
+                    to it. Rendering the questions bare and the lists as their
+                    own bordered cards also said the two halves were unrelated,
+                    and gave the least important part the heaviest container. */}
+                <div className="border-border-subtle bg-panel divide-border-subtle grid divide-y rounded-xl border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+                  <div className="divide-border-subtle divide-y px-4 py-3">
+                    {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
+                  </div>
 
-                <ReviewStep
-                  domains={domains}
-                  competitors={competitors}
-                  onToggleDomain={toggle(setDomains)}
-                  onToggleCompetitor={(index) =>
-                    setCompetitors((previous) => {
-                      const selectedCount = previous.filter((item) => item.selected).length;
-                      return previous.map((item, itemIndex) => {
-                        if (itemIndex !== index) return item;
+                  <ReviewStep
+                    domains={domains}
+                    competitors={competitors}
+                    onToggleDomain={toggle(setDomains)}
+                    onToggleCompetitor={(index) =>
+                      setCompetitors((previous) => {
+                        const selectedCount = previous.filter((item) => item.selected).length;
+                        return previous.map((item, itemIndex) => {
+                          if (itemIndex !== index) return item;
+                          if (
+                            !item.selected &&
+                            (maximumCompetitors === undefined ||
+                              selectedCount >= maximumCompetitors)
+                          ) {
+                            return item;
+                          }
+                          return { ...item, selected: !item.selected };
+                        });
+                      })
+                    }
+                    onEditCompetitorDomain={(index, domain) =>
+                      setCompetitors((prev) =>
+                        prev.map((item, i) =>
+                          i === index
+                            ? {
+                                ...item,
+                                domains: [domain],
+                                // A manually added competitor has no name yet, and
+                                // the submit payload drops any competitor whose
+                                // name is blank — so the domain doubles as the
+                                // name until the user gives it one. A discovered
+                                // competitor keeps the name it came with.
+                                name: item.name || domain,
+                              }
+                            : item,
+                        ),
+                      )
+                    }
+                    onAddCompetitor={() =>
+                      setCompetitors((prev) => {
+                        const selectedCount = prev.filter((item) => item.selected).length;
                         if (
-                          !item.selected &&
-                          (maximumCompetitors === undefined || selectedCount >= maximumCompetitors)
+                          maximumCompetitors === undefined ||
+                          selectedCount >= maximumCompetitors
                         ) {
-                          return item;
+                          return prev;
                         }
-                        return { ...item, selected: !item.selected };
-                      });
-                    })
-                  }
-                  onEditCompetitorDomain={(index, domain) =>
-                    setCompetitors((prev) =>
-                      prev.map((item, i) =>
-                        i === index
-                          ? {
-                              ...item,
-                              domains: [domain],
-                              // A manually added competitor has no name yet, and
-                              // the submit payload drops any competitor whose
-                              // name is blank — so the domain doubles as the
-                              // name until the user gives it one. A discovered
-                              // competitor keeps the name it came with.
-                              name: item.name || domain,
-                            }
-                          : item,
-                      ),
-                    )
-                  }
-                  onAddCompetitor={() =>
-                    setCompetitors((prev) => {
-                      const selectedCount = prev.filter((item) => item.selected).length;
-                      if (maximumCompetitors === undefined || selectedCount >= maximumCompetitors) {
-                        return prev;
-                      }
-                      return [
-                        ...prev,
-                        {
-                          id: `competitor:manual:${manualCompetitorId()}`,
-                          name: '',
-                          aliases: [],
-                          domains: [],
-                          selected: true,
-                        },
-                      ];
-                    })
-                  }
-                  maximumCompetitors={maximumCompetitors}
-                />
+                        return [
+                          ...prev,
+                          {
+                            id: `competitor:manual:${manualCompetitorId()}`,
+                            name: '',
+                            aliases: [],
+                            domains: [],
+                            selected: true,
+                          },
+                        ];
+                      })
+                    }
+                    maximumCompetitors={maximumCompetitors}
+                  />
+                </div>
 
                 {discoveryCatalog.isError ? (
                   <Alert tone="warning">
@@ -721,9 +718,7 @@ export function OnboardingScreen() {
                   <Alert tone="warning">Keep at least one website address selected.</Alert>
                 ) : null}
                 {!hasConfirmedIcp(profile) ? (
-                  <Alert tone="warning">
-                    Confirm positioning, target audience, and at least one product or service.
-                  </Alert>
+                  <Alert tone="warning">Choose or describe what you sell.</Alert>
                 ) : null}
 
                 <div className="-mt-1 flex items-center gap-3 pt-1">

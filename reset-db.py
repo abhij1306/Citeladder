@@ -17,6 +17,8 @@ DOCKER_ENV_FILE = PROJECT_ROOT / "infra" / "docker" / ".env"
 PROTECTED_DATABASES = frozenset({"postgres", "template0", "template1"})
 DEVELOPMENT_ENVS = frozenset({"development", "dev", "local", "test", "testing"})
 DEFAULT_PROVISION_TIMEOUT_SECONDS = 300.0
+DESTRUCTIVE_RESET_VARIABLE = "RESET_CONFIRM_DESTRUCTIVE"
+DESTRUCTIVE_RESET_TOKEN = "drop-and-recreate"
 
 
 def _configuration() -> dict[str, str]:
@@ -89,12 +91,48 @@ def _connection_details(database_url: str) -> tuple[str, str, str]:
     port = f":{parsed.port}" if parsed.port is not None else ""
     credentials = f"{user}:***@" if parsed.password is not None else f"{user}@"
     redacted_netloc = f"{credentials}{hostname}{port}" if user else f"{hostname}{port}"
-    redacted = urlunsplit(parsed._replace(netloc=redacted_netloc, path="/postgres"))
+    # Query and fragment are dropped, not masked: libpq accepts `?password=` and
+    # `?sslpassword=` there, so anything printed from them is a secret leaked to
+    # the terminal and to whatever collects its output.
+    redacted = urlunsplit(
+        parsed._replace(netloc=redacted_netloc, path="/postgres", query="", fragment="")
+    )
     return admin_url, redacted, target_db
 
 
 def _quote_identifier(value: str) -> str:
     return f'"{value.replace(chr(34), chr(34) * 2)}"'
+
+
+def authorize_reset() -> None:
+    """Refuse to drop anything that is not provably a development database.
+
+    This script's whole job is DROP DATABASE, and the only thing that used to
+    stand between it and a production URL was whichever DATABASE_URL happened
+    to be exported. APP_ENV is the same signal the backend itself trusts, so a
+    development value authorizes the reset; anything else — production, or the
+    far more common case of APP_ENV simply never being set — has to say so
+    explicitly through the token.
+    """
+    configuration = _configuration()
+    app_env = configuration.get("APP_ENV", "").strip().lower()
+    if app_env in DEVELOPMENT_ENVS:
+        return
+    if (
+        configuration.get(DESTRUCTIVE_RESET_VARIABLE, "").strip()
+        == DESTRUCTIVE_RESET_TOKEN
+    ):
+        print(
+            f"APP_ENV is '{app_env or '(unset)'}' — proceeding because "
+            f"{DESTRUCTIVE_RESET_VARIABLE} authorizes it."
+        )
+        return
+    raise RuntimeError(
+        f"Refusing to drop the database: APP_ENV is '{app_env or '(unset)'}', "
+        f"not one of {sorted(DEVELOPMENT_ENVS)}. Set APP_ENV to a development "
+        f"value, or set {DESTRUCTIVE_RESET_VARIABLE}={DESTRUCTIVE_RESET_TOKEN} "
+        "to confirm this database is safe to destroy."
+    )
 
 
 async def reset_database(database_url: str) -> None:
@@ -118,7 +156,10 @@ def run_migrations(database_url: str) -> None:
     print("Running alembic migrations...")
     migration_environment = os.environ.copy()
     migration_environment["DATABASE_URL"] = database_url
-    timeout_value = os.environ.get("RESET_MIGRATION_TIMEOUT_SECONDS", "").strip()
+    # Read through `_configuration()` like every other setting here, so the
+    # value can live in a .env file. The process environment still wins: it is
+    # merged last in `_configuration`.
+    timeout_value = _configuration().get("RESET_MIGRATION_TIMEOUT_SECONDS", "").strip()
     migration_timeout = float(timeout_value) if timeout_value else None
     try:
         result = subprocess.run(
@@ -216,6 +257,7 @@ def main() -> None:
     print("=" * 50)
 
     try:
+        authorize_reset()
         database_url = _database_url()
         asyncio.run(reset_database(database_url))
         run_migrations(database_url)

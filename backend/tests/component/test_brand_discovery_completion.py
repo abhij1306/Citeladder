@@ -51,6 +51,12 @@ def _completion_payload() -> dict:
             "positioning": "A workflow analytics platform",
             "products_services": ["analytics software"],
             "target_audience": "enterprise marketing teams",
+            "category": "workflow analytics platform",
+            "category_terms": ["workflow analytics", "process mining"],
+            "business_model": "b2b_saas",
+            "market_scope": "global",
+            "price_tier": "premium",
+            "knowledge_strength": "strong",
         },
         "domains": ["acme.com"],
         "competitors": [{"name": "Globex", "domains": ["globex.com"]}],
@@ -233,6 +239,15 @@ async def test_completion_is_atomic_idempotent_scoped_and_does_not_start_site_he
         assert profile.sources["target_audience"]["reviewed_by"] is not None
         assert profile.sources["target_audience"]["reviewed_at"] is not None
         assert set(profile.source_artifact_ids) == set(profile.sources)
+        # The confirmed business context must survive project creation. Before
+        # this existed, `business_type` and `price_tier` were collected, shown,
+        # confirmed by the user and then silently dropped on the floor.
+        assert profile.business_context["category"] == "workflow analytics platform"
+        assert profile.business_context["business_model"] == "b2b_saas"
+        assert profile.business_context["market_scope"] == "global"
+        assert profile.business_context["business_type"] == "b2b"
+        assert profile.business_context["price_tier"] == "premium"
+        assert profile.business_context["knowledge_strength"] == "strong"
         assert len(set(profile.source_artifact_ids.values())) == 1
         assert (
             await session.scalar(

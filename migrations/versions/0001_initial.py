@@ -1265,6 +1265,9 @@ def upgrade() -> None:
             "products_services", postgresql.JSONB(astext_type=Text()), nullable=False
         ),
         sa.Column("target_audience", sa.Text(), nullable=False),
+        sa.Column(
+            "business_context", postgresql.JSONB(astext_type=Text()), nullable=False
+        ),
         sa.Column("sources", postgresql.JSONB(astext_type=Text()), nullable=False),
         sa.Column(
             "source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False
@@ -4498,9 +4501,7 @@ def upgrade() -> None:
             "analyzer_version",
             name="uq_site_change_snapshot_identity",
         ),
-        sa.UniqueConstraint(
-            "workspace_id", "id", name="uq_site_change_snapshot_ws_id"
-        ),
+        sa.UniqueConstraint("workspace_id", "id", name="uq_site_change_snapshot_ws_id"),
     )
     _create_indexes(
         "site_change_snapshots",
@@ -4560,10 +4561,14 @@ def upgrade() -> None:
             ["source_artifact_b_id"], ["site_fetch_artifacts.id"], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(
-            ["source_evaluation_a_id"], ["site_rule_evaluations.id"], ondelete="SET NULL"
+            ["source_evaluation_a_id"],
+            ["site_rule_evaluations.id"],
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
-            ["source_evaluation_b_id"], ["site_rule_evaluations.id"], ondelete="SET NULL"
+            ["source_evaluation_b_id"],
+            ["site_rule_evaluations.id"],
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"

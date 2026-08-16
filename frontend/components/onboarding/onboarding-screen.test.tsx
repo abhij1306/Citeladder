@@ -70,6 +70,19 @@ function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['prog
       business_type: 'b2b',
       price_tier: 'premium',
       field_confidence: {},
+      category: 'product feed management platform',
+      category_options: [],
+      category_aliases: ['feed management software'],
+      category_terms: ['product feed management', 'marketplace integrations'],
+      jobs_to_be_done: ['list products on marketplaces'],
+      sector: 'Software',
+      business_model: 'b2b_saas',
+      secondary_business_models: [],
+      market_scope: 'global',
+      buyer_register: 'research_comparative',
+      buyer_roles: ['ecommerce manager'],
+      service_areas: [],
+      knowledge_strength: 'strong',
     },
     domains: ['acme.example'],
     competitors: [
@@ -164,10 +177,13 @@ describe('OnboardingScreen', () => {
     renderWithProviders(<OnboardingScreen />);
 
     const user = await enterBrand();
+    // The rail follows the step. A two-field form keeps a narrow measure; the
+    // review step is a dense chip grid and gets the pane's full width, instead
+    // of stacking into a tall ribbon with two-thirds of the screen unused.
     expect(screen.getByRole('main')).toHaveClass('max-w-xl');
     await user.click(screen.getByRole('button', { name: 'Review' }));
-    expect(screen.getByRole('main')).toHaveClass('max-w-xl');
-    expect(screen.getByRole('main')).not.toHaveClass('max-w-3xl', 'lg:max-w-4xl');
+    expect(screen.getByRole('main')).toHaveClass('max-w-6xl');
+    expect(screen.getByRole('main')).not.toHaveClass('max-w-xl');
     const createProject = await screen.findByRole('button', { name: 'Create project' });
     await waitFor(() => expect(createProject).toBeEnabled());
     await user.click(createProject);
@@ -187,9 +203,14 @@ describe('OnboardingScreen', () => {
     );
   });
 
-  it('requires every structured ICP input before generation', async () => {
+  it('gates creation on the one thing the confirm screen asks for', async () => {
+    // Brand knowledge moved to the app, so a blank category -- not a blank
+    // positioning statement -- is what should block project creation.
     const ready = discovery('ready', 'preparing_review');
-    discoveryState = { ...ready, profile: { ...ready.profile, target_audience: '' } };
+    discoveryState = {
+      ...ready,
+      profile: { ...ready.profile, category: '', category_options: [], category_aliases: [] },
+    };
     mswServer.use(catalogHandler());
     renderWithProviders(<OnboardingScreen />);
 
@@ -198,8 +219,22 @@ describe('OnboardingScreen', () => {
     const createProject = await screen.findByRole('button', { name: 'Create project' });
     expect(createProject).toBeDisabled();
 
-    await user.type(screen.getByLabelText(/Target audience/), 'Revenue leaders');
+    await user.click(screen.getByRole('radio', { name: 'Other' }));
+    await user.type(screen.getByLabelText(/describe what you sell/i), 'mattress brand');
     expect(createProject).toBeEnabled();
+  });
+
+  it('never asks the user to write brand prose', async () => {
+    mswServer.use(catalogHandler());
+    renderWithProviders(<OnboardingScreen />);
+
+    const user = await enterBrand();
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    await screen.findByRole('button', { name: 'Create project' });
+
+    expect(screen.queryByLabelText(/positioning/i)).toBeNull();
+    expect(screen.queryByLabelText(/target audience/i)).toBeNull();
+    expect(screen.queryByLabelText(/^description/i)).toBeNull();
   });
 
   it('selects only the first five discovered competitors', async () => {
@@ -221,10 +256,9 @@ describe('OnboardingScreen', () => {
     const user = await enterBrand();
     await user.click(screen.getByRole('button', { name: 'Review' }));
 
-    expect(await screen.findByText('5 of 5')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Include Peer 6' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
+    expect(await screen.findByText('5 of 5 tracked')).toBeInTheDocument();
+    // The chip keeps its own name in both states; `aria-pressed` carries
+    // whether it is tracked.
+    expect(screen.getByRole('button', { name: 'Peer 6' })).toHaveAttribute('aria-pressed', 'false');
   });
 });

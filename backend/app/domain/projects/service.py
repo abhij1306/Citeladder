@@ -196,6 +196,10 @@ def _seed_manual_brand_profile(
         workspace_id=workspace_id,
         project_id=project.id,
         brand_id=project.brand.id,
+        # Kept out of `profile_fields` deliberately: that dict drives the
+        # per-field `sources` markers, and the business context is one
+        # confirmed document rather than four independently reviewable fields.
+        business_context=dict(getattr(payload, "business_context", None) or {}),
         **profile_fields,
         sources=sources
         if sources is not None

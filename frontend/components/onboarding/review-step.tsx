@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
+import { ChipRow, ReviewSection, ToggleChip } from '@/components/onboarding/choice-controls';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 import type { ReviewCompetitor, ReviewDomain } from '@/lib/onboarding/forms';
 
 function competitorUrl(competitor: ReviewCompetitor): string {
@@ -15,139 +15,89 @@ function competitorUrl(competitor: ReviewCompetitor): string {
 }
 
 /**
- * A reviewable suggestion, in both states.
+ * One discovered competitor: include or exclude with the chip, correct its
+ * domain with the pencil.
  *
- * An unselected chip is rendered MUTED rather than dropped. Hiding it made
- * every exclusion permanent — and discovery legitimately returns more
- * suggestions than the cap pre-selects, so the extras were unreachable before
- * the user ever touched anything. A review step whose choices cannot be undone
- * is not a review step.
+ * The domain editor is an explicit row below the chip rather than an input that
+ * replaces the label in place. Swapping the label for a field made the chip
+ * resize mid-edit and left no visible statement of what was being edited.
  */
-function DomainChip({
-  label,
-  selected,
-  onToggle,
-}: Readonly<{ label: string; selected: boolean; onToggle: () => void }>) {
-  return (
-    <div
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
-        selected
-          ? 'border-accent-border/60 bg-accent-soft/80 text-accent-hover'
-          : 'border-border-subtle text-muted border-dashed',
-      )}
-    >
-      <span className="truncate">{label}</span>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={`${selected ? 'Exclude' : 'Include'} ${label}`}
-        aria-pressed={selected}
-        className="text-muted hover:text-foreground shrink-0 cursor-pointer p-0.5 transition-colors"
-      >
-        {selected ? (
-          <X className="size-3.5" aria-hidden />
-        ) : (
-          <Plus className="size-3.5" aria-hidden />
-        )}
-      </button>
-    </div>
-  );
-}
-
 function CompetitorChip({
   competitor,
+  disabled,
   onToggle,
   onEditDomain,
 }: Readonly<{
   competitor: ReviewCompetitor;
+  disabled: boolean;
   onToggle: () => void;
   onEditDomain: (domain: string) => void;
 }>) {
-  const primaryDomain = competitor.domains.find(Boolean) || competitor.name;
-  const displayName = competitor.name || primaryDomain || 'Competitor';
+  const primaryDomain = competitor.domains.find(Boolean) || '';
+  const displayName = competitor.name || primaryDomain || 'New competitor';
 
+  // A manually added competitor arrives empty, so it opens straight into the
+  // field it exists to collect.
   const [isEditing, setIsEditing] = useState(
     competitor.name === '' && competitor.domains.length === 0,
   );
-  const [editDomain, setEditDomain] = useState(primaryDomain);
+  const [draft, setDraft] = useState(primaryDomain);
 
   // The field is labelled, seeded, and placeheld as a DOMAIN, so it writes the
   // domain. It used to write `name` instead, which left `domains` holding the
   // value the user had just replaced — the submitted payload carried both, and
   // the chip's link still pointed at the old host.
-  const handleSave = () => {
+  const save = () => {
     setIsEditing(false);
-    const trimmed = editDomain.trim();
-    if (trimmed) {
-      onEditDomain(trimmed);
-    }
+    const trimmed = draft.trim();
+    if (trimmed) onEditDomain(trimmed);
   };
 
-  const url = competitorUrl(competitor);
-  const selected = competitor.selected;
-
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-between gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
-        selected
-          ? 'border-accent-border/60 bg-accent-soft/80 text-accent-hover'
-          : 'border-border-subtle text-muted border-dashed',
-      )}
-    >
-      {isEditing ? (
-        <input
+  if (isEditing) {
+    return (
+      <span className="flex items-center gap-1.5">
+        <Input
           autoFocus
-          type="text"
-          value={editDomain}
-          onChange={(e) => setEditDomain(e.target.value)}
-          onBlur={handleSave}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSave();
-            if (e.key === 'Escape') {
-              setEditDomain(primaryDomain);
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={save}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') save();
+            if (event.key === 'Escape') {
+              setDraft(primaryDomain);
               setIsEditing(false);
             }
           }}
-          placeholder="e.g. acme.com"
-          aria-label={`Edit domain for ${displayName}`}
-          className="text-accent-hover placeholder:text-accent-hover/50 min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-medium focus:ring-0 focus:outline-none"
+          placeholder="acme.com"
+          aria-label={`Website for ${displayName}`}
+          className="w-44"
         />
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            setEditDomain(primaryDomain);
-            setIsEditing(true);
-          }}
-          title="Click chip to edit domain"
-          className="text-accent-hover min-w-0 flex-1 cursor-pointer truncate text-left text-sm font-medium"
-        >
-          {displayName}
-        </button>
-      )}
+      </span>
+    );
+  }
 
+  const url = competitorUrl(competitor);
+  return (
+    <span className="inline-flex max-w-full items-center">
+      <ToggleChip
+        label={displayName}
+        selected={competitor.selected}
+        disabled={disabled}
+        onToggle={onToggle}
+        onEdit={() => {
+          setDraft(primaryDomain);
+          setIsEditing(true);
+        }}
+        editLabel={`Edit website for ${displayName}`}
+      />
+      {/* Kept for assistive tech and tests: the visible chip is a control, so
+          it cannot also be the link to the competitor's site. */}
       {url ? (
         <a href={url} target="_blank" rel="noreferrer" className="sr-only">
           {url}
         </a>
       ) : null}
-
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={`${selected ? 'Exclude' : 'Include'} ${displayName}`}
-        aria-pressed={selected}
-        className="text-muted hover:text-foreground shrink-0 cursor-pointer p-0.5 transition-colors"
-      >
-        {selected ? (
-          <X className="size-3.5" aria-hidden />
-        ) : (
-          <Plus className="size-3.5" aria-hidden />
-        )}
-      </button>
-    </div>
+    </span>
   );
 }
 
@@ -168,80 +118,67 @@ export function ReviewStep({
   onAddCompetitor: () => void;
   maximumCompetitors: number | undefined;
 }>) {
-  const selectedDomains = domains.filter((d) => d.selected);
-  const selectedCompetitors = competitors.filter((c) => c.selected);
+  const selectedDomains = domains.filter((item) => item.selected).length;
+  const selectedCompetitors = competitors.filter((item) => item.selected).length;
   const competitorLimitReached =
-    maximumCompetitors === undefined || selectedCompetitors.length >= maximumCompetitors;
+    maximumCompetitors === undefined || selectedCompetitors >= maximumCompetitors;
 
   return (
-    <div className="grid w-full items-start gap-4 sm:grid-cols-2">
-      <div className="contents">
-        {/* Card 1: Your Domains */}
-        <div className="bg-panel border-border-subtle/80 space-y-2.5 rounded-xl border p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-muted text-xs font-semibold tracking-wider uppercase">
-              Your Domains
-            </span>
-            <Badge variant="neutral" className="px-2 py-0.5 text-xs">
-              {selectedDomains.length} selected
-            </Badge>
-          </div>
-          {domains.length === 0 ? (
-            <p className="website-body text-muted italic">No domains were discovered.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2 pt-0.5">
-              {domains.map((entry, index) => (
-                <DomainChip
-                  key={entry.domain}
-                  label={entry.domain}
-                  selected={entry.selected}
-                  onToggle={() => onToggleDomain(index)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+    <div className="divide-border-subtle divide-y px-4 py-3">
+      <ReviewSection
+        title="Your websites"
+        meta={domains.length > 0 ? `${selectedDomains} of ${domains.length}` : undefined}
+      >
+        {domains.length === 0 ? (
+          <p className="text-subtle text-xs">No websites were found.</p>
+        ) : (
+          <ChipRow>
+            {domains.map((entry, index) => (
+              <ToggleChip
+                key={entry.domain}
+                label={entry.domain}
+                selected={entry.selected}
+                onToggle={() => onToggleDomain(index)}
+              />
+            ))}
+          </ChipRow>
+        )}
+      </ReviewSection>
 
-        {/* Card 2: Competitors — Sleek Single-Line Chips */}
-        <div className="bg-panel border-border-subtle/80 space-y-3 rounded-xl border p-4 shadow-xs sm:col-span-2">
-          <div className="flex items-center justify-between">
-            <span className="text-muted text-xs font-semibold tracking-wider uppercase">
-              Competitors
-            </span>
-            <div className="flex items-center gap-2">
-              <Badge variant="neutral" className="px-2 py-0.5 text-xs">
-                {selectedCompetitors.length} of {maximumCompetitors ?? '…'}
-              </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onAddCompetitor}
+      <ReviewSection
+        title="Competitors"
+        meta={`${selectedCompetitors} of ${maximumCompetitors ?? '…'} tracked`}
+        action={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onAddCompetitor}
+            disabled={competitorLimitReached}
+            className="text-accent-text hover:bg-accent-soft h-6 gap-1 px-2 text-xs font-medium"
+          >
+            <Plus className="size-3.5" aria-hidden />
+            Add
+          </Button>
+        }
+      >
+        {competitors.length === 0 ? (
+          <p className="text-subtle text-xs">
+            No competitors were confirmed. Add the companies you lose deals to.
+          </p>
+        ) : (
+          <ChipRow>
+            {competitors.map((competitor, index) => (
+              <CompetitorChip
+                key={competitor.id}
+                competitor={competitor}
                 disabled={competitorLimitReached}
-                className="text-accent-text hover:bg-accent-soft border-accent-border/60 h-6 gap-1 rounded-lg border border-dashed px-2.5 text-xs font-medium"
-              >
-                <Plus className="size-3.5" aria-hidden />
-                Add competitor
-              </Button>
-            </div>
-          </div>
-
-          {/* 2-Column Grid for Competitor Chips */}
-          {competitors.length === 0 ? (
-            <p className="website-body text-muted italic">No competitors were discovered.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {competitors.map((competitor, index) => (
-                <CompetitorChip
-                  key={competitor.id}
-                  competitor={competitor}
-                  onToggle={() => onToggleCompetitor(index)}
-                  onEditDomain={(domain) => onEditCompetitorDomain(index, domain)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+                onToggle={() => onToggleCompetitor(index)}
+                onEditDomain={(domain) => onEditCompetitorDomain(index, domain)}
+              />
+            ))}
+          </ChipRow>
+        )}
+      </ReviewSection>
     </div>
   );
 }
