@@ -17,7 +17,7 @@ from app.core.config.analytics import (
     AI_SOURCE_OTHER,
     AI_SOURCE_PERPLEXITY,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_REFERRER_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
 )

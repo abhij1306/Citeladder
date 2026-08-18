@@ -335,7 +335,8 @@ evidence. Host-scoped and template-scoped evaluation remain out of scope: the
 current per-page evidence is retained, and no dormant scope configuration or
 placeholder identity owner is introduced.
 
-Current versions are owned in `backend/app/core/config/site_health.py`; tests
+Current versions are owned in the focused `backend/app/core/config/site_health_*`
+modules; tests
 pin persistence and replay behavior.
 
 ## Known boundary
@@ -355,5 +356,5 @@ uv run pytest tests/unit/test_site_health_page_kinds.py \
   tests/unit/test_site_health_rules.py \
   tests/component/test_site_health_analyze.py \
   tests/component/test_site_health_discover.py -q
-uv run ruff check app/analysis/site_health app/core/config/site_health.py
+uv run ruff check app/analysis/site_health app/core/config/site_health_*.py
 ```

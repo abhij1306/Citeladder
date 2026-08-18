@@ -52,7 +52,9 @@ from app.core.config.commerce import (
     COMMERCE_EVIDENCE_KIND_STRUCTURED,
     commerce_intelligence_settings,
 )
-from app.core.config.site_health import FETCH_PURPOSE_DISCOVER
+from app.core.config.site_health_acquisition import (
+    FETCH_PURPOSE_DISCOVER,
+)
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging
 from app.domain.commerce.intelligence import (

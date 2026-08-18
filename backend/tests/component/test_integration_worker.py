@@ -36,12 +36,10 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
 )
-from app.core.config.integrations import (
-    DATASET_GSC_COUNTRY_DAILY,
-    DATASET_GSC_DEVICE_DAILY,
-    DATASET_GSC_PAGE_DAILY,
-    DATASET_GSC_QUERY_DAILY,
-    DATASET_GSC_QUERY_PAGE_DAILY,
+from app.core.config.integrations_clients import (
+    INTEGRATION_QUEUE_SPEC,
+)
+from app.core.config.integrations_contracts import (
     ERROR_GRANT_AUTH_FAILED,
     ERROR_PROVIDER_API,
     ERROR_RATE_LIMITED,
@@ -52,10 +50,20 @@ from app.core.config.integrations import (
     EVENT_INTEGRATION_SYNC_STARTED,
     GRANT_STATUS_CONNECTED,
     GRANT_STATUS_NEEDS_REAUTH,
-    INTEGRATION_PROVIDER_GSC,
-    INTEGRATION_QUEUE_SPEC,
-    INTEGRATION_TRANSPORT_GOOGLE,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_GSC_COUNTRY_DAILY,
+    DATASET_GSC_DEVICE_DAILY,
+    DATASET_GSC_PAGE_DAILY,
+    DATASET_GSC_QUERY_DAILY,
+    DATASET_GSC_QUERY_PAGE_DAILY,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_PROVIDER_GSC,
+    INTEGRATION_TRANSPORT_GOOGLE,
 )
 from app.core.config.task_queue import (
     ERROR_MAX_ATTEMPTS,

@@ -30,7 +30,10 @@ from app.core.config.products import (
     PRODUCT_ANALYZER_VERSION,
     PRODUCT_SCORING_RULE_VERSION,
 )
-from app.core.config.site_health import CRAWL_STATUS_CANCELLED, CRAWL_STATUS_RUNNING
+from app.core.config.site_health_contracts import (
+    CRAWL_STATUS_CANCELLED,
+    CRAWL_STATUS_RUNNING,
+)
 from app.core.config.source_patterns import SOURCE_TAXONOMY_VERSION
 from app.core.config.task_queue import TASK_STATUS_FAILED
 from app.domain.opportunities import service

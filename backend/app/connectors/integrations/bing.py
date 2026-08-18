@@ -61,15 +61,21 @@ from app.connectors.integrations._http import (
     flat_error_detail,
     parse_retry_after,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
+    ERROR_PROVIDER_API,
+)
+from app.core.config.integrations_datasets import (
+    INTEGRATION_DATASET_TEMPLATES,
+    IntegrationDatasetTemplate,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     BING_API_BASE_URL,
     BING_API_JSON_ROOT,
     BING_SITES_PROBE_METHOD,
-    ERROR_PROVIDER_API,
-    INTEGRATION_DATASET_TEMPLATES,
     INTEGRATION_PROVIDER_BING,
-    IntegrationDatasetTemplate,
-    integration_settings,
 )
 
 # Bing's JSON-serialized date form: ``/Date(<epoch-ms><+/-hhmm>)/``.

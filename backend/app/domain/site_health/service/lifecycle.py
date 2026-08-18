@@ -17,21 +17,25 @@ from datetime import UTC, datetime
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.site_health import (
-    ANALYSIS_STATUS_CANCELLED,
-    CRAWL_STATUS_CANCELLED,
-    CRAWL_TERMINAL_STATUSES,
-    DISCOVERY_STATUS_CANCELLED,
+from app.core.config.site_health_acquisition import (
     ERROR_HTTP_4XX,
     ERROR_HTTP_5XX,
     ERROR_ROBOTS_DENIED,
     ERROR_TIMEOUT,
+    POLICY_BLOCKING_ERROR_CODES,
+)
+from app.core.config.site_health_contracts import (
+    ANALYSIS_STATUS_CANCELLED,
+    CRAWL_STATUS_CANCELLED,
+    CRAWL_TERMINAL_STATUSES,
+    DISCOVERY_STATUS_CANCELLED,
     EVENT_CRAWL_CANCELLED,
     PAGE_ANALYSIS_STATUS_COMPLETED,
+    TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_crawl_policy import (
     PHASE_ANALYSIS,
     PHASE_DISCOVERY,
-    POLICY_BLOCKING_ERROR_CODES,
-    TASK_KIND_ANALYZE,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,

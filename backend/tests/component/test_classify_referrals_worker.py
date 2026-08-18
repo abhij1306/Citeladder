@@ -30,7 +30,9 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
 )
 from app.core.config.provider_catalog import ENGINE_CHATGPT, ENGINE_GEMINI
-from app.core.config.site_health import ANALYZER_VERSION as SH_ANALYZER_VERSION
+from app.core.config.site_health_contracts import (
+    ANALYZER_VERSION as SH_ANALYZER_VERSION,
+)
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
     TASK_STATUS_SUCCEEDED,

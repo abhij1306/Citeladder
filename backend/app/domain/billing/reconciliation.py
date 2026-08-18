@@ -34,7 +34,7 @@ from app.connectors.billing.base import (
     BillingProviderError,
     ProviderPayment,
 )
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     ACTIVATION_ABANDONED,
     ACTIVATION_ACTIVATED,
     ACTIVATION_AUTHORITY_RECONCILIATION,
@@ -49,6 +49,8 @@ from app.core.config.billing import (
     SUBSCRIPTION_CANCEL_SCHEDULED,
     SUBSCRIPTION_CANCELLED,
     SUBSCRIPTION_EXPIRED,
+)
+from app.core.config.billing_settings import (
     billing_settings,
 )
 from app.domain.billing.activations import (

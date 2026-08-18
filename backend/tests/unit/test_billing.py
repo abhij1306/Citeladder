@@ -14,7 +14,14 @@ from sqlalchemy.exc import IntegrityError
 
 from app.connectors.billing.base import BillingProviderError, ProviderMetadata
 from app.connectors.billing.razorpay import RazorpayBillingProvider
-from app.core.config.billing import (
+from app.core.config.billing_catalog import (
+    GrantTemplate,
+    commercial_catalog,
+    plan_checkout_availability,
+    plan_period_grant_specs,
+    resolve_region,
+)
+from app.core.config.billing_contracts import (
     ADDON_EXTRA_PROJECT,
     CURRENCY_MINOR_UNITS,
     REASON_ADDON_PENDING,
@@ -24,12 +31,9 @@ from app.core.config.billing import (
     REGION_CURRENCIES,
     REGION_INDIA,
     REGION_INTERNATIONAL,
-    GrantTemplate,
+)
+from app.core.config.billing_settings import (
     billing_settings,
-    commercial_catalog,
-    plan_checkout_availability,
-    plan_period_grant_specs,
-    resolve_region,
 )
 from app.core.config.entitlements import (
     BENCHMARK_CADENCE_VALUES,

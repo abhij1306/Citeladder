@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import SplitResult, urlsplit
 
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,

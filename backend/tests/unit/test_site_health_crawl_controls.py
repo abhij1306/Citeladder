@@ -9,12 +9,14 @@ import uuid
 import pytest
 from pydantic import ValidationError
 
-from app.core.config.site_health import (
+from app.core.config.site_health_crawl_policy import (
     MANUAL_PHASE_LIFECYCLE_KEY,
+)
+from app.core.config.site_health_page_profiles import PAGE_PROFILE_RULE_VERSION
+from app.core.config.site_health_runtime import (
     SiteHealthSettings,
     site_health_settings,
 )
-from app.core.config.site_health_page_profiles import PAGE_PROFILE_RULE_VERSION
 from app.domain.site_health import discovery, frontier
 from app.domain.site_health.api_schemas import (
     StartAnalysisRequest,

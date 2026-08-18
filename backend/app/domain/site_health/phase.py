@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Final, Literal
 
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_CANCELLED,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,

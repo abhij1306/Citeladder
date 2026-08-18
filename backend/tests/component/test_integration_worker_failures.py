@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_GRANT_AUTH_FAILED,
     ERROR_PAYLOAD_TOO_LARGE,
     ERROR_PROVIDER_API,
     GRANT_STATUS_NEEDS_REAUTH,
-    INTEGRATION_PROVIDER_GSC,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_PROVIDER_GSC,
 )
 from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.models.integrations import IntegrationImportArtifact

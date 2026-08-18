@@ -20,12 +20,16 @@
 from __future__ import annotations
 
 from app.analysis.site_health.rules import RuleEvaluation, rule_for
-from app.core.config import site_health as site_health_config
-from app.core.config.site_health import (
+from app.core.config import site_health_acquisition as site_health_config
+from app.core.config.site_health_acquisition import (
+    SITE_HEALTH_MAX_URL_CHARS,
+)
+from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
-    SITE_HEALTH_MAX_URL_CHARS,
+)
+from app.core.config.site_health_rules import (
     SiteHealthRule,
 )
 

@@ -31,17 +31,21 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     GRANT_STATUS_CONNECTED,
     GRANT_STATUS_NEEDS_REAUTH,
+    MAPPING_STATUS_DISABLED,
+    SYNC_KIND_ON_DEMAND,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_BING,
     INTEGRATION_PROVIDER_GA4,
     INTEGRATION_PROVIDER_GSC,
     INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_TRANSPORT_MICROSOFT,
-    MAPPING_STATUS_DISABLED,
-    SYNC_KIND_ON_DEMAND,
-    integration_settings,
 )
 from app.models.integrations import (
     IntegrationConnection,

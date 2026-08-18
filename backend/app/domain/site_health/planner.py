@@ -42,9 +42,8 @@ from app.connectors.web_evidence.url_policy import (
     registrable_domain,
     split_host_port,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
-    AUTOMATIC_MONITOR_LIMIT_KEY,
     CLASSIFIER_VERSION,
     CODE_ADVANCED_CONTROLS_UNAVAILABLE,
     CODE_CRAWL_ALREADY_ACTIVE,
@@ -54,31 +53,38 @@ from app.core.config.site_health import (
     CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_QUEUED,
     CRAWL_STATUS_VALIDATING,
-    DISCOVERY_MODE_SAMPLE,
     DISCOVERY_STATUS_COMPLETED,
     DISCOVERY_STATUS_RUNNING,
     EVENT_CRAWL_CREATED,
     EVENT_CRAWL_QUEUED,
     EXTRACTOR_VERSION,
+    OBSERVATION_SOURCE_ROOT,
+    RULE_CATALOG_VERSION,
+    SCORING_VERSION,
+    TASK_KIND_ANALYZE,
+    TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_crawl_policy import (
+    AUTOMATIC_MONITOR_LIMIT_KEY,
+    DISCOVERY_MODE_SAMPLE,
     INPUT_MODE_AUTO,
     INPUT_MODE_EXACT_URLS,
     INPUT_MODES,
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
     MANUAL_PHASE_LIFECYCLE_KEY,
-    OBSERVATION_SOURCE_ROOT,
-    PAGE_KINDS,
     PHASE_DISCOVERY,
     PHASE_RUN_RUNNING,
-    RULE_CATALOG_VERSION,
-    SCORING_VERSION,
-    TASK_KIND_ANALYZE,
-    TASK_KIND_DISCOVER,
     URL_ADMISSION_POLICY_VERSION,
     URL_EXCLUSION_DUPLICATE,
     URL_EXCLUSION_INVALID,
-    site_health_settings,
 )
 from app.core.config.site_health_page_profiles import PAGE_PROFILE_RULE_VERSION
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
+from app.core.config.site_health_taxonomy import (
+    PAGE_KINDS,
+)
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,

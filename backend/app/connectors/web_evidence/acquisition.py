@@ -11,11 +11,13 @@ import re
 import sys
 
 from app.connectors.web_evidence.contracts import FetchResult
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     ACQUISITION_TRIGGER_BLOCK_STATUS,
     ACQUISITION_TRIGGER_CHALLENGE,
     ACQUISITION_TRIGGER_JS_SHELL,
     ACQUISITION_TRIGGER_LOW_CONTENT,
+)
+from app.core.config.site_health_runtime import (
     SiteHealthSettings,
 )
 

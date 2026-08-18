@@ -21,7 +21,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.audits import AUDIT_TRIGGER_MANUAL
-from app.core.config.billing import TELEMETRY_CONSUMABLE_CREDITS_EXHAUSTED
+from app.core.config.billing_contracts import (
+    TELEMETRY_CONSUMABLE_CREDITS_EXHAUSTED,
+)
 from app.core.config.entitlements import (
     KEY_PULSE_CREDITS,
     LEDGER_ENTRY_DEBIT,

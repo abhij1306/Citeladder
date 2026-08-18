@@ -39,7 +39,9 @@ from app.core.config.brand_evidence import (
     BRAND_EVIDENCE_MAX_TOTAL_CHARS,
     BRAND_EVIDENCE_REQUEST_TIMEOUT_SECONDS,
 )
-from app.core.config.site_health import FETCH_PURPOSE_ANALYZE
+from app.core.config.site_health_acquisition import (
+    FETCH_PURPOSE_ANALYZE,
+)
 
 logger = logging.getLogger(__name__)
 

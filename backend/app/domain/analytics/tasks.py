@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # ``ANALYZER_VERSION`` is OWNED by config/analysis.py ("b6-analysis-1") and
 # reused for the analytics provenance stamp (invariant 2) — NEVER the
-# same-named constant in config/site_health.py ("sh-analyzer-1").
+# same-named constant in config/site_health_contracts.py ("sh-analyzer-1").
 from app.core.config.analysis import ANALYZER_VERSION
 from app.core.config.analytics import (
     AI_REFERRAL_RULE_VERSION,

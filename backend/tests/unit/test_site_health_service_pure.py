@@ -17,9 +17,11 @@ from typing import cast
 
 import pytest
 
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     ERROR_ROBOTS_DENIED,
     ERROR_SSRF_BLOCKED,
+)
+from app.core.config.site_health_contracts import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     PAGE_ANALYSIS_STATUS_PARTIALLY_COMPLETED,
 )

@@ -12,7 +12,9 @@ from app.core.config.analytics import (
     AI_SOURCE_GEMINI,
     AI_SOURCE_OTHER,
 )
-from app.core.config.integrations import DATASET_GA4_SOURCE_MEDIUM_DAILY
+from app.core.config.integrations_datasets import (
+    DATASET_GA4_SOURCE_MEDIUM_DAILY,
+)
 from app.domain.analytics.ai_referrals_snapshot import (
     ReferralFactInput,
     build_ai_referrals_projection,

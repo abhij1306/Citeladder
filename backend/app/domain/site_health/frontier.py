@@ -11,13 +11,17 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.web_evidence.url_policy import classify_url_admission
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
+    TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_crawl_policy import (
     AUTOMATIC_MONITOR_LIMIT_KEY,
     FRONTIER_ADMITTED,
     FRONTIER_PENDING,
     SELECTION_SOURCE_BOOTSTRAP,
     SELECTION_SOURCE_FREE_SAMPLE,
-    TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.site_health.frontier_support import (

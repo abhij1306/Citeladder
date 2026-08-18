@@ -15,7 +15,9 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.site_health import TASK_KIND_ANALYZE
+from app.core.config.site_health_contracts import (
+    TASK_KIND_ANALYZE,
+)
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.site_health.selection import (
     QuotaExceededError,

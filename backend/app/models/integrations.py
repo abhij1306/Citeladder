@@ -44,11 +44,13 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     GRANT_STATUS_CONNECTED,
     INTEGRATION_IMPORTER_VERSION,
     MAPPING_STATUS_ACTIVE,
     SYNC_KIND_ON_DEMAND,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
 )
 from app.core.config.task_queue import (

@@ -16,30 +16,36 @@ from app.analysis.site_health.rules import (
     evaluate_rule,
     rule_for,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
     AI_CRAWLER_STANCE_BLOCK,
-    ANSWER_FIRST_MIN_WORDS,
+)
+from app.core.config.site_health_contracts import (
     APPLICABILITY_CRAWL_FINALIZE,
     DIMENSION_AEO,
     DIMENSION_TECHNICAL,
-    EXPAND_GATED_MAX_RATIO,
-    FINDING_CLASS_ADVISORY,
-    FINDING_CLASS_DEFECT,
-    META_DESCRIPTION_LENGTH_BAND,
-    PAGE_KIND_OTHER,
-    PAGE_KIND_PROFILES,
-    QUESTION_HEADINGS_MIN_RATIO,
-    RENDER_BLOCKING_MAX_RESOURCES,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
+)
+from app.core.config.site_health_rules import (
+    ANSWER_FIRST_MIN_WORDS,
+    EXPAND_GATED_MAX_RATIO,
+    FINDING_CLASS_ADVISORY,
+    FINDING_CLASS_DEFECT,
+    META_DESCRIPTION_LENGTH_BAND,
+    QUESTION_HEADINGS_MIN_RATIO,
+    RENDER_BLOCKING_MAX_RESOURCES,
     SERVER_RENDERED_MIN_WORDS,
     SITE_HEALTH_RULES,
     TITLE_LENGTH_BAND,
     TTFB_WARN_MS,
     SiteHealthRule,
+)
+from app.core.config.site_health_taxonomy import (
+    PAGE_KIND_OTHER,
+    PAGE_KIND_PROFILES,
 )
 
 # The v1 global thin-content minimum now lives in the config-owned ``other``

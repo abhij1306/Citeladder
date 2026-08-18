@@ -31,7 +31,7 @@ from app.api.deps import (
 )
 from app.connectors.integrations import IntegrationApiError
 from app.core.config.abuse import abuse_settings
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_MAPPING_ACTIVE_OWNER_CONFLICT,
     ERROR_MAPPING_PROPERTY_NOT_OWNED,
     ERROR_MAPPING_PROVIDER_MISMATCH,
@@ -42,10 +42,12 @@ from app.core.config.integrations import (
     ERROR_PROPERTY_DISCOVERY_UNSUPPORTED,
     ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
     ERROR_SYNC_WINDOW_INVALID,
+    SYNC_KIND_ON_DEMAND,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_TRANSACTION_COOKIE,
     INTEGRATION_PROVIDER_SHOPIFY,
     INTEGRATION_PROVIDERS,
-    SYNC_KIND_ON_DEMAND,
     integration_oauth_landing_url,
     integration_oauth_redirect_uri,
     normalize_shopify_shop_domain,

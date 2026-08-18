@@ -21,18 +21,22 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.site_health import (
-    AUTOMATIC_MONITOR_LIMIT_KEY,
-    CORPUS_DISPOSITION_INVENTORY_ONLY,
+from app.core.config.site_health_contracts import (
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_RUNNING,
     INITIAL_TASK_GENERATION,
+    TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_crawl_policy import (
+    AUTOMATIC_MONITOR_LIMIT_KEY,
+    CORPUS_DISPOSITION_INVENTORY_ONLY,
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
     SELECTION_SOURCE_FREE_SAMPLE,
     SELECTION_SOURCE_USER,
-    TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.config.task_queue import (

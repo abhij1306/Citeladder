@@ -48,7 +48,7 @@ from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 from app.connectors.web_evidence.url_policy import UrlPolicyError
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_CHANNEL_DAILY,
     DATASET_GA4_LANDING_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,

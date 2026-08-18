@@ -413,7 +413,7 @@ EVENT_OCCUPANCY_UNRESOLVED: Final = "billing.occupancy_unresolved"
 # status vocabulary owns ``entitlement_unresolved`` (see
 # ``domain/entitlements/types.STATUS_ENTITLEMENT_UNRESOLVED``) — it is reused,
 # never re-literalled here (invariant 2). The matching telemetry event names
-# (``billing.funded_budget_exhausted`` etc.) live in ``config/billing.py``.
+# (``billing.funded_budget_exhausted`` etc.) live in ``config/billing_contracts.py``.
 CODE_MANUAL_RUN_RATE_EXCEEDED: Final = "manual_run_rate_exceeded"
 CODE_FUNDED_BUDGET_EXHAUSTED: Final = "funded_budget_exhausted"
 CODE_FUNDED_CREDITS_EXHAUSTED: Final = "funded_credits_exhausted"

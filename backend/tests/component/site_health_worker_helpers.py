@@ -19,15 +19,19 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.entitlements import (
     CAPABILITY_REGISTRY_REVISION,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
     DISCOVERY_STATUS_COMPLETED,
     DISCOVERY_STATUS_RUNNING,
     EXTRACTOR_VERSION,
     SCORING_VERSION,
-    SELECTION_SOURCE_USER,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_crawl_policy import (
+    SELECTION_SOURCE_USER,
+)
+from app.core.config.site_health_runtime import (
     runtime_policy_for_allowance,
 )
 from app.core.config.task_queue import (

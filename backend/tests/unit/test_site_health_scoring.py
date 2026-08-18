@@ -20,7 +20,7 @@ from app.analysis.site_health.scoring import (
     score_analysis,
     score_dimension,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     DIMENSION_AEO,
     DIMENSION_TECHNICAL,
     RULE_OUTCOME_ERROR,

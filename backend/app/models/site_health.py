@@ -26,24 +26,26 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_PENDING,
-    CORPUS_DISPOSITION_ANALYZE,
     CRAWL_STATUS_DRAFT,
-    DISCOVERY_MODE_SAMPLE,
     DISCOVERY_STATUS_PENDING,
-    FRONTIER_PENDING,
     INITIAL_TASK_GENERATION,
-    ITEM_KIND_HTML_PAGE,
     PAGE_ANALYSIS_STATUS_PENDING,
-    PAGE_KIND_OTHER,
+    TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_crawl_policy import (
+    CORPUS_DISPOSITION_ANALYZE,
+    DISCOVERY_MODE_SAMPLE,
+    FRONTIER_PENDING,
+    ITEM_KIND_HTML_PAGE,
     PHASE_RUN_RUNNING,
     SAMPLE_DISCOVERY_URL_CAP,
     SAMPLE_URL_LIMIT,
     SELECTION_SOURCE_USER,
-    TASK_KIND_DISCOVER,
-    site_health_settings,
 )
+from app.core.config.site_health_runtime import site_health_settings
+from app.core.config.site_health_taxonomy import PAGE_KIND_OTHER
 from app.core.config.site_link_graph import (
     LINK_GRAPH_ANCHOR_TEXT_MAX_LENGTH,
     LINK_GRAPH_NODE_TITLE_MAX_LENGTH,

@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
     SYNC_KIND_ON_DEMAND,
 )

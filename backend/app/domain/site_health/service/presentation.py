@@ -14,10 +14,12 @@ from collections.abc import Callable
 from datetime import datetime
 
 from app.analysis.site_health.rules import rule_for
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
+    POLICY_BLOCKING_ERROR_CODES,
+)
+from app.core.config.site_health_contracts import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     PAGE_ANALYSIS_STATUS_PARTIALLY_COMPLETED,
-    POLICY_BLOCKING_ERROR_CODES,
     SCORING_VERSION,
     SEVERITY_CRITICAL,
     SEVERITY_HIGH,

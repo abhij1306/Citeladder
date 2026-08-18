@@ -14,9 +14,11 @@ from app.core.config.commerce import (
     FEED_SEVERITY_INFO,
     FEED_SEVERITY_WARNING,
 )
-from app.core.config.integrations import (
-    INTEGRATION_PROVIDER_SHOPIFY,
+from app.core.config.integrations_contracts import (
     MAPPING_STATUS_ACTIVE,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_PROVIDER_SHOPIFY,
 )
 from app.core.config.products import PRODUCT_ORIGIN_SYNCED
 from app.domain.commerce.schemas import (

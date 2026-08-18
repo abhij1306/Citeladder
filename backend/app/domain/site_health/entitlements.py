@@ -4,7 +4,8 @@
 # ``WorkspaceSiteHealthRuntime`` row. The row is NOT a commercial source of
 # truth: it is the projection of the account's resolved ``monitored_urls``
 # entitlement allowance onto the neutral crawl policy (see
-# ``app.core.config.site_health.runtime_policy_for_allowance``), plus the row
+# ``app.core.config.site_health_crawl_policy.runtime_policy_for_allowance``),
+# plus the row
 # locked ``FOR UPDATE`` to serialize the workspace-wide monitored-URL quota.
 #
 # This module owns the row mechanics:
@@ -30,11 +31,13 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.site_health import (
+from app.core.config.site_health_crawl_policy import (
     SELECTION_SOURCE_BOOTSTRAP,
     SELECTION_SOURCE_FREE_SAMPLE,
     SELECTION_SOURCE_USER,
     SiteHealthRuntimePolicy,
+)
+from app.core.config.site_health_runtime import (
     runtime_policy_for_allowance,
 )
 from app.models.site_health import WorkspaceSiteHealthRuntime

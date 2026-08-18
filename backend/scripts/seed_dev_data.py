@@ -54,7 +54,7 @@ from app.core.config.brand_profile import (
     BRAND_PROFILE_SOURCE_MANUAL,
 )
 from app.core.config.entitlements import KEY_MONITORED_URLS
-from app.core.config.integrations import INTEGRATION_TRANSPORT_GOOGLE
+from app.core.config.integrations_transport import INTEGRATION_TRANSPORT_GOOGLE
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
     ENGINE_CLAUDE,
@@ -64,7 +64,10 @@ from app.core.config.provider_catalog import (
     TRANSPORT_OPENAI,
     measurement_route,
 )
-from app.core.config.site_health import CRAWL_STATUS_COMPLETED, CRAWL_TERMINAL_STATUSES
+from app.core.config.site_health_contracts import (
+    CRAWL_STATUS_COMPLETED,
+    CRAWL_TERMINAL_STATUSES,
+)
 from app.core.database import SessionLocal
 from app.core.security import encrypt_secret
 from app.domain.audits.planner import create_audit

@@ -37,7 +37,9 @@ from app.core.config.analytics import (
     REFERRAL_URL_PARAM_ALLOWLIST_PREFIXES,
     AnalyticsSettings,
 )
-from app.core.config.integrations import INTEGRATION_DATASET_TEMPLATES
+from app.core.config.integrations_datasets import (
+    INTEGRATION_DATASET_TEMPLATES,
+)
 from app.core.config.provider_catalog import LOGICAL_ENGINES
 from app.core.config.traffic import (
     TRAFFIC_CONSUMED_DATASETS,

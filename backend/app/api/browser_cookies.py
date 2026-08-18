@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import Response
 
 from app.core.config import settings
-from app.core.config.integrations import (
+from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_TRANSACTION_COOKIE,
     INTEGRATION_OAUTH_TRANSACTION_COOKIE_PATH,
 )

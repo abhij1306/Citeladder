@@ -12,9 +12,12 @@ from __future__ import annotations
 import pytest
 
 from app.analysis.site_health.page_kinds import classify
-from app.core.config import site_health as config
-from app.core.config.site_health import (
+from app.core.config import site_health_contracts
+from app.core.config import site_health_taxonomy as config
+from app.core.config.site_health_contracts import (
     CLASSIFIER_VERSION,
+)
+from app.core.config.site_health_taxonomy import (
     PAGE_KIND_CONFIDENCE_THRESHOLD,
     PAGE_KIND_PATH_PATTERNS,
     PAGE_KIND_PROFILES,
@@ -408,7 +411,7 @@ def test_classify_never_raises_on_malformed_facts(facts) -> None:
     """
     assessment = classify("https://example.com/some/page", facts)
     assert assessment.page_kind == config.PAGE_KIND_OTHER
-    assert assessment.classifier_version == config.CLASSIFIER_VERSION
+    assert assessment.classifier_version == site_health_contracts.CLASSIFIER_VERSION
 
 
 def test_a_bare_string_field_never_fabricates_signals() -> None:

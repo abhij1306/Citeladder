@@ -17,14 +17,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.entitlements import (
     CAPABILITY_REGISTRY_REVISION,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
+    INITIAL_TASK_GENERATION,
+    TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_crawl_policy import (
     DISCOVERY_MODE_FULL,
     DISCOVERY_MODE_SAMPLE,
-    INITIAL_TASK_GENERATION,
     SAMPLE_DISCOVERY_URL_CAP,
     SAMPLE_URL_LIMIT,
     SELECTION_SOURCE_USER,
-    TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_runtime import (
     runtime_policy_for_allowance,
 )
 from app.domain.site_health.entitlements import (

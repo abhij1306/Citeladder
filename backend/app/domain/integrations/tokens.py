@@ -29,10 +29,14 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.integrations import oauth as integration_oauth
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_GRANT_AUTH_FAILED,
-    INTEGRATION_OAUTH_REFRESHABLE,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_OAUTH_REFRESHABLE,
 )
 from app.core.security import decrypt_secret, encrypt_secret
 from app.models.integrations import IntegrationOAuthGrant

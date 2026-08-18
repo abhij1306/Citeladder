@@ -14,9 +14,13 @@ from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
     validate_microdata_types,
 )
-from app.core.config.site_health import (
-    ANSWER_FIRST_MAX_HOPS,
+from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
+)
+from app.core.config.site_health_rules import (
+    ANSWER_FIRST_MAX_HOPS,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 

@@ -50,19 +50,25 @@ from app.connectors.integrations._http import (
     classify_status,
     parse_retry_after,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
+    ERROR_PROVIDER_API,
+)
+from app.core.config.integrations_datasets import (
     DATASET_SHOPIFY_ORDERS,
     DATASET_SHOPIFY_PRODUCTS,
-    ERROR_PROVIDER_API,
     INTEGRATION_DATASET_TEMPLATES,
-    INTEGRATION_PROVIDER_SHOPIFY,
     SHOPIFY_GRAPHQL_CONNECTION_PROBE,
     SHOPIFY_GRAPHQL_ORDER_LINE_ITEMS,
     SHOPIFY_GRAPHQL_ORDERS,
     SHOPIFY_GRAPHQL_PRODUCT_VARIANTS,
     SHOPIFY_GRAPHQL_PRODUCTS,
     IntegrationDatasetTemplate,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_PROVIDER_SHOPIFY,
     normalize_shopify_shop_domain,
     shopify_admin_graphql_url,
 )

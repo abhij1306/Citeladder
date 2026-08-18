@@ -26,7 +26,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.analytics import ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_PAUSED,
@@ -34,10 +34,14 @@ from app.core.config.site_health import (
     DISCOVERY_STATUS_RUNNING,
     DISCOVERY_STATUS_STOPPED,
     EVENT_CRAWL_COMPLETED,
+)
+from app.core.config.site_health_crawl_policy import (
     MANUAL_PHASE_LIFECYCLE_KEY,
     PHASE_DISCOVERY,
     PHASE_RUN_COMPLETED,
     PHASE_RUN_RUNNING,
+)
+from app.core.config.site_health_runtime import (
     SITE_CRAWL_QUEUE_SPEC,
     site_health_settings,
 )

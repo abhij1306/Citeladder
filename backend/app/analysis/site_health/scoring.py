@@ -26,18 +26,22 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     DIMENSION_AEO,
     DIMENSION_TECHNICAL,
-    DIMENSION_WEIGHT_AEO,
-    DIMENSION_WEIGHT_TECHNICAL,
-    PAGE_KINDS,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
-    SCORE_ROUNDING_DECIMALS,
     SCORING_VERSION,
+)
+from app.core.config.site_health_rules import (
+    DIMENSION_WEIGHT_AEO,
+    DIMENSION_WEIGHT_TECHNICAL,
+    SCORE_ROUNDING_DECIMALS,
+)
+from app.core.config.site_health_taxonomy import (
+    PAGE_KINDS,
 )
 
 

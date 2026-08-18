@@ -33,12 +33,14 @@ from app.connectors.billing.base import (
     ProviderPayment,
     ProviderSubscription,
 )
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     ACTIVATION_AUTHORITY_RECONCILIATION,
     ACTIVATION_AUTHORITY_WEBHOOK,
     OPERATION_SUBSCRIPTION_CREATE,
     REASON_ADDON_PENDING,
     REASON_SUBSCRIPTION_PENDING,
+)
+from app.core.config.billing_settings import (
     billing_settings,
 )
 from app.domain.billing import idempotency as idempotency_module

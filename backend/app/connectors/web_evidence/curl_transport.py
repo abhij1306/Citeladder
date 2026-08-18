@@ -22,15 +22,17 @@ from app.connectors.web_evidence.contracts import (
 from app.connectors.web_evidence.targets import (
     validate_resolved_target as _validate_resolved_target,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     ERROR_ACQUISITION_UNAVAILABLE,
     ERROR_CONNECTION_FAILED,
     ERROR_MALFORMED_RESPONSE,
     ERROR_RESPONSE_TOO_LARGE,
     ERROR_TIMEOUT,
     ERROR_UNSUPPORTED_CONTENT_TYPE,
-    PERSISTED_RESPONSE_HEADERS,
     SITE_HEALTH_USER_AGENT,
+)
+from app.core.config.site_health_rules import (
+    PERSISTED_RESPONSE_HEADERS,
 )
 
 

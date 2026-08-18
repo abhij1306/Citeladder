@@ -23,9 +23,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.web_evidence.fetcher import FetchError, FetchRequest
 from app.connectors.web_evidence.url_policy import UrlPolicyError
-from app.core.config.site_health import (
-    ANALYZER_VERSION,
+from app.core.config.site_health_acquisition import (
     FETCH_PURPOSE_LINK_CHECK,
+)
+from app.core.config.site_health_contracts import (
+    ANALYZER_VERSION,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.site_health.normalization import canonical_identity

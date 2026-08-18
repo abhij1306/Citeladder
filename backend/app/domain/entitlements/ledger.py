@@ -29,7 +29,9 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.billing import TELEMETRY_CONSUMABLE_CREDITS_EXHAUSTED
+from app.core.config.billing_contracts import (
+    TELEMETRY_CONSUMABLE_CREDITS_EXHAUSTED,
+)
 from app.core.config.entitlements import (
     CODE_FUNDED_CREDITS_EXHAUSTED,
     LEDGER_ENTRY_DEBIT,

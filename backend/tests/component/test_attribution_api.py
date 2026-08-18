@@ -44,10 +44,12 @@ from app.core.config.attribution import (
     ATTRIBUTION_ANALYZER_VERSION,
     ATTRIBUTION_FORMULA_VERSION,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
     DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_GA4,
 )
 from app.domain.attribution.snapshot import refresh_attribution_snapshot

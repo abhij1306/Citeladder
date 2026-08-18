@@ -16,7 +16,7 @@ from app.analysis.site_health.finalize import (
     evaluate_hreflang_conflict,
     evaluate_sitemap_orphan,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     DIMENSION_TECHNICAL,
     RULE_CATALOG_VERSION,
     RULE_OUTCOME_FAIL,

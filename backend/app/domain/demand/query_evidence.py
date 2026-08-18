@@ -21,7 +21,7 @@ from app.core.config.demand import (
     QUERY_EVIDENCE_STATE_OBSERVED_ZERO,
     QUERY_EVIDENCE_STATE_UNAVAILABLE,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GSC_QUERY_PAGE_DAILY,
     unpack_dimension_key,
 )

@@ -92,7 +92,7 @@ from app.core.config.attribution import (
     ATTRIBUTION_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM,
     ATTRIBUTION_STATISTICAL_STATE_NOT_OFFERED,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
     DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,

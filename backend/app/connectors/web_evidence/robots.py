@@ -17,7 +17,9 @@ from __future__ import annotations
 
 from protego import Protego
 
-from app.core.config.site_health import site_health_settings
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 
 
 class RobotsPolicy:

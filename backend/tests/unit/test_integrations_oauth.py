@@ -26,11 +26,13 @@ from app.connectors.integrations.oauth import (
     verify_shopify_callback_hmac,
 )
 from app.core.config import settings
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_GRANT_AUTH_FAILED,
     ERROR_PROVIDER_API,
     ERROR_RATE_LIMITED,
     ERROR_UNAPPROVED_ENDPOINT,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_TOKEN_URLS,
     INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_TRANSPORT_MICROSOFT,

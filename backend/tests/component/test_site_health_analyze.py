@@ -11,8 +11,11 @@ import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
+    ERROR_ROBOTS_DENIED,
+)
+from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_CANCELLED,
     ANALYSIS_STATUS_COMPLETED,
     ANALYSIS_STATUS_FAILED,
@@ -20,18 +23,21 @@ from app.core.config.site_health import (
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,
     CRAWL_STATUS_RUNNING,
-    ERROR_ROBOTS_DENIED,
     EXTRACTOR_VERSION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    PAGE_KIND_PROFILES,
     RULE_CATALOG_VERSION,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
     SCORING_VERSION,
-    SELECTION_SOURCE_FREE_SAMPLE,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_crawl_policy import (
+    SELECTION_SOURCE_FREE_SAMPLE,
+)
+from app.core.config.site_health_taxonomy import (
+    PAGE_KIND_PROFILES,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
@@ -396,7 +402,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
     """v2 P1: the analyze task classifies the page, injects page_kind into
     the facts before rule evaluation, and stamps the current versions on the
     persisted rows."""
-    from app.core.config.site_health import (
+    from app.core.config.site_health_contracts import (
         CLASSIFIER_VERSION,
     )
 

@@ -29,15 +29,19 @@ from app.analysis.site_health.structured_data import (
     validate_microdata_types,
 )
 from app.connectors.web_evidence.url_policy import registrable_domain
-from app.core.config import site_health as site_health_config
-from app.core.config.site_health import (
-    ANSWER_FIRST_MAX_HOPS,
+from app.core.config import site_health_acquisition as site_health_config
+from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
-    INLINE_SCRIPT_JAVASCRIPT_TYPES,
     LINK_KIND_ANCHOR,
     LINK_KIND_IMAGE,
     LINK_KIND_SCRIPT,
     LINK_KIND_STYLESHEET,
+)
+from app.core.config.site_health_rules import (
+    ANSWER_FIRST_MAX_HOPS,
+    INLINE_SCRIPT_JAVASCRIPT_TYPES,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 

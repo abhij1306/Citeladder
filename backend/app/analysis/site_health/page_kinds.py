@@ -5,7 +5,7 @@
 # faq / about_contact / other) with a confidence score and bounded,
 # explainable signal evidence. PURE: no I/O, no ORM, no LLM — the same
 # inputs always yield the same type (invariant 9), and every pattern table,
-# threshold, and weight is read from ``app.core.config.site_health``
+# threshold, and weight is read from ``app.core.config.site_health_taxonomy``
 # (invariant 1).
 #
 # Signal sources, evaluated in a FIXED priority order (spec §5.1):
@@ -30,7 +30,9 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
-from app.core.config import site_health as _config
+from app.core.config import site_health_acquisition as _acquisition
+from app.core.config import site_health_contracts as _contracts
+from app.core.config import site_health_taxonomy as _config
 from app.core.config.site_health_page_profiles import (
     CLASSIFICATION_MAX_ALTERNATIVES,
     CLASSIFICATION_OTHER_REASON_BELOW_THRESHOLD,
@@ -39,8 +41,8 @@ from app.core.config.site_health_page_profiles import (
 
 # Bounded per-input caps so a hostile URL/body can never bloat the evidence
 # or the classification work (same bounding convention as parser.py).
-_MAX_PATH_CHARS = _config.SITE_HEALTH_MAX_PATH_CHARS
-_MAX_SIGNAL_DETAIL_CHARS = _config.SITE_HEALTH_MAX_SIGNAL_DETAIL_CHARS
+_MAX_PATH_CHARS = _acquisition.SITE_HEALTH_MAX_PATH_CHARS
+_MAX_SIGNAL_DETAIL_CHARS = _acquisition.SITE_HEALTH_MAX_SIGNAL_DETAIL_CHARS
 # Compiled once from the config tables (deterministic; the tables are frozen
 # config, so compilation at import is exact).
 _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
@@ -307,7 +309,7 @@ def classify(final_url: str, facts: dict) -> PageKindAssessment:
         page_kind=page_kind,
         confidence=confidence,
         signals=tuple(matched),
-        classifier_version=_config.CLASSIFIER_VERSION,
+        classifier_version=_contracts.CLASSIFIER_VERSION,
         classified_by=classified_by,
         schema_suggested_type=schema_page_kind,
         alternatives=_alternatives(matched, winner_type=winner_type),

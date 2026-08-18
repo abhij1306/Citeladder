@@ -9,13 +9,15 @@ from urllib.parse import urlsplit
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.site_health import (
-    ACQUISITION_TRIGGER_HOST_PREFERENCE,
-    ACQUISITION_TRIGGER_HOST_PROBE,
+from app.core.config.site_health_acquisition import (
     ACQUISITION_TRIGGER_INITIAL,
-    EXTRACTOR_VERSION,
     FETCH_ATTEMPT_OUTCOME_SUCCESS,
     FETCH_PURPOSE_DISCOVER,
+)
+from app.core.config.site_health_contracts import (
+    ACQUISITION_TRIGGER_HOST_PREFERENCE,
+    ACQUISITION_TRIGGER_HOST_PROBE,
+    EXTRACTOR_VERSION,
     HOST_RUNG_BLOCK_THRESHOLD,
     HOST_RUNG_OBSERVATION_LIMIT,
     HOST_RUNG_PREFERENCE_WINDOW,

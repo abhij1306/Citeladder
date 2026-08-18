@@ -28,18 +28,22 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     EVENT_INTEGRATION_REVOKE_FAILED,
     EVENT_INTEGRATION_REVOKED,
     GRANT_STATUS_CONNECTED,
     GRANT_STATUS_NEEDS_REAUTH,
     GRANT_STATUS_PENDING_REVOCATION,
     GRANT_STATUS_REVOKED,
+    SYNC_KIND_SCHEDULED,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_GSC,
     INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_TRANSPORT_MICROSOFT,
-    SYNC_KIND_SCHEDULED,
-    integration_settings,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_QUEUED,

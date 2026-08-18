@@ -27,22 +27,28 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
+    ERROR_UNMAPPED_PROPERTY,
+    EVENT_INTEGRATION_SYNC_FINISHED,
+    GRANT_STATUS_CONNECTED,
+    INTEGRATION_IMPORTER_VERSION,
+)
+from app.core.config.integrations_datasets import (
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
     DATASET_GSC_COUNTRY_DAILY,
     DATASET_GSC_DEVICE_DAILY,
     DATASET_GSC_PAGE_DAILY,
     DATASET_GSC_QUERY_DAILY,
     DATASET_GSC_QUERY_PAGE_DAILY,
-    ERROR_UNMAPPED_PROPERTY,
-    EVENT_INTEGRATION_SYNC_FINISHED,
-    GRANT_STATUS_CONNECTED,
     INTEGRATION_DATASET_TEMPLATES,
-    INTEGRATION_IMPORTER_VERSION,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_GA4,
     INTEGRATION_PROVIDER_GSC,
     INTEGRATION_TRANSPORT_GOOGLE,
-    integration_settings,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_FAILED,

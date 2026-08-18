@@ -72,7 +72,7 @@ from app.connectors.web_evidence.url_policy import (
     classify_url_admission,
     resolve_target,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     ACQUISITION_TRANSPORT_BROWSER,
     ACQUISITION_TRANSPORT_CURL_CFFI,
     ACQUISITION_TRANSPORT_HTTPX,
@@ -91,13 +91,19 @@ from app.core.config.site_health import (
     FETCH_PURPOSE_ANALYZE,
     FETCH_PURPOSE_DISCOVER,
     FETCH_PURPOSE_LINK_CHECK,
-    PERSISTED_RESPONSE_HEADERS,
     POLICY_BLOCKING_ERROR_CODES,
     SITE_HEALTH_USER_AGENT,
+)
+from app.core.config.site_health_crawl_policy import (
     URL_EXCLUSION_HARD_ASSET,
     URL_EXCLUSION_HARD_PATH,
     URL_EXCLUSION_HARD_QUERY,
     URL_EXCLUSION_TRACKING,
+)
+from app.core.config.site_health_rules import (
+    PERSISTED_RESPONSE_HEADERS,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 

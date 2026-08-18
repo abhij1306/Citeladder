@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.core.config.site_health import (
+from app.core.config.site_health_crawl_policy import (
     CORPUS_DISPOSITION_ANALYZE,
     CORPUS_DISPOSITION_VERSION,
     DISPOSITION_REASON_HTML_CONTENT,

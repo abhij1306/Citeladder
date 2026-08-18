@@ -21,7 +21,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     CADENCE_MONTHLY,
     PROVIDER_RAZORPAY,
     SUBSCRIPTION_KIND_BASE,

@@ -35,7 +35,9 @@ from app.core.config.opportunities import (
     validate_rule_id,
 )
 from app.core.config.projects import PROMPT_INTENTS
-from app.core.config.site_health import SITE_HEALTH_RULES_BY_ID
+from app.core.config.site_health_rules import (
+    SITE_HEALTH_RULES_BY_ID,
+)
 
 
 def test_rule_ids_are_unique() -> None:

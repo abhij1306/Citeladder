@@ -13,7 +13,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.web_evidence.url_policy import classify_url_admission
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_RUNNING,
     ANALYSIS_STATUS_STOPPED,
     CANCELLED_DISCOVERY_TASK_CLONE_LIMIT,
@@ -21,7 +21,6 @@ from app.core.config.site_health import (
     CODE_DISCOVERY_LIMIT_EXCEEDED,
     CODE_PHASE_ALREADY_RUNNING,
     CODE_PHASE_NOT_RESUMABLE,
-    CORPUS_DISPOSITION_ANALYZE,
     CRAWL_STATUS_PAUSED,
     CRAWL_STATUS_QUEUED,
     CRAWL_STATUS_RUNNING,
@@ -34,18 +33,23 @@ from app.core.config.site_health import (
     EVENT_DISCOVERY_STARTED,
     EVENT_DISCOVERY_STOPPED,
     INITIAL_TASK_GENERATION,
-    INVENTORY_SOURCE_CRAWL_IDS_KEY,
-    MANUAL_PHASE_LIFECYCLE_KEY,
     OBSERVATION_SOURCE_ROOT,
     PAGE_ANALYSIS_STATUS_COMPLETED,
+    TASK_KIND_ANALYZE,
+    TASK_KIND_DISCOVER,
+    TASK_KIND_LINK_CHECK,
+)
+from app.core.config.site_health_crawl_policy import (
+    CORPUS_DISPOSITION_ANALYZE,
+    INVENTORY_SOURCE_CRAWL_IDS_KEY,
+    MANUAL_PHASE_LIFECYCLE_KEY,
     PHASE_ANALYSIS,
     PHASE_DISCOVERY,
     PHASE_RUN_RUNNING,
     PHASE_RUN_STOPPED,
     SELECTION_SOURCE_USER,
-    TASK_KIND_ANALYZE,
-    TASK_KIND_DISCOVER,
-    TASK_KIND_LINK_CHECK,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.config.task_queue import (

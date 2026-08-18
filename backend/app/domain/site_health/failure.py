@@ -17,7 +17,7 @@ from typing import Final
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     ERROR_BOT_BLOCKED,
     ERROR_CONNECTION_FAILED,
     ERROR_DNS_RESOLUTION_FAILED,
@@ -32,6 +32,8 @@ from app.core.config.site_health import (
     ERROR_TIMEOUT,
     ERROR_UNSUPPORTED_CONTENT_TYPE,
     FETCH_ATTEMPT_OUTCOME_ERROR,
+)
+from app.core.config.site_health_contracts import (
     TASK_KIND_DISCOVER,
 )
 from app.core.config.task_queue import TASK_STATUS_FAILED

@@ -34,7 +34,9 @@ from app.core.config.attribution import (
     ATTRIBUTION_ORDERS_PAGE_SIZE,
     ATTRIBUTION_STATISTICAL_STATE_NOT_OFFERED,
 )
-from app.core.config.integrations import MAPPING_STATUS_ACTIVE
+from app.core.config.integrations_contracts import (
+    MAPPING_STATUS_ACTIVE,
+)
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
 from app.domain.analytics.enqueue import enqueue_attribution_recompute
 from app.domain.attribution.schemas import (

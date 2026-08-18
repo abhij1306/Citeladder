@@ -32,7 +32,13 @@ from app.connectors.web_evidence.browser_transport import (
 from app.connectors.web_evidence.contracts import FetchError, FetchRequest
 from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.resolver import SystemDnsResolver
-from app.core.config.site_health import HTML_CONTENT_TYPES, site_health_settings
+from app.core.config.site_health_rules import (
+    HTML_CONTENT_TYPES,
+)
+
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 
 pytestmark = [
     pytest.mark.skipif(

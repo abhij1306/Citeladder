@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.audits import AUDIT_STATUS_COMPLETED
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
     INITIAL_TASK_GENERATION,
     PAGE_ANALYSIS_STATUS_COMPLETED,

@@ -9,7 +9,7 @@
 #
 # The confidence buckets are imported from
 # ``config/analytics.py`` and the source-granularity literals from
-# ``config/integrations.py`` — aliased here, never re-literalized
+# ``config/integrations_datasets.py`` — aliased here, never re-literalized
 # (invariant 2). Attribution performs NO provider I/O, so no fetch knobs
 # live here.
 from __future__ import annotations
@@ -29,7 +29,7 @@ from app.core.config.analytics import (
 # integrations config (cross-workstream contract C1; the granularity tokens
 # live there to keep the config import graph acyclic) — imported, never
 # re-literalized (invariant 2).
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
     DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,

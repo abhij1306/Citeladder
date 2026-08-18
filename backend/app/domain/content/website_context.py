@@ -28,7 +28,9 @@ from app.core.config.content import (
     CONTEXT_MAX_H1,
     CONTEXT_MAX_H2,
 )
-from app.core.config.site_health import CRAWL_TERMINAL_STATUSES
+from app.core.config.site_health_contracts import (
+    CRAWL_TERMINAL_STATUSES,
+)
 from app.models.site_health import (
     MonitoredSiteUrl,
     SiteCrawl,

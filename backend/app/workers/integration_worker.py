@@ -54,10 +54,11 @@ from app.connectors.integrations.ga4 import (
 )
 from app.connectors.integrations.gsc import GscApiError
 from app.connectors.integrations.shopify import ShopifyApiError
-from app.core.config.integrations import (
-    DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
-    DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
-    DATASET_SHOPIFY_ORDERS,
+from app.core.config.integrations_clients import (
+    INTEGRATION_CLIENT_BUILDERS,
+    INTEGRATION_QUEUE_SPEC,
+)
+from app.core.config.integrations_contracts import (
     ERROR_GA4_DIMENSION_INCOMPATIBLE,
     ERROR_GRANT_AUTH_FAILED,
     ERROR_PAYLOAD_TOO_LARGE,
@@ -67,21 +68,28 @@ from app.core.config.integrations import (
     EVENT_INTEGRATION_REAUTH_REQUIRED,
     EVENT_INTEGRATION_SYNC_FINISHED,
     EVENT_INTEGRATION_SYNC_STARTED,
+    GRANT_STATUS_CONNECTED,
+    GRANT_STATUS_NEEDS_REAUTH,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
+    DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
+    DATASET_SHOPIFY_ORDERS,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_KEY,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_VERSION,
     GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP,
-    GRANT_STATUS_CONNECTED,
-    GRANT_STATUS_NEEDS_REAUTH,
-    INTEGRATION_CLIENT_BUILDERS,
     INTEGRATION_DATASET_TEMPLATES,
-    INTEGRATION_OAUTH_REFRESHABLE,
-    INTEGRATION_PROVIDER_GA4,
-    INTEGRATION_PROVIDER_SHOPIFY,
-    INTEGRATION_QUEUE_SPEC,
     INTEGRATION_SYNC_EXCLUDED_DATASETS,
     PAGING_MODE_CURSOR,
     IntegrationDatasetTemplate,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_OAUTH_REFRESHABLE,
+    INTEGRATION_PROVIDER_GA4,
+    INTEGRATION_PROVIDER_SHOPIFY,
 )
 from app.core.config.provider_catalog import ERROR_UNKNOWN
 from app.core.config.task_queue import (

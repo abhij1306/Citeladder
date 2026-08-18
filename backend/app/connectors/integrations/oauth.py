@@ -10,7 +10,7 @@ Invariant 6: access/refresh tokens and the env-injected client secret pass
 through this module but are NEVER logged — error surfaces carry only HTTP
 status codes and config-owned error tokens. Authorization headers are set
 per-request and never logged. Endpoints come from
-``app.core.config.integrations`` and every URL is checked against the
+``app.core.config.integrations_transport`` and every URL is checked against the
 approved-host allow-list before a request is issued (SSRF policy).
 """
 
@@ -30,8 +30,13 @@ from app.connectors.integrations._http import (
     oauth_error_detail,
 )
 from app.core.config import settings
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_PROVIDER_API,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     GSC_API_BASE_URL,
     GSC_SITES_PATH,
     INTEGRATION_OAUTH_REVOKE_URLS,
@@ -40,7 +45,6 @@ from app.core.config.integrations import (
     INTEGRATION_TRANSPORT_MICROSOFT,
     INTEGRATION_TRANSPORT_SHOPIFY,
     INTEGRATION_TRANSPORTS,
-    integration_settings,
     normalize_shopify_shop_domain,
     shopify_oauth_token_url,
 )

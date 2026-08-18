@@ -29,38 +29,18 @@ from app.analysis.site_health.indexing import (
     evaluate_indexability,
     normalized_url_for_compare,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
     AI_CRAWLER_STANCE_BLOCK,
-    ANSWER_FIRST_MIN_WORDS,
+)
+from app.core.config.site_health_contracts import (
     APPLICABILITY_CRAWL_FINALIZE,
     APPLICABILITY_OBSERVED_CONTENT,
     APPLICABILITY_SITE_ROOT,
-    EXPAND_GATED_MAX_RATIO,
-    FINDING_CLASS_ADVISORY,
-    META_DESCRIPTION_LENGTH_BAND,
-    PAGE_KIND_APPLICABILITY_PREFIX,
-    PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
-    PAGE_KIND_EXPECTED_SCHEMA,
-    PAGE_KIND_HTML_APPLICABILITY_PREFIX,
-    PAGE_KIND_OTHER,
-    PAGE_KIND_PROFILES,
-    QUESTION_HEADINGS_MIN_RATIO,
-    RENDER_BLOCKING_MAX_RESOURCES,
     RULE_OUTCOME_ERROR,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
-    SCHEMA_CONTENT_MATCH_MAX_CANDIDATES,
-    SERVER_RENDERED_MIN_WORDS,
-    SITE_HEALTH_RULES,
-    SITE_HEALTH_RULES_BY_ID,
-    SOCIAL_DOMAINS,
-    TITLE_LENGTH_BAND,
-    TTFB_WARN_MS,
-    PageKindProfile,
-    PageKindSchemaExpectation,
-    SiteHealthRule,
 )
 from app.core.config.site_health_page_profiles import (
     PRODUCT_ANALYSIS_RULES,
@@ -70,6 +50,32 @@ from app.core.config.site_health_page_profiles import (
     PRODUCT_PARITY_SCHEMA_FACT_KEYS,
     PRODUCT_SCHEMA_EXPECTATION,
     PRODUCT_SCHEMA_URI_SEPARATOR,
+)
+from app.core.config.site_health_rules import (
+    ANSWER_FIRST_MIN_WORDS,
+    EXPAND_GATED_MAX_RATIO,
+    FINDING_CLASS_ADVISORY,
+    META_DESCRIPTION_LENGTH_BAND,
+    QUESTION_HEADINGS_MIN_RATIO,
+    RENDER_BLOCKING_MAX_RESOURCES,
+    SCHEMA_CONTENT_MATCH_MAX_CANDIDATES,
+    SERVER_RENDERED_MIN_WORDS,
+    SITE_HEALTH_RULES,
+    SITE_HEALTH_RULES_BY_ID,
+    SOCIAL_DOMAINS,
+    TITLE_LENGTH_BAND,
+    TTFB_WARN_MS,
+    SiteHealthRule,
+)
+from app.core.config.site_health_taxonomy import (
+    PAGE_KIND_APPLICABILITY_PREFIX,
+    PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
+    PAGE_KIND_EXPECTED_SCHEMA,
+    PAGE_KIND_HTML_APPLICABILITY_PREFIX,
+    PAGE_KIND_OTHER,
+    PAGE_KIND_PROFILES,
+    PageKindProfile,
+    PageKindSchemaExpectation,
 )
 
 

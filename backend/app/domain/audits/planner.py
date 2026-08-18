@@ -52,10 +52,10 @@ from app.core.config.audits import (
     measurement_policy_for_mode,
     system_instruction_for_mode,
 )
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     TELEMETRY_FUNDED_BUDGET_EXHAUSTED,
-    billing_settings,
 )
+from app.core.config.billing_settings import billing_settings
 from app.core.config.commerce import (
     SHOPPING_SURFACE_MEASUREMENT,
     SHOPPING_SURFACES,

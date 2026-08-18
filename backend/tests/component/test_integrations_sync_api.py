@@ -18,7 +18,9 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from app.core.config.integrations import integration_settings
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
 from app.models.integrations import (
     IntegrationConnection,

@@ -8,8 +8,10 @@ from datetime import date
 import httpx
 import pytest
 
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_SHOPIFY_PRODUCTS,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_SHOPIFY,
     INTEGRATION_TRANSPORT_SHOPIFY,
 )

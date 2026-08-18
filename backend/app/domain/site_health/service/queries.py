@@ -18,9 +18,11 @@ from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.entitlements import KEY_MONITORED_URLS
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_FAILED,
     TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.entitlements.service import (

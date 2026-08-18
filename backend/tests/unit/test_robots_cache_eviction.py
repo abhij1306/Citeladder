@@ -13,7 +13,9 @@ import asyncio
 import pytest
 
 from app.connectors.web_evidence.robots import RobotsPolicy
-from app.core.config.site_health import site_health_settings
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 from app.workers.site_health.phases.discover import DiscoverPhaseMixin
 
 

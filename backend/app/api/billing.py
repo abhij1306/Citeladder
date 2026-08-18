@@ -53,7 +53,7 @@ from app.connectors.billing.base import (
     HostedSubscription,
 )
 from app.connectors.billing.factory import get_billing_provider
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     ACTIVATION_PENDING,
     CREDENTIAL_MODE_BYOK,
     LIVE_SUBSCRIPTION_STATUSES,
@@ -64,6 +64,8 @@ from app.core.config.billing import (
     REASON_ADDON_PENDING,
     REASON_SUBSCRIPTION_EXISTS,
     REASON_SUBSCRIPTION_PENDING,
+)
+from app.core.config.billing_settings import (
     billing_settings,
 )
 from app.domain.billing.idempotency import (

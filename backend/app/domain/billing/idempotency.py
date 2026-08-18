@@ -43,7 +43,7 @@ from app.connectors.billing.base import (
     HostedSubscription,
     ProviderMetadata,
 )
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     ACTIVATION_FAILED,
     ACTIVATION_PENDING,
     IDEMPOTENCY_COMPLETED,
@@ -56,6 +56,8 @@ from app.core.config.billing import (
     REASON_IDEMPOTENCY_KEY_REUSED,
     REASON_SUBSCRIPTION_PENDING,
     REASON_TRIAL_REQUESTED_UNAVAILABLE,
+)
+from app.core.config.billing_settings import (
     billing_settings,
 )
 from app.domain.billing.schemas import ActivationResponse

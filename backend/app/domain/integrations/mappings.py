@@ -40,13 +40,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.normalization import normalize_domain
-from app.core.config.integrations import (
-    GSC_DOMAIN_PROPERTY_PREFIX,
+from app.core.config.integrations_clients import (
     INTEGRATION_PROPERTY_DISCOVERY_PROVIDERS,
-    INTEGRATION_PROVIDER_GA4,
-    INTEGRATION_PROVIDER_SHOPIFY,
+)
+from app.core.config.integrations_contracts import (
     MAPPING_STATUS_ACTIVE,
     MAPPING_STATUS_DISABLED,
+)
+from app.core.config.integrations_transport import (
+    GSC_DOMAIN_PROPERTY_PREFIX,
+    INTEGRATION_PROVIDER_GA4,
+    INTEGRATION_PROVIDER_SHOPIFY,
     is_ga4_property_ref,
     normalize_ga4_property_ref,
     normalize_shopify_shop_domain,

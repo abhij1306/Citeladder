@@ -10,14 +10,14 @@
 #
 # Traffic is a pure PROJECTION over ``IntegrationMetricRow`` (invariant 7):
 # it performs NO provider fetch, so no provider-fetch knobs live here —
-# those belong to ``config/integrations.py`` (invariant 2).
+# those belong to ``config/integrations_datasets.py`` (invariant 2).
 from __future__ import annotations
 
 from typing import Final
 
-# The GA4 dataset ids are OWNED by config/integrations.py (cross-workstream
+# The GA4 dataset ids are OWNED by config/integrations_datasets.py (cross-workstream
 # contract C1) and imported here — never re-literalized (invariant 2).
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_BING_PAGE_DAILY,
     DATASET_BING_QUERY_DAILY,
     DATASET_GA4_CHANNEL_DAILY,
@@ -26,6 +26,8 @@ from app.core.config.integrations import (
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
     DATASET_GSC_PAGE_DAILY,
     DATASET_GSC_QUERY_DAILY,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_GA4,
     INTEGRATION_PROVIDER_GSC,
 )

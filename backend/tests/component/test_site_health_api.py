@@ -23,7 +23,14 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
+    ERROR_HTTP_4XX,
+    ERROR_HTTP_5XX,
+    ERROR_ROBOTS_DENIED,
+    ERROR_TIMEOUT,
+    FETCH_ATTEMPT_OUTCOME_ERROR,
+)
+from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_RUNNING,
     ANALYSIS_STATUS_STOPPED,
     CODE_ADVANCED_CONTROLS_UNAVAILABLE,
@@ -33,24 +40,25 @@ from app.core.config.site_health import (
     CRAWL_STATUS_RUNNING,
     DISCOVERY_STATUS_RUNNING,
     DISCOVERY_STATUS_STOPPED,
-    ERROR_HTTP_4XX,
-    ERROR_HTTP_5XX,
-    ERROR_ROBOTS_DENIED,
-    ERROR_TIMEOUT,
-    FETCH_ATTEMPT_OUTCOME_ERROR,
     INITIAL_TASK_GENERATION,
-    INVENTORY_SOURCE_CRAWL_IDS_KEY,
-    MANUAL_PHASE_LIFECYCLE_KEY,
     PAGE_ANALYSIS_STATUS_COMPLETED,
-    PHASE_ANALYSIS,
-    PHASE_RUN_RUNNING,
-    PHASE_RUN_STOPPED,
     RULE_OUTCOME_FAIL,
-    SELECTION_SOURCE_USER,
-    SITE_HEALTH_RULES_BY_ID,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_CHECK,
+)
+from app.core.config.site_health_crawl_policy import (
+    INVENTORY_SOURCE_CRAWL_IDS_KEY,
+    MANUAL_PHASE_LIFECYCLE_KEY,
+    PHASE_ANALYSIS,
+    PHASE_RUN_RUNNING,
+    PHASE_RUN_STOPPED,
+    SELECTION_SOURCE_USER,
+)
+from app.core.config.site_health_rules import (
+    SITE_HEALTH_RULES_BY_ID,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.config.task_queue import (
@@ -1884,7 +1892,7 @@ async def test_rerun_page_from_completed_crawl_mints_new_crawl(
     a FRESH single-page rerun crawl and return its identity so the client polls
     the new run rather than the terminal source crawl.
     """
-    from app.core.config.site_health import (
+    from app.core.config.site_health_contracts import (
         CRAWL_ACTIVE_STATUSES,
         TASK_KIND_ANALYZE,
     )

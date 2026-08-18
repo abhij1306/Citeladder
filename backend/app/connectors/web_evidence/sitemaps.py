@@ -19,7 +19,9 @@ import io
 
 from defusedxml.ElementTree import fromstring as safe_fromstring
 
-from app.core.config.site_health import site_health_settings
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 
 # Sitemap XML uses this namespace; we match tags namespace-agnostically by
 # stripping the ``{ns}`` prefix so a missing/alternate namespace still parses.

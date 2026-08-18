@@ -6,7 +6,7 @@ states: null never ambiguously means both "unlimited" and "unresolved".
 
 Invariant 6: no DTO here carries a provider price/plan/payment reference, an
 external provider id, a payment instrument, a raw provider body, or a secret.
-``provider_price_ref`` lives only in ``app.core.config.billing`` and reaches the
+``provider_price_ref`` lives only in ``app.core.config.billing_catalog`` and reaches the
 provider through the server-resolved quote; ``quote_id`` is an opaque server
 digest over the safe resolved inputs PLUS that private ref, so it proves the
 displayed terms without exposing any provider identity.

@@ -19,7 +19,7 @@ from app.connectors.web_evidence.url_policy import (
     registrable_domain,
     split_host_port,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_RUNNING,
     INITIAL_TASK_GENERATION,
     TASK_KIND_DISCOVER,

@@ -45,7 +45,9 @@ from app.core.config.attribution import (
     ATTRIBUTION_ANALYZER_VERSION,
     ATTRIBUTION_CONSUMED_DATASETS,
 )
-from app.core.config.integrations import DATASET_SHOPIFY_ORDERS
+from app.core.config.integrations_datasets import (
+    DATASET_SHOPIFY_ORDERS,
+)
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.config.traffic import (
     TRAFFIC_GA4_REFERRAL_DATASETS,

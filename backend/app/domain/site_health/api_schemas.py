@@ -15,7 +15,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.config.site_health import site_health_settings
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 from app.domain.site_health.phase import SiteHealthPhase
 
 # Presentation-status literals (superset of the persisted page-analysis states,

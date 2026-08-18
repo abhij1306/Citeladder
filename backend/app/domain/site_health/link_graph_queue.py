@@ -7,8 +7,10 @@ import hashlib
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     TASK_KIND_LINK_GRAPH,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.config.site_link_graph import LINK_GRAPH_ANALYZER_VERSION

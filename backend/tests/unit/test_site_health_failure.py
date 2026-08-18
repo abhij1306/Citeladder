@@ -13,14 +13,16 @@ exercised by the component tests):
 
 from __future__ import annotations
 
-from app.core.config.site_health import (
-    EVENT_CRAWL_COMPLETED,
-    EVENT_CRAWL_FAILED,
+from app.core.config.site_health_acquisition import (
     FETCH_ATTEMPT_OUTCOME_ERROR,
     FETCH_ATTEMPT_OUTCOME_SUCCESS,
     ROBOTS_FETCH_STATUS_FETCH_FAILED,
     ROBOTS_FETCH_STATUS_FETCHED,
     ROBOTS_FETCH_STATUS_NOT_FOUND,
+)
+from app.core.config.site_health_contracts import (
+    EVENT_CRAWL_COMPLETED,
+    EVENT_CRAWL_FAILED,
 )
 from app.domain.site_health.failure import humanize_crawl_failure
 

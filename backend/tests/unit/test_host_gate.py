@@ -14,7 +14,9 @@ import asyncio
 
 import pytest
 
-from app.core.config.site_health import site_health_settings
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 from app.workers.site_health.host_gate import HostGate
 
 

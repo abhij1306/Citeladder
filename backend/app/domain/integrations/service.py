@@ -36,7 +36,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.connectors.integrations import bing as bing_connector
 from app.connectors.integrations import oauth as integration_oauth
 from app.connectors.integrations import shopify as shopify_connector
-from app.core.config.integrations import (
+from app.core.config.integrations_clients import (
+    INTEGRATION_CLIENT_BUILDERS,
+    INTEGRATION_PROPERTY_DISCOVERY_PROVIDERS,
+)
+from app.core.config.integrations_contracts import (
     ERROR_PROVIDER_API,
     EVENT_INTEGRATION_CONNECTED,
     EVENT_INTEGRATION_DISCONNECTED,
@@ -46,11 +50,11 @@ from app.core.config.integrations import (
     GRANT_STATUS_CONNECTED,
     GRANT_STATUS_PENDING_REVOCATION,
     GRANT_STATUS_REVOKED,
-    INTEGRATION_CLIENT_BUILDERS,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_AUTHORIZE_URLS,
     INTEGRATION_OAUTH_REVOKE_URLS,
     INTEGRATION_OAUTH_SCOPES,
-    INTEGRATION_PROPERTY_DISCOVERY_PROVIDERS,
     INTEGRATION_PROVIDER_TRANSPORT,
     INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_TRANSPORT_SHOPIFY,

@@ -14,7 +14,7 @@ from sqlalchemy import Float, and_, cast, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     GRANT_STATUS_CONNECTED,
     MAPPING_STATUS_ACTIVE,
 )

@@ -17,7 +17,7 @@ from app.analysis.site_health.link_graph import (
     LinkGraphResult,
     analyze_link_graph,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
     LINK_KIND_ANCHOR,
     PAGE_ANALYSIS_STATUS_COMPLETED,

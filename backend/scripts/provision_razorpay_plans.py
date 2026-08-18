@@ -1,7 +1,7 @@
 """Operator CLI: propose/verify the v8 commercial catalog's provider price refs.
 
 The catalog is CONFIG-OWNED (invariant 1): every plan/add-on/top-up price and
-its PRIVATE provider reference live in ``app/core/config/billing.py`` and reach
+its PRIVATE provider reference live in ``app/core/config/billing_catalog.py`` and reach
 this script only through ``commercial_catalog()``. The script therefore never
 invents a key, an amount, or a reference — it reports what the current settings
 resolve to so an operator can see exactly which items are unavailable because a
@@ -27,14 +27,14 @@ import argparse
 import sys
 from dataclasses import dataclass
 
-from app.core.config.billing import (
+from app.core.config.billing_catalog import (
     PRICE_PURPOSE_BASE,
     PRICE_PURPOSE_CREDIT,
-    REGIONS,
     CatalogPrice,
-    billing_settings,
     commercial_catalog,
 )
+from app.core.config.billing_contracts import REGIONS
+from app.core.config.billing_settings import billing_settings
 
 _OPERATION_CREATE = "create"
 _OPERATION_PROPOSE = "propose"

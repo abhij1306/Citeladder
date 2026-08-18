@@ -27,7 +27,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import billing as billing_api
 from app.connectors.billing.base import ProviderSubscription
-from app.core.config.billing import billing_settings
+from app.core.config.billing_settings import (
+    billing_settings,
+)
 from app.core.config.entitlements import (
     GRANT_SOURCE_PLAN,
     KEY_MONITORED_URLS,

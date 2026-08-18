@@ -11,7 +11,7 @@ from app.analysis.site_health.aeo_readiness import (
     ReadinessEvaluationInput,
     project_aeo_readiness,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     AEO_READINESS_MAX_EVALUATIONS,
     AEO_READINESS_RULE_DIMENSIONS,
     AEO_READINESS_TAXONOMY_VERSION,

@@ -25,11 +25,13 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_GRANT_AUTH_FAILED,
     ERROR_PROVIDER_API,
     ERROR_RATE_LIMITED,
     ERROR_UNAPPROVED_ENDPOINT,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_APPROVED_ENDPOINT_HOSTS,
     is_shopify_shop_domain,
 )

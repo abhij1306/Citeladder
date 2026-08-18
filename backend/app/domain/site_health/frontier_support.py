@@ -14,13 +14,17 @@ from app.connectors.web_evidence.url_policy import (
     classify_url_admission,
     split_host_port,
 )
-from app.core.config.site_health import (
-    AUTOMATIC_MONITOR_LIMIT_KEY,
+from app.core.config.site_health_contracts import (
     CRAWL_ACTIVE_STATUSES,
     DISCOVERY_STATUS_RUNNING,
     OBSERVATION_SOURCE_LINK,
-    SELECTION_SOURCE_FREE_SAMPLE,
     TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_crawl_policy import (
+    AUTOMATIC_MONITOR_LIMIT_KEY,
+    SELECTION_SOURCE_FREE_SAMPLE,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED

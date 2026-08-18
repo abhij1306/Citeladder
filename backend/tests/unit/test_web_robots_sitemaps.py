@@ -21,7 +21,9 @@ from app.connectors.web_evidence.sitemaps import (
     maybe_gunzip,
     parse_sitemap_document,
 )
-from app.core.config.site_health import site_health_settings
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 
 _UA = "CiteLadderSiteHealthBot/1.0"
 

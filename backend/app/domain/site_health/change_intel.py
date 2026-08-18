@@ -32,7 +32,7 @@ from app.core.config.site_change_intel import (
     CHANGE_STATE_NON_COMPARABLE,
     CHANGE_STATE_UNAVAILABLE,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
     CRAWL_TERMINAL_STATUSES,
     PAGE_ANALYSIS_STATUS_COMPLETED,

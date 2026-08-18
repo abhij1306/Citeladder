@@ -19,7 +19,10 @@ from app.core.config.opportunities import (
     IMPLEMENTATION_VERIFICATION_BATCH_MAX,
     IMPLEMENTATION_VERIFIER_VERSION,
 )
-from app.core.config.site_health import RULE_OUTCOME_FAIL, RULE_OUTCOME_PASS
+from app.core.config.site_health_contracts import (
+    RULE_OUTCOME_FAIL,
+    RULE_OUTCOME_PASS,
+)
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.models.analysis import MetricSnapshot
 from app.models.analytics import AnalyticsTask

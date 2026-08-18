@@ -16,7 +16,9 @@ from urllib.parse import urlsplit
 
 from app.connectors.web_evidence.contracts import FetchError, ResolvedTarget
 from app.connectors.web_evidence.url_policy import split_host_port
-from app.core.config.site_health import ERROR_ACQUISITION_UNAVAILABLE
+from app.core.config.site_health_acquisition import (
+    ERROR_ACQUISITION_UNAVAILABLE,
+)
 
 
 def validate_resolved_target(target: ResolvedTarget) -> None:

@@ -45,13 +45,17 @@ from app.connectors.web_evidence.contracts import (
     ResolvedTarget,
 )
 from app.connectors.web_evidence.targets import validate_resolved_target
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     ERROR_ACQUISITION_UNAVAILABLE,
     ERROR_CONNECTION_FAILED,
     ERROR_RESPONSE_TOO_LARGE,
     ERROR_TIMEOUT,
-    PERSISTED_RESPONSE_HEADERS,
     SITE_HEALTH_USER_AGENT,
+)
+from app.core.config.site_health_rules import (
+    PERSISTED_RESPONSE_HEADERS,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 

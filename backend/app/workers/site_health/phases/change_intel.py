@@ -4,7 +4,9 @@ import uuid
 
 from sqlalchemy import select
 
-from app.core.config.site_health import TASK_KIND_CHANGE_INTEL
+from app.core.config.site_health_contracts import (
+    TASK_KIND_CHANGE_INTEL,
+)
 from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.domain.site_health.change_intel import build_change_snapshot
 from app.domain.site_health.selection import lease_is_owned

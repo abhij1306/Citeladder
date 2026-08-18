@@ -36,7 +36,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.billing.base import ProviderPayment, ProviderSubscription
-from app.core.config.billing import (
+from app.core.config.billing_catalog import (
+    plan_period_grant_specs,
+    scale_grant_specs,
+    topup_grant_specs,
+)
+from app.core.config.billing_contracts import (
     ACTIVATION_ACTIVATED,
     ACTIVATION_KIND_BASE,
     ACTIVATION_KIND_TOPUP,
@@ -49,10 +54,9 @@ from app.core.config.billing import (
     SUBSCRIPTION_CANCEL_SCHEDULED,
     SUBSCRIPTION_KIND_ADDON,
     SUBSCRIPTION_KIND_BASE,
+)
+from app.core.config.billing_settings import (
     billing_settings,
-    plan_period_grant_specs,
-    scale_grant_specs,
-    topup_grant_specs,
 )
 from app.core.config.entitlements import GRANT_SOURCE_TOPUP
 from app.domain.billing.schemas import ActivationResponse

@@ -93,10 +93,12 @@ from app.core.config.opportunities import (
     STATUS_OPEN,
     validate_rule_id,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_CANCELLED,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,
+)
+from app.core.config.site_health_rules import (
     FINDING_CLASS_DEFECT,
 )
 from app.core.config.task_queue import (

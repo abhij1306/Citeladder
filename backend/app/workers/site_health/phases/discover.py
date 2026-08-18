@@ -31,30 +31,38 @@ from app.connectors.web_evidence.url_policy import (
     UrlPolicyError,
     classify_url_admission,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
     AI_CRAWLER_STANCE_ALLOW,
     AI_CRAWLER_STANCE_BLOCK,
-    DISCOVERY_STATUS_SAMPLE_COMPLETED,
     ERROR_BOT_BLOCKED,
-    EVENT_DISCOVERY_PROGRESS,
     FETCH_PURPOSE_DISCOVER,
     FETCH_PURPOSE_LLMS,
     FETCH_PURPOSE_ROBOTS,
     FETCH_PURPOSE_SITEMAP,
-    HTML_CONTENT_TYPES,
-    INPUT_MODE_EXACT_URLS,
     LLMS_TXT_PATH,
-    OBSERVATION_SOURCE_ROOT,
-    OBSERVATION_SOURCE_SITEMAP,
     ROBOTS_FETCH_STATUS_FETCH_FAILED,
     ROBOTS_FETCH_STATUS_FETCHED,
     ROBOTS_FETCH_STATUS_NOT_FOUND,
     ROBOTS_TXT_PATH,
     SITE_HEALTH_USER_AGENT,
-    SITEMAP_CONTENT_TYPES,
     SITEMAP_DEFAULT_PATHS,
+)
+from app.core.config.site_health_contracts import (
+    DISCOVERY_STATUS_SAMPLE_COMPLETED,
+    EVENT_DISCOVERY_PROGRESS,
+    OBSERVATION_SOURCE_ROOT,
+    OBSERVATION_SOURCE_SITEMAP,
     TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_crawl_policy import (
+    INPUT_MODE_EXACT_URLS,
+)
+from app.core.config.site_health_rules import (
+    HTML_CONTENT_TYPES,
+    SITEMAP_CONTENT_TYPES,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.site_health.discovery import (

@@ -26,11 +26,13 @@ from app.core.config.attribution import (
     ATTRIBUTION_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP,
     ATTRIBUTION_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
     DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
     DIMENSION_KEY_SEPARATOR,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_GA4,
 )
 from app.domain.attribution.snapshot import (

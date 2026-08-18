@@ -5,7 +5,7 @@ Pages the ``runReport`` endpoint behind the sync worker
 transport (test seam), mirroring the GSC reference client
 (``app/connectors/integrations/gsc.py``) contract-for-contract:
 
-- Endpoints come from ``app.core.config.integrations`` and every URL is
+- Endpoints come from ``app.core.config.integrations_transport`` and every URL is
   checked against the config-owned approved-host allow-list before a
   request is issued (SSRF policy). GA4 rides the ONE shared Google grant
   (no new OAuth) — the grant's access token authorizes both the GSC and
@@ -63,22 +63,28 @@ from app.connectors.integrations._http import (
     parse_retry_after,
 )
 from app.core.config.attribution import ATTRIBUTION_CONSUMED_DATASETS
-from app.core.config.integrations import (
-    DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
+from app.core.config.integrations_contracts import (
     ERROR_GA4_DIMENSION_INCOMPATIBLE,
     ERROR_PROVIDER_API,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
+    GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS,
+    INTEGRATION_DATASET_TEMPLATES,
+    IntegrationDatasetTemplate,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     GA4_ACCOUNT_SUMMARIES_MAX_PAGES,
     GA4_ACCOUNT_SUMMARIES_PAGE_SIZE,
     GA4_ACCOUNT_SUMMARIES_PATH,
     GA4_ADMIN_API_BASE_URL,
     GA4_API_BASE_URL,
-    GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS,
     GA4_PROPERTY_RESOURCE_PREFIX,
     GA4_RUN_REPORT_PATH,
-    INTEGRATION_DATASET_TEMPLATES,
     INTEGRATION_PROVIDER_GA4,
-    IntegrationDatasetTemplate,
-    integration_settings,
     normalize_ga4_property_ref,
 )
 

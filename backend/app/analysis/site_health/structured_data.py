@@ -28,18 +28,20 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.core.config import site_health as site_health_config
-from app.core.config.site_health import (
-    SCHEMA_PROPERTY_PATHS,
-    STRUCTURED_DATA_RECOGNIZED_TYPES,
-    STRUCTURED_DATA_REQUIRED_PROPERTIES,
-)
+from app.core.config import site_health_acquisition as site_health_config
 from app.core.config.site_health_page_profiles import (
     PRODUCT_FACT_MAX_VALUE_CHARS,
     PRODUCT_FACT_MAX_VALUES,
     PRODUCT_NESTED_VALUE_KEYS,
     PRODUCT_RECOGNIZED_SCHEMA_TYPES,
     PRODUCT_SCHEMA_PROPERTY_PATHS,
+)
+from app.core.config.site_health_rules import (
+    STRUCTURED_DATA_RECOGNIZED_TYPES,
+    STRUCTURED_DATA_REQUIRED_PROPERTIES,
+)
+from app.core.config.site_health_taxonomy import (
+    SCHEMA_PROPERTY_PATHS,
 )
 
 # Absolute ceiling on how deep we descend into a JSON-LD object graph so a

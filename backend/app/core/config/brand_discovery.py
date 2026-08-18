@@ -8,7 +8,9 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.config.projects import MAX_PROJECT_COMPETITORS
-from app.core.config.site_health import site_health_settings
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 from app.core.config.task_queue import ERROR_MAX_ATTEMPTS, PostgresQueueSpec
 
 DISCOVERY_STATUS_QUEUED: Final = "queued"

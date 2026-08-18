@@ -17,7 +17,9 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.audits import AUDIT_QUEUE_SPEC, AUDIT_TRIGGER_MANUAL
-from app.core.config.site_health import SITE_CRAWL_QUEUE_SPEC
+from app.core.config.site_health_runtime import (
+    SITE_CRAWL_QUEUE_SPEC,
+)
 from app.core.config.task_queue import (
     TASK_CLAIMABLE_STATUSES,
     TASK_STATUS_LEASED,

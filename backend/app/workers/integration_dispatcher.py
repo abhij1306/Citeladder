@@ -34,16 +34,20 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.connectors.integrations import oauth as integration_oauth
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_PROVIDER_API,
     EVENT_INTEGRATION_REVOKE_FAILED,
     EVENT_INTEGRATION_REVOKED,
     GRANT_STATUS_CONNECTED,
     GRANT_STATUS_PENDING_REVOCATION,
     GRANT_STATUS_REVOKED,
-    INTEGRATION_OAUTH_REVOKE_URLS,
     SYNC_KIND_SCHEDULED,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_OAUTH_REVOKE_URLS,
 )
 from app.core.database import SessionLocal
 from app.core.security import decrypt_secret

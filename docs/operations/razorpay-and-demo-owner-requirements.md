@@ -5,7 +5,8 @@
 > Store secrets directly in the deployment secret manager and mark only the
 > non-secret completion status here.
 
-Runtime authority is `backend/app/core/config/billing.py`, the billing domain and
+Runtime authority is `backend/app/core/config/billing_catalog.py` and
+`billing_settings.py`, the billing domain and
 connector code, and `backend/scripts/provision_razorpay_plans.py`. Earlier V6/V8
 plans are archived historical context and do not override the shipped catalog or
 API contracts.

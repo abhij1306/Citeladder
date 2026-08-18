@@ -1,6 +1,6 @@
 """Supplemental, config-owned page-analysis policy.
 
-``site_health.py`` remains the owner of crawl/fetch policy and the base page
+The focused Site Health owners retain crawl/fetch policy and the base page
 taxonomy.  This small companion owns only the product-page fields and rules
 that can evolve independently of the acquisition ladder.  Analysis modules
 read these tables; they do not embed product-schema policy inline.
@@ -10,17 +10,21 @@ from __future__ import annotations
 
 from typing import Final
 
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CATEGORY_CONTENT,
     CATEGORY_STRUCTURED_DATA,
     DIMENSION_AEO,
-    PAGE_KIND_APPLICABILITY_PREFIX,
-    PAGE_KIND_PRODUCT,
     RULE_CATALOG_VERSION,
     SEVERITY_HIGH,
     SEVERITY_MEDIUM,
-    PageKindSchemaExpectation,
+)
+from app.core.config.site_health_rules import (
     SiteHealthRule,
+)
+from app.core.config.site_health_taxonomy import (
+    PAGE_KIND_APPLICABILITY_PREFIX,
+    PAGE_KIND_PRODUCT,
+    PageKindSchemaExpectation,
 )
 
 PAGE_PROFILE_RULE_VERSION: Final = f"{RULE_CATALOG_VERSION}-product-1"

@@ -21,13 +21,17 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.integrations import (
-    DATASET_GSC_PAGE_DAILY,
-    GRANT_STATUS_CONNECTED,
+from app.core.config.integrations_clients import (
     INTEGRATION_QUEUE_SPEC,
+)
+from app.core.config.integrations_contracts import (
+    GRANT_STATUS_CONNECTED,
     MAPPING_STATUS_DISABLED,
     SYNC_KIND_ON_DEMAND,
     SYNC_KIND_SCHEDULED,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_GSC_PAGE_DAILY,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_LEASED,

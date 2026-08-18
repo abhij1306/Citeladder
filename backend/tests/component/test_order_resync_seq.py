@@ -25,9 +25,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.analytics import ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP
 from app.core.config.commerce import ORDER_RETENTION_DAYS, ORDER_SANITIZED_KEYS
-from app.core.config.integrations import (
-    DATASET_SHOPIFY_ORDERS,
+from app.core.config.integrations_contracts import (
     GRANT_STATUS_CONNECTED,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_SHOPIFY_ORDERS,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_SHOPIFY,
     INTEGRATION_TRANSPORT_SHOPIFY,
 )

@@ -21,7 +21,8 @@
 #     -> address validation -> pinned ResolvedTarget, re-runnable per redirect
 #     hop so a redirect to a private/out-of-scope/excluded URL is rejected.
 #
-# Config (schemes/ports/tracking params) lives in ``config/site_health`` — this
+# Config (schemes/ports/tracking params) lives in the focused
+# ``config/site_health_acquisition`` owner — this
 # module never hard-codes those literals (invariant 1).
 from __future__ import annotations
 
@@ -44,23 +45,22 @@ from app.connectors.web_evidence.contracts import (
     FetchError,
     ResolvedTarget,
 )
-from app.core.config.site_health import (
-    ALLOWED_URL_PORTS,
-    ALLOWED_URL_SCHEMES,
+from app.core.config.site_health_acquisition import (
+    ERROR_DNS_RESOLUTION_FAILED,
+    ERROR_SSRF_BLOCKED,
+    INFRASTRUCTURE_FETCH_EXACT_PATHS,
+    INFRASTRUCTURE_FETCH_PATH_SUFFIXES,
+    SITE_HEALTH_MAX_URL_CHARS,
+)
+from app.core.config.site_health_crawl_policy import (
     CORPUS_DISPOSITION_ANALYZE,
     CORPUS_DISPOSITION_INVENTORY_ONLY,
     CORPUS_DISPOSITION_VERSION,
     DISPOSITION_REASON_DOCUMENT,
     DISPOSITION_REASON_HTML_CONTENT,
-    ERROR_DNS_RESOLUTION_FAILED,
-    ERROR_SSRF_BLOCKED,
-    INFRASTRUCTURE_FETCH_EXACT_PATHS,
-    INFRASTRUCTURE_FETCH_PATH_SUFFIXES,
     INVENTORY_DOCUMENT_EXTENSIONS,
     ITEM_KIND_DOCUMENT,
     ITEM_KIND_HTML_PAGE,
-    SITE_HEALTH_MAX_URL_CHARS,
-    TRACKING_QUERY_PARAMS,
     URL_EXCLUSION_HARD_ASSET,
     URL_EXCLUSION_HARD_PATH,
     URL_EXCLUSION_HARD_QUERY,
@@ -72,6 +72,11 @@ from app.core.config.site_health import (
     URL_HARD_EXCLUSION_PATH_PATTERNS,
     URL_HARD_EXCLUSION_QUERY_KEYS,
     URL_VALUE_PRIORITIES,
+)
+from app.core.config.site_health_rules import (
+    ALLOWED_URL_PORTS,
+    ALLOWED_URL_SCHEMES,
+    TRACKING_QUERY_PARAMS,
 )
 
 # The concrete address classes carry the ``is_loopback``/``is_private``/… flags

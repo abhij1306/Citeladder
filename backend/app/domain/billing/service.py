@@ -27,7 +27,22 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.billing.base import BillingProvider
-from app.core.config.billing import (
+from app.core.config.billing_catalog import (
+    AddonCatalogEntry,
+    CatalogPrice,
+    CommercialCatalog,
+    PlanCatalogEntry,
+    QuantityBounds,
+    TopupCatalogEntry,
+    commercial_catalog,
+    item_checkout_availability,
+    plan_checkout_availability,
+    plan_period_grant_specs,
+    price_tax_minor,
+    resolve_region,
+    scale_grant_specs,
+)
+from app.core.config.billing_contracts import (
     ACTIVATION_KIND_ADDON,
     ACTIVATION_KIND_BASE,
     ACTIVATION_KIND_TOPUP,
@@ -60,20 +75,9 @@ from app.core.config.billing import (
     SUBSCRIPTION_KIND_BASE,
     TOPUP_CREDIT_KEYS,
     USAGE_UNITS_BY_CAPABILITY_TYPE,
-    AddonCatalogEntry,
-    CatalogPrice,
-    CommercialCatalog,
-    PlanCatalogEntry,
-    QuantityBounds,
-    TopupCatalogEntry,
+)
+from app.core.config.billing_settings import (
     billing_settings,
-    commercial_catalog,
-    item_checkout_availability,
-    plan_checkout_availability,
-    plan_period_grant_specs,
-    price_tax_minor,
-    resolve_region,
-    scale_grant_specs,
 )
 from app.core.config.entitlements import (
     CAPABILITY_REGISTRY,
@@ -392,7 +396,7 @@ def _timestamp(value: int | None) -> datetime | None:
 # Renders the immutable config-owned commercial catalog into strict DTOs. It
 # opens no session, reads NO workspace data, and touches no connection or probe
 # (invariant 7). Every price, key, bound, and expiry comes from
-# ``core/config/billing.py``; nothing commercial is computed or defaulted here.
+# ``core/config/billing_catalog.py``; nothing commercial is computed or defaulted here.
 # Invariant 6: ``CatalogPrice.provider_price_ref`` is PRIVATE and never reaches
 # a DTO — only the resolved amount/currency do.
 

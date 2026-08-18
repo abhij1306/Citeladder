@@ -40,19 +40,25 @@ from app.core.config.commerce import (
     FEED_RULE_MISSING_GTIN_MPN,
     ORDER_SANITIZED_KEYS,
 )
-from app.core.config.integrations import (
-    DATASET_SHOPIFY_ORDERS,
-    DATASET_SHOPIFY_PRODUCTS,
+from app.core.config.integrations_contracts import (
     ERROR_GRANT_AUTH_FAILED,
     ERROR_PROVIDER_API,
     ERROR_RATE_LIMITED,
     EVENT_INTEGRATION_REAUTH_REQUIRED,
     GRANT_STATUS_CONNECTED,
     GRANT_STATUS_NEEDS_REAUTH,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_SHOPIFY_ORDERS,
+    DATASET_SHOPIFY_PRODUCTS,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_SHOPIFY,
     INTEGRATION_TRANSPORT_SHOPIFY,
     SHOPIFY_ADMIN_API_VERSION,
-    integration_settings,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_FAILED,

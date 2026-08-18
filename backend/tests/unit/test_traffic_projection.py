@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_CHANNEL_DAILY,
     DATASET_GA4_LANDING_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,

@@ -23,7 +23,7 @@ from app.core.config.content import (
     CONTEXT_MAX_H1,
     CONTEXT_MAX_H2,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
     CRAWL_STATUS_PARTIALLY_COMPLETED,

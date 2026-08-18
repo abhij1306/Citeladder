@@ -41,9 +41,11 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     INTEGRATION_SYNC_KINDS,
     SYNC_KIND_ON_DEMAND,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
 )
 from app.domain.integrations.schemas import IntegrationSyncRunResponse

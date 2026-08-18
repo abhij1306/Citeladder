@@ -27,13 +27,17 @@ from app.core.config.analytics import (
 )
 from app.core.config.audits import AUDIT_STATUS_COMPLETED
 from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
-from app.core.config.integrations import (
-    DATASET_GA4_REFERRER_DAILY,
+from app.core.config.integrations_contracts import (
     GRANT_STATUS_CONNECTED,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_GA4_REFERRER_DAILY,
     INTEGRATION_DATASET_TEMPLATES,
+    pack_dimension_key,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_GA4,
     INTEGRATION_TRANSPORT_GOOGLE,
-    pack_dimension_key,
 )
 from app.core.config.provider_catalog import ENGINE_GEMINI
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED

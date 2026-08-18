@@ -49,7 +49,6 @@ DISPOSITION_REASON_HTML_CONTENT: Final = "html_content"
 DISPOSITION_REASON_DOCUMENT: Final = "document"
 DISPOSITION_REASON_UNSUPPORTED_MEDIA: Final = "unsupported_media"
 CORPUS_DISPOSITION_VERSION: Final = "sh-disposition-1"
-INDUSTRY_PACK_MANIFEST_KEY: Final = "industry_pack_manifest"
 
 ITEM_KIND_HTML_PAGE: Final = "html_page"
 ITEM_KIND_DOCUMENT: Final = "document"

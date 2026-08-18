@@ -18,11 +18,15 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from sqlalchemy import update
 
-from app.core.config.integrations import (
-    INTEGRATION_PROVIDER_GSC,
+from app.core.config.integrations_clients import (
     INTEGRATION_QUEUE_SPEC,
-    INTEGRATION_TRANSPORT_GOOGLE,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_PROVIDER_GSC,
+    INTEGRATION_TRANSPORT_GOOGLE,
 )
 from app.core.config.task_queue import (
     ERROR_MAX_ATTEMPTS,

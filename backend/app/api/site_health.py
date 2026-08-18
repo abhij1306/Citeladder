@@ -36,10 +36,12 @@ from app.core.config.errors import (
     CODE_NOT_FOUND,
     CODE_VALIDATION_ERROR,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CODE_ADVANCED_CONTROLS_UNAVAILABLE,
     CODE_CRAWL_ALREADY_ACTIVE,
     CRAWL_TERMINAL_STATUSES,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.database import SessionLocal

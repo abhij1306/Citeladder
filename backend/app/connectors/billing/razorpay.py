@@ -23,8 +23,10 @@ from app.connectors.billing.base import (
     ProviderPayment,
     ProviderSubscription,
 )
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     RAZORPAY_PAYMENT_STATUS_MAP,
+)
+from app.core.config.billing_settings import (
     BillingSettings,
     billing_settings,
 )

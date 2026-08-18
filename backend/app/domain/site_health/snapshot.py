@@ -36,7 +36,7 @@ from app.analysis.site_health.scoring import (
     aggregate_by_page_kind,
     aggregate_scores,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     SCORING_VERSION,

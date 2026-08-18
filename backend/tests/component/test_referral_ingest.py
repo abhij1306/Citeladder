@@ -26,10 +26,12 @@ from app.core.config.analytics import (
     REFERRAL_RAW_ALLOWLIST,
     REFERRAL_SANITIZE_VERSION,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_CHANNEL_DAILY,
     DATASET_GA4_REFERRER_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_GA4,
 )
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED

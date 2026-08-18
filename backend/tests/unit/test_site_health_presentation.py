@@ -18,7 +18,9 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import cast
 
-from app.core.config.site_health import SITE_HEALTH_RULES_BY_ID
+from app.core.config.site_health_rules import (
+    SITE_HEALTH_RULES_BY_ID,
+)
 from app.domain.site_health.service.presentation import (
     _delivery_facts,
     _evaluation_row,

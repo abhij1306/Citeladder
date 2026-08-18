@@ -27,7 +27,7 @@ from sqlalchemy import delete, func, select, update
 
 from app.connectors.integrations import oauth as integration_oauth
 from app.core.config import settings
-from app.core.config.integrations import (
+from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_TRANSACTION_COOKIE,
     INTEGRATION_OAUTH_TRANSACTION_COOKIE_PATH,
 )

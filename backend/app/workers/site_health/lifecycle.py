@@ -36,7 +36,7 @@ from app.analysis.site_health.finalize import (
 )
 from app.analysis.site_health.rules import RuleEvaluation
 from app.connectors.web_evidence.url_policy import UrlPolicyError
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_CANCELLED,
     ANALYSIS_STATUS_COMPLETED,
     ANALYSIS_STATUS_FAILED,
@@ -63,18 +63,24 @@ from app.core.config.site_health import (
     EVENT_CRAWL_FAILED,
     EXTRACTOR_VERSION,
     LINK_KIND_ANCHOR,
-    MANUAL_PHASE_LIFECYCLE_KEY,
     OBSERVATION_SOURCE_SITEMAP,
     PAGE_ANALYSIS_STATUS_COMPLETED,
+    RULE_OUTCOME_FAIL,
+    TASK_KIND_ANALYZE,
+    TASK_KIND_DISCOVER,
+    TASK_KIND_LINK_CHECK,
+)
+from app.core.config.site_health_crawl_policy import (
+    MANUAL_PHASE_LIFECYCLE_KEY,
     PHASE_ANALYSIS,
     PHASE_DISCOVERY,
     PHASE_RUN_COMPLETED,
     PHASE_RUN_RUNNING,
-    RULE_OUTCOME_FAIL,
+)
+from app.core.config.site_health_rules import (
     SITE_HEALTH_RULES_BY_ID,
-    TASK_KIND_ANALYZE,
-    TASK_KIND_DISCOVER,
-    TASK_KIND_LINK_CHECK,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.config.task_queue import (

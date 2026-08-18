@@ -37,7 +37,10 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KINDS,
     ERROR_EXECUTOR_NOT_WIRED,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
+    GRANT_STATUS_CONNECTED,
+)
+from app.core.config.integrations_datasets import (
     DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
     DATASET_GA4_LANDING_DAILY,
@@ -45,7 +48,6 @@ from app.core.config.integrations import (
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
     DATASET_SHOPIFY_ORDERS,
     DATASET_SHOPIFY_PRODUCTS,
-    GRANT_STATUS_CONNECTED,
 )
 from app.core.config.task_queue import (
     ERROR_MAX_ATTEMPTS,

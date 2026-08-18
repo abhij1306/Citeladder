@@ -29,7 +29,9 @@ from app.connectors.web_evidence.fetcher import (
     is_bot_block_result,
     redact_headers,
 )
-from app.core.config.site_health import SiteHealthSettings
+from app.core.config.site_health_runtime import (
+    SiteHealthSettings,
+)
 
 _PUBLIC_IP = "93.184.216.34"
 

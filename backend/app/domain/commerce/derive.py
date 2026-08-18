@@ -24,7 +24,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.commerce import COMMERCE_IMPORTER_VERSION
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_SHOPIFY_ORDERS,
     DATASET_SHOPIFY_PRODUCTS,
 )

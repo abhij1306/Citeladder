@@ -14,12 +14,16 @@ from datetime import UTC, datetime
 from app.connectors.web_evidence.contracts import FetchResult
 from app.connectors.web_evidence.fetcher import is_bot_block_result
 from app.connectors.web_evidence.robots import RobotsPolicy
-from app.core.config.site_health import (
-    APPLICABILITY_CRAWL_FINALIZE,
+from app.core.config.site_health_acquisition import (
     ERROR_HTTP_4XX,
     ERROR_HTTP_5XX,
     ERROR_ROBOTS_DENIED,
     ERROR_ROBOTS_UNAVAILABLE,
+)
+from app.core.config.site_health_contracts import (
+    APPLICABILITY_CRAWL_FINALIZE,
+)
+from app.core.config.site_health_rules import (
     SITE_HEALTH_RULES_BY_ID,
 )
 from app.domain.site_health.normalization import canonical_identity

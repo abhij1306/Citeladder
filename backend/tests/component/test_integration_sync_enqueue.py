@@ -17,9 +17,11 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     SYNC_KIND_BACKFILL,
     SYNC_KIND_ON_DEMAND,
+)
+from app.core.config.integrations_settings import (
     integration_settings,
 )
 from app.core.config.task_queue import (

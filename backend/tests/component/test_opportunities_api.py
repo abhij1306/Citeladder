@@ -18,7 +18,9 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.site_health import CRAWL_STATUS_COMPLETED
+from app.core.config.site_health_contracts import (
+    CRAWL_STATUS_COMPLETED,
+)
 from app.models.audit import Audit
 from app.models.site_health import SiteCrawl, SiteHealthProfile
 from app.models.user import User

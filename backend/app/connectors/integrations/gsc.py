@@ -5,7 +5,7 @@ Pages the ``searchAnalytics.query`` endpoint behind the sync worker
 transport (test seam, mirroring ``connectors/discovery_models/factory.py``
 and the sibling ``oauth.py``).
 
-- Endpoints come from ``app.core.config.integrations`` and every URL is
+- Endpoints come from ``app.core.config.integrations_transport`` and every URL is
   checked against the config-owned approved-host allow-list before a
   request is issued (SSRF policy). The guard and the rest of the HTTP
   plumbing (status classification, error-detail capping, pacing) are
@@ -40,14 +40,18 @@ from app.connectors.integrations._http import (
     assert_approved_url,
     json_object_or_raise,
 )
-from app.core.config.integrations import (
+from app.core.config.integrations_contracts import (
     ERROR_PROVIDER_API,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     GSC_API_BASE_URL,
     GSC_PERMISSION_UNVERIFIED,
     GSC_SEARCH_ANALYTICS_PATH,
     GSC_SITES_PATH,
     INTEGRATION_PROVIDER_GSC,
-    integration_settings,
 )
 
 

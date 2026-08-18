@@ -21,9 +21,13 @@ from app.core.config.commerce import (
     FEED_RULE_DUPLICATE_SKU_ACROSS_CONNECTIONS,
     FEED_SEVERITY_ERROR,
 )
-from app.core.config.integrations import (
-    DATASET_SHOPIFY_PRODUCTS,
+from app.core.config.integrations_contracts import (
     GRANT_STATUS_CONNECTED,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_SHOPIFY_PRODUCTS,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_SHOPIFY,
     INTEGRATION_TRANSPORT_SHOPIFY,
 )

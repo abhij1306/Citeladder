@@ -120,9 +120,12 @@ def _pin_site_health_sample_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     decoupled inventory cap back to their constants for every test regardless
     of the developer's local env.
     """
-    from app.core.config.site_health import (
+    from app.core.config.site_health_crawl_policy import (
         SAMPLE_DISCOVERY_URL_CAP,
         SAMPLE_URL_LIMIT,
+    )
+
+    from app.core.config.site_health_runtime import (
         site_health_settings,
     )
 

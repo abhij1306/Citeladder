@@ -26,19 +26,25 @@ from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.rules import RuleEvaluation, evaluate_all
 from app.analysis.site_health.scoring import AnalysisScores, score_analysis
 from app.connectors.web_evidence.fetcher import FetchError, FetchRequest
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
+    ERROR_BOT_BLOCKED,
+    FETCH_PURPOSE_ANALYZE,
+)
+from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
     DISCOVERY_STATUS_COMPLETED,
-    ERROR_BOT_BLOCKED,
     EVENT_ANALYSIS_PROGRESS,
     EXTRACTOR_VERSION,
-    FETCH_PURPOSE_ANALYZE,
-    HTML_CONTENT_TYPES,
     OBSERVATION_SOURCE_SITEMAP,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_OUTCOME_FAIL,
     SCORING_VERSION,
     TASK_KIND_LINK_CHECK,
+)
+from app.core.config.site_health_rules import (
+    HTML_CONTENT_TYPES,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.site_health.frontier_support import (

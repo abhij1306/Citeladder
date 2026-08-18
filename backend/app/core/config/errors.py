@@ -8,7 +8,7 @@
 # between raise sites (WS-A A1).
 #
 # Domain-owned coded errors keep their existing codes where they already live
-# (e.g. ``config/site_health.py``'s ``stale_selection_version`` /
+# (e.g. ``config/site_health_contracts.py``'s ``stale_selection_version`` /
 # ``site_health_quota_exceeded`` / ``crawl_already_active``, opportunities'
 # ``opportunity_superseded``) — this module owns the GENERIC vocabulary used
 # by the envelope handlers and by raise sites that previously returned an

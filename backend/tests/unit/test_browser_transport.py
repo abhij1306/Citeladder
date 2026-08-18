@@ -13,7 +13,12 @@ from app.connectors.web_evidence.contracts import (
     FetchRequest,
     ResolvedTarget,
 )
-from app.core.config.site_health import ERROR_RESPONSE_TOO_LARGE, site_health_settings
+from app.core.config.site_health_acquisition import (
+    ERROR_RESPONSE_TOO_LARGE,
+)
+from app.core.config.site_health_runtime import (
+    site_health_settings,
+)
 
 
 class _Session:

@@ -10,8 +10,17 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.core.config.integrations import (
-    BING_API_BASE_URL,
+from app.core.config.integrations_clients import (
+    INTEGRATION_CLIENT_BUILDERS,
+    INTEGRATION_QUEUE_SPEC,
+    _integration_claim_order,
+)
+from app.core.config.integrations_contracts import (
+    INTEGRATION_GRANT_STATUSES,
+    INTEGRATION_IMPORTER_VERSION,
+    INTEGRATION_SYNC_KINDS,
+)
+from app.core.config.integrations_datasets import (
     DATASET_BING_PAGE_DAILY,
     DATASET_BING_QUERY_DAILY,
     DATASET_GA4_CHANNEL_DAILY,
@@ -29,18 +38,24 @@ from app.core.config.integrations import (
     DATASET_GSC_SEARCH_APPEARANCE_DAILY,
     DATASET_SHOPIFY_ORDERS,
     DATASET_SHOPIFY_PRODUCTS,
-    GA4_API_BASE_URL,
     GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_KEY,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_VERSION,
     GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP,
     GA4_ITEM_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM,
+    INTEGRATION_DATASET_TEMPLATES,
+    PAGING_MODE_CURSOR,
+    PAGING_MODE_OFFSET,
+    pack_dimension_key,
+)
+from app.core.config.integrations_settings import (
+    IntegrationSettings,
+)
+from app.core.config.integrations_transport import (
+    BING_API_BASE_URL,
+    GA4_API_BASE_URL,
     GSC_API_BASE_URL,
     INTEGRATION_APPROVED_ENDPOINT_HOSTS,
-    INTEGRATION_CLIENT_BUILDERS,
-    INTEGRATION_DATASET_TEMPLATES,
-    INTEGRATION_GRANT_STATUSES,
-    INTEGRATION_IMPORTER_VERSION,
     INTEGRATION_OAUTH_AUTHORIZE_URLS,
     INTEGRATION_OAUTH_REFRESHABLE,
     INTEGRATION_OAUTH_REVOKE_URLS,
@@ -52,20 +67,13 @@ from app.core.config.integrations import (
     INTEGRATION_PROVIDER_SHOPIFY,
     INTEGRATION_PROVIDER_TRANSPORT,
     INTEGRATION_PROVIDERS,
-    INTEGRATION_QUEUE_SPEC,
-    INTEGRATION_SYNC_KINDS,
     INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_TRANSPORT_MICROSOFT,
     INTEGRATION_TRANSPORT_SHOPIFY,
     INTEGRATION_TRANSPORTS,
-    PAGING_MODE_CURSOR,
-    PAGING_MODE_OFFSET,
     SHOPIFY_ADMIN_API_VERSION,
-    IntegrationSettings,
-    _integration_claim_order,
     is_shopify_shop_domain,
     normalize_shopify_shop_domain,
-    pack_dimension_key,
     shopify_admin_graphql_url,
     shopify_oauth_authorize_url,
     shopify_oauth_token_url,

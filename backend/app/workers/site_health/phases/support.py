@@ -27,7 +27,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.connectors.web_evidence.contracts import FetchResult
 from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.robots import RobotsPolicy
-from app.core.config.site_health import FETCH_PURPOSE_DISCOVER
+from app.core.config.site_health_acquisition import (
+    FETCH_PURPOSE_DISCOVER,
+)
 from app.domain.site_health.schemas import DiscoveryOutput
 from app.models.site_health import SiteCrawl, SiteCrawlTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue

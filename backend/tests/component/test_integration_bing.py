@@ -39,17 +39,23 @@ from app.core.config.analytics import (
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
 )
-from app.core.config.integrations import (
-    DATASET_BING_PAGE_DAILY,
-    DATASET_BING_QUERY_DAILY,
+from app.core.config.integrations_contracts import (
     ERROR_GRANT_AUTH_FAILED,
     EVENT_INTEGRATION_SYNC_FINISHED,
     EVENT_INTEGRATION_SYNC_STARTED,
     GRANT_STATUS_CONNECTED,
     INTEGRATION_IMPORTER_VERSION,
+)
+from app.core.config.integrations_datasets import (
+    DATASET_BING_PAGE_DAILY,
+    DATASET_BING_QUERY_DAILY,
+)
+from app.core.config.integrations_settings import (
+    integration_settings,
+)
+from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_BING,
     INTEGRATION_TRANSPORT_MICROSOFT,
-    integration_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
 from app.core.security import decrypt_secret, encrypt_secret

@@ -28,10 +28,12 @@ from app.core.config.audits import (
     TASK_STATUS_QUEUED,
     audit_settings,
 )
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     TELEMETRY_CONSUMABLE_CREDITS_EXHAUSTED,
     TELEMETRY_ENTITLEMENT_UNRESOLVED,
     TELEMETRY_FUNDED_BUDGET_EXHAUSTED,
+)
+from app.core.config.billing_settings import (
     billing_settings,
 )
 from app.core.config.costs import MICRO_USD_PER_USD

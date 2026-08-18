@@ -28,7 +28,12 @@ from app.core.config.brand_logos import (
     BRAND_LOGO_MAX_REDIRECTS,
     BRAND_LOGO_REQUEST_TIMEOUT_SECONDS,
 )
-from app.core.config.site_health import FETCH_PURPOSE_DISCOVER, HTML_CONTENT_TYPES
+from app.core.config.site_health_acquisition import (
+    FETCH_PURPOSE_DISCOVER,
+)
+from app.core.config.site_health_rules import (
+    HTML_CONTENT_TYPES,
+)
 
 
 @dataclass(frozen=True, slots=True)

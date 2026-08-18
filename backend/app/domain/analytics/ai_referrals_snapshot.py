@@ -60,7 +60,9 @@ from app.core.config.analytics import (
     AI_REFERRAL_FORMULA_VERSION,
     ANALYTICS_SNAPSHOT_GRANULARITIES,
 )
-from app.core.config.integrations import DATASET_GA4_SOURCE_MEDIUM_DAILY
+from app.core.config.integrations_datasets import (
+    DATASET_GA4_SOURCE_MEDIUM_DAILY,
+)
 from app.domain.analytics.tasks import payload_window, raise_if_task_terminal
 
 # Calendar bucketing (day | ISO-Monday week | 1st-of-month, first label

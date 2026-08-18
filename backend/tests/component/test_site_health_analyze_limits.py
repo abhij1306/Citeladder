@@ -8,11 +8,13 @@ import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
+    TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_crawl_policy import (
     AUTOMATIC_MONITOR_LIMIT_KEY,
     SELECTION_SOURCE_BOOTSTRAP,
     SELECTION_SOURCE_FREE_SAMPLE,
-    TASK_KIND_ANALYZE,
 )
 from app.domain.site_health.discovery import add_automatic_root, admit_candidates
 from app.domain.site_health.normalization import canonical_identity

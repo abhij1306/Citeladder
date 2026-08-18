@@ -32,15 +32,17 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.web_evidence.url_policy import classify_url_admission
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     CODE_MONITORING_NOT_ALLOWED,
     CODE_QUOTA_EXCEEDED,
     CODE_STALE_SELECTION_VERSION,
     CRAWL_ACTIVE_STATUSES,
     INITIAL_TASK_GENERATION,
     OBSERVATION_SOURCE_LINK,
-    SELECTION_SOURCE_USER,
     TASK_KIND_ANALYZE,
+)
+from app.core.config.site_health_crawl_policy import (
+    SELECTION_SOURCE_USER,
 )
 from app.core.config.task_queue import (
     TASK_CLAIMABLE_STATUSES,

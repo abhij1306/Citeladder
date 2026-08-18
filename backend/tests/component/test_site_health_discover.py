@@ -18,28 +18,34 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.connectors.web_evidence.contracts import ResolvedTarget
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
+    ERROR_BOT_BLOCKED,
+    ERROR_HTTP_4XX,
+    ERROR_ROBOTS_DENIED,
+    ERROR_ROBOTS_UNAVAILABLE,
+    ROBOTS_FETCH_STATUS_FETCH_FAILED,
+    ROBOTS_FETCH_STATUS_FETCHED,
+    ROBOTS_FETCH_STATUS_NOT_FOUND,
+)
+from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_COMPLETED,
     CRAWL_STATUS_COMPLETED,
     CRAWL_STATUS_FAILED,
     CRAWL_STATUS_RUNNING,
     DISCOVERY_STATUS_COMPLETED,
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
-    ERROR_BOT_BLOCKED,
-    ERROR_HTTP_4XX,
-    ERROR_ROBOTS_DENIED,
-    ERROR_ROBOTS_UNAVAILABLE,
     OBSERVATION_SOURCE_SITEMAP,
-    ROBOTS_FETCH_STATUS_FETCH_FAILED,
-    ROBOTS_FETCH_STATUS_FETCHED,
-    ROBOTS_FETCH_STATUS_NOT_FOUND,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
-    SELECTION_SOURCE_FREE_SAMPLE,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
+)
+from app.core.config.site_health_crawl_policy import (
+    SELECTION_SOURCE_FREE_SAMPLE,
+)
+from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.config.task_queue import (

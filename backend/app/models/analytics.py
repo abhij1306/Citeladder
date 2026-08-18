@@ -42,7 +42,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 # ``ANALYZER_VERSION`` / ``SCORING_RULE_VERSION`` are OWNED by
 # config/analysis.py and reused here for the analytics provenance stamps
 # (Demand Intelligence plan, invariant 2) — never the same-named constant
-# in config/site_health.py.
+# in the focused Site Health configuration owners.
 from app.core.config.analysis import ANALYZER_VERSION
 from app.core.config.analytics import (
     AI_REFERRAL_ANALYZER_VERSION,

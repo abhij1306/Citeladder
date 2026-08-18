@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
 from app.core.config.analytics import REFERRAL_SANITIZE_VERSION
-from app.core.config.integrations import (
+from app.core.config.integrations_datasets import (
     DATASET_GA4_REFERRER_DAILY,
     DATASET_GA4_SOURCE_MEDIUM_DAILY,
     unpack_dimension_key,

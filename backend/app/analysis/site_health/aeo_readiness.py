@@ -6,7 +6,7 @@ import uuid
 from collections import Counter
 from dataclasses import dataclass
 
-from app.core.config.site_health import (
+from app.core.config.site_health_contracts import (
     AEO_READINESS_DIMENSION_LABELS,
     AEO_READINESS_DIMENSIONS,
     AEO_READINESS_MAX_EVIDENCE_LINKS_PER_DIMENSION,

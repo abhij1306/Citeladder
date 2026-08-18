@@ -25,13 +25,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.billing.base import ProviderPayment, ProviderSubscription
-from app.core.config.billing import (
+from app.core.config.billing_contracts import (
     ACTIVATION_AUTHORITY_WEBHOOK,
     ACTIVATION_PENDING,
     PROVIDER_RAZORPAY,
     RAZORPAY_EVENT_TYPES,
     RAZORPAY_PAYMENT_EVENT_TYPES,
     RAZORPAY_PAYMENT_STATUS_MAP,
+)
+from app.core.config.billing_settings import (
     billing_settings,
 )
 from app.domain.billing.activations import (

@@ -46,14 +46,18 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.integrations import (
-    INTEGRATION_DATASET_TEMPLATES,
+from app.core.config.integrations_contracts import (
     INTEGRATION_IMPORTER_VERSION,
-    INTEGRATION_PROVIDER_GA4,
     MAPPING_STATUS_ACTIVE,
+)
+from app.core.config.integrations_datasets import (
+    INTEGRATION_DATASET_TEMPLATES,
     IntegrationDatasetTemplate,
-    normalize_ga4_property_ref,
     pack_dimension_key,
+)
+from app.core.config.integrations_transport import (
+    INTEGRATION_PROVIDER_GA4,
+    normalize_ga4_property_ref,
 )
 from app.models.integrations import (
     IntegrationConnection,

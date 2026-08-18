@@ -54,28 +54,30 @@ from app.connectors.web_evidence.url_policy import (
     classify_url_admission,
     split_host_port,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
+    FETCH_ATTEMPT_OUTCOME_ERROR,
+    FETCH_ATTEMPT_OUTCOME_SUCCESS,
+    FETCH_PURPOSE_DISCOVER,
+)
+from app.core.config.site_health_contracts import (
     CRAWL_STATUS_RUNNING,
     CRAWL_TERMINAL_STATUSES,
     DISCOVERY_STATUS_COMPLETED,
     DISCOVERY_STATUS_RUNNING,
     EXTRACTOR_VERSION,
-    FETCH_ATTEMPT_OUTCOME_ERROR,
-    FETCH_ATTEMPT_OUTCOME_SUCCESS,
-    FETCH_PURPOSE_DISCOVER,
     OBSERVATION_SOURCE_LINK,
     OBSERVATION_SOURCE_ROOT,
-    SITE_CRAWL_QUEUE_SPEC,
     TASK_KIND_ANALYZE,
     TASK_KIND_CHANGE_INTEL,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_CHECK,
     TASK_KIND_LINK_GRAPH,
+)
+from app.core.config.site_health_runtime import (
+    SITE_CRAWL_QUEUE_SPEC,
     site_health_settings,
 )
-from app.core.config.task_queue import (
-    TASK_STATUS_RUNNING,
-)
+from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging
 from app.domain.site_health.normalization import (
@@ -126,7 +128,6 @@ logger = logging.getLogger("app.workers.site_health_worker")
 _OUTCOME_SUCCESS = FETCH_ATTEMPT_OUTCOME_SUCCESS
 _OUTCOME_ERROR = FETCH_ATTEMPT_OUTCOME_ERROR
 
-
 def _acquisition_values(
     acquisition: AcquisitionProvenance | None,
 ) -> dict[str, object]:
@@ -162,7 +163,6 @@ def _acquisition_values(
 # a pathological setting from spinning the loop, and is low enough that a test
 # can drive the loop with a sub-second interval instead of real seconds.
 _MIN_HEARTBEAT_INTERVAL_SECONDS = 0.05
-
 
 class SiteHealthWorker(
     DiscoverPhaseMixin,

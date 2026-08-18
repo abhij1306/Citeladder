@@ -21,7 +21,7 @@ from app.core.config.brand_evidence import (
     BRAND_EVIDENCE_REQUEST_TIMEOUT_SECONDS,
     BRAND_EVIDENCE_USER_AGENT,
 )
-from app.core.config.site_health import (
+from app.core.config.site_health_acquisition import (
     ERROR_RESPONSE_TOO_LARGE,
     FETCH_PURPOSE_ANALYZE,
 )

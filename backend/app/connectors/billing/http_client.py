@@ -7,7 +7,9 @@ import weakref
 
 import httpx
 
-from app.core.config.billing import billing_settings
+from app.core.config.billing_settings import (
+    billing_settings,
+)
 
 _clients: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, httpx.AsyncClient] = (
     weakref.WeakKeyDictionary()

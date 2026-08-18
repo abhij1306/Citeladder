@@ -7,14 +7,18 @@ from decimal import Decimal
 
 import pytest
 
-from app.core.config.billing import (
+from app.core.config.billing_catalog import (
+    scale_grant_specs,
+    topup_grant_specs,
+)
+from app.core.config.billing_contracts import (
     ADDON_EXTRA_PROJECT,
     REGION_INDIA,
     REGION_INTERNATIONAL,
     TOPUP_BENCHMARK_CREDITS,
+)
+from app.core.config.billing_settings import (
     billing_settings,
-    scale_grant_specs,
-    topup_grant_specs,
 )
 from app.core.config.entitlements import KEY_BENCHMARK_CREDITS
 from app.domain.billing.service import (

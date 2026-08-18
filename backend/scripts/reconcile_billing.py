@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 
 from app.connectors.billing.factory import get_billing_provider
 from app.connectors.billing.http_client import aclose_shared_billing_clients
-from app.core.config.billing import billing_settings
+from app.core.config.billing_settings import billing_settings
 from app.core.database import SessionLocal
 from app.domain.billing.reconciliation import reconcile_pending_activations
 
