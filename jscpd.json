@@ -1,0 +1,19 @@
+{
+  "minLines": 15,
+  "minTokens": 180,
+  "mode": "weak",
+  "formats": ["python", "typescript", "tsx", "javascript", "jsx"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/out/**",
+    "**/coverage/**",
+    "**/playwright-report/**",
+    "**/test-results/**",
+    "**/migrations/**",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "**/yarn.lock",
+    "**/uv.lock"
+  ]
+}

@@ -18,6 +18,9 @@
     "test:e2e": "playwright test --config playwright.config.ts",
     "test:visual": "playwright test --config e2e/visual/visual.config.ts",
     "test:visual:update": "playwright test --config e2e/visual/visual.config.ts --update-snapshots",
+    "check:complexity": "node scripts/check-frontend-complexity.mjs",
+    "check:duplicates": "node scripts/check-jscpd.mjs",
+    "report:duplicates:tests": "node scripts/check-jscpd.mjs --tests",
     "check:policy": "node scripts/check-design-system.mjs && node scripts/check-frontend-architecture.mjs",
     "check:contract": "node scripts/check-contract.mjs"
   },
@@ -59,6 +62,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "16.2.11",
     "jsdom": "^29.1.1",
+    "jscpd": "5.0.11",
     "msw": "^2.15.0",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",

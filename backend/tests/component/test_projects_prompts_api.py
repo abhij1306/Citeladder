@@ -79,6 +79,53 @@ async def test_create_project_persists_normalized_identity(
 
 
 @pytest.mark.asyncio
+async def test_update_project_rebuilds_brand_and_competitors_atomically(
+    client: httpx.AsyncClient,
+) -> None:
+    """Partial project updates replace owned child projections consistently."""
+    await _register(client, "project-update@example.com")
+    created = await client.post("/api/v1/projects", json=_project_payload())
+    assert created.status_code == 201
+    project = created.json()
+
+    response = await client.patch(
+        f"/api/v1/projects/{project['id']}",
+        json={
+            "name": "Updated Visibility",
+            "brand_name": "New Brand",
+            "brand": {"aliases": ["New", "NB"]},
+            "website_url": "https://new.example",
+            "competitors": [
+                {
+                    "name": "Initech",
+                    "aliases": ["Initech Co"],
+                    "domains": ["initech.example"],
+                }
+            ],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["name"] == "Updated Visibility"
+    assert body["brand_name"] == "New Brand"
+    assert body["brand"]["aliases"] == ["New", "NB"]
+    assert body["website_url"] == "https://new.example"
+    assert body["competitors"] == [
+        {
+            "id": body["competitors"][0]["id"],
+            "name": "Initech",
+            "aliases": ["Initech Co"],
+            "domains": ["initech.example"],
+            "logo_url": None,
+        }
+    ]
+    # Omitted fields remain unchanged by the partial update.
+    assert body["country_code"] == "AU"
+    assert body["language_code"] == "en-AU"
+
+
+@pytest.mark.asyncio
 async def test_project_logo_assets_are_workspace_scoped(
     client: httpx.AsyncClient, db_session: AsyncSession
 ) -> None:

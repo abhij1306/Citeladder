@@ -256,18 +256,26 @@ module, with narrow checked-in exceptions for existing debt. It has no update or
 rebaseline command. CI compares the policy with the PR base and rejects higher or
 newly added exceptions; new code must fit the defaults.
 
-Pinned advisory audits (not CI gates), run from `backend/`:
+Pinned static-analysis commands, installed by the frozen backend/frontend locks:
 
 ```powershell
-uvx --from radon==6.0.1 radon cc app -s -n C
-uvx --from radon==6.0.1 radon mi app -s -n B
-uvx --from vulture==2.16 vulture app --min-confidence 80
-pnpm dlx jscpd@5.0.11 app --format python --min-lines 15 --min-tokens 180 --reporters console
+# From backend/. Vulture is a CI gate; Radon is an advisory report.
+uv run vulture app --min-confidence 80
+uv run radon cc app -s -n C
+uv run radon mi app -s -n B
+
+# From frontend/. Both production checks are CI ratchets; the test scan is advisory.
+pnpm check:complexity
+pnpm check:duplicates
+pnpm report:duplicates:tests
 ```
 
 FastAPI decorators, Pydantic validators/fields, SQLAlchemy mappings, and registry
 dispatch are common Vulture false positives. Declarative config and ORM modules are
 poor Radon-MI refactor targets without an independent ownership or behavior problem.
+The duplication gate scans only production owners under `backend/app` and
+`frontend/{app,components,lib}` using the checked-in `jscpd.json`; test duplication is
+reported separately and does not block CI.
 
 The test suite needs a running PostgreSQL server. It creates and removes a throwaway
 test database and does not use the development database for test data.

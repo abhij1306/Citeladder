@@ -43,9 +43,11 @@ dev = [
   "mypy>=2.3.0,<3",
   "pytest>=9.0.3,<10",
   "pytest-asyncio>=1.1.0,<2",
+  "radon==6.0.1",
   "ruff>=0.6.0,<1",
   "types-defusedxml>=0.7.0,<1",
   "types-reportlab>=4.5.1.20260728",
+  "vulture==2.16",
 ]
 
 [build-system]

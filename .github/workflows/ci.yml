@@ -75,6 +75,12 @@ jobs:
           else
             .venv/bin/python -m scripts.check_complexity
           fi
+      - name: Dead-code policy
+        run: uv run vulture app --min-confidence 80
+      - name: Radon advisory report
+        run: |
+          uv run radon cc app -s -n C
+          uv run radon mi app -s -n B
       - name: Pytest
         # Verbose node ids make an anomalous runner/database stall attributable;
         # faulthandler prints thread stacks if one test exceeds two minutes.
@@ -88,6 +94,8 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: frontend/package.json
@@ -104,6 +112,19 @@ jobs:
         run: pnpm lint
       - name: Type check
         run: pnpm exec tsc --noEmit
+      - name: Complexity and duplication policies
+        env:
+          COMPLEXITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -n "$COMPLEXITY_BASE_SHA" ] && ! [[ "$COMPLEXITY_BASE_SHA" =~ ^0+$ ]]; then
+            pnpm check:complexity -- --check-policy-diff "$COMPLEXITY_BASE_SHA"
+            pnpm check:duplicates -- --check-policy-diff "$COMPLEXITY_BASE_SHA"
+          else
+            pnpm check:complexity
+            pnpm check:duplicates
+          fi
+      - name: Test duplication advisory
+        run: pnpm report:duplicates:tests
       - name: Architecture / token policy
         run: pnpm check:policy
       - name: Build
