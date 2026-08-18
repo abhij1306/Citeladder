@@ -70,9 +70,7 @@ def test_site_health_critical_metadata_contracts() -> None:
     assert "uq_site_page_analysis_version" in {
         constraint.name for constraint in analysis.constraints
     }
-    assert "uq_site_page_analysis_current" in {
-        index.name for index in analysis.indexes
-    }
+    assert "uq_site_page_analysis_current" in {index.name for index in analysis.indexes}
 
     graph = models.SiteLinkGraphSnapshot.__table__
     assert "fk_site_link_graph_snapshot_crawl_scoped" in {

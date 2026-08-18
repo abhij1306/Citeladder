@@ -20,6 +20,7 @@ def _integration_sync_run_model() -> type[IntegrationSyncRun]:
 
     return IntegrationSyncRun
 
+
 def _integration_claim_order(model: type[IntegrationSyncRun]) -> tuple:
     # Deterministic claim order mirroring ``CONTENT_QUEUE_SPEC`` exactly:
     # priority, then FIFO by availability, then the randomized position.
@@ -28,6 +29,7 @@ def _integration_claim_order(model: type[IntegrationSyncRun]) -> tuple:
         model.available_at.asc(),
         model.randomized_position.asc(),
     )
+
 
 INTEGRATION_QUEUE_SPEC: Final[PostgresQueueSpec[IntegrationSyncRun]] = (
     PostgresQueueSpec(
@@ -38,25 +40,30 @@ INTEGRATION_QUEUE_SPEC: Final[PostgresQueueSpec[IntegrationSyncRun]] = (
     )
 )
 
+
 def _gsc_client_builder(*, transport: Any = None) -> Any:
     from app.connectors.integrations.gsc import build_gsc_client
 
     return build_gsc_client(transport=transport)
+
 
 def _ga4_client_builder(*, transport: Any = None) -> Any:
     from app.connectors.integrations.ga4 import build_ga4_client
 
     return build_ga4_client(transport=transport)
 
+
 def _bing_client_builder(*, transport: Any = None) -> Any:
     from app.connectors.integrations.bing import build_bing_client
 
     return build_bing_client(transport=transport)
 
+
 def _shopify_client_builder(*, transport: Any = None) -> Any:
     from app.connectors.integrations.shopify import build_shopify_client
 
     return build_shopify_client(transport=transport)
+
 
 INTEGRATION_CLIENT_BUILDERS: Final[dict[str, Callable[..., Any]]] = {
     INTEGRATION_PROVIDER_GSC: _gsc_client_builder,

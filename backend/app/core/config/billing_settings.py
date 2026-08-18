@@ -106,4 +106,5 @@ class BillingSettings(BaseSettings):
             if host.strip()
         )
 
+
 billing_settings = BillingSettings()

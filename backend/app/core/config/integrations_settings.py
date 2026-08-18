@@ -111,4 +111,5 @@ class IntegrationSettings(BaseSettings):
             return min(retry_after_seconds, cap)
         return min(self.retry_base_delay_seconds * (2 ** max(0, attempt - 1)), cap)
 
+
 integration_settings = IntegrationSettings()

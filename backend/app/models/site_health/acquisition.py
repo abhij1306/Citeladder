@@ -106,6 +106,7 @@ class SiteFetchAttempt(Base):
         DateTime(timezone=True), default=_utcnow
     )
 
+
 class SiteFetchArtifact(Base):
     """Immutable evidence: one successful fetch's delivery facts (invariant 3).
 
@@ -172,4 +173,3 @@ class SiteFetchArtifact(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
-

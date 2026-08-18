@@ -43,6 +43,7 @@ from .common import (
 if TYPE_CHECKING:
     from .crawl import SiteCrawl
 
+
 class SiteCrawlTask(Base):
     """One queue+lease row for a ``discover`` | ``analyze`` | ``link_check`` unit.
 
@@ -170,4 +171,3 @@ class SiteCrawlTask(Base):
     )
 
     crawl: Mapped[SiteCrawl] = relationship("SiteCrawl", back_populates="tasks")
-

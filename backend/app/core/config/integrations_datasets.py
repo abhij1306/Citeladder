@@ -124,6 +124,7 @@ GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS: Final = ("incompatib",)
 
 GSC_SEARCH_ANALYTICS_METHOD: Final = "searchAnalytics.query"
 
+
 @dataclass(frozen=True)
 class IntegrationDatasetTemplate:
     """One provider dataset's config-owned query template (C1).
@@ -143,6 +144,7 @@ class IntegrationDatasetTemplate:
     dimensions: tuple[str, ...]
     metrics: tuple[str, ...]
     paging_mode: str = PAGING_MODE_OFFSET
+
 
 INTEGRATION_DATASET_TEMPLATES: Final[dict[str, IntegrationDatasetTemplate]] = {
     DATASET_GSC_PAGE_DAILY: IntegrationDatasetTemplate(
@@ -286,6 +288,7 @@ INTEGRATION_DATASET_TEMPLATES: Final[dict[str, IntegrationDatasetTemplate]] = {
     ),
 }
 
+
 def pack_dimension_key(values: Sequence[str]) -> str:
     """Pack one row's dimension values into its ``dimension_key`` (C1).
 
@@ -294,6 +297,7 @@ def pack_dimension_key(values: Sequence[str]) -> str:
     the bare value (``str.join`` of one element).
     """
     return DIMENSION_KEY_SEPARATOR.join(values)
+
 
 def unpack_dimension_key(dataset: str, dimension_key: str) -> tuple[str, ...] | None:
     """Inverse of ``pack_dimension_key`` for one dataset's declared template.

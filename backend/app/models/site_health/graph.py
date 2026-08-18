@@ -95,6 +95,7 @@ class SiteHealthSnapshot(Base):
         DateTime(timezone=True), default=_utcnow
     )
 
+
 class SiteLinkGraphSnapshot(Base):
     """Immutable crawl-scoped graph projection with exact analysis provenance."""
 
@@ -160,6 +161,7 @@ class SiteLinkGraphSnapshot(Base):
         DateTime(timezone=True), default=_utcnow
     )
 
+
 class SiteLinkGraphNode(Base):
     """One immutable node metric within a graph snapshot."""
 
@@ -204,6 +206,7 @@ class SiteLinkGraphNode(Base):
     suggested_source_ids: Mapped[list] = mapped_column(
         ARRAY(PGUUID(as_uuid=True)), default=list
     )
+
 
 class SiteLinkGraphEdge(Base):
     """Collapsed observed internal-link evidence for one ordered pair."""
@@ -251,4 +254,3 @@ class SiteLinkGraphEdge(Base):
     anchor_texts: Mapped[list] = mapped_column(
         ARRAY(String(LINK_GRAPH_ANCHOR_TEXT_MAX_LENGTH)), default=list
     )
-

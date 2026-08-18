@@ -123,6 +123,7 @@ logger = logging.getLogger("app.workers.site_health_worker")
 _OUTCOME_SUCCESS = FETCH_ATTEMPT_OUTCOME_SUCCESS
 _OUTCOME_ERROR = FETCH_ATTEMPT_OUTCOME_ERROR
 
+
 def _acquisition_values(
     acquisition: AcquisitionProvenance | None,
 ) -> dict[str, object]:
@@ -158,6 +159,7 @@ def _acquisition_values(
 # a pathological setting from spinning the loop, and is low enough that a test
 # can drive the loop with a sub-second interval instead of real seconds.
 _MIN_HEARTBEAT_INTERVAL_SECONDS = 0.05
+
 
 class SiteHealthWorker(
     DiscoverPhaseMixin,

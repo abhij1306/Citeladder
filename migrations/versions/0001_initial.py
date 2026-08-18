@@ -209,7 +209,6 @@ def upgrade() -> None:
         sa.Column("language_code", sa.String(length=16), nullable=False),
         sa.Column("industry", sa.String(length=255), nullable=False),
         sa.Column("subindustry", sa.String(length=255), nullable=False),
-        sa.Column("industry_pack_id", sa.String(length=64), nullable=False),
         sa.Column("primary_market", sa.String(length=8), nullable=False),
         sa.Column("benchmark_mode", sa.String(length=32), nullable=False),
         sa.Column("default_repetitions", sa.Integer(), nullable=False),

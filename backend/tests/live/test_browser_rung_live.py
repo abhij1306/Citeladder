@@ -35,7 +35,6 @@ from app.connectors.web_evidence.resolver import SystemDnsResolver
 from app.core.config.site_health_rules import (
     HTML_CONTENT_TYPES,
 )
-
 from app.core.config.site_health_runtime import (
     site_health_settings,
 )

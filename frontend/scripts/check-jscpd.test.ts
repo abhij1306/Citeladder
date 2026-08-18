@@ -118,16 +118,45 @@ describe('jscpd ratchet', () => {
       tool_version: '5.0.11',
       scope: ['backend/app', 'frontend/app', 'frontend/components', 'frontend/lib'],
       production_percentage: 0.2,
-      clone_fingerprints: ['typescript|a.ts|b.ts|20|200'],
+      clone_fingerprints: ['typescript|a.ts|b.ts|aaaaaaaaaaaaaaaa|20|200'],
     });
 
     expect(
       productionFailures({ duplicates: [], statistics: { total: {} } }, current, base),
     ).toEqual([
-      'stale accepted clone fingerprint: typescript|a.ts|b.ts|20|200',
+      'stale accepted clone fingerprint: typescript|a.ts|b.ts|aaaaaaaaaaaaaaaa|20|200',
       'jscpd percentage threshold was relaxed',
-      'new accepted clone fingerprint is forbidden: typescript|a.ts|b.ts|20|200',
+      'new accepted clone content is forbidden: typescript|aaaaaaaaaaaaaaaa|20|200',
     ]);
+  });
+
+  it('allows an accepted clone to move without accepting new clone content', () => {
+    const { directory, clone } = cloneFixture();
+    const fingerprint = cloneFingerprint(clone);
+    const movedFingerprint = fingerprint
+      .split('|')
+      .map((part, index) => (index === 1 || index === 2 ? `old/${path.basename(part)}` : part))
+      .join('|');
+    const current = validateBaseline({
+      format_version: 1,
+      tool_version: '5.0.11',
+      scope: ['backend/app', 'frontend/app', 'frontend/components', 'frontend/lib'],
+      production_percentage: 0.1,
+      clone_fingerprints: [fingerprint],
+    });
+    const base = validateBaseline({ ...current, clone_fingerprints: [movedFingerprint] });
+
+    try {
+      expect(
+        productionFailures(
+          { duplicates: [clone], statistics: { total: { percentage: 0.1 } } },
+          current,
+          base,
+        ),
+      ).toEqual([]);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('treats a missing zero-clone JSON report as an empty result', () => {

@@ -29,6 +29,7 @@ from .common import (
 if TYPE_CHECKING:
     from .crawl import SiteCrawl
 
+
 class SiteCrawlEvent(Base):
     """Append-only safe crawl lifecycle event (the SSE source, invariant 3).
 
@@ -56,4 +57,3 @@ class SiteCrawlEvent(Base):
     )
 
     crawl: Mapped[SiteCrawl] = relationship("SiteCrawl", back_populates="events")
-

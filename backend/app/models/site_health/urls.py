@@ -126,6 +126,7 @@ class SiteUrl(Base):
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
+
 class SiteUrlObservation(Base):
     """Immutable per-crawl discovery provenance for one URL (append-only).
 
@@ -221,6 +222,7 @@ class SiteUrlObservation(Base):
         DateTime(timezone=True), default=_utcnow
     )
 
+
 class MonitoredSiteUrl(Base):
     """Persistent project monitored-set projection (mutable, not per-crawl).
 
@@ -283,4 +285,3 @@ class MonitoredSiteUrl(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
-

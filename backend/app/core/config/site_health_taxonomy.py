@@ -234,6 +234,7 @@ PAGE_KIND_HTML_APPLICABILITY_PREFIX: Final = "page_kind_html:"
 
 PAGE_KIND_CONTENT_APPLICABILITY_PREFIX: Final = "page_kind_content:"
 
+
 def _page_kinds(
     *kinds: str,
     requires_html: bool = False,
@@ -258,6 +259,7 @@ def _page_kinds(
     else:
         prefix = PAGE_KIND_APPLICABILITY_PREFIX
     return f"{prefix}{'|'.join(kinds)}"
+
 
 class PageKindProfile:
     """Per-page-type rule-tuning profile (frozen, config-owned).
@@ -289,6 +291,7 @@ class PageKindProfile:
         self.page_kind = page_kind
         self.min_sufficient_words = min_sufficient_words
         self.rule_weight_overrides = dict(rule_weight_overrides or {})
+
 
 PAGE_KIND_PROFILES: Final[dict[str, PageKindProfile]] = {
     # Homepages are naturally link-heavy/thin; a lower minimum and a
@@ -337,6 +340,7 @@ PAGE_KIND_PROFILES: Final[dict[str, PageKindProfile]] = {
         page_kind=PAGE_KIND_OTHER, min_sufficient_words=100
     ),
 }
+
 
 class PageKindSchemaExpectation:
     """Per-page-type expected structured-data contract (frozen, config-owned).
@@ -393,6 +397,7 @@ class PageKindSchemaExpectation:
             self.recommended_properties if recommended else self.required_properties
         )
         return overrides.get(schema_type, fallback)
+
 
 PAGE_KIND_EXPECTED_SCHEMA: Final[dict[str, PageKindSchemaExpectation]] = {
     PAGE_KIND_HOMEPAGE: PageKindSchemaExpectation(

@@ -1571,7 +1571,7 @@ analyze curl).
 
 **A naive "reuse the discover artifact" fix cannot work.** `SiteFetchArtifact` has **no raw HTML
 body column** and carries bounded normalized facts **for analyze tasks only**
-([`models/site_health.py:823`](../../backend/app/models/site_health.py)); discovery parses links
+([`models/site_health/acquisition.py:110`](../../backend/app/models/site_health/acquisition.py)); discovery parses links
 from an in-memory response and discards the body. There is nothing stored for analysis to
 re-extract from.
 

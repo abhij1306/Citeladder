@@ -49,7 +49,6 @@ async def test_recompute_is_immutable_idempotent_and_preserves_provenance(
     project = Project(
         workspace_id=workspace.id,
         name="Education project",
-        industry_pack_id="education",
     )
     db_session.add(project)
     await db_session.flush()

@@ -145,6 +145,7 @@ class SitePageAnalysis(Base):
         DateTime(timezone=True), default=_utcnow
     )
 
+
 class SiteLinkReference(Base):
     """Deduplicated link/asset reference discovered during page analysis.
 
@@ -206,6 +207,7 @@ class SiteLinkReference(Base):
         DateTime(timezone=True), default=_utcnow
     )
 
+
 class SiteRuleEvaluation(Base):
     """Immutable per-rule evaluation for one analysis (unique per rule).
 
@@ -260,6 +262,7 @@ class SiteRuleEvaluation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
+
 
 class SiteIssue(Base):
     """Failure projection of one failed rule evaluation (unique per evaluation).
@@ -338,4 +341,3 @@ class SiteIssue(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )
-

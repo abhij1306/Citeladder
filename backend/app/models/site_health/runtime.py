@@ -85,6 +85,7 @@ class WorkspaceSiteHealthRuntime(Base):
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
 
+
 class SiteHealthProfile(Base):
     """Project-owned mutable Site Health configuration/projection (not evidence).
 
@@ -123,4 +124,3 @@ class SiteHealthProfile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
     )
-

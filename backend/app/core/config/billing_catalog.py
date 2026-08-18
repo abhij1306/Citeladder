@@ -91,6 +91,7 @@ class CatalogPrice:
         """True only when a positive amount AND a private ref are configured."""
         return self.amount_minor > 0 and bool(self.provider_price_ref.strip())
 
+
 @dataclass(frozen=True, slots=True)
 class GrantTemplate:
     """One capability key/value a catalog item's grant bundle issues.
@@ -109,6 +110,7 @@ class GrantTemplate:
         if self.value < 0:
             raise ValueError(f"grant template {self.key!r} must be >= 0")
 
+
 @dataclass(frozen=True, slots=True)
 class QuantityBounds:
     """Inclusive purchase quantity bounds for an add-on or top-up."""
@@ -119,6 +121,7 @@ class QuantityBounds:
     def __post_init__(self) -> None:
         if self.minimum < 1 or self.maximum < self.minimum:
             raise ValueError("quantity bounds must satisfy 1 <= minimum <= maximum")
+
 
 @dataclass(frozen=True, slots=True)
 class PlanCatalogEntry:
@@ -164,6 +167,7 @@ class PlanCatalogEntry:
         """Funded credit price for this plan's cadence in a region (or None)."""
         return self.credit_prices_by_cadence.get(self.cadence, {}).get(region)
 
+
 @dataclass(frozen=True, slots=True)
 class AddonCatalogEntry:
     """One recurring add-on, priced per unit and granting per unit."""
@@ -183,6 +187,7 @@ class AddonCatalogEntry:
 
     def price(self, region: str) -> CatalogPrice | None:
         return self.prices.get(region)
+
 
 @dataclass(frozen=True, slots=True)
 class TopupCatalogEntry:
@@ -205,6 +210,7 @@ class TopupCatalogEntry:
 
     def price(self, region: str) -> CatalogPrice | None:
         return self.prices.get(region)
+
 
 @dataclass(frozen=True, slots=True)
 class CommercialCatalog:
@@ -239,6 +245,7 @@ class CommercialCatalog:
                 return entry
         return None
 
+
 def resolve_region(country_code: str | None) -> str:
     """Resolve a region from a normalized ISO country, server-side only.
 
@@ -250,13 +257,16 @@ def resolve_region(country_code: str | None) -> str:
         return PREVIEW_REGION
     return REGION_INDIA if country == INDIA_COUNTRY_CODE else REGION_INTERNATIONAL
 
+
 def _minor_units(value: Decimal) -> int:
     return int(value.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
 
 def _level_ordinal(key: str, value: str) -> int:
     """The registry ordinal a level grant stores for a public level value."""
     definition = CAPABILITY_REGISTRY.require(key)
     return definition.ordered_values.index(value)
+
 
 def _india_amount_minor(usd_minor: int) -> int:
     """India minor units from the operator-owned USD/INR rate.
@@ -268,6 +278,7 @@ def _india_amount_minor(usd_minor: int) -> int:
     if rate <= 0:
         return 0
     return _minor_units(Decimal(usd_minor) * rate)
+
 
 def _regional_prices(
     usd_minor: int, catalog_key: str, purpose: str
@@ -290,6 +301,7 @@ def _regional_prices(
         ),
     }
 
+
 def provider_price_ref(catalog_key: str, region: str, purpose: str) -> str:
     """The PRIVATE operator-owned provider price ref, or "" when absent.
 
@@ -300,6 +312,7 @@ def provider_price_ref(catalog_key: str, region: str, purpose: str) -> str:
     return billing_settings.provider_price_refs.get(
         f"{catalog_key}:{region}:{purpose}", ""
     ).strip()
+
 
 def _funded_credit_prices(catalog_key: str) -> dict[str, dict[str, CatalogPrice]]:
     """Funded credit prices by cadence/region, or empty while UNSET.
@@ -318,6 +331,7 @@ def _funded_credit_prices(catalog_key: str) -> dict[str, dict[str, CatalogPrice]
     return {
         CADENCE_MONTHLY: _regional_prices(usd_minor, catalog_key, PRICE_PURPOSE_CREDIT)
     }
+
 
 def _plan_entry(
     *,
@@ -343,6 +357,7 @@ def _plan_entry(
         contact_only=False,
     )
 
+
 def _tier_1_grants() -> tuple[GrantTemplate, ...]:
     return (
         GrantTemplate(KEY_PULSE_CADENCE, _level_ordinal(KEY_PULSE_CADENCE, "daily")),
@@ -356,6 +371,7 @@ def _tier_1_grants() -> tuple[GrantTemplate, ...]:
         GrantTemplate(KEY_MANUAL_RUNS_PER_DAY, 3),
         GrantTemplate(KEY_EXPORTS, 1),
     )
+
 
 def _upper_tier_grants(
     *,
@@ -384,6 +400,7 @@ def _upper_tier_grants(
         GrantTemplate(KEY_MANUAL_RUNS_PER_DAY, manual_runs_per_day),
         GrantTemplate(KEY_EXPORTS, 1),
     )
+
 
 def _build_plans() -> tuple[PlanCatalogEntry, ...]:
     return (
@@ -436,11 +453,13 @@ def _build_plans() -> tuple[PlanCatalogEntry, ...]:
         ),
     )
 
+
 def _addon_availability(prices: Mapping[str, CatalogPrice]) -> tuple[str, str | None]:
     """Available only when at least one region has a positive priced ref."""
     if any(price.purchasable for price in prices.values()):
         return AVAILABILITY_AVAILABLE, None
     return AVAILABILITY_UNAVAILABLE, REASON_CHECKOUT_UNAVAILABLE
+
 
 def _build_addons() -> tuple[AddonCatalogEntry, ...]:
     entries: list[AddonCatalogEntry] = []
@@ -477,6 +496,7 @@ def _build_addons() -> tuple[AddonCatalogEntry, ...]:
         )
     return tuple(entries)
 
+
 def _build_topups() -> tuple[TopupCatalogEntry, ...]:
     """Benchmark-credit packs. The pack size is UNSET, so the pack has no
     grant template and stays unavailable until product configures it.
@@ -510,6 +530,7 @@ def _build_topups() -> tuple[TopupCatalogEntry, ...]:
         ),
     )
 
+
 def commercial_catalog() -> CommercialCatalog:
     """Build the immutable commercial catalog from current settings.
 
@@ -524,6 +545,7 @@ def commercial_catalog() -> CommercialCatalog:
         providers=PUBLIC_PROVIDER_CATALOG,
     )
 
+
 def region_checkout_ready(region: str) -> bool:
     """Whether the operator has enabled checkout for a region at all."""
     if not (billing_settings.checkout_enabled and billing_settings.razorpay_live_ready):
@@ -531,6 +553,7 @@ def region_checkout_ready(region: str) -> bool:
     if region == REGION_INTERNATIONAL:
         return billing_settings.razorpay_international_ready
     return True
+
 
 def plan_checkout_availability(
     plan: PlanCatalogEntry, region: str
@@ -548,6 +571,7 @@ def plan_checkout_availability(
         return False, REASON_CHECKOUT_UNAVAILABLE
     return True, None
 
+
 def price_tax_minor(price: CatalogPrice) -> int:
     """Region tax added ON TOP of one configured price (0 when inclusive).
 
@@ -558,6 +582,7 @@ def price_tax_minor(price: CatalogPrice) -> int:
     if price.tax_behavior != TAX_BEHAVIOR_EXCLUSIVE:
         return 0
     return _minor_units(Decimal(price.amount_minor) * billing_settings.india_gst_rate)
+
 
 def item_checkout_availability(
     *, availability: str, price: CatalogPrice | None, region: str
@@ -573,6 +598,7 @@ def item_checkout_availability(
     if price is None or not price.purchasable or not region_checkout_ready(region):
         return False, REASON_CHECKOUT_UNAVAILABLE
     return True, None
+
 
 def plan_period_grant_specs(
     catalog_key: str, catalog_revision: str
@@ -596,6 +622,7 @@ def plan_period_grant_specs(
         return None
     return tuple((template.key, template.value) for template in templates)
 
+
 def topup_grant_specs(
     catalog_key: str, catalog_revision: str
 ) -> tuple[tuple[str, int], ...] | None:
@@ -612,6 +639,7 @@ def topup_grant_specs(
     if not templates:
         return None
     return tuple((template.key, template.value) for template in templates)
+
 
 def scale_grant_specs(
     specs: tuple[tuple[str, int], ...], quantity: int

@@ -405,7 +405,9 @@ class SiteHealthSettings(BaseSettings):
         jitter = (attempt * 0.37) % 1.0 * self.retry_jitter_seconds
         return min(base, cap) + jitter
 
+
 site_health_settings = SiteHealthSettings()
+
 
 def runtime_policy_for_allowance(
     monitored_urls_allowance: int,
@@ -415,12 +417,14 @@ def runtime_policy_for_allowance(
         monitored_urls_allowance, settings=site_health_settings
     )
 
+
 def _site_crawl_task_model() -> type[SiteCrawlTask]:
     # Lazy import: this config module must never import a model at import time
     # (would create a config <-> models circular import).
     from app.models.site_health.queue import SiteCrawlTask
 
     return SiteCrawlTask
+
 
 def _site_task_claim_order(model: type[SiteCrawlTask]) -> tuple:
     # Deterministic claim order: priority, then FIFO by availability, then the
@@ -431,6 +435,7 @@ def _site_task_claim_order(model: type[SiteCrawlTask]) -> tuple:
         model.randomized_position.asc(),
         model.id.asc(),
     )
+
 
 SITE_CRAWL_QUEUE_SPEC: Final[PostgresQueueSpec[SiteCrawlTask]] = PostgresQueueSpec(
     model_ref=_site_crawl_task_model,

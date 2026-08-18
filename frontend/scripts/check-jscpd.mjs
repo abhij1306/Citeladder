@@ -118,6 +118,11 @@ function frequencies(values) {
   return result;
 }
 
+function cloneContentSignature(fingerprint) {
+  const [format, , , contentHash, lines, tokens] = fingerprint.split('|');
+  return `${format}|${contentHash}|${lines}|${tokens}`;
+}
+
 export function validateBaseline(raw) {
   if (
     raw?.format_version !== 1 ||
@@ -126,7 +131,10 @@ export function validateBaseline(raw) {
     typeof raw.production_percentage !== 'number' ||
     raw.production_percentage < 0 ||
     !Array.isArray(raw.clone_fingerprints) ||
-    raw.clone_fingerprints.some((entry) => typeof entry !== 'string')
+    raw.clone_fingerprints.some(
+      (entry) =>
+        typeof entry !== 'string' || !/^[^|]+\|[^|]+\|[^|]+\|[0-9a-f]{16}\|\d+\|\d+$/.test(entry),
+    )
   ) {
     throw new Error('invalid jscpd baseline');
   }
@@ -207,7 +215,7 @@ export function productionFailures(report, baseline, baseBaseline = null) {
   }
   appendFrequencyFailures(failures, actual, accepted, 'new production clone');
   appendFrequencyFailures(failures, accepted, actual, 'stale accepted clone fingerprint');
-  if (baseBaseline) appendBaselineDiffFailures(failures, baseline, baseBaseline, accepted);
+  if (baseBaseline) appendBaselineDiffFailures(failures, baseline, baseBaseline);
   return failures;
 }
 
@@ -216,7 +224,7 @@ function appendFrequencyFailures(failures, observed, allowed, label) {
     if (count > (allowed.get(fingerprint) ?? 0)) failures.push(`${label}: ${fingerprint}`);
 }
 
-function appendBaselineDiffFailures(failures, baseline, baseBaseline, accepted) {
+function appendBaselineDiffFailures(failures, baseline, baseBaseline) {
   if (
     baseline.format_version !== baseBaseline.format_version ||
     baseline.tool_version !== baseBaseline.tool_version ||
@@ -227,9 +235,9 @@ function appendBaselineDiffFailures(failures, baseline, baseBaseline, accepted) 
     failures.push('jscpd percentage threshold was relaxed');
   appendFrequencyFailures(
     failures,
-    accepted,
-    frequencies(baseBaseline.clone_fingerprints),
-    'new accepted clone fingerprint is forbidden',
+    frequencies(baseline.clone_fingerprints.map(cloneContentSignature)),
+    frequencies(baseBaseline.clone_fingerprints.map(cloneContentSignature)),
+    'new accepted clone content is forbidden',
   );
 }
 

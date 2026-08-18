@@ -51,6 +51,7 @@ FINDING_CLASSES: Final[frozenset[str]] = frozenset(
     {FINDING_CLASS_DEFECT, FINDING_CLASS_ADVISORY}
 )
 
+
 class SiteHealthRule:
     """One deterministic Site Health rule (frozen catalog entry).
 
@@ -115,6 +116,7 @@ class SiteHealthRule:
         # falls back to ``display_label``, so a rule without variants (all but
         # one today) is unaffected.
         self.display_label_variants = dict(display_label_variants or {})
+
 
 SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
     SiteHealthRule(

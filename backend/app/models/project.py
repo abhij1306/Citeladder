@@ -42,12 +42,6 @@ class Project(Base):
     # existing display/prompt copy). They are labels, not identities.
     industry: Mapped[str] = mapped_column(String(255), default="General")
     subindustry: Mapped[str] = mapped_column(String(255), default="")
-    # The resolved canonical industry pack. Aliases and taxonomy labels are
-    # input-time helpers resolved once at write time; only this canonical id is
-    # durable, because re-resolving a label later could silently move a project
-    # to a different pack. Empty means unresolved: Site Intelligence then runs
-    # generically rather than guessing a pack.
-    industry_pack_id: Mapped[str] = mapped_column(String(64), default="")
     primary_market: Mapped[str] = mapped_column(String(8), default="GLOBAL")
     country_code: Mapped[str] = mapped_column(String(8), default="")
     language_code: Mapped[str] = mapped_column(String(16), default="")

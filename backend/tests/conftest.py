@@ -124,7 +124,6 @@ def _pin_site_health_sample_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
         SAMPLE_DISCOVERY_URL_CAP,
         SAMPLE_URL_LIMIT,
     )
-
     from app.core.config.site_health_runtime import (
         site_health_settings,
     )

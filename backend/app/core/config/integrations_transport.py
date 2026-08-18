@@ -97,6 +97,7 @@ INTEGRATION_OAUTH_TRANSACTION_COOKIE: Final = "citeladder_integration_oauth"
 
 INTEGRATION_OAUTH_TRANSACTION_COOKIE_PATH: Final = "/api/v1/integrations/oauth"
 
+
 def integration_oauth_redirect_uri(provider: str) -> str:
     """Absolute OAuth callback URL registered with the provider.
 
@@ -122,6 +123,7 @@ def integration_oauth_redirect_uri(provider: str) -> str:
     base = settings.frontend_url.rstrip("/")
     return f"{base}{INTEGRATION_OAUTH_CALLBACK_PATH.format(provider=provider)}"
 
+
 def integration_oauth_landing_url(params: dict[str, str]) -> str:
     """Absolute frontend landing URL the OAuth callback 302s to (contract C2).
 
@@ -139,6 +141,7 @@ def integration_oauth_landing_url(params: dict[str, str]) -> str:
 
     base = settings.frontend_url.rstrip("/")
     return f"{base}{INTEGRATION_OAUTH_LANDING_PATH}&{urlencode(params)}"
+
 
 GSC_API_BASE_URL: Final = "https://www.googleapis.com"
 
@@ -168,9 +171,11 @@ GA4_PROPERTY_REF_PATTERN: Final = re.compile(r"^(?:properties/)?\d+$")
 
 GA4_PROPERTY_RESOURCE_PREFIX: Final = "properties/"
 
+
 def is_ga4_property_ref(property_ref: str) -> bool:
     """True when ``property_ref`` is a well-formed GA4 numeric property id."""
     return bool(GA4_PROPERTY_REF_PATTERN.match(property_ref.strip()))
+
 
 def normalize_ga4_property_ref(property_ref: str) -> str:
     """The canonical GA4 property ref: the bare numeric id.
@@ -180,6 +185,7 @@ def normalize_ga4_property_ref(property_ref: str) -> str:
     user-supplied; this helper only normalizes spelling.
     """
     return property_ref.strip().removeprefix(GA4_PROPERTY_RESOURCE_PREFIX)
+
 
 SHOPIFY_SHOP_DOMAIN_PATTERN: Final = re.compile(
     r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.myshopify\.com$"
@@ -194,6 +200,7 @@ SHOPIFY_OAUTH_TOKEN_PATH: Final = "/admin/oauth/access_token"
 SHOPIFY_ADMIN_API_VERSION: Final[str] = "2026-07"
 
 SHOPIFY_ADMIN_GRAPHQL_PATH: Final[str] = "/admin/api/{version}/graphql.json"
+
 
 def normalize_shopify_shop_domain(value: str) -> str:
     """Canonicalize a user-supplied shop domain to its strict host form.
@@ -216,6 +223,7 @@ def normalize_shopify_shop_domain(value: str) -> str:
         raise ValueError(f"invalid Shopify shop domain: {value!r}")
     return candidate
 
+
 def is_shopify_shop_domain(host: str) -> bool:
     """True when ``host`` is a canonical ``{shop}.myshopify.com`` host.
 
@@ -225,24 +233,29 @@ def is_shopify_shop_domain(host: str) -> bool:
     """
     return bool(SHOPIFY_SHOP_DOMAIN_PATTERN.match(host.strip().lower()))
 
+
 def _shopify_shop_url(shop: str, path: str) -> str:
     """Absolute per-shop URL; the host is validated BEFORE interpolation."""
     canonical = normalize_shopify_shop_domain(shop)
     return f"https://{canonical}{path}"
 
+
 def shopify_oauth_authorize_url(shop: str) -> str:
     """Per-shop OAuth authorize endpoint (validated canonical host only)."""
     return _shopify_shop_url(shop, SHOPIFY_OAUTH_AUTHORIZE_PATH)
 
+
 def shopify_oauth_token_url(shop: str) -> str:
     """Per-shop OAuth token endpoint (validated canonical host only)."""
     return _shopify_shop_url(shop, SHOPIFY_OAUTH_TOKEN_PATH)
+
 
 def shopify_admin_graphql_url(shop: str) -> str:
     """Per-shop Admin GraphQL endpoint at the config-owned API version."""
     return _shopify_shop_url(
         shop, SHOPIFY_ADMIN_GRAPHQL_PATH.format(version=SHOPIFY_ADMIN_API_VERSION)
     )
+
 
 BING_API_BASE_URL: Final = "https://ssl.bing.com"
 

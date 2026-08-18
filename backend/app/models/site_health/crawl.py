@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from .events import SiteCrawlEvent
     from .queue import SiteCrawlTask
 
+
 class SiteCrawl(Base):
     """One crawl run with independent overall/discovery/analysis sub-states.
 
@@ -154,6 +155,7 @@ class SiteCrawl(Base):
         order_by="SiteCrawlEvent.created_at",
     )
 
+
 class SiteCrawlPhaseRun(Base):
     """One user-started discovery or analysis batch within a resumable crawl."""
 
@@ -197,6 +199,7 @@ class SiteCrawlPhaseRun(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
 
 class SiteDiscoveryFrontier(Base):
     """Persisted, deterministic discovery candidates awaiting a later batch."""
@@ -245,4 +248,3 @@ class SiteDiscoveryFrontier(Base):
     admitted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-
