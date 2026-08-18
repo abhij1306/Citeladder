@@ -212,5 +212,7 @@ def _shuffled_slots(
         for engine in engines
         for repetition in range(repetitions)
     ]
-    random.Random(int(seed)).shuffle(slots)
+    # The seed is persisted specifically for reproducible scheduling; this is
+    # not a secret, token, identifier, or security decision.
+    random.Random(int(seed)).shuffle(slots)  # NOSONAR - deterministic task order
     return slots
