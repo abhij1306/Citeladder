@@ -10,6 +10,8 @@ const ROOT = path.resolve(FRONTEND, '..');
 const BASELINE_PATH = path.join(FRONTEND, 'scripts', 'jscpd-baseline.json');
 const CONFIG_PATH = path.join(ROOT, 'jscpd.json');
 const BASELINE_REPOSITORY_PATH = 'frontend/scripts/jscpd-baseline.json';
+const GIT_EXECUTABLE =
+  process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
 const BIN = process.execPath;
 const JSCPD_ENTRYPOINT = path.join(FRONTEND, 'node_modules', 'jscpd', 'run-jscpd.js');
 const REVISION = /^(?:HEAD|[0-9a-fA-F]{40})$/;
@@ -22,52 +24,66 @@ function normalizeName(value) {
   return path.relative(ROOT, absolute).split(path.sep).join('/');
 }
 
+function endOfLine(source, index) {
+  const newline = source.indexOf('\n', index);
+  return newline < 0 ? source.length : newline;
+}
+
+function endOfBlockComment(source, index) {
+  const end = source.indexOf('*/', index + 2);
+  return end < 0 ? source.length : end + 2;
+}
+
+function quoteDelimiter(source, index, format) {
+  const quote = source[index];
+  const supported = quote === "'" || quote === '"' || (format !== 'python' && quote === '`');
+  if (!supported) return null;
+  return format === 'python' && source.slice(index, index + 3) === quote.repeat(3)
+    ? quote.repeat(3)
+    : quote;
+}
+
+function quotedSegment(source, index, delimiter) {
+  let cursor = index + delimiter.length;
+  while (cursor < source.length) {
+    if (source[cursor] === '\\') cursor += 2;
+    else if (source.startsWith(delimiter, cursor)) {
+      cursor += delimiter.length;
+      break;
+    } else cursor += 1;
+  }
+  return { value: source.slice(index, cursor), next: cursor };
+}
+
+function ignoredCommentEnd(source, index, format) {
+  if (format === 'python' && source[index] === '#') return endOfLine(source, index);
+  if (format === 'python' || source[index] !== '/') return null;
+  if (source[index + 1] === '/') return endOfLine(source, index + 2);
+  if (source[index + 1] === '*') return endOfBlockComment(source, index);
+  return null;
+}
+
 function normalizedCloneContent(source, format) {
   let result = '';
-  for (let index = 0; index < source.length;) {
-    const current = source[index];
-    const next = source[index + 1];
-    if (/\s/.test(current)) {
+  let index = 0;
+  while (index < source.length) {
+    if (/\s/.test(source[index])) {
       index += 1;
       continue;
     }
-    if (format === 'python' && current === '#') {
-      while (index < source.length && source[index] !== '\n') index += 1;
+    const commentEnd = ignoredCommentEnd(source, index, format);
+    if (commentEnd !== null) {
+      index = commentEnd;
       continue;
     }
-    if (format !== 'python' && current === '/' && next === '/') {
-      index += 2;
-      while (index < source.length && source[index] !== '\n') index += 1;
+    const delimiter = quoteDelimiter(source, index, format);
+    if (delimiter) {
+      const segment = quotedSegment(source, index, delimiter);
+      result += segment.value;
+      index = segment.next;
       continue;
     }
-    if (format !== 'python' && current === '/' && next === '*') {
-      index += 2;
-      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/'))
-        index += 1;
-      index += 2;
-      continue;
-    }
-    if (current === "'" || current === '"' || (format !== 'python' && current === '`')) {
-      const triple = format === 'python' && source.slice(index, index + 3) === current.repeat(3);
-      const delimiter = triple ? current.repeat(3) : current;
-      result += delimiter;
-      index += delimiter.length;
-      while (index < source.length) {
-        if (source[index] === '\\') {
-          result += source.slice(index, index + 2);
-          index += 2;
-        } else if (source.slice(index, index + delimiter.length) === delimiter) {
-          result += delimiter;
-          index += delimiter.length;
-          break;
-        } else {
-          result += source[index];
-          index += 1;
-        }
-      }
-      continue;
-    }
-    result += current;
+    result += source[index];
     index += 1;
   }
   return result;
@@ -87,11 +103,11 @@ function cloneBody(file, format) {
 export function cloneFingerprint(clone) {
   const occurrences = [clone.firstFile, clone.secondFile]
     .map((file) => normalizeName(file.name))
-    .sort();
+    .sort((left, right) => left.localeCompare(right));
   const bodies = [
     cloneBody(clone.firstFile, clone.format),
     cloneBody(clone.secondFile, clone.format),
-  ].sort();
+  ].sort((left, right) => left.localeCompare(right));
   const contentHash = createHash('sha256').update(bodies.join('\0')).digest('hex').slice(0, 16);
   return `${clone.format}|${occurrences[0]}|${occurrences[1]}|${contentHash}|${clone.lines}|${clone.tokens}`;
 }
@@ -164,7 +180,7 @@ function baselineAtRevision(revision) {
   try {
     return validateBaseline(
       JSON.parse(
-        execFileSync('git', ['show', `${revision}:${BASELINE_REPOSITORY_PATH}`], {
+        execFileSync(GIT_EXECUTABLE, ['show', `${revision}:${BASELINE_REPOSITORY_PATH}`], {
           cwd: ROOT,
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -189,33 +205,32 @@ export function productionFailures(report, baseline, baseBaseline = null) {
       `production duplication increased ${baseline.production_percentage}% -> ${percentage}%`,
     );
   }
-  for (const [fingerprint, count] of actual) {
-    if (count > (accepted.get(fingerprint) ?? 0))
-      failures.push(`new production clone: ${fingerprint}`);
-  }
-  for (const [fingerprint, count] of accepted) {
-    if (count > (actual.get(fingerprint) ?? 0))
-      failures.push(`stale accepted clone fingerprint: ${fingerprint}`);
-  }
-  if (baseBaseline) {
-    if (
-      baseline.format_version !== baseBaseline.format_version ||
-      baseline.tool_version !== baseBaseline.tool_version ||
-      JSON.stringify(baseline.scope) !== JSON.stringify(baseBaseline.scope)
-    ) {
-      failures.push('jscpd format, tool version, or scope changed');
-    }
-    if (baseline.production_percentage > baseBaseline.production_percentage) {
-      failures.push('jscpd percentage threshold was relaxed');
-    }
-    const baseFingerprints = frequencies(baseBaseline.clone_fingerprints);
-    for (const [fingerprint, count] of accepted) {
-      if (count > (baseFingerprints.get(fingerprint) ?? 0)) {
-        failures.push(`new accepted clone fingerprint is forbidden: ${fingerprint}`);
-      }
-    }
-  }
+  appendFrequencyFailures(failures, actual, accepted, 'new production clone');
+  appendFrequencyFailures(failures, accepted, actual, 'stale accepted clone fingerprint');
+  if (baseBaseline) appendBaselineDiffFailures(failures, baseline, baseBaseline, accepted);
   return failures;
+}
+
+function appendFrequencyFailures(failures, observed, allowed, label) {
+  for (const [fingerprint, count] of observed)
+    if (count > (allowed.get(fingerprint) ?? 0)) failures.push(`${label}: ${fingerprint}`);
+}
+
+function appendBaselineDiffFailures(failures, baseline, baseBaseline, accepted) {
+  if (
+    baseline.format_version !== baseBaseline.format_version ||
+    baseline.tool_version !== baseBaseline.tool_version ||
+    JSON.stringify(baseline.scope) !== JSON.stringify(baseBaseline.scope)
+  )
+    failures.push('jscpd format, tool version, or scope changed');
+  if (baseline.production_percentage > baseBaseline.production_percentage)
+    failures.push('jscpd percentage threshold was relaxed');
+  appendFrequencyFailures(
+    failures,
+    accepted,
+    frequencies(baseBaseline.clone_fingerprints),
+    'new accepted clone fingerprint is forbidden',
+  );
 }
 
 function advisoryTestScan() {

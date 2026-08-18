@@ -76,11 +76,11 @@ jobs:
             .venv/bin/python -m scripts.check_complexity
           fi
       - name: Dead-code policy
-        run: uv run vulture app --min-confidence 80
+        run: .venv/bin/vulture app --min-confidence 80
       - name: Radon advisory report
         run: |
-          uv run radon cc app -s -n C
-          uv run radon mi app -s -n B
+          .venv/bin/radon cc app -s -n C
+          .venv/bin/radon mi app -s -n B
       - name: Pytest
         # Verbose node ids make an anomalous runner/database stall attributable;
         # faulthandler prints thread stacks if one test exceeds two minutes.

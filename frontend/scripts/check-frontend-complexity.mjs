@@ -8,6 +8,8 @@ const FRONTEND = path.resolve(import.meta.dirname, '..');
 const REPOSITORY = path.resolve(FRONTEND, '..');
 const POLICY_PATH = path.join(FRONTEND, 'scripts', 'frontend_complexity_policy.json');
 const POLICY_REPOSITORY_PATH = 'frontend/scripts/frontend_complexity_policy.json';
+const GIT_EXECUTABLE =
+  process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
 const EXPECTED_ROOTS = ['app', 'components', 'lib'];
 const REVISION = /^(?:HEAD|[0-9a-fA-F]{40})$/;
 const FUNCTION_KINDS = new Set([
@@ -77,7 +79,7 @@ function filesUnder(root) {
     }
   }
   visit(root);
-  return result.sort();
+  return result.sort((left, right) => left.localeCompare(right));
 }
 function isTestFile(file) {
   return (
@@ -111,28 +113,28 @@ export function measure(file) {
   return { loc: source.split(/\r?\n/).length, test: isTestFile(file), functions };
 }
 
-export function validatePolicy(policy) {
+function hasExactKeys(value, keys) {
+  return (
+    value &&
+    Object.keys(value)
+      .sort((left, right) => left.localeCompare(right))
+      .join(',') === keys
+  );
+}
+
+function validateDefaults(defaults) {
   if (
-    !policy ||
-    Object.keys(policy).sort().join(',') !== 'defaults,exceptions,format_version,roots' ||
-    policy.format_version !== 1
-  )
-    throw new Error('invalid frontend complexity policy shape');
-  if (JSON.stringify(policy.roots) !== JSON.stringify(EXPECTED_ROOTS))
-    throw new Error('policy roots must remain app, components, lib');
-  const defaults = policy.defaults;
-  if (
-    !defaults ||
-    Object.keys(defaults).sort().join(',') !== 'max_function_cc,max_production_loc,max_test_loc' ||
+    !hasExactKeys(defaults, 'max_function_cc,max_production_loc,max_test_loc') ||
     defaults.max_function_cc !== 12 ||
     defaults.max_production_loc !== 500 ||
     defaults.max_test_loc !== 800
   )
     throw new Error('frontend complexity defaults must remain CC 12, production 500, test 800 LOC');
-  const exceptions = policy.exceptions;
+}
+
+function validateExceptions(exceptions, defaults) {
   if (
-    !exceptions ||
-    Object.keys(exceptions).sort().join(',') !== 'functions,modules' ||
+    !hasExactKeys(exceptions, 'functions,modules') ||
     !exceptions.functions ||
     !exceptions.modules ||
     Array.isArray(exceptions.functions) ||
@@ -149,6 +151,19 @@ export function validatePolicy(policy) {
           : Math.min(defaults.max_production_loc, defaults.max_test_loc);
       if (ceiling <= minimum) throw new Error(`${kind} exception ${name} must exceed its default`);
     }
+}
+
+export function validatePolicy(policy) {
+  if (
+    !hasExactKeys(policy, 'defaults,exceptions,format_version,roots') ||
+    policy.format_version !== 1
+  )
+    throw new Error('invalid frontend complexity policy shape');
+  if (JSON.stringify(policy.roots) !== JSON.stringify(EXPECTED_ROOTS))
+    throw new Error('policy roots must remain app, components, lib');
+  const defaults = policy.defaults;
+  validateDefaults(defaults);
+  validateExceptions(policy.exceptions, defaults);
   return policy;
 }
 export function loadPolicy(file = POLICY_PATH) {
@@ -223,7 +238,7 @@ export function policyDiffFailures(base, current) {
 function policyAtRevision(revision) {
   if (!REVISION.test(revision)) throw new Error(`invalid base revision: ${revision}`);
   return JSON.parse(
-    execFileSync('git', ['show', `${revision}:${POLICY_REPOSITORY_PATH}`], {
+    execFileSync(GIT_EXECUTABLE, ['show', `${revision}:${POLICY_REPOSITORY_PATH}`], {
       cwd: REPOSITORY,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
