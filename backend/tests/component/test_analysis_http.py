@@ -38,7 +38,7 @@ from app.core.config.provider_catalog import (
     TRANSPORT_GOOGLE,
     measurement_route,
 )
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.analysis import MetricSnapshot
 from app.models.audit import Audit
 from app.models.user import User

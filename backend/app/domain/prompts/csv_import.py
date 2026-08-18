@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import io
+from collections.abc import Iterable
 
 from app.core.config.http import (
     IMPORT_MAX_CELL_CHARS,
@@ -39,6 +40,62 @@ def _cohort(value: str | None) -> str:
     return "comparison" if (value or "").strip().lower() == "comparison" else "core"
 
 
+def _read_prompt_rows(content: str) -> list[list[str]]:
+    text = content.lstrip("\ufeff")
+    if not text.strip():
+        return []
+    rows: list[list[str]] = []
+    for row in csv.reader(io.StringIO(text)):
+        if len(row) > IMPORT_MAX_COLUMNS:
+            raise ValueError("Prompt CSV has too many columns")
+        if any(len(cell) > IMPORT_MAX_CELL_CHARS for cell in row):
+            raise ValueError("Prompt CSV cell is too long")
+        if any(cell.strip() for cell in row):
+            rows.append(row)
+            if len(rows) > PROMPT_IMPORT_MAX_ROWS + 1:
+                raise ValueError("Prompt CSV has too many rows")
+    return rows
+
+
+def _column_index(header: list[str], keys: Iterable[str]) -> int | None:
+    accepted = set(keys)
+    for index, name in enumerate(header):
+        if name in accepted:
+            return index
+    return None
+
+
+def _prompt_column_indices(header: list[str]) -> dict[str, int | None]:
+    return {
+        "text": _column_index(header, _TEXT_KEYS),
+        "theme": _column_index(header, _THEME_KEYS),
+        "intent": _column_index(header, _INTENT_KEYS),
+        "cohort": _column_index(header, _COHORT_KEYS),
+        "enabled": _column_index(header, _ENABLED_KEYS),
+    }
+
+
+def _prompt_cell(row: list[str], index: int | None) -> str | None:
+    if index is None or index >= len(row):
+        return None
+    return row[index]
+
+
+def _parse_prompt_row(
+    row: list[str], columns: dict[str, int | None]
+) -> PromptInput | None:
+    raw_text = (_prompt_cell(row, columns["text"]) or "").strip()
+    if not raw_text:
+        return None
+    return PromptInput(
+        text=raw_text,
+        theme=(_prompt_cell(row, columns["theme"]) or "").strip(),
+        intent=(_prompt_cell(row, columns["intent"]) or "").strip(),
+        cohort=_cohort(_prompt_cell(row, columns["cohort"])),
+        enabled=_as_bool(_prompt_cell(row, columns["enabled"]), default=True),
+    )
+
+
 def parse_prompt_csv(content: str) -> list[PromptInput]:
     """Parse CSV text into ``PromptInput`` rows.
 
@@ -46,21 +103,7 @@ def parse_prompt_csv(content: str) -> list[PromptInput]:
     with common aliases) or a headerless single-column file of prompt texts.
     Empty rows are skipped; unknown intents are normalized to ``""`` downstream.
     """
-    text = content.lstrip("\ufeff")
-    if not text.strip():
-        return []
-    reader = csv.reader(io.StringIO(text))
-    rows: list[list[str]] = []
-    for row in reader:
-        if len(row) > IMPORT_MAX_COLUMNS:
-            raise ValueError("Prompt CSV has too many columns")
-        if any(len(cell) > IMPORT_MAX_CELL_CHARS for cell in row):
-            raise ValueError("Prompt CSV cell is too long")
-        if any(cell.strip() for cell in row):
-            rows.append(row)
-            # Include one header row without counting it against the data cap.
-            if len(rows) > PROMPT_IMPORT_MAX_ROWS + 1:
-                raise ValueError("Prompt CSV has too many rows")
+    rows = _read_prompt_rows(content)
     if not rows:
         return []
 
@@ -75,35 +118,10 @@ def parse_prompt_csv(content: str) -> list[PromptInput]:
             PromptInput(text=row[0].strip()) for row in rows if row and row[0].strip()
         ]
 
-    def _col(keys: set[str]) -> int | None:
-        for index, name in enumerate(header):
-            if name in keys:
-                return index
-        return None
-
-    text_i = _col(_TEXT_KEYS)
-    theme_i = _col(_THEME_KEYS)
-    intent_i = _col(_INTENT_KEYS)
-    cohort_i = _col(_COHORT_KEYS)
-    enabled_i = _col(_ENABLED_KEYS)
-
-    def _cell(row: list[str], index: int | None) -> str | None:
-        if index is None or index >= len(row):
-            return None
-        return row[index]
-
+    columns = _prompt_column_indices(header)
     prompts: list[PromptInput] = []
     for row in rows[1:]:
-        raw_text = (_cell(row, text_i) or "").strip()
-        if not raw_text:
-            continue
-        prompts.append(
-            PromptInput(
-                text=raw_text,
-                theme=(_cell(row, theme_i) or "").strip(),
-                intent=(_cell(row, intent_i) or "").strip(),
-                cohort=_cohort(_cell(row, cohort_i)),
-                enabled=_as_bool(_cell(row, enabled_i), default=True),
-            )
-        )
+        prompt = _parse_prompt_row(row, columns)
+        if prompt is not None:
+            prompts.append(prompt)
     return prompts

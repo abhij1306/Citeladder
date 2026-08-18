@@ -1193,7 +1193,7 @@ second wave uses the stricter data/coverage contracts fixed below and needs sepa
 user override, and guard against generic brand names (an "Apple" or "Best" rule that swallows
 every generic query is worse than no classifier).
 
-Signals map to opportunities by extending `_demand_hits` in `domain/opportunities/service.py`
+Signals map to opportunities by extending `load_demand_hits` in `domain/opportunities/demand_hits.py`
 plus rules in `core/config/opportunities.py`.
 
 **Documentation update:** WS3A updates `demand-intelligence.md`,

@@ -374,6 +374,44 @@ async def _attach_research_source_artifacts(
         }
 
 
+def _generated_topics(project_id: uuid.UUID, prompts: list[dict]) -> list[Topic]:
+    names_by_key: dict[str, str] = {}
+    for item in prompts:
+        name = str(item["theme"])
+        names_by_key.setdefault(name.casefold(), name)
+    return [
+        Topic(id=uuid.uuid4(), project_id=project_id, name=name, origin="generated")
+        for name in names_by_key.values()
+    ]
+
+
+def _generated_prompts(
+    *,
+    prompt_set_id: uuid.UUID,
+    discovery_id: uuid.UUID,
+    prompts: list[dict],
+    topics: list[Topic],
+) -> list[Prompt]:
+    topic_ids = {topic.name.casefold(): topic.id for topic in topics}
+    return [
+        Prompt(
+            prompt_set_id=prompt_set_id,
+            topic_id=topic_ids[str(item["theme"]).casefold()],
+            text=str(item["text"]),
+            theme=str(item["theme"]),
+            intent=str(item["intent"]),
+            cohort=str(item["cohort"]),
+            branded=False,
+            origin="generated",
+            generation_evidence={
+                "generator_version": BRAND_DISCOVERY_PROMPT_GENERATOR_VERSION,
+                "discovery_id": str(discovery_id),
+            },
+        )
+        for item in prompts
+    ]
+
+
 async def _persist_project(
     session: AsyncSession,
     *,
@@ -426,34 +464,14 @@ async def _persist_project(
         prompt_set_id=prompt_set.id,
         texts=[str(item["text"]) for item in prompts],
     )
-    topic_names_by_key: dict[str, str] = {}
-    for item in prompts:
-        name = str(item["theme"])
-        topic_names_by_key.setdefault(name.casefold(), name)
-    topic_names = list(topic_names_by_key.values())
-    topics = [
-        Topic(id=uuid.uuid4(), project_id=project.id, name=name, origin="generated")
-        for name in topic_names
-    ]
+    topics = _generated_topics(project.id, prompts)
     session.add_all(topics)
-    topic_ids = {item.name.casefold(): item.id for item in topics}
-    prompt_rows = [
-        Prompt(
-            prompt_set_id=prompt_set.id,
-            topic_id=topic_ids[str(item["theme"]).casefold()],
-            text=str(item["text"]),
-            theme=str(item["theme"]),
-            intent=str(item["intent"]),
-            cohort=str(item["cohort"]),
-            branded=False,
-            origin="generated",
-            generation_evidence={
-                "generator_version": BRAND_DISCOVERY_PROMPT_GENERATOR_VERSION,
-                "discovery_id": str(row.id),
-            },
-        )
-        for item in prompts
-    ]
+    prompt_rows = _generated_prompts(
+        prompt_set_id=prompt_set.id,
+        discovery_id=row.id,
+        prompts=prompts,
+        topics=topics,
+    )
     retained = [
         item for item in prompt_rows if item.normalized_text_hash in approved_hashes
     ]

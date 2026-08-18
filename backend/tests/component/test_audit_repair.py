@@ -16,7 +16,8 @@ from app.core.config.provider_catalog import (
     CREDENTIAL_SOURCE_BYOK,
     CREDENTIAL_SOURCE_PLATFORM,
 )
-from app.domain.audits.planner import create_audit, list_tasks
+from app.domain.audits.creation import create_audit
+from app.domain.audits.reads import list_tasks
 from app.domain.audits.repair import AuditRepairError, create_repair_audit
 from app.domain.audits.schemas import audit_event_response
 from app.models.audit import AuditEvent

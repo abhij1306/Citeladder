@@ -43,7 +43,7 @@ from app.core.config.provider_catalog import (
     ENGINE_GEMINI,
     TRANSPORT_GOOGLE,
 )
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.brand import Competitor
 from app.models.product import CompetitorProduct, Product
 from app.models.user import User

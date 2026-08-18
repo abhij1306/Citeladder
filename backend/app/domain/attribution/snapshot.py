@@ -509,6 +509,125 @@ def _accumulate_line_item_revenue(
         group["revenue"] += price * quantity
 
 
+def _unattributed_row(
+    currency: str, currency_orders: Sequence[OrderFact], unlinked: Sequence[OrderFact]
+) -> dict[str, Any]:
+    return {
+        "currency": currency,
+        "orders": len(unlinked),
+        "order_share": _ratio(len(unlinked), len(currency_orders)),
+        "revenue": round(
+            sum(float(order.total_amount) for order in unlinked), _MONEY_DECIMALS
+        ),
+    }
+
+
+def _empty_a2_row(currency: str, coverage_rate: float | None) -> dict[str, Any]:
+    return {
+        "method": ATTRIBUTION_METHOD_ORDER_REFERRER,
+        "state": ATTRIBUTION_DATA_STATE_NO_DATA,
+        "source_granularity": None,
+        "reduced_granularity": False,
+        "currency": currency,
+        "coverage_rate": coverage_rate,
+        "totals": _null_metric_set(currency),
+        "by_ai_source": [],
+        "by_product": [],
+    }
+
+
+def _linked_groups(
+    linked: Sequence[OrderFact],
+    link_by_order: Mapping[uuid.UUID, AttributionLink],
+) -> tuple[
+    dict[str, dict[str, Any]],
+    dict[tuple[str | None, str, str], dict[str, Any]],
+]:
+    source_groups: dict[str, dict[str, Any]] = {}
+    product_groups: dict[tuple[str | None, str, str], dict[str, Any]] = {}
+    for order in linked:
+        link = link_by_order[order.id]
+        ai_source = str((link.evidence_refs or {}).get("ai_source") or AI_SOURCE_OTHER)
+        source_group = source_groups.setdefault(
+            ai_source, {"orders": 0, "revenue": 0.0}
+        )
+        source_group["orders"] += 1
+        source_group["revenue"] += float(link.revenue_amount)
+        _accumulate_line_item_revenue(product_groups, order, ai_source)
+    return source_groups, product_groups
+
+
+def _source_rows(
+    currency: str, groups: Mapping[str, dict[str, Any]]
+) -> list[dict[str, Any]]:
+    rows = [
+        {
+            "ai_source": ai_source,
+            "currency": currency,
+            "metrics": _metric_set(
+                currency=currency,
+                revenue=round(group["revenue"], _MONEY_DECIMALS),
+                orders=group["orders"],
+                sessions=None,
+            ),
+        }
+        for ai_source, group in groups.items()
+    ]
+    rows.sort(key=_source_revenue_sort_key)
+    return rows
+
+
+def _product_rows(
+    currency: str,
+    groups: Mapping[tuple[str | None, str, str], dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows = [
+        {
+            "product_id": product_id,
+            "sku": sku,
+            "name": sku,
+            "ai_source": ai_source,
+            "source_label": ai_source,
+            "currency": currency,
+            "revenue": round(group["revenue"], _MONEY_DECIMALS),
+            "orders": len(group["orders"]),
+        }
+        for (product_id, sku, ai_source), group in groups.items()
+    ]
+    rows.sort(key=lambda row: (-row["revenue"], row["sku"], row["ai_source"]))
+    return rows
+
+
+def _available_a2_row(
+    *,
+    currency: str,
+    coverage_rate: float | None,
+    linked: Sequence[OrderFact],
+    link_by_order: Mapping[uuid.UUID, AttributionLink],
+) -> dict[str, Any]:
+    source_groups, product_groups = _linked_groups(linked, link_by_order)
+    total_revenue = round(
+        sum(float(link_by_order[order.id].revenue_amount) for order in linked),
+        _MONEY_DECIMALS,
+    )
+    return {
+        "method": ATTRIBUTION_METHOD_ORDER_REFERRER,
+        "state": ATTRIBUTION_DATA_STATE_AVAILABLE,
+        "source_granularity": None,
+        "reduced_granularity": False,
+        "currency": currency,
+        "coverage_rate": coverage_rate,
+        "totals": _metric_set(
+            currency=currency,
+            revenue=total_revenue,
+            orders=len(linked),
+            sessions=None,
+        ),
+        "by_ai_source": _source_rows(currency, source_groups),
+        "by_product": _product_rows(currency, product_groups),
+    }
+
+
 def _aggregate_a2_for_currency(
     currency: str,
     currency_orders: Sequence[OrderFact],
@@ -521,93 +640,68 @@ def _aggregate_a2_for_currency(
         sum(_has_attribution_evidence(order) for order in currency_orders),
         len(currency_orders),
     )
-    unattributed = {
-        "currency": currency,
-        "orders": len(unlinked),
-        "order_share": _ratio(len(unlinked), len(currency_orders)),
-        "revenue": round(
-            sum(float(order.total_amount) for order in unlinked), _MONEY_DECIMALS
-        ),
-    }
+    unattributed = _unattributed_row(currency, currency_orders, unlinked)
     if not linked:
-        return (
-            {
-                "method": ATTRIBUTION_METHOD_ORDER_REFERRER,
-                "state": ATTRIBUTION_DATA_STATE_NO_DATA,
-                "source_granularity": None,
-                "reduced_granularity": False,
-                "currency": currency,
-                "coverage_rate": coverage_rate,
-                "totals": _null_metric_set(currency),
-                "by_ai_source": [],
-                "by_product": [],
-            },
-            unattributed,
-        )
-
-    source_groups: dict[str, dict[str, Any]] = {}
-    product_groups: dict[tuple[str | None, str, str], dict[str, Any]] = {}
-    for order in linked:
-        link = link_by_order[order.id]
-        ai_source = str((link.evidence_refs or {}).get("ai_source") or AI_SOURCE_OTHER)
-        source_group = source_groups.setdefault(
-            ai_source, {"orders": 0, "revenue": 0.0}
-        )
-        source_group["orders"] += 1
-        source_group["revenue"] += float(link.revenue_amount)
-        _accumulate_line_item_revenue(product_groups, order, ai_source)
-
-    by_ai_source = [
-        {
-            "ai_source": ai_source,
-            "currency": currency,
-            "metrics": _metric_set(
-                currency=currency,
-                revenue=round(group["revenue"], _MONEY_DECIMALS),
-                orders=group["orders"],
-                sessions=None,
-            ),
-        }
-        for ai_source, group in source_groups.items()
-    ]
-    by_ai_source.sort(key=_source_revenue_sort_key)
-    by_product = [
-        {
-            "product_id": product_id,
-            "sku": sku,
-            "name": sku,
-            "ai_source": ai_source,
-            "source_label": ai_source,
-            "currency": currency,
-            "revenue": round(group["revenue"], _MONEY_DECIMALS),
-            "orders": len(group["orders"]),
-        }
-        for (product_id, sku, ai_source), group in product_groups.items()
-    ]
-    by_product.sort(key=lambda row: (-row["revenue"], row["sku"], row["ai_source"]))
-    total_revenue = round(
-        sum(float(link_by_order[order.id].revenue_amount) for order in linked),
-        _MONEY_DECIMALS,
-    )
+        return _empty_a2_row(currency, coverage_rate), unattributed
     return (
-        {
-            "method": ATTRIBUTION_METHOD_ORDER_REFERRER,
-            "state": ATTRIBUTION_DATA_STATE_AVAILABLE,
-            "source_granularity": None,
-            "reduced_granularity": False,
-            "currency": currency,
-            "coverage_rate": coverage_rate,
-            "totals": _metric_set(
-                currency=currency,
-                revenue=total_revenue,
-                orders=len(linked),
-                sessions=None,
-            ),
-            "by_ai_source": by_ai_source,
-            "by_product": by_product,
-        },
+        _available_a2_row(
+            currency=currency,
+            coverage_rate=coverage_rate,
+            linked=linked,
+            link_by_order=link_by_order,
+        ),
         unattributed,
     )
+
+
+def _available_rows(
+    rows: Sequence[dict[str, Any]], *, require_currency: bool = False
+) -> dict[str, dict[str, Any]]:
+    return {
+        row["currency"]: row
+        for row in rows
+        if row["state"] == ATTRIBUTION_DATA_STATE_AVAILABLE
+        and (row["currency"] or not require_currency)
+    }
+
+
+def _unavailable_delta_row(
+    currency: str, *, has_a1: bool, has_a2: bool
+) -> dict[str, Any]:
+    return {
+        "currency": currency,
+        "state": (
+            ATTRIBUTION_DELTA_STATE_CURRENCY_UNAVAILABLE
+            if has_a1 and has_a2
+            else ATTRIBUTION_DELTA_STATE_METHOD_UNAVAILABLE
+        ),
+        "revenue": None,
+        "orders": None,
+        "average_order_value": None,
+        "conversion_rate": None,
+    }
+
+
+def _comparable_delta_row(
+    currency: str, left: dict[str, Any], right: dict[str, Any]
+) -> dict[str, Any]:
+    left_totals, right_totals = left["totals"], right["totals"]
+    left_aov = left_totals["average_order_value"]
+    right_aov = right_totals["average_order_value"]
+    return {
+        "currency": currency,
+        "state": ATTRIBUTION_DELTA_STATE_COMPARABLE,
+        "revenue": round(
+            left_totals["revenue"] - right_totals["revenue"], _MONEY_DECIMALS
+        ),
+        "orders": left_totals["orders"] - right_totals["orders"],
+        "average_order_value": (
+            round(left_aov - right_aov, _MONEY_DECIMALS)
+            if left_aov is not None and right_aov is not None
+            else None
+        ),
+        "conversion_rate": None,
+    }
 
 
 def _build_delta_rows(
@@ -616,56 +710,20 @@ def _build_delta_rows(
     currencies: Sequence[str],
 ) -> list[dict[str, Any]]:
     """Join available A1/A2 currency partitions without cross-currency math."""
-    a1_available = {
-        row["currency"]: row
-        for row in a1_rows
-        if row["state"] == ATTRIBUTION_DATA_STATE_AVAILABLE and row["currency"]
-    }
-    a2_available = {
-        row["currency"]: row
-        for row in a2_rows
-        if row["state"] == ATTRIBUTION_DATA_STATE_AVAILABLE
-    }
+    a1_available = _available_rows(a1_rows, require_currency=True)
+    a2_available = _available_rows(a2_rows)
     rows: list[dict[str, Any]] = []
     for currency in sorted(set(a1_available) | set(currencies)):
         left = a1_available.get(currency)
         right = a2_available.get(currency)
         if left is None or right is None:
             rows.append(
-                {
-                    "currency": currency,
-                    "state": (
-                        ATTRIBUTION_DELTA_STATE_CURRENCY_UNAVAILABLE
-                        if a1_available and a2_available
-                        else ATTRIBUTION_DELTA_STATE_METHOD_UNAVAILABLE
-                    ),
-                    "revenue": None,
-                    "orders": None,
-                    "average_order_value": None,
-                    "conversion_rate": None,
-                }
+                _unavailable_delta_row(
+                    currency, has_a1=bool(a1_available), has_a2=bool(a2_available)
+                )
             )
             continue
-        left_totals, right_totals = left["totals"], right["totals"]
-        left_aov = left_totals["average_order_value"]
-        right_aov = right_totals["average_order_value"]
-        rows.append(
-            {
-                "currency": currency,
-                "state": ATTRIBUTION_DELTA_STATE_COMPARABLE,
-                "revenue": round(
-                    left_totals["revenue"] - right_totals["revenue"],
-                    _MONEY_DECIMALS,
-                ),
-                "orders": left_totals["orders"] - right_totals["orders"],
-                "average_order_value": (
-                    round(left_aov - right_aov, _MONEY_DECIMALS)
-                    if left_aov is not None and right_aov is not None
-                    else None
-                ),
-                "conversion_rate": None,
-            }
-        )
+        rows.append(_comparable_delta_row(currency, left, right))
     return rows
 
 

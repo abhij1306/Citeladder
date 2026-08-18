@@ -31,7 +31,7 @@ from app.core.config.entitlements import (
     LEDGER_ENTRY_RESERVATION,
 )
 from app.core.config.provider_catalog import ENGINE_CLAUDE
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.domain.entitlements.cache import clear_cache
 from app.domain.entitlements.ledger import (
     FundedCreditsExhaustedError,

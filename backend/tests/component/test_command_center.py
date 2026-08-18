@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.command_center.report import render_executive_pdf
 from app.domain.command_center.service import get_command_center
-from app.domain.opportunities import service as opportunity_service
+from app.domain.opportunities import recompute as opportunity_recompute
 from app.models.demand import DemandSnapshot
 from app.models.project import Project
 from tests.component.opportunity_helpers import _add_site, _seed_base, _seed_scenario
@@ -20,7 +20,7 @@ async def test_command_center_uses_persisted_state_and_report(
     db_session: AsyncSession,
 ) -> None:
     scenario = await _seed_scenario(db_session)
-    await opportunity_service.recompute(
+    await opportunity_recompute.recompute(
         db_session,
         workspace_id=scenario.workspace_id,
         project_id=scenario.project_id,

@@ -39,7 +39,7 @@ from app.analysis.product_service import (
 from app.core.config.audits import AUDIT_TRIGGER_MANUAL
 from app.core.config.provider_catalog import ENGINE_GEMINI, TRANSPORT_GOOGLE
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.audit import Audit, AuditTask, RawResponseArtifact
 from app.models.brand import Competitor
 from app.models.product import (

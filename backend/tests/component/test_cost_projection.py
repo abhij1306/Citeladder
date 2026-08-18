@@ -28,7 +28,7 @@ from app.core.config.provider_catalog import (
     measurement_route,
 )
 from app.domain.audits.cost_projection import append_repricing
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.audit import (
     AuditTask,
     ExecutionCostProjection,

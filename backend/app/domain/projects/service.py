@@ -78,46 +78,54 @@ def _clean_list(values: list[str] | None) -> list[str]:
     return [str(v).strip() for v in (values or []) if str(v).strip()]
 
 
+def _brand_response(project: Project) -> BrandResponse:
+    brand = project.brand
+    return BrandResponse(
+        aliases=[alias.alias for alias in brand.aliases] if brand is not None else [],
+        logo_url=(
+            brand_logo_url(project.id)
+            if brand is not None and brand.logo_asset_id is not None
+            else None
+        ),
+    )
+
+
+def _competitor_responses(project: Project) -> list[CompetitorResponse]:
+    return [
+        CompetitorResponse(
+            id=competitor.id,
+            name=competitor.name,
+            aliases=list(competitor.aliases or []),
+            domains=list(competitor.domains or []),
+            logo_url=(
+                competitor_logo_url(project.id, competitor.id)
+                if competitor.logo_asset_id is not None
+                else None
+            ),
+        )
+        for competitor in project.competitors
+    ]
+
+
 def project_to_response(
     project: Project, *, has_commerce_evidence: bool = False
 ) -> ProjectResponse:
     """Project the normalized rows back into the flat response DTO."""
-    brand = project.brand
     return ProjectResponse(
         id=project.id,
         workspace_id=project.workspace_id,
         name=project.name,
-        brand_name=(brand.name if brand is not None else project.brand_name),
-        brand=BrandResponse(
-            aliases=(
-                [alias.alias for alias in brand.aliases] if brand is not None else []
-            ),
-            logo_url=(
-                brand_logo_url(project.id)
-                if brand is not None and brand.logo_asset_id is not None
-                else None
-            ),
+        brand_name=(
+            project.brand.name if project.brand is not None else project.brand_name
         ),
+        brand=_brand_response(project),
         website_url=project.website_url,
         industry=project.industry,
         subindustry=project.subindustry,
         primary_market=project.primary_market,
         owned_domains=[d.domain for d in project.owned_domains],
         unintended_domains=[d.domain for d in project.unintended_domains],
-        competitors=[
-            CompetitorResponse(
-                id=c.id,
-                name=c.name,
-                aliases=list(c.aliases or []),
-                domains=list(c.domains or []),
-                logo_url=(
-                    competitor_logo_url(project.id, c.id)
-                    if c.logo_asset_id is not None
-                    else None
-                ),
-            )
-            for c in project.competitors
-        ],
+        competitors=_competitor_responses(project),
         prompt_sets=[prompt_set_to_response(ps) for ps in project.prompt_sets],
         country_code=project.country_code,
         language_code=project.language_code,
@@ -340,40 +348,7 @@ async def update_project(
         session, workspace_id=workspace_id, project_id=project_id
     )
     data = payload.model_dump(exclude_unset=True)
-    _apply_scalar_project_updates(project, data)
-    if "benchmark_mode" in data and data["benchmark_mode"] is not None:
-        project.benchmark_mode = normalize_benchmark_mode(data["benchmark_mode"])
-    if "default_repetitions" in data and data["default_repetitions"] is not None:
-        project.default_repetitions = data["default_repetitions"]
-
-    # Brand name / aliases are rebuilt together so the alias set stays
-    # consistent with the (possibly new) brand name.
-    if ("brand_name" in data and data["brand_name"] is not None) or (
-        payload.brand is not None
-    ):
-        brand = project.brand
-        new_name = (
-            data["brand_name"]
-            if data.get("brand_name") is not None
-            else (brand.name if brand is not None else project.brand_name)
-        )
-        new_aliases = (
-            payload.brand.aliases
-            if payload.brand is not None
-            else ([a.alias for a in brand.aliases] if brand is not None else [])
-        )
-        _apply_brand(project, new_name, new_aliases)
-
-    if "competitors" in data and data["competitors"] is not None:
-        project.competitors = _build_competitors(payload.competitors)
-    if "owned_domains" in data and data["owned_domains"] is not None:
-        project.owned_domains = [
-            OwnedDomain(domain=d) for d in _clean_list(data["owned_domains"])
-        ]
-    if "unintended_domains" in data and data["unintended_domains"] is not None:
-        project.unintended_domains = [
-            UnintendedDomain(domain=d) for d in _clean_list(data["unintended_domains"])
-        ]
+    _apply_project_updates(project, payload, data)
 
     await session.commit()
     return await get_project(session, workspace_id=workspace_id, project_id=project_id)
@@ -392,6 +367,47 @@ def _apply_scalar_project_updates(project: Project, data: dict) -> None:
         value = data.get(field)
         if value is not None:
             setattr(project, field, value)
+
+
+def _apply_brand_update(project: Project, payload: Any, data: dict) -> None:
+    if data.get("brand_name") is None and payload.brand is None:
+        return
+    brand = project.brand
+    new_name = (
+        data["brand_name"]
+        if data.get("brand_name") is not None
+        else (brand.name if brand is not None else project.brand_name)
+    )
+    new_aliases = (
+        payload.brand.aliases
+        if payload.brand is not None
+        else ([alias.alias for alias in brand.aliases] if brand is not None else [])
+    )
+    _apply_brand(project, new_name, new_aliases)
+
+
+def _apply_collection_updates(project: Project, payload: Any, data: dict) -> None:
+    if data.get("competitors") is not None:
+        project.competitors = _build_competitors(payload.competitors)
+    if data.get("owned_domains") is not None:
+        project.owned_domains = [
+            OwnedDomain(domain=domain) for domain in _clean_list(data["owned_domains"])
+        ]
+    if data.get("unintended_domains") is not None:
+        project.unintended_domains = [
+            UnintendedDomain(domain=domain)
+            for domain in _clean_list(data["unintended_domains"])
+        ]
+
+
+def _apply_project_updates(project: Project, payload: Any, data: dict) -> None:
+    _apply_scalar_project_updates(project, data)
+    if data.get("benchmark_mode") is not None:
+        project.benchmark_mode = normalize_benchmark_mode(data["benchmark_mode"])
+    if data.get("default_repetitions") is not None:
+        project.default_repetitions = data["default_repetitions"]
+    _apply_brand_update(project, payload, data)
+    _apply_collection_updates(project, payload, data)
 
 
 async def delete_project(

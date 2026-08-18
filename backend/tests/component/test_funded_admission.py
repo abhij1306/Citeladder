@@ -51,7 +51,8 @@ from app.core.config.provider_catalog import (
     ENGINE_GEMINI,
     TELEMETRY_FUNDED_ADMISSION_DENIED,
 )
-from app.domain.audits.planner import FundedAdmissionError, create_audit
+from app.domain.audits.creation import create_audit
+from app.domain.audits.errors import FundedAdmissionError
 from app.domain.entitlements.cache import clear_cache
 from app.domain.entitlements.types import STATUS_ENTITLEMENT_UNRESOLVED, GrantSpec
 from app.models.audit import Audit, AuditTask

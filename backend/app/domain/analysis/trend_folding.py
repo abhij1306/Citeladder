@@ -1,8 +1,7 @@
 """Folding persisted snapshots into visibility-trend points.
 
-Split out of ``analysis/service.py`` so that module stays inside its size
-ceiling. The seam is a natural one: everything here is deterministic and does no
-I/O, operating only on values already projected from persisted rows.
+The seam is a natural one: everything here is deterministic and does no I/O,
+operating only on values already projected from persisted rows.
 """
 
 from __future__ import annotations

@@ -70,21 +70,15 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.database import SessionLocal
 from app.core.security import encrypt_secret
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.domain.auth.service import register_user
 from app.domain.billing.bootstrap import ensure_user_billing
 from app.domain.entitlements.grants import issue_override_bundle
 from app.domain.entitlements.types import GrantSpec
 from app.domain.integrations.sync import enqueue_sync_run
-from app.domain.opportunities.service import (
-    list_opportunities,
-)
-from app.domain.opportunities.service import (
-    recompute as recompute_opportunities,
-)
-from app.domain.opportunities.service import (
-    update_status as update_opportunity_status,
-)
+from app.domain.opportunities import commands
+from app.domain.opportunities.queries import list_opportunities
+from app.domain.opportunities.recompute import recompute as recompute_opportunities
 from app.domain.site_health.planner import create_crawl
 from app.domain.site_health.selection import (
     BULK_SELECT_MODE_ALL,
@@ -775,7 +769,7 @@ async def seed() -> None:
             project_id=project_id,
         )
         if actions["items"]:
-            await update_opportunity_status(
+            await commands.update_status(
                 session,
                 workspace_id=workspace_id,
                 opportunity_id=actions["items"][0]["id"],

@@ -42,6 +42,10 @@ from app.domain.prompts.generation_contract import (
     build_generation_user_message,
     parse_generation_output,
 )
+from app.domain.prompts.generation_errors import (
+    GenerationValidationError,
+    reraise_scoped_integrity_error,
+)
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
 from app.domain.prompts.normalization import prompt_text_hash
 from app.domain.prompts.portfolio import (
@@ -58,11 +62,6 @@ from app.models.brand import Brand
 from app.models.demand import DemandSignal, DemandSnapshot
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet, Topic
-
-
-class GenerationValidationError(ValueError):
-    """Request-level validation failure (422 at the API layer)."""
-
 
 __all__ = [
     "GenerationOutputError",
@@ -524,6 +523,75 @@ def _generation_evidence(
     }
 
 
+async def _generate_suggestions(
+    session: AsyncSession,
+    *,
+    prompt_set: PromptSet,
+    payload: Any,
+    agent: ModelGateway,
+    workspace_id: uuid.UUID,
+) -> tuple[
+    list[SuggestedTopic],
+    int,
+    dict[str, Any],
+    DemandSnapshot | None,
+    list[DemandSignal],
+]:
+    target_topic = _resolve_target_topic(prompt_set, payload)
+    demand_snapshot, demand_signals = await _load_demand_grounding(
+        session,
+        workspace_id=workspace_id,
+        project_id=prompt_set.project.id,
+        limit=payload.count,
+    )
+    brand_context = _generation_brand_context(prompt_set.project, demand_signals)
+    context_limit = prompt_generation_settings.existing_prompt_context_limit
+    user_message = build_generation_user_message(
+        brand_context=brand_context,
+        existing_topics=[
+            {"name": topic.name, "description": topic.description or ""}
+            for topic in prompt_set.project.topics
+        ],
+        existing_prompts=[p.text for p in prompt_set.prompts][:context_limit],
+        count=payload.count,
+        intents=[i for i in payload.intents if i],
+        target_topic=target_topic.name if target_topic is not None else "",
+        target_topic_description=(
+            target_topic.description if target_topic is not None else ""
+        ),
+    )
+    await session.commit()
+    system_prompt = (
+        GENERATION_COMPARISON_SYSTEM_PROMPT
+        if payload.cohort == "comparison"
+        else GENERATION_SYSTEM_PROMPT
+    )
+    raw = await agent.complete_json(system=system_prompt, user=user_message)
+    suggestions, intra_duplicates = parse_generation_output(raw)
+    suggestions = _filter_for_cohort(suggestions, payload.cohort, brand_context)
+    if _prompt_count(suggestions) < payload.count:
+        missing = payload.count - _prompt_count(suggestions)
+        replacement_raw = await agent.complete_json(
+            system=system_prompt,
+            user=(
+                user_message
+                + f"\nThe first batch had {missing} rejected rows. Generate exactly "
+                f"{missing} replacement prompts satisfying every rule."
+            ),
+        )
+        replacements, replacement_duplicates = parse_generation_output(replacement_raw)
+        replacements = _filter_for_cohort(replacements, payload.cohort, brand_context)
+        suggestions.extend(replacements)
+        intra_duplicates += replacement_duplicates
+    return (
+        _cap_suggestions_to_count(suggestions, payload.count),
+        intra_duplicates,
+        brand_context,
+        demand_snapshot,
+        demand_signals,
+    )
+
+
 async def generate_prompts(
     session: AsyncSession,
     *,
@@ -546,70 +614,26 @@ async def generate_prompts(
     scheduling an audit remains the explicit measurement decision; generation
     never initiates provider measurement.
     """
-    # 1. Scope first (404 before anything runs), then confirmation + bounds.
+    # Scope first (404 before anything runs), then confirmation + bounds.
     if prompt_set is None:
         prompt_set = await _load_prompt_set_with_project(
             session, workspace_id=workspace_id, prompt_set_id=prompt_set_id
         )
     target_topic = _validate_generation_payload(prompt_set, payload)
-
-    project = prompt_set.project
-    project_id = project.id
-
-    demand_snapshot, demand_signals = await _load_demand_grounding(
+    project_id = prompt_set.project.id
+    (
+        suggestions,
+        intra_duplicates,
+        brand_context,
+        demand_snapshot,
+        demand_signals,
+    ) = await _generate_suggestions(
         session,
+        prompt_set=prompt_set,
+        payload=payload,
+        agent=agent,
         workspace_id=workspace_id,
-        project_id=project_id,
-        limit=payload.count,
     )
-
-    # 2. Brand evidence via the one existing serializer (invariant 2). Bound
-    #    the existing-prompt context so the user message can't grow unbounded.
-    brand_context = _generation_brand_context(project, demand_signals)
-    context_limit = prompt_generation_settings.existing_prompt_context_limit
-    user_message = build_generation_user_message(
-        brand_context=brand_context,
-        existing_topics=[
-            {"name": topic.name, "description": topic.description or ""}
-            for topic in project.topics
-        ],
-        existing_prompts=[p.text for p in prompt_set.prompts][:context_limit],
-        count=payload.count,
-        intents=[i for i in payload.intents if i],
-        target_topic=target_topic.name if target_topic is not None else "",
-        target_topic_description=(
-            target_topic.description if target_topic is not None else ""
-        ),
-    )
-
-    # 3. The only provider I/O — after all validation. End the read
-    #    transaction first so no DB transaction is held across the network
-    #    call (invariant 8's rule, applied to generation).
-    await session.commit()
-    system_prompt = (
-        GENERATION_COMPARISON_SYSTEM_PROMPT
-        if payload.cohort == "comparison"
-        else GENERATION_SYSTEM_PROMPT
-    )
-    raw = await agent.complete_json(system=system_prompt, user=user_message)
-    suggestions, intra_duplicates = parse_generation_output(raw)
-    suggestions = _filter_for_cohort(suggestions, payload.cohort, brand_context)
-    # One bounded replacement call is allowed when validation removed rows.
-    if _prompt_count(suggestions) < payload.count:
-        missing = payload.count - _prompt_count(suggestions)
-        replacement_raw = await agent.complete_json(
-            system=system_prompt,
-            user=(
-                user_message
-                + f"\nThe first batch had {missing} rejected rows. Generate exactly "
-                f"{missing} replacement prompts satisfying every rule."
-            ),
-        )
-        replacements, replacement_duplicates = parse_generation_output(replacement_raw)
-        replacements = _filter_for_cohort(replacements, payload.cohort, brand_context)
-        suggestions.extend(replacements)
-        intra_duplicates += replacement_duplicates
-    suggestions = _cap_suggestions_to_count(suggestions, payload.count)
 
     # 4. Re-open the write transaction. The objects loaded before the provider
     #    call are now stale (the set/project/topic could have been renamed or
@@ -714,7 +738,7 @@ async def generate_prompts(
         # scoped 404; a disappeared target topic maps to a scoped 422; any
         # other integrity error is unrelated and re-raised unchanged (500).
         await session.rollback()
-        await _reraise_scoped_integrity_error(
+        await reraise_scoped_integrity_error(
             session,
             workspace_id=workspace_id,
             prompt_set_id=prompt_set_id,
@@ -723,64 +747,6 @@ async def generate_prompts(
         )
 
     return inserted, touched_topics, dropped
-
-
-async def _reraise_scoped_integrity_error(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    prompt_set_id: uuid.UUID,
-    topic_id: uuid.UUID | None,
-    exc: IntegrityError,
-) -> None:
-    """Map an insert-time ``IntegrityError`` to a scoped domain error.
-
-    Called after ``session.rollback()``. Re-reads committed state to decide
-    which referenced entity (if any) actually vanished:
-
-    - prompt set gone (in this workspace) -> ``PromptSetNotFoundError`` (404);
-    - scoped ``topic_id`` gone from the set's project ->
-      ``GenerationValidationError`` (422);
-    - neither missing -> the error is unrelated (unique/check/other FK), so
-      re-raise it unchanged so a real bug surfaces as a 500, never a phantom
-      not-found.
-
-    This never returns normally: it always raises.
-    """
-    set_exists = (
-        await session.execute(
-            select(PromptSet.id)
-            .join(Project, Project.id == PromptSet.project_id)
-            .where(
-                PromptSet.id == prompt_set_id,
-                Project.workspace_id == workspace_id,
-            )
-        )
-    ).scalar_one_or_none()
-    if set_exists is None:
-        raise PromptSetNotFoundError("Prompt set not found") from exc
-
-    if topic_id is not None:
-        topic_exists = (
-            await session.execute(
-                select(Topic.id)
-                .join(Project, Project.id == Topic.project_id)
-                .join(PromptSet, PromptSet.project_id == Project.id)
-                .where(
-                    Topic.id == topic_id,
-                    PromptSet.id == prompt_set_id,
-                    Project.workspace_id == workspace_id,
-                )
-            )
-        ).scalar_one_or_none()
-        if topic_exists is None:
-            raise GenerationValidationError(
-                "topic_id is not a topic of this project"
-            ) from exc
-
-    # The scoped set/topic are both intact, so the integrity error is
-    # unrelated to a lost FK reference. Re-raise it so it isn't masked.
-    raise exc
 
 
 async def _hydrate_inserted(

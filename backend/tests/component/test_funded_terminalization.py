@@ -46,11 +46,9 @@ from app.core.config.entitlements import (
     LEDGER_ENTRY_RESERVATION,
 )
 from app.core.config.provider_catalog import ENGINE_CLAUDE
-from app.domain.audits.planner import (
-    AuditValidationError,
-    cancel_audit,
-    create_audit,
-)
+from app.domain.audits.cancellation import cancel_audit
+from app.domain.audits.creation import create_audit
+from app.domain.audits.errors import AuditValidationError
 from app.domain.entitlements.cache import clear_cache
 from app.domain.entitlements.ledger import (
     consumable_usage,

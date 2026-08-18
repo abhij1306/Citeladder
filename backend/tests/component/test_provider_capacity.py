@@ -51,7 +51,7 @@ from app.core.config.provider_catalog import (
     TRANSPORT_GOOGLE,
     RouteCapacityPolicy,
 )
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.audit import (
     AuditTask,
     ProviderCapacityBucket,

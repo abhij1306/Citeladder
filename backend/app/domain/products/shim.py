@@ -33,6 +33,54 @@ def _price(value: Any) -> float | None:
     return float(value) if value is not None else None
 
 
+def _project_variants(variants: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": str(variant.get("name") or ""),
+            "sku": str(variant.get("sku") or ""),
+            "price": _price(variant.get("price")),
+        }
+        for variant in (variants or [])
+        if isinstance(variant, dict)
+    ]
+
+
+def _project_products(project: Project) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": str(product.id),
+            "sku": product.sku or "",
+            "name": product.name or "",
+            "aliases": list(product.aliases or []),
+            "variants": _project_variants(product.variants),
+            "price": _price(product.price),
+            "currency": product.currency or "",
+            "url": product.url or "",
+            "attributes": dict(product.attributes or {}),
+        }
+        for product in project.products
+    ]
+
+
+def _project_competitors(project: Project) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": str(competitor_product.id),
+            "competitor_id": str(competitor_product.competitor_id),
+            "competitor_name": (
+                competitor_product.competitor.name
+                if competitor_product.competitor is not None
+                else ""
+            ),
+            "name": competitor_product.name or "",
+            "aliases": list(competitor_product.aliases or []),
+            "price": _price(competitor_product.price),
+            "currency": competitor_product.currency or "",
+        }
+        for competitor_product in project.competitor_products
+    ]
+
+
 def project_product_identity(project: Project) -> dict[str, Any]:
     """Rebuild the plain catalog dict the product scorer expects from rows.
 
@@ -40,45 +88,6 @@ def project_product_identity(project: Project) -> dict[str, Any]:
     ``competitor``) relationships to be loaded.
     """
     return {
-        "products": [
-            {
-                "id": str(product.id),
-                "sku": product.sku or "",
-                "name": product.name or "",
-                "aliases": list(product.aliases or []),
-                "variants": [
-                    {
-                        "name": str(variant.get("name") or ""),
-                        "sku": str(variant.get("sku") or ""),
-                        "price": _price(variant.get("price")),
-                    }
-                    for variant in (product.variants or [])
-                    if isinstance(variant, dict)
-                ],
-                "price": _price(product.price),
-                "currency": product.currency or "",
-                "url": product.url or "",
-                # The complete JSON-safe attribute bag (category/gtin/...): the
-                # analyzer reads the category + deterministic dimensions from
-                # this audit-frozen copy, never from live rows (invariant 9).
-                "attributes": dict(product.attributes or {}),
-            }
-            for product in project.products
-        ],
-        "competitor_products": [
-            {
-                "id": str(competitor_product.id),
-                "competitor_id": str(competitor_product.competitor_id),
-                "competitor_name": (
-                    competitor_product.competitor.name
-                    if competitor_product.competitor is not None
-                    else ""
-                ),
-                "name": competitor_product.name or "",
-                "aliases": list(competitor_product.aliases or []),
-                "price": _price(competitor_product.price),
-                "currency": competitor_product.currency or "",
-            }
-            for competitor_product in project.competitor_products
-        ],
+        "products": _project_products(project),
+        "competitor_products": _project_competitors(project),
     }

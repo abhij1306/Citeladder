@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config.audits import AUDIT_STATUS_COMPLETED
 from app.domain.analysis.schemas import RankingRow, VisibilityResponse
-from app.domain.analysis.service import get_visibility
+from app.domain.analysis.visibility import get_visibility
 from app.domain.command_center.schemas import (
     CommandCenterCompetitor,
     CommandCenterFacts,
@@ -25,8 +25,8 @@ from app.domain.command_center.schemas import (
     EvidenceState,
     ResolvedActionSummary,
 )
+from app.domain.opportunities.queries import list_opportunities
 from app.domain.opportunities.schemas import OpportunityItem
-from app.domain.opportunities.service import list_opportunities
 from app.models.audit import Audit
 from app.models.brand import BrandProfile, Competitor
 from app.models.demand import DemandSnapshot

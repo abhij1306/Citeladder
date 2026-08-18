@@ -22,7 +22,7 @@ from app.core.config.audits import (
     TASK_STATUS_LEASED,
     TASK_STATUS_RETRY_WAIT,
 )
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.audit import AuditTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from tests.component.audit_helpers import seed_audit_fixtures

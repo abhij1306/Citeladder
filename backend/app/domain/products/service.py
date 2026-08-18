@@ -180,6 +180,107 @@ class ProductImportResult:
     summary: ProductImportSummary
 
 
+def _prepare_import_rows(
+    *,
+    project_id: uuid.UUID,
+    rows: list[tuple[int, ProductInput]],
+    errors: list[ProductImportRowError],
+) -> tuple[list[dict[str, Any]], list[tuple[int, str]]]:
+    values: list[dict[str, Any]] = []
+    candidates: list[tuple[int, str]] = []
+    seen_skus: set[str] = set()
+    for row_number, row in rows:
+        value, candidate, error = _prepare_import_row(
+            project_id=project_id,
+            row_number=row_number,
+            row=row,
+            seen_skus=seen_skus,
+        )
+        if error is not None:
+            errors.append(error)
+            continue
+        assert value is not None and candidate is not None
+        candidates.append(candidate)
+        values.append(value)
+    return values, candidates
+
+
+def _prepare_import_row(
+    *,
+    project_id: uuid.UUID,
+    row_number: int,
+    row: ProductInput,
+    seen_skus: set[str],
+) -> tuple[
+    dict[str, Any] | None,
+    tuple[int, str] | None,
+    ProductImportRowError | None,
+]:
+    sku = str(row.sku or "").strip()
+    if not sku:
+        return (
+            None,
+            None,
+            ProductImportRowError(
+                row=row_number,
+                field="sku",
+                message="Missing sku — the row was skipped "
+                "(sku is the import identity)",
+            ),
+        )
+    if sku in seen_skus:
+        return (
+            None,
+            None,
+            ProductImportRowError(
+                row=row_number,
+                field="sku",
+                message=f"Duplicate sku '{sku}' in this import — "
+                "the first occurrence was kept",
+            ),
+        )
+    seen_skus.add(sku)
+    return (
+        {
+            "id": uuid.uuid4(),
+            "project_id": project_id,
+            "sku": sku,
+            "name": str(row.name or "").strip() or sku,
+            "aliases": list(row.aliases or []),
+            "variants": [v.model_dump() for v in (row.variants or [])],
+            "price": row.price,
+            "currency": str(row.currency or "").strip().upper(),
+            "url": str(row.url or "").strip(),
+            "attributes": dict(row.attributes or {}),
+            "origin": PRODUCT_ORIGIN_IMPORTED,
+        },
+        (row_number, sku),
+        None,
+    )
+
+
+def _record_import_conflicts(
+    *,
+    candidates: list[tuple[int, str]],
+    inserted_skus: set[str],
+    errors: list[ProductImportRowError],
+) -> int:
+    created = 0
+    for row_number, sku in candidates:
+        if sku in inserted_skus:
+            created += 1
+            continue
+        errors.append(
+            ProductImportRowError(
+                row=row_number,
+                field="sku",
+                message=f"A product with sku '{sku}' already exists — "
+                "it was left unchanged",
+            )
+        )
+    return created
+
+
 async def import_products(
     session: AsyncSession,
     *,
@@ -210,48 +311,9 @@ async def import_products(
     errors = list(row_errors)
     # One multi-VALUES INSERT rather than a statement per row: the cap is 500
     # rows, so a per-row execute costs up to 500 round-trips per import.
-    values = []
-    candidates: list[tuple[int, str]] = []
-    seen_skus: set[str] = set()
-    for row_number, row in rows:
-        sku = str(row.sku or "").strip()
-        if not sku:
-            errors.append(
-                ProductImportRowError(
-                    row=row_number,
-                    field="sku",
-                    message="Missing sku — the row was skipped "
-                    "(sku is the import identity)",
-                )
-            )
-            continue
-        if sku in seen_skus:
-            errors.append(
-                ProductImportRowError(
-                    row=row_number,
-                    field="sku",
-                    message=f"Duplicate sku '{sku}' in this import — "
-                    "the first occurrence was kept",
-                )
-            )
-            continue
-        seen_skus.add(sku)
-        candidates.append((row_number, sku))
-        values.append(
-            {
-                "id": uuid.uuid4(),
-                "project_id": project_id,
-                "sku": sku,
-                "name": str(row.name or "").strip() or sku,
-                "aliases": list(row.aliases or []),
-                "variants": [v.model_dump() for v in (row.variants or [])],
-                "price": row.price,
-                "currency": str(row.currency or "").strip().upper(),
-                "url": str(row.url or "").strip(),
-                "attributes": dict(row.attributes or {}),
-                "origin": PRODUCT_ORIGIN_IMPORTED,
-            }
-        )
+    values, candidates = _prepare_import_rows(
+        project_id=project_id, rows=rows, errors=errors
+    )
     inserted_skus: set[str] = set()
     if values:
         result = await session.execute(
@@ -261,19 +323,9 @@ async def import_products(
             .returning(Product.sku)
         )
         inserted_skus = set(result.scalars().all())
-    created = 0
-    for row_number, sku in candidates:
-        if sku in inserted_skus:
-            created += 1
-        else:
-            errors.append(
-                ProductImportRowError(
-                    row=row_number,
-                    field="sku",
-                    message=f"A product with sku '{sku}' already exists — "
-                    "it was left unchanged",
-                )
-            )
+    created = _record_import_conflicts(
+        candidates=candidates, inserted_skus=inserted_skus, errors=errors
+    )
     await session.commit()
     catalog = await list_products(
         session, workspace_id=workspace_id, project_id=project_id

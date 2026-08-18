@@ -27,7 +27,7 @@ from app.core.config.entitlements import (
     CODE_MANUAL_RUN_RATE_EXCEEDED,
     KEY_MANUAL_RUNS_PER_DAY,
 )
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.domain.entitlements.cache import clear_cache
 from app.domain.entitlements.enforcement import (
     RateAdmissionDecision,

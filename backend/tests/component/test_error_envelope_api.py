@@ -27,7 +27,7 @@ from app.core.telemetry import (
     reset_correlation_id,
     set_correlation_id,
 )
-from app.domain.opportunities.service import (
+from app.domain.opportunities.errors import (
     OpportunityGuidanceIdempotencyConflictError,
     OpportunityGuidanceUnavailableError,
 )
@@ -302,7 +302,7 @@ async def test_opportunity_guidance_error_envelopes(
         del args, kwargs
         raise OpportunityGuidanceUnavailableError("Guidance is unavailable")
 
-    monkeypatch.setattr(opportunity_routes.service, "create_guidance", unavailable)
+    monkeypatch.setattr(opportunity_routes.guidance, "create_guidance", unavailable)
     unavailable_response = await client.post(
         f"/api/v1/opportunities/{opportunity_id}/guidance"
     )
@@ -317,7 +317,7 @@ async def test_opportunity_guidance_error_envelopes(
         del args, kwargs
         raise OpportunityGuidanceIdempotencyConflictError("Key was already used")
 
-    monkeypatch.setattr(opportunity_routes.service, "create_guidance", conflict)
+    monkeypatch.setattr(opportunity_routes.guidance, "create_guidance", conflict)
     conflict_response = await client.post(
         f"/api/v1/opportunities/{opportunity_id}/guidance"
     )

@@ -32,7 +32,7 @@ from app.core.config.audit_schedules import (
 from app.core.config.audits import AUDIT_TRIGGER_SCHEDULED
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.audit import Audit
 from app.models.audit_schedule import AuditSchedule
 

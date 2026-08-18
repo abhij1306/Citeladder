@@ -135,6 +135,102 @@ def _sanitized_line_items(
     return items
 
 
+def _sanitized_orders(orders: list) -> list[Mapping]:
+    return [order for order in orders if isinstance(order, Mapping)]
+
+
+def _referenced_skus(orders: list[Mapping]) -> set[str]:
+    return {
+        _str(item.get("sku"))
+        for order in orders
+        for item in (order.get("line_items") or [])
+        if isinstance(item, Mapping) and _str(item.get("sku"))
+    }
+
+
+async def _product_ids_by_sku(
+    session: AsyncSession, *, project_id: uuid.UUID, skus: set[str]
+) -> dict[str, uuid.UUID]:
+    if not skus:
+        return {}
+    rows = await session.execute(
+        select(Product.sku, Product.id).where(
+            Product.project_id == project_id,
+            Product.sku.in_(sorted(skus)),
+        )
+    )
+    return {sku: product_id for sku, product_id in rows.all()}
+
+
+async def _sequence_allocations(
+    session: AsyncSession,
+    *,
+    connection_id: uuid.UUID,
+    orders: list[Mapping],
+) -> dict[str, int]:
+    order_hashes = sorted({_str(order.get("order_ref_hash")) for order in orders})
+    rows = await session.execute(
+        select(OrderFact.order_ref_hash, func.max(OrderFact.resync_seq))
+        .where(OrderFact.connection_id == connection_id)
+        .where(OrderFact.order_ref_hash.in_(order_hashes))
+        .group_by(OrderFact.order_ref_hash)
+    )
+    return {order_hash: int(max_seq) for order_hash, max_seq in rows.all()}
+
+
+def _order_fact_values(
+    order: Mapping,
+    *,
+    run: IntegrationSyncRun,
+    mapping: IntegrationPropertyMapping,
+    connection: IntegrationConnection,
+    artifact: IntegrationImportArtifact,
+    product_ids_by_sku: Mapping[str, uuid.UUID],
+    resync_seq: int,
+) -> dict | None:
+    if not set(order) <= ORDER_SANITIZED_KEYS:
+        return None
+    order_ref_hash = _str(order.get("order_ref_hash"))
+    occurred_at = _parse_datetime(order.get("occurred_at"))
+    total_amount = _parse_total(order.get("total_amount"))
+    if not order_ref_hash or occurred_at is None or total_amount is None:
+        return None
+    line_items = _sanitized_line_items(
+        order.get("line_items"), product_ids_by_sku=product_ids_by_sku
+    )
+    if line_items is None:
+        return None
+    attribution_keys = order.get("attribution_keys")
+    return {
+        "workspace_id": run.workspace_id,
+        "project_id": mapping.project_id,
+        "connection_id": connection.id,
+        "provider": connection.provider,
+        "order_ref_hash": order_ref_hash,
+        "resync_seq": resync_seq,
+        "occurred_at": occurred_at,
+        "currency": _str(order.get("currency"))[:3],
+        "total_amount": total_amount,
+        "line_items": line_items,
+        "attribution_keys": (
+            dict(attribution_keys) if isinstance(attribution_keys, Mapping) else {}
+        ),
+        "source_artifact_id": artifact.id,
+        "importer_version": COMMERCE_IMPORTER_VERSION,
+        "order_sanitize_version": ORDER_SANITIZE_VERSION,
+    }
+
+
+async def _insert_order_fact(session: AsyncSession, *, values: dict) -> None:
+    await session.execute(
+        pg_insert(OrderFact)
+        .values(**values)
+        .on_conflict_do_nothing(
+            index_elements=["connection_id", "order_ref_hash", "resync_seq"]
+        )
+    )
+
+
 async def derive_order_facts(
     session: AsyncSession,
     *,
@@ -152,87 +248,40 @@ async def derive_order_facts(
     number of fact rows STAGED (conflict-safe: a finalize replay stages
     the same rows and the unique identity tuple absorbs them).
     """
-    sanitized_orders: list[Mapping] = [
-        order for order in orders if isinstance(order, Mapping)
-    ]
+    sanitized_orders = _sanitized_orders(orders)
     if not sanitized_orders:
         return 0
     # SKU -> product id for line-item resolution (one query per artifact).
-    skus = {
-        _str(item.get("sku"))
-        for order in sanitized_orders
-        for item in (order.get("line_items") or [])
-        if isinstance(item, Mapping) and _str(item.get("sku"))
-    }
-    product_ids_by_sku: dict[str, uuid.UUID] = {}
-    if skus:
-        rows = await session.execute(
-            select(Product.sku, Product.id).where(
-                Product.project_id == mapping.project_id,
-                Product.sku.in_(sorted(skus)),
-            )
-        )
-        product_ids_by_sku = {sku: product_id for sku, product_id in rows.all()}
+    product_ids_by_sku = await _product_ids_by_sku(
+        session,
+        project_id=mapping.project_id,
+        skus=_referenced_skus(sanitized_orders),
+    )
     # Current per-order sequence maxima for THIS connection (the caller's
     # connection row lock serializes the read+insert).
-    order_hashes = sorted(
-        {_str(order.get("order_ref_hash")) for order in sanitized_orders}
+    allocations = await _sequence_allocations(
+        session, connection_id=connection.id, orders=sanitized_orders
     )
-    max_seq_rows = await session.execute(
-        select(OrderFact.order_ref_hash, func.max(OrderFact.resync_seq))
-        .where(OrderFact.connection_id == connection.id)
-        .where(OrderFact.order_ref_hash.in_(order_hashes))
-        .group_by(OrderFact.order_ref_hash)
-    )
-    allocations: dict[str, int] = {
-        order_hash: int(max_seq) for order_hash, max_seq in max_seq_rows.all()
-    }
     staged = 0
     for order in sanitized_orders:
         # Re-validate the sanitized boundary: an unexpected key means the
         # payload is not a SanitizedOrder product — rejected, never
         # persisted (raw provider JSON must never reach the fact rows).
-        if not set(order) <= ORDER_SANITIZED_KEYS:
-            continue
         order_ref_hash = _str(order.get("order_ref_hash"))
-        occurred_at = _parse_datetime(order.get("occurred_at"))
-        total_amount = _parse_total(order.get("total_amount"))
-        if not order_ref_hash or occurred_at is None or total_amount is None:
-            continue
-        line_items = _sanitized_line_items(
-            order.get("line_items"), product_ids_by_sku=product_ids_by_sku
-        )
-        if line_items is None:
-            continue
-        attribution_keys = order.get("attribution_keys")
         next_seq = allocations.get(order_ref_hash, -1) + 1
-        allocations[order_ref_hash] = next_seq
-        await session.execute(
-            pg_insert(OrderFact)
-            .values(
-                workspace_id=run.workspace_id,
-                project_id=mapping.project_id,
-                connection_id=connection.id,
-                provider=connection.provider,
-                order_ref_hash=order_ref_hash,
-                resync_seq=next_seq,
-                occurred_at=occurred_at,
-                currency=_str(order.get("currency"))[:3],
-                total_amount=total_amount,
-                line_items=line_items,
-                attribution_keys=(
-                    dict(attribution_keys)
-                    if isinstance(attribution_keys, Mapping)
-                    else {}
-                ),
-                source_artifact_id=artifact.id,
-                importer_version=COMMERCE_IMPORTER_VERSION,
-                order_sanitize_version=ORDER_SANITIZE_VERSION,
-            )
-            .on_conflict_do_nothing(
-                index_elements=["connection_id", "order_ref_hash", "resync_seq"]
-            )
+        values = _order_fact_values(
+            order,
+            run=run,
+            mapping=mapping,
+            connection=connection,
+            artifact=artifact,
+            product_ids_by_sku=product_ids_by_sku,
+            resync_seq=next_seq,
         )
+        if values is None:
+            continue
+        allocations[order_ref_hash] = next_seq
+        await _insert_order_fact(session, values=values)
         staged += 1
     return staged
 

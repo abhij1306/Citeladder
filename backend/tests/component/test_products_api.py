@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.audits import AUDIT_TRIGGER_MANUAL
 from app.core.config.products import PRODUCT_COMPLETENESS_ATTRIBUTE_KEYS
 from app.core.config.provider_catalog import ENGINE_GEMINI
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.user import User
 from app.models.workspace import WorkspaceMember
 from tests.component.audit_helpers import seed_audit_fixtures

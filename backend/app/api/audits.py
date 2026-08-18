@@ -51,26 +51,23 @@ from app.core.database import SessionLocal
 from app.core.errors import ApiException
 from app.core.http_errors import raise_not_found
 from app.domain.abuse.service import UsageLimitExceededError
+from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
+from app.domain.analysis.evidence import load_export_bundle
+from app.domain.analysis.metrics import get_metrics
 from app.domain.analysis.schemas import MetricsResponse
-from app.domain.analysis.service import (
-    AnalysisNotFoundError,
-    TrendQueryError,
-    get_metrics,
-    load_export_bundle,
-    validate_shopping_surface,
-)
-from app.domain.audits.estimates import (
-    AuditEstimateError,
-    audit_performance,
-    estimate_audit,
-)
-from app.domain.audits.planner import (
+from app.domain.analysis.trends import validate_shopping_surface
+from app.domain.audits.cancellation import cancel_audit
+from app.domain.audits.cost_estimate import estimate_audit
+from app.domain.audits.creation import create_audit
+from app.domain.audits.errors import (
     AuditNotFoundError,
     AuditValidationError,
     FundedAdmissionError,
     PromptCountPolicyError,
-    cancel_audit,
-    create_audit,
+)
+from app.domain.audits.estimate_errors import AuditEstimateError
+from app.domain.audits.performance import audit_performance
+from app.domain.audits.reads import (
     get_audit,
     list_audits,
     list_tasks,

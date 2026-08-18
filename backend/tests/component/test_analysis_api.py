@@ -46,20 +46,19 @@ from app.core.config.provider_catalog import (
     TRANSPORT_GOOGLE,
     measurement_route,
 )
-from app.domain.analysis import service as analysis_service
 from app.domain.analysis import trend_folding as analysis_trend_folding
-from app.domain.analysis.schemas import VisibilityFanoutState
-from app.domain.analysis.service import (
-    AnalysisNotFoundError,
-    TrendQueryError,
+from app.domain.analysis import visibility as analysis_service
+from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
+from app.domain.analysis.evidence import (
     get_execution_evidence,
-    get_metrics,
-    get_visibility,
     get_visibility_evidence,
-    get_visibility_trends,
     load_export_bundle,
 )
-from app.domain.audits.planner import create_audit
+from app.domain.analysis.metrics import get_metrics
+from app.domain.analysis.schemas import VisibilityFanoutState
+from app.domain.analysis.trends import get_visibility_trends
+from app.domain.analysis.visibility import get_visibility
+from app.domain.audits.creation import create_audit
 from app.models.analysis import (
     BrandMention,
     Citation,

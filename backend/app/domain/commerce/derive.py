@@ -17,6 +17,7 @@ deterministic re-application of the same platform values.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -29,13 +30,14 @@ from app.core.config.integrations_datasets import (
     DATASET_SHOPIFY_PRODUCTS,
 )
 from app.domain.commerce.catalog import merge_catalog_row
-from app.domain.commerce.feed import validate_feed_row
+from app.domain.commerce.feed import FeedFinding, validate_feed_row
 from app.domain.commerce.orders import derive_order_facts
 from app.domain.integrations.derive import resolve_active_mapping
 from app.models.commerce import FeedIssue
 from app.models.integrations import (
     IntegrationConnection,
     IntegrationImportArtifact,
+    IntegrationPropertyMapping,
     IntegrationSyncRun,
 )
 from app.models.product import Product
@@ -50,6 +52,92 @@ class DerivedCommerceRun:
     product_count: int
     feed_issue_count: int
     order_fact_count: int
+
+
+async def _existing_product(
+    session: AsyncSession, *, project_id: uuid.UUID, row: Mapping
+) -> Product | None:
+    sku = str(row.get("sku") or "").strip()
+    if not sku:
+        return None
+    return await session.scalar(
+        select(Product).where(Product.project_id == project_id, Product.sku == sku)
+    )
+
+
+async def _insert_feed_issue(
+    session: AsyncSession,
+    *,
+    run: IntegrationSyncRun,
+    connection: IntegrationConnection,
+    project_id: uuid.UUID,
+    artifact: IntegrationImportArtifact,
+    row: Mapping,
+    product: Product | None,
+    finding: FeedFinding,
+) -> None:
+    await session.execute(
+        pg_insert(FeedIssue)
+        .values(
+            workspace_id=run.workspace_id,
+            project_id=project_id,
+            connection_id=connection.id,
+            sync_run_id=run.id,
+            external_item_ref=str(row.get("variant_ref") or ""),
+            product_id=product.id if product is not None else None,
+            rule_id=finding.rule_id,
+            severity=finding.severity,
+            evidence=finding.evidence,
+            source_artifact_id=artifact.id,
+            importer_version=COMMERCE_IMPORTER_VERSION,
+        )
+        .on_conflict_do_nothing(
+            index_elements=["sync_run_id", "external_item_ref", "rule_id"]
+        )
+    )
+
+
+async def _derive_product_artifact(
+    session: AsyncSession,
+    *,
+    run: IntegrationSyncRun,
+    connection: IntegrationConnection,
+    project_id: uuid.UUID,
+    mapping: IntegrationPropertyMapping,
+    artifact: IntegrationImportArtifact,
+    rows: list,
+) -> tuple[int, int]:
+    product_count = 0
+    issue_count = 0
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        existing = await _existing_product(session, project_id=project_id, row=row)
+        findings = list(validate_feed_row(row=row, product=existing))
+        result = await merge_catalog_row(
+            session,
+            mapping=mapping,
+            connection=connection,
+            run=run,
+            artifact=artifact,
+            row=row,
+        )
+        if result.finding is not None:
+            findings.append(result.finding)
+        product_count += result.product is not None
+        for finding in findings:
+            await _insert_feed_issue(
+                session,
+                run=run,
+                connection=connection,
+                project_id=project_id,
+                artifact=artifact,
+                row=row,
+                product=result.product,
+                finding=finding,
+            )
+            issue_count += 1
+    return product_count, issue_count
 
 
 async def derive_shopify_run(
@@ -78,65 +166,17 @@ async def derive_shopify_run(
     for artifact in artifacts:
         payload = artifact.payload or {}
         if artifact.dataset == DATASET_SHOPIFY_PRODUCTS:
-            rows = payload.get("rows") or []
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                # The PRE-merge product state: validate_feed_row compares
-                # against it BEFORE the merge overwrites platform fields.
-                sku = str(row.get("sku") or "").strip()
-                existing = (
-                    await session.scalar(
-                        select(Product).where(
-                            Product.project_id == mapping.project_id,
-                            Product.sku == sku,
-                        )
-                    )
-                    if sku
-                    else None
-                )
-                findings = list(validate_feed_row(row=row, product=existing))
-                result = await merge_catalog_row(
-                    session,
-                    mapping=mapping,
-                    connection=connection,
-                    run=run,
-                    artifact=artifact,
-                    row=row,
-                )
-                if result.finding is not None:
-                    findings.append(result.finding)
-                if result.product is not None:
-                    product_count += 1
-                for finding in findings:
-                    await session.execute(
-                        pg_insert(FeedIssue)
-                        .values(
-                            workspace_id=run.workspace_id,
-                            project_id=mapping.project_id,
-                            connection_id=connection.id,
-                            sync_run_id=run.id,
-                            external_item_ref=str(row.get("variant_ref") or ""),
-                            product_id=(
-                                result.product.id
-                                if result.product is not None
-                                else None
-                            ),
-                            rule_id=finding.rule_id,
-                            severity=finding.severity,
-                            evidence=finding.evidence,
-                            source_artifact_id=artifact.id,
-                            importer_version=COMMERCE_IMPORTER_VERSION,
-                        )
-                        .on_conflict_do_nothing(
-                            index_elements=[
-                                "sync_run_id",
-                                "external_item_ref",
-                                "rule_id",
-                            ]
-                        )
-                    )
-                    feed_issue_count += 1
+            products, issues = await _derive_product_artifact(
+                session,
+                run=run,
+                connection=connection,
+                project_id=mapping.project_id,
+                mapping=mapping,
+                artifact=artifact,
+                rows=payload.get("rows") or [],
+            )
+            product_count += products
+            feed_issue_count += issues
         elif artifact.dataset == DATASET_SHOPIFY_ORDERS:
             orders = payload.get("orders") or []
             order_fact_count += await derive_order_facts(

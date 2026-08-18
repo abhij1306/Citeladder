@@ -46,11 +46,8 @@ from app.core.errors import (
     validation_error_summary,
 )
 from app.core.http_errors import raise_not_found
-from app.domain.analysis.service import (
-    AnalysisNotFoundError,
-    TrendQueryError,
-    validate_shopping_surface,
-)
+from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
+from app.domain.analysis.trends import validate_shopping_surface
 from app.domain.products.csv_import import ProductCsvError, parse_product_csv
 from app.domain.products.schemas import (
     CompetitorProductInput,
@@ -87,8 +84,10 @@ from app.domain.products.service import (
     update_product,
 )
 from app.domain.products.visibility import (
-    get_product_evidence,
     get_product_visibility,
+)
+from app.domain.products.visibility_evidence import get_product_evidence
+from app.domain.products.visibility_export import (
     load_product_visibility_export_bundle,
     product_visibility_csv,
 )

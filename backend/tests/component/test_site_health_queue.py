@@ -24,7 +24,7 @@ from app.core.config.task_queue import (
     TASK_CLAIMABLE_STATUSES,
     TASK_STATUS_LEASED,
 )
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.site_health.queue import SiteCrawlTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from tests.component.audit_helpers import seed_audit_fixtures

@@ -32,20 +32,17 @@ from app.core.config.analysis import (
 from app.core.config.brand_logos import BRAND_LOGO_CACHE_MAX_AGE_SECONDS
 from app.core.errors import ApiException
 from app.core.http_errors import raise_not_found
+from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
+from app.domain.analysis.evidence import get_visibility_evidence
+from app.domain.analysis.metrics import get_prompt_metrics
 from app.domain.analysis.schemas import (
     PromptMetricItem,
     VisibilityEvidenceResponse,
     VisibilityResponse,
     VisibilityTrendPoint,
 )
-from app.domain.analysis.service import (
-    AnalysisNotFoundError,
-    TrendQueryError,
-    get_prompt_metrics,
-    get_visibility,
-    get_visibility_evidence,
-    get_visibility_trends,
-)
+from app.domain.analysis.trends import get_visibility_trends
+from app.domain.analysis.visibility import get_visibility
 from app.domain.command_center.report import render_executive_pdf
 from app.domain.command_center.schemas import CommandCenterResponse
 from app.domain.command_center.service import get_command_center

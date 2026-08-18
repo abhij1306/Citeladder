@@ -53,7 +53,7 @@ from app.core.config.audits import (
     audit_settings,
 )
 from app.core.config.errors import CODE_NOT_FOUND, CODE_VALIDATION_ERROR
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.domain.audits.schemas import (
     EVENT_SCHEMA_BY_TYPE,
     AuditCompletedPayload,

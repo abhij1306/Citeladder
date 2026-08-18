@@ -1,18 +1,14 @@
-"""Provider-free audit cost previews and persisted performance projections."""
+"""Provider-free audit cost estimates from persisted prompts and versioned pricing."""
 
 from __future__ import annotations
 
 import math
 import uuid
-from collections import defaultdict
-from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.audits import (
-    TASK_STATUS_FAILED,
-    TASK_STATUS_SUCCEEDED,
     MeasurementModePolicy,
     audit_settings,
     measurement_policy_for_mode,
@@ -29,21 +25,14 @@ from app.core.config.costs import (
     route_pricing_for,
 )
 from app.core.config.provider_catalog import measurement_route
+from app.domain.audits.estimate_errors import AuditEstimateError
 from app.domain.audits.schemas import (
     AuditEngineEstimate,
-    AuditEnginePerformance,
     AuditEstimateRequest,
     AuditEstimateResponse,
-    AuditPerformanceResponse,
-    AuditUsageSummary,
 )
-from app.models.audit import Audit, AuditTask, ExecutionCostProjection
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet
-
-
-class AuditEstimateError(ValueError):
-    pass
 
 
 def _line_cost(tokens: int, rate: int | None) -> int | None:
@@ -232,111 +221,4 @@ async def estimate_audit(
         cost_status=_overall_cost_status(engine_rows),
         estimated_total_cost_microusd=_known_total(totals),
         engines=engine_rows,
-    )
-
-
-async def audit_performance(
-    session: AsyncSession, *, workspace_id: uuid.UUID, audit_id: uuid.UUID
-) -> AuditPerformanceResponse:
-    audit = await session.scalar(
-        select(Audit).where(Audit.id == audit_id, Audit.workspace_id == workspace_id)
-    )
-    if audit is None:
-        raise LookupError("Audit not found")
-    tasks = list(
-        (
-            await session.scalars(
-                select(AuditTask).where(AuditTask.audit_id == audit_id)
-            )
-        ).all()
-    )
-    costs = list(
-        (
-            await session.scalars(
-                select(ExecutionCostProjection).where(
-                    ExecutionCostProjection.audit_id == audit_id
-                )
-            )
-        ).all()
-    )
-    cost_by_task = {row.task_id: row for row in costs}
-    by_engine: dict[str, list[AuditTask]] = defaultdict(list)
-    for task in tasks:
-        by_engine[task.logical_engine].append(task)
-    first_result = min(
-        (task.completed_at for task in tasks if task.completed_at is not None),
-        default=None,
-    )
-    engine_rows = [
-        _engine_performance(engine, rows=rows, cost_by_task=cost_by_task)
-        for engine, rows in sorted(by_engine.items())
-    ]
-    completed = sum(row.status == TASK_STATUS_SUCCEEDED for row in tasks)
-    projected_all = [
-        row.projected_total_cost_microusd
-        for row in costs
-        if row.projected_total_cost_microusd is not None
-    ]
-    return AuditPerformanceResponse(
-        audit_id=audit_id,
-        queue_wait_ms=_elapsed_ms(audit.started_at, audit.created_at),
-        total_run_duration_ms=_elapsed_ms(audit.completed_at, audit.created_at),
-        time_to_first_result_ms=_elapsed_ms(first_result, audit.created_at),
-        execution_count=len(tasks),
-        completed_count=completed,
-        failed_count=sum(row.status == TASK_STATUS_FAILED for row in tasks),
-        coverage=completed / len(tasks) if tasks else 0.0,
-        retry_count=sum(max(0, row.attempt_count - 1) for row in tasks),
-        usage=_usage_summary(costs),
-        search_calls=sum(len(row.search_events or []) for row in tasks),
-        projected_cost_microusd=sum(projected_all) if projected_all else None,
-        engines=engine_rows,
-    )
-
-
-def _elapsed_ms(end: datetime | None, start: datetime) -> int | None:
-    if end is None:
-        return None
-    return int((end - start).total_seconds() * 1000)
-
-
-def _engine_performance(
-    engine: str,
-    *,
-    rows: list[AuditTask],
-    cost_by_task: dict[uuid.UUID, ExecutionCostProjection],
-) -> AuditEnginePerformance:
-    latencies = [row.latency_ms for row in rows if row.latency_ms is not None]
-    projected = [
-        cost_by_task[row.id].projected_total_cost_microusd
-        for row in rows
-        if row.id in cost_by_task
-        and cost_by_task[row.id].projected_total_cost_microusd is not None
-    ]
-    return AuditEnginePerformance(
-        logical_engine=engine,
-        execution_count=len(rows),
-        completed_count=sum(row.status == TASK_STATUS_SUCCEEDED for row in rows),
-        failed_count=sum(row.status == TASK_STATUS_FAILED for row in rows),
-        retry_count=sum(max(0, row.attempt_count - 1) for row in rows),
-        search_calls=sum(len(row.search_events or []) for row in rows),
-        average_provider_latency_ms=(
-            sum(latencies) / len(latencies) if latencies else None
-        ),
-        projected_cost_microusd=sum(projected) if projected else None,
-    )
-
-
-def _usage_summary(costs: list[ExecutionCostProjection]) -> AuditUsageSummary:
-    if not costs:
-        return AuditUsageSummary(
-            input_tokens=None, output_tokens=None, total_tokens=None
-        )
-    return AuditUsageSummary(
-        input_tokens=sum(
-            (row.uncached_input_tokens or 0) + (row.cached_input_tokens or 0)
-            for row in costs
-        ),
-        output_tokens=sum(row.output_tokens or 0 for row in costs),
-        total_tokens=sum(row.total_tokens or 0 for row in costs),
     )

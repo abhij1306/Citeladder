@@ -362,7 +362,7 @@ async def _enqueue_downstream_opportunity(
     demand_snapshot_id: uuid.UUID,
 ) -> None:
     """Continue Demand's DAG using an optional originating trigger."""
-    from app.domain.opportunities.service import enqueue_opportunity_refresh
+    from app.domain.opportunities.queue import enqueue_opportunity_refresh
 
     if task.project_id is None:
         raise ValueError("demand snapshot refresh requires project_id")

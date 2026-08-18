@@ -36,7 +36,7 @@ from app.core.config.products import (
     PRODUCT_SCORING_RULE_VERSION,
 )
 from app.core.config.provider_catalog import ENGINE_GEMINI
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.models.audit import Audit, AuditTask, RawResponseArtifact
 from app.models.brand import Competitor
 from app.models.product import (

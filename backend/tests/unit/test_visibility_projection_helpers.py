@@ -1,6 +1,6 @@
 """Pure-function regression tests for visibility projection helpers.
 
-Covers two review-hardening fixes in ``app.domain.analysis.service``:
+Covers two review-hardening fixes in the focused analysis projection owners:
   * ``_normalize_events`` skips malformed entries (no recognized event keys)
     so the evidence endpoint never surfaces phantom all-zero events.
   * ``_mention_sov_of`` aggregates brand share across every brand key present
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.analysis.service import _normalize_events
+from app.domain.analysis.evidence import _normalize_events
 from app.domain.analysis.trend_folding import _mention_sov_of
 
 

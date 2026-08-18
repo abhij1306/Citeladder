@@ -14,11 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
+from app.domain.analysis.errors import AnalysisNotFoundError
+from app.domain.analysis.evidence import get_execution_evidence
 from app.domain.analysis.schemas import ExecutionEvidenceResponse
-from app.domain.analysis.service import (
-    AnalysisNotFoundError,
-    get_execution_evidence,
-)
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 

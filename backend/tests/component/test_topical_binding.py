@@ -43,10 +43,8 @@ from app.core.config.prompts import (
 )
 from app.core.config.provider_catalog import ENGINE_CLAUDE
 from app.core.security import encrypt_secret
-from app.domain.audits.planner import (
-    PromptCountPolicyError,
-    create_audit,
-)
+from app.domain.audits.creation import create_audit
+from app.domain.audits.errors import PromptCountPolicyError
 from app.domain.entitlements.types import GrantSpec
 from app.domain.prompts.topical_binding import TopicalBindingError
 from app.models.brand import Brand, OwnedDomain

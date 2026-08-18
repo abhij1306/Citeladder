@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.site_link_graph import LINK_GRAPH_ANALYZER_VERSION
-from app.domain.opportunities import service
+from app.domain.opportunities import recompute
 from app.models.opportunity import Opportunity
 from app.models.site_health.analysis import SitePageAnalysis
 from app.models.site_health.crawl import SiteCrawl
@@ -87,7 +87,7 @@ async def test_complete_graph_maps_only_approved_signals_with_sources(
 ) -> None:
     scenario, snapshot = await _add_graph(db_session, complete=True)
 
-    await service.recompute(
+    await recompute.recompute(
         db_session,
         workspace_id=scenario.workspace_id,
         project_id=scenario.project_id,
@@ -126,7 +126,7 @@ async def test_partial_graph_emits_no_link_opportunities(
 ) -> None:
     scenario, _snapshot = await _add_graph(db_session, complete=False)
 
-    await service.recompute(
+    await recompute.recompute(
         db_session,
         workspace_id=scenario.workspace_id,
         project_id=scenario.project_id,
@@ -159,7 +159,7 @@ async def test_complete_graph_does_not_promote_a_non_indexable_weak_target(
     target.indexable = False
     await db_session.commit()
 
-    await service.recompute(
+    await recompute.recompute(
         db_session,
         workspace_id=scenario.workspace_id,
         project_id=scenario.project_id,

@@ -372,6 +372,18 @@ class _PageAccum:
     ga4: _Ga4Accum = field(default_factory=_Ga4Accum)
 
 
+@dataclass
+class _ProjectionAccumulators:
+    """All mutable buckets produced while folding latest metric rows."""
+
+    bucket_gsc: dict[date, _GscAccum]
+    bucket_ga4: dict[date, _Ga4Accum]
+    totals_gsc: _GscAccum
+    totals_ga4: _Ga4Accum
+    pages: dict[str, _PageAccum]
+    queries: dict[str, _GscAccum]
+
+
 def _absolute_page_value(raw_page_value: str, project_origin: str | None) -> str:
     value = raw_page_value.strip()
     if urlsplit(value).scheme or not project_origin:
@@ -412,80 +424,98 @@ def series_point(label: date, value: int | float | None) -> dict[str, Any]:
     return {"date": label.isoformat(), "value": value}
 
 
-def build_traffic_projection(
-    *,
-    rows: list[TrafficMetricRowInput],
-    window_start: date,
-    window_end: date,
-    granularity: str,
-    project_origin: str | None = None,
-) -> SnapshotProjection:
-    """Project the latest metric rows into one snapshot + its stat rows.
-
-    PURE: the caller supplies the candidate rows (already scoped to the
-    project + window + consumed datasets); latest-``resync_seq`` selection
-    is applied inside so a stale revision can never leak in. Deterministic:
-    the same inputs always yield byte-identical metrics and provenance.
-    """
+def _validate_projection_inputs(
+    *, window_start: date, window_end: date, granularity: str
+) -> None:
     if granularity not in TRAFFIC_SNAPSHOT_GRANULARITIES:
         raise ValueError(f"unknown traffic granularity: {granularity!r}")
     if window_end < window_start:
         raise ValueError("traffic window_end before window_start")
 
-    latest = select_latest_rows(rows)
-    starts = _bucket_starts(window_start, window_end, granularity)
-    bucket_gsc = {start: _GscAccum() for start in starts}
-    bucket_ga4 = {start: _Ga4Accum() for start in starts}
-    totals_gsc = _GscAccum()
-    totals_ga4 = _Ga4Accum()
-    pages: dict[str, _PageAccum] = {}
-    queries: dict[str, _GscAccum] = {}
 
-    for row in latest:
+def _accumulate_rows(
+    *,
+    rows: list[TrafficMetricRowInput],
+    window_start: date,
+    window_end: date,
+    granularity: str,
+    project_origin: str | None,
+    starts: list[date],
+) -> _ProjectionAccumulators:
+    accumulators = _ProjectionAccumulators(
+        bucket_gsc={start: _GscAccum() for start in starts},
+        bucket_ga4={start: _Ga4Accum() for start in starts},
+        totals_gsc=_GscAccum(),
+        totals_ga4=_Ga4Accum(),
+        pages={},
+        queries={},
+    )
+    for row in select_latest_rows(rows):
         if not (window_start <= row.date <= window_end):
-            continue  # defensive: the executor's query already scopes this
+            continue
         values = unpack_dimension_key(row.dataset, row.dimension_key)
         if values is None:
-            continue  # un-mappable key — skipped, never guessed
-        # The trailing element is the provider's date dimension value; the
-        # parsed date already lives on ``row.date``.
-        dimension_values = values[:-1]
-        bucket = bucket_start(row.date, granularity)
+            continue
+        _accumulate_row(
+            row=row,
+            dimension_values=values[:-1],
+            bucket_start_value=bucket_start(row.date, granularity),
+            project_origin=project_origin,
+            accumulators=accumulators,
+        )
+    return accumulators
 
-        if row.dataset == DATASET_GSC_PAGE_DAILY:
-            (page_value,) = dimension_values
-            totals_gsc.add(row)
-            bucket_gsc[bucket].add(row)
-            page = _page_accum(pages, page_value, project_origin)
-            if page is not None:
-                page.gsc.add(row)
-        elif row.dataset == DATASET_GSC_QUERY_DAILY:
-            (query_value,) = dimension_values
-            normalized = normalize_query(query_value)
-            if normalized:
-                # Query rows feed ONLY the per-query stats — never the
-                # totals (the page dataset is the complete GSC measure).
-                queries.setdefault(normalized, _GscAccum()).add(row)
-        elif row.dataset == DATASET_GA4_CHANNEL_DAILY:
-            (channel,) = dimension_values
-            if ga4_channel_included(channel):
-                totals_ga4.add(row)
-                bucket_ga4[bucket].add(row)
-        elif row.dataset == DATASET_GA4_SOURCE_MEDIUM_DAILY:
-            source, medium = dimension_values
-            if ga4_source_medium_ai_match(source, medium):
-                totals_ga4.add(row)
-                bucket_ga4[bucket].add(row)
-        elif row.dataset == DATASET_GA4_LANDING_DAILY:
-            landing, source, medium = dimension_values
-            if ga4_landing_included(source, medium):
-                page = _page_accum(pages, landing, project_origin)
-                if page is not None:
-                    page.ga4.add(row)
-        # Any other dataset id is not consumed by Traffic (the C1 referral
-        # datasets belong to the A5 ingest) — defensive skip.
 
-    labels = bucket_labels(window_start, window_end, granularity)
+def _accumulate_row(
+    *,
+    row: TrafficMetricRowInput,
+    dimension_values: tuple[str, ...],
+    bucket_start_value: date,
+    project_origin: str | None,
+    accumulators: _ProjectionAccumulators,
+) -> None:
+    if row.dataset == DATASET_GSC_PAGE_DAILY:
+        (page_value,) = dimension_values
+        accumulators.totals_gsc.add(row)
+        accumulators.bucket_gsc[bucket_start_value].add(row)
+        page = _page_accum(accumulators.pages, page_value, project_origin)
+        if page is not None:
+            page.gsc.add(row)
+        return
+    if row.dataset == DATASET_GSC_QUERY_DAILY:
+        (query_value,) = dimension_values
+        normalized = normalize_query(query_value)
+        if normalized:
+            accumulators.queries.setdefault(normalized, _GscAccum()).add(row)
+        return
+    if row.dataset == DATASET_GA4_CHANNEL_DAILY:
+        (channel,) = dimension_values
+        if ga4_channel_included(channel):
+            accumulators.totals_ga4.add(row)
+            accumulators.bucket_ga4[bucket_start_value].add(row)
+        return
+    if row.dataset == DATASET_GA4_SOURCE_MEDIUM_DAILY:
+        source, medium = dimension_values
+        if ga4_source_medium_ai_match(source, medium):
+            accumulators.totals_ga4.add(row)
+            accumulators.bucket_ga4[bucket_start_value].add(row)
+        return
+    if row.dataset != DATASET_GA4_LANDING_DAILY:
+        return
+    landing, source, medium = dimension_values
+    if ga4_landing_included(source, medium):
+        page = _page_accum(accumulators.pages, landing, project_origin)
+        if page is not None:
+            page.ga4.add(row)
+
+
+def _build_series(
+    *,
+    starts: list[date],
+    labels: list[date],
+    bucket_gsc: dict[date, _GscAccum],
+    bucket_ga4: dict[date, _Ga4Accum],
+) -> dict[str, list[dict[str, Any]]]:
     series: dict[str, list[dict[str, Any]]] = {
         name: [] for name in TRAFFIC_SERIES_NAMES
     }
@@ -507,10 +537,13 @@ def build_traffic_projection(
         )
         series["key_events"].append(series_point(label, ga4_measures["key_events"]))
         series["conversions"].append(series_point(label, ga4_measures["conversions"]))
+    return series
 
-    totals = totals_gsc.measures() | totals_ga4.measures()
 
-    page_projections = tuple(
+def _build_page_projections(
+    pages: dict[str, _PageAccum],
+) -> tuple[PageProjection, ...]:
+    return tuple(
         PageProjection(
             canonical_url=canonical_url,
             url_hash=accum.url_hash,
@@ -520,7 +553,12 @@ def build_traffic_projection(
         )
         for canonical_url, accum in sorted(pages.items())
     )
-    query_projections = tuple(
+
+
+def _build_query_projections(
+    queries: dict[str, _GscAccum],
+) -> tuple[QueryProjection, ...]:
+    return tuple(
         QueryProjection(
             normalized_query=normalized,
             metrics=accum.measures(),
@@ -530,20 +568,79 @@ def build_traffic_projection(
         for normalized, accum in sorted(queries.items())
     )
 
-    snapshot_row_ids = set(totals_gsc.row_ids) | set(totals_ga4.row_ids)
-    snapshot_artifact_ids = set(totals_gsc.artifact_ids) | set(totals_ga4.artifact_ids)
-    for page_projection in page_projections:
-        snapshot_row_ids.update(page_projection.source_metric_row_ids)
-        snapshot_artifact_ids.update(page_projection.source_artifact_ids)
-    for query_projection in query_projections:
-        snapshot_row_ids.update(query_projection.source_metric_row_ids)
-        snapshot_artifact_ids.update(query_projection.source_artifact_ids)
+
+def _projection_provenance(
+    *,
+    totals_gsc: _GscAccum,
+    totals_ga4: _Ga4Accum,
+    pages: tuple[PageProjection, ...],
+    queries: tuple[QueryProjection, ...],
+) -> tuple[list[str], list[str]]:
+    row_ids = set(totals_gsc.row_ids) | set(totals_ga4.row_ids)
+    artifact_ids = set(totals_gsc.artifact_ids) | set(totals_ga4.artifact_ids)
+    for page_projection in pages:
+        row_ids.update(page_projection.source_metric_row_ids)
+        artifact_ids.update(page_projection.source_artifact_ids)
+    for query_projection in queries:
+        row_ids.update(query_projection.source_metric_row_ids)
+        artifact_ids.update(query_projection.source_artifact_ids)
+    return sorted(row_ids), sorted(artifact_ids)
+
+
+def build_traffic_projection(
+    *,
+    rows: list[TrafficMetricRowInput],
+    window_start: date,
+    window_end: date,
+    granularity: str,
+    project_origin: str | None = None,
+) -> SnapshotProjection:
+    """Project the latest metric rows into one snapshot + its stat rows.
+
+    PURE: the caller supplies the candidate rows (already scoped to the
+    project + window + consumed datasets); latest-``resync_seq`` selection
+    is applied inside so a stale revision can never leak in. Deterministic:
+    the same inputs always yield byte-identical metrics and provenance.
+    """
+    _validate_projection_inputs(
+        window_start=window_start, window_end=window_end, granularity=granularity
+    )
+    starts = _bucket_starts(window_start, window_end, granularity)
+    accumulators = _accumulate_rows(
+        rows=rows,
+        window_start=window_start,
+        window_end=window_end,
+        granularity=granularity,
+        project_origin=project_origin,
+        starts=starts,
+    )
+
+    labels = bucket_labels(window_start, window_end, granularity)
+    series = _build_series(
+        starts=starts,
+        labels=labels,
+        bucket_gsc=accumulators.bucket_gsc,
+        bucket_ga4=accumulators.bucket_ga4,
+    )
+
+    page_projections = _build_page_projections(accumulators.pages)
+    query_projections = _build_query_projections(accumulators.queries)
+    source_metric_row_ids, source_artifact_ids = _projection_provenance(
+        totals_gsc=accumulators.totals_gsc,
+        totals_ga4=accumulators.totals_ga4,
+        pages=page_projections,
+        queries=query_projections,
+    )
 
     return SnapshotProjection(
         granularity=granularity,
-        metrics={"totals": totals, "series": series},
+        metrics={
+            "totals": accumulators.totals_gsc.measures()
+            | accumulators.totals_ga4.measures(),
+            "series": series,
+        },
         pages=page_projections,
         queries=query_projections,
-        source_metric_row_ids=sorted(snapshot_row_ids),
-        source_artifact_ids=sorted(snapshot_artifact_ids),
+        source_metric_row_ids=source_metric_row_ids,
+        source_artifact_ids=source_artifact_ids,
     )

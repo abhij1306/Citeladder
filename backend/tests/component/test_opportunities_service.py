@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.config.analytics import ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH
 from app.core.config.audits import AUDIT_STATUS_COMPLETED, AUDIT_STATUS_RUNNING
 from app.core.config.opportunities import (
@@ -36,14 +37,30 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.source_patterns import SOURCE_TAXONOMY_VERSION
 from app.core.config.task_queue import TASK_STATUS_FAILED
-from app.domain.opportunities import service
-from app.domain.opportunities.service import (
+from app.domain.opportunities import (
+    commands,
+    export,
+    guidance,
+    queries,
+    queue,
+    recompute,
+)
+from app.domain.opportunities import (
+    history as history_service,
+)
+from app.domain.opportunities import (
+    summary as summary_service,
+)
+from app.domain.opportunities.errors import (
     InvalidCursorError,
+    OpportunityGuidanceIdempotencyConflictError,
+    OpportunityGuidanceUnavailableError,
     OpportunityNotFoundError,
     OpportunityOrderConflictError,
     OpportunitySupersededError,
     OpportunityValidationError,
 )
+from app.domain.opportunities.projection import _stable_key
 from app.models.analysis import Citation, MetricSnapshot, ResponseAnalysis
 from app.models.analytics import AnalyticsTask
 from app.models.audit import Audit
@@ -122,13 +139,13 @@ async def test_unchanged_demand_snapshot_remains_fresh_and_ready(
     )
     await db_session.commit()
 
-    first = await service.recompute(
+    first = await recompute.recompute(
         db_session,
         workspace_id=workspace_id,
         project_id=project_id,
         skip_if_current=True,
     )
-    second = await service.recompute(
+    second = await recompute.recompute(
         db_session,
         workspace_id=workspace_id,
         project_id=project_id,
@@ -141,7 +158,7 @@ async def test_unchanged_demand_snapshot_remains_fresh_and_ready(
         await db_session.scalar(select(func.count()).select_from(OpportunitySnapshot))
         == 1
     )
-    summary = await service.get_summary(
+    summary = await summary_service.get_summary(
         db_session, workspace_id=workspace_id, project_id=project_id
     )
     assert summary["stale"] is False
@@ -213,7 +230,7 @@ async def test_only_approved_query_detector_signal_becomes_an_opportunity(
     )
     await db_session.commit()
 
-    await service.recompute(
+    await recompute.recompute(
         db_session,
         workspace_id=workspace_id,
         project_id=project_id,
@@ -243,7 +260,7 @@ async def test_automatic_refresh_task_is_unique_and_manual_success_is_ready(
 ) -> None:
     scn = await _seed_scenario(db_session)
     for _ in range(2):
-        await service.enqueue_opportunity_refresh(
+        await queue.enqueue_opportunity_refresh(
             db_session,
             workspace_id=scn.workspace_id,
             project_id=scn.project_id,
@@ -264,18 +281,18 @@ async def test_automatic_refresh_task_is_unique_and_manual_success_is_ready(
     tasks[0].status = TASK_STATUS_FAILED
     await db_session.commit()
     assert (
-        await service.get_summary(
+        await summary_service.get_summary(
             db_session,
             workspace_id=scn.workspace_id,
             project_id=scn.project_id,
         )
     )["activation_state"] == "delayed"
 
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert (
-        await service.get_summary(
+        await summary_service.get_summary(
             db_session,
             workspace_id=scn.workspace_id,
             project_id=scn.project_id,
@@ -291,7 +308,7 @@ async def test_recompute_persists_rows_and_snapshot_with_provenance(
 ) -> None:
     scn = await _seed_scenario(db_session)
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
@@ -410,7 +427,7 @@ async def test_cancelled_site_evidence_freezes_coverage_and_limitations(
     crawl.score_summary = {"selected_count": 3, "analyzed_count": 1}
     await db_session.commit()
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -447,7 +464,7 @@ async def test_recompute_without_sources_yields_empty_snapshot(
     workspace_id, project_id, _prompt_ids = await _seed_base(db_session)
     await db_session.commit()
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=workspace_id, project_id=project_id
     )
 
@@ -475,15 +492,15 @@ async def test_guidance_is_immutable_bounded_and_idempotent(
     db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Guidance stores a frozen input and replays only an identical key/input."""
-    monkeypatch.setattr(service.settings, "app_env", "development")
+    monkeypatch.setattr(settings, "app_env", "development")
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     opportunity = _by_rule(
         await _live_rows(db_session, scn), "brand_absent_high_value_prompt"
     )
-    grouped = await service.get_grouped_history(
+    grouped = await history_service.get_grouped_history(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert grouped["since_previous"] == {"new": 0, "continuing": 4, "resolved": 0}
@@ -491,7 +508,7 @@ async def test_guidance_is_immutable_bounded_and_idempotent(
     opportunity.evidence = {"long": "x" * 1000}
     await db_session.commit()
 
-    first, created = await service.create_guidance(
+    first, created = await guidance.create_guidance(
         db_session,
         workspace_id=scn.workspace_id,
         opportunity_id=opportunity.id,
@@ -502,7 +519,7 @@ async def test_guidance_is_immutable_bounded_and_idempotent(
     assert len(first.input_snapshot["evidence"]["long"]) < 1000
     assert len(first.input_hash) == 64
 
-    replay, created = await service.create_guidance(
+    replay, created = await guidance.create_guidance(
         db_session,
         workspace_id=scn.workspace_id,
         opportunity_id=opportunity.id,
@@ -510,24 +527,24 @@ async def test_guidance_is_immutable_bounded_and_idempotent(
     )
     assert created is False
     assert replay.id == first.id
-    history = await service.list_guidance_history(
+    history = await guidance.list_guidance_history(
         db_session, workspace_id=scn.workspace_id, opportunity_id=opportunity.id
     )
     assert [row.id for row in history] == [first.id]
 
     opportunity.status = "in_progress"
     await db_session.commit()
-    with pytest.raises(service.OpportunityGuidanceIdempotencyConflictError):
-        await service.create_guidance(
+    with pytest.raises(OpportunityGuidanceIdempotencyConflictError):
+        await guidance.create_guidance(
             db_session,
             workspace_id=scn.workspace_id,
             opportunity_id=opportunity.id,
             idempotency_key="guidance-1",
         )
 
-    monkeypatch.setattr(service.settings, "app_env", "production")
-    with pytest.raises(service.OpportunityGuidanceUnavailableError):
-        await service.create_guidance(
+    monkeypatch.setattr(settings, "app_env", "production")
+    with pytest.raises(OpportunityGuidanceUnavailableError):
+        await guidance.create_guidance(
             db_session,
             workspace_id=scn.workspace_id,
             opportunity_id=opportunity.id,
@@ -539,7 +556,7 @@ async def test_grouped_history_compares_the_latest_two_recompute_snapshots(
     db_session: AsyncSession,
 ) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     first_snapshot = await db_session.scalar(
@@ -562,7 +579,7 @@ async def test_grouped_history_compares_the_latest_two_recompute_snapshots(
     )
     await db_session.commit()
 
-    grouped = await service.get_grouped_history(
+    grouped = await history_service.get_grouped_history(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
@@ -592,7 +609,7 @@ async def test_recompute_without_sources_preserves_an_existing_live_set(
     exactly how a project with real findings showed zero results.
     """
     scn = await _seed_scenario(db_session)
-    first = await service.recompute(
+    first = await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert first["total_count"] == 4
@@ -610,7 +627,7 @@ async def test_recompute_without_sources_preserves_an_existing_live_set(
     audit.status = AUDIT_STATUS_RUNNING
     await db_session.commit()
 
-    again = await service.recompute(
+    again = await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
@@ -642,7 +659,7 @@ async def test_recompute_with_a_source_but_no_hits_still_supersedes(
     close.
     """
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert len(await _live_rows(db_session, scn)) == 4
@@ -656,7 +673,7 @@ async def test_recompute_with_a_source_but_no_hits_still_supersedes(
     )
     await db_session.commit()
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert result["site_crawl_id"] == scn.crawl_id
@@ -681,7 +698,7 @@ async def test_audit_without_metric_snapshot_is_not_dashboard_ready(
     )
     await db_session.commit()
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=workspace_id, project_id=project_id
     )
 
@@ -723,7 +740,7 @@ async def test_default_resolution_uses_latest_dashboard_ready_audit(
     )
     await db_session.commit()
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=workspace_id, project_id=project_id
     )
 
@@ -756,7 +773,7 @@ async def test_explicit_foreign_audit_is_not_found(db_session: AsyncSession) -> 
     await db_session.commit()
 
     with pytest.raises(OpportunityNotFoundError):
-        await service.recompute(
+        await recompute.recompute(
             db_session,
             workspace_id=scn.workspace_id,
             project_id=scn.project_id,
@@ -766,11 +783,11 @@ async def test_explicit_foreign_audit_is_not_found(db_session: AsyncSession) -> 
 
 async def test_missing_project_is_not_found(db_session: AsyncSession) -> None:
     with pytest.raises(OpportunityNotFoundError):
-        await service.recompute(
+        await recompute.recompute(
             db_session, workspace_id=uuid.uuid4(), project_id=uuid.uuid4()
         )
     with pytest.raises(OpportunityNotFoundError):
-        await service.list_opportunities(
+        await queries.list_opportunities(
             db_session, workspace_id=uuid.uuid4(), project_id=uuid.uuid4()
         )
 
@@ -781,7 +798,7 @@ async def test_disabled_rule_persists_nothing(
     scn = await _seed_scenario(db_session)
     monkeypatch.setattr(OPPORTUNITY_RULES_BY_ID["thin_content"], "enabled", False)
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
@@ -797,7 +814,7 @@ async def test_rerecompute_supersedes_carries_status_and_closes_vanished(
     db_session: AsyncSession,
 ) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     first_rows = await _live_rows(db_session, scn)
@@ -807,14 +824,14 @@ async def test_rerecompute_supersedes_carries_status_and_closes_vanished(
     first_structured_evidence = dict(first_structured.evidence or {})
 
     # Human workflow state set between runs must survive the supersede.
-    await service.update_status(
+    await commands.update_status(
         db_session,
         workspace_id=scn.workspace_id,
         changed_by_user_id=scn.user_id,
         opportunity_id=first_brand.id,
         status="in_progress",
     )
-    await service.update_status(
+    await commands.update_status(
         db_session,
         workspace_id=scn.workspace_id,
         changed_by_user_id=scn.user_id,
@@ -843,7 +860,7 @@ async def test_rerecompute_supersedes_carries_status_and_closes_vanished(
     )
     await db_session.commit()
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
@@ -883,14 +900,14 @@ async def test_update_status_validates_persists_and_rejects_superseded(
     db_session: AsyncSession,
 ) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     rows = await _live_rows(db_session, scn)
     thin = _by_rule(rows, "thin_content")
     evidence_before = dict(thin.evidence or {})
 
-    item = await service.update_status(
+    item = await commands.update_status(
         db_session,
         workspace_id=scn.workspace_id,
         changed_by_user_id=scn.user_id,
@@ -903,7 +920,7 @@ async def test_update_status_validates_persists_and_rejects_superseded(
     assert thin.evidence == evidence_before  # mutation touched status only
 
     with pytest.raises(OpportunityValidationError):
-        await service.update_status(
+        await commands.update_status(
             db_session,
             workspace_id=scn.workspace_id,
             changed_by_user_id=scn.user_id,
@@ -911,7 +928,7 @@ async def test_update_status_validates_persists_and_rejects_superseded(
             status="bogus",
         )
     with pytest.raises(OpportunityNotFoundError):
-        await service.update_status(
+        await commands.update_status(
             db_session,
             workspace_id=scn.workspace_id,
             changed_by_user_id=scn.user_id,
@@ -920,13 +937,13 @@ async def test_update_status_validates_persists_and_rejects_superseded(
         )
 
     # Supersede the row, then a mutation is a coded conflict.
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     await db_session.refresh(thin)
     assert thin.superseded_at is not None
     with pytest.raises(OpportunitySupersededError) as excinfo:
-        await service.update_status(
+        await commands.update_status(
             db_session,
             workspace_id=scn.workspace_id,
             changed_by_user_id=scn.user_id,
@@ -940,13 +957,13 @@ async def test_status_events_are_append_only_and_project_order_is_versioned(
     db_session: AsyncSession,
 ) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     rows = await _live_rows(db_session, scn)
     ordered_ids = [row.id for row in reversed(rows)]
 
-    response = await service.update_order(
+    response = await commands.update_order(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -955,14 +972,14 @@ async def test_status_events_are_append_only_and_project_order_is_versioned(
         updated_by_user_id=scn.user_id,
     )
     assert response == {"version": 1, "ordered_opportunity_ids": ordered_ids}
-    page = await service.list_opportunities(
+    page = await queries.list_opportunities(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert [item["id"] for item in page["items"]] == ordered_ids
     assert all(item["order_source"] == "manual" for item in page["items"])
 
     with pytest.raises(OpportunityOrderConflictError):
-        await service.update_order(
+        await commands.update_order(
             db_session,
             workspace_id=scn.workspace_id,
             project_id=scn.project_id,
@@ -972,14 +989,14 @@ async def test_status_events_are_append_only_and_project_order_is_versioned(
         )
 
     target = rows[0]
-    await service.update_status(
+    await commands.update_status(
         db_session,
         workspace_id=scn.workspace_id,
         opportunity_id=target.id,
         status="resolved",
         changed_by_user_id=scn.user_id,
     )
-    await service.update_status(
+    await commands.update_status(
         db_session,
         workspace_id=scn.workspace_id,
         opportunity_id=target.id,
@@ -1004,8 +1021,8 @@ async def test_stable_order_key_is_collision_safe() -> None:
     left = Opportunity(rule_id="rule:target", target_key="key")
     right = Opportunity(rule_id="rule", target_key="target:key")
 
-    assert service._stable_key(left) != service._stable_key(right)
-    assert json.loads(service._stable_key(left)) == ["rule:target", "key"]
+    assert _stable_key(left) != _stable_key(right)
+    assert json.loads(_stable_key(left)) == ["rule:target", "key"]
 
 
 # =========================================================================
@@ -1015,11 +1032,11 @@ async def test_list_ordering_filters_and_keyset_pagination(
     db_session: AsyncSession,
 ) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
-    page = await service.list_opportunities(
+    page = await queries.list_opportunities(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert [item["rule_id"] for item in page["items"]] == [
@@ -1036,7 +1053,7 @@ async def test_list_ordering_filters_and_keyset_pagination(
     ]
     assert page["next_cursor"] is None
 
-    page1 = await service.list_opportunities(
+    page1 = await queries.list_opportunities(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -1044,7 +1061,7 @@ async def test_list_ordering_filters_and_keyset_pagination(
     )
     assert len(page1["items"]) == 2
     assert page1["next_cursor"] is not None
-    page2 = await service.list_opportunities(
+    page2 = await queries.list_opportunities(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -1062,7 +1079,7 @@ async def test_list_ordering_filters_and_keyset_pagination(
 
     # A cursor is bound to its filter scope.
     with pytest.raises(InvalidCursorError):
-        await service.list_opportunities(
+        await queries.list_opportunities(
             db_session,
             workspace_id=scn.workspace_id,
             project_id=scn.project_id,
@@ -1071,14 +1088,14 @@ async def test_list_ordering_filters_and_keyset_pagination(
             severity="high",
         )
     with pytest.raises(InvalidCursorError):
-        await service.list_opportunities(
+        await queries.list_opportunities(
             db_session,
             workspace_id=scn.workspace_id,
             project_id=scn.project_id,
             cursor="not-a-real-cursor",
         )
 
-    by_type = await service.list_opportunities(
+    by_type = await queries.list_opportunities(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -1088,7 +1105,7 @@ async def test_list_ordering_filters_and_keyset_pagination(
         "missing_structured_data",
         "thin_content",
     }
-    by_severity = await service.list_opportunities(
+    by_severity = await queries.list_opportunities(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -1097,7 +1114,7 @@ async def test_list_ordering_filters_and_keyset_pagination(
     assert [item["rule_id"] for item in by_severity["items"]] == [
         "brand_absent_high_value_prompt"
     ]
-    by_floor = await service.list_opportunities(
+    by_floor = await queries.list_opportunities(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -1107,14 +1124,14 @@ async def test_list_ordering_filters_and_keyset_pagination(
         SCORE_BRAND_ABSENT,
         SCORE_OWNED_PAGE,
     ]
-    by_rule = await service.list_opportunities(
+    by_rule = await queries.list_opportunities(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
         rule_id="thin_content",
     )
     assert len(by_rule["items"]) == 1
-    dismissed = await service.list_opportunities(
+    dismissed = await queries.list_opportunities(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -1130,7 +1147,7 @@ async def test_list_ordering_filters_and_keyset_pagination(
         {"rule_id": "bogus"},
     ):
         with pytest.raises(OpportunityValidationError):
-            await service.list_opportunities(
+            await queries.list_opportunities(
                 db_session,
                 workspace_id=scn.workspace_id,
                 project_id=scn.project_id,
@@ -1140,12 +1157,12 @@ async def test_list_ordering_filters_and_keyset_pagination(
 
 async def test_list_defaults_to_active_statuses(db_session: AsyncSession) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     rows = await _live_rows(db_session, scn)
     thin = _by_rule(rows, "thin_content")
-    await service.update_status(
+    await commands.update_status(
         db_session,
         workspace_id=scn.workspace_id,
         changed_by_user_id=scn.user_id,
@@ -1153,12 +1170,12 @@ async def test_list_defaults_to_active_statuses(db_session: AsyncSession) -> Non
         status="dismissed",
     )
 
-    default_page = await service.list_opportunities(
+    default_page = await queries.list_opportunities(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert len(default_page["items"]) == 3
     assert all(item["rule_id"] != "thin_content" for item in default_page["items"])
-    dismissed_page = await service.list_opportunities(
+    dismissed_page = await queries.list_opportunities(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -1171,13 +1188,13 @@ async def test_detail_projection_includes_superseded_rows(
     db_session: AsyncSession,
 ) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     rows = await _live_rows(db_session, scn)
     thin = _by_rule(rows, "thin_content")
 
-    detail = await service.get_opportunity(
+    detail = await queries.get_opportunity(
         db_session, workspace_id=scn.workspace_id, opportunity_id=thin.id
     )
     assert detail["id"] == thin.id
@@ -1189,17 +1206,17 @@ async def test_detail_projection_includes_superseded_rows(
     assert detail["superseded_at"] is None
 
     # After a recompute the OLD row is still readable, marked superseded.
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
-    detail = await service.get_opportunity(
+    detail = await queries.get_opportunity(
         db_session, workspace_id=scn.workspace_id, opportunity_id=thin.id
     )
     assert detail["superseded_at"] is not None
     assert detail["superseded_by_id"] is not None
 
     with pytest.raises(OpportunityNotFoundError):
-        await service.get_opportunity(
+        await queries.get_opportunity(
             db_session, workspace_id=scn.workspace_id, opportunity_id=uuid.uuid4()
         )
 
@@ -1207,7 +1224,7 @@ async def test_detail_projection_includes_superseded_rows(
 async def test_summary_before_and_after_recompute(db_session: AsyncSession) -> None:
     scn = await _seed_scenario(db_session)
 
-    before = await service.get_summary(
+    before = await summary_service.get_summary(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert before["computed"] is False
@@ -1218,10 +1235,10 @@ async def test_summary_before_and_after_recompute(db_session: AsyncSession) -> N
     assert before["rule_version"] == RULE_VERSION
     assert before["formula_version"] == FORMULA_VERSION
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
-    after = await service.get_summary(
+    after = await summary_service.get_summary(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert after["computed"] is True
@@ -1234,11 +1251,11 @@ async def test_summary_before_and_after_recompute(db_session: AsyncSession) -> N
 
 async def test_export_rows_projection_and_filters(db_session: AsyncSession) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
-    rows = await service.load_export_rows(
+    rows = await export.load_export_rows(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert len(rows) == 4
@@ -1254,7 +1271,7 @@ async def test_export_rows_projection_and_filters(db_session: AsyncSession) -> N
     assert structured["formula_version"] == FORMULA_VERSION
     assert structured["id"]
 
-    site_only = await service.load_export_rows(
+    site_only = await export.load_export_rows(
         db_session,
         workspace_id=scn.workspace_id,
         project_id=scn.project_id,
@@ -1265,7 +1282,7 @@ async def test_export_rows_projection_and_filters(db_session: AsyncSession) -> N
         "thin_content",
     }
     with pytest.raises(OpportunityValidationError):
-        await service.load_export_rows(
+        await export.load_export_rows(
             db_session,
             workspace_id=scn.workspace_id,
             project_id=scn.project_id,
@@ -1280,11 +1297,11 @@ async def test_list_and_detail_carry_backend_target_label(
     db_session: AsyncSession,
 ) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
-    page = await service.list_opportunities(
+    page = await queries.list_opportunities(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     labels = {item["rule_id"]: item["target_label"] for item in page["items"]}
@@ -1297,7 +1314,7 @@ async def test_list_and_detail_carry_backend_target_label(
 
     rows = await _live_rows(db_session, scn)
     brand_absent = _by_rule(rows, "brand_absent_high_value_prompt")
-    detail = await service.get_opportunity(
+    detail = await queries.get_opportunity(
         db_session, workspace_id=scn.workspace_id, opportunity_id=brand_absent.id
     )
     # The detail inherits the item projection's label (featured card source).
@@ -1381,7 +1398,7 @@ async def test_commerce_rules_fire_from_persisted_product_evidence(
     )
     await db_session.flush()
 
-    result = await service.recompute(
+    result = await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert result["total_count"] == 7
@@ -1425,11 +1442,11 @@ async def test_commerce_rules_fire_from_persisted_product_evidence(
 # =========================================================================
 async def test_summary_staleness_is_read_time(db_session: AsyncSession) -> None:
     scn = await _seed_scenario(db_session)
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
 
-    summary = await service.get_summary(
+    summary = await summary_service.get_summary(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert summary["computed"] is True
@@ -1443,16 +1460,16 @@ async def test_summary_staleness_is_read_time(db_session: AsyncSession) -> None:
         project_id=scn.project_id,
         prompt_ids=[scn.prompt0_id, scn.prompt1_id],
     )
-    summary = await service.get_summary(
+    summary = await summary_service.get_summary(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert summary["stale"] is True
 
     # A refresh clears it (the snapshot is newer than the evidence again).
-    await service.recompute(
+    await recompute.recompute(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
-    summary = await service.get_summary(
+    summary = await summary_service.get_summary(
         db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
     )
     assert summary["stale"] is False
@@ -1462,7 +1479,7 @@ async def test_summary_stale_is_false_when_never_computed(
     db_session: AsyncSession,
 ) -> None:
     workspace_id, project_id, _prompt_ids = await _seed_base(db_session)
-    summary = await service.get_summary(
+    summary = await summary_service.get_summary(
         db_session, workspace_id=workspace_id, project_id=project_id
     )
     assert summary["computed"] is False

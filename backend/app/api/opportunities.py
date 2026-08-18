@@ -41,7 +41,26 @@ from app.core.config.opportunities import (
     LIST_MAX_LIMIT,
 )
 from app.core.errors import ApiException
-from app.domain.opportunities import service
+from app.domain.opportunities import (
+    commands,
+    export,
+    guidance,
+    history,
+    queries,
+    recompute,
+)
+from app.domain.opportunities import (
+    summary as summary_service,
+)
+from app.domain.opportunities.errors import (
+    InvalidCursorError,
+    OpportunityGuidanceIdempotencyConflictError,
+    OpportunityGuidanceUnavailableError,
+    OpportunityNotFoundError,
+    OpportunityOrderConflictError,
+    OpportunitySupersededError,
+    OpportunityValidationError,
+)
 from app.domain.opportunities.implementation_events import (
     ImplementationConflictError,
     ImplementationDeclaration,
@@ -69,15 +88,6 @@ from app.domain.opportunities.schemas import (
     RecomputeRequest,
     RecomputeResponse,
     VerificationEventView,
-)
-from app.domain.opportunities.service import (
-    InvalidCursorError,
-    OpportunityGuidanceIdempotencyConflictError,
-    OpportunityGuidanceUnavailableError,
-    OpportunityNotFoundError,
-    OpportunityOrderConflictError,
-    OpportunitySupersededError,
-    OpportunityValidationError,
 )
 from app.models.opportunity import (
     OpportunityImplementationEvent,
@@ -182,7 +192,7 @@ async def list_opportunities_endpoint(
     cursor: Annotated[str | None, Query()] = None,
 ) -> OpportunitiesPage:
     try:
-        page = await service.list_opportunities(
+        page = await queries.list_opportunities(
             session,
             workspace_id=ctx.workspace_id,
             project_id=project_id,
@@ -211,7 +221,7 @@ async def get_summary_endpoint(
     project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> OpportunitySummary:
     try:
-        summary = await service.get_summary(
+        summary = await summary_service.get_summary(
             session, workspace_id=ctx.workspace_id, project_id=project_id
         )
     except OpportunityNotFoundError as exc:
@@ -230,7 +240,7 @@ async def recompute_endpoint(
     payload: RecomputeRequest | None = None,
 ) -> RecomputeResponse:
     try:
-        snapshot = await service.recompute(
+        snapshot = await recompute.recompute(
             session,
             workspace_id=ctx.workspace_id,
             project_id=project_id,
@@ -250,7 +260,7 @@ async def get_grouped_history_endpoint(
     project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> OpportunityHistoryResponse:
     try:
-        projection = await service.get_grouped_history(
+        projection = await history.get_grouped_history(
             session, workspace_id=ctx.workspace_id, project_id=project_id
         )
     except OpportunityNotFoundError as exc:
@@ -397,7 +407,7 @@ async def get_opportunity_endpoint(
     opportunity_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> OpportunityDetail:
     try:
-        detail = await service.get_opportunity(
+        detail = await queries.get_opportunity(
             session, workspace_id=ctx.workspace_id, opportunity_id=opportunity_id
         )
     except OpportunityNotFoundError as exc:
@@ -413,7 +423,7 @@ async def update_status_endpoint(
     session: _SessionDep,
 ) -> OpportunityItem:
     try:
-        item = await service.update_status(
+        item = await commands.update_status(
             session,
             workspace_id=ctx.workspace_id,
             opportunity_id=opportunity_id,
@@ -440,7 +450,7 @@ async def update_order_endpoint(
     session: _SessionDep,
 ) -> OpportunityOrderResponse:
     try:
-        result = await service.update_order(
+        result = await commands.update_order(
             session,
             workspace_id=ctx.workspace_id,
             project_id=project_id,
@@ -479,7 +489,7 @@ async def create_guidance_endpoint(
     ] = None,
 ) -> OpportunityGuidanceItem:
     try:
-        row, _created = await service.create_guidance(
+        row, _created = await guidance.create_guidance(
             session,
             workspace_id=ctx.workspace_id,
             opportunity_id=opportunity_id,
@@ -493,7 +503,7 @@ async def create_guidance_endpoint(
         raise _guidance_unavailable(exc) from exc
     except OpportunityGuidanceIdempotencyConflictError as exc:
         raise _guidance_conflict(exc) from exc
-    return OpportunityGuidanceItem.model_validate(service._project_guidance(row))
+    return OpportunityGuidanceItem.model_validate(guidance.project_guidance(row))
 
 
 @router.get(
@@ -504,7 +514,7 @@ async def get_latest_guidance_endpoint(
     opportunity_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> OpportunityGuidanceItem | None:
     try:
-        row = await service.get_latest_guidance(
+        row = await guidance.get_latest_guidance(
             session, workspace_id=ctx.workspace_id, opportunity_id=opportunity_id
         )
     except OpportunityNotFoundError as exc:
@@ -513,7 +523,7 @@ async def get_latest_guidance_endpoint(
         raise _guidance_unavailable(exc) from exc
     if row is None:
         return None
-    return OpportunityGuidanceItem.model_validate(service._project_guidance(row))
+    return OpportunityGuidanceItem.model_validate(guidance.project_guidance(row))
 
 
 @router.get(
@@ -529,7 +539,7 @@ async def get_guidance_history_endpoint(
     ] = GUIDANCE_HISTORY_DEFAULT_LIMIT,
 ) -> OpportunityGuidanceHistory:
     try:
-        rows = await service.list_guidance_history(
+        rows = await guidance.list_guidance_history(
             session,
             workspace_id=ctx.workspace_id,
             opportunity_id=opportunity_id,
@@ -540,7 +550,7 @@ async def get_guidance_history_endpoint(
     except OpportunityGuidanceUnavailableError as exc:
         raise _guidance_unavailable(exc) from exc
     return OpportunityGuidanceHistory.model_validate(
-        {"items": [service._project_guidance(row) for row in rows]}
+        {"items": [guidance.project_guidance(row) for row in rows]}
     )
 
 
@@ -563,7 +573,7 @@ async def _export_response(
 ) -> Response:
     """The shared export pipeline: load the projection, render, attach."""
     try:
-        rows = await service.load_export_rows(
+        rows = await export.load_export_rows(
             session,
             workspace_id=workspace_id,
             project_id=project_id,

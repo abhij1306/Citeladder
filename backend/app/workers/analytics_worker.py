@@ -66,7 +66,7 @@ from app.domain.attribution.link import run_attribution_link
 from app.domain.attribution.snapshot import refresh_attribution_snapshot
 from app.domain.commerce.orders import run_order_retention_sweep
 from app.domain.demand.service import recompute_demand
-from app.domain.opportunities.service import recompute as recompute_opportunities
+from app.domain.opportunities.recompute import recompute as recompute_opportunities
 from app.domain.opportunities.verification import verify_implementation_events
 from app.domain.traffic.service import refresh_traffic_snapshot
 from app.models.analytics import AnalyticsTask

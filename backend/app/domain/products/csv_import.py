@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import io
+from collections.abc import Iterable
 from typing import NamedTuple
 
 from pydantic import ValidationError
@@ -101,6 +102,96 @@ def _row_validation_error(
     )
 
 
+def _read_product_rows(content: str) -> list[list[str]]:
+    text = content.lstrip("\ufeff")
+    if not text.strip():
+        return []
+    rows: list[list[str]] = []
+    for row in csv.reader(io.StringIO(text)):
+        if len(row) > IMPORT_MAX_COLUMNS:
+            raise ProductCsvError("Product CSV has too many columns")
+        if any(len(cell) > IMPORT_MAX_CELL_CHARS for cell in row):
+            raise ProductCsvError("Product CSV cell is too long")
+        if any(cell.strip() for cell in row):
+            rows.append(row)
+            if len(rows) > PRODUCT_IMPORT_MAX_ROWS + 1:
+                raise ProductCsvError("Product CSV has too many rows")
+    return rows
+
+
+def _column_index(header: list[str], keys: Iterable[str]) -> int | None:
+    accepted = set(keys)
+    for index, name in enumerate(header):
+        if name in accepted:
+            return index
+    return None
+
+
+def _product_column_indices(header: list[str]) -> dict[str, int | None]:
+    columns = {
+        "sku": _column_index(header, _SKU_KEYS),
+        "name": _column_index(header, _NAME_KEYS),
+        "price": _column_index(header, _PRICE_KEYS),
+        "currency": _column_index(header, _CURRENCY_KEYS),
+        "url": _column_index(header, _URL_KEYS),
+        "aliases": _column_index(header, _ALIASES_KEYS),
+        "variant": _column_index(header, _VARIANT_KEYS),
+    }
+    columns.update(
+        {
+            f"attribute:{key}": _column_index(header, aliases)
+            for key, aliases in _ATTRIBUTE_KEYS.items()
+        }
+    )
+    if columns["sku"] is None or columns["name"] is None:
+        raise ProductCsvError(
+            "Product CSV must include a header row with at least 'sku' and "
+            "'name' columns"
+        )
+    return columns
+
+
+def _product_cell(row: list[str], index: int | None) -> str:
+    if index is None or index >= len(row):
+        return ""
+    return row[index].strip()
+
+
+def _parse_product_row(
+    row_number: int,
+    row: list[str],
+    columns: dict[str, int | None],
+) -> tuple[ProductInput | None, ProductImportRowError | None]:
+    sku = _product_cell(row, columns["sku"])
+    if not sku:
+        return None, ProductImportRowError(
+            row=row_number,
+            field="sku",
+            message="Missing sku — the row was skipped (sku is the import identity)",
+        )
+    attributes = {
+        key.removeprefix("attribute:"): _product_cell(row, index)
+        for key, index in columns.items()
+        if key.startswith("attribute:")
+        and index is not None
+        and _product_cell(row, index)
+    }
+    variant = _product_cell(row, columns["variant"])
+    try:
+        return ProductInput(
+            sku=sku,
+            name=_product_cell(row, columns["name"]) or sku,
+            aliases=_split_list(_product_cell(row, columns["aliases"])),
+            variants=[ProductVariant(name=variant)] if variant else [],
+            price=_parse_price(_product_cell(row, columns["price"])),
+            currency=_product_cell(row, columns["currency"]),
+            url=_product_cell(row, columns["url"]),
+            attributes=attributes,
+        ), None
+    except ValidationError as exc:
+        return None, _row_validation_error(row_number, exc)
+
+
 def parse_product_csv(content: str) -> ProductCsvParseResult:
     """Parse CSV text into numbered ``ProductInput`` rows + row-level skips.
 
@@ -110,92 +201,19 @@ def parse_product_csv(content: str) -> ProductCsvParseResult:
     skipped WITH a reason (D1 — previously silent / an unhandled 500); a
     missing ``name`` falls back to the sku.
     """
-    text = content.lstrip("\ufeff")
-    if not text.strip():
-        return ProductCsvParseResult(rows=[], errors=[])
-    reader = csv.reader(io.StringIO(text))
-    rows: list[list[str]] = []
-    for row in reader:
-        if len(row) > IMPORT_MAX_COLUMNS:
-            raise ProductCsvError("Product CSV has too many columns")
-        if any(len(cell) > IMPORT_MAX_CELL_CHARS for cell in row):
-            raise ProductCsvError("Product CSV cell is too long")
-        if any(cell.strip() for cell in row):
-            rows.append(row)
-            if len(rows) > PRODUCT_IMPORT_MAX_ROWS + 1:
-                raise ProductCsvError("Product CSV has too many rows")
+    rows = _read_product_rows(content)
     if not rows:
         return ProductCsvParseResult(rows=[], errors=[])
 
     header = [cell.strip().lower().replace(" ", "_") for cell in rows[0]]
-
-    def _col(keys: set[str] | tuple[str, ...]) -> int | None:
-        for index, name in enumerate(header):
-            if name in keys:
-                return index
-        return None
-
-    sku_i = _col(_SKU_KEYS)
-    name_i = _col(_NAME_KEYS)
-    # BOTH columns are required: `sku` is the (project_id, sku) import identity,
-    # so a file without it has every row skipped below and would otherwise
-    # "succeed" while importing nothing.
-    if sku_i is None or name_i is None:
-        raise ProductCsvError(
-            "Product CSV must include a header row with at least 'sku' and "
-            "'name' columns"
-        )
-    price_i = _col(_PRICE_KEYS)
-    currency_i = _col(_CURRENCY_KEYS)
-    url_i = _col(_URL_KEYS)
-    aliases_i = _col(_ALIASES_KEYS)
-    variant_i = _col(_VARIANT_KEYS)
-    attribute_cols = {key: _col(aliases) for key, aliases in _ATTRIBUTE_KEYS.items()}
-
-    def _cell(row: list[str], index: int | None) -> str:
-        if index is None or index >= len(row):
-            return ""
-        return row[index].strip()
+    columns = _product_column_indices(header)
 
     products: list[tuple[int, ProductInput]] = []
     errors: list[ProductImportRowError] = []
     for row_number, row in enumerate(rows[1:], start=1):
-        sku = _cell(row, sku_i)
-        name = _cell(row, name_i)
-        if not sku:
-            # sku is the (project_id, sku) import identity — a row without one
-            # cannot be de-duplicated, so it is skipped rather than guessed.
-            errors.append(
-                ProductImportRowError(
-                    row=row_number,
-                    field="sku",
-                    message="Missing sku — the row was skipped "
-                    "(sku is the import identity)",
-                )
-            )
-            continue
-        attributes = {
-            key: _cell(row, index)
-            for key, index in attribute_cols.items()
-            if index is not None and _cell(row, index)
-        }
-        variant = _cell(row, variant_i)
-        try:
-            products.append(
-                (
-                    row_number,
-                    ProductInput(
-                        sku=sku,
-                        name=name or sku,
-                        aliases=_split_list(_cell(row, aliases_i)),
-                        variants=[ProductVariant(name=variant)] if variant else [],
-                        price=_parse_price(_cell(row, price_i)),
-                        currency=_cell(row, currency_i),
-                        url=_cell(row, url_i),
-                        attributes=attributes,
-                    ),
-                )
-            )
-        except ValidationError as exc:
-            errors.append(_row_validation_error(row_number, exc))
+        product, error = _parse_product_row(row_number, row, columns)
+        if product is not None:
+            products.append((row_number, product))
+        if error is not None:
+            errors.append(error)
     return ProductCsvParseResult(rows=products, errors=errors)

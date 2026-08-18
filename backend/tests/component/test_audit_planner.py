@@ -17,7 +17,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-import app.domain.audits.planner as planner_module
+import app.domain.audits.creation as creation_module
+import app.domain.audits.funded_admission as funded_admission_module
 from app.core.config.abuse import abuse_settings
 from app.core.config.audits import (
     AUDIT_STATUS_CANCELLED,
@@ -42,13 +43,10 @@ from app.core.config.entitlements import (
 )
 from app.core.config.projects import BENCHMARK_MODES
 from app.core.config.provider_catalog import ENGINE_CLAUDE, route_policy
-from app.domain.audits.planner import (
-    AuditValidationError,
-    cancel_audit,
-    create_audit,
-    get_audit,
-    list_tasks,
-)
+from app.domain.audits.cancellation import cancel_audit
+from app.domain.audits.creation import create_audit
+from app.domain.audits.errors import AuditValidationError
+from app.domain.audits.reads import get_audit, list_tasks
 from app.domain.entitlements.cache import clear_cache
 from app.domain.entitlements.types import GrantSpec
 from app.models.audit import AuditEngineSnapshot, AuditPromptSnapshot, AuditTask
@@ -423,7 +421,7 @@ async def test_create_audit_freezes_product_catalog(
         product.name = "Renamed After Freeze"
         await session.commit()
     async with session_factory() as session:
-        from app.domain.audits.planner import get_audit
+        from app.domain.audits.reads import get_audit
 
         audit = await get_audit(
             session, workspace_id=seed.workspace_id, audit_id=audit.id
@@ -931,15 +929,15 @@ async def test_admission_at_is_one_shared_instant_everywhere(
             assert tz is UTC
             return fixed
 
-    monkeypatch.setattr(planner_module, "datetime", _StubDatetime)
+    monkeypatch.setattr(creation_module, "datetime", _StubDatetime)
     captured: dict[str, datetime] = {}
-    real_resolve = planner_module.resolve_workspace_entitlement
+    real_resolve = funded_admission_module.resolve_workspace_entitlement
 
     async def _spy(session, *, workspace_id, at):
         captured["at"] = at
         return await real_resolve(session, workspace_id=workspace_id, at=at)
 
-    monkeypatch.setattr(planner_module, "resolve_workspace_entitlement", _spy)
+    monkeypatch.setattr(funded_admission_module, "resolve_workspace_entitlement", _spy)
 
     async with session_factory() as session:
         seed, _system, _account = await _seed_funded_workspace(session, probed=False)

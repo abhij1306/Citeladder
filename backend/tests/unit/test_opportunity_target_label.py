@@ -12,7 +12,8 @@ from types import SimpleNamespace
 from typing import cast
 
 from app.core.config.opportunities import FORMULA_VERSION
-from app.domain.opportunities.service import _humanize_theme, _project_item
+from app.domain.opportunities.projection import _humanize_theme
+from app.domain.opportunities.projection import project_item as _project_item
 from app.models.opportunity import Opportunity
 
 

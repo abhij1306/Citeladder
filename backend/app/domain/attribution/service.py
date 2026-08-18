@@ -14,6 +14,7 @@ from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import Select
 
 from app.core.config.analytics import (
     AI_REFERRAL_RULE_VERSION,
@@ -168,6 +169,83 @@ def _uuid_list(raw: object) -> list[uuid.UUID]:
     return ids
 
 
+def _empty_attribution_response(
+    *,
+    project_id: uuid.UUID,
+    from_date: date | None,
+    to_date: date | None,
+    granularity: str,
+) -> CommerceAttributionResponse:
+    return CommerceAttributionResponse(
+        project_id=project_id,
+        window_start=from_date.isoformat() if from_date is not None else "",
+        window_end=to_date.isoformat() if to_date is not None else "",
+        granularity=granularity,
+        metrics=_empty_metrics(),
+        source_link_ids=[],
+        source_order_fact_ids=[],
+        source_metric_row_ids=[],
+        source_snapshot_ids=[],
+        formula_version=ATTRIBUTION_FORMULA_VERSION,
+        analyzer_version=ATTRIBUTION_ANALYZER_VERSION,
+        created_at=None,
+    )
+
+
+def _snapshot_deterministic(snapshot: AttributionSnapshot) -> AttributionDeterministic:
+    raw = (snapshot.metrics or {}).get(
+        ATTRIBUTION_METRICS_NAMESPACE_DETERMINISTIC
+    ) or {}
+    return AttributionDeterministic(
+        a1=raw.get("a1") or [],
+        a2=raw.get("a2") or [],
+        delta=raw.get("delta") or [],
+        unattributed=raw.get("unattributed") or [],
+        coverage=raw.get("coverage")
+        or {
+            "total_latest_orders": 0,
+            "orders_with_evidence": 0,
+            "linked_ai_orders": 0,
+            "unattributed_orders": 0,
+            "evidence_coverage_rate": None,
+            "attributed_share": None,
+            "window_start": snapshot.window_start.isoformat(),
+            "window_end": snapshot.window_end.isoformat(),
+        },
+    )
+
+
+def _snapshot_statistical(snapshot: AttributionSnapshot) -> AttributionStatistical:
+    raw = (snapshot.metrics or {}).get(ATTRIBUTION_METRICS_NAMESPACE_STATISTICAL) or {}
+    return AttributionStatistical(
+        state=raw.get("state", ATTRIBUTION_STATISTICAL_STATE_NOT_OFFERED),
+        sample_size=raw.get("sample_size"),
+        allocations=raw.get("allocations") or [],
+    )
+
+
+def _snapshot_response(snapshot: AttributionSnapshot) -> CommerceAttributionResponse:
+    return CommerceAttributionResponse(
+        project_id=snapshot.project_id,
+        window_start=snapshot.window_start.isoformat(),
+        window_end=snapshot.window_end.isoformat(),
+        granularity=snapshot.granularity,
+        metrics=AttributionMetrics(
+            deterministic=_snapshot_deterministic(snapshot),
+            statistical=_snapshot_statistical(snapshot),
+        ),
+        source_link_ids=_uuid_list(snapshot.source_link_ids),
+        source_order_fact_ids=_uuid_list(snapshot.source_order_fact_ids),
+        source_metric_row_ids=_uuid_list(snapshot.source_metric_row_ids),
+        source_snapshot_ids=_uuid_list(snapshot.source_snapshot_ids),
+        formula_version=snapshot.formula_version,
+        analyzer_version=snapshot.analyzer_version,
+        created_at=(
+            snapshot.created_at.isoformat() if snapshot.created_at is not None else None
+        ),
+    )
+
+
 async def get_commerce_attribution(
     session: AsyncSession,
     *,
@@ -195,65 +273,13 @@ async def get_commerce_attribution(
         granularity=granularity,
     )
     if snapshot is None:
-        return CommerceAttributionResponse(
+        return _empty_attribution_response(
             project_id=project_id,
-            window_start=from_date.isoformat() if from_date is not None else "",
-            window_end=to_date.isoformat() if to_date is not None else "",
+            from_date=from_date,
+            to_date=to_date,
             granularity=granularity,
-            metrics=_empty_metrics(),
-            source_link_ids=[],
-            source_order_fact_ids=[],
-            source_metric_row_ids=[],
-            source_snapshot_ids=[],
-            formula_version=ATTRIBUTION_FORMULA_VERSION,
-            analyzer_version=ATTRIBUTION_ANALYZER_VERSION,
-            created_at=None,
         )
-
-    raw_metrics = snapshot.metrics or {}
-    deterministic = raw_metrics.get(ATTRIBUTION_METRICS_NAMESPACE_DETERMINISTIC) or {}
-    statistical = raw_metrics.get(ATTRIBUTION_METRICS_NAMESPACE_STATISTICAL) or {}
-    return CommerceAttributionResponse(
-        project_id=project_id,
-        window_start=snapshot.window_start.isoformat(),
-        window_end=snapshot.window_end.isoformat(),
-        granularity=snapshot.granularity,
-        metrics=AttributionMetrics(
-            deterministic=AttributionDeterministic(
-                a1=deterministic.get("a1") or [],
-                a2=deterministic.get("a2") or [],
-                delta=deterministic.get("delta") or [],
-                unattributed=deterministic.get("unattributed") or [],
-                coverage=deterministic.get("coverage")
-                or {
-                    "total_latest_orders": 0,
-                    "orders_with_evidence": 0,
-                    "linked_ai_orders": 0,
-                    "unattributed_orders": 0,
-                    "evidence_coverage_rate": None,
-                    "attributed_share": None,
-                    "window_start": snapshot.window_start.isoformat(),
-                    "window_end": snapshot.window_end.isoformat(),
-                },
-            ),
-            statistical=AttributionStatistical(
-                state=statistical.get(
-                    "state", ATTRIBUTION_STATISTICAL_STATE_NOT_OFFERED
-                ),
-                sample_size=statistical.get("sample_size"),
-                allocations=statistical.get("allocations") or [],
-            ),
-        ),
-        source_link_ids=_uuid_list(snapshot.source_link_ids),
-        source_order_fact_ids=_uuid_list(snapshot.source_order_fact_ids),
-        source_metric_row_ids=_uuid_list(snapshot.source_metric_row_ids),
-        source_snapshot_ids=_uuid_list(snapshot.source_snapshot_ids),
-        formula_version=snapshot.formula_version,
-        analyzer_version=snapshot.analyzer_version,
-        created_at=(
-            snapshot.created_at.isoformat() if snapshot.created_at is not None else None
-        ),
-    )
+    return _snapshot_response(snapshot)
 
 
 def _order_filters(
@@ -275,19 +301,7 @@ def _order_filters(
     }
 
 
-async def get_attribution_orders(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    source: str | None = None,
-    attribution_state: str | None = None,
-    from_date: date | None = None,
-    to_date: date | None = None,
-    cursor: str | None = None,
-) -> AttributionOrdersPage:
-    """Keyset-page latest safe order facts joined to current-version links."""
-    _validate_window(from_date, to_date)
+def _validate_order_filters(source: str | None, attribution_state: str | None) -> None:
     if source is not None and source not in AI_SOURCES:
         raise AttributionQueryError(f"unknown source: {source!r}")
     if (
@@ -298,27 +312,34 @@ async def get_attribution_orders(
     if source is not None and attribution_state == ATTRIBUTION_ORDER_STATE_UNATTRIBUTED:
         raise AttributionQueryError("source cannot filter unattributed orders")
 
-    filters = _order_filters(
-        workspace_id=workspace_id,
-        project_id=project_id,
-        source=source,
-        attribution_state=attribution_state,
-        from_date=from_date,
-        to_date=to_date,
-    )
-    keyset: tuple[datetime, uuid.UUID] | None = None
-    if cursor:
-        try:
-            occurred_raw, id_raw = decode_keyset_cursor(
-                cursor, scope="commerce-attribution-orders", filters=filters
-            )
-            occurred_at = datetime.fromisoformat(occurred_raw)
-            if occurred_at.tzinfo is None:
-                occurred_at = occurred_at.replace(tzinfo=UTC)
-            keyset = occurred_at, uuid.UUID(id_raw)
-        except (ValueError, TypeError) as exc:
-            raise AttributionCursorError("invalid attribution orders cursor") from exc
 
+def _decode_order_cursor(
+    cursor: str | None, *, filters: dict[str, object]
+) -> tuple[datetime, uuid.UUID] | None:
+    if not cursor:
+        return None
+    try:
+        occurred_raw, id_raw = decode_keyset_cursor(
+            cursor, scope="commerce-attribution-orders", filters=filters
+        )
+        occurred_at = datetime.fromisoformat(occurred_raw)
+        if occurred_at.tzinfo is None:
+            occurred_at = occurred_at.replace(tzinfo=UTC)
+        return occurred_at, uuid.UUID(id_raw)
+    except (ValueError, TypeError) as exc:
+        raise AttributionCursorError("invalid attribution orders cursor") from exc
+
+
+def _orders_statement(
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    source: str | None,
+    attribution_state: str | None,
+    from_date: date | None,
+    to_date: date | None,
+    keyset: tuple[datetime, uuid.UUID] | None,
+) -> Select:
     current_link = and_(
         AttributionLink.order_fact_id == OrderFact.id,
         AttributionLink.workspace_id == workspace_id,
@@ -350,6 +371,63 @@ async def get_attribution_orders(
                 and_(OrderFact.occurred_at == occurred_at, OrderFact.id < fact_id),
             )
         )
+    return stmt
+
+
+def _order_row(fact: OrderFact, link: AttributionLink | None) -> AttributionOrderRow:
+    evidence = link.evidence_refs if link is not None else {}
+    return AttributionOrderRow(
+        fact_id=fact.id,
+        occurred_at=fact.occurred_at.isoformat(),
+        line_items=[
+            AttributionOrderLineItem.model_validate(item)
+            for item in (fact.line_items or [])
+        ],
+        amount=float(fact.total_amount),
+        currency=fact.currency,
+        attribution_state=(
+            ATTRIBUTION_ORDER_STATE_ATTRIBUTED
+            if link is not None
+            else ATTRIBUTION_ORDER_STATE_UNATTRIBUTED
+        ),
+        method=link.method if link is not None else None,
+        ai_source=str(evidence.get("ai_source")) if link is not None else None,
+        confidence=link.confidence if link is not None else None,
+        rule_version=link.rule_version if link is not None else None,
+    )
+
+
+async def get_attribution_orders(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    source: str | None = None,
+    attribution_state: str | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    cursor: str | None = None,
+) -> AttributionOrdersPage:
+    """Keyset-page latest safe order facts joined to current-version links."""
+    _validate_window(from_date, to_date)
+    _validate_order_filters(source, attribution_state)
+    filters = _order_filters(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        source=source,
+        attribution_state=attribution_state,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    stmt = _orders_statement(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        source=source,
+        attribution_state=attribution_state,
+        from_date=from_date,
+        to_date=to_date,
+        keyset=_decode_order_cursor(cursor, filters=filters),
+    )
     rows = (
         await session.execute(
             stmt.order_by(OrderFact.occurred_at.desc(), OrderFact.id.desc()).limit(
@@ -367,32 +445,7 @@ async def get_attribution_orders(
             sort_values=[last_fact.occurred_at.isoformat(), str(last_fact.id)],
         )
 
-    items = []
-    for fact, link in rows:
-        evidence = link.evidence_refs if link is not None else {}
-        items.append(
-            AttributionOrderRow(
-                fact_id=fact.id,
-                occurred_at=fact.occurred_at.isoformat(),
-                line_items=[
-                    AttributionOrderLineItem.model_validate(item)
-                    for item in (fact.line_items or [])
-                ],
-                amount=float(fact.total_amount),
-                currency=fact.currency,
-                attribution_state=(
-                    ATTRIBUTION_ORDER_STATE_ATTRIBUTED
-                    if link is not None
-                    else ATTRIBUTION_ORDER_STATE_UNATTRIBUTED
-                ),
-                method=link.method if link is not None else None,
-                ai_source=(
-                    str(evidence.get("ai_source")) if link is not None else None
-                ),
-                confidence=link.confidence if link is not None else None,
-                rule_version=link.rule_version if link is not None else None,
-            )
-        )
+    items = [_order_row(fact, link) for fact, link in rows]
     return AttributionOrdersPage(items=items, next_cursor=next_cursor)
 
 

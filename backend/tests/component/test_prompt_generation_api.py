@@ -31,7 +31,9 @@ import app.api.prompts as prompts_api
 from app.connectors.agent.client import AgentNotConfiguredError, DefaultAgentClient
 from app.core.config.audits import AUDIT_TRIGGER_MANUAL
 from app.core.config.entitlements import KEY_PROMPT_SLOTS
-from app.domain.audits.planner import AuditValidationError, create_audit, list_tasks
+from app.domain.audits.creation import create_audit
+from app.domain.audits.errors import AuditValidationError
+from app.domain.audits.reads import list_tasks
 from app.domain.entitlements.types import GrantSpec
 from app.models.prompt import Prompt
 from tests.component.audit_helpers import seed_audit_fixtures

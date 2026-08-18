@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.abuse import abuse_settings
 from app.core.config.audits import AUDIT_QUEUE_SPEC, AUDIT_TRIGGER_MANUAL
 from app.domain.abuse.service import UsageLimitExceededError, consume_usage
-from app.domain.audits.planner import create_audit
+from app.domain.audits.creation import create_audit
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from tests.component.audit_helpers import seed_audit_fixtures
 

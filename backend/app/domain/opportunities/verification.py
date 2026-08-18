@@ -344,7 +344,7 @@ async def enqueue_audit_opportunity_tasks(
     audit_id: uuid.UUID,
 ) -> None:
     """Queue both Opportunity consumers of one terminal audit."""
-    from app.domain.opportunities.service import enqueue_opportunity_refresh
+    from app.domain.opportunities.queue import enqueue_opportunity_refresh
 
     await enqueue_opportunity_refresh(
         session,
