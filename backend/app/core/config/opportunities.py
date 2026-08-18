@@ -489,7 +489,7 @@ SITE_SCHEMA_TYPE_RULE_IDS: Final[frozenset[str]] = frozenset(
     {"aeo.schema_expected_for_type"}
 )
 # ``technical.thin_content`` is the v2 (sh-rules-2) id; it was renamed from the
-# v1 ``aeo.sufficient_text`` (see site_health.py — the per-type-minimum
+# v1 ``aeo.sufficient_text`` (see site_health_rules.py — the per-type-minimum
 # word-count check moved dimension). Using the retired id here would make the
 # thin-content opportunity silently never fire on real data.
 SITE_THIN_CONTENT_RULE_IDS: Final[frozenset[str]] = frozenset(

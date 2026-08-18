@@ -1,7 +1,7 @@
 # Product-catalog persistence models (Agentic Commerce / Product Visibility).
 #
 # One surface's catalog + derived rows live in this module (convention:
-# ``models/site_health.py``). ``Product`` mirrors ``Competitor``'s shape
+# ``models/site_health/``). ``Product`` mirrors ``Competitor``'s shape
 # (``models/brand.py``): a first-class row with JSONB value-object arrays
 # (``aliases``, ``variants``). ``CompetitorProduct`` is a separate table
 # FK -> ``competitors.id`` (mirrors the Brand-vs-Competitor separation;

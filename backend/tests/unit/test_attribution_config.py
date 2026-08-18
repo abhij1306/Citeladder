@@ -6,7 +6,8 @@ contract fail loud on drift)."""
 from __future__ import annotations
 
 from app.core.config import analytics as analytics_config
-from app.core.config import attribution, integrations
+from app.core.config import attribution
+from app.core.config import integrations_datasets as integration_datasets
 from app.core.config.attribution import (
     ATTRIBUTION_ANALYZER_VERSION,
     ATTRIBUTION_CONSUMED_DATASETS,
@@ -32,6 +33,7 @@ from app.core.config.attribution import (
     CONFIDENCE_EXACT,
     CONFIDENCE_HEURISTIC,
 )
+from app.core.config.integrations_transport import INTEGRATION_PROVIDER_GA4
 
 
 def test_attribution_method_vocabulary() -> None:
@@ -68,12 +70,12 @@ def test_source_granularity_literals_aliased_from_integrations() -> None:
     # attribution aliases the SAME values, never re-literalizes.
     assert (
         ATTRIBUTION_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM
-        == integrations.GA4_ITEM_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM
+        == integration_datasets.GA4_ITEM_SOURCE_GRANULARITY_SESSION_SOURCE_MEDIUM
         == "session_source_medium"
     )
     assert (
         ATTRIBUTION_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP
-        == integrations.GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP
+        == integration_datasets.GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP
         == "default_channel_group"
     )
     assert ATTRIBUTION_SOURCE_GRANULARITIES == frozenset(
@@ -109,16 +111,16 @@ def test_consumed_datasets_are_owned_template_ids() -> None:
     # ecommerce reports (exactly one item report has rows per connection).
     assert ATTRIBUTION_CONSUMED_DATASETS == frozenset(
         {
-            integrations.DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
-            integrations.DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
-            integrations.DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
+            integration_datasets.DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
+            integration_datasets.DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
+            integration_datasets.DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
         }
     )
     # No drift from the C1 owner: every consumed id is a registered
     # GA4 template — and the A1 datasets feed NOTHING else.
     for dataset in ATTRIBUTION_CONSUMED_DATASETS:
-        template = integrations.INTEGRATION_DATASET_TEMPLATES[dataset]
-        assert template.provider == integrations.INTEGRATION_PROVIDER_GA4
+        template = integration_datasets.INTEGRATION_DATASET_TEMPLATES[dataset]
+        assert template.provider == INTEGRATION_PROVIDER_GA4
     from app.core.config.traffic import (
         TRAFFIC_GA4_REFERRAL_DATASETS,
         TRAFFIC_REFRESH_TRIGGER_DATASETS,

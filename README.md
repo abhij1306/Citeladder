@@ -185,7 +185,7 @@ authority.
 ```text
 frontend/                              Next.js application
 backend/app/                           FastAPI modular monolith and workers
-backend/app/core/config/site_health.py page-kind, crawl, rule, and scoring policy
+backend/app/core/config/site_health_*.py focused page-kind, crawl, rule, and runtime policy
 migrations/versions/0001_initial.py    pre-launch canonical database baseline
 docs/plans/                            active target implementation plans
 docs/evaluations/                      evaluation corpora, provenance, and labels
