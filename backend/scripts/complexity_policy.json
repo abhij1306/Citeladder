@@ -35,7 +35,6 @@
       "app/connectors/web_evidence/url_policy.py::canonicalize": 18,
       "app/connectors/web_evidence/url_policy.py::classify_url_admission": 16,
       "app/core/config/entitlements.py::CapabilityRegistry.__post_init__": 15,
-      "app/core/config/site_health_runtime.py::SiteHealthSettings._validate_acquisition_ladder": 14,
       "app/core/errors.py::_parse_legacy_detail": 17,
       "app/core/http_security.py::RequestBodyLimitMiddleware.__call__": 15,
       "app/domain/analysis/service.py::_rankings": 16,

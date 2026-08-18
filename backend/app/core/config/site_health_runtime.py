@@ -25,6 +25,24 @@ from app.core.config.site_health_crawl_policy import (
 from app.core.config.task_queue import ERROR_MAX_ATTEMPTS, PostgresQueueSpec
 
 
+def _require_non_empty(settings: object, names: tuple[str, ...]) -> None:
+    for name in names:
+        if not str(getattr(settings, name)).strip():
+            raise ValueError(f"{name} must not be empty")
+
+
+def _require_non_negative(settings: object, names: tuple[str, ...]) -> None:
+    for name in names:
+        if getattr(settings, name) < 0:
+            raise ValueError(f"{name} must not be negative")
+
+
+def _require_positive(settings: object, names: tuple[str, ...]) -> None:
+    for name in names:
+        if getattr(settings, name) <= 0:
+            raise ValueError(f"{name} must be positive")
+
+
 class SiteHealthSettings(BaseSettings):
     """Env-overridable Site Health crawler/queue guardrails.
 
@@ -297,36 +315,37 @@ class SiteHealthSettings(BaseSettings):
     @model_validator(mode="after")
     def _validate_acquisition_ladder(self) -> SiteHealthSettings:
         """Keep fallback behavior bounded, server-owned, and reproducible."""
-        if not self.acquisition_policy_version.strip():
-            raise ValueError("acquisition_policy_version must not be empty")
-        if not self.curl_cffi_impersonation_profile.strip():
-            raise ValueError("curl_cffi_impersonation_profile must not be empty")
-        if self.curl_cffi_low_content_bytes < 0:
-            raise ValueError("curl_cffi_low_content_bytes must not be negative")
+        _require_non_empty(
+            self,
+            ("acquisition_policy_version", "curl_cffi_impersonation_profile"),
+        )
+        # Negative bounds invert the signals; zero intentionally disables the
+        # two JS-shell gates.
+        _require_non_negative(
+            self,
+            (
+                "curl_cffi_low_content_bytes",
+                "browser_low_content_bytes",
+                "js_shell_min_text_chars",
+                "js_shell_scan_bytes",
+            ),
+        )
+        # Zero inline-script length would make an empty script look like
+        # application code and escalate ordinary static pages.
+        _require_positive(
+            self,
+            (
+                "browser_navigation_timeout_seconds",
+                "browser_readiness_timeout_seconds",
+                "js_shell_min_inline_script_chars",
+            ),
+        )
         if any(
             status < 100 or status > 599 for status in self.curl_cffi_trigger_statuses
         ):
             raise ValueError("curl_cffi_trigger_statuses must be HTTP status codes")
-        if self.browser_low_content_bytes < 0:
-            raise ValueError("browser_low_content_bytes must not be negative")
-        if self.browser_navigation_timeout_seconds <= 0:
-            raise ValueError("browser_navigation_timeout_seconds must be positive")
-        if self.browser_readiness_timeout_seconds <= 0:
-            raise ValueError("browser_readiness_timeout_seconds must be positive")
         if self.browser_pool_max_browsers < 1:
             raise ValueError("browser_pool_max_browsers must be at least 1")
-        # Negative bounds do not disable a signal, they invert it: a negative
-        # scan window makes every body read as empty, and a negative text floor
-        # makes every 2xx page a shell. Zero is the documented "off" value for
-        # the two that gate the signal.
-        for name in ("js_shell_min_text_chars", "js_shell_scan_bytes"):
-            if getattr(self, name) < 0:
-                raise ValueError(f"{name} must not be negative")
-        # This one has no "off" meaning: zero would make every empty inline
-        # <script> count as application code, so an ordinary analytics stub
-        # would escalate a static page to a browser render.
-        if self.js_shell_min_inline_script_chars < 1:
-            raise ValueError("js_shell_min_inline_script_chars must be positive")
         return self
 
     @model_validator(mode="after")
