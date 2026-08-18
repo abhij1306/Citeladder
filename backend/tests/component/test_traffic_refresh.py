@@ -44,7 +44,7 @@ from app.domain.traffic import service as traffic_service
 from app.domain.traffic.service import refresh_traffic_snapshot
 from app.models.analytics import AnalyticsTask
 from app.models.integrations import IntegrationConnection
-from app.models.site_health import SiteUrl
+from app.models.site_health.urls import SiteUrl
 from app.models.traffic import TrafficPageStat, TrafficQueryStat, TrafficSnapshot
 from app.workers.analytics_worker import AnalyticsWorker
 from tests.component.analytics_helpers import (

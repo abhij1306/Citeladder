@@ -44,7 +44,8 @@ from app.domain.site_health.schemas import (
     DiscoveryOutput,
     FrontierCandidate,
 )
-from app.models.site_health import SiteCrawl, WorkspaceSiteHealthRuntime
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 
 _ENCODED_QUERY_DELIMITER = re.compile(r"%3f", re.IGNORECASE)
 _ENCODED_QUERY_EQUALS = re.compile(r"%3d", re.IGNORECASE)

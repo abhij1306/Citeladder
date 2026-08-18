@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from app.domain.site_health.phase import resolve_phase
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 
 
 def _crawl(

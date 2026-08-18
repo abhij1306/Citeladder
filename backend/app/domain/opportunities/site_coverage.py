@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
 )
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 
 
 def site_coverage(crawl: SiteCrawl | None) -> tuple[dict, list[str]]:

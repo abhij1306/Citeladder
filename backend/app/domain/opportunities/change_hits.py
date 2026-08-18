@@ -15,7 +15,7 @@ from app.core.config.site_change_intel import (
     CHANGE_STATE_AVAILABLE,
 )
 from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 
 _RULE_BY_CLASS = {
     CHANGE_CLASS_REGRESSION: "site_change_potential_regression",

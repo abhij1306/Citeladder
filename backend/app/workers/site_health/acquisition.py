@@ -24,12 +24,9 @@ from app.core.config.site_health_contracts import (
     TASK_KIND_DISCOVER,
 )
 from app.core.config.task_queue import TASK_ACTIVE_STATUSES
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SiteFetchAttempt,
-)
+from app.models.site_health.acquisition import SiteFetchArtifact, SiteFetchAttempt
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
 
 _BLOCKING_STATUSES = frozenset({403, 429})
 

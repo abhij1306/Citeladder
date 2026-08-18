@@ -39,15 +39,14 @@ from app.core.config.site_health_contracts import (
 )
 from app.models.opportunity import OpportunityImplementationEvent
 from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
-from app.models.site_health import (
-    SiteCrawl,
-    SiteFetchArtifact,
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import (
     SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
-    SiteUrlObservation,
 )
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 
 _SCOPE_KEYS = (
     "discovery_mode",

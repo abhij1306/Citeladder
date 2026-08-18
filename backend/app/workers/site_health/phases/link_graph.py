@@ -13,7 +13,8 @@ from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.domain.site_health.change_queue import enqueue_change_refresh
 from app.domain.site_health.link_graph import build_link_graph_snapshot
 from app.domain.site_health.selection import lease_is_owned
-from app.models.site_health import SiteCrawl, SiteCrawlTask
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
 from app.workers.site_health.phases.support import PhaseSupport
 
 

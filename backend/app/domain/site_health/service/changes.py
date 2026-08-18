@@ -24,7 +24,7 @@ from app.domain.site_health.service.common import (
     _load_project,
 )
 from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 
 _CURSOR_SCOPE = "site-change-observations"
 

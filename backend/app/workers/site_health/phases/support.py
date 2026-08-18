@@ -31,7 +31,8 @@ from app.core.config.site_health_acquisition import (
     FETCH_PURPOSE_DISCOVER,
 )
 from app.domain.site_health.schemas import DiscoveryOutput
-from app.models.site_health import SiteCrawl, SiteCrawlTask
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.site_health.acquisition import AcquisitionPlan, plan_host_acquisition
 from app.workers.site_health.outcomes import AnalyzeOutcome, DiscoverOutcome

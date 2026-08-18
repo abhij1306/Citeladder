@@ -116,26 +116,28 @@ from app.models.provider import (
     ProviderRoute,
 )
 from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlEvent,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SiteFetchAttempt,
-    SiteHealthProfile,
-    SiteHealthSnapshot,
+from app.models.site_health.acquisition import SiteFetchArtifact, SiteFetchAttempt
+from app.models.site_health.analysis import (
     SiteIssue,
-    SiteLinkGraphEdge,
-    SiteLinkGraphNode,
-    SiteLinkGraphSnapshot,
     SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
-    SiteUrlObservation,
-    WorkspaceSiteHealthRuntime,
 )
+from app.models.site_health.crawl import (
+    SiteCrawl,
+    SiteCrawlPhaseRun,
+    SiteDiscoveryFrontier,
+)
+from app.models.site_health.events import SiteCrawlEvent
+from app.models.site_health.graph import (
+    SiteHealthSnapshot,
+    SiteLinkGraphEdge,
+    SiteLinkGraphNode,
+    SiteLinkGraphSnapshot,
+)
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import SiteHealthProfile, WorkspaceSiteHealthRuntime
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 from app.models.traffic import TrafficPageStat, TrafficQueryStat, TrafficSnapshot
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
@@ -230,8 +232,10 @@ __all__ = [
     "ResponseAnalysis",
     "MonitoredSiteUrl",
     "SiteCrawl",
+    "SiteCrawlPhaseRun",
     "SiteCrawlEvent",
     "SiteCrawlTask",
+    "SiteDiscoveryFrontier",
     "SiteChangeObservation",
     "SiteChangeSnapshot",
     "SiteFetchArtifact",

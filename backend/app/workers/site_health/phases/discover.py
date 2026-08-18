@@ -80,12 +80,10 @@ from app.domain.site_health.state_events import (
     apply_discovery_status,
     record_crawl_event,
 )
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SiteUrlObservation,
-)
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import SiteUrlObservation
 from app.workers.site_health.helpers import (
     _classify_http_error,
     _count_disclosure,

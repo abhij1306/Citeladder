@@ -44,7 +44,8 @@ from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_SAMPLE_COMPLETED,
     DISCOVERY_STATUS_STOPPED,
 )
-from app.models.site_health import SiteCrawl, SiteCrawlEvent
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.events import SiteCrawlEvent
 
 # Keys that carry (or could reconstruct) a full-site total/frontier/overflow
 # signal. For a Free sample crawl these are removed from every event payload so

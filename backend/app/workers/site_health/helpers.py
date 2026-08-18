@@ -27,7 +27,7 @@ from app.core.config.site_health_rules import (
     SITE_HEALTH_RULES_BY_ID,
 )
 from app.domain.site_health.normalization import canonical_identity
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 
 
 def _utcnow() -> datetime:

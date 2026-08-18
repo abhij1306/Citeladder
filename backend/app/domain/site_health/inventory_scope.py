@@ -17,7 +17,8 @@ from sqlalchemy import select, union
 from app.core.config.site_health_crawl_policy import (
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
 )
-from app.models.site_health import SiteCrawl, SiteUrlObservation
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import SiteUrlObservation
 
 
 def inherited_inventory_crawl_ids(crawl: SiteCrawl) -> tuple[uuid.UUID, ...]:

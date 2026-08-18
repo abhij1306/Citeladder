@@ -29,14 +29,10 @@ from app.core.config.site_health_runtime import (
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.site_health.schemas import FrontierCandidate
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteUrl,
-    SiteUrlObservation,
-    WorkspaceSiteHealthRuntime,
-)
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 
 
 def _utcnow() -> datetime:

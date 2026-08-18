@@ -11,7 +11,7 @@ from app.core.config.traffic import TRAFFIC_GRANULARITY_DAY
 from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
 from app.domain.opportunities.service import enqueue_opportunity_refresh
 from app.domain.opportunities.verification import enqueue_implementation_verification
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 from app.models.traffic import TrafficSnapshot
 
 

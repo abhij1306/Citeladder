@@ -32,13 +32,13 @@ from app.domain.site_health.service.presentation import (
     display_label_for,
     project_crawl,
 )
-from app.models.site_health import (
-    SiteCrawl,
+from app.models.site_health.analysis import (
     SiteIssue,
     SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
+from app.models.site_health.crawl import SiteCrawl
 
 _NOW = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
 

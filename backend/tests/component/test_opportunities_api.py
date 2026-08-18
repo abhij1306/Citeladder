@@ -22,7 +22,8 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_COMPLETED,
 )
 from app.models.audit import Audit
-from app.models.site_health import SiteCrawl, SiteHealthProfile
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.runtime import SiteHealthProfile
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
 from tests.component.opportunity_helpers import (

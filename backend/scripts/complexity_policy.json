@@ -96,7 +96,6 @@
       "app/domain/site_health/phase_control.py": 959,
       "app/domain/site_health/planner.py": 1038,
       "app/domain/site_health/selection.py": 1236,
-      "app/models/site_health.py": 1429,
       "app/workers/audit_worker.py": 1606,
       "app/workers/integration_worker.py": 1411,
       "app/workers/site_health/lifecycle.py": 1153,

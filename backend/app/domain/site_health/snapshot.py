@@ -41,13 +41,10 @@ from app.core.config.site_health_contracts import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     SCORING_VERSION,
 )
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteHealthSnapshot,
-    SiteIssue,
-    SitePageAnalysis,
-)
+from app.models.site_health.analysis import SiteIssue, SitePageAnalysis
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.graph import SiteHealthSnapshot
+from app.models.site_health.urls import MonitoredSiteUrl
 
 __all__ = ["persist_crawl_snapshot"]
 

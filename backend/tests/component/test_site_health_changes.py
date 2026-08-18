@@ -15,13 +15,11 @@ from app.domain.site_health.change_intel import (
     select_previous_comparable_crawl,
 )
 from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SitePageAnalysis,
-    SiteUrlObservation,
-)
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import SitePageAnalysis
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import SiteUrlObservation
 from tests.component.test_site_health_api import _register, _seed_scenario
 
 pytestmark = pytest.mark.asyncio

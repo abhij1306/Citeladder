@@ -23,8 +23,8 @@ from app.domain.site_health.service.common import (
     SiteHealthNotFoundError,
     _load_project,
 )
-from app.models.site_health import (
-    SiteCrawl,
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.graph import (
     SiteLinkGraphEdge,
     SiteLinkGraphNode,
     SiteLinkGraphSnapshot,

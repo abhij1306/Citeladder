@@ -8,12 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.site_link_graph import LINK_GRAPH_ANALYZER_VERSION
 from app.domain.opportunities import service
 from app.models.opportunity import Opportunity
-from app.models.site_health import (
-    SiteCrawl,
-    SiteLinkGraphNode,
-    SiteLinkGraphSnapshot,
-    SitePageAnalysis,
-)
+from app.models.site_health.analysis import SitePageAnalysis
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.graph import SiteLinkGraphNode, SiteLinkGraphSnapshot
 from tests.component.opportunity_helpers import Scenario, _seed_scenario
 
 

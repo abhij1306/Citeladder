@@ -43,12 +43,8 @@ from app.domain.site_health.service.presentation import (
     _iso,
     display_label_for,
 )
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteIssue,
-    SitePageAnalysis,
-    SiteUrl,
-)
+from app.models.site_health.analysis import SiteIssue, SitePageAnalysis
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 
 
 # =========================================================================

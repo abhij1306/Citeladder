@@ -139,7 +139,9 @@ from app.models.opportunity import (
 )
 from app.models.product import ProductMetricSnapshot
 from app.models.project import Project
-from app.models.site_health import SiteCrawl, SiteIssue, SiteUrl
+from app.models.site_health.analysis import SiteIssue
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import SiteUrl
 
 __all__ = [
     "OpportunityNotFoundError",

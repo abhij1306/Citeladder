@@ -19,7 +19,8 @@ from app.domain.site_health.normalization import (
     decode_keyset_cursor,
 )
 from app.models.project import Project
-from app.models.site_health import SiteCrawl, SiteUrlObservation
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import SiteUrlObservation
 
 _MAX_PAGE_LIMIT = 200
 _DEFAULT_PAGE_LIMIT = 50

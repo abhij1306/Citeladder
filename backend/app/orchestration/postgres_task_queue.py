@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from app.models.audit import AuditTask
     from app.models.content import ContentGeneration
     from app.models.integrations import IntegrationSyncRun
-    from app.models.site_health import SiteCrawlTask
+    from app.models.site_health.queue import SiteCrawlTask
 
 logger = logging.getLogger("app.orchestration.postgres_task_queue")
 

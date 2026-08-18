@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.domain.opportunities.verification import verify_implementation_events
 from app.models.analytics import AnalyticsTask
 from app.models.opportunity import Opportunity, OpportunityImplementationEvent
-from app.models.site_health import SiteCrawl, SiteUrl
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import SiteUrl
 from tests.component.opportunity_helpers import Scenario, _seed_scenario
 
 pytestmark = pytest.mark.asyncio

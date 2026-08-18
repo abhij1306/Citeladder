@@ -51,6 +51,29 @@ def test_baseline_contains_site_health_guidance_and_commerce_schema() -> None:
         "competitor_comparison_snapshots",
     } <= tables
 
+    assert {
+        "workspace_site_health_runtime",
+        "site_health_profiles",
+        "site_crawls",
+        "site_crawl_phase_runs",
+        "site_discovery_frontier",
+        "site_urls",
+        "site_url_observations",
+        "monitored_site_urls",
+        "site_crawl_tasks",
+        "site_fetch_attempts",
+        "site_fetch_artifacts",
+        "site_page_analyses",
+        "site_link_references",
+        "site_rule_evaluations",
+        "site_issues",
+        "site_health_snapshots",
+        "site_link_graph_snapshots",
+        "site_link_graph_nodes",
+        "site_link_graph_edges",
+        "site_crawl_events",
+    } <= tables
+
     for column in (
         "acquisition_transport",
         "acquisition_rung",

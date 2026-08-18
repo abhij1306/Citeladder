@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit import Audit
 from app.models.demand import DemandSnapshot
 from app.models.opportunity import Opportunity
-from app.models.site_health import SiteHealthSnapshot
+from app.models.site_health.graph import SiteHealthSnapshot
 
 TOOL_VERSION: Final = "2.0.0"
 MAX_ROADMAP_ITEMS: Final = 10

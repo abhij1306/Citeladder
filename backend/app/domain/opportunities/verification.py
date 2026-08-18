@@ -31,12 +31,9 @@ from app.models.opportunity import (
     OpportunityImplementationEvent,
     OpportunityVerificationEvent,
 )
-from app.models.site_health import (
-    SiteCrawl,
-    SiteFetchArtifact,
-    SitePageAnalysis,
-    SiteRuleEvaluation,
-)
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import SitePageAnalysis, SiteRuleEvaluation
+from app.models.site_health.crawl import SiteCrawl
 from app.models.traffic import TrafficSnapshot
 
 

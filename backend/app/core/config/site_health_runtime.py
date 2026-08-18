@@ -418,7 +418,7 @@ def runtime_policy_for_allowance(
 def _site_crawl_task_model() -> type[SiteCrawlTask]:
     # Lazy import: this config module must never import a model at import time
     # (would create a config <-> models circular import).
-    from app.models.site_health import SiteCrawlTask
+    from app.models.site_health.queue import SiteCrawlTask
 
     return SiteCrawlTask
 
@@ -447,4 +447,4 @@ SITE_CRAWL_QUEUE_SPEC: Final[PostgresQueueSpec[SiteCrawlTask]] = PostgresQueueSp
 
 if TYPE_CHECKING:
     # Type-only: config never imports a model at runtime (circular import).
-    from app.models.site_health import SiteCrawlTask
+    from app.models.site_health.queue import SiteCrawlTask

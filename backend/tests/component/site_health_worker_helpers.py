@@ -42,13 +42,10 @@ from app.domain.site_health.entitlements import (
     resolve_runtime,
 )
 from app.domain.site_health.normalization import canonical_identity
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlTask,
-    SitePageAnalysis,
-    SiteUrl,
-)
+from app.models.site_health.analysis import SitePageAnalysis
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 from app.workers.site_health_worker import (
     SiteHealthWorker,
 )

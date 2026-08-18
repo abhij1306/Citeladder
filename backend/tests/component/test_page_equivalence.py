@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.demand.page_equivalence import resolve_owned_page
 from app.domain.site_health.normalization import url_hash
 from app.models.project import Project
-from app.models.site_health import SiteUrl
+from app.models.site_health.urls import SiteUrl
 from app.models.workspace import Workspace
 
 

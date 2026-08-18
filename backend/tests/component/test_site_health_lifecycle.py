@@ -48,13 +48,10 @@ from app.core.config.site_health_runtime import (
 from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.domain.site_health.service.lifecycle import load_events
 from app.models.analytics import AnalyticsTask
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlEvent,
-    SiteCrawlPhaseRun,
-    SiteCrawlTask,
-    SiteHealthSnapshot,
-)
+from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.events import SiteCrawlEvent
+from app.models.site_health.graph import SiteHealthSnapshot
+from app.models.site_health.queue import SiteCrawlTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.site_health.lifecycle import CrawlLifecycle
 from app.workers.site_health_worker import SiteHealthWorker

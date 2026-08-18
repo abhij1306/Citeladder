@@ -35,11 +35,8 @@ from app.domain.site_health.entitlements import (
     apply_runtime_policy,
     resolve_runtime,
 )
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawlTask,
-    SiteUrl,
-)
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 from tests.component.site_health_helpers import seed_site_crawl
 
 
@@ -269,7 +266,7 @@ async def test_resolve_runtime_conflict_preserves_ambient_transaction(
     from sqlalchemy import func as _func
     from sqlalchemy import select as _select
 
-    from app.models.site_health import WorkspaceSiteHealthRuntime
+    from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 
     async with session_factory() as session:
         seed = await seed_site_crawl(session)
@@ -323,7 +320,7 @@ async def test_observation_cross_workspace_binding_rejected(
     observation whose ``workspace_id`` differs from the crawl/URL workspace has
     no matching parent row, so the insert must raise ``IntegrityError``.
     """
-    from app.models.site_health import SiteUrlObservation
+    from app.models.site_health.urls import SiteUrlObservation
 
     async with session_factory() as session:
         seed = await seed_site_crawl(session)

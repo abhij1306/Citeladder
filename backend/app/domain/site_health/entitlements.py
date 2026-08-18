@@ -40,7 +40,7 @@ from app.core.config.site_health_crawl_policy import (
 from app.core.config.site_health_runtime import (
     runtime_policy_for_allowance,
 )
-from app.models.site_health import WorkspaceSiteHealthRuntime
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 
 
 async def _load_runtime(

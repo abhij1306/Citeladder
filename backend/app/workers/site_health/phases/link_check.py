@@ -33,14 +33,11 @@ from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.domain.site_health.normalization import canonical_identity
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SiteLinkReference,
-    SitePageAnalysis,
-    SiteUrl,
-)
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import SiteLinkReference, SitePageAnalysis
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import SiteUrl
 from app.workers.site_health.outcomes import LinkProbeOutcome as _LinkProbeOutcome
 from app.workers.site_health.phases.support import PhaseSupport
 from app.workers.site_health.urls import authority_key as _authority_key

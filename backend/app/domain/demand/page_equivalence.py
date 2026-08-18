@@ -23,7 +23,9 @@ from app.core.config.demand import (
     PAGE_EQUIVALENCE_QUERY_CHUNK_SIZE,
     PAGE_EQUIVALENCE_RESOLVER_VERSION,
 )
-from app.models.site_health import SiteCrawlTask, SiteFetchArtifact, SiteUrl
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import SiteUrl
 
 ResolutionOutcome = Literal["exact", "resolved", "ambiguous", "unresolved"]
 

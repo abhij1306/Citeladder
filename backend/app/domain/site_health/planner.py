@@ -100,14 +100,10 @@ from app.domain.site_health.state_events import (
     record_crawl_event,
 )
 from app.models.project import Project
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlPhaseRun,
-    SiteCrawlTask,
-    SiteHealthProfile,
-    SiteUrl,
-    SiteUrlObservation,
-)
+from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import SiteHealthProfile
+from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 
 
 # Bound the number of include/exclude narrowing globs accepted at creation so a

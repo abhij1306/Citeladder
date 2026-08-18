@@ -41,7 +41,7 @@ from app.models.billing import (
     BillingWebhookEvent,
     GrantRevocation,
 )
-from app.models.site_health import WorkspaceSiteHealthRuntime
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 from tests.component.auth_helpers import register_and_login as _register
 
 _SECRET = "component-webhook-secret"

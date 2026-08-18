@@ -93,15 +93,10 @@ from app.domain.site_health.selection import (
 from app.domain.site_health.state_events import (
     apply_crawl_status,
 )
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteDiscoveryFrontier,
-    SiteFetchArtifact,
-    SiteFetchAttempt,
-    SiteUrl,
-    SiteUrlObservation,
-)
+from app.models.site_health.acquisition import SiteFetchArtifact, SiteFetchAttempt
+from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.drain import DrainableWorkerMixin
 from app.workers.site_health import CrawlLifecycle, HostGate

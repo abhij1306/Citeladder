@@ -66,16 +66,11 @@ from app.domain.site_health.state_events import (
     apply_discovery_status,
     record_crawl_event,
 )
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlPhaseRun,
-    SiteCrawlTask,
-    SiteHealthProfile,
-    SitePageAnalysis,
-    SiteUrl,
-    SiteUrlObservation,
-)
+from app.models.site_health.analysis import SitePageAnalysis
+from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import SiteHealthProfile
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 
 
 class PhaseControlError(ValueError):

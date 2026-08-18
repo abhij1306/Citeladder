@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from app.models.content import ContentGeneration
     from app.models.discovery import BrandDiscoveryTask
     from app.models.integrations import IntegrationSyncRun
-    from app.models.site_health import SiteCrawlTask
+    from app.models.site_health.queue import SiteCrawlTask
 
 # --- Queue-neutral task (queue row) statuses -----------------------------
 # The queue-row lifecycle is identical for every task type:

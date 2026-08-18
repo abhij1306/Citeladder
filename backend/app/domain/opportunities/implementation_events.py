@@ -25,7 +25,7 @@ from app.models.opportunity import (
     OpportunityVerificationEvent,
 )
 from app.models.project import Project
-from app.models.site_health import SiteUrl
+from app.models.site_health.urls import SiteUrl
 
 
 class ImplementationNotFoundError(LookupError):

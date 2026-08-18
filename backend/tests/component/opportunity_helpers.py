@@ -49,16 +49,16 @@ from app.models.brand import OwnedDomain
 from app.models.opportunity import Opportunity
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SiteHealthProfile,
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
 )
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import SiteHealthProfile
+from app.models.site_health.urls import SiteUrl
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
 

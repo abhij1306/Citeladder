@@ -26,11 +26,9 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.models.project import Project
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteHealthProfile,
-)
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import SiteHealthProfile
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
 

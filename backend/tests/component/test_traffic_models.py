@@ -24,7 +24,7 @@ from app.core.config.traffic import (
     TRAFFIC_NORMALIZATION_VERSION,
 )
 from app.models.project import Project
-from app.models.site_health import SiteUrl
+from app.models.site_health.urls import SiteUrl
 from app.models.traffic import TrafficPageStat, TrafficQueryStat, TrafficSnapshot
 from app.models.workspace import Workspace
 

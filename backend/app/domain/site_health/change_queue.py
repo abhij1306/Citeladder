@@ -13,7 +13,8 @@ from app.core.config.site_health_runtime import (
     site_health_settings,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
-from app.models.site_health import SiteCrawl, SiteCrawlTask
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
 
 
 async def enqueue_change_refresh(session: AsyncSession, *, crawl: SiteCrawl) -> None:

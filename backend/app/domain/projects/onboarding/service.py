@@ -72,7 +72,7 @@ from app.models.discovery import (
 )
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet, Topic
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 
 IDEMPOTENCY_KEY_REQUIRED = "Idempotency-Key is required"
 

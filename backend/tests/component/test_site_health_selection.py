@@ -68,14 +68,10 @@ from app.domain.site_health.selection import (
     seed_monitored_targets,
 )
 from app.models.project import Project
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteHealthProfile,
-    SiteUrl,
-    SiteUrlObservation,
-)
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import SiteHealthProfile
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
 from tests.component.site_health_helpers import seed_monitored_urls_allowance

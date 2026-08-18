@@ -61,20 +61,17 @@ from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.domain.site_health.terminal_refresh import enqueue_terminal_analytics_refresh
 from app.models.analytics import AnalyticsTask
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlEvent,
-    SiteCrawlPhaseRun,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SiteFetchAttempt,
-    SiteHealthSnapshot,
+from app.models.site_health.acquisition import SiteFetchArtifact, SiteFetchAttempt
+from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
 )
+from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.events import SiteCrawlEvent
+from app.models.site_health.graph import SiteHealthSnapshot
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 from app.models.traffic import TrafficSnapshot
 from app.workers.site_health.helpers import _is_crawl_finalize_rule
 from app.workers.site_health.lifecycle import CrawlLifecycle

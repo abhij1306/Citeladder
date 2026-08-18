@@ -101,18 +101,16 @@ from app.domain.site_health.state_events import (
     record_crawl_event,
 )
 from app.domain.site_health.terminal_refresh import enqueue_terminal_analytics_refresh
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlPhaseRun,
-    SiteCrawlTask,
-    SiteFetchArtifact,
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import (
     SiteIssue,
     SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
-    SiteUrlObservation,
 )
+from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 
 logger = logging.getLogger("app.workers.site_health.lifecycle")
 

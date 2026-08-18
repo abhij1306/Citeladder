@@ -57,20 +57,16 @@ from app.domain.site_health.frontier import _store_frontier_candidates
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.schemas import AdmissionResult, FrontierCandidate
 from app.domain.site_health.service import presentation_status_for
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteDiscoveryFrontier,
-    SiteFetchArtifact,
-    SiteFetchAttempt,
-    SiteHealthSnapshot,
+from app.models.site_health.acquisition import SiteFetchArtifact, SiteFetchAttempt
+from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
-    SiteUrlObservation,
 )
+from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
+from app.models.site_health.graph import SiteHealthSnapshot
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 from app.workers.site_health_worker import (
     _OUTCOME_ERROR,
     _OUTCOME_SUCCESS,
@@ -482,7 +478,7 @@ async def test_free_sample_stops_at_ten_across_two_projects(
         seed_a = await seed_site_crawl(session, task_count=0, root_url=root_a)
         # Second project in the SAME workspace.
         from app.models.project import Project
-        from app.models.site_health import SiteHealthProfile
+        from app.models.site_health.runtime import SiteHealthProfile
 
         project_b = Project(
             workspace_id=seed_a.workspace_id,

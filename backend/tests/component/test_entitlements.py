@@ -44,7 +44,7 @@ from app.models.billing import (
     BillingAccount,
     WorkspaceBillingLink,
 )
-from app.models.site_health import WorkspaceSiteHealthRuntime
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 from app.models.user import User
 from app.models.workspace import Workspace
 

@@ -44,7 +44,9 @@ from app.domain.site_health.service import (
     display_label_for,
     presentation_status_for,
 )
-from app.models.site_health import SiteCrawl, SiteCrawlTask, SitePageAnalysis
+from app.models.site_health.analysis import SitePageAnalysis
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
 
 # --------------------------------------------------------------------------
 # Keyset cursors

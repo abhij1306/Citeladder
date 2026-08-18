@@ -52,17 +52,15 @@ from app.domain.site_health.frontier_support import (
 )
 from app.domain.site_health.selection import evaluate_task_guard, lease_is_owned
 from app.domain.site_health.state_events import record_crawl_event
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlTask,
+from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
-    SiteUrlObservation,
-    WorkspaceSiteHealthRuntime,
 )
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 from app.workers.site_health.acquisition import reusable_discover_artifact
 from app.workers.site_health.helpers import (
     _classify_http_error,

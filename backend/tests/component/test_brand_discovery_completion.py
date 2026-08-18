@@ -23,7 +23,7 @@ from app.models.discovery import (
 )
 from app.models.project import Project
 from app.models.prompt import Prompt
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 from app.models.workspace import Workspace
 from app.workers import brand_discovery_worker
 from tests.component.occupancy_helpers import seed_occupancy_grants

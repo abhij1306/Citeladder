@@ -50,7 +50,7 @@ from app.models.billing import (
     GrantRevocation,
     WorkspaceBillingLink,
 )
-from app.models.site_health import WorkspaceSiteHealthRuntime
+from app.models.site_health.runtime import WorkspaceSiteHealthRuntime
 
 logger = logging.getLogger("app.billing")
 

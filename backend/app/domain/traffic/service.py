@@ -93,7 +93,8 @@ from app.models.integrations import (
     IntegrationOAuthGrant,
     IntegrationPropertyMapping,
 )
-from app.models.site_health import SiteHealthProfile, SiteUrl
+from app.models.site_health.runtime import SiteHealthProfile
+from app.models.site_health.urls import SiteUrl
 from app.models.traffic import TrafficPageStat, TrafficQueryStat, TrafficSnapshot
 
 # Bounded work per read batch: each batch is one cooperative-cancel boundary

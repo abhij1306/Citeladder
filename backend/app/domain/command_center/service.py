@@ -40,7 +40,7 @@ from app.models.opportunity import (
 )
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 
 
 @dataclass(frozen=True)

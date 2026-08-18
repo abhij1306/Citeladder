@@ -25,7 +25,7 @@ from app.core.config.brand_logos import BRAND_LOGO_STATUS_READY
 from app.core.config.entitlements import KEY_PROJECT_SLOTS, KEY_PROMPT_SLOTS
 from app.domain.entitlements.types import GrantSpec
 from app.models.brand import Brand, BrandLogoAsset, Competitor
-from app.models.site_health import SiteCrawl
+from app.models.site_health.crawl import SiteCrawl
 from tests.component.auth_helpers import register_and_login as _register
 from tests.component.occupancy_helpers import seed_occupancy_grants
 

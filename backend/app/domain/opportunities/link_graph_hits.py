@@ -14,11 +14,8 @@ from app.core.config.site_link_graph import (
     LINK_GRAPH_MAX_NODES,
     LINK_GRAPH_STATE_AVAILABLE,
 )
-from app.models.site_health import (
-    SiteCrawl,
-    SiteLinkGraphNode,
-    SiteLinkGraphSnapshot,
-)
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.graph import SiteLinkGraphNode, SiteLinkGraphSnapshot
 
 _RULE_FLAGS = (
     ("site_link_near_orphan", "near_orphan"),

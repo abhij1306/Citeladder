@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.site_change_intel import CHANGE_ANALYZER_VERSION
 from app.domain.opportunities.change_hits import load_change_hits
 from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
-from app.models.site_health import SiteCrawl, SiteUrl
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import SiteUrl
 from tests.component.site_health_helpers import seed_site_crawl
 
 pytestmark = pytest.mark.asyncio

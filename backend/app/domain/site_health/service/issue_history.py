@@ -23,13 +23,13 @@ from app.domain.site_health.service.common import (
     _load_crawl,
 )
 from app.domain.site_health.service.presentation import _iso, display_label_for
-from app.models.site_health import (
-    SiteCrawl,
+from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
 )
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import SiteUrl
 
 
 async def get_issue_history(

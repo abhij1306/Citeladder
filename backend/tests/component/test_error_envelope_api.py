@@ -32,7 +32,7 @@ from app.domain.opportunities.service import (
     OpportunityGuidanceUnavailableError,
 )
 from app.main import app
-from app.models.site_health import SiteHealthProfile
+from app.models.site_health.runtime import SiteHealthProfile
 from app.models.user import User
 from app.models.workspace import WorkspaceMember
 from tests.component.opportunity_helpers import _seed_scenario

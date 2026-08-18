@@ -15,7 +15,8 @@ from app.core.config.site_health_runtime import (
 )
 from app.core.config.site_link_graph import LINK_GRAPH_ANALYZER_VERSION
 from app.core.config.task_queue import TASK_STATUS_QUEUED
-from app.models.site_health import SiteCrawl, SiteCrawlTask
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
 
 
 async def enqueue_link_graph_refresh(

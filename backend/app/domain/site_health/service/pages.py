@@ -39,16 +39,15 @@ from app.domain.site_health.service.queries import (
     _scan_window,
     _site_url_page_stmt,
 )
-from app.models.site_health import (
-    SiteCrawl,
-    SiteFetchArtifact,
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import (
     SiteIssue,
     SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
-    SiteUrlObservation,
 )
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 
 
 # =========================================================================

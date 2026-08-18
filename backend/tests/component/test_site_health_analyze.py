@@ -47,17 +47,16 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
 )
 from app.domain.site_health.normalization import canonical_identity
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SiteHealthSnapshot,
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
     SiteRuleEvaluation,
-    SiteUrl,
 )
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.graph import SiteHealthSnapshot
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 from app.workers.site_health_worker import (
     SiteHealthWorker,
 )

@@ -39,7 +39,7 @@ from app.domain.site_health.frontier_support import (
     _utcnow,
 )
 from app.domain.site_health.schemas import AdmissionResult, FrontierCandidate
-from app.models.site_health import SiteCrawl, SiteDiscoveryFrontier
+from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
 
 
 async def _record_sample_admission(

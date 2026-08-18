@@ -34,15 +34,14 @@ from app.core.config.task_queue import (
     TASK_STATUS_RUNNING,
     TASK_STATUS_SUCCEEDED,
 )
-from app.models.site_health import (
-    SiteCrawl,
-    SiteCrawlPhaseRun,
-    SiteCrawlTask,
+from app.models.site_health.analysis import (
     SiteIssue,
     SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
+from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
+from app.models.site_health.queue import SiteCrawlTask
 
 # Deterministic severity ordering (critical worst). Used for the grouped-issue
 # keyset sort and the issues summary rollup.

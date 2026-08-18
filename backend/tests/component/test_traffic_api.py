@@ -51,7 +51,7 @@ from app.domain.traffic import service as traffic_service
 from app.domain.traffic.service import refresh_traffic_snapshot
 from app.models.analytics import AnalyticsTask
 from app.models.integrations import IntegrationConnection
-from app.models.site_health import SiteUrl
+from app.models.site_health.urls import SiteUrl
 from tests.component.analytics_helpers import (
     seed_ga4_import,
     seed_metric_row,

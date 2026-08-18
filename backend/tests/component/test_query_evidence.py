@@ -29,7 +29,7 @@ from app.models.integrations import (
     IntegrationImportArtifact,
     IntegrationPropertyMapping,
 )
-from app.models.site_health import SiteUrl
+from app.models.site_health.urls import SiteUrl
 from tests.component.analytics_helpers import (
     seed_ga4_import,
     seed_metric_row,

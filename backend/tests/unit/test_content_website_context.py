@@ -31,15 +31,12 @@ from app.core.config.site_health_contracts import (
 )
 from app.domain.content.website_context import select_crawl_fragments
 from app.models.project import Project
-from app.models.site_health import (
-    MonitoredSiteUrl,
-    SiteCrawl,
-    SiteCrawlTask,
-    SiteFetchArtifact,
-    SiteHealthProfile,
-    SitePageAnalysis,
-    SiteUrl,
-)
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.analysis import SitePageAnalysis
+from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.runtime import SiteHealthProfile
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 from app.models.workspace import Workspace
 
 _ROOT = "https://example.com/"
