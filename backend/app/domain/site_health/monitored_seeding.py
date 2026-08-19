@@ -64,7 +64,7 @@ async def seed_monitored_targets(
             continue
         if remaining_budget is not None and len(seeded) >= remaining_budget:
             break
-        task = await enqueue_analyze_task(
+        task = enqueue_analyze_task(
             session,
             crawl=crawl,
             site_url=site_url,

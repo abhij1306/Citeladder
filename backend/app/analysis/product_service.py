@@ -98,7 +98,7 @@ async def _persist_product_signals(
     score: dict,
 ) -> None:
     live_products, live_competitors = await _live_entry_ids(session, config)
-    await _persist_signal_rows(
+    _persist_signal_rows(
         session,
         task=task,
         analysis=analysis,
@@ -108,7 +108,7 @@ async def _persist_product_signals(
         live_ids=live_products,
         is_product=True,
     )
-    await _persist_signal_rows(
+    _persist_signal_rows(
         session,
         task=task,
         analysis=analysis,
@@ -120,7 +120,7 @@ async def _persist_product_signals(
     )
 
 
-async def _persist_signal_rows(
+def _persist_signal_rows(
     session: AsyncSession,
     *,
     task: AuditTask,
@@ -493,13 +493,15 @@ def _upsert_product_snapshot(
         for analysis in analyses
         if _mentions_entry(analysis.score or {}, entry_id, is_product)
     ]
-    snapshot = existing or ProductMetricSnapshot(
-        workspace_id=audit.workspace_id,
-        audit_id=audit.id,
-        project_id=audit.project_id,
-    )
     if existing is None:
+        snapshot = ProductMetricSnapshot(
+            workspace_id=audit.workspace_id,
+            audit_id=audit.id,
+            project_id=audit.project_id,
+        )
         session.add(snapshot)
+    else:
+        snapshot = existing
     _apply_snapshot_fields(
         snapshot,
         entry_id=entry_id,

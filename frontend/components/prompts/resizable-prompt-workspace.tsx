@@ -30,7 +30,7 @@ export function ResizablePromptWorkspace({
   railId,
 }: Readonly<{ rail: ReactNode; children: ReactNode; railId: string }>) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const handleRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLButtonElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const widthRef = useRef(DEFAULT_RAIL_WIDTH);
   const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH);
@@ -92,7 +92,7 @@ export function ResizablePromptWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -106,13 +106,13 @@ export function ResizablePromptWorkspace({
     document.body.style.userSelect = 'none';
   };
 
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     updateWidth(drag.startWidth + event.clientX - drag.startX);
   };
 
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     const step = event.shiftKey ? 48 : 16;
     let next: number | null = null;
     if (event.key === 'ArrowLeft') next = widthRef.current - step;
@@ -135,8 +135,9 @@ export function ResizablePromptWorkspace({
       style={workspaceStyle}
     >
       <div className="w-full min-w-0 lg:w-[var(--topic-rail-width)] lg:shrink-0">{rail}</div>
-      <div
+      <button
         ref={handleRef}
+        type="button"
         role="separator"
         aria-label="Resize topics panel"
         aria-orientation="vertical"
@@ -145,7 +146,6 @@ export function ResizablePromptWorkspace({
         aria-valuemax={maxRailWidth}
         aria-valuenow={railWidth}
         aria-describedby="topic-rail-resize-help"
-        tabIndex={0}
         title="Drag to resize. Double-click to reset."
         onDoubleClick={() => updateWidth(DEFAULT_RAIL_WIDTH)}
         onKeyDown={onKeyDown}
@@ -154,7 +154,8 @@ export function ResizablePromptWorkspace({
         onPointerUp={(event) => finishDrag(event.pointerId)}
         onPointerCancel={(event) => finishDrag(event.pointerId)}
         onLostPointerCapture={() => finishDrag()}
-        className="focus-ring group relative hidden w-3 shrink-0 cursor-col-resize touch-none items-stretch justify-center self-stretch lg:flex"
+        style={{ touchAction: 'none' }}
+        className="focus-ring group relative hidden w-3 shrink-0 cursor-col-resize items-stretch justify-center self-stretch lg:flex"
         data-dragging={dragging || undefined}
       >
         <span
@@ -164,7 +165,7 @@ export function ResizablePromptWorkspace({
         <span id="topic-rail-resize-help" className="sr-only">
           Use left and right arrow keys to resize. Hold Shift for larger steps.
         </span>
-      </div>
+      </button>
       <div className="w-full min-w-0 flex-1 lg:ps-3">{children}</div>
     </div>
   );

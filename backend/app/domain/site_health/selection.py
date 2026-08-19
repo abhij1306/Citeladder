@@ -273,7 +273,7 @@ def _analyze_idempotency_key(
     return f"{crawl_id}:{TASK_KIND_ANALYZE}:{url_hash}:{generation}"
 
 
-async def enqueue_analyze_task(
+def enqueue_analyze_task(
     session: AsyncSession,
     *,
     crawl: SiteCrawl,
@@ -438,7 +438,7 @@ async def _reconcile_active_crawl_tasks(
     enqueued_ids: list[uuid.UUID] = []
     for position, site_url_id in enumerate(added_ids):
         site_url = site_urls[site_url_id]
-        task = await enqueue_analyze_task(
+        task = enqueue_analyze_task(
             session,
             crawl=crawl,
             site_url=site_url,

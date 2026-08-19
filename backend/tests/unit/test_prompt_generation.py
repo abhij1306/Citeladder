@@ -15,10 +15,12 @@ from app.domain.prompts.generation import (
     SuggestedPrompt,
     SuggestedTopic,
     _cap_suggestions_to_count,
-    _ground_suggestion_topics,
-    _title_case_topic,
     build_generation_user_message,
     parse_generation_output,
+)
+from app.domain.prompts.generation_topics import _title_case_topic
+from app.domain.prompts.generation_topics import (
+    ground_suggestion_topics as _ground_suggestion_topics,
 )
 from app.domain.prompts.normalization import normalize_prompt_text, prompt_text_hash
 

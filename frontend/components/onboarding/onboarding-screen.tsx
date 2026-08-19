@@ -84,6 +84,8 @@ const STEPS = [
   { id: 'review', title: 'Confirm ICP', description: 'Finalize facts & tracking scope' },
 ] as const;
 const MARKET_OPTIONS = [{ value: 'GLOBAL', label: 'Global' }, ...COUNTRY_OPTIONS];
+const TOP_ALIGNED_STAGE = 'justify-start min-[900px]:pt-[3.25rem]';
+const STEP_MAIN_ALIGNMENT = [TOP_ALIGNED_STAGE, TOP_ALIGNED_STAGE, 'justify-center'] as const;
 type StepIndex = 0 | 1 | 2;
 
 function selectedDomainValues(domains: ReviewDomain[]): string[] {
@@ -412,19 +414,10 @@ export function OnboardingScreen() {
           </div>
         </header>
 
-        {/* Step Stage Content. The compact setup and discovery stages align their
-            heading with the desktop rail's "Set up your project" heading; the
-            wider review stage keeps its own centred composition. */}
-        {/* The stage OWNS the vertical scroll. Its ancestors are
-            `h-screen overflow-hidden`, so without this a review step taller
-            than the viewport — or any step on a short laptop — clipped its
-            own action row with nothing able to scroll to it. `min-h-0` is
-            what lets a flex child shrink below its content and actually
-            scroll instead of stretching the column, and `overflow-y-auto` is
-            what makes the overflow reachable at all — without it the rail is
-            declared and nothing scrolls. `auto` keeps ordinary laptop
-            viewports free of a stray scrollbar while short screens and
-            unusually long discovered content stay reachable. */}
+        {/* Compact stages align with the desktop rail; review stays centred. */}
+        {/* This child owns vertical scroll because its ancestors hide overflow.
+            `min-h-0` lets it shrink; `overflow-y-auto` keeps tall stages reachable
+            without showing a scrollbar on ordinary laptop viewports. */}
         {/* The rail WIDTH follows the step's content, it is not one constant.
             A two-field form wants a narrow measure; the review step is a dense
             grid of chips that was being squeezed into the same 576px and
@@ -435,7 +428,7 @@ export function OnboardingScreen() {
           className={cn(
             'mx-auto flex min-h-0 w-full flex-1 flex-col overflow-y-auto py-2 text-sm sm:py-3 lg:py-4',
             step === 2 ? 'max-w-6xl' : 'max-w-xl',
-            step < 2 ? 'justify-start min-[900px]:pt-[3.25rem]' : 'justify-center',
+            STEP_MAIN_ALIGNMENT[step],
           )}
         >
           <div className="p-1 sm:p-2">

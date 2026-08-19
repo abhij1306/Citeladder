@@ -172,7 +172,7 @@ async def rerun_page(
             task_kind=TASK_KIND_ANALYZE,
             url_hashes=[site_url.url_hash],
         )
-        task = await enqueue_analyze_task(
+        task = enqueue_analyze_task(
             session,
             crawl=crawl,
             site_url=site_url,

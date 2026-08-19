@@ -28,6 +28,8 @@ describe('ResizablePromptWorkspace', () => {
   it('exposes an accessible bounded separator', () => {
     renderWorkspace();
     const separator = screen.getByRole('separator', { name: 'Resize topics panel' });
+    separator.focus();
+    expect(separator).toHaveFocus();
     expect(separator).toHaveAttribute('aria-controls', 'topics');
     expect(separator).toHaveAttribute('aria-orientation', 'vertical');
     expect(separator).toHaveAttribute('aria-valuemin', '208');
