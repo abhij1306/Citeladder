@@ -48,7 +48,7 @@ jobs:
       # production ran 3.12, so the gate and the deployment disagreed about
       # which Python the code has to work on.
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           python-version: "3.12"
@@ -143,7 +143,7 @@ jobs:
       # Same pin as the backend job: the audited requirements must be the set
       # resolved for the interpreter that actually ships.
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
       - name: Dependency audit (SCA)
