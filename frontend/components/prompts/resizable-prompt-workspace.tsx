@@ -34,7 +34,6 @@ export function ResizablePromptWorkspace({
   const dragRef = useRef<DragState | null>(null);
   const widthRef = useRef(DEFAULT_RAIL_WIDTH);
   const [railWidth, setRailWidth] = useState(DEFAULT_RAIL_WIDTH);
-  const [maxRailWidth, setMaxRailWidth] = useState(MAX_RAIL_WIDTH);
   const [dragging, setDragging] = useState(false);
 
   const bounds = () => {
@@ -50,7 +49,6 @@ export function ResizablePromptWorkspace({
 
   const updateWidth = (next: number) => {
     const { min, max } = bounds();
-    setMaxRailWidth(max);
     const clamped = clamp(next, min, max);
     widthRef.current = clamped;
     setRailWidth(clamped);
@@ -77,14 +75,9 @@ export function ResizablePromptWorkspace({
 
   useEffect(() => {
     const container = containerRef.current;
-    const { max } = bounds();
-    setMaxRailWidth(max);
-    updateWidth(widthRef.current);
     const observer =
       container && typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => {
-            const { max } = bounds();
-            setMaxRailWidth(max);
             updateWidth(widthRef.current);
           })
         : null;
@@ -128,6 +121,8 @@ export function ResizablePromptWorkspace({
     event.preventDefault();
     updateWidth(next);
   };
+
+  const maxRailWidth = bounds().max;
 
   const workspaceStyle = {
     '--topic-rail-width': `${railWidth}px`,

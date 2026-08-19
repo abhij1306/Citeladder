@@ -64,6 +64,33 @@ def _sitemap_orphan_urls(
     return orphans
 
 
+def _root_analysis_id(
+    rows: Sequence[Any], *, hash_by_site_url: dict[uuid.UUID, str], root_hash: str
+) -> uuid.UUID | None:
+    return next(
+        (
+            row.id
+            for row in rows
+            if hash_by_site_url.get(row.site_url_id) == root_hash
+        ),
+        None,
+    )
+
+
+def _internal_link_targets(artifacts: Sequence[Any]) -> set[str]:
+    return {
+        canonical
+        for source_url, facts in artifacts
+        for anchor in ((facts or {}).get("links") or {}).get("anchors") or []
+        if bool((anchor or {}).get("is_internal"))
+        if (
+            canonical := canonical_or_empty(
+                urljoin(str(source_url or ""), str((anchor or {}).get("url") or ""))
+            )
+        )
+    }
+
+
 def _pass_through_hreflang_evaluation() -> RuleEvaluation:
     return evaluate_hreflang_conflict(
         alternate_count=0,
@@ -263,13 +290,8 @@ class CrawlFinalizeMixin:
             )
         ).all()
         hash_by_site_url = {row[0]: row[1] for row in site_url_rows}
-        root_analysis_id = next(
-            (
-                row.id
-                for row in rows
-                if hash_by_site_url.get(row.site_url_id) == root_hash
-            ),
-            None,
+        root_analysis_id = _root_analysis_id(
+            rows, hash_by_site_url=hash_by_site_url, root_hash=root_hash
         )
         if root_analysis_id is None:
             return []
@@ -291,17 +313,7 @@ class CrawlFinalizeMixin:
                 ).where(SiteFetchArtifact.id.in_(artifact_by_analysis.values()))
             )
         ).all()
-        linked_targets = {
-            canonical
-            for source_url, facts in artifacts
-            for anchor in ((facts or {}).get("links") or {}).get("anchors") or []
-            if bool((anchor or {}).get("is_internal"))
-            if (
-                canonical := canonical_or_empty(
-                    urljoin(str(source_url or ""), str((anchor or {}).get("url") or ""))
-                )
-            )
-        }
+        linked_targets = _internal_link_targets(artifacts)
         orphans = _sitemap_orphan_urls(
             sitemap_rows, root_canonical=root_canonical, linked_targets=linked_targets
         )

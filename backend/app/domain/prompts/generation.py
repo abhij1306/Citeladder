@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import uuid
 from difflib import SequenceMatcher
 from typing import Any
@@ -32,7 +31,6 @@ from app.core.config.prompts import (
     PROMPT_NEAR_DUPLICATE_SIMILARITY,
     PROMPT_STATUS_ACTIVE,
     TOPIC_ORIGIN_GENERATED,
-    TOPIC_TITLE_MINOR_WORDS,
     prompt_generation_settings,
 )
 from app.domain.projects.knowledge_base import build_brand_knowledge_data
@@ -47,6 +45,9 @@ from app.domain.prompts.generation_contract import (
 from app.domain.prompts.generation_errors import (
     GenerationValidationError,
     reraise_scoped_integrity_error,
+)
+from app.domain.prompts.generation_topics import (
+    ground_suggestion_topics as _ground_suggestion_topics,
 )
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
 from app.domain.prompts.normalization import prompt_text_hash
@@ -80,95 +81,6 @@ __all__ = [
 def _brand_context_hash(brand_context: dict[str, Any]) -> str:
     canonical = json.dumps(brand_context, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-
-_TOPIC_TOKEN = re.compile(r"[a-z0-9]+")
-
-
-def _title_case_topic(value: str) -> str:
-    """Format confirmed product/service text as a compact display topic."""
-    words = " ".join(value.strip().rstrip(".?!").split()).split()
-    titled: list[str] = []
-    for index, word in enumerate(words):
-        lowered = word.casefold()
-        if index > 0 and lowered in TOPIC_TITLE_MINOR_WORDS:
-            titled.append(lowered)
-        elif word.isupper() and len(word) > 1:
-            titled.append(word)
-        else:
-            titled.append(word[:1].upper() + word[1:].lower())
-    return " ".join(titled)
-
-
-def _product_service_topic_names(project: Project) -> list[str]:
-    brand = project.brand
-    profile = brand.profile if brand is not None else None
-    values = profile.products_services if profile is not None else []
-    names: list[str] = []
-    seen: set[str] = set()
-    for value in values or []:
-        name = _title_case_topic(str(value))
-        key = name.casefold()
-        if name and key not in seen:
-            seen.add(key)
-            names.append(name)
-    return names
-
-
-def _topic_tokens(value: str) -> set[str]:
-    return set(_TOPIC_TOKEN.findall(value.casefold()))
-
-
-def _ground_suggestion_topics(
-    suggestions: list[SuggestedTopic],
-    *,
-    project: Project,
-    target_topic: Topic | None,
-) -> list[SuggestedTopic]:
-    """Bind model topic labels to persisted or confirmed product taxonomy.
-
-    Exact existing-topic names win. Otherwise an exact or evidence-token match
-    maps to a title-cased confirmed product/service. If product/service
-    evidence is absent, the strongest positive-overlap existing topic is used.
-    A model-invented label with no supporting taxonomy evidence is dropped
-    rather than persisted.
-    """
-    if target_topic is not None:
-        return [
-            SuggestedTopic(name=target_topic.name, prompts=topic.prompts)
-            for topic in suggestions
-        ]
-
-    existing = {topic.name.casefold(): topic.name for topic in project.topics}
-    products = _product_service_topic_names(project)
-    products_by_key = {name.casefold(): name for name in products}
-    grounded: list[SuggestedTopic] = []
-    for suggestion in suggestions:
-        key = suggestion.name.strip().casefold()
-        canonical = existing.get(key) or products_by_key.get(key)
-        if canonical is None:
-            evidence_tokens = _topic_tokens(
-                " ".join(
-                    [suggestion.name, *(prompt.text for prompt in suggestion.prompts)]
-                )
-            )
-            ranked_products = [
-                (len(evidence_tokens & _topic_tokens(product)), -index, product)
-                for index, product in enumerate(products)
-            ]
-            best_product = max(ranked_products, default=(0, 0, ""))
-            if best_product[0] > 0:
-                canonical = best_product[2]
-            else:
-                ranked_existing = [
-                    (len(evidence_tokens & _topic_tokens(name)), -index, name)
-                    for index, name in enumerate(existing.values())
-                ]
-                best_existing = max(ranked_existing, default=(0, 0, ""))
-                canonical = best_existing[2] if best_existing[0] > 0 else None
-        if canonical:
-            grounded.append(SuggestedTopic(name=canonical, prompts=suggestion.prompts))
-    return grounded
 
 
 # --------------------------------------------------------------------------
