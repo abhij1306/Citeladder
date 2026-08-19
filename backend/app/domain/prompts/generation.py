@@ -48,6 +48,7 @@ from app.domain.prompts.generation_errors import (
 )
 from app.domain.prompts.generation_topics import (
     ground_suggestion_topics as _ground_suggestion_topics,
+    product_service_topic_names as _product_service_topic_names,
 )
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
 from app.domain.prompts.normalization import prompt_text_hash

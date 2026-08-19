@@ -26,7 +26,7 @@ def _title_case_topic(value: str) -> str:
     return " ".join(titled)
 
 
-def _product_service_topic_names(project: Project) -> list[str]:
+def product_service_topic_names(project: Project) -> list[str]:
     brand = project.brand
     profile = brand.profile if brand is not None else None
     values = profile.products_services if profile is not None else []
@@ -87,7 +87,7 @@ def ground_suggestion_topics(
         ]
 
     existing = {topic.name.casefold(): topic.name for topic in project.topics}
-    products = _product_service_topic_names(project)
+    products = product_service_topic_names(project)
     products_by_key = {name.casefold(): name for name in products}
     return [
         SuggestedTopic(name=canonical, prompts=suggestion.prompts)
