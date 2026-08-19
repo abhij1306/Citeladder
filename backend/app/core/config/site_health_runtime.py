@@ -204,10 +204,7 @@ class SiteHealthSettings(BaseSettings):
     # How long a cached per-authority robots policy stays fresh before the
     # worker re-fetches it (RFC 9309 caching guidance is ~24h).
     robots_cache_ttl_seconds: float = 86_400.0
-    # Hard ceiling on cached authorities. The cache is NOT bounded by the
-    # crawl's own domain: link checks resolve robots for arbitrary EXTERNAL
-    # link targets, so a long-lived worker would otherwise retain one policy +
-    # one lock per host it ever probed. Expired entries are dropped first;
+    # Hard ceiling on cached authorities. Expired entries are dropped first;
     # beyond the cap, the oldest go. 0 disables the cap.
     robots_cache_max_authorities: int = 2048
 
@@ -246,17 +243,6 @@ class SiteHealthSettings(BaseSettings):
     # Bound on how many stalled crawls one sweep reconciles, keeping the
     # backstop's cost per loop iteration flat.
     stalled_crawl_reconcile_batch: int = 50
-
-    # --- Link checking ---
-    max_link_checks_per_page: int = 200
-    link_check_timeout_seconds: float = 10.0
-    # How many of ONE page's link probes may be in flight at once. Probes used
-    # to run strictly serially, so a page's links cost (links x host delay) and
-    # the crawl sat visibly "finished" for ~10s per page while they drained.
-    # The per-host gate + crawl-delay still serialize same-host requests
-    # underneath this; the ceiling keeps a 200-link page from queueing 200
-    # simultaneous probes.
-    link_check_concurrency: int = 8
 
     # --- Export ---
     # Bounds how many rows ``_export_items`` materializes into memory for a
@@ -397,7 +383,6 @@ class SiteHealthSettings(BaseSettings):
             "global_concurrency",
             "per_host_concurrency",
             "worker_concurrency",
-            "link_check_concurrency",
         ):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive")

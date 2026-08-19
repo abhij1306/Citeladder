@@ -55,7 +55,7 @@ repair lifecycle state, or call a model.
   which pages may be analyzed; discovery never turns an unentitled inventory
   row into analysis work.
 - A user-triggered **Run new crawl** request always advances through discovery,
-  analysis, link checking, snapshot creation, and terminal completion. Its
+  analysis, snapshot creation, and terminal completion. Its
   internal `input_mode=auto` value is a request-mode token, not an automatic or
   scheduled crawl feature. The development advanced-controls setting only
   makes manual APIs available; it does not opt standard runs into pausing.
@@ -133,55 +133,15 @@ robots-blocked URL is visible instead of leaving the counter apparently frozen.
 
 Terminal evidence refresh follows one transactionally idempotent DAG for
 completed, partially completed, and cancelled-after-analysis crawls. Usable
-evidence first enqueues the crawl-scoped link graph, then the immutable change
-snapshot. Only after Change Intelligence commits does a current Traffic
+evidence first enqueues the immutable change snapshot. Only after Change
+Intelligence commits does a current Traffic
 snapshot route through Demand and then Opportunities; without Traffic input,
 the change snapshot routes directly to Opportunities. Successors never race
-their graph/change predecessors, and retries cannot duplicate a logical
+their change predecessors, and retries cannot duplicate a logical
 refresh. A completed or partially completed crawl with zero successful HTML
 analyses skips both projections but carries its crawl identity through the same
 bounded downstream path so stale Site Opportunities are superseded. A
 cancellation before any usable analysis enqueues none.
-
-## Internal-link graph
-
-Site Health builds one immutable graph snapshot from the exact current,
-successful HTML analyses of one crawl and records their analysis/artifact IDs,
-page-analyzer/extractor versions, a source hash, coverage, and limitations.
-`SiteLinkReference` remains the only link-evidence store. Anchor targets resolve
-through an in-scope target artifact/final URL when present and otherwise by the
-crawl's canonical `SiteUrl`; URL fragments never create nodes. External and
-unresolved targets remain counted evidence, not authority nodes.
-
-Repeated anchors for one ordered source/target pair collapse to one unit-weight
-topology edge while retaining occurrence counts, bounded anchor texts, and
-followed/nofollow observations. Anchor-level `rel=nofollow` and page-level
-robots nofollow exclude the observation from PageRank and BFS without deleting
-it. Deterministic PageRank uses damping `0.85`, tolerance `1e-8`, at most 100
-iterations, and standard dangling-mass redistribution. Click depth is BFS from
-the configured root; unreachable remains unknown.
-
-Near-orphan, weak-authority, over-linked, hub, authority-concentration, and
-anchor-distribution metrics use the config-owned WS4 thresholds. Suggested
-sources use only PageRank plus normalized path/title token Jaccard and return at
-most three stable candidates; no embeddings exist. Partial or bounded crawls
-remain `incomplete`, disclose observed coverage, and provide descriptive
-topology only. The existing `technical.sitemap_orphan` finalize evaluation
-remains the sole sitemap-orphan owner.
-
-Persisted reads are exposed at the project Site Health `link-graph`, `nodes`,
-and `edges` endpoints. Optional `crawl_id` selects an exact persisted snapshot;
-omission selects the latest. Node and edge pages use snapshot-bound cursors and
-never compute, repair, crawl, or enqueue work.
-
-Only complete `available` graph snapshots can produce link Opportunities, and
-their target must be indexable. The
-existing Opportunity owner maps `near_orphan` and `weak_authority` separately,
-freezes the graph snapshot/node plus exact target/source analysis provenance,
-and includes the analyzer's bounded suggested source pages. An incomplete
-snapshot produces no link Opportunity. Authority concentration, hubs,
-over-linking, anchor distribution, and sitemap-orphan evidence remain
-descriptive and are not mapped by v1.
 
 ## AEO Readiness
 
@@ -203,12 +163,11 @@ Readiness score and does not reinterpret Site Health scoring.
 
 ## Change Intelligence
 
-After the newer crawl's graph snapshot commits, Site Health persists one
+After a newer crawl terminalizes with usable evidence, Site Health persists one
 immutable comparison for its immediately preceding usable project crawl.
 Comparable pairs require the same root origin, frozen crawl-scope hash,
 extractor version, and page-analyzer version. A missing predecessor is
-`unavailable`; scope or version drift is `non_comparable`, never a regression.
-Completed pairs may report added/removed URLs. Partial or cancelled pairs
+`unavailable`; scope or version drift is `non_comparable`, never a regression.Completed pairs may report added/removed URLs. Partial or cancelled pairs
 compare shared observed URLs only and suppress all added/removed claims.
 
 The deterministic analyzer compares title, meta description, H1, canonical,

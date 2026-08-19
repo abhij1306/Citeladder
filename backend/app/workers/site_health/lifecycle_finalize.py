@@ -10,13 +10,13 @@ from __future__ import annotations
 import uuid
 from collections.abc import Sequence
 from typing import Any
+from urllib.parse import urljoin
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.site_health.finalize import (
-    evaluate_broken_internal_link,
     evaluate_hreflang_conflict,
     evaluate_sitemap_orphan,
 )
@@ -25,7 +25,6 @@ from app.connectors.web_evidence.url_policy import UrlPolicyError
 from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
     EXTRACTOR_VERSION,
-    LINK_KIND_ANCHOR,
     OBSERVATION_SOURCE_SITEMAP,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_OUTCOME_FAIL,
@@ -35,7 +34,6 @@ from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import (
     SiteIssue,
-    SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
@@ -164,23 +162,17 @@ class CrawlFinalizeMixin:
         rows = await self._load_latest_analyses(session, crawl=crawl)
         if not rows:
             return
-        analysis_ids = [row.id for row in rows]
         artifact_by_analysis = {row.id: row.artifact_id for row in rows}
         site_url_by_analysis = {row.id: row.site_url_id for row in rows}
-        evaluations = await self._evaluate_broken_internal_links(
-            session, analysis_ids=analysis_ids
-        )
-        evaluations.extend(
-            await self._evaluate_hreflang_conflicts(
-                session, rows=rows, artifact_by_analysis=artifact_by_analysis
-            )
+        evaluations = await self._evaluate_hreflang_conflicts(
+            session, rows=rows, artifact_by_analysis=artifact_by_analysis
         )
         evaluations.extend(
             await self._evaluate_sitemap_orphans(
                 session,
                 crawl=crawl,
                 rows=rows,
-                analysis_ids=analysis_ids,
+                artifact_by_analysis=artifact_by_analysis,
                 site_url_by_analysis=site_url_by_analysis,
             )
         )
@@ -226,43 +218,6 @@ class CrawlFinalizeMixin:
             ).all()
         )
 
-    async def _evaluate_broken_internal_links(
-        self, session: AsyncSession, *, analysis_ids: list[uuid.UUID]
-    ) -> list[tuple[uuid.UUID, RuleEvaluation]]:
-        link_rows = (
-            await session.execute(
-                select(
-                    SiteLinkReference.source_analysis_id,
-                    SiteLinkReference.target_url,
-                    SiteLinkReference.evidence_fingerprint,
-                ).where(
-                    SiteLinkReference.source_analysis_id.in_(analysis_ids),
-                    SiteLinkReference.is_internal.is_(True),
-                )
-            )
-        ).all()
-        checked: dict[uuid.UUID, int] = {}
-        broken: dict[uuid.UUID, list[str]] = {}
-        for source_analysis_id, target_url, fingerprint in link_rows:
-            fp = str(fingerprint or "")
-            if fp.startswith("policy_skipped:"):
-                continue
-            checked[source_analysis_id] = checked.get(source_analysis_id, 0) + 1
-            if fp.startswith("unreachable:"):
-                bucket = broken.setdefault(source_analysis_id, [])
-                if target_url not in bucket:
-                    bucket.append(target_url)
-        return [
-            (
-                analysis_id,
-                evaluate_broken_internal_link(
-                    checked_count=checked.get(analysis_id, 0),
-                    broken_urls=broken.get(analysis_id, []),
-                ),
-            )
-            for analysis_id in analysis_ids
-        ]
-
     async def _evaluate_hreflang_conflicts(
         self,
         session: AsyncSession,
@@ -294,7 +249,7 @@ class CrawlFinalizeMixin:
         *,
         crawl: SiteCrawl,
         rows: list[Any],
-        analysis_ids: list[uuid.UUID],
+        artifact_by_analysis: dict[uuid.UUID, uuid.UUID],
         site_url_by_analysis: dict[uuid.UUID, uuid.UUID],
     ) -> list[tuple[uuid.UUID, RuleEvaluation]]:
         root_canonical, root_hash = crawl_root_identity(crawl)
@@ -329,19 +284,23 @@ class CrawlFinalizeMixin:
                 )
             )
         ).all()
-        anchor_rows = (
+        artifacts = (
             await session.execute(
-                select(SiteLinkReference.target_url).where(
-                    SiteLinkReference.source_analysis_id.in_(analysis_ids),
-                    SiteLinkReference.is_internal.is_(True),
-                    SiteLinkReference.kind == LINK_KIND_ANCHOR,
-                )
+                select(
+                    SiteFetchArtifact.final_url, SiteFetchArtifact.normalized_facts
+                ).where(SiteFetchArtifact.id.in_(artifact_by_analysis.values()))
             )
         ).all()
         linked_targets = {
             canonical
-            for (target_url,) in anchor_rows
-            if (canonical := canonical_or_empty(str(target_url)))
+            for source_url, facts in artifacts
+            for anchor in ((facts or {}).get("links") or {}).get("anchors") or []
+            if bool((anchor or {}).get("is_internal"))
+            if (
+                canonical := canonical_or_empty(
+                    urljoin(str(source_url or ""), str((anchor or {}).get("url") or ""))
+                )
+            )
         }
         orphans = _sitemap_orphan_urls(
             sitemap_rows, root_canonical=root_canonical, linked_targets=linked_targets

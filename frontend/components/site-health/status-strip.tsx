@@ -17,7 +17,6 @@ import {
   dashboardRunNotice,
   discoveryProgressLabel,
   endSentence,
-  isAnalysisTerminal,
   isDiscoveryProvisional,
   isDiscoveryTerminal,
   statusLabel,
@@ -312,16 +311,9 @@ function AnalysisStrip({
   // say so, instead of pretending only one sub-process exists. Never for a
   // sample crawl: Free copy must not imply continued full-site scanning.
   const discovering = !crawl.sample_mode && !isDiscoveryTerminal(crawl.discovery_status);
-  // Once analysis terminalizes but the crawl is still active, the remaining
-  // work is the link-check phase: every page shows "Completed" while the crawl
-  // keeps running. That gap read as a hung crawl (and got cancelled), so the
-  // phase now narrates itself instead of leaving the audit copy up.
-  const linkChecking = !cancelPending && isAnalysisTerminal(crawl.analysis_status);
   let narration: string;
   if (cancelPending) {
     narration = 'Cancelling — finishing the page in flight and stopping';
-  } else if (linkChecking) {
-    narration = 'Pages analyzed — checking their links for broken destinations';
   } else if (crawl.counters.activity.state === 'waiting') {
     narration =
       crawl.counters.activity.reason === 'host_gate'
@@ -339,8 +331,8 @@ function AnalysisStrip({
     <ProgressRow
       crawl={crawl}
       narration={narration}
-      // Link checking and background re-discovery both leave the counters
-      // still — the pulse is what distinguishes "working" from "stuck".
+      // Background re-discovery can leave the counters still; the pulse is
+      // what distinguishes "working" from "stuck".
       active={!cancelPending && crawl.counters.activity.state !== 'stalled'}
       counts={[
         { label: 'Total pages', value: selected },

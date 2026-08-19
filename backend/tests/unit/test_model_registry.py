@@ -30,15 +30,26 @@ def test_models_are_exported_and_registered_once() -> None:
         "SiteFetchAttempt": "site_fetch_attempts",
         "SiteFetchArtifact": "site_fetch_artifacts",
         "SitePageAnalysis": "site_page_analyses",
-        "SiteLinkReference": "site_link_references",
         "SiteRuleEvaluation": "site_rule_evaluations",
         "SiteIssue": "site_issues",
         "SiteHealthSnapshot": "site_health_snapshots",
-        "SiteLinkGraphSnapshot": "site_link_graph_snapshots",
-        "SiteLinkGraphNode": "site_link_graph_nodes",
-        "SiteLinkGraphEdge": "site_link_graph_edges",
         "SiteCrawlEvent": "site_crawl_events",
     }
+
+    retired_models = {
+        "SiteLinkReference",
+        "SiteLinkGraphSnapshot",
+        "SiteLinkGraphNode",
+        "SiteLinkGraphEdge",
+    }
+    retired_tables = {
+        "site_link_references",
+        "site_link_graph_snapshots",
+        "site_link_graph_nodes",
+        "site_link_graph_edges",
+    }
+    assert retired_models.isdisjoint(models.__all__)
+    assert retired_tables.isdisjoint(models.Base.metadata.tables)
 
     assert len(models.__all__) == len(set(models.__all__))
     for model_name, table_name in expected.items():
@@ -71,11 +82,3 @@ def test_site_health_critical_metadata_contracts() -> None:
         constraint.name for constraint in analysis.constraints
     }
     assert "uq_site_page_analysis_current" in {index.name for index in analysis.indexes}
-
-    graph = models.SiteLinkGraphSnapshot.__table__
-    assert "fk_site_link_graph_snapshot_crawl_scoped" in {
-        constraint.name for constraint in graph.constraints
-    }
-    assert "uq_site_link_graph_snapshot_identity" in {
-        constraint.name for constraint in graph.constraints
-    }

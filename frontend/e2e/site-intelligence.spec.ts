@@ -77,7 +77,6 @@ const dimensions = [
 const ruleCounts = [4, 5, 1, 3, 2, 1, 4] as const;
 
 async function stubWebsite(page: Page) {
-  const graphPath = `/api/v1/projects/${FIXTURE_PROJECT.id}/site-health/link-graph`;
   await stubAuthedShell(page, [
     [
       '**/api/v1/entitlements',
@@ -106,92 +105,6 @@ async function stubWebsite(page: Page) {
         quota: { used: 2, limit: 50 },
         root_errors: [],
         phase_runs: { discovery: null, analysis: null },
-      },
-    ],
-    [
-      new RegExp(`${graphPath}(?:\\?.*)?$`),
-      {
-        state: 'available',
-        snapshot_id: SNAPSHOT,
-        crawl_id: CRAWL,
-        root_site_url_id: SOURCE,
-        analyzer_version: 'link-graph-v1',
-        page_analyzer_version: 'page-v1',
-        extractor_version: 'extract-v1',
-        source_analysis_ids: [SOURCE, TARGET],
-        coverage: { complete: true, analyzed_html_node_count: 2, selected_url_count: 2 },
-        limitations: [],
-        summary: { node_count: 2, edge_count: 1, near_orphan_count: 1, weak_authority_count: 1 },
-        created_at: '2026-08-15T00:01:00Z',
-      },
-    ],
-    [
-      new RegExp(`${graphPath}/nodes(?:\\?.*)?$`),
-      {
-        state: 'available',
-        snapshot_id: SNAPSHOT,
-        crawl_id: CRAWL,
-        next_cursor: null,
-        limitations: [],
-        items: [
-          {
-            id: '77777777-7777-4777-8777-777777777777',
-            site_url_id: SOURCE,
-            source_analysis_id: SOURCE,
-            normalized_url: 'https://acme.example/guide',
-            title: 'CRM guide',
-            indexable: true,
-            pagerank: 0.8,
-            click_depth: 0,
-            followed_inbound_count: 1,
-            followed_outbound_count: 1,
-            near_orphan: false,
-            weak_authority: false,
-            over_linked: false,
-            hub: true,
-            suggested_source_ids: [],
-          },
-          {
-            id: '88888888-8888-4888-8888-888888888888',
-            site_url_id: TARGET,
-            source_analysis_id: TARGET,
-            normalized_url: 'https://acme.example/case-study',
-            title: 'CRM case study',
-            indexable: true,
-            pagerank: 0.2,
-            click_depth: 1,
-            followed_inbound_count: 1,
-            followed_outbound_count: 0,
-            near_orphan: true,
-            weak_authority: true,
-            over_linked: false,
-            hub: false,
-            suggested_source_ids: [SOURCE],
-          },
-        ],
-      },
-    ],
-    [
-      new RegExp(`${graphPath}/edges(?:\\?.*)?$`),
-      {
-        state: 'available',
-        snapshot_id: SNAPSHOT,
-        crawl_id: CRAWL,
-        next_cursor: null,
-        limitations: [],
-        items: [
-          {
-            id: '99999999-9999-4999-8999-999999999999',
-            source_site_url_id: SOURCE,
-            target_site_url_id: TARGET,
-            target_url: 'https://acme.example/case-study',
-            followed: true,
-            occurrence_count: 1,
-            followed_occurrence_count: 1,
-            nofollow_occurrence_count: 0,
-            anchor_texts: ['Case study'],
-          },
-        ],
       },
     ],
     [
@@ -297,24 +210,6 @@ async function stubWebsite(page: Page) {
     ],
   ]);
 }
-
-test('Website Link Graph browser proof: bounded visual, table fallback, and source suggestion', async ({
-  page,
-}) => {
-  await stubWebsite(page);
-  await page.goto('/site');
-  await page.getByRole('tab', { name: 'Link Graph' }).click();
-
-  await expect(page.getByTestId('website-link-graph')).toBeVisible();
-  await expect(page.getByLabel('Internal link graph preview')).toBeVisible();
-  const authorityTable = page
-    .getByRole('region', { name: 'Page authority evidence' })
-    .getByRole('table');
-  await expect(authorityTable).toContainText('CRM case study');
-  await expect(authorityTable).toContainText('CRM guide');
-  const targetRow = authorityTable.getByRole('row').filter({ hasText: 'CRM case study' });
-  await expect(targetRow.getByRole('link', { name: 'CRM guide' })).toBeVisible();
-});
 
 test('AEO Readiness browser proof: seven reconciled dimensions and failing evidence link', async ({
   page,

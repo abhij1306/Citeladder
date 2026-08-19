@@ -77,8 +77,6 @@ FETCH_PURPOSE_DISCOVER: Final = "discover"
 
 FETCH_PURPOSE_ANALYZE: Final = "analyze"
 
-FETCH_PURPOSE_LINK_CHECK: Final = "link_check"
-
 FETCH_PURPOSE_ROBOTS: Final = "robots"
 
 FETCH_PURPOSE_SITEMAP: Final = "sitemap"

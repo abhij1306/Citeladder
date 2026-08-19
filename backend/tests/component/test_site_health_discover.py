@@ -40,7 +40,6 @@ from app.core.config.site_health_contracts import (
     OBSERVATION_SOURCE_SITEMAP,
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
-    RULE_OUTCOME_PASS,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
 )
@@ -66,8 +65,8 @@ from app.models.site_health.analysis import (
     SiteRuleEvaluation,
 )
 from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
-from app.models.site_health.graph import SiteHealthSnapshot
 from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
 from app.workers.site_health_worker import SiteHealthWorker
 from tests.component.site_health_helpers import seed_site_crawl
@@ -955,9 +954,8 @@ async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
     the robots policy across every task, and persists the bounded
     ``site_facts`` display copy on the crawl row. When the crawl terminalizes,
     the crawl_finalize pass runs: ``sitemap_orphan`` fails for the sitemap URL
-    no internal link reaches, ``broken_internal_link`` passes (the one linked
-    target is reachable), and ``hreflang_conflict`` is N/A — all at weight
-    0.0, with the orphan issue in the snapshot rollup.
+    no internal link reaches, and ``hreflang_conflict`` is N/A — both at
+    weight 0.0, with the orphan issue in the snapshot rollup.
     """
     root = "https://example.com/"
     seed = await _seed_root_discover(session_factory, root=root)
@@ -1095,18 +1093,12 @@ async def test_discover_site_setup_llms_stance_sitemap_and_finalize_orphan(
         # Both admitted sitemap URLs carry the sitemap-source observation.
         assert orphan.evidence["sitemap_url_count"] == 2
 
-        broken = evals["technical.broken_internal_link"]
-        assert broken.outcome == RULE_OUTCOME_PASS
-        assert broken.evidence["checked_count"] == 1
-        assert broken.evidence["broken_count"] == 0
-
         hreflang = evals["technical.hreflang_conflict"]
         assert hreflang.outcome == RULE_OUTCOME_NOT_APPLICABLE
         assert hreflang.evidence["reason"] == "no_hreflang"
 
         # Every crawl_finalize rule is weight-0: issues, never denominators.
         assert orphan.weight == 0.0
-        assert broken.weight == 0.0
         assert hreflang.weight == 0.0
 
         # The orphan issue landed and the (single) snapshot counted it.

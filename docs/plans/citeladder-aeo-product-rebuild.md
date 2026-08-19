@@ -11,6 +11,10 @@
 > [`site-health.md`](../site-health.md).
 > *(The former `vision.md` is archived research input, not an authority, and is deliberately
 > not linked here.)*
+>
+> **Current-scope correction (2026-08-19):** the completed W5 Link Graph and
+> link-probe work was retired after delivery. It is not part of the shipped
+> product; historical references below are delivery-record context only.
 
 ## Governing principle — atomic replacement, then deletion
 

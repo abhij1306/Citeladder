@@ -334,8 +334,7 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
         lock dedupes concurrent first fetches. Entries expire after
         ``robots_cache_ttl_seconds`` and are then EVICTED, with a hard
         ``robots_cache_max_authorities`` ceiling on top (see
-        ``_prune_robots_cache``) — the maps are not naturally bounded, because
-        link checks resolve robots for arbitrary external link targets.
+        ``_prune_robots_cache``) so a long-lived worker retains bounded state.
         """
         cached = self._cached_robots_entry(authority)
         if cached is not None:
@@ -397,8 +396,7 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
 
         Expiry alone was only ever *checked* (``_cached_robots_entry`` returned
         None for a stale entry) and never removed, so all three maps grew for
-        the life of the process — and link checks feed them arbitrary external
-        hosts, so "one registrable domain per crawl" never bounded them.
+        the life of the process.
         """
         now = time.monotonic()
         ttl = site_health_settings.robots_cache_ttl_seconds

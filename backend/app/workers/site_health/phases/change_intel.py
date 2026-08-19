@@ -1,4 +1,4 @@
-"""Post-graph deterministic change-intelligence task handling."""
+"""Post-crawl deterministic change-intelligence task handling."""
 
 import uuid
 

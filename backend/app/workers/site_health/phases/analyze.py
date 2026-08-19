@@ -3,10 +3,8 @@
 The heart of the crawl. Fetches through the SSRF-safe ladder, extracts bounded
 page facts, evaluates the per-page rule catalog, and writes ONE immutable
 artifact + attempt rows + page analysis + rule evaluations + issues + scores in
-a single transaction gated by a FOR UPDATE owner/liveness re-check. The
-queue row is acknowledged OUTSIDE that transaction, and the link-check task for
-the URL is enqueued INSIDE it — so the link task can never exist without the
-analysis it probes.
+a single transaction gated by a FOR UPDATE owner/liveness re-check. The queue
+row is acknowledged outside that transaction after the durable analysis write.
 
 Split out of SiteHealthWorker for readability only — see the package
 docstring; this is a mixin on the one worker class, not a separate process.
@@ -39,16 +37,12 @@ from app.core.config.site_health_contracts import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_OUTCOME_FAIL,
     SCORING_VERSION,
-    TASK_KIND_LINK_CHECK,
 )
 from app.core.config.site_health_rules import (
     HTML_CONTENT_TYPES,
 )
 from app.core.config.site_health_runtime import (
     site_health_settings,
-)
-from app.domain.site_health.frontier_support import (
-    _enqueue_task as _enqueue_discovery_task,
 )
 from app.domain.site_health.state_events import record_crawl_event
 from app.domain.site_health.task_guards import evaluate_task_guard, lease_is_owned
@@ -473,18 +467,6 @@ class AnalyzePhaseMixin(PhaseSupport):
         )
         crawl.analyzed_url_count += 1
         task.result_artifact_id = artifact_id
-        await _enqueue_discovery_task(
-            session,
-            crawl=crawl,
-            site_url_id=task.site_url_id,
-            url=requested_url,
-            url_hash_value=task.url_hash,
-            task_kind=TASK_KIND_LINK_CHECK,
-            depth=task.depth,
-            generation=task.generation,
-            parent_site_url_id=task.parent_site_url_id,
-            phase_run_id=task.phase_run_id,
-        )
         record_crawl_event(
             session,
             crawl_id=crawl.id,

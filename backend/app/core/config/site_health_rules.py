@@ -9,7 +9,6 @@ from app.core.config.site_health_contracts import (
     CATEGORY_CITABILITY,
     CATEGORY_CONTENT,
     CATEGORY_INDEXABILITY,
-    CATEGORY_LINKS,
     CATEGORY_METADATA,
     CATEGORY_PERFORMANCE,
     CATEGORY_SECURITY,
@@ -608,18 +607,6 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         display_label="Content hidden behind expand controls",
     ),
     # --- v2 P2: crawl_finalize scope (weight 0; finalize-writer owned) ------
-    SiteHealthRule(
-        rule_id="technical.broken_internal_link",
-        rule_version=RULE_CATALOG_VERSION,
-        dimension=DIMENSION_TECHNICAL,
-        category=CATEGORY_LINKS,
-        severity=SEVERITY_HIGH,
-        weight=0.0,
-        applicability_key=APPLICABILITY_CRAWL_FINALIZE,
-        description="Internal link targets probed by the crawl are reachable.",
-        remediation="Fix or remove links to unreachable internal targets.",
-        display_label="Broken internal links",
-    ),
     SiteHealthRule(
         rule_id="technical.sitemap_orphan",
         rule_version=RULE_CATALOG_VERSION,

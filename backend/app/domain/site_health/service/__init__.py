@@ -60,11 +60,6 @@ from app.domain.site_health.service.lifecycle import (
     load_crawl_for_stream,
     load_events,
 )
-from app.domain.site_health.service.link_graph import (
-    get_link_graph,
-    list_link_graph_edges,
-    list_link_graph_nodes,
-)
 from app.domain.site_health.service.presentation import (
     _crawl_count_disclosure,
     _score_summary,
@@ -105,9 +100,6 @@ __all__ = [
     "get_change",
     "get_changes_summary",
     "list_changes",
-    "get_link_graph",
-    "list_link_graph_nodes",
-    "list_link_graph_edges",
     "load_events",
     "load_crawl_for_stream",
     "presentation_status_for",

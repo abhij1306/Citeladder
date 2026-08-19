@@ -25,9 +25,6 @@ from app.core.config.site_health_crawl_policy import (
     ITEM_KIND_HTML_PAGE,
     SELECTION_SOURCE_USER,
 )
-from app.core.config.site_link_graph import (
-    LINK_GRAPH_NODE_TITLE_MAX_LENGTH,
-)
 from app.core.database import Base
 
 from .common import (
@@ -213,9 +210,7 @@ class SiteUrlObservation(Base):
     final_url: Mapped[str] = mapped_column(String(2048), default="")
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     content_type: Mapped[str] = mapped_column(String(128), default="")
-    title: Mapped[str] = mapped_column(
-        String(LINK_GRAPH_NODE_TITLE_MAX_LENGTH), default=""
-    )
+    title: Mapped[str] = mapped_column(String(1024), default="")
     rewrite_reason: Mapped[str] = mapped_column(String(64), default="")
     rewrite_version: Mapped[str] = mapped_column(String(32), default="")
     created_at: Mapped[datetime] = mapped_column(

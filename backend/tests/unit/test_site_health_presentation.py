@@ -26,7 +26,6 @@ from app.domain.site_health.service.presentation import (
     _delivery_facts,
     _evaluation_row,
     _issue_row,
-    _link_reference_row,
     _matches_page_status,
     _page_kind_matches,
     display_label_for,
@@ -34,7 +33,6 @@ from app.domain.site_health.service.presentation import (
 )
 from app.models.site_health.analysis import (
     SiteIssue,
-    SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
@@ -296,27 +294,6 @@ def test_display_label_ignores_evidence_for_rules_without_variants() -> None:
         SITE_HEALTH_RULES_BY_ID[rule_id].display_label
     )
     assert display_label_for("nope.not_a_rule", {"h1_count": 0}) == "nope.not_a_rule"
-
-
-def test_link_reference_row_projects_nulls_as_empty_strings() -> None:
-    row = _link_reference_row(
-        cast(
-            SiteLinkReference,
-            SimpleNamespace(
-                id=uuid.uuid4(),
-                kind="anchor",
-                target_url="https://example.com/a",
-                is_internal=True,
-                rel=None,
-                anchor_text=None,
-                target_artifact_id=None,
-            ),
-        )
-    )
-
-    assert row["rel"] == ""
-    assert row["anchor_text"] == ""
-    assert row["target_artifact_id"] is None
 
 
 def test_issue_row_carries_the_affected_count_passed_by_the_caller() -> None:

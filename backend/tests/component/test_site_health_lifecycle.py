@@ -45,13 +45,17 @@ from app.core.config.site_health_runtime import (
     SITE_CRAWL_QUEUE_SPEC,
     site_health_settings,
 )
-from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
+from app.core.config.task_queue import (
+    TASK_STATUS_FAILED,
+    TASK_STATUS_QUEUED,
+    TASK_STATUS_SUCCEEDED,
+)
 from app.domain.site_health.service.lifecycle import load_events
 from app.models.analytics import AnalyticsTask
 from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
 from app.models.site_health.events import SiteCrawlEvent
-from app.models.site_health.graph import SiteHealthSnapshot
 from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.site_health.lifecycle import CrawlLifecycle
 from app.workers.site_health_worker import SiteHealthWorker
@@ -266,6 +270,43 @@ async def test_stalled_backstop_ignores_crawls_with_outstanding_work(
     assert reconciled == 0
     crawl = await _crawl(session_factory, seed.crawl_id)
     assert crawl.status == CRAWL_STATUS_RUNNING
+
+
+@pytest.mark.asyncio
+async def test_stalled_backstop_ignores_retired_task_kinds(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A pre-upgrade link task must not strand an otherwise drained crawl."""
+    stale = datetime.now(UTC) - timedelta(seconds=3600)
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=1)
+        session.add(
+            SiteCrawlTask(
+                crawl_id=seed.crawl_id,
+                workspace_id=seed.workspace_id,
+                task_kind="link_check",
+                requested_url="https://example.com/legacy-link",
+                url_hash="legacy-link",
+                generation=0,
+                idempotency_key=f"{seed.crawl_id}:link_check:legacy-link:0",
+                status=TASK_STATUS_QUEUED,
+            )
+        )
+        await session.execute(
+            update(SiteCrawlTask)
+            .where(SiteCrawlTask.id == seed.task_ids[0])
+            .values(status=TASK_STATUS_SUCCEEDED, completed_at=stale)
+        )
+        await session.execute(
+            update(SiteCrawl)
+            .where(SiteCrawl.id == seed.crawl_id)
+            .values(status=CRAWL_STATUS_RUNNING, updated_at=stale)
+        )
+        await session.commit()
+
+    assert await CrawlLifecycle(session_factory).reconcile_stalled() == 1
+    crawl = await _crawl(session_factory, seed.crawl_id)
+    assert crawl.status not in CRAWL_ACTIVE_STATUSES
 
 
 @pytest.mark.asyncio

@@ -18,13 +18,8 @@
 # ``SiteUrlObservation`` + ``SiteFetchAttempt`` (+ ``SiteFetchArtifact``) in the
 # SAME transaction as the admitted rows + counter bumps + child-task enqueues.
 #
-# The ``analyze`` / ``link_check`` branches are EXPLICIT reserved dispatch cases
-# for Task 5 — they are never claimed by this worker (the claim is filtered to
-# ``discover`` so Free's auto-enqueued ``analyze`` tasks wait untouched in the
-# queue rather than being force-failed), and ``_execute_discover``'s dispatch
-# raises ``NotImplementedError`` if one is ever routed here, which the crash
-# handler records as a failure. Task 5 extends THIS SAME worker (no second
-# owner of this file).
+# Discovery and analysis share this one worker so their lifecycle can be
+# terminalized from a single durable queue owner.
 from __future__ import annotations
 
 import asyncio
@@ -58,8 +53,6 @@ from app.core.config.site_health_contracts import (
     TASK_KIND_ANALYZE,
     TASK_KIND_CHANGE_INTEL,
     TASK_KIND_DISCOVER,
-    TASK_KIND_LINK_CHECK,
-    TASK_KIND_LINK_GRAPH,
 )
 from app.core.config.site_health_runtime import (
     SITE_CRAWL_QUEUE_SPEC,
@@ -100,8 +93,6 @@ from app.workers.site_health.phases import (
     AnalyzePhaseMixin,
     ChangeIntelPhaseMixin,
     DiscoverPhaseMixin,
-    LinkCheckPhaseMixin,
-    LinkGraphPhaseMixin,
 )
 from app.workers.site_health.urls import authority_key as _authority_key
 
@@ -118,8 +109,6 @@ class SiteHealthWorker(
     DiscoverPhaseMixin,
     AnalyzePhaseMixin,
     ChangeIntelPhaseMixin,
-    LinkCheckPhaseMixin,
-    LinkGraphPhaseMixin,
     DrainableWorkerMixin,
 ):
     """Owns a claim/lease loop over ``SiteCrawlTask`` discover rows.
@@ -256,10 +245,7 @@ class SiteHealthWorker(
     async def run_once(self) -> int:
         """Sweep expired leases, claim a batch of all task kinds, execute it.
 
-        Claims ``discover``, ``analyze``, and ``link_check`` tasks (Task 5): a
-        widened claim + the routed dispatch in ``_run_discover`` must change
-        together — claiming a kind we do not route would force-fail it, and
-        routing a kind we do not claim would leave it queued forever.
+        Claims discovery, analysis, and post-crawl change tasks.
         """
         sweep = await self._queue.release_expired_detailed(
             batch_size=site_health_settings.lease_reclaim_batch_size
@@ -283,8 +269,6 @@ class SiteHealthWorker(
             kinds=[
                 TASK_KIND_DISCOVER,
                 TASK_KIND_ANALYZE,
-                TASK_KIND_LINK_CHECK,
-                TASK_KIND_LINK_GRAPH,
                 TASK_KIND_CHANGE_INTEL,
             ],
         )
@@ -306,10 +290,10 @@ class SiteHealthWorker(
 
         The heartbeat here covers ONLY the wait for the host slot; once the
         slot is secured it stops before ``_execute_task`` runs, because the
-        fetch heartbeats are owned by ``_run_discover`` / ``_run_analyze`` /
-        ``_run_link_check`` — one loop per active fetch, never two.
+        fetch heartbeats are owned by ``_run_discover`` / ``_run_analyze`` —
+        one loop per active fetch, never two.
         """
-        if task.task_kind in {TASK_KIND_LINK_GRAPH, TASK_KIND_CHANGE_INTEL}:
+        if task.task_kind == TASK_KIND_CHANGE_INTEL:
             await self._execute_task(task)
             return
         try:
@@ -379,16 +363,16 @@ class SiteHealthWorker(
                 await session.rollback()
                 await self._queue.cancel(task_id=task_id)
                 return False
-            graph_terminal = (
-                kind in {TASK_KIND_LINK_GRAPH, TASK_KIND_CHANGE_INTEL}
+            terminal_refresh = (
+                kind == TASK_KIND_CHANGE_INTEL
                 and crawl.status in CRAWL_TERMINAL_STATUSES
             )
-            if not crawl_is_active(crawl) and not graph_terminal:
+            if not crawl_is_active(crawl) and not terminal_refresh:
                 await session.rollback()
                 await self._queue.cancel(task_id=task_id)
                 await self._reconcile_crawl_status(crawl_id)
                 return False
-            if not graph_terminal:
+            if not terminal_refresh:
                 self._ensure_running(crawl)
             await session.commit()
         return True
@@ -399,12 +383,6 @@ class SiteHealthWorker(
             await self._run_discover(claimed.id, claimed.crawl_id)
         elif kind == TASK_KIND_ANALYZE:
             await self._run_analyze(claimed.id, claimed.crawl_id, claimed.workspace_id)
-        elif kind == TASK_KIND_LINK_CHECK:
-            await self._run_link_check(claimed.id, claimed.crawl_id)
-        elif kind == TASK_KIND_LINK_GRAPH:
-            await self._run_link_graph(
-                claimed.id, claimed.crawl_id, claimed.workspace_id
-            )
         elif kind == TASK_KIND_CHANGE_INTEL:
             await self._run_change_intel(
                 claimed.id, claimed.crawl_id, claimed.workspace_id
@@ -447,12 +425,9 @@ class SiteHealthWorker(
             )
             await self._record_crash(task_id, exc)
         finally:
-            # ONE shared finalize for every kind: it terminalizes the crawl only
-            # when EVERY non-terminal task (all kinds) is drained, so a completing
-            # discover task never drives the crawl terminal while analyze/
-            # link_check work is still queued (which would make a later analysis
-            # finalize raise InvalidSiteCrawlTransition from a terminal state).
-            if kind not in {TASK_KIND_LINK_GRAPH, TASK_KIND_CHANGE_INTEL}:
+            # Change intelligence runs after terminalization; acquisition and
+            # analysis task completion is what reconciles the crawl itself.
+            if kind != TASK_KIND_CHANGE_INTEL:
                 await self._reconcile_crawl_status(crawl_id)
 
     def _ensure_running(self, crawl: SiteCrawl) -> None:

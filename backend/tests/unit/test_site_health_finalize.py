@@ -1,7 +1,7 @@
 """Unit tests for the crawl_finalize evaluators (v2 P2 — spec §5.3).
 
-The three cross-page rules (``technical.broken_internal_link``,
-``technical.sitemap_orphan``, ``technical.hreflang_conflict``) are evaluated
+The two cross-page rules (``technical.sitemap_orphan``,
+``technical.hreflang_conflict``) are evaluated
 in a second pass at crawl terminalization, owned by the finalize-writer. The
 evaluators are pure: they take pre-normalized, bounded inputs and produce
 ``RuleEvaluation`` values with weight 0.0 (issues, never score denominators)
@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from app.analysis.site_health.finalize import (
     _MAX_EVIDENCE_URLS,
-    evaluate_broken_internal_link,
     evaluate_hreflang_conflict,
     evaluate_sitemap_orphan,
 )
@@ -26,40 +25,13 @@ from app.core.config.site_health_contracts import (
 
 
 def test_finalize_rules_carry_catalog_provenance_and_zero_weight():
-    ev = evaluate_broken_internal_link(checked_count=1, broken_urls=[])
-    assert ev.rule_id == "technical.broken_internal_link"
+    ev = evaluate_sitemap_orphan(sitemap_url_count=1, orphan_urls=[])
+    assert ev.rule_id == "technical.sitemap_orphan"
     assert ev.rule_version == RULE_CATALOG_VERSION
     assert ev.dimension == DIMENSION_TECHNICAL
     # Weight 0: finalize rules produce issues, never score denominators.
     assert ev.weight == 0.0
     assert ev.remediation
-
-
-# --- technical.broken_internal_link -----------------------------------------
-
-
-def test_broken_internal_link_not_applicable_without_checked_links():
-    ev = evaluate_broken_internal_link(checked_count=0, broken_urls=[])
-    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
-    assert ev.evidence == {"reason": "no_internal_links"}
-
-
-def test_broken_internal_link_passes_when_all_reachable():
-    ev = evaluate_broken_internal_link(checked_count=4, broken_urls=[])
-    assert ev.outcome == RULE_OUTCOME_PASS
-    assert ev.evidence["checked_count"] == 4
-    assert ev.evidence["broken_count"] == 0
-    assert ev.evidence["broken_urls"] == []
-
-
-def test_broken_internal_link_fails_with_bounded_evidence():
-    broken = [f"https://x.example/dead-{i}" for i in range(_MAX_EVIDENCE_URLS + 5)]
-    ev = evaluate_broken_internal_link(checked_count=20, broken_urls=broken)
-    assert ev.outcome == RULE_OUTCOME_FAIL
-    # The true count is preserved; the URL list is bounded.
-    assert ev.evidence["broken_count"] == _MAX_EVIDENCE_URLS + 5
-    assert len(ev.evidence["broken_urls"]) == _MAX_EVIDENCE_URLS
-    assert ev.evidence["checked_count"] == 20
 
 
 # --- technical.sitemap_orphan ------------------------------------------------

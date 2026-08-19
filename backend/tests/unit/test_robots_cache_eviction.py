@@ -1,9 +1,8 @@
 """Unit tests for the worker's per-authority robots cache eviction (DB-free).
 
-The cache is NOT bounded by the crawl's own domain: link checks resolve robots
-for arbitrary EXTERNAL link targets, so without eviction a long-lived worker
-retains one policy + one lock per host it ever probed. TTL expiry used to be
-only *checked* by the read path and never removed anything.
+Without eviction a long-lived worker retains stale policies and locks after
+crawls complete. TTL expiry used to be only *checked* by the read path and
+never removed anything.
 """
 
 from __future__ import annotations

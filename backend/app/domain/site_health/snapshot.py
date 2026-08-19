@@ -43,7 +43,7 @@ from app.core.config.site_health_contracts import (
 )
 from app.models.site_health.analysis import SiteIssue, SitePageAnalysis
 from app.models.site_health.crawl import SiteCrawl
-from app.models.site_health.graph import SiteHealthSnapshot
+from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl
 
 __all__ = ["persist_crawl_snapshot"]

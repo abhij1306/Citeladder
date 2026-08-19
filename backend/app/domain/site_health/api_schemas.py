@@ -463,16 +463,6 @@ class RuleEvaluation(_Model):
     created_at: str
 
 
-class LinkReference(_Model):
-    id: uuid.UUID
-    kind: str
-    target_url: str
-    is_internal: bool
-    rel: str
-    anchor_text: str
-    target_artifact_id: uuid.UUID | None
-
-
 class PageDetail(_Model):
     site_url_id: uuid.UUID
     crawl_id: uuid.UUID
@@ -499,7 +489,6 @@ class PageDetail(_Model):
     delivery: DeliveryFacts
     issues: list[SiteIssue]
     evaluations: list[RuleEvaluation]
-    link_references: list[LinkReference]
     artifact_id: uuid.UUID | None
     extractor_version: str
     analyzer_version: str
@@ -646,75 +635,6 @@ class DashboardResponse(_Model):
     # crawl's dashboard can render the failure block without a second fetch.
     root_errors: list[RootError] = []
     phase_runs: dict[Literal["discovery", "analysis"], PhaseRunResponse | None] = {}
-
-
-# =========================================================================
-# Crawl-scoped internal-link graph
-# =========================================================================
-LinkGraphState = Literal["available", "incomplete", "unavailable"]
-
-
-class LinkGraphSnapshotResponse(_Model):
-    state: LinkGraphState
-    snapshot_id: uuid.UUID | None = None
-    crawl_id: uuid.UUID | None = None
-    root_site_url_id: uuid.UUID | None = None
-    analyzer_version: str
-    page_analyzer_version: str
-    extractor_version: str
-    source_analysis_ids: list[uuid.UUID] = []
-    coverage: dict[str, object] = {}
-    limitations: list[str] = []
-    summary: dict[str, object] = {}
-    created_at: str | None = None
-
-
-class LinkGraphNodeResponse(_Model):
-    id: uuid.UUID
-    site_url_id: uuid.UUID
-    source_analysis_id: uuid.UUID
-    normalized_url: str
-    title: str
-    indexable: bool
-    pagerank: float
-    click_depth: int | None
-    followed_inbound_count: int
-    followed_outbound_count: int
-    near_orphan: bool
-    weak_authority: bool
-    over_linked: bool
-    hub: bool
-    suggested_source_ids: list[uuid.UUID]
-
-
-class LinkGraphEdgeResponse(_Model):
-    id: uuid.UUID
-    source_site_url_id: uuid.UUID
-    target_site_url_id: uuid.UUID | None
-    target_url: str
-    followed: bool
-    occurrence_count: int
-    followed_occurrence_count: int
-    nofollow_occurrence_count: int
-    anchor_texts: list[str]
-
-
-class LinkGraphNodesPage(_Model):
-    state: LinkGraphState
-    snapshot_id: uuid.UUID | None = None
-    crawl_id: uuid.UUID | None = None
-    items: list[LinkGraphNodeResponse] = []
-    next_cursor: str | None = None
-    limitations: list[str] = []
-
-
-class LinkGraphEdgesPage(_Model):
-    state: LinkGraphState
-    snapshot_id: uuid.UUID | None = None
-    crawl_id: uuid.UUID | None = None
-    items: list[LinkGraphEdgeResponse] = []
-    next_cursor: str | None = None
-    limitations: list[str] = []
 
 
 # =========================================================================

@@ -202,19 +202,6 @@ Marketing sections breathe on a generous rhythm (`--section-y-*`, 120px desktop)
   switching views; supporting counters say class-labelled **occurrences** and
   **affected URLs** so visually adjacent quantities never masquerade as one
   number. Advisory rows use an Advisory label, not a severity chip.
-- Website analysis uses one restrained tab row. Link Graph pairs a bounded
-  followed-edge overview with cursor-paged page-authority and link-evidence
-  table fallbacks; the visualization never becomes the only way to inspect a
-  page or edge. Flag labels and source-page links carry meaning without colour.
-  Partial crawls lead with exact observed coverage and do not show near-orphan
-  or weak-authority recommendations.
-- The link-graph overview is a **click-depth layout, never a ring or a
-  force hairball**: columns are click depth from the home page (with a final
-  Unlinked column when a page has no path from the root), vertical order within
-  a column is PageRank, and circle area is relative PageRank. It carries a
-  legend and an axis, so hub, flagged, and ordinary pages read without colour
-  alone. The node sample is bounded and prioritises flagged pages; unused slots
-  return to flagged pages rather than silently dropping them.
 - AEO Readiness is a dimension ledger, never a gauge or mystery number. Its
   table names pass, fail, not applicable, and coverage independently for all
   seven dimensions; not-applicable rows remain visible and are not styled as

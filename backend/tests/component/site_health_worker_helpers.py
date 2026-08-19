@@ -1,7 +1,7 @@
 """Shared fixtures for the Site Health worker component tests.
 
 The worker tests were one 3,700-line module; they now mirror the worker's own
-phase split (discover / analyze / link_check / terminalization / loop).
+phase split (discover / analyze / terminalization / loop).
 Everything those files build a crawl out of — the fake resolver, the stub
 transports, the HTML fixtures and the crawl seeders — lives here, so each phase
 file reads as assertions rather than setup.

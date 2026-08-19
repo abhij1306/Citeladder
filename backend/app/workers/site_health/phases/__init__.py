@@ -1,4 +1,4 @@
-"""Per-phase handlers for ``SiteHealthWorker``: discover, analyze, link check.
+"""Per-phase handlers for ``SiteHealthWorker``: discovery and analysis.
 
 These are MIXINS, not separate worker processes. The single claim loop is what
 makes cross-kind reconcile correct (a crawl terminalizes only when every task
@@ -18,13 +18,9 @@ from __future__ import annotations
 from app.workers.site_health.phases.analyze import AnalyzePhaseMixin
 from app.workers.site_health.phases.change_intel import ChangeIntelPhaseMixin
 from app.workers.site_health.phases.discover import DiscoverPhaseMixin
-from app.workers.site_health.phases.link_check import LinkCheckPhaseMixin
-from app.workers.site_health.phases.link_graph import LinkGraphPhaseMixin
 
 __all__ = [
     "AnalyzePhaseMixin",
     "ChangeIntelPhaseMixin",
     "DiscoverPhaseMixin",
-    "LinkCheckPhaseMixin",
-    "LinkGraphPhaseMixin",
 ]

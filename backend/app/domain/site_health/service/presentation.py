@@ -36,7 +36,6 @@ from app.core.config.task_queue import (
 )
 from app.models.site_health.analysis import (
     SiteIssue,
-    SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
@@ -428,10 +427,9 @@ def _delivery_facts(facts: dict | None, *, html_bytes: int | None) -> dict:
     }
 
 
-# Bound the exact evidence/link projections so a pathological artifact can
-# never balloon a detail response (plan §Projection: bounded evidence/links).
+# Bound exact evidence projections so a pathological artifact can never balloon
+# a detail response.
 _MAX_EVALUATIONS = 200
-_MAX_LINK_REFERENCES = 200
 
 
 def _evaluation_row(evaluation: SiteRuleEvaluation) -> dict:
@@ -450,19 +448,6 @@ def _evaluation_row(evaluation: SiteRuleEvaluation) -> dict:
         "analyzer_version": evaluation.analyzer_version,
         "rule_version": evaluation.rule_version,
         "created_at": _iso(evaluation.created_at),
-    }
-
-
-def _link_reference_row(link: SiteLinkReference) -> dict:
-    """Project one deduplicated link reference (target status where known)."""
-    return {
-        "id": link.id,
-        "kind": link.kind,
-        "target_url": link.target_url,
-        "is_internal": link.is_internal,
-        "rel": link.rel or "",
-        "anchor_text": link.anchor_text or "",
-        "target_artifact_id": link.target_artifact_id,
     }
 
 

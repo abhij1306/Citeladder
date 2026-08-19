@@ -38,7 +38,6 @@
       "components/site-health/changes-panel.tsx::ChangesPanel": 20,
       "components/site-health/inventory-section.tsx::ScoredInventory": 16,
       "components/site-health/issues-catalog.tsx::IssueCard": 17,
-      "components/site-health/link-graph-panel.tsx::LinkGraphPanel": 25,
       "components/site-health/score-section.tsx::ScoreSection": 14,
       "components/site-health/site-facts-panel.tsx::SiteFactsPanel": 15,
       "components/site-health/site-health-screen.tsx::SiteHealthScreen": 27,

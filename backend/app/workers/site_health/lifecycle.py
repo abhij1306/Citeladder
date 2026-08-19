@@ -52,9 +52,9 @@ from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_STOPPED,
     EVENT_CRAWL_COMPLETED,
     EVENT_CRAWL_FAILED,
+    SITE_TASK_KINDS,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
-    TASK_KIND_LINK_CHECK,
 )
 from app.core.config.site_health_crawl_policy import (
     MANUAL_PHASE_LIFECYCLE_KEY,
@@ -75,8 +75,8 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
     TASK_TERMINAL_STATUSES,
 )
+from app.domain.site_health.change_queue import enqueue_change_refresh
 from app.domain.site_health.failure import load_root_failure_summary
-from app.domain.site_health.link_graph_queue import enqueue_link_graph_refresh
 from app.domain.site_health.state_events import (
     apply_analysis_status,
     apply_crawl_status,
@@ -136,7 +136,6 @@ class _TaskSummary:
     analyze_total: int
     analyze_succeeded: int
     analyze_cancelled: int
-    link_remaining: int
 
     @classmethod
     def from_counts(cls, counts: dict[str, int]) -> _TaskSummary:
@@ -147,7 +146,6 @@ class _TaskSummary:
             analyze_total=counts["analyze_total"],
             analyze_succeeded=counts["analyze_succeeded"],
             analyze_cancelled=counts["analyze_cancelled"],
-            link_remaining=counts["link_non_terminal"],
         )
 
     @property
@@ -156,9 +154,7 @@ class _TaskSummary:
 
     @property
     def all_drained(self) -> bool:
-        return not (
-            self.discover_remaining or self.analyze_remaining or self.link_remaining
-        )
+        return not (self.discover_remaining or self.analyze_remaining)
 
 
 def _reconcile_discovery_state(
@@ -271,14 +267,13 @@ class CrawlLifecycle(CrawlFinalizeMixin):
 
         The single shared finalize for every task kind. It:
           - terminalizes the DISCOVERY sub-state once discover tasks drain
-            (progressively, even while analyze/link_check work remains);
+            (progressively, even while analysis work remains);
           - drives the independent ANALYSIS lifecycle (pending -> running ->
             completed/partially_completed/failed) from the analyze task
             outcomes;
-          - terminalizes analysis as soon as discovery and analyze work drain,
-            while link checks may continue under the still-active crawl;
-          - terminalizes the OVERALL crawl ONLY when EVERY non-terminal task of
-            ALL kinds is drained, classifying completed / partially_completed /
+          - terminalizes analysis as soon as discovery and analyze work drain;
+          - terminalizes the OVERALL crawl once crawl work drains, classifying
+            completed / partially_completed /
             failed and then persisting the aggregate ``SiteHealthSnapshot`` +
             a ``crawl.completed`` event.
 
@@ -311,10 +306,7 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             fully_failed, discovery_partial = _reconcile_discovery_state(crawl, summary)
             _start_planned_analysis(crawl, analyze_total=summary.analyze_total)
             # Discovery can still admit fresh analyze tasks, so analysis is
-            # drained only when BOTH kinds are done. Link checks are a later
-            # evidence phase: keeping analysis RUNNING until they finish made
-            # 150/150 analyzed pages look stuck and hid the UI's explicit
-            # "checking links" state.
+            # drained only when both kinds are done.
             if summary.discover_remaining == 0 and summary.analyze_remaining == 0:
                 _terminalize_analysis_state(
                     crawl, summary=summary, fully_failed=fully_failed
@@ -323,9 +315,8 @@ class CrawlLifecycle(CrawlFinalizeMixin):
                 await session.commit()
                 return
 
-            # Crawl-finalize rules wait for link evidence, then run before the
-            # snapshot so their issues enter its rollups. Analysis may already
-            # have terminalized on an earlier reconciliation.
+            # Crawl-finalize rules use persisted page facts and run before the
+            # snapshot so their issues enter its rollups.
             await self._run_crawl_finalize_pass(session, crawl=crawl)
             await self._persist_snapshot(session, crawl=crawl)
 
@@ -410,12 +401,9 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             payload={"status": crawl.status},
             count_disclosure=_count_disclosure(crawl),
         )
-        await enqueue_link_graph_refresh(
-            session,
-            crawl=crawl,
-            usable_evidence=summary.analyze_succeeded > 0,
-        )
-        if summary.analyze_succeeded == 0:
+        if summary.analyze_succeeded > 0:
+            await enqueue_change_refresh(session, crawl=crawl)
+        else:
             await enqueue_terminal_analytics_refresh(
                 session, crawl=crawl, change_snapshot_id=None
             )
@@ -476,9 +464,7 @@ class CrawlLifecycle(CrawlFinalizeMixin):
                     .select_from(SiteCrawlTask)
                     .where(
                         SiteCrawlTask.phase_run_id == phase_run.id,
-                        SiteCrawlTask.task_kind.in_(
-                            [TASK_KIND_ANALYZE, TASK_KIND_LINK_CHECK]
-                        ),
+                        SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
                         SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)),
                     )
                 )
@@ -493,7 +479,6 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             for key in (
                 "discover_non_terminal",
                 "analyze_non_terminal",
-                "link_non_terminal",
             )
         )
         if outstanding:
@@ -541,9 +526,13 @@ class CrawlLifecycle(CrawlFinalizeMixin):
             return 0
         cutoff = _utcnow() - timedelta(seconds=threshold)
         async with self._session_factory() as session:
+            # Retired task kinds can remain in a pre-upgrade local database.
+            # No current worker will claim them, so treating them as work would
+            # permanently prevent the crawl from reaching its terminal state.
             outstanding = (
                 select(SiteCrawlTask.id)
                 .where(SiteCrawlTask.crawl_id == SiteCrawl.id)
+                .where(SiteCrawlTask.task_kind.in_(SITE_TASK_KINDS))
                 .where(SiteCrawlTask.status.not_in(list(TASK_TERMINAL_STATUSES)))
             )
             stalled = list(
@@ -570,13 +559,7 @@ class CrawlLifecycle(CrawlFinalizeMixin):
     async def _failed_url_count(
         self, session: AsyncSession, crawl_id: uuid.UUID
     ) -> int:
-        """Distinct URLs with at least one terminally failed task, any kind.
-
-        ``link_check`` is excluded: a broken outbound link is page EVIDENCE (it
-        becomes an issue on the page that links to it), not a failure to acquire
-        the URL being crawled, and counting it here would report a healthy page
-        as a failed one.
-        """
+        """Distinct URLs with a terminally failed acquisition or analysis task."""
         return int(
             await session.scalar(
                 select(func.count(func.distinct(SiteCrawlTask.url_hash))).where(
@@ -637,7 +620,6 @@ class CrawlLifecycle(CrawlFinalizeMixin):
         return {
             "discover_non_terminal": count(TASK_KIND_DISCOVER, "non_terminal"),
             "analyze_non_terminal": count(TASK_KIND_ANALYZE, "non_terminal"),
-            "link_non_terminal": count(TASK_KIND_LINK_CHECK, "non_terminal"),
             "analyze_total": count(TASK_KIND_ANALYZE, "total"),
             "analyze_succeeded": count(TASK_KIND_ANALYZE, "succeeded"),
             "analyze_cancelled": count(TASK_KIND_ANALYZE, "cancelled"),

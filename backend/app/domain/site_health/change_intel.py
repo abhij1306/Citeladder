@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.site_health.change_intel import (
@@ -40,11 +40,7 @@ from app.core.config.site_health_contracts import (
 from app.models.opportunity import OpportunityImplementationEvent
 from app.models.site_changes import SiteChangeObservation, SiteChangeSnapshot
 from app.models.site_health.acquisition import SiteFetchArtifact
-from app.models.site_health.analysis import (
-    SiteLinkReference,
-    SitePageAnalysis,
-    SiteRuleEvaluation,
-)
+from app.models.site_health.analysis import SitePageAnalysis, SiteRuleEvaluation
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 
@@ -190,26 +186,14 @@ async def _rules(
     return by_analysis
 
 
-async def _internal_link_counts(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    analysis_ids: list[uuid.UUID],
-) -> dict[uuid.UUID, int]:
-    if not analysis_ids:
-        return {}
-    rows = (
-        await session.execute(
-            select(SiteLinkReference.source_analysis_id, func.count())
-            .where(
-                SiteLinkReference.workspace_id == workspace_id,
-                SiteLinkReference.source_analysis_id.in_(analysis_ids),
-                SiteLinkReference.is_internal.is_(True),
-            )
-            .group_by(SiteLinkReference.source_analysis_id)
-        )
-    ).all()
-    return {analysis_id: int(count) for analysis_id, count in rows}
+def _internal_link_count(facts: dict[str, Any]) -> int:
+    """Count extracted internal anchors without scheduling reachability probes."""
+    links = facts.get("links") or {}
+    return sum(
+        1
+        for entry in links.get("anchors") or []
+        if bool((entry or {}).get("is_internal"))
+    )
 
 
 def _field_values(row: _PageRow, internal_links: int) -> dict[str, Any]:
@@ -267,14 +251,11 @@ async def _pages(
     evaluations = await _rules(
         session, workspace_id=crawl.workspace_id, analysis_ids=analysis_ids
     )
-    link_counts = await _internal_link_counts(
-        session, workspace_id=crawl.workspace_id, analysis_ids=analysis_ids
-    )
     pages = [
         _change_page(
             row,
             evaluations=evaluations.get(row.analysis.id, {}),
-            internal_links=link_counts.get(row.analysis.id, 0),
+            internal_links=_internal_link_count(row.artifact.normalized_facts or {}),
         )
         for row in rows
     ]

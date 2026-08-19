@@ -46,7 +46,6 @@ from app.core.config.site_health_acquisition import (
     ERROR_URL_ADMISSION_REJECTED,
     FETCH_PURPOSE_ANALYZE,
     FETCH_PURPOSE_DISCOVER,
-    FETCH_PURPOSE_LINK_CHECK,
 )
 from app.core.config.site_health_crawl_policy import (
     URL_EXCLUSION_HARD_ASSET,
@@ -56,7 +55,7 @@ from app.core.config.site_health_crawl_policy import (
 )
 
 _ADMISSION_ENFORCED_PURPOSES = frozenset(
-    {FETCH_PURPOSE_DISCOVER, FETCH_PURPOSE_ANALYZE, FETCH_PURPOSE_LINK_CHECK}
+    {FETCH_PURPOSE_DISCOVER, FETCH_PURPOSE_ANALYZE}
 )
 _HARD_ADMISSION_EXCLUSION_CODES = frozenset(
     {

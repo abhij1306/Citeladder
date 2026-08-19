@@ -32,14 +32,12 @@ from app.core.database import Base
 from .common import (
     _FK_PROJECT,
     _FK_SITE_CRAWL,
-    _FK_SITE_CRAWL_TASK,
     _FK_SITE_FETCH_ARTIFACT,
     _FK_SITE_PAGE_ANALYSIS,
     _FK_SITE_RULE_EVALUATION,
     _FK_SITE_URL,
     _FK_WORKSPACE,
     _ON_DELETE_CASCADE,
-    _ON_DELETE_SET_NULL,
     _utcnow,
 )
 
@@ -141,68 +139,6 @@ class SitePageAnalysis(Base):
     finalized_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-
-
-class SiteLinkReference(Base):
-    """Deduplicated link/asset reference discovered during page analysis.
-
-    Deduplicated by ``(source_artifact_id, kind, target_hash,
-    evidence_fingerprint)`` so re-parsing the same artifact never doubles rows.
-    Records the normalized target URL/hash, the kind (anchor|image|script|
-    stylesheet), internal/external classification, rel/anchor evidence, and the
-    resolved target task/artifact IDs (link-check provenance).
-    """
-
-    __tablename__ = "site_link_references"
-    __table_args__ = (
-        UniqueConstraint(
-            "source_artifact_id",
-            "kind",
-            "target_hash",
-            "evidence_fingerprint",
-            name="uq_site_link_reference_dedupe",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    source_analysis_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_SITE_PAGE_ANALYSIS, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    source_artifact_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_SITE_FETCH_ARTIFACT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    kind: Mapped[str] = mapped_column(String(16), default="")
-    target_url: Mapped[str] = mapped_column(String(2048), default="")
-    target_hash: Mapped[str] = mapped_column(String(64), default="")
-    is_internal: Mapped[bool] = mapped_column(Boolean, default=False)
-    rel: Mapped[str] = mapped_column(String(128), default="")
-    anchor_text: Mapped[str] = mapped_column(String(1024), default="")
-    evidence_fingerprint: Mapped[str] = mapped_column(String(64), default="")
-    target_task_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_SITE_CRAWL_TASK, ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    target_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_SITE_FETCH_ARTIFACT, ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    analyzer_version: Mapped[str] = mapped_column(String(32), default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

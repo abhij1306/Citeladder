@@ -456,56 +456,6 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     expect(hiddenPagesRequests).toBe(0);
   });
 
-  it('keeps completed page results mounted while the crawl finishes link checks', async () => {
-    mockRoutes(
-      {
-        status: 'running',
-        discovery_status: 'completed',
-        analysis_status: 'completed',
-        analyzed_count: 1,
-        score_summary: null,
-        completed_at: null,
-      },
-      'analyzing',
-    );
-    mswServer.use(
-      http.get(`/api/v1/site-crawls/${CRAWL}/pages`, () =>
-        HttpResponse.json({
-          items: [
-            {
-              site_url_id: '66666666-6666-4666-8666-666666666666',
-              crawl_id: CRAWL,
-              normalized_url: 'https://acme.com/',
-              display_url: 'https://acme.com/',
-              title: 'Homepage',
-              monitored: true,
-              analysis_status: 'completed',
-              error_code: '',
-              issue_count: 3,
-              technical_score: 46,
-              aeo_score: 64,
-              overall_score: 55,
-              last_audited: '2026-07-16T00:00:00Z',
-              page_kind: 'homepage',
-            },
-          ],
-          next_cursor: null,
-          root_errors: [],
-        }),
-      ),
-    );
-
-    renderScreen();
-
-    expect(
-      await screen.findByText('Pages analyzed — checking their links for broken destinations'),
-    ).toBeInTheDocument();
-    expect(await screen.findByText('55 / 100')).toBeInTheDocument();
-    expect(screen.getByTitle('Homepage')).toBeInTheDocument();
-    expect(screen.queryByText(/Discovery finished/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Save selection/ })).not.toBeInTheDocument();
-  });
-
   it('keeps the dashboard + partial scores and labels the run Cancelled (with Re-crawl)', async () => {
     // Cancellation with partial data must keep the latest dashboard, partial
     // scores, and inventory visible, explicitly labelled Cancelled, and offer

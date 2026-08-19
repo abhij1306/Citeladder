@@ -19,7 +19,6 @@ _FK_SITE_URL = "site_urls.id"
 _FK_SITE_FETCH_ARTIFACT = "site_fetch_artifacts.id"
 _FK_SITE_PAGE_ANALYSIS = "site_page_analyses.id"
 _FK_SITE_RULE_EVALUATION = "site_rule_evaluations.id"
-_FK_SITE_LINK_GRAPH_SNAPSHOT = "site_link_graph_snapshots.id"
 _ON_DELETE_CASCADE = "CASCADE"
 _ON_DELETE_SET_NULL = "SET NULL"
 

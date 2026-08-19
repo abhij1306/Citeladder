@@ -50,7 +50,7 @@ from app.core.config.task_queue import (
 from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,
 )
-from app.domain.site_health.link_graph_queue import enqueue_link_graph_refresh
+from app.domain.site_health.change_queue import enqueue_change_refresh
 from app.domain.site_health.phase import resolve_phase
 from app.domain.site_health.service.common import (
     _CRAWL_NOT_FOUND,
@@ -79,8 +79,8 @@ from app.domain.site_health.state_events import (
 from app.models.site_health.analysis import SitePageAnalysis
 from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
 from app.models.site_health.events import SiteCrawlEvent
-from app.models.site_health.graph import SiteHealthSnapshot
 from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl
 
 logger = logging.getLogger("app.domain.site_health.service.lifecycle")
@@ -417,7 +417,7 @@ async def cancel_crawl(
         count_disclosure=_crawl_count_disclosure(crawl),
     )
     if snapshot_written:
-        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
+        await enqueue_change_refresh(session, crawl=crawl)
     await session.commit()
 
     refreshed = await _load_crawl(session, workspace_id=workspace_id, crawl_id=crawl_id)

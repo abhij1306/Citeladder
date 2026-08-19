@@ -119,18 +119,12 @@ TASK_KIND_DISCOVER: Final = "discover"
 
 TASK_KIND_ANALYZE: Final = "analyze"
 
-TASK_KIND_LINK_CHECK: Final = "link_check"
-
-TASK_KIND_LINK_GRAPH: Final = "link_graph"
-
 TASK_KIND_CHANGE_INTEL: Final = "change_intel"
 
 SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
     {
         TASK_KIND_DISCOVER,
         TASK_KIND_ANALYZE,
-        TASK_KIND_LINK_CHECK,
-        TASK_KIND_LINK_GRAPH,
         TASK_KIND_CHANGE_INTEL,
     }
 )
@@ -152,18 +146,6 @@ OBSERVATION_SOURCES: Final[frozenset[str]] = frozenset(
         OBSERVATION_SOURCE_SITEMAP,
         OBSERVATION_SOURCE_REDIRECT,
     }
-)
-
-LINK_KIND_ANCHOR: Final = "anchor"
-
-LINK_KIND_IMAGE: Final = "image"
-
-LINK_KIND_SCRIPT: Final = "script"
-
-LINK_KIND_STYLESHEET: Final = "stylesheet"
-
-LINK_KINDS: Final[frozenset[str]] = frozenset(
-    {LINK_KIND_ANCHOR, LINK_KIND_IMAGE, LINK_KIND_SCRIPT, LINK_KIND_STYLESHEET}
 )
 
 AEO_READINESS_TAXONOMY_VERSION: Final = "aeo-readiness-v1"

@@ -39,9 +39,8 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     TASK_KIND_ANALYZE,
+    TASK_KIND_CHANGE_INTEL,
     TASK_KIND_DISCOVER,
-    TASK_KIND_LINK_CHECK,
-    TASK_KIND_LINK_GRAPH,
 )
 from app.core.config.site_health_crawl_policy import (
     PHASE_DISCOVERY,
@@ -56,7 +55,6 @@ from app.core.config.task_queue import (
     TASK_STATUS_QUEUED,
     TASK_STATUS_SUCCEEDED,
 )
-from app.domain.site_health.link_graph_queue import enqueue_link_graph_refresh
 from app.domain.site_health.normalization import canonical_identity
 from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.domain.site_health.terminal_refresh import enqueue_terminal_analytics_refresh
@@ -69,8 +67,8 @@ from app.models.site_health.analysis import (
 )
 from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
 from app.models.site_health.events import SiteCrawlEvent
-from app.models.site_health.graph import SiteHealthSnapshot
 from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 from app.models.traffic import TrafficSnapshot
 from app.workers.site_health.helpers import _is_crawl_finalize_rule
@@ -357,7 +355,7 @@ async def test_recrawl_root_failure_keeps_successful_monitored_analysis(
                 .select_from(SiteCrawlTask)
                 .where(
                     SiteCrawlTask.crawl_id == seed.crawl_id,
-                    SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+                    SiteCrawlTask.task_kind == TASK_KIND_CHANGE_INTEL,
                     SiteCrawlTask.status == TASK_STATUS_QUEUED,
                 )
             )
@@ -368,7 +366,6 @@ async def test_recrawl_root_failure_keeps_successful_monitored_analysis(
 @pytest.mark.asyncio
 async def test_completed_crawl_refreshes_demand_when_traffic_exists(
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async with session_factory() as session:
         seed = await seed_site_crawl(session, task_count=0)
@@ -388,20 +385,12 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
         )
         await session.flush()
 
-        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
-        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
-        monkeypatch.setattr(
-            "app.domain.site_health.link_graph_queue.LINK_GRAPH_ANALYZER_VERSION",
-            "link-graph-review-v2",
-        )
-        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
-        await enqueue_link_graph_refresh(session, crawl=crawl, usable_evidence=True)
-        graph_snapshot_id = uuid.uuid4()
+        change_snapshot_id = uuid.uuid4()
         await enqueue_terminal_analytics_refresh(
-            session, crawl=crawl, change_snapshot_id=graph_snapshot_id
+            session, crawl=crawl, change_snapshot_id=change_snapshot_id
         )
         await enqueue_terminal_analytics_refresh(
-            session, crawl=crawl, change_snapshot_id=graph_snapshot_id
+            session, crawl=crawl, change_snapshot_id=change_snapshot_id
         )
         await session.commit()
 
@@ -419,25 +408,13 @@ async def test_completed_crawl_refreshes_demand_when_traffic_exists(
             ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
             ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
         }
-        graph_tasks = list(
-            (
-                await session.scalars(
-                    select(SiteCrawlTask).where(
-                        SiteCrawlTask.crawl_id == seed.crawl_id,
-                        SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
-                    )
-                )
-            ).all()
-        )
-        assert len(graph_tasks) == 2
-        assert len({task.url_hash for task in graph_tasks}) == 2
         demand_task = next(
             task
             for task in tasks
             if task.task_kind == ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH
         )
         assert demand_task.payload["downstream_trigger_kind"] == "site_change"
-        assert demand_task.payload["downstream_trigger_id"] == str(graph_snapshot_id)
+        assert demand_task.payload["downstream_trigger_id"] == str(change_snapshot_id)
 
 
 @pytest.mark.asyncio
@@ -593,101 +570,6 @@ async def test_crawl_not_completed_while_analyze_queued(
 
 
 @pytest.mark.asyncio
-async def test_analysis_completes_while_link_checks_keep_crawl_running(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """Completed pages enter the link-check UI phase before crawl finalization."""
-    async with session_factory() as session:
-        seed = await seed_site_crawl(session, task_count=0)
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        assert crawl is not None
-        crawl.discovery_status = DISCOVERY_STATUS_COMPLETED
-        crawl.analysis_status = ANALYSIS_STATUS_RUNNING
-        crawl.discovered_url_count = 1
-        crawl.inventory_complete = True
-        now = datetime.now(UTC)
-        analyze = SiteCrawlTask(
-            crawl_id=seed.crawl_id,
-            workspace_id=seed.workspace_id,
-            task_kind=TASK_KIND_ANALYZE,
-            requested_url="https://example.com/",
-            url_hash=canonical_identity("https://example.com/")[1],
-            generation=0,
-            idempotency_key=f"{seed.crawl_id}:analyze:root:0",
-            status=TASK_STATUS_SUCCEEDED,
-            randomized_position=0,
-            completed_at=now,
-        )
-        link_check = SiteCrawlTask(
-            crawl_id=seed.crawl_id,
-            workspace_id=seed.workspace_id,
-            task_kind=TASK_KIND_LINK_CHECK,
-            requested_url="https://example.com/destination",
-            url_hash=canonical_identity("https://example.com/destination")[1],
-            generation=0,
-            idempotency_key=f"{seed.crawl_id}:link_check:destination:0",
-            status=TASK_STATUS_QUEUED,
-            randomized_position=1,
-        )
-        session.add_all([analyze, link_check])
-        await session.commit()
-        link_check_id = link_check.id
-
-    lifecycle = CrawlLifecycle(session_factory)
-    await lifecycle.reconcile(seed.crawl_id)
-
-    async with session_factory() as session:
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        assert crawl is not None
-        assert crawl.status == CRAWL_STATUS_RUNNING
-        assert crawl.analysis_status == ANALYSIS_STATUS_COMPLETED
-        assert crawl.completed_at is None
-        assert (
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteHealthSnapshot)
-                .where(SiteHealthSnapshot.crawl_id == seed.crawl_id)
-            )
-            == 0
-        )
-
-        link_check = await session.get(SiteCrawlTask, link_check_id)
-        assert link_check is not None
-        link_check.status = TASK_STATUS_SUCCEEDED
-        link_check.completed_at = datetime.now(UTC)
-        await session.commit()
-
-    await lifecycle.reconcile(seed.crawl_id)
-
-    async with session_factory() as session:
-        crawl = await session.get(SiteCrawl, seed.crawl_id)
-        assert crawl is not None
-        assert crawl.status == CRAWL_STATUS_COMPLETED
-        assert crawl.analysis_status == ANALYSIS_STATUS_COMPLETED
-        assert crawl.completed_at is not None
-        assert (
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteHealthSnapshot)
-                .where(SiteHealthSnapshot.crawl_id == seed.crawl_id)
-            )
-            == 1
-        )
-        assert (
-            await session.scalar(
-                select(func.count())
-                .select_from(SiteCrawlTask)
-                .where(
-                    SiteCrawlTask.crawl_id == seed.crawl_id,
-                    SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
-                    SiteCrawlTask.status == TASK_STATUS_QUEUED,
-                )
-            )
-            == 1
-        )
-
-
-@pytest.mark.asyncio
 async def test_partial_analysis_failure_partially_completes(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
@@ -831,15 +713,15 @@ async def test_no_evidence_partial_crawl_refreshes_without_inventing_graph(
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
         assert crawl.status == CRAWL_STATUS_PARTIALLY_COMPLETED
-        graph_tasks = await session.scalar(
+        change_tasks = await session.scalar(
             select(func.count())
             .select_from(SiteCrawlTask)
             .where(
                 SiteCrawlTask.crawl_id == seed.crawl_id,
-                SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+                SiteCrawlTask.task_kind == TASK_KIND_CHANGE_INTEL,
             )
         )
-        assert graph_tasks == 0
+        assert change_tasks == 0
         refresh = await session.scalar(
             select(AnalyticsTask).where(
                 AnalyticsTask.project_id == seed.project_id,
@@ -1012,7 +894,7 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
         assert crawl.status == CRAWL_STATUS_CANCELLED
-        # The stale analyze task was cancelled; one graph predecessor is queued.
+        # The stale analyze task was cancelled; change intelligence is queued.
         queued = await session.scalar(
             select(func.count())
             .select_from(SiteCrawlTask)
@@ -1022,13 +904,13 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
             )
         )
         assert queued == 1
-        graph_task = await session.scalar(
+        change_task = await session.scalar(
             select(SiteCrawlTask).where(
                 SiteCrawlTask.crawl_id == seed.crawl_id,
-                SiteCrawlTask.task_kind == TASK_KIND_LINK_GRAPH,
+                SiteCrawlTask.task_kind == TASK_KIND_CHANGE_INTEL,
             )
         )
-        assert graph_task is not None
+        assert change_task is not None
         verification = await session.scalar(
             select(AnalyticsTask).where(
                 AnalyticsTask.project_id == seed.project_id,
@@ -1049,9 +931,9 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
         )
         assert opportunity_tasks == []
 
-        graph_snapshot_id = uuid.uuid4()
+        change_snapshot_id = uuid.uuid4()
         await enqueue_terminal_analytics_refresh(
-            session, crawl=crawl, change_snapshot_id=graph_snapshot_id
+            session, crawl=crawl, change_snapshot_id=change_snapshot_id
         )
         await session.commit()
         verification = await session.scalar(
@@ -1070,7 +952,7 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
         assert opportunity is not None
         assert opportunity.payload == {
             "trigger_kind": "site_change",
-            "trigger_id": str(graph_snapshot_id),
+            "trigger_id": str(change_snapshot_id),
         }
 
 
@@ -1491,13 +1373,10 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
 
 
 @pytest.mark.asyncio
-async def test_finalize_pass_broken_link_and_hreflang_conflict_end_to_end(
+async def test_finalize_pass_hreflang_conflict_end_to_end(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """The finalize pass reads link_check probe evidence + counterpart page
-    facts: the root's unreachable internal link fails ``broken_internal_link``
-    and its hreflang alternate (analyzed, but not linking back) fails
-    ``hreflang_conflict`` — while the counterpart page's own rows are N/A."""
+    """The finalize pass detects a missing hreflang return tag from page facts."""
     root = "https://example.com/rich"
     second = "https://example.com/fr"
     async with session_factory() as session:
@@ -1511,11 +1390,10 @@ async def test_finalize_pass_broken_link_and_hreflang_conflict_end_to_end(
         b"</head><body><h1>Root</h1>"
         b"<p>Root body text with enough words to matter for the checks.</p>"
         b'<a href="https://example.com/fr">fr</a>'
-        b'<a href="https://example.com/broken">broken</a>'
         b"</body></html>"
     )
     fr_html = b"<html><head><title>FR</title></head><body><p>bonjour</p></body></html>"
-    pages = {"/rich": root_html, "/fr": fr_html}  # /broken -> 404
+    pages = {"/rich": root_html, "/fr": fr_html}
     worker = _worker(session_factory, pages, owner="p2-hreflang")
     await worker.run_until_idle()
 
@@ -1540,12 +1418,6 @@ async def test_finalize_pass_broken_link_and_hreflang_conflict_end_to_end(
             return {row.rule_id: row for row in rows}
 
         root_evals = await _evals(root_analysis.id)
-        broken = root_evals["technical.broken_internal_link"]
-        assert broken.outcome == RULE_OUTCOME_FAIL
-        assert broken.evidence["checked_count"] == 2
-        assert broken.evidence["broken_count"] == 1
-        assert broken.evidence["broken_urls"] == ["https://example.com/broken"]
-
         hreflang = root_evals["technical.hreflang_conflict"]
         assert hreflang.outcome == RULE_OUTCOME_FAIL
         assert hreflang.evidence["alternate_count"] == 1
@@ -1554,14 +1426,11 @@ async def test_finalize_pass_broken_link_and_hreflang_conflict_end_to_end(
 
         # The counterpart page's own finalize rows are clean N/As.
         fr_evals = await _evals(fr_analysis.id)
-        assert fr_evals["technical.broken_internal_link"].outcome == (
-            RULE_OUTCOME_NOT_APPLICABLE
-        )
         fr_hreflang = fr_evals["technical.hreflang_conflict"]
         assert fr_hreflang.outcome == RULE_OUTCOME_NOT_APPLICABLE
         assert fr_hreflang.evidence["reason"] == "no_hreflang"
 
-        # Both failures surfaced as issues and in the snapshot rollup count.
+        # The failure surfaces as an issue and enters the snapshot rollup.
         issues = (
             (
                 await session.execute(
@@ -1571,7 +1440,6 @@ async def test_finalize_pass_broken_link_and_hreflang_conflict_end_to_end(
             .scalars()
             .all()
         )
-        assert "technical.broken_internal_link" in issues
         assert "technical.hreflang_conflict" in issues
 
         snapshot = (
@@ -1588,7 +1456,6 @@ async def test_finalize_pass_broken_link_and_hreflang_conflict_end_to_end(
         # the snapshot's SELECT could not see them and this count came back
         # short by exactly the finalize findings.
         assert snapshot.issue_count == len(issues)
-        assert "technical.broken_internal_link" in issues
         assert sum(1 for rule_id in issues if _is_crawl_finalize_rule(rule_id)) > 0, (
             "the finalize issues must be part of what issue_count counted"
         )

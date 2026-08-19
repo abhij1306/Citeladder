@@ -23,7 +23,6 @@ from app.core.config.site_health_contracts import (
     OBSERVATION_SOURCE_ROOT,
     PAGE_ANALYSIS_STATUS_COMPLETED,
     TASK_KIND_ANALYZE,
-    TASK_KIND_LINK_CHECK,
 )
 from app.core.config.site_health_crawl_policy import (
     CORPUS_DISPOSITION_ANALYZE,
@@ -521,7 +520,7 @@ async def stop_analysis(
     stopped_count = await stop_phase_tasks(
         session,
         crawl_id=crawl.id,
-        task_kinds=(TASK_KIND_ANALYZE, TASK_KIND_LINK_CHECK),
+        task_kinds=(TASK_KIND_ANALYZE,),
     )
     mark_phase_run_stopped(run)
     if phase_stop_changed_state(

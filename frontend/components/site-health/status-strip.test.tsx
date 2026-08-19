@@ -193,30 +193,7 @@ describe('StatusStrip — analysis counters', () => {
   });
 });
 
-describe('StatusStrip — link-check phase', () => {
-  // The regression this covers: every page reports Completed while the crawl
-  // stays "running" through its link-check tasks. The old copy still claimed
-  // pages were being audited, so a working crawl looked frozen and got
-  // cancelled — which in turn skipped the opportunities recompute.
-  it('narrates link checking once analysis is terminal but the crawl is still running', () => {
-    renderStrip({
-      crawl: crawl({ status: 'running', analysis_status: 'completed' }),
-      selectedTotal: 3,
-    });
-
-    expect(screen.getByText(/checking their links/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Auditing monitored pages/i)).not.toBeInTheDocument();
-  });
-
-  it('shows the live pulse while link checking so still counters do not read as hung', () => {
-    renderStrip({
-      crawl: crawl({ status: 'running', analysis_status: 'completed' }),
-      selectedTotal: 3,
-    });
-
-    expect(screen.getByTestId('activity-pulse')).toBeInTheDocument();
-  });
-
+describe('StatusStrip — analysis activity', () => {
   it('keeps the audit copy and live pulse while analysis is genuinely running', () => {
     renderStrip({
       crawl: crawl({ status: 'running', analysis_status: 'running', score_summary: null }),

@@ -128,7 +128,6 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
       },
     ],
     evaluations: [],
-    link_references: [],
     artifact_id: null,
     extractor_version: 'e1',
     analyzer_version: 'a1',

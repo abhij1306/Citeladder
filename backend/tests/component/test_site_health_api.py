@@ -45,7 +45,6 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
-    TASK_KIND_LINK_CHECK,
 )
 from app.core.config.site_health_crawl_policy import (
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
@@ -204,20 +203,6 @@ async def test_stop_analysis_cancels_its_work_and_is_idempotent(
                 status=TASK_STATUS_QUEUED,
             )
         )
-        link_url = "https://acme.test/initial-link-check-without-phase-run"
-        session.add(
-            SiteCrawlTask(
-                crawl_id=crawl.id,
-                workspace_id=scenario.workspace_id,
-                phase_run_id=None,
-                site_url_id=scenario.monitored_url_id,
-                task_kind=TASK_KIND_LINK_CHECK,
-                requested_url=link_url,
-                url_hash=_hash(link_url),
-                idempotency_key=f"{crawl.id}:link-check:initial",
-                status=TASK_STATUS_QUEUED,
-            )
-        )
         discovery_url = "https://acme.test/discovery-continues"
         session.add(
             SiteCrawlTask(
@@ -276,34 +261,11 @@ async def test_stop_analysis_cancels_its_work_and_is_idempotent(
                 SiteCrawlTask.error_code == "stopped",
             )
         )
-        live_link_checks = await session.scalar(
-            select(func.count())
-            .select_from(SiteCrawlTask)
-            .where(
-                SiteCrawlTask.crawl_id == scenario.crawl_id,
-                SiteCrawlTask.task_kind == TASK_KIND_LINK_CHECK,
-                SiteCrawlTask.status.not_in(
-                    [TASK_STATUS_CANCELLED, TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED]
-                ),
-            )
-        )
-        stopped_link_checks = await session.scalar(
-            select(func.count())
-            .select_from(SiteCrawlTask)
-            .where(
-                SiteCrawlTask.crawl_id == scenario.crawl_id,
-                SiteCrawlTask.task_kind == TASK_KIND_LINK_CHECK,
-                SiteCrawlTask.status == TASK_STATUS_CANCELLED,
-                SiteCrawlTask.error_code == "stopped",
-            )
-        )
         assert crawl is not None and crawl.status == CRAWL_STATUS_RUNNING
         assert crawl.analysis_status == ANALYSIS_STATUS_STOPPED
         assert phase_run is not None and phase_run.status == PHASE_RUN_STOPPED
         assert live_analysis == 0
         assert stopped_analysis == 3
-        assert live_link_checks == 0
-        assert stopped_link_checks == 1
 
 
 async def test_stop_discovery_cancels_unowned_tasks_without_stopping_analysis(

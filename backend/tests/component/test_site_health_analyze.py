@@ -54,8 +54,8 @@ from app.models.site_health.analysis import (
     SiteRuleEvaluation,
 )
 from app.models.site_health.crawl import SiteCrawl
-from app.models.site_health.graph import SiteHealthSnapshot
 from app.models.site_health.queue import SiteCrawlTask
+from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 from app.workers.site_health_worker import (
     SiteHealthWorker,
@@ -313,10 +313,7 @@ async def test_reclaimed_analyze_acknowledges_already_persisted_analysis(
         assert task.status == TASK_STATUS_SUCCEEDED
         assert artifacts == 1
         assert analyses == 1
-        # The reclaimed analyze task itself must never refetch its own
-        # target: only its automatically-enqueued ``link_check`` task (a
-        # legitimate, separate task) may generate requests, and even those
-        # target link probes, never a GET of the analyze target itself.
+        # The reclaimed analyze task itself must never refetch its own target.
         assert not any(
             req.method == "GET" and req.url.path == "/rich" for req in requests
         )
@@ -327,9 +324,6 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     seed, site_url_id, _task_id = await _seed_analyze_ready(session_factory)
-    # /other is served too so the rich page's internal link checks out
-    # reachable (otherwise the finalize pass's broken_internal_link rule
-    # correctly fails + snapshots an issue).
     pages = {"/rich": _rich_page(), "/other": _rich_html()}
     worker = _worker(session_factory, pages, owner="analyze-rich")
     await worker.run_until_idle()
@@ -353,11 +347,9 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             .select_from(SiteRuleEvaluation)
             .where(SiteRuleEvaluation.analysis_id == analysis.id)
         )
-        # 30 per-page evaluations from the analyze writer + 3 crawl_finalize
-        # evaluations from the finalize pass (broken_internal_link,
-        # sitemap_orphan, hreflang_conflict), which ran when the crawl
-        # terminalized.
-        assert eval_count == 33
+        # 30 per-page evaluations from the analyze writer + 2 crawl-finalize
+        # evaluations (sitemap_orphan and hreflang_conflict).
+        assert eval_count == 32
 
         # A rich page passes every rule, so no issues are snapshotted.
         issue_count = await session.scalar(
@@ -743,13 +735,7 @@ async def test_rerun_from_completed_crawl_worker_analyzes_only_reran_url(
             CRAWL_STATUS_RUNNING,
         )
 
-    # The worker performed exactly three GETs — the robots.txt policy fetch
-    # (v2 P2: analyze honors robots), the analyze fetch of the reran URL,
-    # and the robots.txt policy fetch for the EXTERNAL link-check probe
-    # target's authority (link probes honor robots too). It never re-crawled
-    # the site (no discover of the root and no other GET). The only other
-    # requests are the analyze task's auto-enqueued link-check HEAD probes of
-    # the page's referenced links, which are legitimate and target external
-    # link URLs, not a site re-crawl.
+    # The worker performs only the robots policy fetch and the requested-page
+    # analysis fetch. It never re-crawls the site or probes referenced links.
     gets = [path for method, path in requests if method == "GET"]
-    assert gets == ["/robots.txt", "/rich", "/robots.txt"]
+    assert gets == ["/robots.txt", "/rich"]

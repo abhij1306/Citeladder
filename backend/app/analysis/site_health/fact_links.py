@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Final
 from urllib.parse import urlsplit
 
 from app.core.config import site_health_acquisition as config
-from app.core.config.site_health_contracts import (
-    LINK_KIND_ANCHOR,
-    LINK_KIND_IMAGE,
-    LINK_KIND_SCRIPT,
-    LINK_KIND_STYLESHEET,
-)
+
+# These are immutable normalized-fact labels, not task kinds. They remain
+# available to downstream deterministic readers without reintroducing the
+# retired link-check queue contract.
+_LINK_KIND_ANCHOR: Final = "anchor"
+_LINK_KIND_IMAGE: Final = "image"
+_LINK_KIND_SCRIPT: Final = "script"
+_LINK_KIND_STYLESHEET: Final = "stylesheet"
 
 
 def _text(node: Any) -> str:
@@ -42,7 +44,7 @@ def _anchor_assets(
                 continue
             anchors.append(
                 {
-                    "kind": LINK_KIND_ANCHOR,
+                    "kind": _LINK_KIND_ANCHOR,
                     "url": href[: config.SITE_HEALTH_MAX_URL_CHARS],
                     "is_internal": _is_internal_asset(href, base_host=base_host),
                     "rel": (anchor.get("rel") or "")[:128],
@@ -99,7 +101,7 @@ def _stylesheet_assets(
                 continue
             stylesheets.append(
                 {
-                    "kind": LINK_KIND_STYLESHEET,
+                    "kind": _LINK_KIND_STYLESHEET,
                     "url": href[: config.SITE_HEALTH_MAX_URL_CHARS],
                     "is_internal": _is_internal_asset(href, base_host=base_host),
                 }
@@ -119,7 +121,7 @@ def links_and_assets(
             root,
             tag="img",
             attribute="src",
-            kind=LINK_KIND_IMAGE,
+            kind=_LINK_KIND_IMAGE,
             base_host=base_host,
             max_links=max_links,
         ),
@@ -127,7 +129,7 @@ def links_and_assets(
             root,
             tag="script",
             attribute="src",
-            kind=LINK_KIND_SCRIPT,
+            kind=_LINK_KIND_SCRIPT,
             base_host=base_host,
             max_links=max_links,
         ),

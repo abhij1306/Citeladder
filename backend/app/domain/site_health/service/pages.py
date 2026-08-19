@@ -17,14 +17,12 @@ from app.domain.site_health.service.common import (
 from app.domain.site_health.service.facts_projection import project_page_facts
 from app.domain.site_health.service.presentation import (
     _MAX_EVALUATIONS,
-    _MAX_LINK_REFERENCES,
     _SEVERITY_RANK,
     _UNRANKED_SEVERITY,
     _delivery_facts,
     _evaluation_row,
     _iso,
     _issue_row,
-    _link_reference_row,
     presentation_status_for,
 )
 from app.domain.site_health.service.queries import (
@@ -42,7 +40,6 @@ from app.domain.site_health.service.queries import (
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import (
     SiteIssue,
-    SiteLinkReference,
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
@@ -193,7 +190,7 @@ async def get_pages(
 # Page detail (persisted facts/delivery/scores/issues/provenance; no network)
 # =========================================================================
 _DetailSections = tuple[
-    dict | None, uuid.UUID | None, int | None, list[dict], list[dict], list[dict]
+    dict | None, uuid.UUID | None, int | None, list[dict], list[dict]
 ]
 
 
@@ -205,9 +202,8 @@ async def _detail_analysis_sections(
     html_bytes: int | None = None
     issues: list[dict] = []
     evaluations: list[dict] = []
-    link_references: list[dict] = []
     if analysis is None:
-        return facts, artifact_id, html_bytes, issues, evaluations, link_references
+        return facts, artifact_id, html_bytes, issues, evaluations
     artifact = await session.get(SiteFetchArtifact, analysis.artifact_id)
     if artifact is not None:
         facts = artifact.normalized_facts
@@ -239,21 +235,7 @@ async def _detail_analysis_sections(
             row["rule_id"],
         ),
     )
-    link_rows = await session.execute(
-        select(SiteLinkReference)
-        .where(SiteLinkReference.source_analysis_id == analysis.id)
-        .order_by(SiteLinkReference.target_url.asc(), SiteLinkReference.id.asc())
-    )
-    seen_links: set[tuple[str, str]] = set()
-    for link in link_rows.scalars().all():
-        key = (link.kind, link.target_hash)
-        if key in seen_links:
-            continue
-        seen_links.add(key)
-        link_references.append(_link_reference_row(link))
-        if len(link_references) >= _MAX_LINK_REFERENCES:
-            break
-    return facts, artifact_id, html_bytes, issues, evaluations, link_references
+    return facts, artifact_id, html_bytes, issues, evaluations
 
 
 def _detail_response(
@@ -268,7 +250,6 @@ def _detail_response(
     html_bytes: int | None,
     issues: list[dict],
     evaluations: list[dict],
-    link_references: list[dict],
 ) -> dict:
     return {
         "site_url_id": site_url.id,
@@ -292,7 +273,6 @@ def _detail_response(
         "delivery": _delivery_facts(facts, html_bytes=html_bytes),
         "issues": issues,
         "evaluations": evaluations,
-        "link_references": link_references,
         "artifact_id": artifact_id,
         "extractor_version": crawl.extractor_version,
         "analyzer_version": crawl.analyzer_version,
@@ -342,7 +322,6 @@ async def get_page_detail(
         html_bytes,
         issues,
         evaluations,
-        link_references,
     ) = await _detail_analysis_sections(session, analysis)
     return _detail_response(
         crawl=crawl,
@@ -355,5 +334,4 @@ async def get_page_detail(
         html_bytes=html_bytes,
         issues=issues,
         evaluations=evaluations,
-        link_references=link_references,
     )

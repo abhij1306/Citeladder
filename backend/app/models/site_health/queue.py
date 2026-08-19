@@ -45,7 +45,7 @@ if TYPE_CHECKING:
 
 
 class SiteCrawlTask(Base):
-    """One queue+lease row for a ``discover`` | ``analyze`` | ``link_check`` unit.
+    """One queue+lease row for a Site Health work unit.
 
     Reuses the exact queue-row column contract of ``AuditTask`` (status /
     lease_owner / lease_expires_at / heartbeat_at / attempt_count /

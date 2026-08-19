@@ -1,10 +1,9 @@
 # Cross-page / cross-time rule evaluation (v2 P2 — spec §5.3, crawl_finalize
 # scope).
 #
-# The three ``crawl_finalize`` rules cannot be evaluated at per-page time:
-# ``technical.broken_internal_link`` needs the link_check probe results (which
-# the analyze task itself enqueues), ``technical.sitemap_orphan`` needs the
-# complete discovered-vs-sitemap set, and ``technical.hreflang_conflict``
+# The two ``crawl_finalize`` rules cannot be evaluated at per-page time:
+# ``technical.sitemap_orphan`` needs the complete discovered-vs-sitemap set,
+# and ``technical.hreflang_conflict``
 # needs counterpart pages' facts. They run as a SECOND evaluation pass inside
 # the worker's ``_reconcile_crawl_status`` (after analysis terminalization,
 # before the snapshot), with the finalize-writer as the sole owner of their
@@ -64,33 +63,6 @@ def _evaluation(rule: SiteHealthRule, outcome: str, evidence: dict) -> RuleEvalu
         evidence=evidence,
         description=rule.description,
         remediation=rule.remediation,
-    )
-
-
-def evaluate_broken_internal_link(
-    *, checked_count: int, broken_urls: list[str]
-) -> RuleEvaluation:
-    """``technical.broken_internal_link`` for ONE analysis's link probes.
-
-    ``checked_count`` is the number of internal link targets probed for the
-    page (all link kinds count as targets); ``broken_urls`` the bounded set
-    that probed unreachable. Not applicable when the page references no
-    internal targets at all (nothing was checked).
-    """
-    rule = _catalog_rule("technical.broken_internal_link")
-    if checked_count <= 0:
-        return _evaluation(
-            rule, RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_internal_links"}
-        )
-    outcome = RULE_OUTCOME_FAIL if broken_urls else RULE_OUTCOME_PASS
-    return _evaluation(
-        rule,
-        outcome,
-        {
-            "checked_count": int(checked_count),
-            "broken_count": len(broken_urls),
-            "broken_urls": _bounded_urls(broken_urls),
-        },
     )
 
 
