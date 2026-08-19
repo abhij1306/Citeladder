@@ -9,7 +9,7 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.domain.site_health.change_intel import build_change_snapshot
-from app.domain.site_health.selection import lease_is_owned
+from app.domain.site_health.task_guards import lease_is_owned
 from app.domain.site_health.terminal_refresh import enqueue_terminal_analytics_refresh
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask

@@ -317,6 +317,12 @@ Prompt generation, scheduled audits, provider attempts, and answer-engine
 measurements use existing queue owners and immutable evidence. Visibility does
 not write business truth.
 
+Unscoped prompt generation may reuse an existing topic or create one only from
+the confirmed BrandProfile products/services taxonomy. New product/service topic
+names use deterministic display title case; unsupported model-invented labels
+are dropped before persistence. Scoped generation continues to use the selected
+persisted topic verbatim.
+
 ## Growth Agent
 
 Agent runs resolve a config-owned task policy, freeze a bounded context package,

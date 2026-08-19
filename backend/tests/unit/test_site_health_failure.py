@@ -111,12 +111,15 @@ class TestFailureConfigTokens:
         assert ROBOTS_FETCH_STATUS_NOT_FOUND == "not_found"
         assert ROBOTS_FETCH_STATUS_FETCH_FAILED == "fetch_failed"
 
-    def test_fetch_attempt_outcome_tokens_match_worker_aliases(self) -> None:
-        # The writer (worker) and the read projection (failure.load_root_errors)
-        # share the config-owned tokens (invariant 1).
-        from app.workers.site_health_worker import _OUTCOME_ERROR, _OUTCOME_SUCCESS
+    def test_fetch_attempt_outcome_tokens_are_config_owned(self) -> None:
+        # The writer (workers.site_health.attempt_rows) and the read projection
+        # (failure.load_root_errors) share the config-owned tokens, binding the
+        # SAME objects rather than re-declaring them (invariant 1).
+        from app.workers.site_health import attempt_rows
 
         assert FETCH_ATTEMPT_OUTCOME_SUCCESS == "success"
         assert FETCH_ATTEMPT_OUTCOME_ERROR == "error"
-        assert _OUTCOME_SUCCESS == FETCH_ATTEMPT_OUTCOME_SUCCESS
-        assert _OUTCOME_ERROR == FETCH_ATTEMPT_OUTCOME_ERROR
+        assert (
+            attempt_rows.FETCH_ATTEMPT_OUTCOME_SUCCESS is FETCH_ATTEMPT_OUTCOME_SUCCESS
+        )
+        assert attempt_rows.FETCH_ATTEMPT_OUTCOME_ERROR is FETCH_ATTEMPT_OUTCOME_ERROR

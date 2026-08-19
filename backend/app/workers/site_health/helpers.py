@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.connectors.web_evidence.contracts import FetchResult
-from app.connectors.web_evidence.fetcher import is_bot_block_result
+from app.connectors.web_evidence.fetcher_body import is_bot_block_result
 from app.connectors.web_evidence.robots import RobotsPolicy
 from app.core.config.site_health_acquisition import (
     ERROR_HTTP_4XX,

@@ -159,19 +159,19 @@ export function useCrawlEvents(
       try {
         closedCleanly = await connect();
       } catch (error) {
+        if (cancelled || controller.signal.aborted) return;
         // Dropped / aborted / timed-out streams are non-fatal: polling in the
         // screen continues to advance progress, so the failure is swallowed
-        // and a reconnect is still scheduled below. It is logged at debug
+        // and a reconnect is still scheduled below. It is logged at error
         // level (never surfaced) so a stream that is failing every attempt is
         // attributable in the console instead of silently invisible.
-        console.debug('[site-health] crawl event stream failed', {
+        console.error('[site-health] crawl event stream failed', {
           crawlId,
           attempt,
           error,
         });
       }
-      if (cancelled || controller.signal.aborted) return;
-      // Only a clean close that DELIVERED something is the server's duration
+      if (cancelled || controller.signal.aborted) return; // Only a clean close that DELIVERED something is the server's duration
       // cap; a clean-but-empty close gets the same backoff as a failure, or an
       // instantly-closing stream becomes a permanent 1 req/s loop.
       const hitDurationCap = closedCleanly && framesThisConnection > 0;

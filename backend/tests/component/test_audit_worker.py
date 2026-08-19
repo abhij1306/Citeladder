@@ -99,7 +99,8 @@ from app.models.audit import (
 )
 from app.models.billing import ConsumableLedger
 from app.models.provider import ProviderConnection
-from app.workers import audit_worker
+from app.workers.audit import execution as audit_execution
+from app.workers.audit import terminalization as audit_terminalization
 from app.workers.audit_worker import AuditWorker
 from tests.component.audit_helpers import (
     _mark_connection_probed,
@@ -158,7 +159,7 @@ def _stub_adapter(monkeypatch: pytest.MonkeyPatch):
     def _build(**_: object) -> _StubAdapter:
         return _StubAdapter()
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _build)
+    monkeypatch.setattr(audit_execution, "build_adapter", _build)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -326,7 +327,7 @@ async def test_worker_executes_claimed_batch_concurrently(
     _ConcurrencyProbeAdapter.in_flight = 0
     _ConcurrencyProbeAdapter.max_in_flight = 0
     monkeypatch.setattr(
-        audit_worker, "build_adapter", lambda **_: _ConcurrencyProbeAdapter()
+        audit_execution, "build_adapter", lambda **_: _ConcurrencyProbeAdapter()
     )
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
@@ -389,7 +390,7 @@ async def test_worker_refills_slots_while_a_slow_call_is_still_in_flight(
     _BlockingFirstCallAdapter.started = 0
     _BlockingFirstCallAdapter.finished = 0
     monkeypatch.setattr(
-        audit_worker, "build_adapter", lambda **_: _BlockingFirstCallAdapter()
+        audit_execution, "build_adapter", lambda **_: _BlockingFirstCallAdapter()
     )
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
@@ -442,7 +443,9 @@ async def test_worker_persists_openai_provenance(
             random_seed="1",
         )
 
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: _OpenAIStubAdapter())
+    monkeypatch.setattr(
+        audit_execution, "build_adapter", lambda **_: _OpenAIStubAdapter()
+    )
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -490,7 +493,7 @@ async def test_worker_rejects_frozen_retired_task_without_network(
     def _boom(**_: object):  # noqa: ANN202
         raise AssertionError("build_adapter must not be called for a retired transport")
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _boom)
+    monkeypatch.setattr(audit_execution, "build_adapter", _boom)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -686,7 +689,7 @@ async def test_worker_discards_success_when_cancelled_mid_call(
             )
 
     monkeypatch.setattr(
-        audit_worker, "build_adapter", lambda **_: _HookAdapter(_cancel_mid_call)
+        audit_execution, "build_adapter", lambda **_: _HookAdapter(_cancel_mid_call)
     )
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
@@ -743,7 +746,7 @@ async def test_worker_discards_success_when_lease_lost_mid_call(
             await session.commit()
 
     monkeypatch.setattr(
-        audit_worker, "build_adapter", lambda **_: _HookAdapter(_steal_lease)
+        audit_execution, "build_adapter", lambda **_: _HookAdapter(_steal_lease)
     )
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
@@ -808,7 +811,7 @@ async def test_worker_records_one_attempt_per_provider_call(
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
 
     adapter = _FlakyAdapter(fail_times=2)
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
     # Zero the delay knobs so the internal retry loop is fast + deterministic.
@@ -989,7 +992,9 @@ async def test_completed_audit_enqueues_opportunities_refresh(
             }
         )
 
-    monkeypatch.setattr(audit_worker, "enqueue_audit_opportunity_tasks", _record)
+    monkeypatch.setattr(
+        audit_terminalization, "enqueue_audit_opportunity_tasks", _record
+    )
     worker = AuditWorker(session_factory=session_factory, owner="w-hook")
     await worker.run_until_idle()
 
@@ -1035,7 +1040,9 @@ async def test_failed_audit_never_enqueues_opportunities_refresh(
     async def _record(session, *, workspace_id, project_id, audit_id):
         calls.append({"audit_id": audit_id})
 
-    monkeypatch.setattr(audit_worker, "enqueue_audit_opportunity_tasks", _record)
+    monkeypatch.setattr(
+        audit_terminalization, "enqueue_audit_opportunity_tasks", _record
+    )
     worker = AuditWorker(session_factory=session_factory, owner="w-hook-fail")
     await worker.run_until_idle()
 
@@ -1057,7 +1064,7 @@ async def test_opportunities_enqueue_failure_never_blocks_terminalization(
     async def _boom(session, *, workspace_id, project_id, audit_id):
         raise RuntimeError("enqueue exploded")
 
-    monkeypatch.setattr(audit_worker, "enqueue_audit_opportunity_tasks", _boom)
+    monkeypatch.setattr(audit_terminalization, "enqueue_audit_opportunity_tasks", _boom)
     worker = AuditWorker(session_factory=session_factory, owner="w-hook-boom")
     # Best-effort: the raise is logged + swallowed; the audit still
     # terminalizes.
@@ -1264,7 +1271,7 @@ async def test_queue_retry_is_the_sole_retry_loop(
     """
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
     adapter = _FlakyAdapter(fail_times=2)
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
     monkeypatch.setattr(audit_settings, "retry_base_delay_seconds", 0.0)
@@ -1321,7 +1328,7 @@ async def test_max_attempts_ceiling_comes_from_the_frozen_task_config(
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
     monkeypatch.setattr(audit_settings, "max_attempts", 50)  # live bump: no effect
     adapter = _FlakyAdapter(fail_times=100)  # always fails retryably
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
     monkeypatch.setattr(audit_settings, "retry_base_delay_seconds", 0.0)
@@ -1365,7 +1372,7 @@ async def test_frozen_mode_timeout_drives_the_call_ceiling(
     )
     monkeypatch.setattr(audit_settings, "pulse_timeout_seconds", 3600.0)  # no effect
     adapter = _StallingAdapter()
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -1406,7 +1413,7 @@ async def test_capacity_refusal_parks_task_without_calling_provider(
     monkeypatch.setattr(audit_settings, "per_transport_concurrency", 0)
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
     adapter = _FlakyAdapter(fail_times=0)
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -1493,7 +1500,7 @@ async def test_claim_commits_before_capacity_and_provider_io(
     """
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
     observed: dict[str, object] = {}
-    real_acquire = audit_worker.acquire_provider_capacity
+    real_acquire = audit_execution.acquire_provider_capacity
 
     async def _witness(factory, *, request, at=None):
         async with factory() as session:
@@ -1502,8 +1509,8 @@ async def test_claim_commits_before_capacity_and_provider_io(
             observed["lease_owner"] = row.lease_owner if row is not None else None
         return await real_acquire(factory, request=request, at=at)
 
-    monkeypatch.setattr(audit_worker, "acquire_provider_capacity", _witness)
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: _StubAdapter())
+    monkeypatch.setattr(audit_execution, "acquire_provider_capacity", _witness)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: _StubAdapter())
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -1530,7 +1537,7 @@ async def test_capacity_acquired_and_released_on_success(
     the funded-global/funded-account pools.
     """
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: _StubAdapter())
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: _StubAdapter())
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -1561,7 +1568,7 @@ async def test_capacity_released_with_failed_outcome_on_terminal_error(
     returned, no shared cooldown written."""
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
     adapter = _ClientErrorAdapter()
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -1599,7 +1606,7 @@ async def test_429_release_writes_shared_cooldown_and_parks_reclaim(
     monkeypatch.setattr(audit_settings, "max_attempts", 3)  # frozen budget
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
     adapter = _FlakyAdapter(fail_times=1, retry_after=30.0)
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
     monkeypatch.setattr(audit_settings, "retry_base_delay_seconds", 0.0)
@@ -1774,7 +1781,7 @@ async def test_funded_task_bills_one_unit_per_actual_call_and_releases_unused(
     """
     _seed, account, audit = await _make_funded_audit(session_factory, monkeypatch)
     adapter = _ClaudeStubAdapter()
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -1856,7 +1863,7 @@ async def test_funded_timeout_call_is_billed(
     )
     monkeypatch.setattr(audit_settings, "pulse_timeout_seconds", 3600.0)  # no effect
     adapter = _StallingAdapter()
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: adapter)
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
     monkeypatch.setattr(audit_settings, "retry_base_delay_seconds", 0.0)
@@ -1970,7 +1977,7 @@ async def test_no_secret_bearing_logs_or_events(
     """
     monkeypatch.setattr(audit_settings, "per_transport_concurrency", 0)
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: _StubAdapter())
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: _StubAdapter())
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -2050,7 +2057,7 @@ async def test_funded_task_executes_with_frozen_platform_connection_key(
         captured.update(kwargs)
         return _ClaudeStubAdapter()
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _build)
+    monkeypatch.setattr(audit_execution, "build_adapter", _build)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -2097,7 +2104,7 @@ async def test_byok_task_executes_with_frozen_tenant_connection_key(
         captured.update(kwargs)
         return _StubAdapter()
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _build)
+    monkeypatch.setattr(audit_execution, "build_adapter", _build)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -2157,7 +2164,7 @@ async def test_byok_auth_failure_pauses_connection_and_fails_task(
         builds.append(kwargs)
         return _AuthFailureAdapter()
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _build)
+    monkeypatch.setattr(audit_execution, "build_adapter", _build)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -2242,7 +2249,7 @@ async def test_platform_auth_failure_pauses_platform_row_without_tenant_exposure
     def _build(**kwargs: object) -> _ClaudeAuthFailureAdapter:
         return _ClaudeAuthFailureAdapter()
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _build)
+    monkeypatch.setattr(audit_execution, "build_adapter", _build)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 

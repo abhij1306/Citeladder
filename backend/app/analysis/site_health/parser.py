@@ -15,30 +15,30 @@ from __future__ import annotations
 
 import codecs
 import logging
-import re
 from typing import Any
 from urllib.parse import unquote, urljoin, urlsplit
 
 from lxml import etree
 from lxml import html as lxml_html
 
+from app.analysis.site_health.fact_links import links_and_assets
+from app.analysis.site_health.fact_signals import (
+    cta_texts,
+    first_answer_text,
+    form_fields,
+    outbound_domains,
+)
 from app.analysis.site_health.page_kinds import is_question_heading
 from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
     product_facts,
     validate_microdata_types,
 )
-from app.connectors.web_evidence.url_policy import registrable_domain
 from app.core.config import site_health_acquisition as site_health_config
 from app.core.config.site_health_contracts import (
     EXTRACTOR_VERSION,
-    LINK_KIND_ANCHOR,
-    LINK_KIND_IMAGE,
-    LINK_KIND_SCRIPT,
-    LINK_KIND_STYLESHEET,
 )
 from app.core.config.site_health_rules import (
-    ANSWER_FIRST_MAX_HOPS,
     INLINE_SCRIPT_JAVASCRIPT_TYPES,
 )
 from app.core.config.site_health_runtime import (
@@ -220,115 +220,6 @@ def _headings(root: Any) -> dict[str, Any]:
     }
 
 
-def _is_cta_anchor(node: Any) -> bool:
-    """Whether an anchor presents as a call to action rather than navigation.
-
-    Every anchor would swamp the CTA signal, so an anchor qualifies only on an
-    explicit button affordance: ``role="button"`` or a button/CTA token in its
-    class list. That keeps "Apply now" and "Enquire" while dropping the footer
-    sitemap.
-    """
-    role = str(node.get("role") or "").strip().casefold()
-    if role == "button":
-        return True
-    classes = str(node.get("class") or "").casefold()
-    if not classes:
-        return False
-    tokens = set(re.split(r"[\s_-]+", classes))
-    return bool(tokens & CTA_BUTTON_ROLE_TOKENS)
-
-
-def _cta_texts(root: Any) -> list[str]:
-    """Bounded visible call-to-action wording in document order.
-
-    Buttons, submit inputs, and button-like anchors. The pack classifier scores
-    conversion roles from this wording, so a missing extractor here makes an
-    enquiry page indistinguishable from an informational one.
-    """
-    texts: list[str] = []
-    seen: set[str] = set()
-
-    def _add(value: str) -> None:
-        cleaned = " ".join(str(value or "").split())[:_MAX_CTA_TEXT_CHARS]
-        if not cleaned:
-            return
-        key = cleaned.casefold()
-        if key in seen:
-            return
-        seen.add(key)
-        texts.append(cleaned)
-
-    try:
-        for node in root.iter("button", "a", "input"):
-            if len(texts) >= _MAX_CTA_TEXTS:
-                break
-            tag = str(node.tag).lower()
-            if tag == "button":
-                _add(_text(node))
-            elif tag == "input":
-                if str(node.get("type") or "").strip().casefold() in {
-                    "submit",
-                    "button",
-                }:
-                    _add(node.get("value") or "")
-            elif _is_cta_anchor(node):
-                _add(_text(node))
-    # Malformed markup must degrade to fewer facts, never fail the analysis.
-    except Exception:
-        pass
-    return texts[:_MAX_CTA_TEXTS]
-
-
-def _form_fields(root: Any) -> list[str]:
-    """Bounded form-field labels: what a page ASKS a visitor for.
-
-    Field labels separate an admissions enquiry form from a newsletter signup
-    far more reliably than the surrounding prose does. Prefers the visible
-    label, falling back to the accessible name, placeholder, or field name —
-    never a value, so nothing a user typed can be captured.
-    """
-    fields: list[str] = []
-    seen: set[str] = set()
-    try:
-        labels_by_for: dict[str, str] = {}
-        for label in root.iter("label"):
-            target = str(label.get("for") or "").strip()
-            if target and target not in labels_by_for:
-                labels_by_for[target] = _text(label)
-        for node in root.iter("input", "select", "textarea"):
-            if len(fields) >= _MAX_FORM_FIELDS:
-                break
-            # Every action control, not just the two obvious ones: ``reset`` and
-            # ``image`` are buttons too, and their label would otherwise enter
-            # the classifier as something the page ASKS the visitor for.
-            if str(node.get("type") or "").strip().casefold() in {
-                "hidden",
-                "submit",
-                "button",
-                "reset",
-                "image",
-            }:
-                continue
-            candidate = (
-                labels_by_for.get(str(node.get("id") or "").strip(), "")
-                or node.get("aria-label")
-                or node.get("placeholder")
-                or node.get("name")
-                or ""
-            )
-            cleaned = " ".join(str(candidate).split())[:_MAX_FORM_FIELD_CHARS]
-            if not cleaned:
-                continue
-            key = cleaned.casefold()
-            if key in seen:
-                continue
-            seen.add(key)
-            fields.append(cleaned)
-    except Exception:
-        pass
-    return fields[:_MAX_FORM_FIELDS]
-
-
 def _contact_points(root: Any) -> list[dict[str, str]]:
     """Bounded declared contact points, read from ``mailto:``/``tel:`` hrefs.
 
@@ -441,128 +332,6 @@ def _body_text(root: Any, *, max_chars: int) -> dict[str, Any]:
     text = " ".join(raw.split())[:max_chars]
     word_count = len(text.split()) if text else 0
     return {"text": text, "word_count": word_count}
-
-
-def _is_internal_asset(url: str, *, base_host: str) -> bool:
-    try:
-        host = urlsplit(url).hostname
-    except Exception:
-        return False
-    if host is None:
-        return True
-    return bool(base_host) and host.lower() == base_host.lower()
-
-
-def _anchor_assets(
-    root: Any, *, base_host: str, max_links: int
-) -> list[dict[str, Any]]:
-    anchors: list[dict] = []
-    try:
-        for anchor in root.iter("a"):
-            if len(anchors) >= max_links:
-                break
-            href = (anchor.get("href") or "").strip()
-            if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
-                continue
-            anchors.append(
-                {
-                    "kind": LINK_KIND_ANCHOR,
-                    "url": href[:_MAX_URL_CHARS],
-                    "is_internal": _is_internal_asset(href, base_host=base_host),
-                    "rel": (anchor.get("rel") or "")[:128],
-                    "anchor_text": _text(anchor)[:_MAX_ANCHOR_TEXT_CHARS],
-                }
-            )
-    except Exception:
-        pass
-    return anchors
-
-
-def _simple_assets(
-    root: Any,
-    *,
-    tag: str,
-    attribute: str,
-    kind: str,
-    base_host: str,
-    max_links: int,
-) -> list[dict[str, Any]]:
-    assets: list[dict[str, Any]] = []
-    try:
-        for node in root.iter(tag):
-            if len(assets) >= max_links:
-                break
-            url = (node.get(attribute) or "").strip()
-            if not url:
-                continue
-            assets.append(
-                {
-                    "kind": kind,
-                    "url": url[:_MAX_URL_CHARS],
-                    "is_internal": _is_internal_asset(url, base_host=base_host),
-                }
-            )
-    except Exception:
-        pass
-    return assets
-
-
-def _stylesheet_assets(
-    root: Any, *, base_host: str, max_links: int
-) -> list[dict[str, Any]]:
-    stylesheets: list[dict[str, Any]] = []
-    try:
-        for link in root.iter("link"):
-            if len(stylesheets) >= max_links:
-                break
-            rel = (link.get("rel") or "").strip().lower()
-            if "stylesheet" not in rel.split():
-                continue
-            href = (link.get("href") or "").strip()
-            if not href:
-                continue
-            stylesheets.append(
-                {
-                    "kind": LINK_KIND_STYLESHEET,
-                    "url": href[:_MAX_URL_CHARS],
-                    "is_internal": _is_internal_asset(href, base_host=base_host),
-                }
-            )
-    except Exception:
-        pass
-    return stylesheets
-
-
-def _links_and_assets(
-    root: Any, *, base_host: str, max_links: int
-) -> dict[str, list[dict]]:
-    """Collect bounded anchors + assets independently in document order.
-
-    Every kind retains its own partial-facts boundary and ``max_links`` cap.
-    """
-
-    return {
-        "anchors": _anchor_assets(root, base_host=base_host, max_links=max_links),
-        "images": _simple_assets(
-            root,
-            tag="img",
-            attribute="src",
-            kind=LINK_KIND_IMAGE,
-            base_host=base_host,
-            max_links=max_links,
-        ),
-        "scripts": _simple_assets(
-            root,
-            tag="script",
-            attribute="src",
-            kind=LINK_KIND_SCRIPT,
-            base_host=base_host,
-            max_links=max_links,
-        ),
-        "stylesheets": _stylesheet_assets(
-            root, base_host=base_host, max_links=max_links
-        ),
-    }
 
 
 def _structured_data(root: Any, *, max_blocks: int) -> dict[str, Any]:
@@ -702,40 +471,6 @@ def _author_and_dates(
     )
 
 
-def _outbound_domains(anchors: list[dict], *, base_host: str) -> list[str]:
-    """Unique external anchor hosts (sorted, bounded).
-
-    Reads the already-bounded anchor facts: an anchor counts as outbound when
-    it is absolute, HTTP(S), and NOT same-SITE — hosts on the page's own
-    registrable domain (apex, www, or any sibling subdomain) are the same
-    site, never citations. Relative/anchorless URLs are same-origin by the
-    link extractor's own heuristic and never count. When the page host has
-    no registrable domain (e.g. an IP), falls back to exact-host matching.
-    """
-    base_registrable = registrable_domain(base_host) if base_host else ""
-    domains: set[str] = set()
-    for entry in anchors or []:
-        if bool(entry.get("is_internal")):
-            continue
-        raw = str(entry.get("url") or "").strip()
-        try:
-            parts = urlsplit(raw)
-        except Exception:
-            continue
-        host = (parts.hostname or "").lower()
-        if not host or parts.scheme not in ("http", "https"):
-            continue
-        if base_registrable:
-            if registrable_domain(host) == base_registrable:
-                continue
-        elif base_host and host == base_host.lower():
-            continue
-        domains.add(host[:_MAX_DOMAIN_CHARS])
-        if len(domains) >= _MAX_OUTBOUND_DOMAINS:
-            break
-    return sorted(domains)
-
-
 def _landmarks(root: Any) -> dict[str, bool]:
     """Presence of the main/article/nav landmark elements."""
     out = {"main": False, "article": False, "nav": False}
@@ -810,60 +545,6 @@ def _hreflang_alternates(root: Any, *, final_url: str) -> list[dict[str, str]]:
             }
         )
     return alternates
-
-
-def _first_answer_text(root: Any) -> str:
-    """Text of the first non-empty block after the first h1/h2.
-
-    The bounded answer-first heuristic input (spec §5.3): what an answer
-    engine reads directly under the page's first heading. Empty when the
-    page has no h1/h2 or no following content block.
-
-    The fast path reads following siblings within the heading's parent. When
-    the heading is wrapped in its own container (e.g.
-    ``<header><h1/></header><main><p>answer</p></main>`` — no following
-    siblings), a bounded document-order walk past the parent finds the first
-    non-empty block-level text within ``ANSWER_FIRST_MAX_HOPS`` elements.
-    """
-    first_heading = None
-    try:
-        for node in root.iter():
-            if node.tag in ("h1", "h2"):
-                first_heading = node
-                break
-    except Exception:
-        return ""
-    if first_heading is None:
-        return ""
-    try:
-        for sibling in first_heading.itersiblings():
-            text = _text(sibling)
-            if text:
-                return " ".join(text.split())[:_MAX_FIRST_ANSWER_CHARS]
-    except Exception:
-        return ""
-    # Container-wrapped heading: walk the elements AFTER the heading in
-    # document order (bounded), skipping non-content subtrees.
-    hops = 0
-    seen_heading = False
-    try:
-        for node in root.iter():
-            if node is first_heading:
-                seen_heading = True
-                continue
-            if not seen_heading:
-                continue
-            hops += 1
-            if hops > ANSWER_FIRST_MAX_HOPS:
-                break
-            if node.tag in ("script", "style", "noscript", "template"):
-                continue
-            text = _text(node)
-            if text:
-                return " ".join(text.split())[:_MAX_FIRST_ANSWER_CHARS]
-    except Exception:
-        return ""
-    return ""
 
 
 def _inline_script_chars(root: Any) -> int:
@@ -945,6 +626,89 @@ def _empty_facts() -> dict[str, Any]:
     }
 
 
+def _parse_root(body: bytes, *, charset: str, settings: Any) -> Any | None:
+    bounded = body[: settings.max_html_bytes]
+    parser = lxml_html.HTMLParser(
+        recover=True, encoding=_safe_parser_encoding(charset), no_network=True
+    )
+    try:
+        return lxml_html.document_fromstring(bounded, parser=parser)
+    except (etree.ParserError, ValueError):
+        return None
+
+
+def _blocking_scripts(root: Any) -> int:
+    count = 0
+    try:
+        for script in root.iter("script"):
+            if not (script.get("src") or "").strip():
+                continue
+            if script.get("async") is not None or script.get("defer") is not None:
+                continue
+            count += 1
+    except Exception:
+        return 0
+    return count
+
+
+def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, Any]:
+    facts = _empty_facts()
+    facts["has_html"] = True
+    try:
+        title_node = next(root.iter("title"), None)
+        if title_node is not None:
+            facts["title"] = _text(title_node)[:_MAX_TITLE_CHARS]
+    except Exception:
+        pass
+    facts["meta_description"] = _meta_content(root, name="description")
+    facts["robots"] = _parse_robots_directives(root)
+    facts["canonical_url"] = _canonical_href(root)
+    facts["open_graph"] = _meta_property_map(root, prefix="og:")
+    facts["twitter"] = _meta_property_map(root, prefix="twitter:")
+    article_meta = _meta_property_map(root, prefix="article:")
+    facts["headings"] = _headings(root)
+    facts["images"] = _images(root)
+    facts["structured_data"] = _structured_data(
+        root, max_blocks=settings.max_structured_data_blocks
+    )
+    try:
+        base_host = urlsplit(final_url).hostname or ""
+    except Exception:
+        base_host = ""
+    facts["links"] = links_and_assets(
+        root, base_host=base_host, max_links=settings.max_links_per_page
+    )
+    facts["cta_text"] = cta_texts(root)
+    facts["form_fields"] = form_fields(root)
+    facts["link_context"] = _link_context(facts["links"].get("anchors") or [])
+    facts["contact_points"] = _contact_points(root)
+    facts["author"], facts["dates"] = _author_and_dates(
+        root, facts["structured_data"], article_meta
+    )
+    facts["outbound_domains"] = outbound_domains(
+        facts["links"]["anchors"], base_host=base_host
+    )
+    facts["landmarks"] = _landmarks(root)
+    facts["question_heading_ratio"] = _question_heading_ratio(facts["headings"])
+    facts["hreflang_alternates"] = _hreflang_alternates(root, final_url=final_url)
+    facts["first_answer_text"] = first_answer_text(root)
+    facts["inline_script_chars"] = _inline_script_chars(root)
+    blocking_scripts = _blocking_scripts(root)
+    blocking_styles = len(facts["links"]["stylesheets"])
+    facts["blocking_resources"] = {
+        "scripts": blocking_scripts,
+        "stylesheets": blocking_styles,
+        "total": blocking_scripts + blocking_styles,
+    }
+    facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
+    body_words = int(facts["body"].get("word_count", 0) or 0)
+    gated_words = _expand_gated_words(root)
+    facts["expand_gated_ratio"] = (
+        round(min(1.0, gated_words / body_words), 4) if body_words > 0 else 0.0
+    )
+    return facts
+
+
 def extract_page_facts(
     body: bytes,
     *,
@@ -986,106 +750,20 @@ def extract_page_facts(
     if not body:
         return facts
 
-    # Bound the bytes handed to the parser (defence against an oversize body
-    # that slipped past the fetch cap). Use the response's declared charset
-    # when present; otherwise let lxml auto-detect rather than hard-coding
-    # UTF-8 (a mismatched hard-coded charset can mangle non-UTF-8 pages).
-    bounded = body[: settings.max_html_bytes]
-    declared_charset = _safe_parser_encoding(charset)
-    parser = lxml_html.HTMLParser(
-        recover=True, encoding=declared_charset, no_network=True
-    )
-    try:
-        root = lxml_html.document_fromstring(bounded, parser=parser)
-    except (etree.ParserError, ValueError):
-        return facts
+    root = _parse_root(body, charset=charset, settings=settings)
     if root is None:
         return facts
-
-    facts["has_html"] = True
-
-    try:
-        title_node = next(root.iter("title"), None)
-        if title_node is not None:
-            facts["title"] = (_text(title_node))[:_MAX_TITLE_CHARS]
-    except Exception:
-        pass
-
-    facts["meta_description"] = _meta_content(root, name="description")
-    facts["robots"] = _parse_robots_directives(root)
-    facts["canonical_url"] = _canonical_href(root)
-    facts["open_graph"] = _meta_property_map(root, prefix="og:")
-    facts["twitter"] = _meta_property_map(root, prefix="twitter:")
-    # article:* OG properties (byline/dates) are a separate prefix family.
-    article_meta = _meta_property_map(root, prefix="article:")
-    facts["headings"] = _headings(root)
-    facts["images"] = _images(root)
-    facts["structured_data"] = _structured_data(
-        root, max_blocks=settings.max_structured_data_blocks
-    )
-
-    base_host = ""
-    try:
-        base_host = urlsplit(final_url).hostname or ""
-    except Exception:
-        base_host = ""
-    facts["links"] = _links_and_assets(
-        root, base_host=base_host, max_links=settings.max_links_per_page
-    )
-    # Industry-role classifier facts. ``link_context`` reuses the anchors just
-    # extracted rather than walking the DOM again.
-    facts["cta_text"] = _cta_texts(root)
-    facts["form_fields"] = _form_fields(root)
-    facts["link_context"] = _link_context(facts["links"].get("anchors") or [])
-    # Knowledge evidence (sh-extractor-4). Contact points read hrefs, so they
-    # must run before ``_body_text`` mutates the tree.
-    facts["contact_points"] = _contact_points(root)
-
-    # v2 P2 (sh-extractor-2) fields: citability + extractability + hreflang.
-    facts["author"], facts["dates"] = _author_and_dates(
-        root, facts["structured_data"], article_meta
-    )
-    facts["outbound_domains"] = _outbound_domains(
-        facts["links"]["anchors"], base_host=base_host
-    )
-    facts["landmarks"] = _landmarks(root)
-    facts["question_heading_ratio"] = _question_heading_ratio(facts["headings"])
-    facts["hreflang_alternates"] = _hreflang_alternates(root, final_url=final_url)
-    facts["first_answer_text"] = _first_answer_text(root)
-    # Inline-script sizing must read the tree BEFORE _body_text removes the
-    # script subtrees.
-    facts["inline_script_chars"] = _inline_script_chars(root)
-
-    # Static blocking-resource heuristic: synchronous <script src> (no async/
-    # defer) plus stylesheet <link>s block first render.
-    blocking_scripts = 0
-    try:
-        for script in root.iter("script"):
-            if not (script.get("src") or "").strip():
-                continue
-            if script.get("async") is not None or script.get("defer") is not None:
-                continue
-            blocking_scripts += 1
-    except Exception:
-        blocking_scripts = 0
-    blocking_styles = len(facts["links"]["stylesheets"])
-    facts["blocking_resources"] = {
-        "scripts": blocking_scripts,
-        "stylesheets": blocking_styles,
-        "total": blocking_scripts + blocking_styles,
-    }
-
-    # Body text last (it mutates the tree by removing script/style subtrees).
-    facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
-    # Money is scanned over the already-bounded VISIBLE text, so an amount
-    # inside a script literal or a style block can never become a published fee.
-
-    # Click-to-expand gating: gated words as a fraction of the visible body
-    # word count (details/aria-expanded subtrees survive _body_text's junk
-    # removal, so this reads the post-body tree deliberately).
-    body_words = int(facts["body"].get("word_count", 0) or 0)
-    gated_words = _expand_gated_words(root)
-    facts["expand_gated_ratio"] = (
-        round(min(1.0, gated_words / body_words), 4) if body_words > 0 else 0.0
+    facts.update(_extract_document(root, final_url=final_url, settings=settings))
+    facts["extractor_version"] = EXTRACTOR_VERSION
+    facts["content_type"] = (content_type or "").strip().lower()
+    facts["delivery"] = _delivery_facts(
+        final_url=final_url,
+        status_code=status_code,
+        redacted_headers=redacted_headers,
+        http_version=http_version,
+        ttfb_ms=ttfb_ms,
+        latency_ms=latency_ms,
+        wire_bytes=wire_bytes,
+        decoded_bytes=decoded_bytes,
     )
     return facts

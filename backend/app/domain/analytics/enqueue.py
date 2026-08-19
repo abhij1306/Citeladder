@@ -21,8 +21,9 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import date
+from typing import Any
 
 from sqlalchemy import Integer, cast, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -504,6 +505,121 @@ async def enqueue_order_retention_sweep(
 # --- C5 post-sync hook (called by the integrations worker after derivation) --
 
 
+async def _load_projection_artifacts(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    artifact_ids: list[uuid.UUID],
+) -> Sequence[Any]:
+    return (
+        await session.execute(
+            select(
+                IntegrationImportArtifact.id,
+                IntegrationImportArtifact.dataset,
+                IntegrationImportArtifact.sync_run_id,
+                IntegrationSyncRun.window_start,
+                IntegrationSyncRun.window_end,
+                IntegrationSyncRun.resync_seq,
+            )
+            .join(
+                IntegrationSyncRun,
+                IntegrationImportArtifact.sync_run_id == IntegrationSyncRun.id,
+            )
+            .where(IntegrationImportArtifact.workspace_id == workspace_id)
+            .where(IntegrationImportArtifact.id.in_(artifact_ids))
+        )
+    ).all()
+
+
+def _projection_revisions(
+    rows: Sequence[Any],
+) -> tuple[
+    dict[tuple[date, date, int, uuid.UUID], None],
+    dict[tuple[date, date, int, uuid.UUID], None],
+    dict[uuid.UUID, None],
+]:
+    traffic: dict[tuple[date, date, int, uuid.UUID], None] = {}
+    attribution: dict[tuple[date, date, int, uuid.UUID], None] = {}
+    order_sync_runs: dict[uuid.UUID, None] = {}
+    for row in rows:
+        revision = (row.window_start, row.window_end, row.resync_seq, row.sync_run_id)
+        if row.dataset in TRAFFIC_REFRESH_TRIGGER_DATASETS:
+            traffic.setdefault(revision)
+        if row.dataset in ATTRIBUTION_CONSUMED_DATASETS:
+            attribution.setdefault(revision)
+        if row.dataset == DATASET_SHOPIFY_ORDERS:
+            order_sync_runs.setdefault(row.sync_run_id)
+    return traffic, attribution, order_sync_runs
+
+
+async def _enqueue_referral_projections(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    artifact_ids: list[uuid.UUID],
+    resolved: dict[uuid.UUID, Any],
+) -> list[uuid.UUID]:
+    enqueued: list[uuid.UUID] = []
+    for artifact_id in artifact_ids:
+        row = resolved.get(artifact_id)
+        if row is None or row.dataset not in TRAFFIC_GA4_REFERRAL_DATASETS:
+            continue
+        task_id = await enqueue_ingest_referrals(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            import_artifact_id=artifact_id,
+        )
+        if task_id is not None:
+            enqueued.append(task_id)
+    return enqueued
+
+
+async def _enqueue_window_projections(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    revisions: dict[tuple[date, date, int, uuid.UUID], None],
+    enqueue: Callable[..., Awaitable[uuid.UUID | None]],
+) -> list[uuid.UUID]:
+    enqueued: list[uuid.UUID] = []
+    for window_start, window_end, resync_seq, sync_run_id in revisions:
+        task_id = await enqueue(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            window_start=window_start,
+            window_end=window_end,
+            resync_seq=resync_seq,
+            source_revision=str(sync_run_id),
+        )
+        if task_id is not None:
+            enqueued.append(task_id)
+    return enqueued
+
+
+async def _enqueue_attribution_links(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    sync_run_ids: dict[uuid.UUID, None],
+) -> list[uuid.UUID]:
+    enqueued: list[uuid.UUID] = []
+    for sync_run_id in sync_run_ids:
+        task_id = await enqueue_attribution_link(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            sync_run_id=sync_run_id,
+        )
+        if task_id is not None:
+            enqueued.append(task_id)
+    return enqueued
+
+
 async def enqueue_post_sync_projections(
     session: AsyncSession,
     *,
@@ -551,88 +667,49 @@ async def enqueue_post_sync_projections(
         raise ValueError(f"unknown project: {project_id}")
     workspace_id = project.workspace_id
 
-    rows = (
-        await session.execute(
-            select(
-                IntegrationImportArtifact.id,
-                IntegrationImportArtifact.dataset,
-                IntegrationImportArtifact.sync_run_id,
-                IntegrationSyncRun.window_start,
-                IntegrationSyncRun.window_end,
-                IntegrationSyncRun.resync_seq,
-            )
-            .join(
-                IntegrationSyncRun,
-                IntegrationImportArtifact.sync_run_id == IntegrationSyncRun.id,
-            )
-            .where(IntegrationImportArtifact.workspace_id == workspace_id)
-            .where(IntegrationImportArtifact.id.in_(artifact_ids))
-        )
-    ).all()
+    rows = await _load_projection_artifacts(
+        session, workspace_id=workspace_id, artifact_ids=artifact_ids
+    )
     resolved = {row.id: row for row in rows}
     # One refresh per DISTINCT affected (window, data revision) PER chain,
     # deduped in first-seen order of the returned rows (the SELECT has no
     # ORDER BY; a hook call normally carries one run's artifacts — one
     # window at one resync_seq — so ordering is moot in practice).
-    traffic_revisions: dict[tuple[date, date, int, uuid.UUID], None] = {}
-    attribution_revisions: dict[tuple[date, date, int, uuid.UUID], None] = {}
-    order_sync_runs: dict[uuid.UUID, None] = {}
-    for row in rows:
-        revision = (row.window_start, row.window_end, row.resync_seq)
-        if row.dataset in TRAFFIC_REFRESH_TRIGGER_DATASETS:
-            traffic_revisions.setdefault((*revision, row.sync_run_id))
-        if row.dataset in ATTRIBUTION_CONSUMED_DATASETS:
-            attribution_revisions.setdefault((*revision, row.sync_run_id))
-        if row.dataset == DATASET_SHOPIFY_ORDERS:
-            order_sync_runs.setdefault(row.sync_run_id)
+    traffic_revisions, attribution_revisions, order_sync_runs = _projection_revisions(
+        rows
+    )
 
-    enqueued: list[uuid.UUID] = []
-    for artifact_id in artifact_ids:
-        resolved_row = resolved.get(artifact_id)
-        if (
-            resolved_row is None
-            or resolved_row.dataset not in TRAFFIC_GA4_REFERRAL_DATASETS
-        ):
-            continue
-        task_id = await enqueue_ingest_referrals(
+    enqueued = await _enqueue_referral_projections(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        artifact_ids=artifact_ids,
+        resolved=resolved,
+    )
+    enqueued.extend(
+        await _enqueue_window_projections(
             session,
             workspace_id=workspace_id,
             project_id=project_id,
-            import_artifact_id=artifact_id,
+            revisions=traffic_revisions,
+            enqueue=enqueue_traffic_snapshot_refresh,
         )
-        if task_id is not None:
-            enqueued.append(task_id)
-    for window_start, window_end, resync_seq, sync_run_id in traffic_revisions:
-        task_id = await enqueue_traffic_snapshot_refresh(
+    )
+    enqueued.extend(
+        await _enqueue_window_projections(
             session,
             workspace_id=workspace_id,
             project_id=project_id,
-            window_start=window_start,
-            window_end=window_end,
-            resync_seq=resync_seq,
-            source_revision=str(sync_run_id),
+            revisions=attribution_revisions,
+            enqueue=enqueue_attribution_snapshot_refresh,
         )
-        if task_id is not None:
-            enqueued.append(task_id)
-    for window_start, window_end, resync_seq, sync_run_id in attribution_revisions:
-        task_id = await enqueue_attribution_snapshot_refresh(
+    )
+    enqueued.extend(
+        await _enqueue_attribution_links(
             session,
             workspace_id=workspace_id,
             project_id=project_id,
-            window_start=window_start,
-            window_end=window_end,
-            resync_seq=resync_seq,
-            source_revision=str(sync_run_id),
+            sync_run_ids=order_sync_runs,
         )
-        if task_id is not None:
-            enqueued.append(task_id)
-    for sync_run_id in order_sync_runs:
-        task_id = await enqueue_attribution_link(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            sync_run_id=sync_run_id,
-        )
-        if task_id is not None:
-            enqueued.append(task_id)
+    )
     return enqueued

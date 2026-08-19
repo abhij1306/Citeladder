@@ -78,7 +78,6 @@ export const CONTRACT_SCHEMA_MAP = {
   providerConnectionSchema: 'ProviderConnectionResponse',
   connectionTestResultSchema: 'ProviderConnectionTestResponse',
   providerCatalogSchema: 'ProviderCatalogResponse',
-  // Runs / visibility
   auditSchema: 'AuditResponse',
   executionSchema: 'AuditTaskResponse',
   executionEvidenceSchema: 'ExecutionEvidenceResponse',

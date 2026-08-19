@@ -371,10 +371,6 @@ MERCHANT_DOMAINS: Final[dict[str, tuple[str, str]]] = {
     "bestbuy.com": ("Best Buy", MERCHANT_KIND_RETAILER),
 }
 
-# --- Shopping-surface gate (§7, D2) -----------------------------------------
-# Canonical measurement identity (the empty string): the answer-engine-API
-# slot every shipped audit task/analysis carries. Used by models, filters,
-# DTO defaults, and idempotency keys.
 SHOPPING_SURFACE_MEASUREMENT: Final = ""
 # The disabled probe gate. A future record maps surface id -> its frozen
 # identity keys (``logical_engine``, ``transport_provider``,

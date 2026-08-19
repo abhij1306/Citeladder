@@ -20,11 +20,9 @@ import { ICONS } from '@/lib/icons';
 import type { ReactNode } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
 
-import type { VisibilityExecutionEvidence } from '@/lib/api/types';
+import type { VisibilityExecutionEvidence, VisibilityEvidenceResponse } from '@/lib/api/types';
 import { engineLabel } from '@/lib/providers/catalog';
 import { formatExecutionDate, provenanceSummary } from '@/lib/visibility/evidence';
-
-import type { VisibilityEvidenceResponse } from '@/lib/api/types';
 
 /** Props shared by both evidence tabs (Query Fanout, Mentions & Citations). */
 export type EvidenceTabProps = Readonly<{

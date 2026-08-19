@@ -30,10 +30,10 @@ from sqlalchemy import Row, func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analysis.site_health.score_aggregation import aggregate_by_page_kind
 from app.analysis.site_health.scoring import (
     AnalysisScoreInput,
     PageKindScoreInput,
-    aggregate_by_page_kind,
     aggregate_scores,
 )
 from app.core.config.site_health_contracts import (

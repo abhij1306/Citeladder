@@ -24,13 +24,19 @@ from app.domain.site_health.api_schemas import (
 )
 from app.domain.site_health.planner import (
     CrawlPlanError,
-    _controls_for_request,
-    _frozen_configuration,
-    _preview_input_rows,
     create_crawl,
     create_page_rerun_crawl,
 )
+from app.domain.site_health.planner_controls import resolve_controls
+from app.domain.site_health.planner_policy import frozen_configuration
+from app.domain.site_health.planner_preview import preview_rows
 from app.domain.site_health.schemas import FrontierCandidate
+
+
+def _controls_for_request(**kwargs):
+    return resolve_controls(
+        **kwargs, error=lambda message, code: CrawlPlanError(message, code=code)
+    )
 
 
 def test_production_controls_keep_the_automatic_page_limit(monkeypatch):
@@ -172,15 +178,24 @@ def test_development_allows_exact_mode_with_frozen_requested_limit(monkeypatch):
 
 def test_preview_parses_csv_text_and_json_without_creating_a_crawl():
     raw = "https://example.com/a\nhttps://example.com/b"
-    assert _preview_input_rows(raw, "text") == [
+
+    def preview(content: str, format: str) -> list[str]:
+        return preview_rows(
+            content,
+            format,
+            max_bytes=site_health_settings.max_preview_input_bytes,
+            error=CrawlPlanError,
+        )
+
+    assert preview(raw, "text") == [
         "https://example.com/a",
         "https://example.com/b",
     ]
-    assert _preview_input_rows(raw, "csv") == [
+    assert preview(raw, "csv") == [
         "https://example.com/a",
         "https://example.com/b",
     ]
-    assert _preview_input_rows('{"urls":["https://example.com/a"]}', "json") == [
+    assert preview('{"urls":["https://example.com/a"]}', "json") == [
         "https://example.com/a"
     ]
 
@@ -195,7 +210,7 @@ def test_frozen_configuration_stamps_supplemental_page_profile_rule_version():
         resolved_registry_revision = "registry-v1"
         resolved_entitlement_lifecycle_version = 1
 
-    configuration = _frozen_configuration(
+    configuration = frozen_configuration(
         root_registrable_domain="example.com",
         include_globs=[],
         exclude_globs=[],
@@ -216,7 +231,7 @@ def test_frozen_configuration_only_enables_phase_lifecycle_when_requested():
         resolved_registry_revision = "registry-v1"
         resolved_entitlement_lifecycle_version = 1
 
-    configuration = _frozen_configuration(
+    configuration = frozen_configuration(
         root_registrable_domain="example.com",
         include_globs=[],
         exclude_globs=[],
@@ -233,7 +248,7 @@ def test_normal_and_page_rerun_creation_share_the_frozen_configuration() -> None
         assert any(
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
-            and node.func.id == "_frozen_configuration"
+            and node.func.id == "frozen_configuration"
             for node in ast.walk(tree)
         )
 

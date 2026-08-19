@@ -68,6 +68,7 @@ from app.core.config.billing_contracts import (
 from app.core.config.billing_settings import (
     billing_settings,
 )
+from app.domain.billing.catalog import public_catalog
 from app.domain.billing.idempotency import (
     IdempotencyConflictError,
     ProviderCall,
@@ -78,6 +79,7 @@ from app.domain.billing.idempotency import (
     replay_intent,
     validate_idempotency_key,
 )
+from app.domain.billing.reads import account_entitlement, account_usage
 from app.domain.billing.schemas import (
     ActivationResponse,
     AddonActivateRequest,
@@ -91,8 +93,6 @@ from app.domain.billing.schemas import (
 from app.domain.billing.service import (
     BillingConflictError,
     ResolvedIntent,
-    account_entitlement,
-    account_usage,
     current_addon_subscription,
     current_base_subscription,
     live_base_subscription,
@@ -100,7 +100,6 @@ from app.domain.billing.service import (
     pending_addon_activation,
     pending_base_activation,
     persist_billing_country,
-    public_catalog,
     resolve_addon_intent,
     resolve_base_intent,
     resolve_topup_intent,

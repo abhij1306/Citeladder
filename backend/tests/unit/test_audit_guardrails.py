@@ -36,7 +36,7 @@ from app.core.config.provider_catalog import (
     measurement_route,
     route_policy,
 )
-from app.workers import audit_worker
+from app.workers import audit_worker_support as audit_support
 
 
 def _request() -> AnswerEngineRequest:
@@ -84,16 +84,14 @@ class _StallingAdapter:
 
 
 @pytest.mark.asyncio
-async def test_call_provider_once_cuts_off_a_stalled_provider(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        audit_worker, "pace_provider_request", lambda provider: asyncio.sleep(0)
-    )
+async def test_call_provider_once_cuts_off_a_stalled_provider() -> None:
     adapter = _StallingAdapter()
 
-    attempt = await audit_worker.call_provider_once(
-        adapter, _request(), timeout_seconds=0.01
+    attempt = await audit_support.call_provider_once(
+        adapter,
+        _request(),
+        timeout_seconds=0.01,
+        pace_request=lambda _provider: asyncio.sleep(0),
     )
 
     # Exactly ONE external call, cut off at the frozen timeout ceiling.
@@ -135,22 +133,20 @@ class _FlakyAdapter:
 
 
 @pytest.mark.asyncio
-async def test_call_provider_once_never_retries_internally(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_call_provider_once_never_retries_internally() -> None:
     """A retryable failure returns immediately: the QUEUE owns every retry.
 
     One queue attempt must make ONE external call, so a retryable error comes
     back as the attempt's outcome instead of being retried inline — the old
     nested retry loop would have made a second call right here.
     """
-    monkeypatch.setattr(
-        audit_worker, "pace_provider_request", lambda provider: asyncio.sleep(0)
-    )
     adapter = _FlakyAdapter(fail_times=2)
 
-    attempt = await audit_worker.call_provider_once(
-        adapter, _request(), timeout_seconds=30.0
+    attempt = await audit_support.call_provider_once(
+        adapter,
+        _request(),
+        timeout_seconds=30.0,
+        pace_request=lambda _provider: asyncio.sleep(0),
     )
 
     assert adapter.calls == 1  # no nested retry, even though budget remained
@@ -161,16 +157,14 @@ async def test_call_provider_once_never_retries_internally(
 
 
 @pytest.mark.asyncio
-async def test_call_provider_once_returns_the_single_success(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        audit_worker, "pace_provider_request", lambda provider: asyncio.sleep(0)
-    )
+async def test_call_provider_once_returns_the_single_success() -> None:
     adapter = _FlakyAdapter(fail_times=0)
 
-    attempt = await audit_worker.call_provider_once(
-        adapter, _request(), timeout_seconds=30.0
+    attempt = await audit_support.call_provider_once(
+        adapter,
+        _request(),
+        timeout_seconds=30.0,
+        pace_request=lambda _provider: asyncio.sleep(0),
     )
 
     assert adapter.calls == 1
@@ -185,7 +179,7 @@ def test_build_request_passes_every_frozen_policy_field_explicitly() -> None:
     Each field is mandatory and asserted against the planned policy value.
     """
     policy = measurement_policy_for_mode(MEASUREMENT_MODE_PULSE)
-    request = audit_worker._build_request(
+    request = audit_support.build_request(
         prompt_text="cheap baby clothes",
         system_instruction="Answer for Australia.",
         transport_model="gemini-3-pro",
@@ -211,7 +205,7 @@ def test_build_request_snapshot_records_policy_and_omits_the_brand_list() -> Non
     every snapshot.
     """
     policy = measurement_policy_for_mode(MEASUREMENT_MODE_PULSE)
-    request = audit_worker._build_request(
+    request = audit_support.build_request(
         prompt_text="cheap baby clothes",
         system_instruction="Answer for Australia. " + policy.answer_instruction,
         transport_model="gemini-3-pro",
@@ -219,7 +213,7 @@ def test_build_request_snapshot_records_policy_and_omits_the_brand_list() -> Non
         measurement_mode=MEASUREMENT_MODE_PULSE,
         policy=policy,
     )
-    snapshot = audit_worker._build_request_snapshot(
+    snapshot = audit_support.build_request_snapshot(
         logical_engine=ENGINE_GEMINI,
         transport_provider=TRANSPORT_GOOGLE,
         transport_model="gemini-3-pro",
@@ -265,7 +259,7 @@ def test_assert_worker_pool_capacity_raises_when_undersized(
     monkeypatch.setattr(settings, "db_max_overflow", 2)
     assert 4 + 2 < _pool_demand()  # the configuration under test IS undersized
     with pytest.raises(RuntimeError, match="db pool undersized"):
-        audit_worker.assert_worker_pool_capacity()
+        audit_support.assert_worker_pool_capacity()
 
 
 def test_assert_worker_pool_capacity_passes_at_exact_boundary(
@@ -274,10 +268,10 @@ def test_assert_worker_pool_capacity_passes_at_exact_boundary(
     """pool_size + max_overflow == exact demand is ENOUGH (>=, not >)."""
     monkeypatch.setattr(settings, "db_pool_size", _pool_demand())
     monkeypatch.setattr(settings, "db_max_overflow", 0)
-    audit_worker.assert_worker_pool_capacity()  # must not raise
+    audit_support.assert_worker_pool_capacity()  # must not raise
 
 
 def test_assert_worker_pool_capacity_passes_with_shipped_defaults() -> None:
     """The shipped pool defaults exactly cover the frozen T4 worker demand."""
     assert settings.db_pool_size + settings.db_max_overflow == _pool_demand()
-    audit_worker.assert_worker_pool_capacity()  # must not raise
+    audit_support.assert_worker_pool_capacity()  # must not raise

@@ -1,6 +1,6 @@
 'use client';
 
-import { Filter, Search, Upload } from 'lucide-react';
+import { Check, Filter, Search, Sparkles, Upload } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +27,8 @@ export function PromptToolbar({
   onFiltersChange,
   onImport,
   onAdd,
+  onGenerate,
+  onDoneManaging,
   disabled,
 }: Readonly<{
   search: string;
@@ -35,6 +37,8 @@ export function PromptToolbar({
   onFiltersChange: (filters: PromptFilters) => void;
   onImport: () => void;
   onAdd: () => void;
+  onGenerate: () => void;
+  onDoneManaging?: () => void;
   disabled?: boolean;
 }>) {
   const activeFilterCount =
@@ -68,13 +72,13 @@ export function PromptToolbar({
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search prompts"
           aria-label="Search prompts"
-          className="pl-8"
+          className="h-[var(--control-height-sm)] pl-8"
         />
       </div>
 
       <Dropdown>
         <DropdownTrigger asChild>
-          <Button variant="secondary">
+          <Button variant="secondary" size="sm">
             <Filter className="size-4" aria-hidden />
             Filter
             {activeFilterCount > 0 ? (
@@ -129,13 +133,23 @@ export function PromptToolbar({
         </DropdownContent>
       </Dropdown>
 
-      <Button variant="secondary" onClick={onImport} disabled={disabled}>
+      <Button variant="secondary" size="sm" onClick={onImport} disabled={disabled}>
         <Upload className="size-4" aria-hidden />
         Bulk upload
       </Button>
-      <Button variant="primary" onClick={onAdd} disabled={disabled}>
+      <Button variant="secondary" size="sm" onClick={onGenerate} disabled={disabled}>
+        <Sparkles className="size-4" aria-hidden />
+        Generate prompts &amp; topics
+      </Button>
+      <Button variant="primary" size="sm" onClick={onAdd} disabled={disabled}>
         Add prompt
       </Button>
+      {onDoneManaging ? (
+        <Button variant="secondary" size="sm" aria-label="Done managing" onClick={onDoneManaging}>
+          <Check className="size-4" aria-hidden />
+          Done
+        </Button>
+      ) : null}
     </div>
   );
 }

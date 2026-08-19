@@ -1,5 +1,4 @@
-import { Activity, AlertTriangle, ArrowUpRight, Split, Zap } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowUpRight, Split, Zap, type LucideIcon } from 'lucide-react';
 
 import type { DemandSnapshot } from '@/lib/api/demand';
 import { countByTab, detectorStates, isActionableGap, numericMetric } from '@/lib/demand/signals';

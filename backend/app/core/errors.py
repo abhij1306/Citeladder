@@ -187,6 +187,31 @@ def _json_safe(value: Any) -> Any:
     return None if value is None else jsonable_encoder(value)
 
 
+def _legacy_detail_parts(
+    exc: HTTPException,
+) -> tuple[str | None, str | None, dict[str, Any] | None, Any]:
+    detail: Any = exc.detail
+    if isinstance(detail, str) and not detail:
+        detail = None
+    if isinstance(detail, dict):
+        code, message = _legacy_code_message(detail)
+        extras = _legacy_extras(detail)
+        return code or None, message or None, extras or None, detail
+    return None, detail if isinstance(detail, str) and detail else None, None, detail
+
+
+def _legacy_code_message(detail: dict[str, Any]) -> tuple[str | None, str | None]:
+    code = detail.get("code") if isinstance(detail.get("code"), str) else None
+    message = detail.get("message") if isinstance(detail.get("message"), str) else None
+    return code, message
+
+
+def _legacy_extras(detail: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value for key, value in detail.items() if key not in ("code", "message")
+    }
+
+
 async def api_exception_handler(request: Request, exc: ApiException) -> JSONResponse:
     """Render an :class:`ApiException` as the unified envelope."""
     return JSONResponse(
@@ -214,26 +239,7 @@ def _parse_legacy_detail(
     one job. Returns ``(code, message, details, detail)`` where ``message`` is
     always resolved and ``detail`` is always JSON-safe.
     """
-    code: str | None = None
-    message: str | None = None
-    details: dict[str, Any] | None = None
-    # Annotated ``Any``: ``HTTPException.detail`` is typed ``str``, but a coded
-    # raise carries a dict and this function deliberately reassigns None for
-    # the empty case — without this mypy narrows it to ``str`` and rejects both.
-    detail: Any = exc.detail
-    if isinstance(detail, str) and not detail:
-        detail = None  # an empty legacy detail behaves as absent
-    if isinstance(detail, dict):
-        raw_code = detail.get("code")
-        if isinstance(raw_code, str) and raw_code:
-            code = raw_code
-        raw_message = detail.get("message")
-        if isinstance(raw_message, str) and raw_message:
-            message = raw_message
-        extras = {k: v for k, v in detail.items() if k not in ("code", "message")}
-        details = extras or None
-    elif isinstance(detail, str) and detail:
-        message = detail
+    code, message, details, detail = _legacy_detail_parts(exc)
     if message is None:
         message = _status_phrase(exc.status_code)
     if not isinstance(detail, (str, dict)):

@@ -253,33 +253,67 @@ def _text_blocks(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return blocks
 
 
+def _citation_from_annotation(
+    block: dict[str, Any], annotation: object, ordinal: int
+) -> CitationResult | None:
+    if not isinstance(annotation, dict):
+        return None
+    if str(annotation.get("type") or "") != "url_citation":
+        return None
+    url = str(annotation.get("url") or "").strip()
+    title = str(annotation.get("title") or "").strip()
+    if not url and not title:
+        return None
+    start, end, cited_text = cited_span(str(block.get("text") or ""), annotation)
+    return CitationResult(
+        ordinal=ordinal,
+        url=url,
+        title=title,
+        domain=normalize_domain(urlparse(url).hostname or title),
+        start_index=start,
+        end_index=end,
+        cited_text=cited_text,
+    )
+
+
 def _citations(blocks: list[dict[str, Any]]) -> tuple[CitationResult, ...]:
     citations: list[CitationResult] = []
     for block in blocks:
-        text = str(block.get("text") or "")
         for annotation in block.get("annotations") or []:
-            if not isinstance(annotation, dict):
-                continue
-            if str(annotation.get("type") or "") != "url_citation":
-                continue
-            url = str(annotation.get("url") or "").strip()
-            title = str(annotation.get("title") or "").strip()
-            if not url and not title:
-                continue
-            start, end, cited_text = cited_span(text, annotation)
-            domain = normalize_domain(urlparse(url).hostname or title)
-            citations.append(
-                CitationResult(
-                    ordinal=len(citations),
-                    url=url,
-                    title=title,
-                    domain=domain,
-                    start_index=start,
-                    end_index=end,
-                    cited_text=cited_text,
-                )
-            )
+            citation = _citation_from_annotation(block, annotation, len(citations))
+            if citation is not None:
+                citations.append(citation)
     return tuple(citations)
+
+
+def _safe_item_metadata(item: dict[str, Any]) -> dict[str, Any] | None:
+    item_type = _item_type(item)
+    if item_type in _DROP_ITEM_TYPES:
+        return None
+    common = {"type": item_type, "id": item.get("id")}
+    if item_type == "web_search_call":
+        action = _action_of(item)
+        return {
+            **common,
+            "status": item.get("status"),
+            "action": {
+                "type": action.get("type"),
+                "query": action.get("query"),
+                "queries": action.get("queries") or [],
+            },
+        }
+    if item_type == "message":
+        content = [
+            {
+                "type": block.get("type"),
+                "text": block.get("text"),
+                "annotations": block.get("annotations") or [],
+            }
+            for block in item.get("content") or []
+            if isinstance(block, dict)
+        ]
+        return {**common, "content": content}
+    return None
 
 
 def _sanitize_metadata(
@@ -294,38 +328,9 @@ def _sanitize_metadata(
     entirely and no credentials, raw headers, or request echo are retained.
     """
     item_types = [_item_type(item) for item in items]
-    evidence_items: list[dict[str, Any]] = []
-    for item in items:
-        item_type = _item_type(item)
-        if item_type in _DROP_ITEM_TYPES:
-            continue
-        common = {"type": item_type, "id": item.get("id")}
-        if item_type == "web_search_call":
-            action = _action_of(item)
-            evidence_items.append(
-                {
-                    **common,
-                    "status": item.get("status"),
-                    "action": {
-                        "type": action.get("type"),
-                        "query": action.get("query"),
-                        "queries": action.get("queries") or [],
-                    },
-                }
-            )
-        elif item_type == "message":
-            content = []
-            for block in item.get("content") or []:
-                if not isinstance(block, dict):
-                    continue
-                content.append(
-                    {
-                        "type": block.get("type"),
-                        "text": block.get("text"),
-                        "annotations": block.get("annotations") or [],
-                    }
-                )
-            evidence_items.append({**common, "content": content})
+    evidence_items = [
+        safe for item in items if (safe := _safe_item_metadata(item)) is not None
+    ]
     return {
         "id": payload.get("id"),
         "object": payload.get("object"),

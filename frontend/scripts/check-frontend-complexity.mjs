@@ -74,7 +74,7 @@ function filesUnder(root) {
         continue;
       const absolute = path.join(directory, entry.name);
       if (entry.isDirectory()) visit(absolute);
-      else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name) && !/\.d\.ts$/.test(entry.name))
+      else if (/\.(?:ts|tsx|js|jsx)$/.test(entry.name) && !entry.name.endsWith('.d.ts'))
         result.push(absolute);
     }
   }
@@ -89,9 +89,9 @@ function isTestFile(file) {
 
 export function measure(file) {
   const source = fs.readFileSync(file, 'utf8');
-  const scriptKind = /\.tsx$/.test(file)
+  const scriptKind = file.endsWith('.tsx')
     ? ts.ScriptKind.TSX
-    : /\.jsx$/.test(file)
+    : file.endsWith('.jsx')
       ? ts.ScriptKind.JSX
       : ts.ScriptKind.TS;
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind);

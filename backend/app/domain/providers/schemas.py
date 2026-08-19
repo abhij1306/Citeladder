@@ -47,7 +47,6 @@ def _validate_base_url(value: str | None) -> str | None:
 #
 # ``ActiveTransportProvider`` is the complete write/create transport surface.
 ActiveTransportProvider = Literal["openai", "anthropic", "google"]
-# Backwards-compatible alias used by the create/write path.
 TransportProvider = ActiveTransportProvider
 LogicalEngine = Literal["chatgpt", "gemini", "claude"]
 

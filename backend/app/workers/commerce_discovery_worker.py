@@ -429,6 +429,34 @@ def _safe_acquisition(result: FetchResult) -> dict[str, Any]:
     }
 
 
+def _http_failure(result: FetchResult) -> tuple[str, bool] | None:
+    if result.status_code < 400:
+        return None
+    retryable = (
+        result.status_code
+        >= commerce_intelligence_settings.discovery_server_error_status_floor
+        or result.status_code
+        in commerce_intelligence_settings.discovery_retryable_http_statuses
+    )
+    return str(result.status_code), retryable
+
+
+def _bounded_extraction(
+    result: FetchResult,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    extracted = _extract_product(result)
+    if extracted is None:
+        return None
+    _, evidence = extracted
+    encoded = json.dumps(evidence, sort_keys=True, separators=(",", ":"))
+    if (
+        len(encoded)
+        > commerce_intelligence_settings.discovery_max_artifact_payload_chars
+    ):
+        return None
+    return extracted
+
+
 class CommerceDiscoveryWorker(DrainableWorkerMixin):
     """Claim, acquire, deterministically extract, and terminalize discovery tasks."""
 
@@ -549,50 +577,21 @@ class CommerceDiscoveryWorker(DrainableWorkerMixin):
 
     async def _acquire_and_finalize(self, claimed: CommerceDiscoveryTask) -> None:
         async with self._leased(claimed.id):
-            request = FetchRequest(
-                url=claimed.source_url,
-                purpose=FETCH_PURPOSE_DISCOVER,
-                allowed_content_types=frozenset(
-                    commerce_intelligence_settings.discovery_allowed_content_types
-                ),
-            )
-            try:
-                async with self._new_fetcher() as fetcher:
-                    result = await fetcher.fetch(request)
-            except FetchError as exc:
-                await self._finalize_failure(
-                    claimed.id,
-                    error_code=exc.error_code,
-                    error_detail=exc.error_code,
-                    retryable=exc.retryable,
-                    retry_after_seconds=exc.retry_after_seconds,
-                    consumed_network_attempt=bool(exc.attempts),
-                )
+            result = await self._acquire(claimed)
+            if result is None:
                 return
-            if (
-                result.status_code
-                >= commerce_intelligence_settings.discovery_server_error_status_floor
-                or result.status_code
-                in commerce_intelligence_settings.discovery_retryable_http_statuses
-                or result.status_code >= 400
-            ):
-                retryable = (
-                    result.status_code
-                    >= (
-                        commerce_intelligence_settings.discovery_server_error_status_floor
-                    )
-                    or result.status_code
-                    in commerce_intelligence_settings.discovery_retryable_http_statuses
-                )
+            http_failure = _http_failure(result)
+            if http_failure is not None:
+                detail, retryable = http_failure
                 await self._finalize_failure(
                     claimed.id,
                     error_code=COMMERCE_DISCOVERY_ERROR_HTTP_STATUS,
-                    error_detail=str(result.status_code),
+                    error_detail=detail,
                     retryable=retryable,
                     consumed_network_attempt=True,
                 )
                 return
-            extracted = _extract_product(result)
+            extracted = _bounded_extraction(result)
             if extracted is None:
                 await self._finalize_failure(
                     claimed.id,
@@ -603,52 +602,68 @@ class CommerceDiscoveryWorker(DrainableWorkerMixin):
                 )
                 return
             identity, evidence = extracted
-            encoded = json.dumps(evidence, sort_keys=True, separators=(",", ":"))
-            if (
-                len(encoded)
-                > commerce_intelligence_settings.discovery_max_artifact_payload_chars
-            ):
-                await self._finalize_failure(
-                    claimed.id,
-                    error_code=COMMERCE_DISCOVERY_ERROR_EMPTY_EXTRACTION,
-                    error_detail=COMMERCE_DISCOVERY_ERROR_EMPTY_EXTRACTION,
-                    retryable=False,
-                    consumed_network_attempt=True,
-                )
+            await self._persist_success(claimed, result, identity, evidence)
+
+    async def _acquire(self, claimed: CommerceDiscoveryTask) -> FetchResult | None:
+        request = FetchRequest(
+            url=claimed.source_url,
+            purpose=FETCH_PURPOSE_DISCOVER,
+            allowed_content_types=frozenset(
+                commerce_intelligence_settings.discovery_allowed_content_types
+            ),
+        )
+        try:
+            async with self._new_fetcher() as fetcher:
+                return await fetcher.fetch(request)
+        except FetchError as exc:
+            await self._finalize_failure(
+                claimed.id,
+                error_code=exc.error_code,
+                error_detail=exc.error_code,
+                retryable=exc.retryable,
+                retry_after_seconds=exc.retry_after_seconds,
+                consumed_network_attempt=bool(exc.attempts),
+            )
+            return None
+
+    async def _persist_success(
+        self,
+        claimed: CommerceDiscoveryTask,
+        result: FetchResult,
+        identity: dict[str, Any],
+        evidence: dict[str, Any],
+    ) -> None:
+        async with self._session_factory() as session:
+            run = await session.get(CommerceDiscoveryRun, claimed.run_id)
+            if run is None:
                 return
-            async with self._session_factory() as session:
-                run = await session.get(CommerceDiscoveryRun, claimed.run_id)
-                if run is None:
-                    return
-                candidate_kind, competitor_id = _configured_candidate_target(run)
-                artifact_id = await finalize_discovery_success(
-                    session,
-                    task_id=claimed.id,
-                    owner=self.owner,
-                    evidence_kind=_evidence_kind(result),
-                    source_url=result.final_url,
-                    content_hash=hashlib.sha256(result.body).hexdigest(),
-                    extracted=evidence,
-                    acquisition=_safe_acquisition(result),
-                    identity=_candidate_conflict_identity(
-                        identity,
-                        candidate_kind=candidate_kind,
-                        competitor_id=competitor_id,
-                        run_id=claimed.run_id,
-                        task_id=claimed.id,
-                        source_url=claimed.source_url,
-                    ),
-                    extraction_confidence=(
-                        commerce_intelligence_settings.discovery_schema_confidence
-                        if evidence["schema_types"]
-                        else commerce_intelligence_settings.discovery_html_confidence
-                    ),
+            candidate_kind, competitor_id = _configured_candidate_target(run)
+            await finalize_discovery_success(
+                session,
+                task_id=claimed.id,
+                owner=self.owner,
+                evidence_kind=_evidence_kind(result),
+                source_url=result.final_url,
+                content_hash=hashlib.sha256(result.body).hexdigest(),
+                extracted=evidence,
+                acquisition=_safe_acquisition(result),
+                identity=_candidate_conflict_identity(
+                    identity,
                     candidate_kind=candidate_kind,
                     competitor_id=competitor_id,
-                )
-                await session.commit()
-            if artifact_id is None:
-                return
+                    run_id=claimed.run_id,
+                    task_id=claimed.id,
+                    source_url=claimed.source_url,
+                ),
+                extraction_confidence=(
+                    commerce_intelligence_settings.discovery_schema_confidence
+                    if evidence["schema_types"]
+                    else commerce_intelligence_settings.discovery_html_confidence
+                ),
+                candidate_kind=candidate_kind,
+                competitor_id=competitor_id,
+            )
+            await session.commit()
 
     async def _finalize_failure(
         self,

@@ -82,8 +82,6 @@ class PhaseSupport:
     ) -> tuple[RobotsPolicy, str | None, int | None]:
         raise NotImplementedError
 
-    # --- shared evidence writers (defined on the worker, used by phases) ---
-
     async def _write_artifact(
         self,
         session: AsyncSession,

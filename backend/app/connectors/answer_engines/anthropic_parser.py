@@ -108,40 +108,52 @@ def _blocks(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return [block for block in content if isinstance(block, dict)]
 
 
+def _anthropic_citation(
+    annotation: dict[str, Any], ordinal: int
+) -> CitationResult | None:
+    if str(annotation.get("type") or "") != "web_search_result_location":
+        return None
+    url = str(annotation.get("url") or "").strip()
+    if not url:
+        return None
+    title = str(annotation.get("title") or "").strip()
+    return CitationResult(
+        ordinal=ordinal,
+        url=url,
+        title=title,
+        domain=normalize_domain(urlparse(url).hostname or title),
+        start_index=None,
+        end_index=None,
+        cited_text=str(annotation.get("cited_text") or ""),
+    )
+
+
+def _text_block_citations(
+    block: dict[str, Any], ordinal: int
+) -> tuple[str | None, list[CitationResult]]:
+    if str(block.get("type") or "") != "text":
+        return None, []
+    text = str(block.get("text") or "").strip()
+    citations: list[CitationResult] = []
+    for annotation in block.get("citations") or []:
+        if not isinstance(annotation, dict):
+            continue
+        citation = _anthropic_citation(annotation, ordinal + len(citations))
+        if citation is not None:
+            citations.append(citation)
+    return text or None, citations
+
+
 def _answer_and_citations(
     blocks: list[dict[str, Any]],
 ) -> tuple[str, tuple[CitationResult, ...]]:
     texts: list[str] = []
     citations: list[CitationResult] = []
     for block in blocks:
-        if str(block.get("type") or "") != "text":
-            continue
-        text = str(block.get("text") or "").strip()
+        text, block_citations = _text_block_citations(block, len(citations))
         if text:
             texts.append(text)
-        for annotation in block.get("citations") or []:
-            if not isinstance(annotation, dict):
-                continue
-            if str(annotation.get("type") or "") != "web_search_result_location":
-                continue
-            url = str(annotation.get("url") or "").strip()
-            if not url:
-                continue
-            title = str(annotation.get("title") or "").strip()
-            cited_text = str(annotation.get("cited_text") or "")
-            domain = normalize_domain(urlparse(url).hostname or title)
-            citations.append(
-                CitationResult(
-                    ordinal=len(citations),
-                    url=url,
-                    title=title,
-                    domain=domain,
-                    # Anthropic returns cited_text, not character offsets.
-                    start_index=None,
-                    end_index=None,
-                    cited_text=cited_text,
-                )
-            )
+        citations.extend(block_citations)
     return "\n\n".join(texts), tuple(citations)
 
 
@@ -192,8 +204,6 @@ def parse_anthropic_message(
             "native_search_requested": True,
             # Anthropic exposes the real query text on server_tool_use blocks.
             "query_text_available": True,
-            # Raw provider token preserved verbatim alongside the canonical
-            # mapping (only the canonical value is used by gates).
             "stop_reason": payload.get("stop_reason"),
             "raw_finish_reason": raw_finish_reason,
         },

@@ -29,6 +29,12 @@ from app.analysis.site_health.indexing import (
     evaluate_indexability,
     normalized_url_for_compare,
 )
+from app.analysis.site_health.schema_rules import (
+    check_schema_expected_for_type,
+    check_schema_matches_content,
+    check_schema_recommended_present,
+    check_schema_required_valid,
+)
 from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
     AI_CRAWLER_STANCE_BLOCK,
@@ -58,7 +64,6 @@ from app.core.config.site_health_rules import (
     META_DESCRIPTION_LENGTH_BAND,
     QUESTION_HEADINGS_MIN_RATIO,
     RENDER_BLOCKING_MAX_RESOURCES,
-    SCHEMA_CONTENT_MATCH_MAX_CANDIDATES,
     SERVER_RENDERED_MIN_WORDS,
     SITE_HEALTH_RULES,
     SITE_HEALTH_RULES_BY_ID,
@@ -70,12 +75,10 @@ from app.core.config.site_health_rules import (
 from app.core.config.site_health_taxonomy import (
     PAGE_KIND_APPLICABILITY_PREFIX,
     PAGE_KIND_CONTENT_APPLICABILITY_PREFIX,
-    PAGE_KIND_EXPECTED_SCHEMA,
     PAGE_KIND_HTML_APPLICABILITY_PREFIX,
     PAGE_KIND_OTHER,
     PAGE_KIND_PROFILES,
     PageKindProfile,
-    PageKindSchemaExpectation,
 )
 
 
@@ -335,150 +338,6 @@ def _check_llms_txt_present(facts: dict) -> tuple[str, dict]:
         "fetched": bool(llms.get("fetched")),
         "present": present,
         "url": str(llms.get("url") or "")[:2048],
-    }
-
-
-# --- v2 P2: per-type schema validity checks --------------------------------
-
-
-def _expectation_for(facts: dict) -> PageKindSchemaExpectation:
-    """The config schema expectation for the page's classified type.
-
-    Falls back to the ``other`` expectation for an absent/unknown page type
-    (same fallback convention as the thin-content minimum).
-    """
-    page_kind = str(facts.get("page_kind") or "").strip().lower()
-    if page_kind == PRODUCT_SCHEMA_EXPECTATION.page_kind:
-        return PRODUCT_SCHEMA_EXPECTATION
-    return PAGE_KIND_EXPECTED_SCHEMA.get(
-        page_kind, PAGE_KIND_EXPECTED_SCHEMA[PAGE_KIND_OTHER]
-    )
-
-
-def _expected_blocks(facts: dict, expectation: PageKindSchemaExpectation) -> list[dict]:
-    """Structured-data blocks whose type is expected for the page type."""
-    sd = facts.get("structured_data") or {}
-    expected = set(expectation.expected_types)
-    return [
-        block
-        for block in (sd.get("blocks") or [])
-        if str(block.get("type") or "") in expected
-    ]
-
-
-def _check_schema_expected_for_type(facts: dict) -> tuple[str, dict]:
-    expectation = _expectation_for(facts)
-    sd = facts.get("structured_data") or {}
-    found_types = sorted(str(t) for t in (sd.get("types") or []))
-    blocks = _expected_blocks(facts, expectation)
-    return _pass_fail(bool(blocks)), {
-        "page_kind": expectation.page_kind,
-        "expected_types": list(expectation.expected_types),
-        "found_types": found_types[:20],
-    }
-
-
-def _missing_paths(block: dict, paths: tuple[str, ...]) -> list[str]:
-    present = set(block.get("props_present") or [])
-    return [path for path in paths if path not in present]
-
-
-def _schema_property_candidates(
-    blocks: list[dict], expectation: PageKindSchemaExpectation, *, recommended: bool
-) -> list[tuple[dict, tuple[str, ...], list[str]]]:
-    """Pair expected blocks with their contract and already-computed gaps."""
-    candidates = []
-    for block in blocks:
-        paths = expectation.properties_for(
-            str(block.get("type") or ""), recommended=recommended
-        )
-        if paths:
-            candidates.append((block, paths, _missing_paths(block, paths)))
-    return candidates
-
-
-def _has_shallow_microdata(
-    candidates: list[tuple[dict, tuple[str, ...], list[str]]],
-) -> bool:
-    return any(
-        str(block.get("syntax") or "") == "microdata"
-        and not (block.get("props_present") or [])
-        for block, _paths, _missing in candidates
-    )
-
-
-def _schema_property_check(facts: dict, *, recommended: bool) -> tuple[str, dict]:
-    """Shared body for the required/recommended schema-property rules.
-
-    The best-annotated expected-type block decides: one complete block
-    passes. N/A when the page carries no expected-type block (the
-    ``aeo.schema_expected_for_type`` rule owns that failure — these rules
-    never double-report it, and can never be circular since the page type
-    comes from URL/content signals first, spec §5.1) or — recommended only —
-    when the expectation recommends nothing.
-    """
-    label = "recommended" if recommended else "required"
-    expectation = _expectation_for(facts)
-    blocks = _expected_blocks(facts, expectation)
-    if not blocks:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
-
-    candidates = _schema_property_candidates(
-        blocks, expectation, recommended=recommended
-    )
-    if not candidates:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": f"no_{label}_properties"}
-
-    block, paths, best_missing = min(
-        candidates, key=lambda candidate: len(candidate[2])
-    )
-    evidence = {
-        "page_kind": expectation.page_kind,
-        "schema_type": str(block.get("type") or ""),
-        "expected_types": list(expectation.expected_types),
-        label: list(paths),
-        "missing": best_missing,
-        "checked_blocks": len(candidates),
-    }
-    if best_missing and _has_shallow_microdata(candidates):
-        # Microdata extraction is shallow (no per-property walk): a failing
-        # block with empty props_present may be fully marked up in the HTML.
-        # Record the limitation so the UI can explain the finding.
-        evidence["extraction"] = "microdata_shallow"
-    return _pass_fail(not best_missing), evidence
-
-
-def _check_schema_required_valid(facts: dict) -> tuple[str, dict]:
-    return _schema_property_check(facts, recommended=False)
-
-
-def _check_schema_recommended_present(facts: dict) -> tuple[str, dict]:
-    return _schema_property_check(facts, recommended=True)
-
-
-def _check_schema_matches_content(facts: dict) -> tuple[str, dict]:
-    expectation = _expectation_for(facts)
-    blocks = _expected_blocks(facts, expectation)
-    if not blocks:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_expected_type_block"}
-    candidates = [
-        str(block.get("name") or "").strip()
-        for block in blocks
-        if str(block.get("name") or "").strip()
-    ][:SCHEMA_CONTENT_MATCH_MAX_CANDIDATES]
-    if not candidates:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_schema_names"}
-    headings = facts.get("headings") or {}
-    haystacks = [str(facts.get("title") or "")]
-    haystacks += [str(t) for t in (headings.get("h1_texts") or [])]
-    lowered = [hay.lower() for hay in haystacks if hay]
-    matched = any(
-        candidate.lower() in hay for candidate in candidates for hay in lowered
-    )
-    return _pass_fail(matched), {
-        "page_kind": expectation.page_kind,
-        "candidates": [c[:256] for c in candidates],
-        "matched_visible_content": matched,
     }
 
 
@@ -744,10 +603,10 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "aeo.structured_data_present": _check_structured_data_present,
     "aeo.open_graph_present": _check_open_graph_present,
     "aeo.llms_txt_present": _check_llms_txt_present,
-    "aeo.schema_expected_for_type": _check_schema_expected_for_type,
-    "aeo.schema_required_valid": _check_schema_required_valid,
-    "aeo.schema_recommended_present": _check_schema_recommended_present,
-    "aeo.schema_matches_content": _check_schema_matches_content,
+    "aeo.schema_expected_for_type": check_schema_expected_for_type,
+    "aeo.schema_required_valid": check_schema_required_valid,
+    "aeo.schema_recommended_present": check_schema_recommended_present,
+    "aeo.schema_matches_content": check_schema_matches_content,
     "aeo.author_present": _check_author_present,
     "aeo.date_present": _check_date_present,
     "aeo.outbound_citations": _check_outbound_citations,

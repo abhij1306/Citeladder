@@ -5,7 +5,6 @@ import { Suspense, useState } from 'react';
 
 import { PromptLibrary } from '@/components/prompts/prompt-library';
 import { YourPrompts } from '@/components/prompts/your-prompts';
-import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 /**
@@ -42,14 +41,7 @@ function PromptsScreen() {
   if (managing) {
     return (
       <TooltipProvider>
-        <div className="grid gap-6">
-          <div className="flex justify-end">
-            <Button variant="ghost" size="sm" onClick={exitManage}>
-              Done managing
-            </Button>
-          </div>
-          <PromptLibrary />
-        </div>
+        <PromptLibrary onDoneManaging={exitManage} />
       </TooltipProvider>
     );
   }

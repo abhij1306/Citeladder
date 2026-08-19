@@ -101,8 +101,6 @@ class AnswerEngineResponse:
     search_events: tuple[SearchEventResult, ...]
     citations: tuple[CitationResult, ...]
     provider_metadata: dict = field(default_factory=dict)
-    # Canonical finish reason (never null) plus the raw provider token it was
-    # mapped from. Only the canonical value is used by gates.
     finish_reason: FinishReason = FinishReason.UNKNOWN
     raw_finish_reason: str = ""
     # Typed, all-nullable usage counters and the ONLY usage contract on this

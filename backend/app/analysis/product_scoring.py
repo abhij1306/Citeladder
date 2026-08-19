@@ -537,40 +537,92 @@ def _is_table_separator(line: str) -> bool:
     )
 
 
-def _rank_in_block(
+def _table_rank(block: list[tuple[int, str]], match_offset: int) -> int | None:
+    has_header = any(_is_table_separator(line) for _, line in block)
+    data_rows = [row for row in block if not _is_table_separator(row[1])]
+    if has_header:
+        data_rows = data_rows[1:]
+    for ordinal, (start, line) in enumerate(data_rows, start=1):
+        if start <= match_offset < start + len(line):
+            return ordinal
+    return None
+
+
+def _list_rank(
     block: list[tuple[int, str]], match_offset: int, family: str
 ) -> int | None:
-    """1-based ordinal of the block item whose span contains the offset."""
-    if family == "table":
-        # Skip separator rows, and the header row ONLY when a separator marks
-        # one. A headerless or single-row pipe table has no header to drop —
-        # stripping its first row unconditionally would leave nothing to rank
-        # and report a genuine mention as unranked.
-        has_header = any(_is_table_separator(line) for _, line in block)
-        data_rows = [row for row in block if not _is_table_separator(row[1])]
-        if has_header:
-            data_rows = data_rows[1:]
-        for ordinal, (start, line) in enumerate(data_rows, start=1):
-            end = start + len(line)
-            if start <= match_offset < end:
-                return ordinal
-        return None
-
     ordinal = 0
     item_start: int | None = None
     for index, (start, line) in enumerate(block):
-        is_marker = (
+        marker = (
             _NUMBERED_RE.match(line) if family == "numbered" else _BULLET_RE.match(line)
         )
-        if is_marker:
+        if marker:
             ordinal += 1
             item_start = start
-        # An item's span runs to the next marker (or the block end).
         next_start = block[index + 1][0] if index + 1 < len(block) else None
         if item_start is not None and match_offset >= item_start:
             if next_start is None or match_offset < next_start:
                 return ordinal
     return None
+
+
+def _rank_in_block(
+    block: list[tuple[int, str]], match_offset: int, family: str
+) -> int | None:
+    """1-based ordinal of the block item whose span contains the offset."""
+    if family == "table":
+        return _table_rank(block, match_offset)
+    return _list_rank(block, match_offset, family)
+
+
+def _rank_line_family(
+    line: str,
+    *,
+    current_family: str,
+    current: list[tuple[int, str]],
+    last_number: int,
+) -> tuple[str, int]:
+    numbered = _NUMBERED_RE.match(line)
+    if _TABLE_ROW_RE.match(line):
+        return "table", last_number
+    if numbered:
+        number = int(numbered.group(1))
+        if current_family == "numbered" and number <= last_number:
+            return "numbered_restart", number
+        return "numbered", number
+    if _BULLET_RE.match(line):
+        return "bullet", last_number
+    if line.strip() and current and current_family in {"numbered", "bullet"}:
+        return current_family, last_number
+    return "", last_number
+
+
+def _rank_blocks(
+    lines: list[tuple[int, str]],
+) -> list[tuple[str, list[tuple[int, str]]]]:
+    blocks: list[tuple[str, list[tuple[int, str]]]] = []
+    current_family = ""
+    current: list[tuple[int, str]] = []
+    last_number = 0
+    for start, line in lines:
+        family, last_number = _rank_line_family(
+            line,
+            current_family=current_family,
+            current=current,
+            last_number=last_number,
+        )
+
+        if family == "numbered_restart" or (family != current_family and current):
+            blocks.append((current_family, current))
+            current = []
+            current_family = ""
+        if family:
+            current_family = "numbered" if family == "numbered_restart" else family
+            current.append((start, line))
+    if current:
+        blocks.append((current_family, current))
+    return blocks
 
 
 def detect_product_rank(answer_text: str, match_offset: int) -> int | None:
@@ -585,39 +637,7 @@ def detect_product_rank(answer_text: str, match_offset: int) -> int | None:
         return None
     lines = _line_spans(answer_text)
 
-    # Group lines into contiguous same-family blocks. A numbered block
-    # restarts when the explicit number does not increase (a new list).
-    blocks: list[tuple[str, list[tuple[int, str]]]] = []
-    current_family = ""
-    current: list[tuple[int, str]] = []
-    last_number = 0
-    for start, line in lines:
-        numbered = _NUMBERED_RE.match(line)
-        family = ""
-        if _TABLE_ROW_RE.match(line):
-            family = "table"
-        elif numbered:
-            family = "numbered"
-            if current_family == "numbered" and int(numbered.group(1)) <= last_number:
-                family = "numbered_restart"
-            last_number = int(numbered.group(1))
-        elif _BULLET_RE.match(line):
-            family = "bullet"
-        elif line.strip() and current and current_family in {"numbered", "bullet"}:
-            # Continuation line of the current list item.
-            family = current_family
-
-        if family == "numbered_restart" or (family != current_family and current):
-            blocks.append((current_family, current))
-            current = []
-            current_family = ""
-        if family:
-            current_family = "numbered" if family == "numbered_restart" else family
-            current.append((start, line))
-    if current:
-        blocks.append((current_family, current))
-
-    for family, block in blocks:
+    for family, block in _rank_blocks(lines):
         block_start = block[0][0]
         block_end = block[-1][0] + len(block[-1][1])
         if block_start <= match_offset < block_end:

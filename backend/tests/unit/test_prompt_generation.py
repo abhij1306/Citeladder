@@ -15,6 +15,8 @@ from app.domain.prompts.generation import (
     SuggestedPrompt,
     SuggestedTopic,
     _cap_suggestions_to_count,
+    _ground_suggestion_topics,
+    _title_case_topic,
     build_generation_user_message,
     parse_generation_output,
 )
@@ -181,6 +183,7 @@ class TestBuildGenerationUserMessage:
             existing_prompts=["best running shoes"],
             count=5,
             intents=["discovery"],
+            product_service_topics=["Running Shoes"],
         )
         assert "Acme Corp" in message
         assert "Globex" in message
@@ -188,6 +191,8 @@ class TestBuildGenerationUserMessage:
         assert '"name":"Footwear"' in message
         assert '"description":"Shoes for runners"' in message
         assert "exactly 5 prompts" in message
+        assert "Confirmed product/service topic taxonomy" in message
+        assert '["Running Shoes"]' in message
         assert "Restrict prompt intents to: discovery" in message
         assert "best running shoes" in message
 
@@ -219,6 +224,20 @@ class TestBuildGenerationUserMessage:
         )
         assert "Target topic description" in message
         assert "Running and everyday shoes for families." in message
+
+    def test_existing_topics_do_not_replace_confirmed_product_taxonomy(self) -> None:
+        message = build_generation_user_message(
+            brand_context=BRAND_CONTEXT,
+            existing_topics=[
+                {"name": "Footwear", "description": "Shoes for runners"},
+                {"name": "Sizing", "description": "Fit guidance"},
+            ],
+            existing_prompts=[],
+            count=3,
+            intents=[],
+        )
+
+        assert "Confirmed product/service topic taxonomy" not in message
 
     def test_empty_lists_render_none_markers(self) -> None:
         message = build_generation_user_message(
@@ -262,6 +281,92 @@ class TestCapSuggestionsToCount:
 
     def test_zero_count_yields_nothing(self) -> None:
         assert _cap_suggestions_to_count([_topic("A", "one")], 0) == []
+
+
+class TestGeneratedTopicGrounding:
+    def test_title_cases_products_and_preserves_acronyms(self) -> None:
+        assert _title_case_topic("homewares and bedding") == "Homewares and Bedding"
+        assert _title_case_topic("budget NRL fan gear") == "Budget NRL Fan Gear"
+
+    def test_maps_model_phrase_to_confirmed_product_service(self) -> None:
+        from app.models.brand import Brand, BrandProfile
+        from app.models.project import Project
+
+        project = Project(name="P", brand_name="Acme")
+        brand = Brand(project_id=project.id, name="Acme")
+        brand.profile = BrandProfile(
+            brand_id=brand.id, products_services=["running shoes"]
+        )
+        project.brand = brand
+
+        grounded = _ground_suggestion_topics(
+            [_topic("fast school uniform shopping", "best running shoes for kids")],
+            project=project,
+            target_topic=None,
+        )
+
+        assert [topic.name for topic in grounded] == ["Running Shoes"]
+
+    def test_drops_topic_without_product_service_evidence(self) -> None:
+        from app.models.brand import Brand, BrandProfile
+        from app.models.project import Project
+
+        project = Project(name="P", brand_name="Acme")
+        brand = Brand(project_id=project.id, name="Acme")
+        brand.profile = BrandProfile(
+            brand_id=brand.id, products_services=["running shoes"]
+        )
+        project.brand = brand
+
+        grounded = _ground_suggestion_topics(
+            [_topic("random text", "where can I buy laptops")],
+            project=project,
+            target_topic=None,
+        )
+
+        assert grounded == []
+
+    def test_uses_existing_topic_when_products_have_no_evidence(self) -> None:
+        from app.models.brand import Brand, BrandProfile
+        from app.models.project import Project
+        from app.models.prompt import Topic
+
+        project = Project(name="Project", brand_name="Brand")
+        brand = Brand(project_id=project.id, name="Brand")
+        brand.profile = BrandProfile(
+            brand_id=brand.id, products_services=["Running Shoes"]
+        )
+        project.brand = brand
+        project.topics = [Topic(name="School Uniforms")]
+
+        grounded = _ground_suggestion_topics(
+            [_topic("uniform help", "where can I buy school uniforms")],
+            project=project,
+            target_topic=None,
+        )
+
+        assert [topic.name for topic in grounded] == ["School Uniforms"]
+
+    def test_prefers_product_evidence_over_existing_topic_overlap(self) -> None:
+        from app.models.brand import Brand, BrandProfile
+        from app.models.project import Project
+        from app.models.prompt import Topic
+
+        project = Project(name="Project", brand_name="Brand")
+        brand = Brand(project_id=project.id, name="Brand")
+        brand.profile = BrandProfile(
+            brand_id=brand.id, products_services=["Running Shoes"]
+        )
+        project.brand = brand
+        project.topics = [Topic(name="Running Gear")]
+
+        grounded = _ground_suggestion_topics(
+            [_topic("running footwear", "best running shoes for kids")],
+            project=project,
+            target_topic=None,
+        )
+
+        assert [topic.name for topic in grounded] == ["Running Shoes"]
 
 
 # --------------------------------------------------------------------------

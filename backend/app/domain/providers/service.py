@@ -209,6 +209,44 @@ async def create_connection(
     )
 
 
+def _apply_endpoint_update(
+    connection: ProviderConnection, payload: ProviderConnectionUpdate
+) -> None:
+    if payload.base_url is None:
+        return
+    _require_approved_endpoint(connection.transport_provider, payload.base_url)
+    old_destination = connection.base_url or configured_endpoint(
+        connection.transport_provider
+    )
+    new_destination = payload.base_url or configured_endpoint(
+        connection.transport_provider
+    )
+    has_fresh_key = bool(payload.api_key and payload.api_key.strip())
+    if new_destination != old_destination and not has_fresh_key:
+        raise InvalidProviderEndpointError(
+            "Changing a provider endpoint requires a fresh API key"
+        )
+    connection.base_url = payload.base_url
+
+
+def _apply_connection_update(
+    connection: ProviderConnection, payload: ProviderConnectionUpdate
+) -> None:
+    if payload.label is not None:
+        connection.label = payload.label
+    _apply_endpoint_update(connection, payload)
+    if payload.active is not None:
+        connection.active = payload.active
+    if payload.api_key is not None and payload.api_key.strip():
+        connection.api_key_encrypted = encrypt_secret(payload.api_key.strip())
+    if payload.routes is not None:
+        connection.routes = _build_routes(
+            workspace_id=connection.workspace_id,
+            transport_provider=connection.transport_provider,
+            items=payload.routes,
+        )
+
+
 async def update_connection(
     session: AsyncSession,
     *,
@@ -225,34 +263,7 @@ async def update_connection(
             "This connection uses a retired transport and is historical and "
             "read-only; create a new direct connection instead."
         )
-    if payload.label is not None:
-        connection.label = payload.label
-    if payload.base_url is not None:
-        _require_approved_endpoint(connection.transport_provider, payload.base_url)
-        old_destination = connection.base_url or configured_endpoint(
-            connection.transport_provider
-        )
-        new_destination = payload.base_url or configured_endpoint(
-            connection.transport_provider
-        )
-        if new_destination != old_destination and not (
-            payload.api_key and payload.api_key.strip()
-        ):
-            raise InvalidProviderEndpointError(
-                "Changing a provider endpoint requires a fresh API key"
-            )
-        connection.base_url = payload.base_url
-    if payload.active is not None:
-        connection.active = payload.active
-    # Key rotation: only re-encrypt when a non-empty key is supplied.
-    if payload.api_key is not None and payload.api_key.strip():
-        connection.api_key_encrypted = encrypt_secret(payload.api_key.strip())
-    if payload.routes is not None:
-        connection.routes = _build_routes(
-            workspace_id=workspace_id,
-            transport_provider=connection.transport_provider,
-            items=payload.routes,
-        )
+    _apply_connection_update(connection, payload)
     await session.commit()
     return await get_connection(
         session, workspace_id=workspace_id, connection_id=connection_id
@@ -432,6 +443,34 @@ def _paused_state_response(
     )
 
 
+def _connection_state_response(
+    entry: ProviderCatalogEntry,
+    *,
+    state: str,
+    safe_reason: str | None,
+    probe: ProviderConnectionTest | None,
+) -> ProviderConnectionStateResponse:
+    latest_probe = None
+    if probe is not None:
+        latest_probe = ProviderProbeResponse(
+            status=(
+                TEST_STATUS_OK if probe.status == TEST_STATUS_OK else TEST_STATUS_FAILED
+            ),
+            safe_reason=safe_reason,
+            tested_at=probe.created_at,
+            model=probe.transport_model or None,
+            latency_ms=probe.latency_ms,
+        )
+    return ProviderConnectionStateResponse(
+        key=entry.key,
+        label=entry.label,
+        state=state,
+        safe_reason=safe_reason,
+        grant_key=entry.grant_key,
+        latest_probe=latest_probe,
+    )
+
+
 def derive_connection_state(
     entry: ProviderCatalogEntry,
     connection: ProviderConnection | None,
@@ -457,13 +496,8 @@ def derive_connection_state(
     marker fails closed as paused.
     """
     if not entry.adapter_shipped:
-        return ProviderConnectionStateResponse(
-            key=entry.key,
-            label=entry.label,
-            state="unavailable",
-            safe_reason=entry.unavailable_reason,
-            grant_key=entry.grant_key,
-            latest_probe=None,
+        return _connection_state_response(
+            entry, state="unavailable", safe_reason=entry.unavailable_reason, probe=None
         )
     if (
         connection is None
@@ -474,13 +508,11 @@ def derive_connection_state(
         # Fail closed: no active connection, no key material set, or the
         # configured key has never had a successful probe (latest_probe=None
         # for never-probed).
-        return ProviderConnectionStateResponse(
-            key=entry.key,
-            label=entry.label,
+        return _connection_state_response(
+            entry,
             state="missing",
             safe_reason=REASON_VERIFICATION_REQUIRED,
-            grant_key=entry.grant_key,
-            latest_probe=None,
+            probe=None,
         )
     paused = (
         connection.paused_at is not None
@@ -490,33 +522,12 @@ def derive_connection_state(
     if paused:
         return _paused_state_response(entry, connection, latest_probe)
     if latest_probe.status == TEST_STATUS_OK:
-        return ProviderConnectionStateResponse(
-            key=entry.key,
-            label=entry.label,
-            state="connected",
-            safe_reason=None,
-            grant_key=entry.grant_key,
-            latest_probe=ProviderProbeResponse(
-                status=TEST_STATUS_OK,
-                safe_reason=None,
-                tested_at=latest_probe.created_at,
-                model=latest_probe.transport_model or None,
-                latency_ms=latest_probe.latency_ms,
-            ),
+        return _connection_state_response(
+            entry, state="connected", safe_reason=None, probe=latest_probe
         )
-    return ProviderConnectionStateResponse(
-        key=entry.key,
-        label=entry.label,
-        state="failed",
-        safe_reason=latest_probe.error_code or ERROR_UNKNOWN,
-        grant_key=entry.grant_key,
-        latest_probe=ProviderProbeResponse(
-            status=TEST_STATUS_FAILED,
-            safe_reason=latest_probe.error_code or ERROR_UNKNOWN,
-            tested_at=latest_probe.created_at,
-            model=latest_probe.transport_model or None,
-            latency_ms=latest_probe.latency_ms,
-        ),
+    reason = latest_probe.error_code or ERROR_UNKNOWN
+    return _connection_state_response(
+        entry, state="failed", safe_reason=reason, probe=latest_probe
     )
 
 

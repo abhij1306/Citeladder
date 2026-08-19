@@ -1,4 +1,4 @@
-from app.analysis.service import _decline_is_confirmed
+from app.analysis.trend_metrics import _decline_is_confirmed
 
 
 def test_decline_requires_three_of_a_full_four_movement_window() -> None:

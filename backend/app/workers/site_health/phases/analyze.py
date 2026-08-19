@@ -50,8 +50,8 @@ from app.core.config.site_health_runtime import (
 from app.domain.site_health.frontier_support import (
     _enqueue_task as _enqueue_discovery_task,
 )
-from app.domain.site_health.selection import evaluate_task_guard, lease_is_owned
 from app.domain.site_health.state_events import record_crawl_event
+from app.domain.site_health.task_guards import evaluate_task_guard, lease_is_owned
 from app.models.site_health.analysis import (
     SiteIssue,
     SitePageAnalysis,
@@ -70,7 +70,7 @@ from app.workers.site_health.helpers import (
     _robots_denial_error,
     _utcnow,
 )
-from app.workers.site_health.lifecycle import crawl_root_identity
+from app.workers.site_health.lifecycle_finalize import crawl_root_identity
 from app.workers.site_health.outcomes import AnalyzeOutcome as _AnalyzeOutcome
 from app.workers.site_health.phases.support import PhaseSupport
 from app.workers.site_health.urls import authority_key as _authority_key

@@ -639,7 +639,7 @@ async def test_rerun_from_completed_crawl_worker_analyzes_only_reran_url(
     the worker must analyze ONLY the reran URL and must never re-crawl the site
     (no discover fetch of the root).
     """
-    from app.domain.site_health.selection import rerun_page
+    from app.domain.site_health.rerun import rerun_page
 
     source_url = "https://example.com/rich"
     seed, site_url_id, analyze_task_id = await _seed_analyze_ready(

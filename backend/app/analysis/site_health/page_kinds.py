@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit
 
+from app.analysis.site_health.content_heuristics import content_heuristic
 from app.core.config import site_health_acquisition as _acquisition
 from app.core.config import site_health_contracts as _contracts
 from app.core.config import site_health_taxonomy as _config
@@ -49,9 +50,6 @@ _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (page_kind, re.compile(pattern))
     for page_kind, pattern in _config.PAGE_KIND_PATH_PATTERNS
 )
-_PRICE_RE = re.compile(_config.PAGE_KIND_PRICE_PATTERN, re.IGNORECASE)
-_BYLINE_RE = re.compile(_config.PAGE_KIND_BYLINE_PATTERN)
-_DATE_RE = re.compile(_config.PAGE_KIND_DATE_PATTERN, re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -177,51 +175,6 @@ def _str_sequence(value: Any) -> list[str]:
     if isinstance(value, list | tuple):
         return [str(item) for item in value]
     return []
-
-
-def _content_heuristic(facts: dict) -> dict[str, Any] | None:
-    """Signal 3: the first matching content heuristic (faq -> product ->
-    article), or None. Reads only bounded parser facts."""
-    # FAQ: question-form heading ratio over the bounded h2 + h3 texts (spec
-    # §5.1; h3 texts are extracted since sh-extractor-2 — absent h3s simply
-    # contribute nothing, preserving P1 outcomes for h2-only pages).
-    headings = _mapping(facts.get("headings"))
-    heading_texts = _str_sequence(headings.get("h2_texts"))
-    heading_texts += _str_sequence(headings.get("h3_texts"))
-    if len(heading_texts) >= _config.PAGE_KIND_FAQ_MIN_HEADINGS:
-        question_count = sum(1 for text in heading_texts if is_question_heading(text))
-        ratio = question_count / len(heading_texts)
-        if ratio >= _config.PAGE_KIND_FAQ_QUESTION_RATIO:
-            return _signal(
-                _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
-                _config.PAGE_KIND_FAQ,
-                f"question_headings:{question_count}/{len(heading_texts)}",
-            )
-
-    body = _mapping(facts.get("body"))
-    raw_body_text = body.get("text")
-    body_text = raw_body_text if isinstance(raw_body_text, str) else ""
-
-    # Product: a price token AND a cart marker in the bounded body text.
-    if body_text and _PRICE_RE.search(body_text):
-        lowered = body_text.lower()
-        if any(marker in lowered for marker in _config.PAGE_KIND_CART_MARKERS):
-            return _signal(
-                _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
-                _config.PAGE_KIND_PRODUCT,
-                "price_and_cart_markers",
-            )
-
-    # Article: author byline + date within a bounded prefix of the body.
-    if body_text:
-        prefix = body_text[: _config.PAGE_KIND_ARTICLE_SCAN_CHARS]
-        if _BYLINE_RE.search(prefix) and _DATE_RE.search(prefix):
-            return _signal(
-                _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
-                _config.PAGE_KIND_ARTICLE,
-                "byline_and_date",
-            )
-    return None
 
 
 def _schema_suggestion(facts: dict) -> tuple[str | None, str | None]:
@@ -360,9 +313,15 @@ def _classification_signals(
         )
 
     # Signal 3 — content/heading heuristics.
-    heuristic = _content_heuristic(facts)
+    heuristic = content_heuristic(facts)
     if heuristic is not None:
-        matched.append(heuristic)
+        matched.append(
+            _signal(
+                str(heuristic["signal"]),
+                str(heuristic["page_kind"]),
+                str(heuristic["detail"]),
+            )
+        )
 
     # Signal 4 — structured-data types (evaluated always, so the suggested
     # type is recorded in the evidence even when outranked).

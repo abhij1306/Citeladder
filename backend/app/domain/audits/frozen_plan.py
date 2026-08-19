@@ -30,13 +30,6 @@ from app.domain.audits.errors import AuditValidationError, PromptCountPolicyErro
 from app.domain.audits.resolution import _prompt_panel_snapshot, _ResolvedRoute
 from app.domain.products.shim import project_product_identity
 from app.domain.projects.shim import project_scoring_identity
-from app.domain.prompts.topical_binding import (
-    BINDING_FAILURE_MESSAGES,
-    TopicalBindingError,
-    build_project_vocabulary,
-    has_project_binding_context,
-    validate_prompt_binding,
-)
 from app.domain.providers.credentials import ResolvedCredential
 from app.models.project import Project
 from app.models.prompt import Prompt
@@ -122,25 +115,6 @@ def _validate_prompt_lengths(prompts: list[Prompt]) -> None:
         )
 
 
-def _validate_prompt_bindings(project: Project, prompts: list[Prompt]) -> None:
-    # A brand name/domain identifies the subject but provides no category
-    # vocabulary for neutral measurement prompts. When crawl-backed setup did
-    # not produce a profile or topic yet, keep audit creation available; the
-    # stricter lexical gate resumes as soon as real category context exists.
-    if not has_project_binding_context(project):
-        return
-    vocabulary = build_project_vocabulary(project)
-    for prompt in prompts:
-        result = validate_prompt_binding(prompt.text or "", vocabulary)
-        if not result.accepted:
-            raise TopicalBindingError(
-                f"Prompt {prompt.id} cannot run: "
-                f"{BINDING_FAILURE_MESSAGES[result.code]}",
-                code=result.code,
-                details={"prompt_id": str(prompt.id)},
-            )
-
-
 def _enforce_prompt_count_policy(
     prompts: list[Prompt], *, trigger: str, credential_mode: str
 ) -> None:
@@ -163,19 +137,19 @@ def _enforce_prompt_count_policy(
         )
 
 
-def _evaluate_prompt_admission(
+def _evaluate_prompt_count_admission(
     *,
-    project: Project,
     prompts: list[Prompt],
     trigger: str,
     credential_mode: str,
 ) -> None:
-    """Precompute topical-binding and selected-prompt count admission.
+    """Precompute selected-prompt count admission.
 
-    Topical binding is required for every selected active prompt. Generation
-    receipts record provenance only and never bypass relevance validation.
+    Prompt relevance is enforced when text enters the active portfolio: manual
+    creates/edits use topical binding and backend-generated prompts use signed
+    generation receipts. Re-running the lossy lexical check here would reject
+    already-admitted neutral synonyms and make persisted prompts unmeasurable.
     """
-    _validate_prompt_bindings(project, prompts)
     _enforce_prompt_count_policy(
         prompts, trigger=trigger, credential_mode=credential_mode
     )

@@ -24,6 +24,8 @@ from app.core.config.site_health_acquisition import (
     ERROR_HTTP_4XX,
     ERROR_ROBOTS_DENIED,
     ERROR_ROBOTS_UNAVAILABLE,
+    FETCH_ATTEMPT_OUTCOME_ERROR,
+    FETCH_ATTEMPT_OUTCOME_SUCCESS,
     ROBOTS_FETCH_STATUS_FETCH_FAILED,
     ROBOTS_FETCH_STATUS_FETCHED,
     ROBOTS_FETCH_STATUS_NOT_FOUND,
@@ -67,11 +69,7 @@ from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
 from app.models.site_health.graph import SiteHealthSnapshot
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
-from app.workers.site_health_worker import (
-    _OUTCOME_ERROR,
-    _OUTCOME_SUCCESS,
-    SiteHealthWorker,
-)
+from app.workers.site_health_worker import SiteHealthWorker
 from tests.component.site_health_helpers import seed_site_crawl
 from tests.component.site_health_worker_helpers import (
     _add_monitored_analyze_task,
@@ -1263,7 +1261,7 @@ async def test_plain_fetch_persists_one_attempt_row(
         assert row.attempt_number == 1
         assert row.request_ordinal == 0
         assert row.status_code == 200
-        assert row.outcome == _OUTCOME_SUCCESS
+        assert row.outcome == FETCH_ATTEMPT_OUTCOME_SUCCESS
         assert row.artifact_id == artifact.id
         assert row.acquisition_transport == "httpx"
         assert row.acquisition_rung == 1
@@ -1324,7 +1322,7 @@ async def test_plain_403_without_challenge_marker_stays_http_4xx(
         )
         assert len(rows) == 1
         assert rows[0].status_code == 403
-        assert rows[0].outcome == _OUTCOME_ERROR
+        assert rows[0].outcome == FETCH_ATTEMPT_OUTCOME_ERROR
         assert rows[0].error_code == ERROR_HTTP_4XX
         assert rows[0].artifact_id is None
 
@@ -1388,7 +1386,7 @@ async def test_bot_block_presents_blocked_via_bot_blocked_token(
         assert len(rows) == 1
         assert rows[0].status_code == 403
         assert rows[0].artifact_id is None
-        assert rows[0].outcome == _OUTCOME_ERROR
+        assert rows[0].outcome == FETCH_ATTEMPT_OUTCOME_ERROR
         assert rows[0].error_code == ERROR_BOT_BLOCKED
 
         # No analyzable artifact was created from the blocked response.

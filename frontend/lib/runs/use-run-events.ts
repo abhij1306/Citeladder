@@ -131,13 +131,13 @@ export function useRunEvents(
       try {
         closedCleanly = await connect();
       } catch (error) {
+        if (cancelled || controller.signal.aborted) return;
         // Non-fatal by design: polling continues to advance the run. Logged at
-        // debug level so a stream failing every attempt is attributable rather
+        // error level so a stream failing every attempt is attributable rather
         // than silently invisible.
-        console.debug('[runs] audit event stream failed', { auditId, attempt, error });
+        console.error('[runs] audit event stream failed', { auditId, attempt, error });
       }
-      if (cancelled || controller.signal.aborted) return;
-      // Only a clean close that DELIVERED something is the server's duration
+      if (cancelled || controller.signal.aborted) return; // Only a clean close that DELIVERED something is the server's duration
       // cap; a clean-but-empty close gets the same backoff as a failure, or an
       // instantly-closing stream becomes a permanent reconnect loop.
       const hitDurationCap = closedCleanly && framesThisConnection > 0;

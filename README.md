@@ -154,7 +154,7 @@ env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
 cd frontend
 echo "BACKEND_ORIGIN=http://localhost:8000" > .env.local
 pnpm install
-pnpm dev            # http://localhost:3000
+pnpm dev            # http://127.0.0.1:3000
 ```
 
 Register a user (a workspace is created automatically), create a project, then connect a BYOK

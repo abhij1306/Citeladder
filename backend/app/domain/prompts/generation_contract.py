@@ -70,6 +70,7 @@ def build_generation_user_message(
     existing_prompts: list[str],
     count: int,
     intents: list[str],
+    product_service_topics: list[str] | tuple[str, ...] = (),
     target_topic: str = "",
     target_topic_description: str = "",
 ) -> str:
@@ -96,14 +97,23 @@ def build_generation_user_message(
         )
         if target_topic_description:
             lines.append(f"Target topic description: {target_topic_description}")
-    elif existing_topics:
-        serialized = json.dumps(
-            existing_topics, ensure_ascii=False, separators=(",", ":")
-        )
-        lines.append(
-            "Existing topics (reuse the exact name field when applicable): "
-            + serialized
-        )
+    else:
+        if product_service_topics:
+            serialized_products = json.dumps(
+                list(product_service_topics), ensure_ascii=False, separators=(",", ":")
+            )
+            lines.append(
+                "Confirmed product/service topic taxonomy "
+                "(use one exact name for every new topic): " + serialized_products
+            )
+        if existing_topics:
+            serialized = json.dumps(
+                existing_topics, ensure_ascii=False, separators=(",", ":")
+            )
+            lines.append(
+                "Existing topics (reuse the exact name field when applicable): "
+                + serialized
+            )
     if intents:
         lines.append("Restrict prompt intents to: " + ", ".join(intents))
     lines.append(f"Generate exactly {count} prompts in total across topics.")

@@ -73,7 +73,6 @@ export function tokenizeCsv(raw: string): string[][] {
       row.push(field);
       field = '';
     } else if (char === '\n' || char === '\r') {
-      // Handle CRLF as a single break.
       if (char === '\r' && text[i + 1] === '\n') i += 1;
       row.push(field);
       field = '';

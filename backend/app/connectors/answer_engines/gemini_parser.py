@@ -229,6 +229,54 @@ def _extract_citations(blocks: list[dict[str, Any]]) -> list[CitationResult]:
     return citations
 
 
+def _safe_step_common(step: dict[str, Any], step_type: str) -> dict[str, Any]:
+    return {
+        "type": step_type,
+        "id": step.get("id"),
+        "call_id": step.get("call_id") or step.get("callId"),
+    }
+
+
+def _safe_search_call_metadata(
+    step: dict[str, Any], common: dict[str, Any]
+) -> dict[str, Any]:
+    arguments = step.get("arguments") or step.get("args") or {}
+    if not isinstance(arguments, dict):
+        arguments = {}
+    queries = arguments.get("queries")
+    return {
+        **common,
+        "arguments": {"queries": queries if isinstance(queries, list) else []},
+    }
+
+
+def _safe_model_output_metadata(
+    step: dict[str, Any], common: dict[str, Any]
+) -> dict[str, Any]:
+    content = [
+        {
+            "type": block.get("type"),
+            "text": block.get("text"),
+            "annotations": block.get("annotations") or [],
+        }
+        for block in step.get("content") or []
+        if isinstance(block, dict)
+    ]
+    return {**common, "content": content}
+
+
+def _safe_step_metadata(step: dict[str, Any]) -> dict[str, Any] | None:
+    step_type = _step_type(step)
+    common = _safe_step_common(step, step_type)
+    if step_type == "google_search_call":
+        return _safe_search_call_metadata(step, common)
+    if step_type == "google_search_result":
+        return common
+    if step_type == "model_output":
+        return _safe_model_output_metadata(step, common)
+    return None
+
+
 def sanitize_metadata(
     payload: dict[str, Any], usage: NormalizedUsage | None = None
 ) -> dict[str, Any]:
@@ -245,41 +293,9 @@ def sanitize_metadata(
         if isinstance(step, dict) and _step_type(step) not in _DROP_STEP_TYPES
     ]
     step_types = [_step_type(step) for step in steps]
-    evidence_steps: list[dict[str, Any]] = []
-    for step in steps:
-        step_type = _step_type(step)
-        common = {
-            "type": step_type,
-            "id": step.get("id"),
-            "call_id": step.get("call_id") or step.get("callId"),
-        }
-        if step_type == "google_search_call":
-            arguments = step.get("arguments") or step.get("args") or {}
-            if not isinstance(arguments, dict):
-                arguments = {}
-            raw_queries = arguments.get("queries")
-            queries = raw_queries if isinstance(raw_queries, list) else []
-            evidence_steps.append(
-                {
-                    **common,
-                    "arguments": {"queries": queries},
-                }
-            )
-        elif step_type == "google_search_result":
-            evidence_steps.append(common)
-        elif step_type == "model_output":
-            content = []
-            for block in step.get("content") or []:
-                if not isinstance(block, dict):
-                    continue
-                content.append(
-                    {
-                        "type": block.get("type"),
-                        "text": block.get("text"),
-                        "annotations": block.get("annotations") or [],
-                    }
-                )
-            evidence_steps.append({**common, "content": content})
+    evidence_steps = [
+        safe for step in steps if (safe := _safe_step_metadata(step)) is not None
+    ]
     normalized = (
         usage
         if usage is not None
@@ -299,6 +315,30 @@ def sanitize_metadata(
     }
 
 
+def _interaction_content(
+    payload: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str, list[CitationResult], int]:
+    steps = [
+        step
+        for step in (payload.get("steps") or [])
+        if isinstance(step, dict) and _step_type(step) not in _DROP_STEP_TYPES
+    ]
+    queries = _extract_queries(steps)
+    blocks = _text_blocks(steps)
+    answer_text = "\n\n".join(
+        str(block.get("text") or "").strip()
+        for block in blocks
+        if str(block.get("text") or "").strip()
+    )
+    return (
+        steps,
+        queries,
+        answer_text,
+        _extract_citations(blocks),
+        sum(1 for step in steps if _step_type(step) == "google_search_call"),
+    )
+
+
 def parse_interaction(
     payload: dict[str, Any],
     *,
@@ -307,23 +347,7 @@ def parse_interaction(
     model: str,
     latency_ms: int,
 ) -> AnswerEngineResponse:
-    steps_raw = payload.get("steps") or []
-    steps = [
-        step
-        for step in steps_raw
-        if isinstance(step, dict) and _step_type(step) not in _DROP_STEP_TYPES
-    ]
-
-    queries = _extract_queries(steps)
-    blocks = _text_blocks(steps)
-    answer_text = "\n\n".join(
-        str(block.get("text") or "").strip()
-        for block in blocks
-        if str(block.get("text") or "").strip()
-    )
-    citations = _extract_citations(blocks)
-
-    search_calls = sum(1 for step in steps if _step_type(step) == "google_search_call")
+    steps, queries, answer_text, citations, search_calls = _interaction_content(payload)
     search_used = search_calls > 0
     usage = normalize_gemini_usage(payload, web_search_requests=search_calls)
     raw_finish_reason = gemini_raw_finish_reason(payload)

@@ -2,8 +2,8 @@
 
 Covers, against real Postgres (service level) and the API envelope:
   - off-domain free text rejected on all five paths: manual create, CSV
-    import (atomic), text update, generated acceptance (proposed -> active),
-    and audit admission — plus valid brand/domain/category text passing;
+    import (atomic), text update, and generated acceptance (proposed -> active)
+    — plus valid brand/domain/category text passing;
   - generated-output persistence drops off-domain model output;
   - empty vocabulary fails closed (complete identity / use generation);
   - the 300-char DTO bound (301 rejects, 300 accepts);
@@ -46,7 +46,6 @@ from app.core.security import encrypt_secret
 from app.domain.audits.creation import create_audit
 from app.domain.audits.errors import PromptCountPolicyError
 from app.domain.entitlements.types import GrantSpec
-from app.domain.prompts.topical_binding import TopicalBindingError
 from app.models.brand import Brand, OwnedDomain
 from app.models.prompt import Prompt, Topic
 from app.models.provider import ProviderConnection, ProviderRoute
@@ -310,45 +309,13 @@ async def test_generation_drops_off_domain_model_output(
 # Audit admission
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_audit_admission_rejects_off_domain_active_prompt(
+async def test_audit_launch_does_not_revalidate_active_prompt_text(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """A stale/bypassed active prompt can never run, even though it is active."""
+    """Launch consumes the persisted active portfolio admission decision."""
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=1)
-        session.add(Topic(project_id=seed.project_id, name="Footwear"))
-        session.add(
-            Prompt(
-                prompt_set_id=seed.prompt_set_id,
-                text="best laptops for programming",
-                status="active",
-                origin="manual",
-            )
-        )
-        await session.commit()
-
-    async with session_factory() as session:
-        with pytest.raises(TopicalBindingError) as exc_info:
-            await create_audit(
-                session,
-                workspace_id=seed.workspace_id,
-                project_id=seed.project_id,
-                engines=seed.engines,
-                trigger=AUDIT_TRIGGER_MANUAL,
-                prompt_set_id=seed.prompt_set_id,
-                repetitions=1,
-            )
-        assert exc_info.value.code == CODE_PROMPT_OFF_TOPIC
-        await session.rollback()
-
-
-@pytest.mark.asyncio
-async def test_audit_admission_honors_persisted_generated_provenance(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """A generated neutral synonym is not rejected by a second lexical gate."""
-    async with session_factory() as session:
-        seed = await seed_audit_fixtures(session, prompt_count=0)
+        session.add(Topic(project_id=seed.project_id, name="Digital marketing"))
         session.add(
             Prompt(
                 prompt_set_id=seed.prompt_set_id,
@@ -373,27 +340,63 @@ async def test_audit_admission_honors_persisted_generated_provenance(
 
 
 @pytest.mark.asyncio
-async def test_audit_admission_api_maps_binding_rejection_to_coded_422(
+async def test_audit_admission_honors_persisted_generated_provenance(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A generated neutral synonym is not rejected by a second lexical gate."""
+    async with session_factory() as session:
+        seed = await seed_audit_fixtures(session, prompt_count=0)
+        # Activates the lexical project gate. The generated prompt is a valid
+        # neutral synonym but intentionally shares no literal category token.
+        session.add(Topic(project_id=seed.project_id, name="Digital marketing"))
+        session.add(
+            Prompt(
+                prompt_set_id=seed.prompt_set_id,
+                text="Which agencies improve experimentation outcomes?",
+                status="active",
+                origin=PROMPT_ORIGIN_GENERATED,
+            )
+        )
+        await session.commit()
+
+    async with session_factory() as session:
+        audit = await create_audit(
+            session,
+            workspace_id=seed.workspace_id,
+            project_id=seed.project_id,
+            engines=seed.engines,
+            trigger=AUDIT_TRIGGER_MANUAL,
+            prompt_set_id=seed.prompt_set_id,
+            repetitions=1,
+        )
+        assert audit.id is not None
+
+
+@pytest.mark.asyncio
+async def test_audit_launch_api_passes_active_prompt_to_later_admission_gates(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """POST /audits renders the binding rejection in the coded envelope."""
+    """POST /audits does not reject active text at the lexical gate."""
     project, prompt_set_id = await _make_project_and_set(
         client, "bind-audit@example.com"
     )
     workspace_id = uuid.UUID(project["workspace_id"])
     async with session_factory() as session:
-        # Off-domain ACTIVE prompt (ORM seed bypasses binding on purpose).
-        session.add(Topic(project_id=uuid.UUID(project["id"]), name="Footwear"))
+        # Persisted generated prompt whose neutral synonym has no lexical
+        # overlap with the project's current category vocabulary.
+        session.add(
+            Topic(project_id=uuid.UUID(project["id"]), name="Digital marketing")
+        )
         prompt = Prompt(
             prompt_set_id=uuid.UUID(prompt_set_id),
-            text="best laptops for programming",
+            text="Which agencies improve experimentation outcomes?",
             status="active",
-            origin="manual",
+            origin=PROMPT_ORIGIN_GENERATED,
         )
         session.add(prompt)
         await session.flush()
-        # One approved BYOK route so admission reaches the binding gate.
+        # One approved BYOK route so audit creation can complete.
         connection = ProviderConnection(
             workspace_id=workspace_id,
             label="gemini key",
@@ -425,10 +428,11 @@ async def test_audit_admission_api_maps_binding_rejection_to_coded_422(
             "repetitions": 1,
         },
     )
-    assert resp.status_code == 422
-    body = resp.json()
-    assert body["error"]["code"] == CODE_PROMPT_OFF_TOPIC
-    assert body["detail"]["code"] == CODE_PROMPT_OFF_TOPIC
+    # This API fixture has no funded platform credential, so execution is
+    # denied later. Reaching that gate proves prompt_off_topic no longer makes
+    # the already-active prompt impossible to launch.
+    assert resp.status_code == 403
+    assert resp.json()["error"]["code"] == "execution_credentials_unavailable"
 
 
 # ---------------------------------------------------------------------------

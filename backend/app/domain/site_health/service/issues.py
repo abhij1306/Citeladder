@@ -25,17 +25,18 @@ from app.core.config.site_health_rules import (
     FINDING_CLASS_ADVISORY,
     FINDING_CLASS_DEFECT,
 )
-from app.domain.site_health.normalization import (
-    CursorScopeError,
-    decode_keyset_cursor,
-    encode_keyset_cursor,
-)
+from app.domain.site_health.normalization import encode_keyset_cursor
 from app.domain.site_health.service.common import (
-    InvalidCursorError,
     SiteHealthNotFoundError,
     _clamp_limit,
     _decode_url_keyset,
     _load_crawl,
+)
+from app.domain.site_health.service.issue_listing import (
+    issue_items,
+    issue_query_state,
+    issue_summary_for_filters,
+    page_issue_groups,
 )
 from app.domain.site_health.service.presentation import (
     _SEVERITY_ORDER,
@@ -307,19 +308,7 @@ async def get_issues(
     """
     await _load_crawl(session, workspace_id=workspace_id, crawl_id=crawl_id)
     limit = _clamp_limit(limit)
-    scope = "issues"
-    filters = {
-        "crawl_id": str(crawl_id),
-        "query": (query or "").strip() or None,
-        "severity": severity or None,
-        "category": category or None,
-        "dimension": dimension or None,
-        "rule": rule or None,
-        "site_url_id": str(site_url_id) if site_url_id else None,
-        "page_kind": page_kind or None,
-        "finding_class": finding_class,
-    }
-    clauses = _issue_filter_clause(
+    filters, clauses = issue_query_state(
         crawl_id=crawl_id,
         query=query,
         severity=severity,
@@ -329,6 +318,7 @@ async def get_issues(
         site_url_id=site_url_id,
         page_kind=page_kind,
         finding_class=finding_class,
+        filter_clause=_issue_filter_clause,
     )
     groups = await _load_issue_groups(
         session,
@@ -336,44 +326,12 @@ async def get_issues(
         clauses=clauses,
         finding_class=finding_class,
     )
-
-    start = 0
-    if cursor:
-        try:
-            rank_raw, rule_raw, id_raw = decode_keyset_cursor(
-                cursor, scope=scope, filters=filters
-            )
-            cursor_key = (int(rank_raw), rule_raw, id_raw)
-        except CursorScopeError as exc:
-            raise InvalidCursorError(str(exc)) from exc
-        except ValueError as exc:
-            raise InvalidCursorError(str(exc)) from exc
-        for idx, g in enumerate(groups):
-            gkey = (
-                _SEVERITY_RANK.get(g.severity, 99),
-                g.rule_id,
-                str(g.canonical_id),
-            )
-            if gkey > cursor_key:
-                start = idx
-                break
-        else:
-            start = len(groups)
-
-    window = groups[start : start + limit + 1]
-    next_cursor: str | None = None
-    if len(window) > limit:
-        window = window[:limit]
-        last = window[-1]
-        next_cursor = encode_keyset_cursor(
-            scope=scope,
-            filters=filters,
-            sort_values=[
-                _SEVERITY_RANK.get(last.severity, 99),
-                last.rule_id,
-                str(last.canonical_id),
-            ],
-        )
+    window, next_cursor = page_issue_groups(
+        groups,
+        limit=limit,
+        cursor=cursor,
+        filters=filters,
+    )
 
     # Which PAGE TYPES each group actually affects. One aggregate for the
     # whole page of groups, not a query per row: the issue list is the screen
@@ -385,54 +343,26 @@ async def get_issues(
         rule_ids=[g.rule_id for g in window],
         finding_class=finding_class,
     )
-    items = [
-        {
-            "id": g.canonical_id,
-            "crawl_id": crawl_id,
-            "rule_id": g.rule_id,
-            "page_kinds": page_kinds_by_rule.get(g.rule_id, []),
-            "dimension": g.dimension,
-            "category": g.category,
-            "severity": g.severity,
-            "finding_class": g.finding_class,
-            "title": display_label_for(g.rule_id),
-            "description": g.description,
-            "remediation": g.remediation,
-            "affected_url_count": g.affected_url_count,
-            "analyzer_version": g.analyzer_version,
-            "rule_version": g.rule_version,
-            "created_at": _iso(g.canonical_created_at),
-        }
-        for g in window
-    ]
+    items = issue_items(
+        window,
+        crawl_id=crawl_id,
+        page_kinds_by_rule=page_kinds_by_rule,
+    )
     # The summary powers the tiles + filter-chip counts, so it is computed
     # WITHOUT the severity/dimension chip filters (but WITH search/rule/url/
     # page-type narrowing): selecting the "High" chip must not zero out the
     # other chips' counts or shrink the headline tiles.
-    summary_clauses = _issue_filter_clause(
+    summary = await issue_summary_for_filters(
+        session,
         crawl_id=crawl_id,
         query=query,
-        severity=None,
         category=category,
-        dimension=None,
         rule=rule,
         site_url_id=site_url_id,
         page_kind=page_kind,
         finding_class=finding_class,
-    )
-    summary_base_clauses = _issue_filter_clause(
-        crawl_id=crawl_id,
-        query=query,
-        severity=None,
-        category=category,
-        dimension=None,
-        rule=rule,
-        site_url_id=site_url_id,
-        page_kind=page_kind,
-        finding_class=None,
-    )
-    summary = await _issues_summary(
-        session, clauses=summary_clauses, base_clauses=summary_base_clauses
+        filter_clause=_issue_filter_clause,
+        summary=_issues_summary,
     )
     return {"items": items, "next_cursor": next_cursor, "summary": summary}
 

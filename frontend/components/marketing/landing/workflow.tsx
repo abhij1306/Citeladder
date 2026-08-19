@@ -4,12 +4,6 @@ import { StaggerGroup, StaggerItem } from '../primitives/reveal';
 import { Section, SectionHeader } from '../primitives/section';
 import { LANDING_ICONS } from './landing-icons';
 
-/**
- * How it works — the closed loop as four numbered steps. A hairline connector
- * runs behind the icon row on wide screens; each step carries an accent icon
- * disc, its ordinal, a title, and a line of detail. Sits on the sunken band so
- * it reads as its own chapter.
- */
 export function Workflow() {
   const { workflow } = LANDING_CONTENT;
   return (

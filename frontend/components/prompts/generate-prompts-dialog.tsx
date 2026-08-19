@@ -7,7 +7,7 @@ import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Input, inputClasses } from '@/components/ui/input';
-import { httpErrorStatus } from '@/lib/api/errors';
+import { httpErrorStatus, humanizeApiError } from '@/lib/api/errors';
 import type { PromptGenerateInput } from '@/lib/api/prompts';
 import type { PromptGenerateResponse, Topic } from '@/lib/api/types';
 
@@ -161,6 +161,15 @@ function GenerateResultAlert({ result }: Readonly<{ result: PromptGenerateRespon
 /** Map generation failures to actionable copy (503 config, 502 provider, 4xx). */
 function GenerateErrorAlert({ error }: Readonly<{ error: unknown }>) {
   const status = httpErrorStatus(error);
+  if (status === 429) {
+    const retryAfter = humanizeApiError(error).retryAfterSeconds;
+    return (
+      <Alert tone="warning">
+        The AI provider is rate limited. Try again
+        {retryAfter ? ` in about ${retryAfter} seconds` : ' in a moment'}.
+      </Alert>
+    );
+  }
   if (status === 503) {
     return (
       <Alert tone="warning">

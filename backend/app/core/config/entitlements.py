@@ -104,48 +104,52 @@ class CapabilityRegistry:
         default_factory=dict, init=False, repr=False, compare=False
     )
 
+    @staticmethod
+    def _validate_entry(entry: CapabilityDefinition) -> None:
+        expected = TYPE_RESOLUTION_RULES[entry.capability_type]
+        if entry.resolution_rule is not expected:
+            raise ValueError(
+                f"capability {entry.key!r} has resolution rule "
+                f"{entry.resolution_rule!r} inconsistent with type "
+                f"{entry.capability_type!r}"
+            )
+        if entry.capability_type is CapabilityType.COUNTER_RATE:
+            if (
+                entry.rolling_window_seconds is None
+                or entry.rolling_window_seconds <= 0
+            ):
+                raise ValueError(
+                    f"rate capability {entry.key!r} needs a positive "
+                    "rolling_window_seconds"
+                )
+        elif entry.rolling_window_seconds is not None:
+            raise ValueError(
+                f"capability {entry.key!r} sets rolling_window_seconds but "
+                "is not a rate capability"
+            )
+        if entry.capability_type is CapabilityType.LEVEL:
+            if not entry.ordered_values:
+                raise ValueError(
+                    f"level capability {entry.key!r} needs a nonempty "
+                    "ordered_values ordering"
+                )
+            if len(entry.ordered_values) != len(set(entry.ordered_values)):
+                raise ValueError(
+                    f"level capability {entry.key!r} has duplicate ordered_values"
+                )
+        elif entry.ordered_values:
+            raise ValueError(
+                f"capability {entry.key!r} sets ordered_values but is not "
+                "a level capability"
+            )
+
     def __post_init__(self) -> None:
         keys = [entry.key for entry in self.entries]
         if len(keys) != len(set(keys)):
             raise ValueError("capability registry contains duplicate keys")
         by_key: dict[str, CapabilityDefinition] = {}
         for entry in self.entries:
-            expected = TYPE_RESOLUTION_RULES[entry.capability_type]
-            if entry.resolution_rule is not expected:
-                raise ValueError(
-                    f"capability {entry.key!r} has resolution rule "
-                    f"{entry.resolution_rule!r} inconsistent with type "
-                    f"{entry.capability_type!r}"
-                )
-            if entry.capability_type is CapabilityType.COUNTER_RATE:
-                if (
-                    entry.rolling_window_seconds is None
-                    or entry.rolling_window_seconds <= 0
-                ):
-                    raise ValueError(
-                        f"rate capability {entry.key!r} needs a positive "
-                        "rolling_window_seconds"
-                    )
-            elif entry.rolling_window_seconds is not None:
-                raise ValueError(
-                    f"capability {entry.key!r} sets rolling_window_seconds but "
-                    "is not a rate capability"
-                )
-            if entry.capability_type is CapabilityType.LEVEL:
-                if not entry.ordered_values:
-                    raise ValueError(
-                        f"level capability {entry.key!r} needs a nonempty "
-                        "ordered_values ordering"
-                    )
-                if len(entry.ordered_values) != len(set(entry.ordered_values)):
-                    raise ValueError(
-                        f"level capability {entry.key!r} has duplicate ordered_values"
-                    )
-            elif entry.ordered_values:
-                raise ValueError(
-                    f"capability {entry.key!r} sets ordered_values but is not "
-                    "a level capability"
-                )
+            self._validate_entry(entry)
             by_key[entry.key] = entry
         object.__setattr__(self, "_by_key", by_key)
 
@@ -395,8 +399,6 @@ CREDENTIAL_MODES: Final[frozenset[str]] = frozenset(
 # lock namespaces so the lock families can never overlap.
 OCCUPANCY_LOCK_NAMESPACE: Final = 0x43415041  # "CAPA"
 
-# API error codes for occupancy enforcement failures (api-error-contract
-# section 5: codes live in config, raised via ``ApiException.coded``).
 CODE_OCCUPANCY_LIMIT_EXCEEDED: Final = "occupancy_limit_exceeded"
 CODE_OCCUPANCY_UNRESOLVED: Final = "occupancy_unresolved"
 

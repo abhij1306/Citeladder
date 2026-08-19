@@ -21,13 +21,13 @@ from typing import cast
 from app.core.config.site_health_rules import (
     SITE_HEALTH_RULES_BY_ID,
 )
+from app.domain.site_health.service.facts_projection import project_page_facts
 from app.domain.site_health.service.presentation import (
     _delivery_facts,
     _evaluation_row,
     _issue_row,
     _link_reference_row,
     _matches_page_status,
-    _page_facts,
     _page_kind_matches,
     display_label_for,
     project_crawl,
@@ -39,6 +39,8 @@ from app.models.site_health.analysis import (
     SiteRuleEvaluation,
 )
 from app.models.site_health.crawl import SiteCrawl
+
+_page_facts = project_page_facts
 
 _NOW = datetime(2026, 7, 29, 12, 0, tzinfo=UTC)
 

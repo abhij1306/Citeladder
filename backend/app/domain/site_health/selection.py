@@ -1,8 +1,9 @@
 # Site Health monitored-set lifecycle domain logic (Task 4).
 #
 # Owns the atomic, versioned full-set replacement of a project's monitored
-# selection, the recrawl seeding of active monitored URLs, and the PURE
-# worker-side guard functions Task 5 wires into the Site Health worker.
+# selection and the shared locking/enqueue primitives the per-page rerun
+# (``rerun``) and the recrawl seeding (``monitored_seeding``) reuse. The pure
+# worker-side guard functions live in ``task_guards``.
 #
 # The monitored set is a persistent, project-level projection
 # (``MonitoredSiteUrl``) whose active rows are counted WORKSPACE-WIDE against
@@ -25,20 +26,16 @@ import uuid
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TypeGuard
 
 from sqlalchemy import func, select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.connectors.web_evidence.url_policy import classify_url_admission
 from app.core.config.site_health_contracts import (
     CODE_MONITORING_NOT_ALLOWED,
     CODE_QUOTA_EXCEEDED,
     CODE_STALE_SELECTION_VERSION,
     CRAWL_ACTIVE_STATUSES,
     INITIAL_TASK_GENERATION,
-    OBSERVATION_SOURCE_LINK,
     TASK_KIND_ANALYZE,
 )
 from app.core.config.site_health_crawl_policy import (
@@ -47,9 +44,7 @@ from app.core.config.site_health_crawl_policy import (
 from app.core.config.task_queue import (
     TASK_CLAIMABLE_STATUSES,
     TASK_STATUS_CANCELLED,
-    TASK_STATUS_LEASED,
     TASK_STATUS_QUEUED,
-    TASK_STATUS_RUNNING,
 )
 from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,
@@ -59,20 +54,16 @@ from app.domain.site_health.entitlements import (
     runtime_allows_monitored_analysis,
 )
 from app.domain.site_health.inventory_scope import inventory_site_url_subquery
-from app.models.project import Project
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
-from app.models.site_health.runtime import SiteHealthProfile, WorkspaceSiteHealthRuntime
-from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl, SiteUrlObservation
+from app.models.site_health.runtime import SiteHealthProfile
+from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 
 
-def _utcnow() -> datetime:
+def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-# =========================================================================
-# Coded errors (match the Task 2 frontend contract)
-# =========================================================================
 class SelectionError(Exception):
     """Base class for a monitored-selection failure carrying a stable code."""
 
@@ -120,12 +111,6 @@ class SelectionValidationError(SelectionError):
     code = "invalid_selection"
 
 
-class RerunNotAllowedError(SelectionError):
-    """A rerun was requested for a URL not (still) monitored / no active crawl."""
-
-    code = "rerun_not_allowed"
-
-
 @dataclass(frozen=True)
 class SelectionResult:
     """The outcome of a monitored-set replacement (projection-only)."""
@@ -149,32 +134,7 @@ class _MembershipDelta:
     removed_ids: tuple[uuid.UUID, ...]
 
 
-# =========================================================================
-# Loaders / helpers
-# =========================================================================
-async def _lock_project(
-    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
-) -> Project | None:
-    """Load + lock the project row ``FOR UPDATE``.
-
-    This is the SAME lock ``create_crawl`` takes first (before the runtime
-    and profile). Taking it here serializes a terminal-page rerun against a
-    concurrent full-crawl creation for the same project, so the active-crawl
-    check below cannot race past ``create_crawl``'s and mint a second active
-    crawl. The global lock order is ``project -> runtime -> profile``.
-    """
-    result = await session.execute(
-        select(Project)
-        .where(
-            Project.id == project_id,
-            Project.workspace_id == workspace_id,
-        )
-        .with_for_update()
-    )
-    return result.scalar_one_or_none()
-
-
-async def _lock_profile(
+async def lock_profile(
     session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
 ) -> SiteHealthProfile | None:
     """Load + lock the project's Site Health profile ``FOR UPDATE``."""
@@ -253,7 +213,7 @@ async def _load_project_memberships(
     return list(result.scalars().all())
 
 
-async def _active_crawl(
+async def active_crawl(
     session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
 ) -> SiteCrawl | None:
     """Return the project's current active crawl, if any (most recent)."""
@@ -269,7 +229,7 @@ async def _active_crawl(
     return result.scalars().first()
 
 
-async def _next_generations(
+async def next_generations(
     session: AsyncSession,
     *,
     crawl_id: uuid.UUID,
@@ -313,7 +273,7 @@ def _analyze_idempotency_key(
     return f"{crawl_id}:{TASK_KIND_ANALYZE}:{url_hash}:{generation}"
 
 
-async def _enqueue_analyze_task(
+async def enqueue_analyze_task(
     session: AsyncSession,
     *,
     crawl: SiteCrawl,
@@ -337,7 +297,7 @@ async def _enqueue_analyze_task(
             generation=generation,
         ),
         status=TASK_STATUS_QUEUED,
-        available_at=_utcnow(),
+        available_at=utcnow(),
     )
     session.add(task)
     return task
@@ -358,7 +318,7 @@ async def _cancel_pending_analyze_tasks(
     hashes = list(dict.fromkeys(url_hashes))
     if not hashes:
         return []
-    now = _utcnow()
+    now = utcnow()
     result = await session.execute(
         update(SiteCrawlTask)
         .where(
@@ -469,7 +429,7 @@ async def _reconcile_active_crawl_tasks(
     )
 
     added_hashes = [site_urls[site_url_id].url_hash for site_url_id in added_ids]
-    generations = await _next_generations(
+    generations = await next_generations(
         session,
         crawl_id=crawl.id,
         task_kind=TASK_KIND_ANALYZE,
@@ -478,7 +438,7 @@ async def _reconcile_active_crawl_tasks(
     enqueued_ids: list[uuid.UUID] = []
     for position, site_url_id in enumerate(added_ids):
         site_url = site_urls[site_url_id]
-        task = await _enqueue_analyze_task(
+        task = await enqueue_analyze_task(
             session,
             crawl=crawl,
             site_url=site_url,
@@ -489,9 +449,6 @@ async def _reconcile_active_crawl_tasks(
     return tuple(enqueued_ids), tuple(cancelled_ids)
 
 
-# =========================================================================
-# Atomic full-set replacement
-# =========================================================================
 async def replace_monitored_set(
     session: AsyncSession,
     *,
@@ -524,10 +481,10 @@ async def replace_monitored_set(
     but does not commit, so the API layer can wrap it.
     """
     await refresh_site_health_runtime_for_workspace(
-        session, workspace_id=workspace_id, at=_utcnow()
+        session, workspace_id=workspace_id, at=utcnow()
     )
     runtime = await lock_runtime(session, workspace_id)
-    profile = await _lock_profile(
+    profile = await lock_profile(
         session, workspace_id=workspace_id, project_id=project_id
     )
     if profile is None:
@@ -583,7 +540,7 @@ async def replace_monitored_set(
 
     # Apply the full-set delta against the project's memberships (locked).
     memberships = await _load_project_memberships(session, project_id=project_id)
-    now = _utcnow()
+    now = utcnow()
     new_version = profile.selection_version + 1
     delta = _apply_membership_delta(
         memberships=memberships,
@@ -602,7 +559,7 @@ async def replace_monitored_set(
     # Active-crawl side effects: enqueue additions (next generation), cancel
     # only pending removals. If there is no active crawl, the selection still
     # persists — later crawls seed it via ``seed_monitored_targets``.
-    crawl = await _active_crawl(
+    crawl = await active_crawl(
         session, workspace_id=workspace_id, project_id=project_id
     )
     enqueued_task_ids, cancelled_task_ids = await _reconcile_active_crawl_tasks(
@@ -632,9 +589,6 @@ async def replace_monitored_set(
     )
 
 
-# =========================================================================
-# Server-resolved bulk selection
-# =========================================================================
 BULK_SELECT_MODE_FIRST_N = "first_n"
 BULK_SELECT_MODE_ALL = "all"
 BULK_SELECT_MODE_NONE = "none"
@@ -710,7 +664,7 @@ async def bulk_select_monitored_set(
         # same quota error downstream, so cap the query at limit + 1 and fail
         # fast before the locked replacement path ever sees an oversized set.
         runtime = await refresh_site_health_runtime_for_workspace(
-            session, workspace_id=workspace_id, at=_utcnow()
+            session, workspace_id=workspace_id, at=utcnow()
         )
         limit = int(runtime.monitored_url_limit)
         fetch_cap = limit + 1 if count is None else min(count, limit + 1)
@@ -759,373 +713,3 @@ async def bulk_select_monitored_set(
         site_url_ids=site_url_ids,
         expected_selection_version=expected_selection_version,
     )
-
-
-# =========================================================================
-# Explicit per-page rerun
-# =========================================================================
-@dataclass(frozen=True)
-class RerunResult:
-    """Identity/status of a freshly-enqueued page rerun (frontend polls this).
-
-    - ``crawl_id`` — the crawl the rerun's analyze task lives in. This is a
-      NEW crawl when the project's latest crawl was terminal, or the current
-      active crawl when one exists. The frontend must poll the page detail on
-      THIS crawl (not the terminal source crawl).
-    - ``site_url_id`` — the target URL (unchanged from the request).
-    - ``task_id`` — the enqueued ``analyze`` task id (for provenance/debugging).
-    - ``created_new_crawl`` — ``True`` iff a fresh crawl was minted, so the
-      caller can decide whether to redirect the client to a new crawl route.
-    - ``analysis_status`` — the crawl's analysis sub-state at enqueue time
-      (always ``pending`` for a brand-new crawl; the current value otherwise),
-      so the frontend starts polling from a known non-terminal baseline.
-    """
-
-    crawl_id: uuid.UUID
-    site_url_id: uuid.UUID
-    task_id: uuid.UUID
-    created_new_crawl: bool
-    analysis_status: str
-
-
-async def rerun_page(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    site_url_id: uuid.UUID,
-) -> RerunResult:
-    """Enqueue a fresh ``analyze`` task for one monitored URL under lock.
-
-    Requires an active monitored membership for the URL (``rerun_not_allowed``
-    otherwise — never silently no-ops). Locks the project row, then the
-    runtime row, then the project profile — the SAME order ``create_crawl``
-    uses — so a concurrent selection change, another rerun of the same URL, or
-    a concurrent full-crawl creation is serialized. The active-crawl check
-    below runs while holding the project lock, so a terminal-page rerun and a
-    full crawl can never both observe "no active crawl" and each mint one.
-
-    Crawl identity is chosen so the rerun's task can actually run:
-
-    - If the project has an ACTIVE crawl, the analyze task is enqueued into it
-      at the NEXT ``generation`` (so it never collides with a prior run's slot
-      or a cancelled task).
-    - Otherwise (the latest crawl is terminal — the common "Re-audit from a
-      completed crawl" case), a fresh single-page rerun crawl is minted via
-      the planner and the task is seeded there. Enqueuing into a terminal
-      crawl would be cooperatively cancelled by the worker and never run, so
-      this path is required for the visible action to work.
-
-    Returns a ``RerunResult`` carrying the (possibly new) crawl id, the task
-    id, the ``created_new_crawl`` flag, and the crawl's analysis sub-state, so
-    the API can hand the frontend enough identity to poll the fresh rerun.
-    """
-    # Lock the project row FIRST — the same lock ``create_crawl`` takes before
-    # its active-crawl check — so a concurrent full crawl and this terminal-page
-    # rerun serialize and cannot both mint an active crawl. Global lock order:
-    # project -> runtime -> profile.
-    project = await _lock_project(
-        session, workspace_id=workspace_id, project_id=project_id
-    )
-    if project is None:
-        raise SelectionValidationError("Project not found")
-
-    await refresh_site_health_runtime_for_workspace(
-        session, workspace_id=workspace_id, at=_utcnow()
-    )
-    runtime = await lock_runtime(session, workspace_id)
-    profile = await _lock_profile(
-        session, workspace_id=workspace_id, project_id=project_id
-    )
-    if profile is None:
-        raise SelectionValidationError("Site Health profile not found")
-
-    membership = await session.scalar(
-        select(MonitoredSiteUrl).where(
-            MonitoredSiteUrl.project_id == project_id,
-            MonitoredSiteUrl.site_url_id == site_url_id,
-            MonitoredSiteUrl.active.is_(True),
-        )
-    )
-    if membership is None:
-        raise RerunNotAllowedError(
-            "The URL is not part of the active monitored selection"
-        )
-    if not runtime_allows_monitored_analysis(
-        runtime, selection_source=membership.selection_source
-    ):
-        raise MonitoringNotAllowedError(
-            "The current monitored-URL allowance does not allow analysis of this URL"
-        )
-
-    site_url = await session.get(SiteUrl, site_url_id)
-    if site_url is None or site_url.project_id != project_id:
-        raise SelectionValidationError("Site URL not found in this project")
-
-    crawl = await _active_crawl(
-        session, workspace_id=workspace_id, project_id=project_id
-    )
-    if crawl is not None:
-        generations = await _next_generations(
-            session,
-            crawl_id=crawl.id,
-            task_kind=TASK_KIND_ANALYZE,
-            url_hashes=[site_url.url_hash],
-        )
-        task = await _enqueue_analyze_task(
-            session,
-            crawl=crawl,
-            site_url=site_url,
-            generation=generations[site_url.url_hash],
-            position=0,
-        )
-        await session.flush()
-        return RerunResult(
-            crawl_id=crawl.id,
-            site_url_id=site_url_id,
-            task_id=task.id,
-            created_new_crawl=False,
-            analysis_status=crawl.analysis_status,
-        )
-
-    # No active crawl: mint a fresh single-page rerun crawl so the analyze
-    # task can actually run. Imported lazily because ``planner`` imports this
-    # module (``seed_monitored_targets``) at module load — a top-level import
-    # here would create a cycle.
-    from app.domain.site_health.planner import create_page_rerun_crawl
-
-    new_crawl = await create_page_rerun_crawl(
-        session,
-        workspace_id=workspace_id,
-        project_id=project_id,
-        profile=profile,
-        site_url=site_url,
-        runtime=runtime,
-    )
-    existing_task = await session.scalar(
-        select(SiteCrawlTask).where(
-            SiteCrawlTask.crawl_id == new_crawl.id,
-            SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
-            SiteCrawlTask.site_url_id == site_url_id,
-        )
-    )
-    await session.flush()
-    return RerunResult(
-        crawl_id=new_crawl.id,
-        site_url_id=site_url_id,
-        task_id=existing_task.id if existing_task is not None else new_crawl.id,
-        created_new_crawl=True,
-        analysis_status=new_crawl.analysis_status,
-    )
-
-
-# =========================================================================
-# Recrawl seeding
-# =========================================================================
-async def seed_monitored_targets(
-    session: AsyncSession,
-    *,
-    crawl: SiteCrawl,
-) -> list[uuid.UUID]:
-    """Seed ``analyze`` tasks for every active monitored URL of a new crawl.
-
-    Called on every manual recrawl (plan §4): the persistent monitored set is
-    re-analyzed so last-audited facts/scores refresh. Newly discovered URLs are
-    left unselected (they get no analyze task here). Missing/redirected
-    monitored records are preserved — they remain monitored until the user
-    removes them, so they are seeded like any other active row.
-
-    Seeds at ``INITIAL_TASK_GENERATION`` because a fresh crawl owns a fresh
-    slot namespace. Idempotent: an already-seeded slot is skipped so a retry
-    never violates the unique ``(crawl_id, task_kind, url_hash, generation)``.
-
-    Every seeded URL is also admitted into the NEW crawl's observed set
-    (``SiteUrlObservation``, conflict-safe): the pages/inventory read paths
-    scope strictly through observations, so without this row the monitored
-    pages are INVISIBLE on the new crawl until re-discovery happens to
-    re-observe them — the dashboard's page table starts (nearly) empty while
-    the analysis counters already move. Same pattern as the system sample
-    admission and the single-page rerun crawl.
-    """
-    rows = await _monitored_seed_rows(session, crawl.project_id)
-    if not rows:
-        return []
-    already_seeded = await _already_seeded_hashes(session, crawl_id=crawl.id, rows=rows)
-    remaining_budget = await _remaining_seed_budget(session, crawl)
-    seeded: list[uuid.UUID] = []
-    position = 0
-    for _monitored, site_url in rows:
-        if not _seed_url_is_admissible(crawl, site_url):
-            continue
-        await _write_seed_observation(session, crawl=crawl, site_url=site_url)
-        if site_url.url_hash in already_seeded:
-            continue
-        if remaining_budget is not None and len(seeded) >= remaining_budget:
-            break
-        task = await _enqueue_analyze_task(
-            session,
-            crawl=crawl,
-            site_url=site_url,
-            generation=INITIAL_TASK_GENERATION,
-            position=position,
-        )
-        position += 1
-        already_seeded.add(site_url.url_hash)
-        await session.flush()
-        seeded.append(task.id)
-    return seeded
-
-
-async def _monitored_seed_rows(
-    session: AsyncSession, project_id: uuid.UUID
-) -> list[tuple[MonitoredSiteUrl, SiteUrl]]:
-    result = await session.execute(
-        select(MonitoredSiteUrl, SiteUrl)
-        .join(SiteUrl, SiteUrl.id == MonitoredSiteUrl.site_url_id)
-        .where(
-            MonitoredSiteUrl.project_id == project_id,
-            MonitoredSiteUrl.active.is_(True),
-        )
-        .order_by(SiteUrl.normalized_url.asc())
-    )
-    return list(result.tuples().all())
-
-
-async def _already_seeded_hashes(
-    session: AsyncSession,
-    *,
-    crawl_id: uuid.UUID,
-    rows: list[tuple[MonitoredSiteUrl, SiteUrl]],
-) -> set[str]:
-    url_hashes = [site_url.url_hash for _monitored, site_url in rows]
-    existing = await session.execute(
-        select(SiteCrawlTask.url_hash).where(
-            SiteCrawlTask.crawl_id == crawl_id,
-            SiteCrawlTask.task_kind == TASK_KIND_ANALYZE,
-            SiteCrawlTask.generation == INITIAL_TASK_GENERATION,
-            SiteCrawlTask.url_hash.in_(url_hashes),
-        )
-    )
-    return {row[0] for row in existing.all()}
-
-
-async def _remaining_seed_budget(session: AsyncSession, crawl: SiteCrawl) -> int | None:
-    requested_limit = (crawl.configuration or {}).get("requested_page_limit")
-    existing_task_count = await session.scalar(
-        select(func.count())
-        .select_from(SiteCrawlTask)
-        .where(SiteCrawlTask.crawl_id == crawl.id)
-    )
-    return (
-        max(int(requested_limit) - int(existing_task_count or 0), 0)
-        if requested_limit is not None
-        else None
-    )
-
-
-def _seed_url_is_admissible(crawl: SiteCrawl, site_url: SiteUrl) -> bool:
-    configuration = dict(crawl.configuration or {})
-    decision = classify_url_admission(
-        site_url.normalized_url,
-        root_registrable_domain=configuration.get("root_registrable_domain") or None,
-        include_globs=configuration.get("include_globs"),
-        exclude_globs=configuration.get("exclude_globs"),
-    )
-    return decision.accepted
-
-
-async def _write_seed_observation(
-    session: AsyncSession, *, crawl: SiteCrawl, site_url: SiteUrl
-) -> None:
-    await session.execute(
-        pg_insert(SiteUrlObservation)
-        .values(
-            workspace_id=crawl.workspace_id,
-            project_id=crawl.project_id,
-            crawl_id=crawl.id,
-            site_url_id=site_url.id,
-            source_kind=site_url.latest_source_kind or OBSERVATION_SOURCE_LINK,
-            depth=site_url.depth,
-            observed_url=site_url.normalized_url,
-            final_url=site_url.normalized_url,
-            content_type=site_url.latest_content_type or "",
-            title=site_url.latest_title or "",
-        )
-        .on_conflict_do_nothing(index_elements=["crawl_id", "site_url_id"])
-    )
-
-
-# =========================================================================
-# Pure worker-side guard functions (Task 5 wires these into the worker)
-# =========================================================================
-@dataclass(frozen=True)
-class GuardDecision:
-    """The outcome of a worker guard check (pure, side-effect free)."""
-
-    ok: bool
-    reason: str = ""
-
-
-def crawl_is_active(crawl: SiteCrawl | None) -> TypeGuard[SiteCrawl]:
-    """True only when the crawl still exists and is in an active status.
-
-    A cancelled/terminal crawl means the worker must abandon the task without
-    persisting evidence (invariant 3 — no artifact for a cancelled task).
-    """
-    return crawl is not None and crawl.status in CRAWL_ACTIVE_STATUSES
-
-
-def lease_is_owned(
-    task: SiteCrawlTask | None, *, owner: str
-) -> TypeGuard[SiteCrawlTask]:
-    """True only when THIS worker still holds the task's lease and is working.
-
-    Guards the double-claim / lost-lease case: between the network call and the
-    write the sweeper could have reclaimed the lease and another worker could
-    have re-claimed it. Only a leased/running row owned by ``owner`` may write.
-    """
-    return (
-        task is not None
-        and task.lease_owner == owner
-        and task.status in (TASK_STATUS_LEASED, TASK_STATUS_RUNNING)
-    )
-
-
-def monitored_is_active(
-    monitored: MonitoredSiteUrl | None,
-) -> TypeGuard[MonitoredSiteUrl]:
-    """True only when the URL is still an ACTIVE monitored membership.
-
-    A URL removed mid-fetch (its membership deactivated) must not have its
-    analysis persisted — the worker re-checks this immediately before I/O and
-    again under row lock before evidence persistence.
-    """
-    return monitored is not None and monitored.active
-
-
-def evaluate_task_guard(
-    *,
-    crawl: SiteCrawl | None,
-    task: SiteCrawlTask | None,
-    monitored: MonitoredSiteUrl | None,
-    runtime: WorkspaceSiteHealthRuntime | None,
-    owner: str,
-) -> GuardDecision:
-    """Combined pure guard the worker calls before I/O and before persistence.
-
-    Re-checks, in order: lease ownership, crawl status, active monitoring, and
-    the live runtime row (a lost allowance blocks new work on user-source rows
-    while preserving evidence). Returns the first failing reason, or ``ok``
-    when all pass. Pure: it never touches the DB — the worker loads the rows
-    (under lock before persistence) and passes them in.
-    """
-    if not lease_is_owned(task, owner=owner):
-        return GuardDecision(ok=False, reason="lease_not_owned")
-    if not crawl_is_active(crawl):
-        return GuardDecision(ok=False, reason="crawl_not_active")
-    if not monitored_is_active(monitored):
-        return GuardDecision(ok=False, reason="not_actively_monitored")
-    source = getattr(monitored, "selection_source", SELECTION_SOURCE_USER)
-    if not runtime_allows_monitored_analysis(runtime, selection_source=source):
-        return GuardDecision(ok=False, reason="entitlement_revoked")
-    return GuardDecision(ok=True)

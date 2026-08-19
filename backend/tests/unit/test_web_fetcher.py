@@ -24,8 +24,8 @@ from app.connectors.web_evidence.contracts import (
     FetchResult,
     ResolvedTarget,
 )
-from app.connectors.web_evidence.fetcher import (
-    SecureFetcher,
+from app.connectors.web_evidence.fetcher import SecureFetcher
+from app.connectors.web_evidence.fetcher_body import (
     is_bot_block_result,
     redact_headers,
 )

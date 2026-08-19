@@ -21,7 +21,7 @@ from app.core.config.entitlements import CREDENTIAL_MODE_BYOK
 from app.domain.abuse.service import reserve_workspace_capacity
 from app.domain.audits.errors import AuditValidationError
 from app.domain.audits.frozen_plan import (
-    _evaluate_prompt_admission,
+    _evaluate_prompt_count_admission,
     _freeze_plan,
     _frozen_configuration,
     _resolve_measurement_policy,
@@ -115,11 +115,10 @@ async def create_audit(
     # Per-engine expected costs from the sole cost owner: consumed by the
     # funded budget gate and re-proven by per-task credential resolution.
     expected_costs = _expected_costs_by_engine(routes=routes, plan=plan)
-    # Prompt admission (topical binding over every selected active prompt +
-    # the funded/trial prompt-count policy) is PRECOMPUTED by one extracted
-    # helper; this shell only applies its decision and stays branch-free.
-    _evaluate_prompt_admission(
-        project=project,
+    # Prompt-count admission is PRECOMPUTED by one extracted helper. Prompt
+    # relevance was already enforced when each prompt entered the active
+    # portfolio; launch must not reinterpret that persisted decision.
+    _evaluate_prompt_count_admission(
         prompts=prompts,
         trigger=plan.trigger,
         credential_mode=credential_mode,

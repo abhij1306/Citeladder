@@ -23,19 +23,11 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Final
+from typing import Final
 
 from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.analysis.site_health.finalize import (
-    evaluate_broken_internal_link,
-    evaluate_hreflang_conflict,
-    evaluate_sitemap_orphan,
-)
-from app.analysis.site_health.rules import RuleEvaluation
-from app.connectors.web_evidence.url_policy import UrlPolicyError
 from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_CANCELLED,
     ANALYSIS_STATUS_COMPLETED,
@@ -44,7 +36,6 @@ from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_PENDING,
     ANALYSIS_STATUS_RUNNING,
     ANALYSIS_STATUS_STOPPED,
-    ANALYZER_VERSION,
     APPLICABILITY_CRAWL_FINALIZE,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_COMPLETED,
@@ -61,11 +52,6 @@ from app.core.config.site_health_contracts import (
     DISCOVERY_STATUS_STOPPED,
     EVENT_CRAWL_COMPLETED,
     EVENT_CRAWL_FAILED,
-    EXTRACTOR_VERSION,
-    LINK_KIND_ANCHOR,
-    OBSERVATION_SOURCE_SITEMAP,
-    PAGE_ANALYSIS_STATUS_COMPLETED,
-    RULE_OUTCOME_FAIL,
     TASK_KIND_ANALYZE,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_CHECK,
@@ -91,26 +77,20 @@ from app.core.config.task_queue import (
 )
 from app.domain.site_health.failure import load_root_failure_summary
 from app.domain.site_health.link_graph_queue import enqueue_link_graph_refresh
-from app.domain.site_health.normalization import canonical_identity, canonical_or_empty
-from app.domain.site_health.selection import crawl_is_active
-from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.domain.site_health.state_events import (
     apply_analysis_status,
     apply_crawl_status,
     apply_discovery_status,
     record_crawl_event,
 )
+from app.domain.site_health.task_guards import crawl_is_active
 from app.domain.site_health.terminal_refresh import enqueue_terminal_analytics_refresh
-from app.models.site_health.acquisition import SiteFetchArtifact
-from app.models.site_health.analysis import (
-    SiteIssue,
-    SiteLinkReference,
-    SitePageAnalysis,
-    SiteRuleEvaluation,
-)
 from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
 from app.models.site_health.queue import SiteCrawlTask
-from app.models.site_health.urls import SiteUrl, SiteUrlObservation
+from app.models.site_health.urls import SiteUrlObservation
+from app.workers.site_health.lifecycle_finalize import (
+    CrawlFinalizeMixin,
+)
 
 logger = logging.getLogger("app.workers.site_health.lifecycle")
 
@@ -280,113 +260,7 @@ def _is_crawl_finalize_rule(rule_id: str) -> bool:
     return rule is not None and rule.applicability_key == APPLICABILITY_CRAWL_FINALIZE
 
 
-def crawl_root_identity(crawl: SiteCrawl) -> tuple[str, str]:
-    """``(canonical, url_hash)`` of the crawl root, or ``("", "")``."""
-    try:
-        return canonical_identity(crawl.root_url)
-    except UrlPolicyError:
-        return "", ""
-
-
-def _pass_through_hreflang_evaluation() -> RuleEvaluation:
-    """An unchecked evaluation — the sentence all empty/self-only pages get."""
-    return evaluate_hreflang_conflict(
-        alternate_count=0,
-        checked_count=0,
-        unchecked_count=0,
-        missing_return_tags=[],
-    )
-
-
-def _cross_check_hreflang_alternates(
-    alternates: list[dict],
-    source_canonical: str,
-    alternates_by_page: dict[str, list[dict]],
-) -> tuple[int, int, list[str]]:
-    """Walk each alternate and check the reciprocal link back.
-
-    A target with no analyzed artifact contributes to ``unchecked_count`` —
-    we cannot verify it (spec §5.3). A self-referencing alternate is fine.
-    Any checked target that fails to link back joins ``missing``.
-    """
-    checked_count = 0
-    unchecked_count = 0
-    missing: list[str] = []
-    for alternate in alternates:
-        target_url = str(alternate.get("url") or "")
-        target_canonical = canonical_or_empty(target_url)
-        if not target_canonical:
-            unchecked_count += 1
-            continue
-        if target_canonical == source_canonical:
-            continue
-        target_alternates = alternates_by_page.get(target_canonical)
-        if target_alternates is None:
-            unchecked_count += 1
-            continue
-        checked_count += 1
-        return_tag_found = any(
-            canonical_or_empty(str(back.get("url") or "")) == source_canonical
-            for back in target_alternates
-        )
-        if not return_tag_found and target_url not in missing:
-            missing.append(target_url)
-    return checked_count, unchecked_count, missing
-
-
-def _evaluate_hreflang_for_page(
-    alternates: list[dict],
-    source_canonical: str | None,
-    alternates_by_page: dict[str, list[dict]],
-) -> RuleEvaluation:
-    """Score one page's alternates against the crawl-wide alternates map."""
-    if not alternates or not source_canonical:
-        return _pass_through_hreflang_evaluation()
-    checked, unchecked, missing = _cross_check_hreflang_alternates(
-        alternates, source_canonical, alternates_by_page
-    )
-    return evaluate_hreflang_conflict(
-        alternate_count=len(alternates),
-        checked_count=checked,
-        unchecked_count=unchecked,
-        missing_return_tags=missing,
-    )
-
-
-async def _crawl_hreflang_indexes(
-    session: AsyncSession,
-    artifact_by_analysis: dict[uuid.UUID, uuid.UUID],
-) -> tuple[
-    list[tuple[uuid.UUID, str, list[dict]]],
-    dict[str, list[dict]],
-    dict[uuid.UUID, str],
-]:
-    """One query → per-artifact alternates + the canonical->alternates index."""
-    artifacts = (
-        await session.execute(
-            select(
-                SiteFetchArtifact.id,
-                SiteFetchArtifact.final_url,
-                SiteFetchArtifact.normalized_facts,
-            )
-            .where(SiteFetchArtifact.id.in_(artifact_by_analysis.values()))
-            .order_by(SiteFetchArtifact.id)
-        )
-    ).all()
-    alternates_by_page: dict[str, list[dict]] = {}
-    canonical_by_artifact: dict[uuid.UUID, str] = {}
-    per_artifact: list[tuple[uuid.UUID, str, list[dict]]] = []
-    for artifact_id, final_url, facts in artifacts:
-        canonical = canonical_or_empty(str(final_url or ""))
-        alternates = list((facts or {}).get("hreflang_alternates") or [])
-        if canonical:
-            canonical_by_artifact[artifact_id] = canonical
-            alternates_by_page.setdefault(canonical, alternates)
-        per_artifact.append((artifact_id, canonical, alternates))
-    return per_artifact, alternates_by_page, canonical_by_artifact
-
-
-class CrawlLifecycle:
+class CrawlLifecycle(CrawlFinalizeMixin):
     """Owns crawl status reconciliation, the finalize pass, and the snapshot."""
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
@@ -770,299 +644,3 @@ class CrawlLifecycle:
             "analyze_failed": count(TASK_KIND_ANALYZE, "failed"),
             "discover_failed": count(TASK_KIND_DISCOVER, "failed"),
         }
-
-    # --- v2 P2: crawl_finalize evaluation pass -----------------------------
-
-    async def _run_crawl_finalize_pass(
-        self, session: AsyncSession, *, crawl: SiteCrawl
-    ) -> None:
-        """Orchestrate cross-page crawl-finalize rules under the crawl lock."""
-        rows = await self._load_latest_analyses(session, crawl=crawl)
-        if not rows:
-            return
-        analysis_ids = [row.id for row in rows]
-        artifact_by_analysis = {row.id: row.artifact_id for row in rows}
-        site_url_by_analysis = {row.id: row.site_url_id for row in rows}
-        evaluations = await self._evaluate_broken_internal_links(
-            session, analysis_ids=analysis_ids
-        )
-        evaluations.extend(
-            await self._evaluate_hreflang_conflicts(
-                session,
-                rows=rows,
-                artifact_by_analysis=artifact_by_analysis,
-            )
-        )
-        evaluations.extend(
-            await self._evaluate_sitemap_orphans(
-                session,
-                crawl=crawl,
-                rows=rows,
-                analysis_ids=analysis_ids,
-                site_url_by_analysis=site_url_by_analysis,
-            )
-        )
-        await self._persist_evaluations(
-            session,
-            crawl=crawl,
-            evaluations=evaluations,
-            artifact_by_analysis=artifact_by_analysis,
-            site_url_by_analysis=site_url_by_analysis,
-        )
-
-    async def _load_latest_analyses(
-        self, session: AsyncSession, *, crawl: SiteCrawl
-    ) -> list[Any]:
-        """Load the latest completed analysis for every URL in this crawl."""
-        ranked = (
-            select(
-                SitePageAnalysis.id.label("id"),
-                SitePageAnalysis.site_url_id.label("site_url_id"),
-                SitePageAnalysis.artifact_id.label("artifact_id"),
-                func.row_number()
-                .over(
-                    partition_by=SitePageAnalysis.site_url_id,
-                    order_by=(
-                        SitePageAnalysis.created_at.desc(),
-                        SitePageAnalysis.id.desc(),
-                    ),
-                )
-                .label("latest_rank"),
-            )
-            .where(
-                SitePageAnalysis.crawl_id == crawl.id,
-                SitePageAnalysis.status == PAGE_ANALYSIS_STATUS_COMPLETED,
-            )
-            .subquery()
-        )
-        return list(
-            (
-                await session.execute(
-                    select(
-                        ranked.c.id, ranked.c.site_url_id, ranked.c.artifact_id
-                    ).where(ranked.c.latest_rank == 1)
-                )
-            ).all()
-        )
-
-    async def _evaluate_broken_internal_links(
-        self, session: AsyncSession, *, analysis_ids: list[uuid.UUID]
-    ) -> list[tuple[uuid.UUID, RuleEvaluation]]:
-        """Evaluate per-analysis internal-link reachability evidence."""
-        # Reachability rides the evidence_fingerprint prefix written by
-        # ``_write_link_reference`` ("reachable:" / "unreachable:"); ALL link
-        # kinds count as internal targets. ``policy_skipped:`` rows (a
-        # robots-denied target that was never probed) are excluded: no
-        # reachability was observed, so they are neither checked nor broken.
-        link_rows = (
-            await session.execute(
-                select(
-                    SiteLinkReference.source_analysis_id,
-                    SiteLinkReference.target_url,
-                    SiteLinkReference.evidence_fingerprint,
-                ).where(
-                    SiteLinkReference.source_analysis_id.in_(analysis_ids),
-                    SiteLinkReference.is_internal.is_(True),
-                )
-            )
-        ).all()
-        checked: dict[uuid.UUID, int] = {}
-        broken: dict[uuid.UUID, list[str]] = {}
-        for source_analysis_id, target_url, fingerprint in link_rows:
-            fp = str(fingerprint or "")
-            if fp.startswith("policy_skipped:"):
-                continue
-            checked[source_analysis_id] = checked.get(source_analysis_id, 0) + 1
-            if fp.startswith("unreachable:"):
-                bucket = broken.setdefault(source_analysis_id, [])
-                if target_url not in bucket:
-                    bucket.append(target_url)
-        return [
-            (
-                analysis_id,
-                evaluate_broken_internal_link(
-                    checked_count=checked.get(analysis_id, 0),
-                    broken_urls=broken.get(analysis_id, []),
-                ),
-            )
-            for analysis_id in analysis_ids
-        ]
-
-    async def _evaluate_hreflang_conflicts(
-        self,
-        session: AsyncSession,
-        *,
-        rows: list[Any],
-        artifact_by_analysis: dict[uuid.UUID, uuid.UUID],
-    ) -> list[tuple[uuid.UUID, RuleEvaluation]]:
-        """Evaluate reciprocal hreflang tags from persisted artifact facts."""
-        (
-            per_artifact,
-            alternates_by_page,
-            canonical_by_artifact,
-        ) = await _crawl_hreflang_indexes(session, artifact_by_analysis)
-        analysis_by_artifact = {row.artifact_id: row.id for row in rows}
-        return [
-            (
-                analysis_by_artifact[artifact_id],
-                _evaluate_hreflang_for_page(
-                    alternates,
-                    canonical_by_artifact.get(artifact_id),
-                    alternates_by_page,
-                ),
-            )
-            for artifact_id, _canonical, alternates in per_artifact
-        ]
-
-    async def _evaluate_sitemap_orphans(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        rows: list[Any],
-        analysis_ids: list[uuid.UUID],
-        site_url_by_analysis: dict[uuid.UUID, uuid.UUID],
-    ) -> list[tuple[uuid.UUID, RuleEvaluation]]:
-        """Evaluate the crawl-wide sitemap-orphan rule on the root analysis."""
-        root_canonical, root_hash = crawl_root_identity(crawl)
-        if not root_hash:
-            return []
-        site_url_rows = (
-            await session.execute(
-                select(SiteUrl.id, SiteUrl.url_hash).where(
-                    SiteUrl.id.in_(site_url_by_analysis.values())
-                )
-            )
-        ).all()
-        hash_by_site_url = {row[0]: row[1] for row in site_url_rows}
-        root_analysis_id = next(
-            (
-                row.id
-                for row in rows
-                if hash_by_site_url.get(row.site_url_id) == root_hash
-            ),
-            None,
-        )
-        if root_analysis_id is None:
-            return []
-        sitemap_rows = (
-            await session.execute(
-                select(
-                    SiteUrlObservation.site_url_id,
-                    SiteUrlObservation.observed_url,
-                ).where(
-                    SiteUrlObservation.crawl_id == crawl.id,
-                    SiteUrlObservation.source_kind == OBSERVATION_SOURCE_SITEMAP,
-                )
-            )
-        ).all()
-        anchor_rows = (
-            await session.execute(
-                select(SiteLinkReference.target_url).where(
-                    SiteLinkReference.source_analysis_id.in_(analysis_ids),
-                    SiteLinkReference.is_internal.is_(True),
-                    SiteLinkReference.kind == LINK_KIND_ANCHOR,
-                )
-            )
-        ).all()
-        linked_targets = {
-            canonical
-            for (target_url,) in anchor_rows
-            if (canonical := canonical_or_empty(str(target_url)))
-        }
-        orphans: list[str] = []
-        for _site_url_id, observed_url in sitemap_rows:
-            observed = str(observed_url or "")
-            observed_canonical = canonical_or_empty(observed)
-            if (
-                observed_canonical
-                and observed_canonical != root_canonical
-                and observed_canonical not in linked_targets
-                and observed not in orphans
-            ):
-                orphans.append(observed)
-        return [
-            (
-                root_analysis_id,
-                evaluate_sitemap_orphan(
-                    sitemap_url_count=len(sitemap_rows), orphan_urls=orphans
-                ),
-            )
-        ]
-
-    async def _persist_evaluations(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        evaluations: list[tuple[uuid.UUID, RuleEvaluation]],
-        artifact_by_analysis: dict[uuid.UUID, uuid.UUID],
-        site_url_by_analysis: dict[uuid.UUID, uuid.UUID],
-    ) -> None:
-        """Persist conflict-safe finalize evaluations and their failed issues."""
-        for analysis_id, ev in evaluations:
-            artifact_id = artifact_by_analysis[analysis_id]
-            inserted_id = await session.scalar(
-                pg_insert(SiteRuleEvaluation)
-                .values(
-                    workspace_id=crawl.workspace_id,
-                    analysis_id=analysis_id,
-                    source_artifact_id=artifact_id,
-                    rule_id=ev.rule_id,
-                    dimension=ev.dimension,
-                    category=ev.category,
-                    severity=ev.severity,
-                    finding_class=ev.finding_class,
-                    weight=ev.weight,
-                    outcome=ev.outcome,
-                    evidence=ev.evidence,
-                    supporting_artifact_ids=[artifact_id],
-                    extractor_version=crawl.extractor_version or EXTRACTOR_VERSION,
-                    analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
-                    rule_version=ev.rule_version,
-                )
-                .on_conflict_do_nothing(index_elements=["analysis_id", "rule_id"])
-                .returning(SiteRuleEvaluation.id)
-            )
-            if inserted_id is None:
-                continue
-            if ev.outcome == RULE_OUTCOME_FAIL:
-                session.add(
-                    SiteIssue(
-                        workspace_id=crawl.workspace_id,
-                        project_id=crawl.project_id,
-                        crawl_id=crawl.id,
-                        site_url_id=site_url_by_analysis[analysis_id],
-                        analysis_id=analysis_id,
-                        evaluation_id=inserted_id,
-                        source_artifact_id=artifact_id,
-                        rule_id=ev.rule_id,
-                        dimension=ev.dimension,
-                        category=ev.category,
-                        severity=ev.severity,
-                        finding_class=ev.finding_class,
-                        evidence=ev.evidence,
-                        description=ev.description,
-                        remediation=ev.remediation,
-                        analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
-                        rule_version=ev.rule_version,
-                    )
-                )
-
-        # SessionLocal disables autoflush; the snapshot query immediately after
-        # this pass must see the newly added issues.
-        await session.flush()
-
-    async def _persist_snapshot(
-        self, session: AsyncSession, *, crawl: SiteCrawl
-    ) -> None:
-        """Compute + persist the crawl aggregate snapshot (unique per crawl).
-
-        Delegates to the canonical ``persist_crawl_snapshot`` domain helper so
-        the worker and ``service.cancel_crawl`` share ONE aggregation algorithm
-        (no duplicate scoring/rollup logic). ``persist_empty=True`` because a
-        clean terminalization (including an empty analysis plan) must always
-        write a canonical snapshot — an empty/null-score one when nothing was
-        aggregated — unlike a cancel, which leaves ``score_summary`` null.
-        """
-        await persist_crawl_snapshot(session, crawl=crawl, persist_empty=True)

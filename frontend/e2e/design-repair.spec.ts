@@ -94,12 +94,27 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   const setupHeading = page.getByRole('heading', { name: 'Set up your project' });
   await expect(setupHeading).toBeVisible();
   await expect(setupHeading).toHaveCSS('color', 'rgb(255, 255, 255)');
+  const setupBox = await setupHeading.boundingBox();
+  expect(setupBox).not.toBeNull();
+  const initialHeading = page.getByRole('heading', { name: "Let's get started" });
+  const initialHeadingBox = await initialHeading.boundingBox();
+  expect(initialHeadingBox).not.toBeNull();
+  // The short setup stage begins on the same visual line as the desktop rail
+  // title, instead of sitting vertically centred beneath it.
+  expect(Math.abs(initialHeadingBox!.y - setupBox!.y)).toBeLessThanOrEqual(12);
+  const stageHeadingFontSize = await initialHeading.evaluate(
+    (element) => getComputedStyle(element).fontSize,
+  );
   const brandStage = await page.locator('main#main').boundingBox();
   expect(brandStage).not.toBeNull();
 
   await page.getByLabel(/^Brand name/).fill('The Asian School');
   await page.getByLabel(/^Website/).fill('theasianschool.net');
   await page.getByRole('button', { name: 'Continue' }).click();
+  const discoveryHeading = page.getByRole('heading', { name: 'Finding what to track' });
+  const discoveryHeadingBox = await discoveryHeading.boundingBox();
+  expect(discoveryHeadingBox).not.toBeNull();
+  expect(Math.abs(discoveryHeadingBox!.y - setupBox!.y)).toBeLessThanOrEqual(12);
   const discoveryStage = await page.locator('main#main').boundingBox();
   expect(discoveryStage).not.toBeNull();
 
@@ -108,6 +123,10 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   await expect(progress).toHaveAttribute('aria-valuenow', '4', { timeout: 4_000 });
 
   await page.getByRole('button', { name: 'Review' }).click();
+  await expect(page.getByRole('heading', { name: 'Does this look right?' })).toHaveCSS(
+    'font-size',
+    stageHeadingFontSize,
+  );
   const reviewStage = await page.locator('main#main').boundingBox();
   expect(reviewStage).not.toBeNull();
   expect(reviewStage?.width).toBeCloseTo(brandStage!.width, 0);

@@ -21,9 +21,6 @@ from typing import Final
 
 SOURCE_TAXONOMY_VERSION: Final = "source-taxonomy-1"
 
-# =========================================================================
-# Source classes
-# =========================================================================
 SOURCE_CLASS_BRAND_OWNED: Final = "brand_owned"
 SOURCE_CLASS_COMPETITOR_OWNED: Final = "competitor_owned"
 SOURCE_CLASS_COMMUNITY: Final = "community"
@@ -44,13 +41,6 @@ SOURCE_CLASS_ORDER: Final[tuple[str, ...]] = (
     SOURCE_CLASS_OTHER_THIRD_PARTY,
 )
 
-# =========================================================================
-# Known-domain tables
-# =========================================================================
-# Explicit allowlists, matched on the registrable host OR any subdomain of it
-# (``old.reddit.com`` -> ``reddit.com``). These are classification AIDS, not a
-# claim of quality: membership says "this is a community site", never "this
-# source is trustworthy". Anything absent here is ``other_third_party``.
 COMMUNITY_DOMAINS: Final[frozenset[str]] = frozenset(
     {
         "reddit.com",
@@ -120,11 +110,6 @@ SOURCE_CLASS_DOMAIN_TABLES: Final[tuple[tuple[str, frozenset[str]], ...]] = (
     (SOURCE_CLASS_EDITORIAL_THIRD_PARTY, EDITORIAL_DOMAINS),
 )
 
-# =========================================================================
-# Observed patterns
-# =========================================================================
-# Descriptive labels attached to a recommendation gap. Each is a statement
-# about what was OBSERVED in the cited sources, never about cause.
 PATTERN_COMPETITOR_OWNED_SOURCES: Final = "competitor_owned_sources_cited"
 PATTERN_INDEPENDENT_VALIDATION: Final = "independent_validation_present"
 PATTERN_COMMUNITY_EVIDENCE: Final = "community_evidence_present"
@@ -141,12 +126,6 @@ MULTIPLE_INDEPENDENT_DOMAIN_MIN: Final = 3
 # citation set stays reachable through the run/evidence surfaces.
 MAX_TOP_CITATIONS: Final = 6
 
-# =========================================================================
-# Remediation actions
-# =========================================================================
-# The single deterministic next action implied by an observed pattern, most
-# specific first. Consumed as an ORDERED rule list: the first matching pattern
-# wins, and a gap with no matching pattern gets ``ACTION_DEFAULT``.
 ACTION_STRENGTHEN_OWNED_ANSWER: Final = "strengthen_owned_answer_page"
 ACTION_PURSUE_INDEPENDENT_EVIDENCE: Final = "pursue_independent_evidence"
 ACTION_PURSUE_COMMUNITY_EVIDENCE: Final = "pursue_community_evidence"

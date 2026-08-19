@@ -40,9 +40,6 @@ from app.core.config.site_health_rules import (
     DIMENSION_WEIGHT_TECHNICAL,
     SCORE_ROUNDING_DECIMALS,
 )
-from app.core.config.site_health_taxonomy import (
-    PAGE_KINDS,
-)
 
 
 class _ScoredLike(Protocol):
@@ -266,36 +263,3 @@ class PageKindScoreInput:
     technical_score: float | None
     aeo_score: float | None
     overall_score: float | None
-
-
-def aggregate_by_page_kind(
-    analyses: Iterable[PageKindScoreInput],
-) -> dict[str, dict[str, float | int | None]]:
-    """Per-page-type rollup: analyzed count + mean technical/aeo/overall.
-
-    Only page types with at least one input appear. Key order is
-    deterministic: the config ``PAGE_KINDS`` taxonomy order first, then any
-    unrecognized type (defensive — the classifier only emits taxonomy
-    members) sorted after it.
-    """
-    grouped: dict[str, list[PageKindScoreInput]] = {}
-    for analysis in analyses:
-        grouped.setdefault(analysis.page_kind, []).append(analysis)
-
-    ordered = [page_kind for page_kind in PAGE_KINDS if page_kind in grouped]
-    ordered += sorted(t for t in grouped if t not in PAGE_KINDS)
-
-    rollup: dict[str, dict[str, float | int | None]] = {}
-    for page_kind in ordered:
-        rows = grouped[page_kind]
-        rollup[page_kind] = {
-            "analyzed_count": len(rows),
-            "technical_score": _mean(
-                [r.technical_score for r in rows if r.technical_score is not None]
-            ),
-            "aeo_score": _mean([r.aeo_score for r in rows if r.aeo_score is not None]),
-            "overall_score": _mean(
-                [r.overall_score for r in rows if r.overall_score is not None]
-            ),
-        }
-    return rollup

@@ -133,6 +133,43 @@ def _parse_row_date(raw: str) -> date | None:
     return None
 
 
+def _metric_row_values_for_payload(
+    *,
+    payload_row: Any,
+    template: IntegrationDatasetTemplate,
+    run: IntegrationSyncRun,
+    mapping: IntegrationPropertyMapping,
+    artifact: IntegrationImportArtifact,
+    date_index: int,
+) -> dict[str, Any] | None:
+    """Project one provider row, dropping malformed or out-of-window data."""
+    if not isinstance(payload_row, dict):
+        return None
+    keys = payload_row.get("keys")
+    if not isinstance(keys, list) or len(keys) != len(template.dimensions):
+        return None
+    row_date = _parse_row_date(str(keys[date_index]))
+    if row_date is None or not (run.window_start <= row_date <= run.window_end):
+        return None
+    metrics = {
+        name: payload_row[name] for name in template.metrics if name in payload_row
+    }
+    return {
+        "workspace_id": run.workspace_id,
+        "project_id": mapping.project_id,
+        "property_ref": mapping.property_ref,
+        "provider": artifact.provider,
+        "dataset": artifact.dataset,
+        "date": row_date,
+        # ALL declared dimension values, date included (C1).
+        "dimension_key": pack_dimension_key([str(key) for key in keys]),
+        "metrics": metrics,
+        "source_artifact_id": artifact.id,
+        "resync_seq": run.resync_seq,
+        "importer_version": INTEGRATION_IMPORTER_VERSION,
+    }
+
+
 def build_metric_row_values(
     *,
     template: IntegrationDatasetTemplate,
@@ -153,35 +190,16 @@ def build_metric_row_values(
     date_index = template.dimensions.index(_DATE_DIMENSION)
     values: list[dict[str, Any]] = []
     for payload_row in payload_rows:
-        if not isinstance(payload_row, dict):
-            continue
-        keys = payload_row.get("keys")
-        if not isinstance(keys, list) or len(keys) != len(template.dimensions):
-            continue
-        row_date = _parse_row_date(str(keys[date_index]))
-        if row_date is None:
-            continue
-        if row_date < run.window_start or row_date > run.window_end:
-            continue
-        metrics = {
-            name: payload_row[name] for name in template.metrics if name in payload_row
-        }
-        values.append(
-            {
-                "workspace_id": run.workspace_id,
-                "project_id": mapping.project_id,
-                "property_ref": mapping.property_ref,
-                "provider": artifact.provider,
-                "dataset": artifact.dataset,
-                "date": row_date,
-                # ALL declared dimension values, date included (C1).
-                "dimension_key": pack_dimension_key([str(key) for key in keys]),
-                "metrics": metrics,
-                "source_artifact_id": artifact.id,
-                "resync_seq": run.resync_seq,
-                "importer_version": INTEGRATION_IMPORTER_VERSION,
-            }
+        row_values = _metric_row_values_for_payload(
+            payload_row=payload_row,
+            template=template,
+            run=run,
+            mapping=mapping,
+            artifact=artifact,
+            date_index=date_index,
         )
+        if row_values is not None:
+            values.append(row_values)
     return values
 
 

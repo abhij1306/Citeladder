@@ -43,7 +43,7 @@ from app.models.analysis import MetricSnapshot
 from app.models.audit import Audit
 from app.models.user import User
 from app.models.workspace import WorkspaceMember
-from app.workers import audit_worker
+from app.workers.audit import execution as audit_execution
 from app.workers.audit_worker import AuditWorker
 from tests.component.audit_helpers import seed_audit_fixtures
 
@@ -91,7 +91,7 @@ class _StubAdapter:
 
 @pytest.fixture
 def _stub_adapter(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: _StubAdapter())
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: _StubAdapter())
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 

@@ -121,7 +121,6 @@ export function clearPendingIntent(): void {
   }
 }
 
-/** True when a resumable intent is present. Used by the post-auth redirect. */
 export function hasPendingIntent(now: number = Date.now()): boolean {
   return readPendingIntent(now) !== null;
 }

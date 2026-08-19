@@ -202,6 +202,30 @@ def page_value_kind(url: str) -> str:
     return "other"
 
 
+def _query_rejection(query: str) -> str | None:
+    if _has_hard_excluded_query(query):
+        return URL_EXCLUSION_HARD_QUERY
+    if _has_tracking_query(query):
+        return URL_EXCLUSION_TRACKING
+    return None
+
+
+def _canonical_rejection(
+    canonical: str, *, infrastructure_purpose: str | None
+) -> str | None:
+    path = urlsplit(canonical).path
+    if _path_is_hard_excluded(path):
+        return URL_EXCLUSION_HARD_PATH
+    infrastructure_asset = _is_infrastructure_asset_exception(
+        path, infrastructure_purpose
+    )
+    if _is_hard_excluded_asset(path) and not infrastructure_asset:
+        return URL_EXCLUSION_HARD_ASSET
+    if len(canonical) > SITE_HEALTH_MAX_URL_CHARS:
+        return URL_EXCLUSION_INVALID
+    return None
+
+
 def classify_url_admission(
     url: str,
     *,
@@ -220,21 +244,15 @@ def classify_url_admission(
     try:
         resolved = _resolve_relative(base_url, raw) if base_url else raw
         parts = urlsplit(resolved)
-        if _has_hard_excluded_query(parts.query):
-            return UrlAdmission(False, None, URL_EXCLUSION_HARD_QUERY, "other", 0)
-        if _has_tracking_query(parts.query):
-            return UrlAdmission(False, None, URL_EXCLUSION_TRACKING, "other", 0)
+        query_rejection = _query_rejection(parts.query)
+        if query_rejection:
+            return UrlAdmission(False, None, query_rejection, "other", 0)
         canonical = canonicalize(resolved)
-        canonical_path = urlsplit(canonical).path
-        if _path_is_hard_excluded(canonical_path):
-            return UrlAdmission(False, None, URL_EXCLUSION_HARD_PATH, "other", 0)
-        asset_is_infrastructure = _is_infrastructure_asset_exception(
-            canonical_path, infrastructure_purpose
+        canonical_rejection = _canonical_rejection(
+            canonical, infrastructure_purpose=infrastructure_purpose
         )
-        if _is_hard_excluded_asset(canonical_path) and not asset_is_infrastructure:
-            return UrlAdmission(False, None, URL_EXCLUSION_HARD_ASSET, "other", 0)
-        if len(canonical) > SITE_HEALTH_MAX_URL_CHARS:
-            return UrlAdmission(False, None, URL_EXCLUSION_INVALID, "other", 0)
+        if canonical_rejection:
+            return UrlAdmission(False, None, canonical_rejection, "other", 0)
     except UrlPolicyError:
         return UrlAdmission(False, None, URL_EXCLUSION_INVALID, "other", 0)
     kind = page_value_kind(canonical)
@@ -342,6 +360,29 @@ def _normalize_path(path: str) -> str:
     return quote(decoded, safe="/%:@!$&'()*+,;=~-._")
 
 
+def _canonical_netloc(parts, scheme: str) -> str:
+    if (
+        parts.username is not None
+        or parts.password is not None
+        or ("@" in parts.netloc)
+    ):
+        raise UrlPolicyError("userinfo (credentials) not allowed in URL")
+    host = _idna_host(parts.hostname or "")
+    if not host:
+        raise UrlPolicyError("missing host")
+    try:
+        port = parts.port
+    except ValueError as exc:
+        raise UrlPolicyError("invalid port") from exc
+    if port is None:
+        port = _DEFAULT_PORTS.get(scheme)
+    if port is None or int(port) not in ALLOWED_URL_PORTS:
+        raise UrlPolicyError(f"port not allowed: {port}")
+    if _DEFAULT_PORTS.get(scheme) == int(port):
+        return host
+    return f"{host}:{int(port)}"
+
+
 def canonicalize(url: str, *, base_url: str | None = None) -> str:
     """Return the canonical identity of ``url`` or raise ``UrlPolicyError``.
 
@@ -363,32 +404,7 @@ def canonicalize(url: str, *, base_url: str | None = None) -> str:
     if scheme not in ALLOWED_URL_SCHEMES:
         raise UrlPolicyError(f"scheme not allowed: {scheme or '(none)'}")
 
-    # Reject credentials-in-URL (userinfo) outright.
-    if (
-        parts.username is not None
-        or parts.password is not None
-        or ("@" in parts.netloc)
-    ):
-        raise UrlPolicyError("userinfo (credentials) not allowed in URL")
-
-    host = _idna_host(parts.hostname or "")
-    if not host:
-        raise UrlPolicyError("missing host")
-
-    try:
-        port = parts.port
-    except ValueError as exc:
-        raise UrlPolicyError("invalid port") from exc
-    if port is None:
-        port = _DEFAULT_PORTS.get(scheme)
-    if port is None or int(port) not in ALLOWED_URL_PORTS:
-        raise UrlPolicyError(f"port not allowed: {port}")
-
-    # Strip the port from netloc when it is the scheme default.
-    netloc = host
-    if _DEFAULT_PORTS.get(scheme) != int(port):
-        netloc = f"{host}:{int(port)}"
-
+    netloc = _canonical_netloc(parts, scheme)
     path = _normalize_path(parts.path)
     query = _normalize_query(parts.query)
     # Fragment always dropped.

@@ -447,13 +447,17 @@ def _share_of_voice(
     }
 
 
-def _headline_aggregates(scores, total):
+def _headline_mention_counts(scores):
     mention = sum(bool(score.get("brand_mentioned")) for score in scores)
     owned = sum(bool(score.get("owned_domain_cited")) for score in scores)
     both = sum(
         bool(score.get("brand_mentioned") and score.get("owned_domain_cited"))
         for score in scores
     )
+    return mention, owned, both
+
+
+def _headline_query_counts(scores):
     non_branded = [
         score for score in scores if score.get("prompt_class") == "non_branded"
     ]
@@ -464,6 +468,24 @@ def _headline_aggregates(scores, total):
         score for score in scores if score.get("search_query_text_available", True)
     ]
     total_queries = sum(int(score.get("search_query_count") or 0) for score in scores)
+    return query_scores, all_query_scores, total_queries
+
+
+def _headline_counts(scores):
+    mention, owned, both = _headline_mention_counts(scores)
+    query_scores, all_query_scores, total_queries = _headline_query_counts(scores)
+    return mention, owned, both, query_scores, all_query_scores, total_queries
+
+
+def _headline_aggregates(scores, total):
+    (
+        mention,
+        owned,
+        both,
+        query_scores,
+        all_query_scores,
+        total_queries,
+    ) = _headline_counts(scores)
     return {
         "brand_mention_rate": _rate(mention, total),
         "owned_citation_rate": _rate(owned, total),

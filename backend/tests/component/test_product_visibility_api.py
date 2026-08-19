@@ -48,7 +48,7 @@ from app.models.brand import Competitor
 from app.models.product import CompetitorProduct, Product
 from app.models.user import User
 from app.models.workspace import WorkspaceMember
-from app.workers import audit_worker
+from app.workers.audit import execution as audit_execution
 from app.workers.audit_worker import AuditWorker
 from tests.component.audit_helpers import seed_audit_fixtures
 
@@ -100,7 +100,7 @@ def _stub_adapter(monkeypatch: pytest.MonkeyPatch):
     def _build(**_: object) -> _ProductStubAdapter:
         return _ProductStubAdapter()
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _build)
+    monkeypatch.setattr(audit_execution, "build_adapter", _build)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -199,7 +199,7 @@ async def test_visibility_defaults_to_latest_and_explicit_audit(
     def _boom(**_: object):
         raise AssertionError("projection must not call a provider (invariant 7)")
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _boom)
+    monkeypatch.setattr(audit_execution, "build_adapter", _boom)
 
     # Default resolves to the LATEST completed audit with product snapshots.
     default = await client.get(

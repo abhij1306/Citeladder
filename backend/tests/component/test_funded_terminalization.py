@@ -61,7 +61,7 @@ from app.models.audit import (
     RawResponseArtifact,
 )
 from app.models.billing import BillingAccount, ConsumableLedger
-from app.workers import audit_worker
+from app.workers.audit import execution as audit_execution
 from app.workers.audit_worker import AuditWorker
 from tests.component.audit_helpers import (
     Seed,
@@ -503,11 +503,11 @@ async def test_unknown_pricing_skips_projection_and_task_still_succeeds(
             repetitions=1,
             random_seed="1",
         )
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: _StubAdapter())
+    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: _StubAdapter())
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
     # An unknown catalog version makes the live pricing lookup return None.
-    monkeypatch.setattr(audit_worker, "PRICING_CATALOG_VERSION", "v0-unknown-test")
+    monkeypatch.setattr(audit_execution, "PRICING_CATALOG_VERSION", "v0-unknown-test")
 
     worker = AuditWorker(session_factory=session_factory, owner="w-pricing")
     with capture_log_messages("app.workers.audit_worker") as messages:

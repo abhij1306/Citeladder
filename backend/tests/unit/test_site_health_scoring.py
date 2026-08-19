@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import pytest
 
+from app.analysis.site_health.score_aggregation import aggregate_by_page_kind
 from app.analysis.site_health.scoring import (
     AnalysisScoreInput,
     PageKindScoreInput,
     _Scored,
-    aggregate_by_page_kind,
     aggregate_scores,
     overall_score,
     score_analysis,

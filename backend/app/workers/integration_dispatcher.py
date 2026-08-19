@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
 import httpx
@@ -52,7 +53,7 @@ from app.core.config.integrations_transport import (
 from app.core.database import SessionLocal
 from app.core.security import decrypt_secret
 from app.core.telemetry import configure_logging
-from app.domain.integrations.service import IntegrationConnectionNotFoundError
+from app.domain.integrations.errors import IntegrationConnectionNotFoundError
 from app.domain.integrations.sync import (
     ActiveWindowConflictError,
     SyncWindowInvalidError,
@@ -69,6 +70,20 @@ logger = logging.getLogger("app.workers.integration_dispatcher")
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+@dataclass(frozen=True)
+class RevokeMaterial:
+    workspace_id: uuid.UUID
+    transport: str
+    revoke_url: str
+    token: str
+
+
+@dataclass(frozen=True)
+class RevokeOutcome:
+    succeeded: bool
+    error_code: str = ""
 
 
 class IntegrationDispatcher:
@@ -233,40 +248,53 @@ class IntegrationDispatcher:
         a fresh row lock with a status re-check so a concurrent resolution
         (another tick, a later manual path) is never clobbered.
         """
+        material = await self._load_revoke_material(grant_id)
+        if material is None:
+            return False
+        outcome = await self._revoke_remote(material)
+        return await self._persist_revoke_outcome(grant_id, material, outcome)
+
+    async def _load_revoke_material(self, grant_id: uuid.UUID) -> RevokeMaterial | None:
         async with self._session_factory() as session:
             grant = await session.get(IntegrationOAuthGrant, grant_id)
             if grant is None or grant.status != GRANT_STATUS_PENDING_REVOCATION:
-                return False
-            workspace_id = grant.workspace_id
-            transport = grant.transport
+                return None
+            revoke_url = INTEGRATION_OAUTH_REVOKE_URLS[grant.transport]
             token = ""
-            if INTEGRATION_OAUTH_REVOKE_URLS[transport]:
+            if revoke_url:
                 try:
                     token = decrypt_secret(
                         grant.refresh_token_encrypted or grant.access_token_encrypted
                     )
                 except Exception:  # noqa: BLE001 - undecryptable: resolve locally
-                    token = ""
-
-        revoke_url = INTEGRATION_OAUTH_REVOKE_URLS[transport]
-        remote_ok = True
-        remote_error_code = ""
-        if revoke_url and token:
-            client = integration_oauth.build_oauth_client(
-                transport, transport=self._transport
+                    pass
+            return RevokeMaterial(
+                workspace_id=grant.workspace_id,
+                transport=grant.transport,
+                revoke_url=revoke_url,
+                token=token,
             )
-            try:
-                await client.revoke(token=token)
-            except integration_oauth.IntegrationOAuthError as exc:
-                remote_ok = False
-                remote_error_code = exc.error_code
-            except Exception:  # noqa: BLE001 - any transport fault = failed revoke
-                remote_ok = False
-                remote_error_code = ERROR_PROVIDER_API
-        # No revoke URL (Microsoft) or an undecryptable retained token: the
-        # documented local-only resolution — the grant can never leave
-        # pending_revocation remotely, so it is revoked locally.
 
+    async def _revoke_remote(self, material: RevokeMaterial) -> RevokeOutcome:
+        if not material.revoke_url or not material.token:
+            return RevokeOutcome(succeeded=True)
+        client = integration_oauth.build_oauth_client(
+            material.transport, transport=self._transport
+        )
+        try:
+            await client.revoke(token=material.token)
+        except integration_oauth.IntegrationOAuthError as exc:
+            return RevokeOutcome(succeeded=False, error_code=exc.error_code)
+        except Exception:  # noqa: BLE001 - any transport fault = failed revoke
+            return RevokeOutcome(succeeded=False, error_code=ERROR_PROVIDER_API)
+        return RevokeOutcome(succeeded=True)
+
+    async def _persist_revoke_outcome(
+        self,
+        grant_id: uuid.UUID,
+        material: RevokeMaterial,
+        outcome: RevokeOutcome,
+    ) -> bool:
         async with self._session_factory() as session:
             grant = await session.get(
                 IntegrationOAuthGrant, grant_id, with_for_update=True
@@ -274,24 +302,26 @@ class IntegrationDispatcher:
             if grant is None or grant.status != GRANT_STATUS_PENDING_REVOCATION:
                 await session.commit()  # resolved concurrently; nothing staged
                 return False
-            if remote_ok:
+            if outcome.succeeded:
                 grant.status = GRANT_STATUS_REVOKED
                 grant.access_token_encrypted = ""
                 grant.refresh_token_encrypted = ""
                 grant.token_expires_at = None
                 session.add(
                     IntegrationEvent(
-                        workspace_id=workspace_id,
+                        workspace_id=material.workspace_id,
                         grant_id=grant_id,
                         event_type=EVENT_INTEGRATION_REVOKED,
                         message=(
                             "Grant revoked at provider (dispatcher retry)"
-                            if revoke_url and token
+                            if material.revoke_url and material.token
                             else "Grant revoked locally (no remote revoke possible)"
                         ),
                         payload={
-                            "transport": transport,
-                            "remote_revoke": bool(revoke_url and token),
+                            "transport": material.transport,
+                            "remote_revoke": bool(
+                                material.revoke_url and material.token
+                            ),
                             "dispatcher": self.owner,
                         },
                     )
@@ -300,19 +330,19 @@ class IntegrationDispatcher:
                 # Tokens stay retained for the next tick (spec §5).
                 session.add(
                     IntegrationEvent(
-                        workspace_id=workspace_id,
+                        workspace_id=material.workspace_id,
                         grant_id=grant_id,
                         event_type=EVENT_INTEGRATION_REVOKE_FAILED,
                         message="Remote revoke retry failed; tokens retained",
                         payload={
-                            "transport": transport,
-                            "error_code": remote_error_code,
+                            "transport": material.transport,
+                            "error_code": outcome.error_code,
                             "dispatcher": self.owner,
                         },
                     )
                 )
             await session.commit()
-            return remote_ok
+            return outcome.succeeded
 
 
 def main() -> None:  # pragma: no cover - process entrypoint

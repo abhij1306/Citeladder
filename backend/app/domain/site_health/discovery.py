@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import codecs
 import re
+from typing import Any
 
 from lxml import etree
 from lxml import html as lxml_html
@@ -83,6 +84,69 @@ def _safe_parser_encoding(charset: str) -> str | None:
     return normalized.lower()
 
 
+def _parse_discovery_document(body: bytes, charset: str) -> tuple[str, Any | None]:
+    if not body:
+        return "", None
+    parser = lxml_html.HTMLParser(
+        recover=True,
+        encoding=_safe_parser_encoding(charset),
+        no_network=True,
+    )
+    try:
+        root = lxml_html.document_fromstring(body, parser=parser)
+    except (etree.ParserError, ValueError):
+        return "", None
+    if root is None:
+        return "", None
+    title_node = next(root.iter("title"), None)
+    if title_node is None:
+        return "", root
+    title_text = "".join(
+        text if isinstance(text, str) else text.decode("utf-8", "replace")
+        for text in title_node.itertext()
+    )
+    return title_text.strip()[:1024], root
+
+
+def _admit_discovery_href(
+    href: str,
+    *,
+    base_url: str,
+    root_registrable_domain: str,
+    include_globs: list[str] | None,
+    exclude_globs: list[str] | None,
+    ordinal: int,
+) -> DiscoveredLink | None:
+    if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
+        return None
+    rewritten_href, rewrite_reason, rewrite_version = _rewrite_extracted_href(href)
+    try:
+        candidate_href = (
+            canonicalize(rewritten_href, base_url=base_url)
+            if rewrite_reason
+            else rewritten_href
+        )
+    except UrlPolicyError:
+        return None
+    admission = classify_url_admission(
+        candidate_href,
+        base_url=base_url,
+        root_registrable_domain=root_registrable_domain,
+        include_globs=include_globs,
+        exclude_globs=exclude_globs,
+    )
+    if not admission.accepted or not admission.canonical_url:
+        return None
+    canonical, url_hash = canonical_identity(admission.canonical_url)
+    return DiscoveredLink(
+        url=canonical,
+        url_hash=url_hash,
+        ordinal=ordinal,
+        rewrite_reason=rewrite_reason,
+        rewrite_version=rewrite_version,
+    )
+
+
 def extract_discovery_links(
     body: bytes,
     *,
@@ -95,30 +159,10 @@ def extract_discovery_links(
 ) -> tuple[str, list[DiscoveredLink]]:
     """Parse HTML into a title and bounded, canonical, in-scope links."""
     limit = max_links or site_health_settings.max_links_per_page
-    title = ""
+    title, root = _parse_discovery_document(body, charset)
     links: list[DiscoveredLink] = []
-    if not body:
-        return title, links
-
-    parser = lxml_html.HTMLParser(
-        recover=True,
-        encoding=_safe_parser_encoding(charset),
-        no_network=True,
-    )
-    try:
-        root = lxml_html.document_fromstring(body, parser=parser)
-    except (etree.ParserError, ValueError):
-        return title, links
     if root is None:
         return title, links
-
-    title_node = next(root.iter("title"), None)
-    if title_node is not None:
-        title_text = "".join(
-            text if isinstance(text, str) else text.decode("utf-8", "replace")
-            for text in title_node.itertext()
-        )
-        title = title_text.strip()[:1024]
 
     seen: set[str] = set()
     ordinal = 0
@@ -127,39 +171,22 @@ def extract_discovery_links(
         if not href:
             continue
         href = href.strip()
-        if not href or href.startswith(("#", "javascript:", "mailto:", "tel:")):
-            continue
-        rewritten_href, rewrite_reason, rewrite_version = _rewrite_extracted_href(href)
-        try:
-            candidate_href = (
-                canonicalize(rewritten_href, base_url=base_url)
-                if rewrite_reason
-                else rewritten_href
-            )
-        except UrlPolicyError:
-            continue
-        admission = classify_url_admission(
-            candidate_href,
+        href = href.strip()
+        link = _admit_discovery_href(
+            href,
             base_url=base_url,
             root_registrable_domain=root_registrable_domain,
             include_globs=include_globs,
             exclude_globs=exclude_globs,
+            ordinal=ordinal,
         )
-        if not admission.accepted or not admission.canonical_url:
+        if link is None:
             continue
-        canonical, url_hash = canonical_identity(admission.canonical_url)
+        url_hash = link.url_hash
         if url_hash in seen:
             continue
         seen.add(url_hash)
-        links.append(
-            DiscoveredLink(
-                url=canonical,
-                url_hash=url_hash,
-                ordinal=ordinal,
-                rewrite_reason=rewrite_reason,
-                rewrite_version=rewrite_version,
-            )
-        )
+        links.append(link)
         ordinal += 1
         if len(links) >= limit:
             break

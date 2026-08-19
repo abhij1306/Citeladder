@@ -12,7 +12,6 @@ from sqlalchemy.engine import make_url
 
 # backend/app/core/config/__init__.py -> parents[3] == backend/
 BASE_DIR = Path(__file__).resolve().parents[3]
-# repo root (CiteLadder/) holds the shared .env used by docker + local dev.
 PROJECT_ROOT = BASE_DIR.parent
 
 _INSECURE_DEFAULTS = {

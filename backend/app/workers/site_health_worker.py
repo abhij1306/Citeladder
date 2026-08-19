@@ -36,14 +36,11 @@ from collections.abc import AsyncIterator
 
 import httpx
 from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.connectors.web_evidence.browser_transport import PatchrightTransport
 from app.connectors.web_evidence.contracts import (
-    AcquisitionProvenance,
     DnsResolver,
-    FetchCallTrace,
     FetchResult,
     ResolvedTarget,
 )
@@ -51,22 +48,13 @@ from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.resolver import SystemDnsResolver
 from app.connectors.web_evidence.robots import RobotsPolicy
 from app.connectors.web_evidence.url_policy import (
-    classify_url_admission,
     split_host_port,
 )
-from app.core.config.site_health_acquisition import (
-    FETCH_ATTEMPT_OUTCOME_ERROR,
-    FETCH_ATTEMPT_OUTCOME_SUCCESS,
-    FETCH_PURPOSE_DISCOVER,
-)
+from app.core.config.site_health_acquisition import FETCH_PURPOSE_DISCOVER
 from app.core.config.site_health_contracts import (
     CRAWL_STATUS_RUNNING,
     CRAWL_TERMINAL_STATUSES,
-    DISCOVERY_STATUS_COMPLETED,
-    DISCOVERY_STATUS_RUNNING,
     EXTRACTOR_VERSION,
-    OBSERVATION_SOURCE_LINK,
-    OBSERVATION_SOURCE_ROOT,
     TASK_KIND_ANALYZE,
     TASK_KIND_CHANGE_INTEL,
     TASK_KIND_DISCOVER,
@@ -80,30 +68,32 @@ from app.core.config.site_health_runtime import (
 from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging
-from app.domain.site_health.normalization import (
-    canonical_identity,
-)
 from app.domain.site_health.schemas import (
     DiscoveryOutput,
-)
-from app.domain.site_health.selection import (
-    crawl_is_active,
-    lease_is_owned,
 )
 from app.domain.site_health.state_events import (
     apply_crawl_status,
 )
-from app.models.site_health.acquisition import SiteFetchArtifact, SiteFetchAttempt
-from app.models.site_health.crawl import SiteCrawl, SiteDiscoveryFrontier
+from app.domain.site_health.task_guards import (
+    crawl_is_active,
+    lease_is_owned,
+)
+from app.models.site_health.acquisition import SiteFetchArtifact
+from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
-from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.drain import DrainableWorkerMixin
 from app.workers.site_health import CrawlLifecycle, HostGate
+from app.workers.site_health.attempt_rows import (
+    acquisition_values,
+    diagnostic_attempt,
+    traced_attempt,
+)
 from app.workers.site_health.helpers import (
     _serialize_redirect_chain,
     _utcnow,
 )
+from app.workers.site_health.observation_rows import write_observation
 from app.workers.site_health.outcomes import AnalyzeOutcome as _AnalyzeOutcome
 from app.workers.site_health.outcomes import DiscoverOutcome as _DiscoverOutcome
 from app.workers.site_health.phases import (
@@ -116,43 +106,6 @@ from app.workers.site_health.phases import (
 from app.workers.site_health.urls import authority_key as _authority_key
 
 logger = logging.getLogger("app.workers.site_health_worker")
-
-# Outcome tokens for the append-only ``SiteFetchAttempt.outcome`` column —
-# config-owned (invariant 1) and shared with the read projections
-# (``domain/site_health/failure.load_root_errors`` filters on the error one).
-_OUTCOME_SUCCESS = FETCH_ATTEMPT_OUTCOME_SUCCESS
-_OUTCOME_ERROR = FETCH_ATTEMPT_OUTCOME_ERROR
-
-
-def _acquisition_values(
-    acquisition: AcquisitionProvenance | None,
-) -> dict[str, object]:
-    """Return the safe acquisition columns for one immutable evidence row.
-
-    ``AcquisitionProvenance`` is credential-free by contract. Copying it while
-    constructing each row preserves the exact ladder used without mutating
-    previously persisted attempts or artifacts.
-    """
-    if acquisition is None:
-        return {
-            "acquisition_transport": "",
-            "acquisition_rung": None,
-            "acquisition_trigger": "",
-            "impersonation_profile": "",
-            "acquisition_options": None,
-            "acquisition_policy_version": "",
-        }
-    return {
-        "acquisition_transport": acquisition.transport[:32],
-        "acquisition_rung": acquisition.rung,
-        "acquisition_trigger": acquisition.trigger[:32],
-        "impersonation_profile": acquisition.impersonation_profile[:64],
-        "acquisition_options": (
-            dict(acquisition.options) if acquisition.options else None
-        ),
-        "acquisition_policy_version": acquisition.policy_version[:32],
-    }
-
 
 # Floor for the heartbeat cadence. The configured interval is the operative
 # value (validated positive and strictly below the lease TTL); this only stops
@@ -398,8 +351,6 @@ class SiteHealthWorker(
             # interpreter strands it for the container's lifetime.
             await self.aclose()
 
-    # --- per-task execution ------------------------------------------------
-
     async def _prepare_claimed_task(
         self,
         *,
@@ -510,8 +461,6 @@ class SiteHealthWorker(
         if crawl.started_at is None:
             crawl.started_at = _utcnow()
         apply_crawl_status(crawl, CRAWL_STATUS_RUNNING)
-
-    # --- v2 P2: robots policy cache + site setup ---------------------------
 
     async def _heartbeat_loop(
         self, task_id: uuid.UUID
@@ -648,7 +597,7 @@ class SiteHealthWorker(
             latency_ms=result.latency_ms,
             wire_bytes=result.wire_bytes,
             decoded_bytes=result.decoded_bytes,
-            **_acquisition_values(result.acquisition),
+            **acquisition_values(result.acquisition),
             extractor_version=crawl.extractor_version or EXTRACTOR_VERSION,
             normalized_facts=normalized_facts,
         )
@@ -675,109 +624,13 @@ class SiteHealthWorker(
         pre-created inventory row) and refreshes its lightweight state.
         """
         # The observation's own URL identity: the requested URL's SiteUrl row.
-        site_url_id = await self._resolve_site_url_id(
-            session, crawl=crawl, url=output.requested_url, depth=depth
-        )
-        if site_url_id is None:
-            return
-        # Refresh the lightweight discovery state on the identity row.
-        site_url = await session.get(SiteUrl, site_url_id)
-        if site_url is not None:
-            site_url.latest_title = (output.title or "")[:1024]
-            site_url.latest_content_type = (output.content_type or "")[:128]
-            site_url.last_seen_crawl_id = crawl.id
-            site_url.discovery_status = DISCOVERY_STATUS_COMPLETED
-        value = classify_url_admission(task.requested_url)
-        rewrite = (
-            await session.execute(
-                select(
-                    SiteDiscoveryFrontier.rewrite_reason,
-                    SiteDiscoveryFrontier.rewrite_version,
-                ).where(
-                    SiteDiscoveryFrontier.crawl_id == crawl.id,
-                    SiteDiscoveryFrontier.url_hash == task.url_hash,
-                )
-            )
-        ).one_or_none()
-        await session.execute(
-            pg_insert(SiteUrlObservation)
-            .values(
-                workspace_id=crawl.workspace_id,
-                project_id=crawl.project_id,
-                crawl_id=crawl.id,
-                site_url_id=site_url_id,
-                source_kind=(
-                    OBSERVATION_SOURCE_ROOT if depth == 0 else OBSERVATION_SOURCE_LINK
-                ),
-                parent_site_url_id=task.parent_site_url_id,
-                source_artifact_id=artifact_id,
-                phase_run_id=task.phase_run_id,
-                value_kind=value.value_kind,
-                value_priority=value.priority,
-                rewrite_reason=rewrite[0] if rewrite else "",
-                rewrite_version=rewrite[1] if rewrite else "",
-                depth=depth,
-                observed_url=output.requested_url,
-                final_url=output.final_url,
-                status_code=output.status_code,
-                content_type=(output.content_type or "")[:128],
-                title=(output.title or "")[:1024],
-            )
-            .on_conflict_do_nothing(index_elements=["crawl_id", "site_url_id"])
-        )
-
-    async def _resolve_site_url_id(
-        self,
-        session: AsyncSession,
-        *,
-        crawl: SiteCrawl,
-        url: str,
-        depth: int,
-    ) -> uuid.UUID | None:
-        """Return the SiteUrl id for ``url``, creating it conflict-safely.
-
-        Child URLs already have an identity from admission, but the root's
-        identity is created here on its first (depth 0) fetch. Uses the same
-        ``ON CONFLICT (project_id, url_hash) DO NOTHING`` pattern as admission.
-        """
-        try:
-            canonical, url_hash_value = canonical_identity(url)
-        except Exception:
-            return None
-        try:
-            host, _port = split_host_port(canonical)
-        except Exception:
-            host = ""
-        now = _utcnow()
-        inserted_id = await session.scalar(
-            pg_insert(SiteUrl)
-            .values(
-                workspace_id=crawl.workspace_id,
-                project_id=crawl.project_id,
-                normalized_url=canonical,
-                url_hash=url_hash_value,
-                display_url=canonical,
-                host=host[:255],
-                depth=depth,
-                discovery_status=DISCOVERY_STATUS_RUNNING,
-                latest_source_kind=(
-                    OBSERVATION_SOURCE_ROOT if depth == 0 else OBSERVATION_SOURCE_LINK
-                ),
-                first_seen_crawl_id=crawl.id,
-                last_seen_crawl_id=crawl.id,
-                first_seen_at=now,
-                last_seen_at=now,
-            )
-            .on_conflict_do_nothing(index_elements=["project_id", "url_hash"])
-            .returning(SiteUrl.id)
-        )
-        if inserted_id is not None:
-            return inserted_id
-        return await session.scalar(
-            select(SiteUrl.id).where(
-                SiteUrl.project_id == crawl.project_id,
-                SiteUrl.url_hash == url_hash_value,
-            )
+        await write_observation(
+            session,
+            crawl=crawl,
+            task=task,
+            output=output,
+            depth=depth,
+            artifact_id=artifact_id,
         )
 
     def _write_attempt(
@@ -818,7 +671,7 @@ class SiteHealthWorker(
         trace = outcome.attempts
         if not trace:
             session.add(
-                self._diagnostic_attempt(
+                diagnostic_attempt(
                     crawl=crawl,
                     task=task,
                     outcome=outcome,
@@ -834,7 +687,7 @@ class SiteHealthWorker(
         for index, entry in enumerate(trace):
             is_final = index == last_index
             session.add(
-                self._traced_attempt(
+                traced_attempt(
                     crawl=crawl,
                     task=task,
                     outcome=outcome,
@@ -845,92 +698,6 @@ class SiteHealthWorker(
                     attempt_number=attempt_number,
                 )
             )
-
-    @staticmethod
-    def _attempt_host(url: str) -> str:
-        try:
-            host, _port = split_host_port(url)
-        except Exception:
-            return ""
-        return host[:255]
-
-    @staticmethod
-    def _trace_outcome(
-        entry: FetchCallTrace, *, is_final: bool, succeeded: bool, error_code: str
-    ) -> tuple[str, str]:
-        if entry.error_code:
-            return _OUTCOME_ERROR, entry.error_code
-        if is_final and not succeeded:
-            return _OUTCOME_ERROR, error_code
-        if entry.status_code is not None and entry.status_code >= 400:
-            return _OUTCOME_ERROR, ""
-        return _OUTCOME_SUCCESS, ""
-
-    def _diagnostic_attempt(
-        self,
-        *,
-        crawl: SiteCrawl,
-        task: SiteCrawlTask,
-        outcome: _DiscoverOutcome | _AnalyzeOutcome,
-        succeeded: bool,
-        requested_url: str,
-        artifact_id: uuid.UUID | None,
-        attempt_number: int,
-    ) -> SiteFetchAttempt:
-        result = outcome.result
-        return SiteFetchAttempt(
-            task_id=task.id,
-            crawl_id=crawl.id,
-            workspace_id=crawl.workspace_id,
-            attempt_number=attempt_number,
-            request_ordinal=0,
-            method="GET",
-            target_host=self._attempt_host(requested_url),
-            outcome=_OUTCOME_SUCCESS if succeeded else _OUTCOME_ERROR,
-            error_code=outcome.error_code,
-            status_code=outcome.status_code,
-            latency_ms=outcome.latency_ms,
-            wire_bytes=result.wire_bytes if result is not None else None,
-            decoded_bytes=result.decoded_bytes if result is not None else None,
-            **_acquisition_values(result.acquisition if result is not None else None),
-            artifact_id=artifact_id,
-        )
-
-    def _traced_attempt(
-        self,
-        *,
-        crawl: SiteCrawl,
-        task: SiteCrawlTask,
-        outcome: _DiscoverOutcome | _AnalyzeOutcome,
-        entry: FetchCallTrace,
-        succeeded: bool,
-        is_final: bool,
-        artifact_id: uuid.UUID | None,
-        attempt_number: int,
-    ) -> SiteFetchAttempt:
-        row_outcome, row_error = self._trace_outcome(
-            entry,
-            is_final=is_final,
-            succeeded=succeeded,
-            error_code=outcome.error_code,
-        )
-        return SiteFetchAttempt(
-            task_id=task.id,
-            crawl_id=crawl.id,
-            workspace_id=crawl.workspace_id,
-            attempt_number=attempt_number,
-            request_ordinal=entry.request_ordinal,
-            method=(entry.method or "GET")[:8],
-            target_host=self._attempt_host(entry.url),
-            outcome=row_outcome,
-            error_code=row_error,
-            status_code=entry.status_code,
-            latency_ms=entry.latency_ms,
-            wire_bytes=entry.wire_bytes,
-            decoded_bytes=entry.decoded_bytes,
-            **_acquisition_values(entry.acquisition),
-            artifact_id=artifact_id if is_final and succeeded else None,
-        )
 
     async def _record_crash(self, task_id: uuid.UUID, exc: Exception) -> None:
         detail = f"{type(exc).__name__}: {exc}"
@@ -982,15 +749,6 @@ class SiteHealthWorker(
                 error_code=error_code,
                 error_detail=error_detail,
             )
-
-    # --- analyze flow ------------------------------------------------------
-
-    # --- link-check flow ---------------------------------------------------
-
-    # --- crawl terminalization (delegated) ---------------------------------
-    # The exactly-once lifecycle lives in ``CrawlLifecycle``; these thin
-    # forwarders keep the worker's own call sites (task finalize, sweeper
-    # reclaim, stalled backstop) reading as before.
 
     async def _reconcile_crawl_status(self, crawl_id: uuid.UUID) -> None:
         await self._lifecycle.reconcile(crawl_id)

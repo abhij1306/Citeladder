@@ -82,6 +82,66 @@ class AttemptOutcome:
         return self.response is not None
 
 
+def _attempt_record(
+    row: ContentGeneration, *, attempt_number: int, outcome: AttemptOutcome
+) -> ContentGenerationAttempt:
+    response, error = outcome.response, outcome.error
+    return ContentGenerationAttempt(
+        content_generation_id=row.id,
+        attempt_number=attempt_number,
+        status=(
+            ATTEMPT_STATUS_SUCCEEDED if outcome.succeeded else ATTEMPT_STATUS_FAILED
+        ),
+        requested_model=row.requested_model,
+        returned_model=response.returned_model if response is not None else None,
+        finish_reason=response.finish_reason if response is not None else None,
+        error_code=error.error_code if error is not None else "",
+        error_detail=str(error)[:2000] if error is not None else "",
+        usage=dict(response.usage) if response is not None else None,
+        latency_ms=response.latency_ms if response is not None else None,
+    )
+
+
+def _apply_success(
+    row: ContentGeneration, response: DiscoveryResponse, now: datetime
+) -> None:
+    row.output_text = response.output_text
+    row.provider = response.provider
+    row.returned_model = response.returned_model
+    row.finish_reason = response.finish_reason
+    row.output_truncated = response.finish_reason == FINISH_REASON_LENGTH
+    row.usage = dict(response.usage)
+    row.latency_ms = response.latency_ms
+    row.status = TASK_STATUS_SUCCEEDED
+    row.completed_at = now
+    row.error_code = ""
+    row.error_detail = ""
+
+
+def _apply_failure(
+    row: ContentGeneration,
+    *,
+    error: ProviderError | None,
+    attempt_number: int,
+    now: datetime,
+) -> None:
+    if error is not None and error.retryable and attempt_number < row.max_attempts:
+        delay = content_settings.retry_delay(attempt_number, error.retry_after_seconds)
+        row.status = TASK_STATUS_RETRY_WAIT
+        row.available_at = now + timedelta(seconds=delay)
+        row.error_code = error.error_code
+        row.error_detail = str(error)[:2000]
+        return
+    row.status = TASK_STATUS_FAILED
+    row.completed_at = now
+    row.error_code = (
+        error.error_code
+        if error is not None and not error.retryable
+        else CONTENT_QUEUE_SPEC.max_attempts_error
+    )
+    row.error_detail = str(error)[:2000] if error is not None else ""
+
+
 class ContentWorker(DrainableWorkerMixin):
     """Claim/lease loop for ``ContentGeneration`` rows.
 
@@ -314,28 +374,8 @@ class ContentWorker(DrainableWorkerMixin):
 
             attempt_number = row.attempt_count + 1
             row.attempt_count = attempt_number
-            response, error = outcome.response, outcome.error
             session.add(
-                ContentGenerationAttempt(
-                    content_generation_id=row.id,
-                    attempt_number=attempt_number,
-                    status=(
-                        ATTEMPT_STATUS_SUCCEEDED
-                        if outcome.succeeded
-                        else ATTEMPT_STATUS_FAILED
-                    ),
-                    requested_model=row.requested_model,
-                    returned_model=(
-                        response.returned_model if response is not None else None
-                    ),
-                    finish_reason=(
-                        response.finish_reason if response is not None else None
-                    ),
-                    error_code=error.error_code if error is not None else "",
-                    error_detail=str(error)[:2000] if error is not None else "",
-                    usage=dict(response.usage) if response is not None else None,
-                    latency_ms=(response.latency_ms if response is not None else None),
-                )
+                _attempt_record(row, attempt_number=attempt_number, outcome=outcome)
             )
 
             if cancelled:
@@ -345,39 +385,15 @@ class ContentWorker(DrainableWorkerMixin):
                 return True
 
             if outcome.succeeded:
-                assert response is not None  # succeeded == response is not None
-                row.output_text = response.output_text
-                row.provider = response.provider
-                row.returned_model = response.returned_model
-                row.finish_reason = response.finish_reason
-                row.output_truncated = response.finish_reason == FINISH_REASON_LENGTH
-                row.usage = dict(response.usage)
-                row.latency_ms = response.latency_ms
-                row.status = TASK_STATUS_SUCCEEDED
-                row.completed_at = now
-                row.error_code = ""
-                row.error_detail = ""
-            elif (
-                error is not None
-                and error.retryable
-                and (attempt_number < row.max_attempts)
-            ):
-                delay = content_settings.retry_delay(
-                    attempt_number, error.retry_after_seconds
-                )
-                row.status = TASK_STATUS_RETRY_WAIT
-                row.available_at = now + timedelta(seconds=delay)
-                row.error_code = error.error_code
-                row.error_detail = str(error)[:2000]
+                assert outcome.response is not None
+                _apply_success(row, outcome.response, now)
             else:
-                row.status = TASK_STATUS_FAILED
-                row.completed_at = now
-                if error is not None and not error.retryable:
-                    row.error_code = error.error_code
-                    row.error_detail = str(error)[:2000]
-                else:
-                    row.error_code = CONTENT_QUEUE_SPEC.max_attempts_error
-                    row.error_detail = str(error)[:2000] if error is not None else ""
+                _apply_failure(
+                    row,
+                    error=outcome.error,
+                    attempt_number=attempt_number,
+                    now=now,
+                )
             row.lease_owner = None
             row.lease_expires_at = None
             await session.commit()

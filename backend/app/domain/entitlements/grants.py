@@ -40,6 +40,85 @@ class GrantWriteError(ValueError):
     """A grant/revocation write failed validation or conflicted."""
 
 
+def _validate_revocation_inputs(
+    *,
+    grant_ids: tuple[uuid.UUID, ...],
+    reason: str,
+    actor_kind: str,
+    idempotency_key: str,
+) -> None:
+    if actor_kind not in ACTOR_KINDS:
+        raise GrantWriteError(f"unknown actor kind: {actor_kind!r}")
+    if not reason or len(reason) > 255:
+        raise GrantWriteError("invalid reason")
+    if not idempotency_key or len(idempotency_key) > 255:
+        raise GrantWriteError("invalid idempotency_key")
+    if not grant_ids:
+        raise GrantWriteError("no grants to revoke")
+
+
+async def _load_revocation_grants(
+    session: AsyncSession, grant_ids: tuple[uuid.UUID, ...]
+) -> tuple[list[AccountGrant], set[uuid.UUID]]:
+    grants = list(
+        (
+            await session.execute(
+                select(AccountGrant).where(AccountGrant.id.in_(grant_ids))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if len({grant.id for grant in grants}) != len(set(grant_ids)):
+        raise GrantWriteError("grant not found")
+    account_ids = {grant.billing_account_id for grant in grants}
+    if len(account_ids) != 1:
+        raise GrantWriteError("revocations must target one account")
+    return grants, account_ids
+
+
+async def _existing_revocation_grants(
+    session: AsyncSession,
+    *,
+    grant_ids: tuple[uuid.UUID, ...],
+    idempotency_key: str,
+) -> set[uuid.UUID]:
+    return set(
+        (
+            await session.scalars(
+                select(GrantRevocation.grant_id).where(
+                    GrantRevocation.grant_id.in_(grant_ids),
+                    GrantRevocation.idempotency_key == idempotency_key,
+                )
+            )
+        ).all()
+    )
+
+
+def _build_revocations(
+    grants: list[AccountGrant],
+    *,
+    already: set[uuid.UUID],
+    effective_from: datetime,
+    reason: str,
+    actor_kind: str,
+    actor_user_id: uuid.UUID | None,
+    idempotency_key: str,
+) -> tuple[GrantRevocation, ...]:
+    return tuple(
+        GrantRevocation(
+            grant_id=grant.id,
+            effective_from=effective_from,
+            reason=reason,
+            actor_user_id=actor_user_id,
+            actor_kind=actor_kind,
+            idempotency_key=idempotency_key,
+        )
+        for grant in grants
+        if grant.id not in already
+    )
+
+
 def _validate_spec(spec: GrantSpec) -> None:
     definition = CAPABILITY_REGISTRY.get(spec.key)
     if definition is None:
@@ -210,49 +289,24 @@ async def revoke_grants(
     Never edits or deletes a grant or revocation: access ends because the
     resolver excludes grants with an effective revocation at ``at``.
     """
-    if actor_kind not in ACTOR_KINDS:
-        raise GrantWriteError(f"unknown actor kind: {actor_kind!r}")
-    if not reason or len(reason) > 255:
-        raise GrantWriteError("invalid reason")
-    if not idempotency_key or len(idempotency_key) > 255:
-        raise GrantWriteError("invalid idempotency_key")
-    if not grant_ids:
-        raise GrantWriteError("no grants to revoke")
-    grants = (
-        (
-            await session.execute(
-                select(AccountGrant).where(AccountGrant.id.in_(grant_ids))
-            )
-        )
-        .scalars()
-        .all()
+    _validate_revocation_inputs(
+        grant_ids=grant_ids,
+        reason=reason,
+        actor_kind=actor_kind,
+        idempotency_key=idempotency_key,
     )
-    if len({grant.id for grant in grants}) != len(set(grant_ids)):
-        raise GrantWriteError("grant not found")
-    account_ids = {grant.billing_account_id for grant in grants}
-    if len(account_ids) != 1:
-        raise GrantWriteError("revocations must target one account")
-    already = set(
-        (
-            await session.scalars(
-                select(GrantRevocation.grant_id).where(
-                    GrantRevocation.grant_id.in_(grant_ids),
-                    GrantRevocation.idempotency_key == idempotency_key,
-                )
-            )
-        ).all()
+    grants, account_ids = await _load_revocation_grants(session, grant_ids)
+    already = await _existing_revocation_grants(
+        session, grant_ids=grant_ids, idempotency_key=idempotency_key
     )
-    rows = tuple(
-        GrantRevocation(
-            grant_id=grant.id,
-            effective_from=effective_from,
-            reason=reason,
-            actor_user_id=actor_user_id,
-            actor_kind=actor_kind,
-            idempotency_key=idempotency_key,
-        )
-        for grant in grants
-        if grant.id not in already
+    rows = _build_revocations(
+        grants,
+        already=already,
+        effective_from=effective_from,
+        reason=reason,
+        actor_kind=actor_kind,
+        actor_user_id=actor_user_id,
+        idempotency_key=idempotency_key,
     )
     session.add_all(rows)
     if rows:

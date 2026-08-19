@@ -22,11 +22,11 @@ function topicErrorMessage(loadError?: boolean, actionError?: string | null): st
 /**
  * Topics selection (prompt library). Two responsive variants sharing one
  * selection model:
- *  - Desktop (md+): a contained, bordered `bg-panel` rail card listing the
+ *  - Desktop (lg+): a contained `bg-panel` rail listing the
  *    project's topics with per-status counts, an "All topics" bucket, an inline
  *    add-topic form, and per-topic delete.
- *  - Narrow (< md): a compact full-width Topics `<select>` stacked above the
- *    status tabs — the 240px rail track would crush the table, so the rail
+ *  - Narrow (< lg): a compact full-width Topics `<select>` stacked above the
+ *    status tabs — the desktop rail would crush the table, so the rail
  *    collapses to a selector, preserving the IA with no overlap.
  * Selection filters the prompt table; deleting a topic detaches its prompts
  * (backend `SET NULL`) — it never deletes them. Presentational — mutations
@@ -34,6 +34,7 @@ function topicErrorMessage(loadError?: boolean, actionError?: string | null): st
  */
 export function TopicRail({
   topics,
+  desktopId,
   selectedTopicId,
   onSelect,
   onCreate,
@@ -43,6 +44,7 @@ export function TopicRail({
   actionError,
 }: Readonly<{
   topics: Topic[];
+  desktopId?: string;
   /** null = "All topics". */
   selectedTopicId: string | null;
   onSelect: (topicId: string | null) => void;
@@ -86,8 +88,9 @@ export function TopicRail({
       {/* Desktop rail: raised shadow-card surface that clips its own content
           so nothing from the right pane can overlap it. */}
       <nav
+        id={desktopId}
         aria-label="Topics"
-        className="bg-panel shadow-card hidden min-w-0 content-start gap-1 overflow-hidden rounded-lg p-2 md:sticky md:top-4 md:grid"
+        className="bg-panel shadow-card hidden min-w-0 content-start gap-1 rounded-lg p-1.5 lg:sticky lg:top-4 lg:grid"
       >
         <div className="flex items-center justify-between px-1">
           <h3 className={eyebrowClasses}>Topics</h3>
@@ -147,7 +150,7 @@ export function TopicRail({
         ))}
       </nav>
 
-      {/* Narrow selector: full-width Topics <select> shown below the md
+      {/* Narrow selector: full-width Topics <select> shown below the lg
           breakpoint, stacked above the status tabs. */}
       <TopicSelect
         topics={topics}
@@ -160,7 +163,7 @@ export function TopicRail({
   );
 }
 
-/** Compact full-width Topics selector for narrow viewports (< md). */
+/** Compact full-width Topics selector for narrow viewports (< lg). */
 function TopicSelect({
   topics,
   selectedTopicId,
@@ -176,7 +179,7 @@ function TopicSelect({
 }>) {
   const labelId = useId();
   return (
-    <div className="mb-1 grid gap-1.5 md:hidden">
+    <div className="mb-1 grid gap-1.5 lg:hidden">
       <span id={labelId} className={eyebrowClasses}>
         Topics
       </span>
@@ -222,7 +225,7 @@ function TopicItem({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1 rounded-full pr-1',
+        'group flex min-w-0 items-center gap-0.5 rounded-sm pe-0.5',
         selected ? 'bg-accent-subtle' : 'hover:bg-background-alt',
       )}
     >
@@ -231,7 +234,7 @@ function TopicItem({
         onClick={onSelect}
         aria-current={selected ? 'true' : undefined}
         className={cn(
-          'focus-ring flex min-w-0 flex-1 items-center gap-2 rounded-full px-3 py-1.5 text-left text-sm',
+          'focus-ring flex min-w-0 flex-1 items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs',
           selected ? 'text-accent-text font-medium' : 'text-foreground',
         )}
       >
@@ -247,7 +250,12 @@ function TopicItem({
           type="button"
           aria-label={`Delete topic ${label}`}
           onClick={onDelete}
-          className="focus-ring text-muted hover:text-danger-text shrink-0 rounded-sm p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          className={cn(
+            'focus-ring text-muted hover:text-danger-text flex size-8 shrink-0 items-center justify-center rounded-sm transition-opacity motion-reduce:transition-none',
+            selected
+              ? 'opacity-100'
+              : 'opacity-60 group-focus-within:opacity-100 group-hover:opacity-100',
+          )}
         >
           <Trash2 className="size-4" aria-hidden />
         </button>

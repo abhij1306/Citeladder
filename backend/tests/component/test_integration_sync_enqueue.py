@@ -28,7 +28,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_QUEUED,
     TASK_STATUS_SUCCEEDED,
 )
-from app.domain.integrations.service import IntegrationConnectionNotFoundError
+from app.domain.integrations.errors import IntegrationConnectionNotFoundError
 from app.domain.integrations.sync import (
     ActiveWindowConflictError,
     SyncWindowInvalidError,

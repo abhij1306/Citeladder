@@ -69,7 +69,29 @@ TOPIC_ORIGINS: Final[frozenset[str]] = frozenset(
 )
 
 # --- Generation pipeline version (stamped into generation_evidence) --------
-GENERATOR_VERSION: Final = "prompt-gen-v4"
+GENERATOR_VERSION: Final = "prompt-gen-v6"
+
+# Minor words remain lowercase inside generated topic title case. The first
+# word is always capitalized; persisted acronyms supplied by the user retain
+# their casing.
+TOPIC_TITLE_MINOR_WORDS: Final[frozenset[str]] = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "as",
+        "at",
+        "but",
+        "by",
+        "for",
+        "in",
+        "of",
+        "on",
+        "or",
+        "the",
+        "to",
+    }
+)
 
 # --- Topical binding (project-identity prompt admission) -------------------
 # Outcome codes for ``BindingResult`` / the coded API errors built from it.
@@ -303,6 +325,9 @@ _GENERATION_SHARED_RULES: Final = (
     "- Use specific product/service categories or customer needs as topic names. "
     "Do not use generic funnel-stage topics such as Product Selection, Pricing, "
     "Returns, or Local Availability when a more concrete subject is known.\n"
+    "- For every new topic, use one exact name from the confirmed product/service "
+    "taxonomy supplied in the user message. Never derive a topic title from a "
+    "prompt sentence or search phrase.\n"
     "- Never make a complete search awkward by appending a redundant market, "
     "audience, or use-case clause. The rigid fallback standard also applies here: "
     "every generated row must sound like something a real user would type.\n"

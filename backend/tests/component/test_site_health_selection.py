@@ -49,23 +49,25 @@ from app.domain.site_health.entitlements import (
     resolve_runtime,
     runtime_allows_monitored_analysis,
 )
+from app.domain.site_health.monitored_seeding import seed_monitored_targets
 from app.domain.site_health.planner import (
     CrawlAlreadyActiveError,
     create_crawl,
 )
+from app.domain.site_health.rerun import rerun_page
 from app.domain.site_health.schemas import FrontierCandidate
 from app.domain.site_health.selection import (
     MonitoringNotAllowedError,
     QuotaExceededError,
     SelectionValidationError,
     StaleSelectionVersionError,
+    replace_monitored_set,
+)
+from app.domain.site_health.task_guards import (
     crawl_is_active,
     evaluate_task_guard,
     lease_is_owned,
     monitored_is_active,
-    replace_monitored_set,
-    rerun_page,
-    seed_monitored_targets,
 )
 from app.models.project import Project
 from app.models.site_health.crawl import SiteCrawl

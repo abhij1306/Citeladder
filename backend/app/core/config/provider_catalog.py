@@ -50,7 +50,6 @@ MEASUREMENT_MODES: Final[tuple[str, str]] = (
     MEASUREMENT_MODE_BENCHMARK,
 )
 
-# Execution-time reasoning values used by exact measurement routes and adapters.
 REASONING_EFFORT_OFF: Final = "off"
 REASONING_EFFORT_MINIMAL: Final = "minimal"
 REASONING_EFFORT_LOW: Final = "low"

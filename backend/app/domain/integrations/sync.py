@@ -48,11 +48,9 @@ from app.core.config.integrations_contracts import (
 from app.core.config.integrations_settings import (
     integration_settings,
 )
+from app.domain.integrations.errors import IntegrationConnectionNotFoundError
 from app.domain.integrations.schemas import IntegrationSyncRunResponse
-from app.domain.integrations.service import (
-    IntegrationConnectionNotFoundError,
-    get_connection,
-)
+from app.domain.integrations.service import get_connection
 from app.models.integrations import (
     IntegrationConnection,
     IntegrationImportArtifact,

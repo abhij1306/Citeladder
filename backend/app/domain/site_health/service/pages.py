@@ -14,6 +14,7 @@ from app.domain.site_health.service.common import (
     _clamp_limit,
     _load_crawl,
 )
+from app.domain.site_health.service.facts_projection import project_page_facts
 from app.domain.site_health.service.presentation import (
     _MAX_EVALUATIONS,
     _MAX_LINK_REFERENCES,
@@ -24,7 +25,6 @@ from app.domain.site_health.service.presentation import (
     _iso,
     _issue_row,
     _link_reference_row,
-    _page_facts,
     presentation_status_for,
 )
 from app.domain.site_health.service.queries import (
@@ -288,7 +288,7 @@ def _detail_response(
         "overall_score": analysis.overall_score if analysis is not None else None,
         "issue_count": len(issues) if analysis is not None else None,
         "last_audited": _iso(analysis.finalized_at) if analysis is not None else None,
-        "facts": _page_facts(facts),
+        "facts": project_page_facts(facts),
         "delivery": _delivery_facts(facts, html_bytes=html_bytes),
         "issues": issues,
         "evaluations": evaluations,

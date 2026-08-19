@@ -412,7 +412,9 @@ export function OnboardingScreen() {
           </div>
         </header>
 
-        {/* Step Stage Content — Top aligned across all steps so headers start at the same vertical offset */}
+        {/* Step Stage Content. The compact setup and discovery stages align their
+            heading with the desktop rail's "Set up your project" heading; the
+            wider review stage keeps its own centred composition. */}
         {/* The stage OWNS the vertical scroll. Its ancestors are
             `h-screen overflow-hidden`, so without this a review step taller
             than the viewport — or any step on a short laptop — clipped its
@@ -431,8 +433,9 @@ export function OnboardingScreen() {
         <main
           id="main"
           className={cn(
-            'mx-auto flex min-h-0 w-full flex-1 flex-col justify-center overflow-y-auto py-2 text-sm sm:py-3 lg:py-4',
+            'mx-auto flex min-h-0 w-full flex-1 flex-col overflow-y-auto py-2 text-sm sm:py-3 lg:py-4',
             step === 2 ? 'max-w-6xl' : 'max-w-xl',
+            step < 2 ? 'justify-start min-[900px]:pt-[3.25rem]' : 'justify-center',
           )}
         >
           <div className="p-1 sm:p-2">
@@ -614,14 +617,10 @@ export function OnboardingScreen() {
 
             {step === 2 ? (
               <div className="space-y-3">
-                {/* The title sits on the action row rather than above it. This
-                    step is a review, not a page: a 24px display heading over a
-                    full-width paragraph spent the top of the screen announcing
-                    a question the content answers by itself. */}
+                {/* The title sits on the action row rather than above it, while
+                    keeping the same heading role as the two earlier stages. */}
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h1 className="website-body text-foreground font-semibold">
-                    Does this look right?
-                  </h1>
+                  <h1 className="website-feature-heading text-foreground">Does this look right?</h1>
                   <p className="website-label text-muted">
                     Deselect anything you don&apos;t want — you can change all of it after setup.
                   </p>

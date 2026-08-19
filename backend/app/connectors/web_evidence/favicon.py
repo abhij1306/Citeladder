@@ -70,34 +70,53 @@ def detect_logo_content_type(body: bytes) -> str | None:
     return None
 
 
-def discover_icon_urls(body: bytes, *, base_url: str) -> list[str]:
-    """Extract bounded icon links in document order, followed by /favicon.ico."""
+def _icon_href(link) -> str | None:
+    rel = str(link.get("rel") or "").strip().lower().split()
+    if not any(token == "icon" or token.endswith("-icon") for token in rel):
+        return None
+    href = str(link.get("href") or "").strip()
+    return href or None
+
+
+def _canonical_icon(href: str, *, base_url: str) -> str | None:
+    try:
+        return canonicalize(href, base_url=base_url)
+    except UrlPolicyError:
+        return None
+
+
+def _declared_icon_urls(body: bytes, *, base_url: str) -> list[str]:
+    if not body:
+        return []
+    parser = lxml_html.HTMLParser(recover=True, no_network=True)
+    try:
+        root = lxml_html.document_fromstring(body, parser=parser)
+    except (etree.ParserError, ValueError):
+        return []
+    if root is None:
+        return []
     candidates: list[str] = []
     seen: set[str] = set()
-    if body:
-        parser = lxml_html.HTMLParser(recover=True, no_network=True)
-        try:
-            root = lxml_html.document_fromstring(body, parser=parser)
-        except (etree.ParserError, ValueError):
-            root = None
-        if root is not None:
-            for link in root.iter("link"):
-                rel = str(link.get("rel") or "").strip().lower().split()
-                if not any(token == "icon" or token.endswith("-icon") for token in rel):
-                    continue
-                href = str(link.get("href") or "").strip()
-                if not href:
-                    continue
-                try:
-                    candidate = canonicalize(href, base_url=base_url)
-                except UrlPolicyError:
-                    continue
-                if candidate in seen:
-                    continue
-                seen.add(candidate)
-                candidates.append(candidate)
-                if len(candidates) >= BRAND_LOGO_MAX_CANDIDATES - 1:
-                    break
+    for link in root.iter("link"):
+        href = _icon_href(link)
+        if href is None:
+            continue
+        candidate = _canonical_icon(href, base_url=base_url)
+        if candidate is None:
+            continue
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        candidates.append(candidate)
+        if len(candidates) >= BRAND_LOGO_MAX_CANDIDATES - 1:
+            break
+    return candidates
+
+
+def discover_icon_urls(body: bytes, *, base_url: str) -> list[str]:
+    """Extract bounded icon links in document order, followed by /favicon.ico."""
+    candidates = _declared_icon_urls(body, base_url=base_url)
+    seen = set(candidates)
 
     try:
         fallback = canonicalize(urljoin(base_url, BRAND_LOGO_FALLBACK_PATH))

@@ -50,7 +50,7 @@ configuration/secrets required by its owner.
 cd frontend
 echo "BACKEND_ORIGIN=http://localhost:8000" > .env.local
 pnpm install
-pnpm dev                    # http://localhost:3000
+pnpm dev                    # http://127.0.0.1:3000
 ```
 
 `BACKEND_ORIGIN` is **server-only**. The browser calls relative `/api/*`; Next.js

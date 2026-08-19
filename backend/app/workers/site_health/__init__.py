@@ -11,6 +11,7 @@ to are now independently readable and testable.
 from __future__ import annotations
 
 from app.workers.site_health.host_gate import HostGate
-from app.workers.site_health.lifecycle import CrawlLifecycle, crawl_root_identity
+from app.workers.site_health.lifecycle import CrawlLifecycle
+from app.workers.site_health.lifecycle_finalize import crawl_root_identity
 
 __all__ = ["CrawlLifecycle", "HostGate", "crawl_root_identity"]

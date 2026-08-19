@@ -25,11 +25,9 @@
 # ``crawl_already_active`` / ``CODE_CRAWL_ALREADY_ACTIVE``).
 from __future__ import annotations
 
-import csv
 import secrets
 import uuid
 from datetime import UTC, datetime
-from io import StringIO
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,10 +42,7 @@ from app.connectors.web_evidence.url_policy import (
 )
 from app.core.config.site_health_contracts import (
     ANALYZER_VERSION,
-    CLASSIFIER_VERSION,
-    CODE_ADVANCED_CONTROLS_UNAVAILABLE,
     CODE_CRAWL_ALREADY_ACTIVE,
-    CODE_DISCOVERY_LIMIT_EXCEEDED,
     CRAWL_ACTIVE_STATUSES,
     CRAWL_STATUS_DRAFT,
     CRAWL_STATUS_PAUSED,
@@ -65,11 +60,8 @@ from app.core.config.site_health_contracts import (
     TASK_KIND_DISCOVER,
 )
 from app.core.config.site_health_crawl_policy import (
-    AUTOMATIC_MONITOR_LIMIT_KEY,
-    DISCOVERY_MODE_SAMPLE,
     INPUT_MODE_AUTO,
     INPUT_MODE_EXACT_URLS,
-    INPUT_MODES,
     INVENTORY_SOURCE_CRAWL_IDS_KEY,
     MANUAL_PHASE_LIFECYCLE_KEY,
     PHASE_DISCOVERY,
@@ -78,12 +70,8 @@ from app.core.config.site_health_crawl_policy import (
     URL_EXCLUSION_DUPLICATE,
     URL_EXCLUSION_INVALID,
 )
-from app.core.config.site_health_page_profiles import PAGE_PROFILE_RULE_VERSION
 from app.core.config.site_health_runtime import (
     site_health_settings,
-)
-from app.core.config.site_health_taxonomy import (
-    PAGE_KINDS,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.entitlements.service import (
@@ -92,8 +80,18 @@ from app.domain.entitlements.service import (
 from app.domain.site_health.discovery import add_automatic_root
 from app.domain.site_health.entitlements import lock_runtime
 from app.domain.site_health.inventory_scope import freeze_inventory_lineage
+from app.domain.site_health.monitored_seeding import seed_monitored_targets
 from app.domain.site_health.normalization import canonical_identity
-from app.domain.site_health.selection import seed_monitored_targets
+from app.domain.site_health.planner_controls import (
+    advanced_controls_requested,
+    resolve_controls,
+)
+from app.domain.site_health.planner_policy import (
+    admit_seed_urls,
+    frozen_configuration,
+    is_sample_mode,
+)
+from app.domain.site_health.planner_preview import preview_rows
 from app.domain.site_health.state_events import (
     apply_crawl_status,
     apply_discovery_status,
@@ -102,7 +100,7 @@ from app.domain.site_health.state_events import (
 from app.models.project import Project
 from app.models.site_health.crawl import SiteCrawl, SiteCrawlPhaseRun
 from app.models.site_health.queue import SiteCrawlTask
-from app.models.site_health.runtime import SiteHealthProfile
+from app.models.site_health.runtime import SiteHealthProfile, WorkspaceSiteHealthRuntime
 from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 
 
@@ -244,210 +242,6 @@ async def _upsert_profile(
     return profile
 
 
-def _is_sample_mode(runtime) -> bool:
-    """Single source of truth for whether a workspace crawls in sample mode.
-
-    A zero monitored-URL allowance crawls a deterministic sample (no user
-    selection); a positive allowance runs the full progressive inventory. Both
-    ``_frozen_configuration`` and ``create_crawl`` derive ``sample_mode`` from
-    the runtime row here so they can never diverge.
-    """
-    return runtime.discovery_mode == DISCOVERY_MODE_SAMPLE
-
-
-def _manual_phase_configuration(enabled: bool) -> dict[str, bool]:
-    return {MANUAL_PHASE_LIFECYCLE_KEY: True} if enabled else {}
-
-
-def _frozen_configuration(
-    *,
-    root_registrable_domain: str,
-    include_globs: list[str],
-    exclude_globs: list[str],
-    runtime,
-    input_mode: str = INPUT_MODE_AUTO,
-    requested_page_limit: int | None = None,
-    seed_urls: list[str] | None = None,
-    page_kinds: list[str] | None = None,
-    manual_phase_lifecycle: bool = False,
-) -> dict:
-    """Freeze the operational settings + runtime projection (invariant 9).
-
-    Everything the worker needs to run this crawl deterministically regardless
-    of a later live env or entitlement change: the narrowing scope, the frozen
-    neutral policy limits, the resolver provenance, the crawler bounds, and
-    the rule/scoring versions.
-    """
-    s = site_health_settings
-    configuration = {
-        "discovery_mode": runtime.discovery_mode,
-        "sample_mode": _is_sample_mode(runtime),
-        "count_disclosure": bool(runtime.count_disclosure),
-        "sample_url_limit": int(runtime.sample_url_limit),
-        "monitored_url_limit": int(runtime.monitored_url_limit),
-        "discovery_url_cap": runtime.discovery_url_cap,
-        "resolved_registry_revision": runtime.resolved_registry_revision,
-        "resolved_entitlement_lifecycle_version": int(
-            runtime.resolved_entitlement_lifecycle_version
-        ),
-        "root_registrable_domain": root_registrable_domain,
-        "include_globs": include_globs,
-        "exclude_globs": exclude_globs,
-        "url_admission_policy_version": URL_ADMISSION_POLICY_VERSION,
-        "page_kind_classifier_version": CLASSIFIER_VERSION,
-        "page_profile_rule_version": PAGE_PROFILE_RULE_VERSION,
-        "input_mode": input_mode,
-        "requested_page_limit": requested_page_limit,
-        **_manual_phase_configuration(manual_phase_lifecycle),
-        "max_discovery_urls": s.max_discovery_urls,
-        "max_analysis_urls": s.max_analysis_urls,
-        "seed_urls": list(seed_urls or []),
-        "page_kinds": list(page_kinds or []),
-        "max_frontier_urls": s.max_frontier_urls,
-        "max_crawl_depth": s.max_crawl_depth,
-        "admission_batch_size": s.admission_batch_size,
-        "global_concurrency": s.global_concurrency,
-        "per_host_concurrency": s.per_host_concurrency,
-        "per_host_delay_seconds": s.per_host_delay_seconds,
-        "request_timeout_seconds": s.request_timeout_seconds,
-        "max_redirects": s.max_redirects,
-        "max_response_wire_bytes": s.max_response_wire_bytes,
-        "max_response_decoded_bytes": s.max_response_decoded_bytes,
-        "max_attempts": s.max_attempts,
-        "extractor_version": EXTRACTOR_VERSION,
-        "analyzer_version": ANALYZER_VERSION,
-        "rule_catalog_version": RULE_CATALOG_VERSION,
-        "scoring_version": SCORING_VERSION,
-    }
-    if input_mode == INPUT_MODE_AUTO:
-        entitlement_limit = (
-            int(runtime.sample_url_limit)
-            if _is_sample_mode(runtime)
-            else int(runtime.monitored_url_limit)
-        )
-        configuration[AUTOMATIC_MONITOR_LIMIT_KEY] = min(
-            int(requested_page_limit or 0), entitlement_limit
-        )
-    return configuration
-
-
-def _controls_for_request(
-    *,
-    input_mode: str | None,
-    requested_page_limit: int | None,
-    seed_urls: list[str] | None,
-    page_kinds: list[str] | None,
-) -> tuple[str, int, list[str], list[str]]:
-    """Validate development-only crawl controls and return frozen values."""
-    mode = input_mode or INPUT_MODE_AUTO
-    raw_seeds = list(seed_urls or [])
-    selected_types = list(page_kinds or [])
-    _validate_control_values(mode, raw_seeds, selected_types)
-    if (
-        _advanced_controls_requested(mode, raw_seeds, selected_types)
-        and not site_health_settings.advanced_controls_enabled
-    ):
-        raise CrawlPlanError(
-            "advanced crawl controls are unavailable",
-            code=CODE_ADVANCED_CONTROLS_UNAVAILABLE,
-        )
-    if mode == INPUT_MODE_EXACT_URLS and not raw_seeds:
-        raise CrawlPlanError(
-            "exact_urls requires seed_urls", code="invalid_crawl_request"
-        )
-    limit = _resolved_page_limit(requested_page_limit)
-    return mode, limit, raw_seeds, selected_types
-
-
-def _validate_control_values(
-    mode: str, raw_seeds: list[str], selected_types: list[str]
-) -> None:
-    if mode not in INPUT_MODES:
-        raise CrawlPlanError("unknown input_mode", code="invalid_crawl_request")
-    if len(raw_seeds) > site_health_settings.max_seed_urls:
-        raise CrawlPlanError("too many seed_urls", code="invalid_crawl_request")
-    if any(value not in PAGE_KINDS for value in selected_types):
-        raise CrawlPlanError("unknown page kind", code="invalid_crawl_request")
-
-
-def _advanced_controls_requested(
-    mode: str,
-    raw_seeds: list[str],
-    selected_types: list[str],
-) -> bool:
-    return mode != INPUT_MODE_AUTO or bool(raw_seeds) or bool(selected_types)
-
-
-def _resolved_page_limit(requested_page_limit: int | None) -> int:
-    limit = (
-        requested_page_limit
-        if requested_page_limit is not None
-        else site_health_settings.automatic_page_limit
-    )
-    maximum = (
-        site_health_settings.max_discovery_urls
-        if site_health_settings.advanced_controls_enabled
-        else site_health_settings.max_requested_page_limit
-    )
-    if limit <= 0 or limit > maximum:
-        raise CrawlPlanError(
-            "requested_page_limit is outside the allowed range",
-            code=CODE_DISCOVERY_LIMIT_EXCEEDED,
-        )
-    return int(limit)
-
-
-def _admit_seed_urls(
-    seed_urls: list[str], *, root_domain: str, includes: list[str], excludes: list[str]
-) -> list[str]:
-    """Normalize manual/upload seeds through the same hard admission gate."""
-    accepted: list[str] = []
-    seen: set[str] = set()
-    for raw in seed_urls:
-        decision = classify_url_admission(
-            raw,
-            root_registrable_domain=root_domain,
-            include_globs=includes,
-            exclude_globs=excludes,
-        )
-        if not decision.accepted or not decision.canonical_url:
-            raise CrawlPlanError(
-                "seed URL is not admissible",
-                code=decision.reason_code or "invalid_crawl_request",
-            )
-        if decision.canonical_url not in seen:
-            seen.add(decision.canonical_url)
-            accepted.append(decision.canonical_url)
-    return accepted
-
-
-def _preview_input_rows(content: object, input_format: str) -> list[str]:
-    """Parse bounded text/CSV/JSON preview input without any persistence."""
-    if isinstance(content, list):
-        return [str(value) for value in content]
-    if isinstance(content, dict):
-        values = content.get("urls", content.get("items", []))
-        if not isinstance(values, list):
-            raise CrawlPlanError("JSON preview input must contain a URL list")
-        return [
-            str(value.get("url", "")) if isinstance(value, dict) else str(value)
-            for value in values
-        ]
-    raw = str(content or "")
-    if len(raw.encode("utf-8")) > site_health_settings.max_preview_input_bytes:
-        raise CrawlPlanError("preview input is too large")
-    if input_format == "csv":
-        return [row[0] if row else "" for row in csv.reader(StringIO(raw))]
-    if input_format == "json":
-        import json
-
-        try:
-            return _preview_input_rows(json.loads(raw), "json")
-        except (TypeError, ValueError) as exc:
-            raise CrawlPlanError("invalid JSON preview input") from exc
-    return raw.splitlines()
-
-
 async def preview_crawl_urls(
     session: AsyncSession,
     *,
@@ -475,7 +269,13 @@ async def preview_crawl_urls(
     seen: set[str] = set()
     aggregate: dict[str, int] = {"accepted": 0, "duplicate": 0, "rejected": 0}
     for row_number, raw in enumerate(
-        _preview_input_rows(content, input_format), start=1
+        preview_rows(
+            content,
+            input_format,
+            max_bytes=site_health_settings.max_preview_input_bytes,
+            error=lambda message: CrawlPlanError(message),
+        ),
+        start=1,
     ):
         if len(rows) >= site_health_settings.max_preview_rows:
             break
@@ -538,6 +338,56 @@ async def _initial_discovery_phase_run_id(
     return run.id
 
 
+async def _locked_runtime(
+    session: AsyncSession, *, workspace_id: uuid.UUID, mode: str
+) -> tuple[WorkspaceSiteHealthRuntime, bool]:
+    runtime = await refresh_site_health_runtime_for_workspace(
+        session, workspace_id=workspace_id, at=datetime.now(UTC)
+    )
+    sample_mode = is_sample_mode(runtime)
+    if sample_mode or mode == INPUT_MODE_AUTO:
+        runtime = await lock_runtime(session, workspace_id)
+        sample_mode = is_sample_mode(runtime)
+    return runtime, sample_mode
+
+
+def _add_initial_discovery_tasks(
+    session: AsyncSession,
+    *,
+    crawl: SiteCrawl,
+    workspace_id: uuid.UUID,
+    phase_run_id: uuid.UUID | None,
+    mode: str,
+    root_url: str,
+    accepted_seeds: list[str],
+    page_limit: int,
+) -> None:
+    initial_urls = (
+        accepted_seeds if mode == INPUT_MODE_EXACT_URLS else [root_url, *accepted_seeds]
+    )[:page_limit]
+    seen: set[str] = set()
+    for position, initial_url in enumerate(initial_urls):
+        if initial_url in seen:
+            continue
+        seen.add(initial_url)
+        _canonical, url_hash = canonical_identity(initial_url)
+        session.add(
+            SiteCrawlTask(
+                crawl_id=crawl.id,
+                workspace_id=workspace_id,
+                phase_run_id=phase_run_id,
+                task_kind=TASK_KIND_DISCOVER,
+                requested_url=initial_url,
+                url_hash=url_hash,
+                depth=0,
+                generation=0,
+                idempotency_key=f"{crawl.id}:{TASK_KIND_DISCOVER}:{url_hash}:0",
+                status=TASK_STATUS_QUEUED,
+                randomized_position=position,
+            )
+        )
+
+
 async def create_crawl(
     session: AsyncSession,
     *,
@@ -598,20 +448,22 @@ async def create_crawl(
     )
     if not root_decision.accepted:
         raise CrawlPlanError("crawl root is not admissible", code="invalid_root")
-    mode, page_limit, raw_seeds, selected_types = _controls_for_request(
+    mode, page_limit, raw_seeds, selected_types = resolve_controls(
         input_mode=input_mode,
         requested_page_limit=requested_page_limit,
         seed_urls=seed_urls,
         page_kinds=page_kinds,
+        error=lambda message, code: CrawlPlanError(message, code=code),
     )
-    manual_phase_lifecycle = _advanced_controls_requested(
+    manual_phase_lifecycle = advanced_controls_requested(
         mode, raw_seeds, selected_types
     )
-    accepted_seeds = _admit_seed_urls(
+    accepted_seeds = admit_seed_urls(
         raw_seeds,
         root_domain=root_registrable_domain,
         includes=includes,
         excludes=excludes,
+        error=lambda message, code: CrawlPlanError(message, code=code),
     )
 
     # Refresh (seed if missing) the runtime row BEFORE mutating the profile.
@@ -619,15 +471,9 @@ async def create_crawl(
     # this path must match that lock order to avoid a deadlock cycle. In
     # automatic mode, LOCK the runtime row so root admission and the
     # workspace-wide allowance are serialized against concurrent projects.
-    runtime = await refresh_site_health_runtime_for_workspace(
-        session, workspace_id=workspace_id, at=datetime.now(UTC)
+    runtime, sample_mode = await _locked_runtime(
+        session, workspace_id=workspace_id, mode=mode
     )
-    sample_mode = _is_sample_mode(runtime)
-    if sample_mode or mode == INPUT_MODE_AUTO:
-        runtime = await lock_runtime(session, workspace_id)
-        # Re-derive sample_mode from the LOCKED row: the projection may have
-        # changed between the unlocked refresh above and acquiring the lock.
-        sample_mode = _is_sample_mode(runtime)
 
     profile = await _upsert_profile(
         session,
@@ -641,7 +487,7 @@ async def create_crawl(
     )
 
     seed = _normalize_seed(random_seed)
-    configuration = _frozen_configuration(
+    configuration = frozen_configuration(
         root_registrable_domain=root_registrable_domain,
         include_globs=includes,
         exclude_globs=excludes,
@@ -704,32 +550,16 @@ async def create_crawl(
         enabled=bool(configuration.get(MANUAL_PHASE_LIFECYCLE_KEY)),
     )
 
-    # All roots/manual seeds pass the same policy above. Exact mode deliberately
-    # creates only the accepted explicit tasks; it cannot discover descendants.
-    initial_urls = (
-        accepted_seeds if mode == INPUT_MODE_EXACT_URLS else [root_url, *accepted_seeds]
-    )[:page_limit]
-    seen_initial: set[str] = set()
-    for position, initial_url in enumerate(initial_urls):
-        if initial_url in seen_initial:
-            continue
-        seen_initial.add(initial_url)
-        _canonical, url_hash = canonical_identity(initial_url)
-        session.add(
-            SiteCrawlTask(
-                crawl_id=crawl.id,
-                workspace_id=workspace_id,
-                phase_run_id=discovery_phase_run_id,
-                task_kind=TASK_KIND_DISCOVER,
-                requested_url=initial_url,
-                url_hash=url_hash,
-                depth=0,
-                generation=0,
-                idempotency_key=f"{crawl.id}:{TASK_KIND_DISCOVER}:{url_hash}:0",
-                status=TASK_STATUS_QUEUED,
-                randomized_position=position,
-            )
-        )
+    _add_initial_discovery_tasks(
+        session,
+        crawl=crawl,
+        workspace_id=workspace_id,
+        phase_run_id=discovery_phase_run_id,
+        mode=mode,
+        root_url=root_url,
+        accepted_seeds=accepted_seeds,
+        page_limit=page_limit,
+    )
 
     # Re-seed the persistent monitored set: on a recrawl the active monitored
     # URLs get fresh analyze tasks so their facts/scores refresh. On a first
@@ -817,8 +647,8 @@ async def create_page_rerun_crawl(
             "page is not admissible for rerun",
             code=rerun_admission.reason_code or "invalid_crawl_request",
         )
-    sample_mode = _is_sample_mode(runtime)
-    configuration = _frozen_configuration(
+    sample_mode = is_sample_mode(runtime)
+    configuration = frozen_configuration(
         root_registrable_domain=profile.registrable_domain or "",
         include_globs=list(profile.include_globs or []),
         exclude_globs=list(profile.exclude_globs or []),

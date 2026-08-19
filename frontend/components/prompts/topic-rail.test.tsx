@@ -39,22 +39,22 @@ function renderRail(props: Partial<ComponentProps<typeof TopicRail>> = {}) {
 }
 
 describe('TopicRail layout containment', () => {
-  it('renders as a contained raised panel card that clips its own overflow', () => {
+  it('renders as a contained raised panel without clipping its action edge', () => {
     renderRail();
 
     const rail = screen.getByRole('navigation', { name: 'Topics' });
-    // The regression fix: the rail is its own surface with a hard overflow
-    // boundary and min-width:0 so table content can never bleed over/under it.
-    expect(rail).toHaveClass('overflow-hidden');
+    // Long labels truncate within their row; the panel itself does not clip
+    // the reserved delete-action slot or its focus treatment.
+    expect(rail).not.toHaveClass('overflow-hidden');
     expect(rail).toHaveClass('min-w-0');
     expect(rail).not.toHaveClass('border');
     expect(rail).toHaveClass('shadow-card');
     expect(rail).toHaveClass('bg-panel');
     // Desktop: sticky so the rail stays put while the right pane scrolls.
-    expect(rail).toHaveClass('md:sticky');
-    // The full rail is desktop-only; the narrow selector is hidden at md+.
+    expect(rail).toHaveClass('lg:sticky');
+    // The full rail is desktop-only; the narrow selector is hidden at lg+.
     expect(rail).toHaveClass('hidden');
-    expect(rail).toHaveClass('md:grid');
+    expect(rail).toHaveClass('lg:grid');
   });
 
   it('truncates long topic names inside the rail without expanding it', () => {
@@ -66,6 +66,9 @@ describe('TopicRail layout containment', () => {
     const label = within(rail).getByText(longName);
     expect(label).toHaveClass('truncate');
     expect(label).toHaveClass('min-w-0');
+    const deleteAction = within(rail).getByRole('button', { name: `Delete topic ${longName}` });
+    expect(deleteAction).toHaveClass('size-8');
+    expect(deleteAction).not.toHaveClass('opacity-0');
   });
 
   it('preserves topic selection and create/delete actions', async () => {

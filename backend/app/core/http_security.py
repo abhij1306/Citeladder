@@ -26,6 +26,27 @@ class RequestBodyLimitMiddleware:
         self.app = app
         self.max_bytes = max_bytes
 
+    @staticmethod
+    def _declared_too_large(headers: dict[bytes, bytes], max_bytes: int) -> bool:
+        declared = headers.get(b"content-length")
+        if declared is None:
+            return False
+        try:
+            return int(declared) > max_bytes
+        except ValueError:
+            return True
+
+    async def _limited_receive(
+        self, receive: Callable, state: dict[str, int | bool]
+    ) -> dict:
+        message = await receive()
+        if message.get("type") == "http.request":
+            state["consumed"] = int(state["consumed"]) + len(message.get("body", b""))
+            if int(state["consumed"]) > self.max_bytes:
+                state["rejected"] = True
+                return {"type": "http.disconnect"}
+        return message
+
     async def __call__(
         self, scope: dict[str, Any], receive: Callable, send: Callable
     ) -> None:
@@ -35,41 +56,26 @@ class RequestBodyLimitMiddleware:
             return
 
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
-        declared = headers.get(b"content-length")
-        if declared is not None:
-            try:
-                if int(declared) > self.max_bytes:
-                    await self._reject(scope, receive, send)
-                    return
-            except ValueError:
-                await self._reject(scope, receive, send)
-                return
+        if self._declared_too_large(headers, self.max_bytes):
+            await self._reject(scope, receive, send)
+            return
 
-        consumed = 0
-        rejected = False
-
-        async def limited_receive() -> dict:
-            nonlocal consumed, rejected
-            message = await receive()
-            if message.get("type") == "http.request":
-                consumed += len(message.get("body", b""))
-                if consumed > self.max_bytes:
-                    rejected = True
-                    # Downstream parsers see a disconnect and cannot allocate
-                    # beyond the configured ceiling.
-                    return {"type": "http.disconnect"}
-            return message
+        state: dict[str, int | bool] = {"consumed": 0, "rejected": False}
 
         async def guarded_send(message: dict) -> None:
-            if not rejected:
+            if not state["rejected"]:
                 await send(message)
 
         try:
-            await self.app(scope, limited_receive, guarded_send)
+            await self.app(
+                scope,
+                lambda: self._limited_receive(receive, state),
+                guarded_send,
+            )
         except Exception:
-            if not rejected:
+            if not state["rejected"]:
                 raise
-        if rejected:
+        if state["rejected"]:
             await self._reject(scope, receive, send)
 
     @staticmethod

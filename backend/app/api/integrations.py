@@ -55,6 +55,13 @@ from app.core.config.integrations_transport import (
 from app.core.errors import ApiException
 from app.core.http_errors import raise_not_found
 from app.domain.abuse.service import UsageLimitExceededError, enforce_and_commit
+from app.domain.integrations.errors import (
+    IntegrationConnectionNotFoundError,
+    IntegrationExchangeError,
+    IntegrationNotConfiguredError,
+    IntegrationStateError,
+    PropertyDiscoveryUnsupportedError,
+)
 from app.domain.integrations.mappings import (
     MappingActiveOwnerConflictError,
     MappingNotFoundError,
@@ -75,11 +82,6 @@ from app.domain.integrations.schemas import (
     SyncWindowRequest,
 )
 from app.domain.integrations.service import (
-    IntegrationConnectionNotFoundError,
-    IntegrationExchangeError,
-    IntegrationNotConfiguredError,
-    IntegrationStateError,
-    PropertyDiscoveryUnsupportedError,
     complete_connect,
     delete_connection,
     list_available_properties,

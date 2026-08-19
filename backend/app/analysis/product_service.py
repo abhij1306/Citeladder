@@ -89,6 +89,75 @@ async def _live_entry_ids(
     return live_products, live_competitors
 
 
+async def _persist_product_signals(
+    session: AsyncSession,
+    *,
+    task: AuditTask,
+    analysis: ProductResponseAnalysis,
+    config: ProductScoringConfig,
+    score: dict,
+) -> None:
+    live_products, live_competitors = await _live_entry_ids(session, config)
+    await _persist_signal_rows(
+        session,
+        task=task,
+        analysis=analysis,
+        signals=score["products"],
+        names={entry.id: entry.name for entry in config.products},
+        skus={entry.id: entry.sku for entry in config.products},
+        live_ids=live_products,
+        is_product=True,
+    )
+    await _persist_signal_rows(
+        session,
+        task=task,
+        analysis=analysis,
+        signals=score["competitor_products"],
+        names={entry.id: entry.name for entry in config.competitor_products},
+        skus={},
+        live_ids=live_competitors,
+        is_product=False,
+    )
+
+
+async def _persist_signal_rows(
+    session: AsyncSession,
+    *,
+    task: AuditTask,
+    analysis: ProductResponseAnalysis,
+    signals: list[dict],
+    names: dict[str, str],
+    skus: dict[str, str],
+    live_ids: set[str],
+    is_product: bool,
+) -> None:
+    key = "product_id" if is_product else "competitor_product_id"
+    for item in signals:
+        if not item.get("mentioned"):
+            continue
+        entry_id = str(item[key])
+        live_id = uuid.UUID(entry_id) if entry_id in live_ids else None
+        session.add(
+            _mention_row(
+                task=task,
+                analysis=analysis,
+                signals=item,
+                product_id=live_id if is_product else None,
+                competitor_product_id=live_id if not is_product else None,
+                matched_name=names.get(entry_id, ""),
+                matched_sku=skus.get(entry_id, ""),
+            )
+        )
+        for row in _merchant_rows(
+            task=task,
+            analysis=analysis,
+            signals=item,
+            product_id=live_id if is_product else None,
+            competitor_product_id=live_id if not is_product else None,
+        ):
+            session.add(row)
+
+
 def build_product_scoring_config(configuration: dict | None) -> ProductScoringConfig:
     """Build the product scorer config from the audit's FROZEN catalog.
 
@@ -158,64 +227,9 @@ async def analyze_task_products(
     session.add(analysis)
     await session.flush()  # assign analysis.id for child rows
 
-    # Only reference catalog rows that still exist — a delete after audit
-    # creation must not fail the insert (the frozen identity is snapshotted
-    # onto the row regardless).
-    live_products, live_competitors = await _live_entry_ids(session, config)
-
-    entry_names = {entry.id: entry.name for entry in config.products}
-    entry_skus = {entry.id: entry.sku for entry in config.products}
-    for signals in score["products"]:
-        if not signals.get("mentioned"):
-            continue
-        entry_id = str(signals["product_id"])
-        product_id = uuid.UUID(entry_id) if entry_id in live_products else None
-        session.add(
-            _mention_row(
-                task=task,
-                analysis=analysis,
-                signals=signals,
-                product_id=product_id,
-                competitor_product_id=None,
-                matched_name=entry_names.get(entry_id, ""),
-                matched_sku=entry_skus.get(entry_id, ""),
-            )
-        )
-        for row in _merchant_rows(
-            task=task,
-            analysis=analysis,
-            signals=signals,
-            product_id=product_id,
-            competitor_product_id=None,
-        ):
-            session.add(row)
-    competitor_names = {entry.id: entry.name for entry in config.competitor_products}
-    for signals in score["competitor_products"]:
-        if not signals.get("mentioned"):
-            continue
-        entry_id = str(signals["competitor_product_id"])
-        competitor_product_id = (
-            uuid.UUID(entry_id) if entry_id in live_competitors else None
-        )
-        session.add(
-            _mention_row(
-                task=task,
-                analysis=analysis,
-                signals=signals,
-                product_id=None,
-                competitor_product_id=competitor_product_id,
-                matched_name=competitor_names.get(entry_id, ""),
-                matched_sku="",
-            )
-        )
-        for row in _merchant_rows(
-            task=task,
-            analysis=analysis,
-            signals=signals,
-            product_id=None,
-            competitor_product_id=competitor_product_id,
-        ):
-            session.add(row)
+    await _persist_product_signals(
+        session, task=task, analysis=analysis, config=config, score=score
+    )
     return analysis
 
 
@@ -356,6 +370,150 @@ def _aggregate_by(
     return grouped
 
 
+async def _product_finalize_inputs(
+    session: AsyncSession,
+    *,
+    audit: Audit,
+    config: ProductScoringConfig,
+) -> tuple[
+    list[ProductResponseAnalysis],
+    dict[str, dict],
+    dict[str, dict[str, dict]],
+    dict[str, dict[str, dict]],
+    dict[str, dict[str, dict[str, dict]]],
+]:
+    succeeded_tasks = list(
+        (
+            await session.scalars(
+                select(AuditTask)
+                .where(AuditTask.audit_id == audit.id)
+                .where(AuditTask.status == TASK_STATUS_SUCCEEDED)
+            )
+        ).all()
+    )
+    for task in succeeded_tasks:
+        await analyze_task_products(session, task=task, config=config)
+    await session.flush()
+    analyses = _select_aggregate_analyses(
+        list(
+            (
+                await session.scalars(
+                    select(ProductResponseAnalysis).where(
+                        ProductResponseAnalysis.audit_id == audit.id
+                    )
+                )
+            ).all()
+        )
+    )
+    aggregates = aggregate_product_run(
+        [analysis.score or {} for analysis in analyses], config
+    )
+    per_engine = _aggregate_by(analyses, config)
+    surfaces = sorted({analysis.shopping_surface for analysis in analyses})
+    per_surface = {
+        surface: aggregate_product_run(
+            [
+                analysis.score or {}
+                for analysis in analyses
+                if analysis.shopping_surface == surface
+            ],
+            config,
+        )
+        for surface in surfaces
+    }
+    per_surface_engine = {
+        surface: _aggregate_by(analyses, config, surface=surface)
+        for surface in surfaces
+    }
+    return analyses, aggregates, per_engine, per_surface, per_surface_engine
+
+
+async def _persist_product_snapshots(
+    session: AsyncSession,
+    *,
+    audit: Audit,
+    analyses: list[ProductResponseAnalysis],
+    aggregates: dict[str, dict],
+    per_engine: dict[str, dict[str, dict]],
+    per_surface: dict[str, dict[str, dict]],
+    per_surface_engine: dict[str, dict[str, dict[str, dict]]],
+    existing_snapshots: list[ProductMetricSnapshot],
+    config: ProductScoringConfig,
+) -> list[ProductMetricSnapshot]:
+    by_entry = {
+        str(
+            (snapshot.metrics or {}).get("entry_id")
+            or snapshot.product_id
+            or snapshot.competitor_product_id
+        ): snapshot
+        for snapshot in existing_snapshots
+        if snapshot.product_analyzer_version == PRODUCT_ANALYZER_VERSION
+        and snapshot.product_scoring_rule_version == PRODUCT_SCORING_RULE_VERSION
+    }
+    live_products, live_competitors = await _live_entry_ids(session, config)
+    snapshots: list[ProductMetricSnapshot] = []
+    for entry_id, aggregate in aggregates.items():
+        snapshots.append(
+            _upsert_product_snapshot(
+                session,
+                audit=audit,
+                entry_id=entry_id,
+                aggregate=aggregate,
+                analyses=analyses,
+                existing=by_entry.get(entry_id),
+                live_ids=(
+                    live_products
+                    if aggregate["kind"] == "product"
+                    else live_competitors
+                ),
+                per_engine=per_engine,
+                per_surface=per_surface,
+                per_surface_engine=per_surface_engine,
+            )
+        )
+    return snapshots
+
+
+def _upsert_product_snapshot(
+    session: AsyncSession,
+    *,
+    audit: Audit,
+    entry_id: str,
+    aggregate: dict,
+    analyses: list[ProductResponseAnalysis],
+    existing: ProductMetricSnapshot | None,
+    live_ids: set[str],
+    per_engine: dict[str, dict[str, dict]],
+    per_surface: dict[str, dict[str, dict]],
+    per_surface_engine: dict[str, dict[str, dict[str, dict]]],
+) -> ProductMetricSnapshot:
+    is_product = aggregate["kind"] == "product"
+    evidence = [
+        analysis
+        for analysis in analyses
+        if _mentions_entry(analysis.score or {}, entry_id, is_product)
+    ]
+    snapshot = existing or ProductMetricSnapshot(
+        workspace_id=audit.workspace_id,
+        audit_id=audit.id,
+        project_id=audit.project_id,
+    )
+    if existing is None:
+        session.add(snapshot)
+    _apply_snapshot_fields(
+        snapshot,
+        entry_id=entry_id,
+        aggregate=aggregate,
+        is_product=is_product,
+        is_live=entry_id in live_ids,
+        evidence=evidence,
+        per_engine=per_engine,
+        per_surface=per_surface,
+        per_surface_engine=per_surface_engine,
+    )
+    return snapshot
+
+
 async def finalize_audit_product_analysis(
     session: AsyncSession, *, audit: Audit
 ) -> list[ProductMetricSnapshot]:
@@ -377,57 +535,13 @@ async def finalize_audit_product_analysis(
     if not config.products and not config.competitor_products:
         return []
 
-    succeeded_tasks = list(
-        (
-            await session.scalars(
-                select(AuditTask)
-                .where(AuditTask.audit_id == audit.id)
-                .where(AuditTask.status == TASK_STATUS_SUCCEEDED)
-            )
-        ).all()
-    )
-    for task in succeeded_tasks:
-        await analyze_task_products(session, task=task, config=config)
-    await session.flush()
-
-    analyses = _select_aggregate_analyses(
-        list(
-            (
-                await session.scalars(
-                    select(ProductResponseAnalysis).where(
-                        ProductResponseAnalysis.audit_id == audit.id
-                    )
-                )
-            ).all()
-        )
-    )
-    aggregates = aggregate_product_run(
-        [analysis.score or {} for analysis in analyses], config
-    )
-
-    # Per-engine breakdown (mirrors ``aggregate_run`` per-engine pattern):
-    # group the selected persisted analyses by engine and re-aggregate.
-    per_engine = _aggregate_by(analyses, config)
-
-    # Per-surface breakdown: the same aggregate shape per surface plus a
-    # nested per-engine slice within that surface.
-    surfaces = sorted({analysis.shopping_surface for analysis in analyses})
-    per_surface = {
-        surface: aggregate_product_run(
-            [
-                analysis.score or {}
-                for analysis in analyses
-                if analysis.shopping_surface == surface
-            ],
-            config,
-        )
-        for surface in surfaces
-    }
-    per_surface_engine = {
-        surface: _aggregate_by(analyses, config, surface=surface)
-        for surface in surfaces
-    }
-
+    (
+        analyses,
+        aggregates,
+        per_engine,
+        per_surface,
+        per_surface_engine,
+    ) = await _product_finalize_inputs(session, audit=audit, config=config)
     existing_snapshots = list(
         (
             await session.scalars(
@@ -437,54 +551,17 @@ async def finalize_audit_product_analysis(
             )
         ).all()
     )
-    # Key on the frozen entry id, falling back to the live FKs. A catalog
-    # delete SET NULLs both FK columns, so keying on them alone would fail to
-    # match the existing row on a re-finalize and insert a duplicate snapshot.
-    # Only CURRENT-version rows are eligible — v1 snapshots are immutable.
-    by_entry = {
-        str(
-            (snapshot.metrics or {}).get("entry_id")
-            or snapshot.product_id
-            or snapshot.competitor_product_id
-        ): snapshot
-        for snapshot in existing_snapshots
-        if snapshot.product_analyzer_version == PRODUCT_ANALYZER_VERSION
-        and snapshot.product_scoring_rule_version == PRODUCT_SCORING_RULE_VERSION
-    }
-
-    live_products, live_competitors = await _live_entry_ids(session, config)
-
-    snapshots: list[ProductMetricSnapshot] = []
-    for entry_id, aggregate in aggregates.items():
-        is_product = aggregate["kind"] == "product"
-        # The exact evidence set for this entry (invariant 4): the SELECTED
-        # persisted analyses that mention it, and their raw artifacts.
-        evidence = [
-            analysis
-            for analysis in analyses
-            if _mentions_entry(analysis.score or {}, entry_id, is_product)
-        ]
-        snapshot = by_entry.get(entry_id)
-        if snapshot is None:
-            snapshot = ProductMetricSnapshot(
-                workspace_id=audit.workspace_id,
-                audit_id=audit.id,
-                project_id=audit.project_id,
-            )
-            session.add(snapshot)
-        _apply_snapshot_fields(
-            snapshot,
-            entry_id=entry_id,
-            aggregate=aggregate,
-            is_product=is_product,
-            is_live=entry_id in (live_products if is_product else live_competitors),
-            evidence=evidence,
-            per_engine=per_engine,
-            per_surface=per_surface,
-            per_surface_engine=per_surface_engine,
-        )
-        snapshots.append(snapshot)
-    return snapshots
+    return await _persist_product_snapshots(
+        session,
+        audit=audit,
+        analyses=analyses,
+        aggregates=aggregates,
+        per_engine=per_engine,
+        per_surface=per_surface,
+        per_surface_engine=per_surface_engine,
+        existing_snapshots=existing_snapshots,
+        config=config,
+    )
 
 
 def _apply_snapshot_fields(

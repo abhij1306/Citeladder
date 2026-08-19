@@ -73,7 +73,7 @@ from app.models.audit import (
     AuditTask,
     RawResponseArtifact,
 )
-from app.workers import audit_worker
+from app.workers.audit import execution as audit_execution
 from app.workers.audit_worker import AuditWorker
 from tests.component.audit_helpers import seed_audit_fixtures
 
@@ -194,7 +194,7 @@ def _stub_adapter(monkeypatch: pytest.MonkeyPatch):
     def _build(**_: object) -> _StubAdapter:
         return _StubAdapter()
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _build)
+    monkeypatch.setattr(audit_execution, "build_adapter", _build)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -261,7 +261,7 @@ async def test_metrics_and_visibility_are_projections(
     def _boom(**_: object):
         raise AssertionError("projection must not call a provider (invariant 7)")
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _boom)
+    monkeypatch.setattr(audit_execution, "build_adapter", _boom)
 
     async with session_factory() as session:
         # Audit reached COMPLETED with a populated snapshot.
@@ -546,7 +546,9 @@ async def test_aggregation_preserves_provider_usage(
     Regression: immutable artifact usage was dropped while rebuilding the
     aggregate, so token/cost metrics were always zero.
     """
-    monkeypatch.setattr(audit_worker, "build_adapter", lambda **_: _UsageStubAdapter())
+    monkeypatch.setattr(
+        audit_execution, "build_adapter", lambda **_: _UsageStubAdapter()
+    )
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
 
@@ -686,7 +688,7 @@ async def test_trends_raw_points_chronological_with_provenance(
     def _boom(**_: object):
         raise AssertionError("trend projection must not call a provider")
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _boom)
+    monkeypatch.setattr(audit_execution, "build_adapter", _boom)
 
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=1)
@@ -1547,7 +1549,7 @@ async def test_evidence_projects_mentions_citations_and_queries(
     def _boom(**_: object):
         raise AssertionError("evidence projection must not call a provider")
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _boom)
+    monkeypatch.setattr(audit_execution, "build_adapter", _boom)
 
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=1)
@@ -2118,7 +2120,7 @@ async def test_evidence_never_calls_provider_and_is_read_only(
     def _boom(**_: object):
         raise AssertionError("evidence read must never construct an adapter")
 
-    monkeypatch.setattr(audit_worker, "build_adapter", _boom)
+    monkeypatch.setattr(audit_execution, "build_adapter", _boom)
 
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=1)

@@ -199,10 +199,6 @@ async def _references(
             LinkGraphReferenceInput(
                 source_site_url_id=source_url_ids[row.source_analysis_id],
                 target_site_url_id=target_id,
-                # Resolved targets retain their persisted display URL. An
-                # unresolved target needs the same canonical identity used by
-                # resolution so equivalent fragments/query ordering/default
-                # ports collapse into one observation edge.
                 target_url=(row.target_url if target_id else canonical_target)
                 or row.target_url,
                 rel=row.rel,

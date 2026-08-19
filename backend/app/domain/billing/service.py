@@ -23,15 +23,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.billing.base import BillingProvider
 from app.core.config.billing_catalog import (
     AddonCatalogEntry,
     CatalogPrice,
-    CommercialCatalog,
-    PlanCatalogEntry,
     QuantityBounds,
     TopupCatalogEntry,
     commercial_catalog,
@@ -50,14 +48,9 @@ from app.core.config.billing_contracts import (
     CANCELLATION_ALREADY_SCHEDULED,
     CANCELLATION_SCHEDULED,
     COMING_SOON_ADDON_KEYS,
-    COMING_SOON_PLAN_CAPABILITY_KEYS,
-    COMING_SOON_ROW_PLAN_KEYS,
     COUNTRY_VERIFICATION_DECLARED,
     CREDENTIAL_MODE_BYOK,
     CREDENTIAL_MODE_FUNDED,
-    CURRENCY_MINOR_UNITS,
-    LIMIT_STATE_FINITE,
-    LIMIT_STATE_UNKNOWN,
     LIVE_SUBSCRIPTION_STATUSES,
     RAZORPAY_STATUS_MAP,
     REASON_BASE_SUBSCRIPTION_REQUIRED,
@@ -66,67 +59,35 @@ from app.core.config.billing_contracts import (
     REASON_NO_CURRENT_SUBSCRIPTION,
     REASON_PROVIDER_UNAVAILABLE,
     REASON_QUANTITY_OUT_OF_BOUNDS,
-    REGION_CURRENCIES,
     SUBSCRIPTION_ACTIVE,
     SUBSCRIPTION_CANCEL_SCHEDULED,
     SUBSCRIPTION_CANCELLED,
     SUBSCRIPTION_EXPIRED,
     SUBSCRIPTION_KIND_ADDON,
     SUBSCRIPTION_KIND_BASE,
-    TOPUP_CREDIT_KEYS,
-    USAGE_UNITS_BY_CAPABILITY_TYPE,
 )
 from app.core.config.billing_settings import (
     billing_settings,
 )
 from app.core.config.entitlements import (
-    CAPABILITY_REGISTRY,
     GRANT_SOURCE_ADDON,
     GRANT_SOURCE_PLAN,
-    GRANT_SOURCE_TRIAL,
-    LEDGER_ENTRY_DEBIT,
-    LEDGER_ENTRY_RELEASE,
-    LEDGER_ENTRY_RESERVATION,
-    CapabilityDefinition,
     CapabilityType,
-)
-from app.core.config.provider_catalog import (
-    ProviderCatalogEntry,
-    public_provider_routes,
 )
 from app.domain.billing.bootstrap import ensure_user_billing
 from app.domain.billing.schemas import (
-    BillingCatalogResponse,
-    BillingEntitlementResponse,
-    BillingUsageResponse,
-    CapabilityValueResponse,
-    CatalogAddonResponse,
-    CatalogPlanResponse,
-    CatalogProviderResponse,
-    CatalogProviderRouteResponse,
-    CatalogTopupResponse,
-    GrantProvenanceResponse,
     MoneyResponse,
-    ResolvedCapabilityResponse,
     ResolvedQuoteResponse,
-    SubscriptionSummaryResponse,
-    TrialGrantSummaryResponse,
-    UsageGrantBalanceResponse,
-    UsageItemResponse,
 )
 from app.domain.entitlements.grants import issue_grant_bundle, revoke_grants
-from app.domain.entitlements.resolver import effective_grant_expiry
 from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_account,
-    resolve_account_entitlement,
 )
-from app.domain.entitlements.types import GrantInput, GrantSpec
+from app.domain.entitlements.types import GrantSpec
 from app.models.billing import (
     AccountGrant,
     BillingAccount,
     BillingSubscription,
-    ConsumableLedger,
-    GrantRevocation,
     PendingActivation,
 )
 from app.models.user import User
@@ -388,175 +349,6 @@ async def owned_account(session: AsyncSession, user: User) -> BillingAccount:
 
 def _timestamp(value: int | None) -> datetime | None:
     return datetime.fromtimestamp(value, tz=UTC) if value is not None else None
-
-
-# ---------------------------------------------------------------------------
-# Public catalog projection (pure read path)
-# ---------------------------------------------------------------------------
-# Renders the immutable config-owned commercial catalog into strict DTOs. It
-# opens no session, reads NO workspace data, and touches no connection or probe
-# (invariant 7). Every price, key, bound, and expiry comes from
-# ``core/config/billing_catalog.py``; nothing commercial is computed or defaulted here.
-# Invariant 6: ``CatalogPrice.provider_price_ref`` is PRIVATE and never reaches
-# a DTO — only the resolved amount/currency do.
-
-
-def _money(price: CatalogPrice | None) -> MoneyResponse | None:
-    """Project the SAFE half of a configured price (never the private ref)."""
-    if price is None:
-        return None
-    return MoneyResponse(currency=price.currency, amount_minor=price.amount_minor)
-
-
-def _capability_value(
-    definition: CapabilityDefinition, value: int | None
-) -> bool | int | str | None:
-    """Public form of a granted capability value (None = not granted)."""
-    if value is None:
-        return None
-    if definition.capability_type is CapabilityType.FLAG:
-        return bool(value)
-    if definition.capability_type is CapabilityType.LEVEL:
-        return definition.ordered_values[value]
-    return value
-
-
-def _plan_capabilities(plan: PlanCatalogEntry) -> list[CapabilityValueResponse]:
-    """Comparison rows for one plan: granted values plus coming-soon rows.
-
-    Coming-soon provider rows are rendered with a null value on the upper tiers
-    exactly because no plan bundle grants them.
-    """
-    granted = {template.key: template.value for template in plan.grant_bundle}
-    rows: list[CapabilityValueResponse] = []
-    for definition in CAPABILITY_REGISTRY.public_entries():
-        coming_soon = definition.key in COMING_SOON_PLAN_CAPABILITY_KEYS
-        if coming_soon and plan.key not in COMING_SOON_ROW_PLAN_KEYS:
-            continue
-        if definition.key not in granted and not coming_soon:
-            continue
-        rows.append(
-            CapabilityValueResponse(
-                key=definition.key,
-                capability_type=definition.capability_type.value,
-                value=_capability_value(definition, granted.get(definition.key)),
-                issuable=definition.issuable,
-            )
-        )
-    return rows
-
-
-def _plan_response(plan: PlanCatalogEntry, region: str) -> CatalogPlanResponse:
-    base = plan.base_price(region)
-    credit = plan.credit_price(region)
-    checkout_available, unavailable_reason = plan_checkout_availability(plan, region)
-    funded_total = (
-        MoneyResponse(
-            currency=base.currency,
-            amount_minor=base.amount_minor + credit.amount_minor,
-        )
-        if base is not None and credit is not None
-        else None
-    )
-    return CatalogPlanResponse(
-        key=plan.key,
-        name=plan.name,
-        description=plan.description,
-        cadence=plan.cadence,
-        self_serve=plan.self_serve,
-        contact_only=plan.contact_only,
-        contact_url=billing_settings.contact_sales_url if plan.contact_only else None,
-        base_price=_money(base),
-        credit_price=_money(credit),
-        funded_total_price=funded_total,
-        checkout_available=checkout_available,
-        unavailable_reason=unavailable_reason,
-        capabilities=_plan_capabilities(plan),
-        trial_availability=plan.trial_availability,
-        trial_unavailable_reason=plan.trial_unavailable_reason,
-        # Deferred trial TERMS only — trial_availability stays unavailable.
-        trial_days=billing_settings.trial_days,
-    )
-
-
-def _addon_response(addon: AddonCatalogEntry, region: str) -> CatalogAddonResponse:
-    template = addon.grant_bundle_per_unit[0]
-    return CatalogAddonResponse(
-        key=addon.key,
-        name=addon.name,
-        description=addon.description,
-        cadence=addon.cadence,
-        unit_price=_money(addon.price(region)),
-        quantity_min=addon.quantity_bounds.minimum,
-        quantity_max=addon.quantity_bounds.maximum,
-        availability=addon.availability,
-        unavailable_reason=addon.unavailable_reason,
-        grant_key=template.key,
-        grant_value_per_unit=template.value,
-    )
-
-
-def _topup_response(topup: TopupCatalogEntry, region: str) -> CatalogTopupResponse:
-    templates = topup.grant_bundle_per_unit
-    return CatalogTopupResponse(
-        key=topup.key,
-        name=topup.name,
-        description=topup.description,
-        unit_price=_money(topup.price(region)),
-        quantity_min=topup.quantity_bounds.minimum,
-        quantity_max=topup.quantity_bounds.maximum,
-        availability=topup.availability,
-        unavailable_reason=topup.unavailable_reason,
-        grant_key=TOPUP_CREDIT_KEYS[topup.key],
-        # Null while the pack size is UNSET — never a guessed pack.
-        credits_per_unit=templates[0].value if templates else None,
-        expiry_days=topup.expiry_days,
-    )
-
-
-def _provider_response(provider: ProviderCatalogEntry) -> CatalogProviderResponse:
-    return CatalogProviderResponse(
-        key=provider.key,
-        label=provider.label,
-        availability=provider.availability,
-        unavailable_reason=provider.unavailable_reason,
-        adapter_shipped=provider.adapter_shipped,
-        grant_key=provider.grant_key,
-        issuable=provider.issuable,
-        routes=[
-            CatalogProviderRouteResponse(
-                logical_engine=route.logical_engine,
-                measurement_mode=route.measurement_mode,
-                transport_provider=route.transport_provider,
-                model=route.transport_model,
-            )
-            for route in public_provider_routes(provider.key)
-        ],
-    )
-
-
-def public_catalog(country_code: str | None) -> BillingCatalogResponse:
-    """Render the PUBLIC catalog for a preview country.
-
-    ``country_code=None`` is the preview: the response reports a null country
-    and the config-owned preview region. Checkout still requires a submitted
-    country (``SubscriptionCreateRequest.country_code``).
-    """
-    normalized = (country_code or "").strip().upper() or None
-    region = resolve_region(normalized)
-    currency = REGION_CURRENCIES[region]
-    catalog: CommercialCatalog = commercial_catalog()
-    return BillingCatalogResponse(
-        catalog_revision=catalog.revision,
-        country_code=normalized,
-        region=region,
-        currency=currency,
-        currency_minor_units=CURRENCY_MINOR_UNITS[currency],
-        plans=[_plan_response(plan, region) for plan in catalog.plans],
-        addons=[_addon_response(addon, region) for addon in catalog.addons],
-        topups=[_topup_response(topup, region) for topup in catalog.topups],
-        providers=[_provider_response(provider) for provider in catalog.providers],
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -956,292 +748,6 @@ async def schedule_addon_cancellation(
     return await _schedule_cancellation(session, provider, subscription)
 
 
-# ---------------------------------------------------------------------------
-# Authenticated ACCOUNT reads (pure projections; commit NOTHING)
-# ---------------------------------------------------------------------------
-# Both reads render persisted, versioned evidence: the resolver fold plus the
-# consumable ledger. Neither calls a provider, re-derives a price, or repairs a
-# grant (invariants 4 and 7).
-
-
-async def _grant_rows(
-    session: AsyncSession, account_id: uuid.UUID
-) -> tuple[tuple[AccountGrant, ...], dict[uuid.UUID, datetime]]:
-    grants = (
-        (
-            await session.execute(
-                select(AccountGrant).where(
-                    AccountGrant.billing_account_id == account_id
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    revocations = (
-        (
-            await session.execute(
-                select(GrantRevocation)
-                .join(AccountGrant, GrantRevocation.grant_id == AccountGrant.id)
-                .where(AccountGrant.billing_account_id == account_id)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    earliest: dict[uuid.UUID, datetime] = {}
-    for revocation in revocations:
-        current = earliest.get(revocation.grant_id)
-        if current is None or revocation.effective_from < current:
-            earliest[revocation.grant_id] = revocation.effective_from
-    return tuple(grants), earliest
-
-
-def _grant_input(grant: AccountGrant) -> GrantInput:
-    return GrantInput(
-        id=grant.id,
-        key=grant.key,
-        value=grant.value,
-        source_kind=grant.source_kind,
-        valid_from=grant.valid_from,
-        valid_until=grant.valid_until,
-        period_start=grant.period_start,
-        period_end=grant.period_end,
-    )
-
-
-def _subscription_summary(
-    subscription: BillingSubscription | None,
-) -> SubscriptionSummaryResponse | None:
-    if subscription is None:
-        return None
-    return SubscriptionSummaryResponse(
-        catalog_key=subscription.catalog_key,
-        status=subscription.status,
-        current_period_end=subscription.current_period_end,
-        cancel_at_period_end=subscription.cancel_at_period_end,
-    )
-
-
-def _trial_summary(
-    grants: tuple[AccountGrant, ...], at: datetime
-) -> TrialGrantSummaryResponse | None:
-    """Derived only from operator/dev/test TRIAL grants; null otherwise."""
-    deadlines = [
-        grant.valid_until
-        for grant in grants
-        if grant.source_kind == GRANT_SOURCE_TRIAL and grant.valid_until is not None
-    ]
-    if not deadlines:
-        return None
-    deadline = max(deadlines)
-    remaining = (deadline - at).days
-    return TrialGrantSummaryResponse(
-        deadline=deadline,
-        days_remaining=max(remaining, 0),
-        exhausted=deadline <= at,
-    )
-
-
-async def account_entitlement(
-    session: AsyncSession, *, account: BillingAccount, at: datetime
-) -> BillingEntitlementResponse:
-    """The authenticated account entitlement read (commits nothing)."""
-    entitlement = await resolve_account_entitlement(
-        session, account_id=account.id, at=at
-    )
-    grants, revoked_at = await _grant_rows(session, account.id)
-    subscription = await current_base_subscription(session, account.id)
-    subscription_end = (
-        subscription.current_period_end if subscription is not None else None
-    )
-    return BillingEntitlementResponse(
-        billing_account_id=account.id,
-        status=entitlement.status,
-        errors=list(entitlement.errors),
-        registry_revision=entitlement.registry_revision,
-        entitlement_lifecycle_version=entitlement.entitlement_lifecycle_version,
-        resolved_at=entitlement.resolved_at,
-        valid_until=entitlement.valid_until,
-        subscription=_subscription_summary(subscription),
-        trial_grant=_trial_summary(grants, at),
-        capabilities=[
-            ResolvedCapabilityResponse(
-                key=capability.key,
-                capability_type=capability.capability_type.value,
-                value=_capability_value(
-                    CAPABILITY_REGISTRY.require(capability.key), capability.value
-                ),
-                contributing_grant_ids=list(capability.contributing_grant_ids),
-                ordered_draw_grant_ids=list(capability.ordered_draw_grant_ids),
-            )
-            for capability in entitlement.capabilities
-        ],
-        grants=[
-            GrantProvenanceResponse(
-                grant_id=grant.id,
-                source_kind=grant.source_kind,
-                key=grant.key,
-                value=grant.value,
-                valid_from=grant.valid_from,
-                # The MOVING effective expiry (a top-up follows the current
-                # subscription end), never the stored fixed date alone.
-                effective_valid_until=effective_grant_expiry(
-                    _grant_input(grant), subscription_end
-                ),
-                revoked_at=revoked_at.get(grant.id),
-                catalog_revision=grant.catalog_revision,
-            )
-            for grant in grants
-        ],
-    )
-
-
-async def _consumable_balances(
-    session: AsyncSession, account_id: uuid.UUID
-) -> dict[uuid.UUID, tuple[int, int]]:
-    """Per-grant ``(consumed, reserved)`` from the immutable ledger."""
-    rows = (
-        await session.execute(
-            select(
-                ConsumableLedger.grant_id,
-                ConsumableLedger.entry_kind,
-                func.coalesce(func.sum(ConsumableLedger.units), 0),
-            )
-            .where(ConsumableLedger.billing_account_id == account_id)
-            .group_by(ConsumableLedger.grant_id, ConsumableLedger.entry_kind)
-        )
-    ).all()
-    totals: dict[uuid.UUID, dict[str, int]] = {}
-    for grant_id, entry_kind, units in rows:
-        totals.setdefault(grant_id, {})[entry_kind] = int(units)
-    balances: dict[uuid.UUID, tuple[int, int]] = {}
-    for grant_id, by_kind in totals.items():
-        debited = by_kind.get(LEDGER_ENTRY_DEBIT, 0)
-        reserved = (
-            by_kind.get(LEDGER_ENTRY_RESERVATION, 0)
-            - by_kind.get(LEDGER_ENTRY_RELEASE, 0)
-            - debited
-        )
-        balances[grant_id] = (debited, max(reserved, 0))
-    return balances
-
-
-def _usage_grant_rows(
-    grants: tuple[AccountGrant, ...],
-    key: str,
-    balances: dict[uuid.UUID, tuple[int, int]],
-    subscription_end: datetime | None,
-) -> list[UsageGrantBalanceResponse]:
-    rows: list[UsageGrantBalanceResponse] = []
-    for grant in grants:
-        if grant.key != key:
-            continue
-        consumed, reserved = balances.get(grant.id, (0, 0))
-        rows.append(
-            UsageGrantBalanceResponse(
-                grant_id=grant.id,
-                source_kind=grant.source_kind,
-                allowance=grant.value,
-                consumed=consumed,
-                reserved=reserved,
-                remaining=max(grant.value - consumed - reserved, 0),
-                # The MOVING effective expiry, not the stored fixed date.
-                effective_valid_until=effective_grant_expiry(
-                    _grant_input(grant), subscription_end
-                ),
-            )
-        )
-    return rows
-
-
-def _usage_item(
-    definition: CapabilityDefinition,
-    grant_rows: list[UsageGrantBalanceResponse],
-    at: datetime,
-) -> UsageItemResponse:
-    """One counter row. Consumables are FINITE (the ledger measures them);
-    occupancy/rate counters are UNKNOWN until their measurement lands.
-    """
-    unit = USAGE_UNITS_BY_CAPABILITY_TYPE[definition.capability_type.value]
-    expiries = [
-        row.effective_valid_until
-        for row in grant_rows
-        if row.effective_valid_until is not None
-    ]
-    earliest_expiry = min(expiries) if expiries else None
-    if definition.capability_type is not CapabilityType.COUNTER_CONSUMABLE:
-        return UsageItemResponse(
-            key=definition.key,
-            capability_type=definition.capability_type.value,
-            unit=unit,
-            limit_state=LIMIT_STATE_UNKNOWN,
-            allowance=None,
-            consumed=None,
-            reserved=None,
-            remaining=None,
-            window_started_at=None,
-            resets_at=_rate_window_reset(definition, at),
-            earliest_expiry=earliest_expiry,
-            grants=grant_rows,
-        )
-    allowance = sum(row.allowance for row in grant_rows)
-    consumed = sum(row.consumed for row in grant_rows)
-    reserved = sum(row.reserved for row in grant_rows)
-    return UsageItemResponse(
-        key=definition.key,
-        capability_type=definition.capability_type.value,
-        unit=unit,
-        limit_state=LIMIT_STATE_FINITE,
-        allowance=allowance,
-        consumed=consumed,
-        reserved=reserved,
-        remaining=max(allowance - consumed - reserved, 0),
-        window_started_at=None,
-        resets_at=None,
-        earliest_expiry=earliest_expiry,
-        grants=grant_rows,
-    )
-
-
-def _rate_window_reset(
-    definition: CapabilityDefinition, at: datetime
-) -> datetime | None:
-    if definition.rolling_window_seconds is None:
-        return None
-    return at + timedelta(seconds=definition.rolling_window_seconds)
-
-
-async def account_usage(
-    session: AsyncSession, *, account: BillingAccount, at: datetime
-) -> BillingUsageResponse:
-    """The authenticated account usage read (commits nothing)."""
-    entitlement = await resolve_account_entitlement(
-        session, account_id=account.id, at=at
-    )
-    grants, _ = await _grant_rows(session, account.id)
-    subscription = await current_base_subscription(session, account.id)
-    subscription_end = (
-        subscription.current_period_end if subscription is not None else None
-    )
-    balances = await _consumable_balances(session, account.id)
-    items = [
-        _usage_item(
-            definition,
-            _usage_grant_rows(grants, definition.key, balances, subscription_end),
-            at,
-        )
-        for definition in CAPABILITY_REGISTRY.public_entries()
-        if definition.capability_type in _COUNTER_TYPES
-    ]
-    return BillingUsageResponse(
-        billing_account_id=account.id,
-        entitlement_lifecycle_version=entitlement.entitlement_lifecycle_version,
-        status=entitlement.status,
-        items=items,
-    )
-
-
 __all__ = [
     "BillingConflictError",
     "SubscriptionEvent",
@@ -1259,5 +765,4 @@ __all__ = [
     "schedule_addon_cancellation",
     "schedule_base_cancellation",
     "owned_account",
-    "public_catalog",
 ]

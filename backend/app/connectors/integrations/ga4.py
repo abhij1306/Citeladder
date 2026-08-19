@@ -263,6 +263,34 @@ def _coerce_metric_value(raw: object) -> int | float | None:
         return None
 
 
+def _normalize_dimensions(values: object, expected: int) -> list[str] | None:
+    if not isinstance(values, list) or len(values) != expected:
+        return None
+    keys: list[str] = []
+    for entry in values:
+        if not isinstance(entry, dict) or "value" not in entry:
+            return None
+        keys.append(str(entry["value"]))
+    return keys
+
+
+def _normalize_metrics(
+    values: object, names: tuple[str, ...]
+) -> dict[str, int | float] | None:
+    if not isinstance(values, list) or len(values) < len(names):
+        return None
+    normalized: dict[str, int | float] = {}
+    for index, name in enumerate(names):
+        entry = values[index]
+        if not isinstance(entry, dict) or "value" not in entry:
+            return None
+        value = _coerce_metric_value(entry["value"])
+        if value is None:
+            return None
+        normalized[name] = value
+    return normalized
+
+
 def _normalize_row(row: object, template: IntegrationDatasetTemplate) -> dict | None:
     """Map one raw ``runReport`` row into the GSC-shaped contract row.
 
@@ -273,28 +301,11 @@ def _normalize_row(row: object, template: IntegrationDatasetTemplate) -> dict | 
     """
     if not isinstance(row, dict):
         return None
-    dimension_values = row.get("dimensionValues")
-    metric_values = row.get("metricValues")
-    if not isinstance(dimension_values, list) or not isinstance(metric_values, list):
+    keys = _normalize_dimensions(row.get("dimensionValues"), len(template.dimensions))
+    metrics = _normalize_metrics(row.get("metricValues"), template.metrics)
+    if keys is None or metrics is None:
         return None
-    if len(dimension_values) != len(template.dimensions):
-        return None
-    if len(metric_values) < len(template.metrics):
-        return None
-    keys: list[str] = []
-    for entry in dimension_values:
-        if not isinstance(entry, dict) or "value" not in entry:
-            return None
-        keys.append(str(entry["value"]))
-    normalized: dict = {"keys": keys}
-    for index, name in enumerate(template.metrics):
-        entry = metric_values[index]
-        if not isinstance(entry, dict) or "value" not in entry:
-            return None
-        value = _coerce_metric_value(entry["value"])
-        if value is None:
-            return None
-        normalized[name] = value
+    normalized: dict = {"keys": keys, **metrics}
     return normalized
 
 
@@ -380,6 +391,49 @@ class Ga4Client:
             response, label="GA4 property list", error_type=Ga4ApiError
         )
 
+    async def _post_report(
+        self,
+        *,
+        url: str,
+        body: dict,
+        access_token: str,
+        template: IntegrationDatasetTemplate,
+    ) -> dict:
+        await self._pacer.wait(
+            integration_settings.requests_per_minute(INTEGRATION_PROVIDER_GA4)
+        )
+        try:
+            async with httpx.AsyncClient(
+                transport=self._transport,
+                timeout=integration_settings.sync_request_timeout_seconds,
+            ) as client:
+                response = await client.post(
+                    url,
+                    json=body,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+        except httpx.HTTPError as exc:
+            raise Ga4ApiError(
+                f"GA4 runReport request failed: {type(exc).__name__}",
+                error_code=ERROR_PROVIDER_API,
+                retryable=True,
+            ) from exc
+        if response.status_code != 200:
+            _raise_run_report_error(response, template)
+        try:
+            report = response.json()
+        except ValueError as exc:
+            raise Ga4ApiError(
+                "GA4 runReport returned a non-JSON body",
+                error_code=ERROR_PROVIDER_API,
+            ) from exc
+        if not isinstance(report, dict):
+            raise Ga4ApiError(
+                "GA4 runReport returned an unexpected body",
+                error_code=ERROR_PROVIDER_API,
+            )
+        return report
+
     async def query_search_analytics(
         self,
         *,
@@ -423,72 +477,38 @@ class Ga4Client:
             "limit": integration_settings.sync_page_size,
             "offset": start_row,
         }
-        await self._pacer.wait(
-            integration_settings.requests_per_minute(INTEGRATION_PROVIDER_GA4)
+        report = await self._post_report(
+            url=url, body=body, access_token=access_token, template=template
         )
-        try:
-            async with httpx.AsyncClient(
-                transport=self._transport,
-                timeout=integration_settings.sync_request_timeout_seconds,
-            ) as client:
-                response = await client.post(
-                    url,
-                    json=body,
-                    # Set per-request and never logged (invariant 6).
-                    headers={"Authorization": f"Bearer {access_token}"},
-                )
-        except httpx.HTTPError as exc:
-            raise Ga4ApiError(
-                f"GA4 runReport request failed: {type(exc).__name__}",
-                error_code=ERROR_PROVIDER_API,
-                retryable=True,
-            ) from exc
-        if response.status_code != 200:
-            _raise_run_report_error(response, template)
-        try:
-            report = response.json()
-        except ValueError as exc:
-            raise Ga4ApiError(
-                "GA4 runReport returned a non-JSON body",
-                error_code=ERROR_PROVIDER_API,
-            ) from exc
-        if not isinstance(report, dict):
-            raise Ga4ApiError(
-                "GA4 runReport returned an unexpected body",
-                error_code=ERROR_PROVIDER_API,
-            )
-        raw_rows = report.get("rows") or []
-        if not isinstance(raw_rows, list):
-            raise Ga4ApiError(
-                "GA4 runReport returned malformed rows",
-                error_code=ERROR_PROVIDER_API,
-            )
-        rows = tuple(
-            normalized
-            for normalized in (_normalize_row(row, template) for row in raw_rows)
-            if normalized is not None
+        payload, rows, raw_count = _report_payload(report, template)
+        return Ga4ReportPage(payload=payload, rows=rows, raw_row_count=raw_count)
+
+
+def _report_payload(
+    report: dict, template: IntegrationDatasetTemplate
+) -> tuple[dict, tuple[dict, ...], int]:
+    raw_rows = report.get("rows") or []
+    if not isinstance(raw_rows, list):
+        raise Ga4ApiError(
+            "GA4 runReport returned malformed rows",
+            error_code=ERROR_PROVIDER_API,
         )
-        # The persisted payload is the faithful normalized report document
-        # (the derivation contract); ``rowCount`` is carried through when
-        # the provider reports it.
-        payload: dict = {"rows": list(rows)}
-        if "rowCount" in report:
-            payload["rowCount"] = report["rowCount"]
-        metadata = report.get("metadata")
-        if isinstance(metadata, dict):
-            # Persist provider-declared thresholding/sampling/currency metadata
-            # beside the immutable rows. Read APIs expose this verbatim as
-            # limitations; they never infer complete coverage from row count.
-            payload["metadata"] = metadata
-        # Ecommerce datasets only: persist the property's ISO currency as a
-        # TOP-LEVEL payload key (beside ``rows``/``rowCount``) — never a
-        # report dimension, which would change ``dimension_key`` identity
-        # and explode row cardinality. A1's only currency source (AC3).
-        if template.dataset in ATTRIBUTION_CONSUMED_DATASETS:
-            currency_code = _report_currency_code(report)
-            if currency_code is not None:
-                payload["currency_code"] = currency_code
-        return Ga4ReportPage(payload=payload, rows=rows, raw_row_count=len(raw_rows))
+    rows = tuple(
+        normalized
+        for normalized in (_normalize_row(row, template) for row in raw_rows)
+        if normalized is not None
+    )
+    payload: dict = {"rows": list(rows)}
+    if "rowCount" in report:
+        payload["rowCount"] = report["rowCount"]
+    metadata = report.get("metadata")
+    if isinstance(metadata, dict):
+        payload["metadata"] = metadata
+    if template.dataset in ATTRIBUTION_CONSUMED_DATASETS:
+        currency_code = _report_currency_code(report)
+        if currency_code is not None:
+            payload["currency_code"] = currency_code
+    return payload, rows, len(raw_rows)
 
 
 def build_ga4_client(*, transport: httpx.AsyncBaseTransport | None = None) -> Ga4Client:

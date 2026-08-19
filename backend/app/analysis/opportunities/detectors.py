@@ -210,6 +210,52 @@ def _group_by_prompt_index(
     return groups
 
 
+def _gap_hit(
+    *,
+    evidence: VisibilityEvidence,
+    rule: OpportunityRule,
+    prompt_index: int,
+    analyses: list[AnalysisEvidence],
+    snapshot: PromptSnapshotEvidence | None,
+    competitor_names: list[str],
+    extras: Callable[[list[AnalysisEvidence], list[str]], dict[str, Any]],
+) -> DetectorHit:
+    target_key, prompt_id, theme = _prompt_target(
+        audit_id=evidence.audit_id,
+        snapshot=snapshot,
+        prompt_index=prompt_index,
+    )
+    intent = snapshot.intent if snapshot is not None else ""
+    return DetectorHit(
+        rule_id=rule.rule_id,
+        target_key=target_key,
+        target_prompt_id=prompt_id,
+        target_url=None,
+        target_theme=theme,
+        evidence={
+            "prompt_text": snapshot.text if snapshot is not None else "",
+            "prompt_intent": intent,
+            "prompt_theme": snapshot.theme if snapshot is not None else "",
+            "prompt_index": prompt_index,
+            "repetitions": len(analyses),
+            "owned_citation_count": 0,
+            "source_pattern": _gap_source_pattern(analyses),
+            **extras(analyses, competitor_names),
+            "audit_id": str(evidence.audit_id),
+        },
+        source_analysis_ids=tuple(
+            str(a.analysis_id)
+            for a in sorted(analyses, key=lambda a: str(a.analysis_id))
+        ),
+        source_issue_ids=(),
+        source_metric_ids=(),
+        value_factor=value_factor_for_intent(intent),
+        gap_factor=gap_factor_visibility(
+            competitor_count=len(competitor_names), owned_citation_rate=0.0
+        ),
+    )
+
+
 def _visibility_gap_hits(
     evidence: VisibilityEvidence,
     *,
@@ -237,45 +283,15 @@ def _visibility_gap_hits(
         )
         if require_competitor and not competitor_names:
             continue
-        snapshot = snapshots.get(prompt_index)
-        target_key, prompt_id, theme = _prompt_target(
-            audit_id=evidence.audit_id,
-            snapshot=snapshot,
-            prompt_index=prompt_index,
-        )
-        intent = snapshot.intent if snapshot is not None else ""
         hits.append(
-            DetectorHit(
-                rule_id=rule.rule_id,
-                target_key=target_key,
-                target_prompt_id=prompt_id,
-                target_url=None,
-                target_theme=theme,
-                evidence={
-                    "prompt_text": snapshot.text if snapshot is not None else "",
-                    "prompt_intent": intent,
-                    "prompt_theme": snapshot.theme if snapshot is not None else "",
-                    "prompt_index": prompt_index,
-                    "repetitions": len(analyses),
-                    "owned_citation_count": 0,
-                    # Descriptive only: what kinds of sources were cited where
-                    # this brand was not. Never a causal claim (see
-                    # ``source_patterns``), and never an input to firing.
-                    "source_pattern": _gap_source_pattern(analyses),
-                    **extras(analyses, competitor_names),
-                    "audit_id": str(evidence.audit_id),
-                },
-                source_analysis_ids=tuple(
-                    str(a.analysis_id)
-                    for a in sorted(analyses, key=lambda a: str(a.analysis_id))
-                ),
-                source_issue_ids=(),
-                source_metric_ids=(),
-                value_factor=value_factor_for_intent(intent),
-                gap_factor=gap_factor_visibility(
-                    competitor_count=len(competitor_names),
-                    owned_citation_rate=0.0,
-                ),
+            _gap_hit(
+                evidence=evidence,
+                rule=rule,
+                prompt_index=prompt_index,
+                analyses=analyses,
+                snapshot=snapshots.get(prompt_index),
+                competitor_names=competitor_names,
+                extras=extras,
             )
         )
     return hits

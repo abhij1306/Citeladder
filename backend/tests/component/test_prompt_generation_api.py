@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.api.prompts as prompts_api
 from app.connectors.agent.client import AgentNotConfiguredError, DefaultAgentClient
+from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.audits import AUDIT_TRIGGER_MANUAL
 from app.core.config.entitlements import KEY_PROMPT_SLOTS
 from app.domain.audits.creation import create_audit
@@ -169,11 +170,11 @@ async def test_generate_creates_proposed_prompts_and_topics(
     for prompt in body["generated"]:
         assert prompt["origin"] == "generated"
         assert prompt["topic_id"] is not None
-    assert {t["name"] for t in body["topics"]} == {"Footwear", "Sizing"}
-    footwear = next(t for t in body["topics"] if t["name"] == "Footwear")
-    assert footwear["origin"] == "generated"
-    assert footwear["active_count"] == 2
-    assert footwear["proposed_count"] == 0
+    assert {t["name"] for t in body["topics"]} == {"Running Shoes"}
+    running_shoes = body["topics"][0]
+    assert running_shoes["origin"] == "generated"
+    assert running_shoes["active_count"] == 3
+    assert running_shoes["proposed_count"] == 0
 
     # The brand evidence went to the agent (confirmed above), and the
     # request embedded identity + count instructions.
@@ -183,6 +184,8 @@ async def test_generate_creates_proposed_prompts_and_topics(
     assert "Globex" in sent
     assert "Value-priced family footwear" in sent
     assert "exactly 3 prompts" in sent
+    assert "Confirmed product/service topic taxonomy" in sent
+    assert '["Running Shoes"]' in sent
 
     # Provenance evidence is persisted but the API response never includes
     # any credential material — only host + model identity.
@@ -224,7 +227,7 @@ async def test_generate_persists_provenance_evidence(
     for prompt in prompts:
         evidence = prompt.generation_evidence
         assert evidence is not None
-        assert evidence["generator_version"] == "prompt-gen-v4"
+        assert evidence["generator_version"] == "prompt-gen-v6"
         assert evidence["model_identity"] == {
             "transport_host": "agent.test",
             "transport_model": "fake-model",
@@ -245,6 +248,30 @@ async def test_generate_rejects_count_over_cap(
     )
     assert resp.status_code == 422
     assert resp.json()["detail"]["code"] == "generation_invalid"
+    assert fake_agent.calls == []
+
+
+@pytest.mark.asyncio
+async def test_generate_requires_confirmed_product_services(
+    client: httpx.AsyncClient, fake_agent: FakeAgent
+) -> None:
+    project, prompt_set_id = await _make_project_and_set(
+        client, "gen-products@example.com"
+    )
+    profile = await client.put(
+        f"/api/v1/projects/{project['id']}/brand-profile",
+        json={"products_services": []},
+    )
+    assert profile.status_code == 200
+
+    resp = await client.post(
+        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
+        json={"count": 3, "confirm_send_evidence": True},
+    )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["code"] == "generation_invalid"
+    assert "confirmed product/service" in resp.json()["detail"]["message"]
     assert fake_agent.calls == []
 
 
@@ -283,6 +310,38 @@ async def test_generate_unconfigured_agent_returns_503(
     detail = resp.json()["detail"]
     assert detail["code"] == "agent_not_configured"
     assert "configured provider's API key" in detail["message"]
+
+
+@pytest.mark.asyncio
+async def test_generate_reports_upstream_rate_limits_as_retryable(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, prompt_set_id = await _make_project_and_set(client, "gen-rate-limit@example.com")
+
+    class RateLimitedAgent:
+        model = "fake-model"
+        base_url_host = "agent.test"
+
+        async def complete_json(self, *, system: str, user: str) -> str:
+            raise ProviderError(
+                "Default agent returned HTTP 429",
+                error_code="rate_limit",
+                retryable=True,
+                retry_after_seconds=4,
+            )
+
+    monkeypatch.setattr(prompts_api, "DefaultAgentClient", RateLimitedAgent)
+    resp = await client.post(
+        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
+        json={"count": 3, "confirm_send_evidence": True},
+    )
+
+    assert resp.status_code == 429
+    assert resp.headers["retry-after"] == "4"
+    assert resp.json()["detail"] == {
+        "code": "rate_limited",
+        "message": "The AI provider is rate limited. Please try again shortly.",
+    }
 
 
 @pytest.mark.asyncio

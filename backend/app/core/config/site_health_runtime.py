@@ -94,9 +94,6 @@ class SiteHealthSettings(BaseSettings):
     max_crawl_depth: int = 20
     # Batch size for progressive inventory admission (INSERT ... ON CONFLICT).
     admission_batch_size: int = 200
-    # Maximum number of prior full-discovery crawl inventories carried forward
-    # into a Starter recrawl's dashboard scope. Bounds the frozen JSON config
-    # and the UNION used by inventory/page queries.
     inventory_history_crawl_limit: int = 20
 
     # --- Concurrency / politeness ---

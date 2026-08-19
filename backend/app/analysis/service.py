@@ -32,13 +32,11 @@ from app.analysis.scoring import (
     classify_citation,
     score_execution,
 )
+from app.analysis.trend_metrics import _prompt_trend_values
 from app.core.config.analysis import (
     ANALYZER_VERSION,
     PROMPT_DECLINE_HISTORY_CANDIDATE_LIMIT,
-    PROMPT_DECLINE_MATERIALITY_POINTS,
     PROMPT_DECLINE_MIN_ENGINES,
-    PROMPT_DECLINE_REPETITION_AGREEMENT,
-    PROMPT_DECLINE_REQUIRED_MOVEMENTS,
     PROMPT_DECLINE_WINDOW_MOVEMENTS,
     SCORING_RULE_VERSION,
 )
@@ -91,41 +89,10 @@ def _classification(classified: dict) -> str:
     return CITATION_THIRD_PARTY
 
 
-async def analyze_task(
-    session: AsyncSession,
-    *,
-    task: AuditTask,
-    config: ScoringConfig,
-) -> ResponseAnalysis | None:
-    """Score one completed execution and persist its derived rows.
-
-    Deterministic + idempotent: if an analysis already exists for this task it is
-    returned unchanged. Caller owns the commit.
-    """
-    existing = await session.scalar(
-        select(ResponseAnalysis).where(ResponseAnalysis.task_id == task.id)
-    )
-    if existing is not None:
-        return existing
-
-    citations = list(task.citations or [])
-    search_events = list(task.search_events or [])
-    provider_metadata = task.provider_metadata or {}
-    query_text_available = bool(provider_metadata.get("query_text_available", True))
-    score = score_execution(
-        answer_text=task.answer_text or "",
-        search_events=search_events,
-        citations=citations,
-        search_used=bool(task.search_used),
-        config=config,
-        prompt_text=task.prompt_text or "",
-        query_text_available=query_text_available,
-    )
-    prompt_snapshot = await session.get(AuditPromptSnapshot, task.prompt_snapshot_id)
-    cohort = prompt_snapshot.cohort if prompt_snapshot is not None else "core"
-    score["cohort"] = cohort
-
-    analysis = ResponseAnalysis(
+def _response_analysis(
+    *, task: AuditTask, score: dict, cohort: str
+) -> ResponseAnalysis:
+    return ResponseAnalysis(
         workspace_id=task.workspace_id,
         audit_id=task.audit_id,
         task_id=task.id,
@@ -137,9 +104,6 @@ async def analyze_task(
         transport_model=task.transport_model,
         prompt_index=task.prompt_index,
         repetition=task.repetition,
-        # Defense-in-depth (§7.1): brand-metric denominators filter on this
-        # column, so even a direct/retry/legacy write path cannot leak a
-        # probe analysis into brand metrics.
         shopping_surface=task.shopping_surface,
         prompt_class=str(score.get("prompt_class", "")),
         cohort=cohort,
@@ -151,14 +115,21 @@ async def analyze_task(
         citation_count=int(score.get("citation_count") or 0),
         search_used=bool(score.get("search_used")),
         search_query_count=int(score.get("search_query_count") or 0),
-        # Roadmap (B-2): no LLM analysis yet, so these stay null.
         sentiment=None,
         avg_position=None,
         score=score,
     )
-    session.add(analysis)
-    await session.flush()  # assign analysis.id for child rows
 
+
+def _persist_analysis_rows(
+    session: AsyncSession,
+    *,
+    task: AuditTask,
+    analysis: ResponseAnalysis,
+    score: dict,
+    citations: list[dict],
+    config: ScoringConfig,
+) -> None:
     if score.get("brand_mentioned"):
         session.add(
             BrandMention(
@@ -201,6 +172,53 @@ async def analyze_task(
                 matched_competitor=classified.get("matched_competitor"),
             )
         )
+
+
+async def analyze_task(
+    session: AsyncSession,
+    *,
+    task: AuditTask,
+    config: ScoringConfig,
+) -> ResponseAnalysis | None:
+    """Score one completed execution and persist its derived rows.
+
+    Deterministic + idempotent: if an analysis already exists for this task it is
+    returned unchanged. Caller owns the commit.
+    """
+    existing = await session.scalar(
+        select(ResponseAnalysis).where(ResponseAnalysis.task_id == task.id)
+    )
+    if existing is not None:
+        return existing
+
+    citations = list(task.citations or [])
+    search_events = list(task.search_events or [])
+    provider_metadata = task.provider_metadata or {}
+    query_text_available = bool(provider_metadata.get("query_text_available", True))
+    score = score_execution(
+        answer_text=task.answer_text or "",
+        search_events=search_events,
+        citations=citations,
+        search_used=bool(task.search_used),
+        config=config,
+        prompt_text=task.prompt_text or "",
+        query_text_available=query_text_available,
+    )
+    prompt_snapshot = await session.get(AuditPromptSnapshot, task.prompt_snapshot_id)
+    cohort = prompt_snapshot.cohort if prompt_snapshot is not None else "core"
+    score["cohort"] = cohort
+
+    analysis = _response_analysis(task=task, score=score, cohort=cohort)
+    session.add(analysis)
+    await session.flush()  # assign analysis.id for child rows
+    _persist_analysis_rows(
+        session,
+        task=task,
+        analysis=analysis,
+        score=score,
+        citations=citations,
+        config=config,
+    )
     return analysis
 
 
@@ -358,37 +376,6 @@ async def _previous_prompt_metrics(
     return grouped
 
 
-def _engine_decline_agreement(
-    current: dict[str, float], previous: dict[str, float]
-) -> tuple[int, float]:
-    overlapping = sorted(set(current).intersection(previous))
-    if not overlapping:
-        return 0, 0.0
-    declining = sum(
-        current[engine] - previous[engine] <= -PROMPT_DECLINE_MATERIALITY_POINTS
-        for engine in overlapping
-    )
-    return declining, round(declining / len(overlapping), 4)
-
-
-def _decline_is_confirmed(
-    *,
-    immediate_delta: float | None,
-    recent_deltas: list[float],
-    declining_engines: int,
-    repetitions_confirm: bool,
-) -> bool:
-    return (
-        immediate_delta is not None
-        and immediate_delta <= -PROMPT_DECLINE_MATERIALITY_POINTS
-        and len(recent_deltas) >= PROMPT_DECLINE_WINDOW_MOVEMENTS
-        and sum(delta <= -PROMPT_DECLINE_MATERIALITY_POINTS for delta in recent_deltas)
-        >= PROMPT_DECLINE_REQUIRED_MOVEMENTS
-        and declining_engines >= PROMPT_DECLINE_MIN_ENGINES
-        and repetitions_confirm
-    )
-
-
 async def _persist_prompt_metric_snapshots(
     session: AsyncSession,
     *,
@@ -471,67 +458,6 @@ def _build_prompt_metric_snapshot(
     )
 
 
-def _prompt_trend_values(
-    *,
-    previous,
-    row,
-    repetitions,
-    engine_count,
-):
-    current_score = float(row.get("composite_score") or 0.0)
-    current_engines = {
-        str(engine): round(float(score), 2)
-        for engine, score in (row.get("per_engine_scores") or {}).items()
-    }
-    previous_score = previous[0].composite_score if previous else None
-    immediate_delta = (
-        round(current_score - previous_score, 2) if previous_score is not None else None
-    )
-    previous_engines = previous[0].per_engine_scores if previous else {}
-    declining_engines, engine_agreement = _engine_decline_agreement(
-        current_engines, previous_engines
-    )
-    recent_deltas = [
-        value
-        for value in [immediate_delta, *(item.immediate_delta for item in previous[:3])]
-        if value is not None
-    ]
-    repetition_agreement = float(row.get("mention_stability") or 0.0)
-    evidence_coverage = _prompt_evidence_coverage(
-        int(row.get("repetitions") or 0), engine_count, repetitions
-    )
-    return {
-        "composite_score": current_score,
-        "previous_score": previous_score,
-        "immediate_delta": immediate_delta,
-        "rolling_four": [
-            current_score,
-            *(item.composite_score for item in previous[:3]),
-        ],
-        "per_engine_scores": current_engines,
-        "engine_agreement": engine_agreement,
-        "repetition_agreement": repetition_agreement,
-        "evidence_coverage": evidence_coverage,
-        "trend_confidence": round(
-            (engine_agreement + repetition_agreement + evidence_coverage) / 3, 4
-        ),
-        "decline_confirmed": _decline_is_confirmed(
-            immediate_delta=immediate_delta,
-            recent_deltas=recent_deltas,
-            declining_engines=declining_engines,
-            repetitions_confirm=(
-                repetitions <= 1
-                or repetition_agreement >= PROMPT_DECLINE_REPETITION_AGREEMENT
-            ),
-        ),
-    }
-
-
-def _prompt_evidence_coverage(observed, engine_count, repetitions):
-    expected = engine_count * repetitions
-    return round(observed / expected, 4) if expected else 0.0
-
-
 async def _artifact_usage_by_task(
     session: AsyncSession, *, audit_id: uuid.UUID, analyses: list[ResponseAnalysis]
 ) -> dict[uuid.UUID, dict]:
@@ -567,43 +493,59 @@ def _cohort_metrics(rows, config, cohort, requested):
     return metrics
 
 
+def _cohort_projection(
+    rows: list[dict], config: ScoringConfig, cohort: str, requested: int
+) -> dict:
+    return _cohort_metrics(
+        [row for row in rows if row.get("cohort") == cohort],
+        config,
+        cohort,
+        requested,
+    )
+
+
+def _per_engine_cohort_metrics(
+    per_engine: dict[str, list[dict]],
+    config: ScoringConfig,
+    cohorts: set[str] | tuple[str, ...],
+) -> dict[str, dict]:
+    return {
+        engine: aggregate_run(
+            [row for row in rows if row.get("cohort") in cohorts], config
+        )
+        for engine, rows in sorted(per_engine.items())
+    }
+
+
 def _finalized_metrics(
     all_rows, per_engine, prompt_cohorts, engine_count, repetitions, config
 ):
-    organic = [row for row in all_rows if row.get("cohort") in ORGANIC_PROMPT_COHORTS]
-    diagnostic = [row for row in all_rows if row.get("cohort") == "brand_diagnostic"]
-    comparison = [row for row in all_rows if row.get("cohort") == "comparison"]
     slot_count = engine_count * repetitions
+    organic = [row for row in all_rows if row.get("cohort") in ORGANIC_PROMPT_COHORTS]
     metrics = _cohort_metrics(
         organic,
         config,
         "market_visibility",
         sum(cohort in ORGANIC_PROMPT_COHORTS for cohort in prompt_cohorts) * slot_count,
     )
-    metrics["comparison"] = _cohort_metrics(
-        comparison,
+    metrics["comparison"] = _cohort_projection(
+        all_rows,
         config,
         "comparison",
         prompt_cohorts.count("comparison") * slot_count,
     )
-    metrics["brand_diagnostic"] = _cohort_metrics(
-        diagnostic,
+    metrics["brand_diagnostic"] = _cohort_projection(
+        all_rows,
         config,
         "brand_diagnostic",
         prompt_cohorts.count("brand_diagnostic") * slot_count,
     )
-    metrics["per_engine"] = {
-        engine: aggregate_run(
-            [row for row in rows if row.get("cohort") in ORGANIC_PROMPT_COHORTS], config
-        )
-        for engine, rows in sorted(per_engine.items())
-    }
-    metrics["comparison"]["per_engine"] = {
-        engine: aggregate_run(
-            [row for row in rows if row.get("cohort") == "comparison"], config
-        )
-        for engine, rows in sorted(per_engine.items())
-    }
+    metrics["per_engine"] = _per_engine_cohort_metrics(
+        per_engine, config, ORGANIC_PROMPT_COHORTS
+    )
+    metrics["comparison"]["per_engine"] = _per_engine_cohort_metrics(
+        per_engine, config, ("comparison",)
+    )
     return metrics
 
 

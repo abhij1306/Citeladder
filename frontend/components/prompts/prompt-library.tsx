@@ -1,11 +1,9 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { promptsApi, type PromptGenerateInput, type PromptInput } from '@/lib/api/prompts';
 import { queryKeys } from '@/lib/api/query-keys';
@@ -27,6 +25,7 @@ import { PromptEmptyState } from './prompt-empty-state';
 import { PromptFormDialog } from './prompt-form-dialog';
 import { PromptTable } from './prompt-table';
 import { PromptToolbar } from './prompt-toolbar';
+import { ResizablePromptWorkspace } from './resizable-prompt-workspace';
 import { TopicRail } from './topic-rail';
 
 function errorMessage(error: unknown): string {
@@ -44,10 +43,11 @@ const STATUS_TABS: { id: PromptStatus; label: string }[] = [
  * context), the topic/status/search filter state, and every CRUD, import,
  * lifecycle, and AI-generation mutation. Layout: topics rail on the left;
  * Active / Archived status tabs over the prompt table on the
- * right; "Generate prompts & topics" opens the consent-gated AI dialog.
+ * right. The desktop split is user-resizable; "Generate prompts & topics"
+ * opens the consent-gated AI dialog.
  */
 // react-doctor-disable-next-line react-doctor/no-giant-component -- this component only orchestrates queries/mutations; toolbar, topic rail, table, empty state, and dialogs are extracted.
-export function PromptLibrary() {
+export function PromptLibrary({ onDoneManaging }: Readonly<{ onDoneManaging?: () => void }>) {
   const queryClient = useQueryClient();
   const { projectId, promptSet, prompts, isLoading, isError, ensurePromptSet } = usePromptSet();
 
@@ -223,7 +223,7 @@ export function PromptLibrary() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-4">
       {isError ? (
         <Alert tone="danger">Could not load prompts. Check your connection and try again.</Alert>
       ) : null}
@@ -235,65 +235,59 @@ export function PromptLibrary() {
         onFiltersChange={setFilters}
         onImport={() => setImportOpen(true)}
         onAdd={openAdd}
+        onGenerate={() => {
+          setGenerateResult(null);
+          generateMutation.reset();
+          setGenerateOpen(true);
+        }}
+        onDoneManaging={onDoneManaging}
       />
 
-      <div className="grid items-start gap-6 md:grid-cols-[minmax(200px,260px)_minmax(0,1fr)]">
-        <TopicRail
-          topics={topics}
-          selectedTopicId={selectedTopicId}
-          onSelect={setSelectedTopicId}
-          onCreate={async (name) => {
-            await createTopicMutation.mutateAsync(name);
-          }}
-          onDelete={(topic) => deleteTopicMutation.mutate(topic)}
-          isCreating={createTopicMutation.isPending}
-          loadError={topicsQuery.isError}
-          actionError={
-            createTopicMutation.isError
-              ? errorMessage(createTopicMutation.error)
-              : deleteTopicMutation.isError
-                ? errorMessage(deleteTopicMutation.error)
-                : null
-          }
-        />
-
+      <ResizablePromptWorkspace
+        railId="prompt-topic-rail"
+        rail={
+          <TopicRail
+            desktopId="prompt-topic-rail"
+            topics={topics}
+            selectedTopicId={selectedTopicId}
+            onSelect={setSelectedTopicId}
+            onCreate={async (name) => {
+              await createTopicMutation.mutateAsync(name);
+            }}
+            onDelete={(topic) => deleteTopicMutation.mutate(topic)}
+            isCreating={createTopicMutation.isPending}
+            loadError={topicsQuery.isError}
+            actionError={
+              createTopicMutation.isError
+                ? errorMessage(createTopicMutation.error)
+                : deleteTopicMutation.isError
+                  ? errorMessage(deleteTopicMutation.error)
+                  : null
+            }
+          />
+        }
+      >
         <div className="grid min-w-0 content-start gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div role="tablist" aria-label="Prompt status" className={segmentedTrackClasses}>
-              {STATUS_TABS.map((tab) => {
-                const selected = tab.id === statusTab;
-                const count = statusCounts[tab.id];
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    onClick={() => setStatusTab(tab.id)}
-                    className={segmentedItemClasses(selected)}
-                  >
-                    {tab.label}
-                    {count > 0 ? (
-                      <span className="mono text-muted text-2xs ml-1.5">{count}</span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex items-center gap-2 pb-1">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setGenerateResult(null);
-                  generateMutation.reset();
-                  setGenerateOpen(true);
-                }}
-              >
-                <Sparkles className="size-4" aria-hidden />
-                Generate prompts & topics
-              </Button>
-            </div>
+          <div role="tablist" aria-label="Prompt status" className={segmentedTrackClasses}>
+            {STATUS_TABS.map((tab) => {
+              const selected = tab.id === statusTab;
+              const count = statusCounts[tab.id];
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  onClick={() => setStatusTab(tab.id)}
+                  className={segmentedItemClasses(selected)}
+                >
+                  {tab.label}
+                  {count > 0 ? (
+                    <span className="mono text-muted text-2xs ml-1.5">{count}</span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
 
           {!hasPrompts ? (
@@ -322,7 +316,7 @@ export function PromptLibrary() {
             />
           )}
         </div>
-      </div>
+      </ResizablePromptWorkspace>
 
       <PromptFormDialog
         open={formOpen}

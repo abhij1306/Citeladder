@@ -14,14 +14,6 @@ function competitorUrl(competitor: ReviewCompetitor): string {
   return /^https?:\/\//i.test(domain) ? domain : `https://${domain}`;
 }
 
-/**
- * One discovered competitor: include or exclude with the chip, correct its
- * domain with the pencil.
- *
- * The domain editor is an explicit row below the chip rather than an input that
- * replaces the label in place. Swapping the label for a field made the chip
- * resize mid-edit and left no visible statement of what was being edited.
- */
 function CompetitorChip({
   competitor,
   disabled,
