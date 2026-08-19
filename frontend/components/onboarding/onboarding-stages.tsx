@@ -322,9 +322,7 @@ function addCompetitor(
   setCompetitors((items) => {
     if (maximum === undefined || items.filter((item) => item.selected).length >= maximum)
       return items;
-    const id =
-      globalThis.crypto?.randomUUID?.() ??
-      `fallback-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const id = globalThis.crypto.randomUUID();
     return [
       ...items,
       { id: `competitor:manual:${id}`, name: '', aliases: [], domains: [], selected: true },
