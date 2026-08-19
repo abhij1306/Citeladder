@@ -1,0 +1,53 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]
+
+  # Dependabot uses the npm ecosystem for pnpm lockfiles.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]
+
+  # Dockerfiles are in separate directories, so each needs an explicit entry.
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]
+
+  - package-ecosystem: docker
+    directory: /infra/docker
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      patch-and-minor:
+        update-types: [patch, minor]

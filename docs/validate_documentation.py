@@ -26,6 +26,7 @@ ACTIVE_EXACT = {
     "AGENTS.md",
     "COMMANDS.md",
     "CONTRIBUTING.md",
+    "CHANGELOG.md",
     "README.md",
     "Review.md",
     "docs/DEVELOPMENT.md",
@@ -40,6 +41,7 @@ ACTIVE_EXACT = {
     "docs/integrations-traffic-analytics.md",
     "docs/invariants.md",
     "docs/security-fix.md",
+    "docs/release-checklist.md",
     "docs/operations/aws-hosting-runbook.md",
     "docs/operations/razorpay-and-demo-owner-requirements.md",
     "docs/site-health.md",
@@ -217,7 +219,6 @@ def validate() -> list[Issue]:
             "architecture.md",
             "growth-intelligence-platform.md",
             "site-health.md",
-            "site-health-simplification",
         )
         for required in required_fragments:
             if required not in index_text:

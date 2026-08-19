@@ -18,10 +18,16 @@ owner for the task.
    - [`design.md`](design.md)
 4. The one active plan that owns approved future work.
 
-The former Site Intelligence and industry-pack plans were superseded by the
-three-page Site Health simplification and live under
-[`archive/plans/site-health-simplification/`](archive/plans/site-health-simplification/).
-They are historical context, not implementation authority.
+The former Site Intelligence and industry-pack plans are historical context, not
+implementation authority. The current authoritative replacement is
+[`site-health.md`](site-health.md).
+
+## Delivery references
+
+- [`DEVELOPMENT.md`](DEVELOPMENT.md) documents the local and clean-clone Compose workflows.
+- [`release-checklist.md`](release-checklist.md) defines pre-release verification; it does not
+  authorize tagging or publishing.
+- [`../CHANGELOG.md`](../CHANGELOG.md) records unreleased and published release notes.
 
 ## Documentation policy
 

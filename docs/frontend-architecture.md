@@ -46,7 +46,8 @@ completion can create prompts.
 ## Core rules
 
 - Browser calls use relative `/api/*`; Next.js rewrites to server-only
-  `BACKEND_ORIGIN`.
+  `BACKEND_ORIGIN`. In Compose, that destination is `http://web:8000`; the browser-facing
+  frontend service listens on port 3000.
 - Server data uses TanStack Query and shared Zod response schemas.
 - IDs and active workspace/project context are explicit.
 - No production screen falls back to mock data or computes a backend metric.

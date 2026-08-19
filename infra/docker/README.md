@@ -1,8 +1,9 @@
 # CiteLadder Docker stack
 
 Services: `db` (Postgres 16), `migrate` (one-shot `alembic upgrade head`),
-`web` (FastAPI/uvicorn), `worker` (audit worker), `brand-discovery-worker`,
-`content-worker` (content-generation worker, `python -m app.workers.content_worker`).
+`web` (FastAPI/uvicorn), `frontend` (Next.js, port 3000), and the named background workers.
+The frontend proxies its relative `/api/*` routes to `web` on the Compose network; browsers do
+not need a direct backend origin.
 
 ## Content generation env
 
@@ -46,22 +47,25 @@ cp infra/docker/.env.example infra/docker/.env   # first time only
 
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=citeladder_dev_password \
-  docker compose -f infra/docker/docker-compose.yml up -d --force-recreate
+  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml \
+  up -d --build --force-recreate
 ```
 
 `POSTGRES_PASSWORD` must match the value in `infra/docker/.env`.
 
-Check health:
+Check the browser-facing frontend and API after `migrate` completes:
 
 ```bash
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml ps
+curl -fsS http://localhost:3000/
 curl -fsS http://localhost:8000/health   # {"status":"ok"}
 ```
 
 Tear down:
 
 ```bash
-docker compose -f infra/docker/docker-compose.yml down        # keep volume
-docker compose -f infra/docker/docker-compose.yml down -v     # drop DB volume
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml down      # keep volume
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml down -v   # drop DB volume
 ```
 
 ## Local (no Docker)

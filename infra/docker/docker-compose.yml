@@ -1,4 +1,4 @@
-# CiteLadder local stack: postgres + backend web + worker.
+# CiteLadder local stack: PostgreSQL, migration, backend, workers, and frontend.
 #
 # =============================================================================
 # GOTCHA 1 (docs/invariants.md invariant 11) — READ BEFORE `docker compose up`
@@ -12,7 +12,7 @@
 #
 #   env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
 #     POSTGRES_PASSWORD=<repo-.env-value> \
-#     docker compose -f infra/docker/docker-compose.yml up -d --force-recreate
+#     docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml up -d --force-recreate
 #
 # Compose reads infra/docker/.env by default; copy .env.example -> .env there.
 # =============================================================================
@@ -75,6 +75,21 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+      args:
+        # Server-only Next rewrite destination. Browser requests stay relative
+        # to the frontend origin and are proxied across the Compose network.
+        BACKEND_ORIGIN: http://web:8000
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
 
   worker:
     build:

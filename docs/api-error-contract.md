@@ -2,7 +2,7 @@
 
 > The canonical, end-to-end contract for **how a CiteLadder API call fails**: the wire
 > envelope every non-2xx response carries, how the backend produces it, and how the
-> frontend consumes it. Companion docs: [`Agents.md`](../Agents.md),
+> frontend consumes it. Companion docs: [`AGENTS.md`](../AGENTS.md),
 > [`invariants.md`](invariants.md), [`backend-architecture.md`](backend-architecture.md)
 > (§6 subsystem ownership), [`frontend-architecture.md`](frontend-architecture.md) (§6
 > drift policy).

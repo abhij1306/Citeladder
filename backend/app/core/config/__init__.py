@@ -265,6 +265,7 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("LOGFIRE_ENVIRONMENT", "logfire_environment"),
     )
+    # Unit tests remain locally observable unless this separate opt-in is set.
     logfire_enabled_in_tests: bool = Field(
         default=False,
         validation_alias=AliasChoices(

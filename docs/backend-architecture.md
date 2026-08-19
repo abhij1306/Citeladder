@@ -14,6 +14,8 @@
 - Fernet-encrypted provider/OAuth secrets and least-privilege worker
   environments.
 - Thin `/api/v1` routers; domain services own business rules.
+- In the Compose stack, `web` is the API runtime. The frontend uses the internal
+  `http://web:8000` rewrite destination, while port 8000 remains available for health checks.
 
 ## Layers
 

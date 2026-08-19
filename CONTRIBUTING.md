@@ -1,6 +1,6 @@
 # Contributing to CiteLadder
 
-Thanks for contributing. Read [`Agents.md`](Agents.md),
+Thanks for contributing. Read [`AGENTS.md`](AGENTS.md),
 [`docs/README.md`](docs/README.md), and [`docs/invariants.md`](docs/invariants.md) before making a
 change. `docs/archive/` is historical and is not an implementation authority.
 
@@ -97,6 +97,14 @@ Industry-profile work also runs the registry validator, onboarding fallback test
 classification/gap fixtures, FAQ validation fixtures, and a before/after verification case.
 Live sites, provider APIs, and connected analytics are opt-in acceptance sources, not CI
 requirements.
+
+## Release preparation
+
+Releases are maintainer-owned and occur only after the change has merged. Do not create a tag,
+GitHub release, or package publication from a feature branch. Follow the clean-clone Compose and
+repository gates in [`docs/release-checklist.md`](docs/release-checklist.md), update
+[`CHANGELOG.md`](CHANGELOG.md), and obtain release-owner approval for the exact candidate commit
+before creating release artifacts.
 
 ## Commits and review
 

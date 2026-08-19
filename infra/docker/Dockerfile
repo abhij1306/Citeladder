@@ -1,6 +1,4 @@
-ARG PYTHON_IMAGE=python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7
-
-FROM ${PYTHON_IMAGE} AS dependencies
+FROM python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7 AS dependencies
 
 ARG UV_VERSION=0.11.28
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
@@ -21,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-FROM ${PYTHON_IMAGE} AS runtime
+FROM python:3.12.11-slim-bookworm@sha256:519591d6871b7bc437060736b9f7456b8731f1499a57e22e6c285135ae657bf7 AS runtime
 
 ARG BUILD_REVISION=unknown
 LABEL org.opencontainers.image.title="citeladder-backend" \

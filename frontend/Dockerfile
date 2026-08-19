@@ -1,6 +1,4 @@
-ARG NODE_IMAGE=node:22.17.1-bookworm-slim@sha256:2fa754a9ba4d7adbd2a51d182eaabbe355c82b673624035a38c0d42b08724854
-
-FROM ${NODE_IMAGE} AS dependencies
+FROM node:22.17.1-bookworm-slim@sha256:2fa754a9ba4d7adbd2a51d182eaabbe355c82b673624035a38c0d42b08724854 AS dependencies
 
 ENV PNPM_HOME=/pnpm
 ENV PATH="${PNPM_HOME}:${PATH}"
@@ -10,7 +8,7 @@ RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-FROM ${NODE_IMAGE} AS builder
+FROM node:22.17.1-bookworm-slim@sha256:2fa754a9ba4d7adbd2a51d182eaabbe355c82b673624035a38c0d42b08724854 AS builder
 
 ARG BACKEND_ORIGIN
 ARG BUILD_REVISION=unknown
@@ -29,10 +27,10 @@ COPY frontend/app ./app
 COPY frontend/components ./components
 COPY frontend/lib ./lib
 COPY frontend/public ./public
-COPY frontend/next.config.ts frontend/next-env.d.ts frontend/postcss.config.mjs frontend/tsconfig.json ./
+COPY frontend/next.config.ts frontend/postcss.config.mjs frontend/tsconfig.json ./
 RUN pnpm build
 
-FROM ${NODE_IMAGE} AS runtime
+FROM node:22.17.1-bookworm-slim@sha256:2fa754a9ba4d7adbd2a51d182eaabbe355c82b673624035a38c0d42b08724854 AS runtime
 
 ARG BACKEND_ORIGIN
 ARG BUILD_REVISION=unknown
@@ -57,6 +55,6 @@ USER node
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok ? 0 : 1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]

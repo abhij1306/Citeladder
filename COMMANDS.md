@@ -72,14 +72,14 @@ backend cross-origin directly.
 These commands use the Compose database exposed on host port `55432`:
 
 ```
-docker compose -f infra/docker/docker-compose.yml ps db
-docker compose -f infra/docker/docker-compose.yml exec db pg_isready -U postgres -d citeladder
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml ps db
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml exec db pg_isready -U postgres -d citeladder
 ```
 
 Open a PostgreSQL shell inside the database container:
 
 ```
-docker compose -f infra/docker/docker-compose.yml exec db psql -U postgres -d citeladder
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml exec db psql -U postgres -d citeladder
 ```
 
 Useful commands inside `psql`:
@@ -109,20 +109,23 @@ postgresql://postgres:<password>@127.0.0.1:55432/citeladder
 
 ## Docker Compose
 
-### First-time setup
+### Clean-clone setup
 
-```
-Copy-Item infra/docker/.env.example infra/docker/.env
+The Compose path is the one-command local stack: it builds and starts PostgreSQL, the
+one-shot migration job, API, frontend, and workers. Copy the template once; it is local-only and
+must not be committed.
+
+```bash
+cp infra/docker/.env.example infra/docker/.env
 ```
 
-On Bash, use `cp infra/docker/.env.example infra/docker/.env` instead. Edit the copied
-file before using non-local credentials or provider integrations.
+On PowerShell, use `Copy-Item infra/docker/.env.example infra/docker/.env` instead. Edit the
+copy before using non-local credentials or provider integrations.
 
 ### Start the full local stack
 
-The repository documents a Compose environment-variable precedence issue: inherited
-`POSTGRES_*` or `DATABASE_URL` variables can override `infra/docker/.env`. Clear those
-variables for the Compose invocation.
+Inherited `POSTGRES_*` or `DATABASE_URL` variables can override `infra/docker/.env`. Clear those
+variables for the Compose invocation and pass the env file explicitly.
 
 PowerShell:
 
@@ -131,7 +134,7 @@ Remove-Item Env:POSTGRES_USER -ErrorAction SilentlyContinue
 Remove-Item Env:POSTGRES_DB -ErrorAction SilentlyContinue
 Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
 $env:POSTGRES_PASSWORD = "citeladder_dev_password"
-docker compose -f infra/docker/docker-compose.yml up -d --build --force-recreate
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml up -d --build --force-recreate
 ```
 
 Bash:
@@ -139,40 +142,43 @@ Bash:
 ```bash
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=citeladder_dev_password \
-  docker compose -f infra/docker/docker-compose.yml up -d --build --force-recreate
+  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml up -d --build --force-recreate
 ```
 
 The password supplied to Compose must match `POSTGRES_PASSWORD` in
-`infra/docker/.env`. The stack includes PostgreSQL, the migration job, the FastAPI web
-service, and the project workers.
+`infra/docker/.env`. The stack includes PostgreSQL, migrations, the FastAPI API, Next.js
+frontend, and project workers. Wait for the `migrate` job to complete before treating the stack
+as ready; the `frontend` service is available at `http://localhost:3000` and the API at
+`http://localhost:8000`.
 
 ### Inspect and operate services
 
-```
-docker compose -f infra/docker/docker-compose.yml ps
-docker compose -f infra/docker/docker-compose.yml logs -f web
-docker compose -f infra/docker/docker-compose.yml logs -f worker
-docker compose -f infra/docker/docker-compose.yml logs --tail 100 migrate
-docker compose -f infra/docker/docker-compose.yml restart web
-docker compose -f infra/docker/docker-compose.yml config
+```bash
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml ps
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml logs -f web
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml logs -f frontend
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml logs -f worker
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml logs --tail 100 migrate
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml restart web frontend
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml config
 ```
 
-Rebuild only the web image after backend changes:
+Rebuild the affected application service after a source change:
 
-```
-docker compose -f infra/docker/docker-compose.yml up -d --build web
+```bash
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml up -d --build web frontend
 ```
 
 Stop the stack while keeping the PostgreSQL volume:
 
-```
-docker compose -f infra/docker/docker-compose.yml down
+```bash
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml down
 ```
 
 Stop the stack and delete its PostgreSQL volume (**destructive; deletes local DB data**):
 
-```
-docker compose -f infra/docker/docker-compose.yml down -v
+```bash
+docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml down -v
 ```
 
 ## Backend: FastAPI, workers, and migrations
@@ -378,20 +384,12 @@ pnpm test:visual:update
 
 ### Docker-backed development
 
-Use separate terminals:
+From the repository root, use the one-command Compose start in the Docker Compose section. It
+runs the browser-facing frontend as well as the API and workers; do **not** start `pnpm dev` for
+this workflow.
 
-```
-# Terminal 1: from repository root
-# Use the PowerShell or Bash start command from the Docker Compose section above.
-# It clears inherited POSTGRES_* / DATABASE_URL variables first.
-
-# Terminal 2: from frontend/
-pnpm dev
-```
-
-The Compose stack already runs the backend web process and workers. Check
-`docker compose ... ps` and `docker compose ... logs -f web` if the frontend cannot reach
-the API.
+Check `docker compose ... ps`, `docker compose ... logs -f frontend`, and
+`docker compose ... logs -f web` if the frontend cannot reach the API.
 
 ### Native backend + PostgreSQL development
 

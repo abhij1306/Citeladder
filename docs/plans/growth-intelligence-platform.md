@@ -34,8 +34,8 @@ acquire evidence
 
 The former Site Intelligence workspace, industry-pack runtime, knowledge
 kernel, corrections, and snapshot-comparison system were removed in the
-2026-08 simplification. Historical plans are archived under
-[`../archive/plans/site-health-simplification/`](../archive/plans/site-health-simplification/).
+2026-08 simplification. The active Site Health contract is
+[`../site-health.md`](../site-health.md); archived material is historical only.
 
 ## Delivery order
 

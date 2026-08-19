@@ -1,8 +1,8 @@
 # CiteLadder architecture
 
 > **Status:** canonical product architecture
-> **Runtime:** FastAPI modular monolith, separate workers, Next.js frontend,
-> PostgreSQL durable state and queues
+> **Runtime:** FastAPI modular monolith and separate workers, Next.js frontend,
+> PostgreSQL durable state and queues; one Compose stack for local production-like execution
 
 CiteLadder is an evidence-grounded growth platform organized around one loop:
 

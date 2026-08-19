@@ -98,15 +98,19 @@ def configure_logging() -> None:
 def instrument_fastapi(app: Any) -> None:
     """Attach Logfire FastAPI instrumentation when enabled + available.
 
-    Logfire is optional: absent token / disabled flag / missing package all
-    degrade to a no-op so local dev and tests never require it.
+    Logfire is optional: absent token, disabled flag, or disabled test gate all
+    degrade to a no-op so local development and tests retain JSON-log fallback.
     """
     from app.core.config import settings
 
-    if not settings.logfire_enabled or not settings.logfire_token:
+    if (
+        not settings.logfire_enabled
+        or not settings.logfire_token
+        or ("pytest" in sys.modules and not settings.logfire_enabled_in_tests)
+    ):
         return
     try:
-        import logfire  # type: ignore[import-not-found]
+        import logfire
     except ImportError:  # pragma: no cover - optional dependency fallback
         logging.getLogger("app.core.telemetry").debug(
             "logfire not installed; skipping instrumentation"

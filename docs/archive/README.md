@@ -33,9 +33,9 @@ archive.
 - `audits/` — dated repository audits.
 - `operations/` — dated or deployment-specific operational records.
 
-`plans/site-health-simplification/` preserves the removed Site Intelligence,
-knowledge-kernel, industry-pack, and 2026-08 simplification handoff/audit plans.
-The active replacement is [`../site-health.md`](../site-health.md).
+Historical Site Health material, including the removed Site Intelligence,
+knowledge-kernel, and industry-pack work, is retained in the archived plans and
+roadmap records. The active replacement is [`../site-health.md`](../site-health.md).
 
 The archive may contain broken links that reflect its historical repository layout. Active-doc
 link validation intentionally excludes archive internals.

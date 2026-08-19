@@ -39,6 +39,8 @@ listed here must prove a current operational purpose or move to the archive.
 | [`DEVELOPMENT.md`](DEVELOPMENT.md) | Local development runbook |
 | [`../COMMANDS.md`](../COMMANDS.md) | Command reference |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Contribution workflow |
+| [`release-checklist.md`](release-checklist.md) | Pre-release and clean-clone verification gates |
+| [`../CHANGELOG.md`](../CHANGELOG.md) | Unreleased and published release notes |
 | [`../Review.md`](../Review.md) | Review checklist |
 
 Operational runbooks under `operations/`, evaluation fixtures under
@@ -52,9 +54,8 @@ Opportunities. The former Site Intelligence workspace, industry-pack runtime,
 knowledge kernel, corrections, and its cross-industry comparison workspace were
 removed during the 2026-08 simplification. The shipped deterministic
 comparable-crawl Change Intelligence projection is a Site Health owner, not a
-revival of that workspace. The retired plans are retained under
-[`archive/plans/site-health-simplification/`](archive/plans/site-health-simplification/)
-and have no implementation authority.
+revival of that workspace. Historical context is non-authoritative; use
+[`site-health.md`](site-health.md) for the current contract.
 
 Site analysis is governed by the generic `page_kind` taxonomy and its
 config-owned schema/property contracts. `other` means classification abstained;

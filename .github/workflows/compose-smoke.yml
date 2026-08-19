@@ -1,0 +1,109 @@
+name: Compose smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose-smoke:
+    name: Clean-clone Compose smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Verify frozen dependency installs
+        run: |
+          uv sync --frozen --extra dev --directory backend
+          pnpm --dir frontend install --frozen-lockfile
+
+      - name: Create disposable Compose environment
+        run: |
+          cat > infra/docker/.env <<'EOF'
+          APP_ENV=development
+          POSTGRES_DB=citeladder_smoke
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=citeladder_smoke_password
+          JWT_SECRET_KEY=compose-smoke-jwt-secret-not-for-production-000000000000000000000000
+          JWT_ALGORITHM=HS256
+          JWT_EXPIRE_HOURS=24
+          ENCRYPTION_KEY=compose-smoke-encryption-key-not-for-production
+          FRONTEND_URL=http://127.0.0.1:3000
+          FRONTEND_ORIGINS=http://127.0.0.1:3000,http://localhost:3000
+          TRUSTED_PROXY_CIDRS=
+          LOGFIRE_ENABLED=false
+          LOGFIRE_TOKEN=
+          EOF
+
+      - name: Build and start empty-database stack
+        run: |
+          set -euo pipefail
+          compose=(env -u POSTGRES_DB -u POSTGRES_USER -u POSTGRES_PASSWORD -u DATABASE_URL docker compose --project-name citeladder-smoke --env-file infra/docker/.env -f infra/docker/docker-compose.yml)
+          cleanup() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              "${compose[@]}" ps || true
+              "${compose[@]}" logs --no-color || true
+            fi
+            "${compose[@]}" down --volumes --remove-orphans || true
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          # `docker compose build`/`up` pull postgres:16-alpine when absent;
+          # GitHub runners must not require the image to be pre-cached.
+          if ss -ltn '( sport = :3000 or sport = :8000 or sport = :55432 )' | grep -q LISTEN; then
+            echo 'Required smoke-test port is already in use.' >&2
+            exit 1
+          fi
+          "${compose[@]}" down --volumes --remove-orphans
+          "${compose[@]}" build
+          # `up` blocks until the one-shot migration dependency succeeds before
+          # starting the web process and workers.
+          "${compose[@]}" up --detach
+          for _ in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/health | grep -qx '{"status":"ok"}'; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent --show-error http://127.0.0.1:8000/health | grep -qx '{"status":"ok"}'
+          for _ in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null
+
+          for _ in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/brand-discovery-catalog | python -m json.tool >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail --silent --show-error \
+            http://127.0.0.1:3000/api/v1/brand-discovery-catalog | python -m json.tool >/dev/null
+
+          "${compose[@]}" down --volumes --remove-orphans
+          trap - EXIT

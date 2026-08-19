@@ -2,7 +2,7 @@
 
 Everything needed to run, test, and troubleshoot CiteLadder locally, including two
 environment gotchas that otherwise waste substantial time. Pair this with
-[`../Agents.md`](../Agents.md), [`README.md`](README.md), and
+[`../AGENTS.md`](../AGENTS.md), [`README.md`](README.md), and
 [`invariants.md`](invariants.md).
 
 ## Toolchain
@@ -58,20 +58,29 @@ pnpm dev                    # http://127.0.0.1:3000
 
 ## Running the full stack with Docker Compose
 
+The Compose path is the clean-clone workflow. From the repository root, it builds and starts
+PostgreSQL, applies the migration baseline once, then starts FastAPI, the browser-facing Next.js
+frontend, and the workers. Do not run host-side migrations or `pnpm dev` alongside this stack.
+
 ```bash
 cp infra/docker/.env.example infra/docker/.env
 
-# Use the env -u workaround (gotcha 1) — verbatim:
+# Use the env -u workaround (gotcha 1) and select the copied env file — verbatim:
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=citeladder_dev_password \
-  docker compose -f infra/docker/docker-compose.yml up -d --force-recreate
+  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml \
+  up -d --build --force-recreate
 
-cd backend && uv run alembic upgrade head
+# The frontend proxies relative /api/* requests to the API inside Compose.
+curl -fsS http://localhost:3000/
+curl -fsS http://localhost:8000/health
 ```
 
-The Compose stack defines PostgreSQL, migrations, FastAPI, and the current workers/schedulers for
-audits, Site Health, onboarding, content, integrations, and analytics. See
-`infra/docker/docker-compose.yml` for the executable process list.
+The stack's frontend is at `http://localhost:3000`, and FastAPI is at
+`http://localhost:8000`. Inspect readiness with `docker compose --env-file infra/docker/.env -f
+infra/docker/docker-compose.yml ps`; the one-shot `migrate` service must have completed
+successfully. See `infra/docker/docker-compose.yml` for the executable process list and
+[`release-checklist.md`](release-checklist.md) for clean-clone release verification.
 
 ## Testing
 
@@ -168,14 +177,15 @@ repo values.
 ```bash
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=<repo-.env-value> \
-  docker compose -f infra/docker/docker-compose.yml up -d --force-recreate
+  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml \
+  up -d --build --force-recreate
 ```
 
 Unset the four inherited vars for the Compose invocation and re-supply the repo `.env` value
 explicitly. `docker-compose.yml` carries this note as a baked-in comment.
 
-(This gotcha only applies when running the optional Docker Compose stack. Local dev and
-tests use the native Postgres on `localhost:5432` per the repo `.env` `DATABASE_URL`.)
+(This gotcha applies to the recommended Compose stack. Native development and tests use
+their own configured PostgreSQL connection.)
 
 ### Gotcha 2 — tunnel double CORS header → same-origin rewrites
 

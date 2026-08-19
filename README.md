@@ -130,38 +130,37 @@ Stated as plainly as the features, because it is a design constraint rather than
 <a id="quick-start"></a>
 ## Quick start (Docker Compose)
 
-> **Important:** exported `POSTGRES_*` and `DATABASE_URL` shell variables are resolved by Compose
-> *before* `.env`. Use the `env -u …` form verbatim — see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+From a clean clone, copy the local template and use one Compose command. It builds and starts
+Postgres, runs the migration job, then starts the FastAPI API, Next.js frontend, and workers.
+The browser stays same-origin: the frontend proxies relative `/api/*` calls to the API over the
+Compose network.
+
+> **Important:** exported `POSTGRES_*` and `DATABASE_URL` shell variables take precedence over
+> Compose's env file. Use the `env -u …` command verbatim; it also explicitly selects the copied
+> env file.
 
 ```bash
-# 1. Copy the env template
-cp infra/docker/.env.example infra/docker/.env    # edit secrets for anything non-local
+# 1. Copy the local-only template. Edit it before enabling integrations or using non-local secrets.
+cp infra/docker/.env.example infra/docker/.env
 
-# 2. Start Postgres first
+# 2. From the repository root, build and start the complete local stack.
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=citeladder_dev_password \
-  docker compose -f infra/docker/docker-compose.yml up -d --force-recreate db
+  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml \
+  up -d --build --force-recreate
 
-# 3. Apply migrations from the repository root
-(cd backend && uv run alembic upgrade head)
-
-# 4. Bring up the application services
-env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
-  POSTGRES_PASSWORD=citeladder_dev_password \
-  docker compose -f infra/docker/docker-compose.yml up -d --build
-
-# 5. Start the frontend
-cd frontend
-echo "BACKEND_ORIGIN=http://localhost:8000" > .env.local
-pnpm install
-pnpm dev            # http://127.0.0.1:3000
+# 3. Once `docker compose ... ps` shows the services healthy, verify the application and API.
+curl -fsS http://localhost:3000/
+curl -fsS http://localhost:8000/health
 ```
 
+No host-side migration command or separate frontend dev server is needed for this Compose path.
 Register a user (a workspace is created automatically), create a project, then connect a BYOK
 provider for Visibility audits or open Site Health to discover and analyze the site.
 
-Full command reference: [`COMMANDS.md`](COMMANDS.md). Environment, entitlement, and migration
-runbook: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+Full command reference: [`COMMANDS.md`](COMMANDS.md). Environment, entitlement, migration, and
+clean-clone runbook: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Release gates are in
+[`docs/release-checklist.md`](docs/release-checklist.md).
 
 <a id="start-here"></a>
 ## Start here
