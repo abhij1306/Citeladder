@@ -74,7 +74,6 @@ from app.domain.projects.schemas import (
 )
 from app.domain.projects.service import (
     ProjectNotFoundError,
-    commerce_evidence_project_ids,
     create_project,
     delete_project,
     get_project,
@@ -122,31 +121,12 @@ async def _get_project_or_404(
         raise_not_found(_RES_PROJECT, cause=exc)
 
 
-async def _project_response(
-    session: AsyncSession, *, workspace_id: uuid.UUID, project
-) -> ProjectResponse:
-    commerce_ids = await commerce_evidence_project_ids(
-        session, workspace_id=workspace_id, project_ids=[project.id]
-    )
-    return project_to_response(
-        project, has_commerce_evidence=project.id in commerce_ids
-    )
-
-
 @router.get("", response_model=list[ProjectResponse])
 async def list_projects_endpoint(
     ctx: _WorkspaceDep, session: _SessionDep
 ) -> list[ProjectResponse]:
     projects = await list_projects(session, workspace_id=ctx.workspace_id)
-    commerce_ids = await commerce_evidence_project_ids(
-        session,
-        workspace_id=ctx.workspace_id,
-        project_ids=[project.id for project in projects],
-    )
-    return [
-        project_to_response(project, has_commerce_evidence=project.id in commerce_ids)
-        for project in projects
-    ]
+    return [project_to_response(project) for project in projects]
 
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
@@ -161,9 +141,7 @@ async def create_project_endpoint(
             reviewer_id=ctx.user.id,
         )
     )
-    return await _project_response(
-        session, workspace_id=ctx.workspace_id, project=project
-    )
+    return project_to_response(project)
 
 
 @router.get(
@@ -385,9 +363,7 @@ async def refresh_project_logos_endpoint(
         )
     except ProjectNotFoundError as exc:
         raise_not_found(_RES_PROJECT, cause=exc)
-    return await _project_response(
-        session, workspace_id=ctx.workspace_id, project=project
-    )
+    return project_to_response(project)
 
 
 @router.get("/{project_id}/logo", response_class=Response)
@@ -446,9 +422,7 @@ async def get_project_endpoint(
     project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
 ) -> ProjectResponse:
     project = await _get_project_or_404(session, ctx.workspace_id, project_id)
-    return await _project_response(
-        session, workspace_id=ctx.workspace_id, project=project
-    )
+    return project_to_response(project)
 
 
 @router.get("/{project_id}/command-center", response_model=CommandCenterResponse)
@@ -593,9 +567,7 @@ async def update_project_endpoint(
         )
     except ProjectNotFoundError as exc:
         raise_not_found(_RES_PROJECT, cause=exc)
-    return await _project_response(
-        session, workspace_id=ctx.workspace_id, project=project
-    )
+    return project_to_response(project)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

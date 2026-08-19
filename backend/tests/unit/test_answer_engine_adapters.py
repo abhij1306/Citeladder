@@ -248,6 +248,8 @@ async def test_gemini_adapter_handles_malformed_error_payload() -> None:
         )
     assert excinfo.value.error_code == "rate_limit"
     assert excinfo.value.retryable is True
+
+
 def test_gemini_adapter_requires_key() -> None:
     with pytest.raises(ProviderError) as excinfo:
         GeminiAnswerEngineAdapter(api_key="")

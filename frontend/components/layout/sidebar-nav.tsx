@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 
 import { eyebrowClasses } from '@/components/ui/eyebrow';
-import { useProjectContext } from '@/lib/project/project-context';
 import { cn } from '@/lib/utils';
 
 import {
@@ -12,7 +11,6 @@ import {
   NAV_GROUPS,
   activeStation,
   isNavItemActive,
-  visibleNavItems,
   type NavGroup,
   type NavItem,
 } from './nav-items';
@@ -44,12 +42,11 @@ function NavLink({ item, active }: Readonly<{ item: NavItem; active: boolean }>)
 
 export function StationLinks({
   group,
-  hasCommerceEvidence,
   compact = false,
-}: Readonly<{ group: NavGroup; hasCommerceEvidence: boolean; compact?: boolean }>) {
+}: Readonly<{ group: NavGroup; compact?: boolean }>) {
   const pathname = usePathname() ?? '';
   const searchParams = useSearchParams();
-  const items = visibleNavItems(group, hasCommerceEvidence);
+  const items = group.items;
   if (compact) {
     return (
       <nav aria-label={`${group.title} destinations`} className="overflow-x-auto md:hidden">
@@ -86,8 +83,6 @@ export function StationLinks({
 }
 
 export function SidebarNav({ className }: Readonly<{ className?: string }>) {
-  const { activeProject } = useProjectContext();
-  const hasCommerceEvidence = activeProject?.has_commerce_evidence ?? false;
   return (
     <nav aria-label="Primary" className={cn('flex flex-col gap-3', className)}>
       {NAV_GROUPS.map((group) => {
@@ -97,7 +92,7 @@ export function SidebarNav({ className }: Readonly<{ className?: string }>) {
             {showHeading ? (
               <p className={cn(eyebrowClasses, 'px-1 pb-0.5')}>{group.title}</p>
             ) : null}
-            <StationLinks group={group} hasCommerceEvidence={hasCommerceEvidence} />
+            <StationLinks group={group} />
           </div>
         );
       })}
@@ -108,21 +103,14 @@ export function SidebarNav({ className }: Readonly<{ className?: string }>) {
 export function MobileStationNavigation() {
   const pathname = usePathname() ?? '';
   const searchParams = useSearchParams();
-  const { activeProject } = useProjectContext();
-  const hasCommerceEvidence = activeProject?.has_commerce_evidence ?? false;
-  const group = activeStation(pathname, searchParams, hasCommerceEvidence);
-  return <StationLinks group={group} hasCommerceEvidence={hasCommerceEvidence} compact />;
+  const group = activeStation(pathname, searchParams);
+  return <StationLinks group={group} compact />;
 }
 
 export function MobilePrimaryNavigation() {
   const pathname = usePathname() ?? '';
   const searchParams = useSearchParams();
-  const { activeProject } = useProjectContext();
-  const current = activeStation(
-    pathname,
-    searchParams,
-    activeProject?.has_commerce_evidence ?? false,
-  );
+  const current = activeStation(pathname, searchParams);
   return (
     <nav
       className="border-border bg-panel safe-bottom fixed inset-x-0 bottom-0 z-30 grid h-16 grid-cols-5 border-t md:hidden"

@@ -48,10 +48,6 @@ causal claims.
 | Commerce | Catalog/product specialization |
 | Growth Agent | Standalone explain/roadmap runs and append-only typed-tool attempts |
 
-The workspace-authorized project list projects `has_commerce_evidence` from
-persisted Product or OrderFact rows. Navigation may hide Commerce when false;
-the `/products` route remains authorized and owns its honest empty state.
-
 The command-center read projection is useful before the first visibility audit.
 It composes Facts only from the workspace-authorized Project, BrandProfile, and
 Competitor owners; exposes Connect, Analyze, Act, and Track with explicit

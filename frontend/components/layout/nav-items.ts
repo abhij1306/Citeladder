@@ -7,7 +7,6 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   count?: number;
-  commerceOnly?: boolean;
   queryMatch?: { key: string; values: readonly string[]; defaultValue?: string };
 };
 
@@ -39,7 +38,7 @@ export const NAV_GROUPS = [
       { label: 'Issues', href: '/issues', icon: ICONS.issues },
       { label: 'Search Demand', href: '/demand', icon: ICONS.demand },
       { label: 'Traffic', href: '/traffic', icon: ICONS.traffic },
-      { label: 'Commerce', href: '/products', icon: ICONS.products, commerceOnly: true },
+      { label: 'Commerce Suite', href: '/products', icon: ICONS.products },
     ],
   },
   {
@@ -75,10 +74,6 @@ export const MOBILE_NAV_ITEMS = NAV_GROUPS.map(({ title, href, icon }) => ({
   icon,
 }));
 
-export function visibleNavItems(group: NavGroup, hasCommerceEvidence: boolean): readonly NavItem[] {
-  return group.items.filter((item) => !item.commerceOnly || hasCommerceEvidence);
-}
-
 export function isNavItemActive(
   pathname: string,
   searchParams: URLSearchParams,
@@ -92,16 +87,10 @@ export function isNavItemActive(
   return item.queryMatch.values.includes(current);
 }
 
-export function activeStation(
-  pathname: string,
-  searchParams: URLSearchParams,
-  hasCommerceEvidence: boolean,
-): NavGroup {
+export function activeStation(pathname: string, searchParams: URLSearchParams): NavGroup {
   return (
     NAV_GROUPS.find((group) =>
-      visibleNavItems(group, hasCommerceEvidence).some((item) =>
-        isNavItemActive(pathname, searchParams, item),
-      ),
+      group.items.some((item) => isNavItemActive(pathname, searchParams, item)),
     ) ?? NAV_GROUPS[0]
   );
 }

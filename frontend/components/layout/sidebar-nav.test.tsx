@@ -3,14 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 let pathname = '/site';
 let searchParams = new URLSearchParams();
-let hasCommerceEvidence = false;
 
 vi.mock('next/navigation', () => ({
   usePathname: () => pathname,
   useSearchParams: () => searchParams,
-}));
-vi.mock('@/lib/project/project-context', () => ({
-  useProjectContext: () => ({ activeProject: { has_commerce_evidence: hasCommerceEvidence } }),
 }));
 
 import { MobilePrimaryNavigation, MobileStationNavigation, SidebarNav } from './sidebar-nav';
@@ -28,17 +24,12 @@ describe('station navigation', () => {
       'href',
       '/opportunities',
     );
+    expect(screen.getByRole('link', { name: 'Commerce Suite' })).toHaveAttribute(
+      'href',
+      '/products',
+    );
     expect(screen.getByRole('link', { name: 'Prompts' })).toHaveAttribute('href', '/prompts');
     expect(screen.queryByRole('link', { name: 'Growth Agent' })).not.toBeInTheDocument();
-  });
-
-  it('hides Commerce without evidence and reveals it when evidence exists', () => {
-    const view = render(<SidebarNav />);
-    expect(screen.queryByRole('link', { name: 'Commerce' })).not.toBeInTheDocument();
-    hasCommerceEvidence = true;
-    view.rerender(<SidebarNav />);
-    expect(screen.getByRole('link', { name: 'Commerce' })).toHaveAttribute('href', '/products');
-    hasCommerceEvidence = false;
   });
 
   it('uses query-aware active state for station destinations', () => {

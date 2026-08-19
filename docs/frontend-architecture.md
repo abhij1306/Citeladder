@@ -18,7 +18,7 @@ superseded path is deleted.
 | Overview | Overview | `/projects` |
 | Analyze | Website | `/site?tab=pages` (default), `aeo-readiness`, `changes` |
 | Analyze | Issues / Search Demand / Traffic | `/issues`, `/demand`, `/traffic` |
-| Analyze | Commerce | `/products` only when commerce evidence exists |
+| Analyze | Commerce Suite | `/products` |
 | Act | Opportunities / Content | `/opportunities`, `/content` |
 | Track | AI Visibility | `/visibility?tab=trends` (default), `mentions-citations`, `query-fanout` |
 | Track | Runs / AI Referrals | `/runs`, `/runs/[runId]`, `/ai-referrals` |
@@ -31,10 +31,9 @@ active state from pathname plus recognized `tab`/`mode` values. The Growth
 Agent moves to an accessible top-bar sheet with typed persisted route context;
 it is not a sidebar destination. Retired internal routes receive no redirects.
 
-Desktop and mobile now consume that shared station owner. Commerce is included
-under Analyze only when the active project projection reports persisted
-commerce evidence. Providers and Integrations are Settings tabs, and prompt
-read/manage modes live only under `/prompts`.
+Desktop and mobile now consume that shared station owner. Commerce Suite is an
+Analyze destination for every project. Providers and Integrations are Settings
+tabs, and prompt read/manage modes live only under `/prompts`.
 
 Overview renders before any audit: canonical Facts with an editable drawer,
 competitor suggestions, four evidence-labelled loop states, one server-selected

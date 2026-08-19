@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select, union
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -44,8 +44,6 @@ from app.models.brand import (
     OwnedDomain,
     UnintendedDomain,
 )
-from app.models.commerce import OrderFact
-from app.models.product import Product
 from app.models.project import Project
 from app.models.prompt import PromptSet
 
@@ -107,9 +105,7 @@ def _competitor_responses(project: Project) -> list[CompetitorResponse]:
     ]
 
 
-def project_to_response(
-    project: Project, *, has_commerce_evidence: bool = False
-) -> ProjectResponse:
+def project_to_response(project: Project) -> ProjectResponse:
     """Project the normalized rows back into the flat response DTO."""
     return ProjectResponse(
         id=project.id,
@@ -131,7 +127,6 @@ def project_to_response(
         language_code=project.language_code,
         benchmark_mode=project.benchmark_mode,
         default_repetitions=project.default_repetitions,
-        has_commerce_evidence=has_commerce_evidence,
         created_at=project.created_at,
         updated_at=project.updated_at,
     )
@@ -296,30 +291,6 @@ async def list_projects(
         .order_by(Project.created_at.desc())
     )
     return list(result.scalars().unique().all())
-
-
-async def commerce_evidence_project_ids(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_ids: list[uuid.UUID],
-) -> set[uuid.UUID]:
-    """Projects with persisted catalog or order evidence in this workspace."""
-    if not project_ids:
-        return set()
-    statement = union(
-        select(Product.project_id)
-        .join(Project, Project.id == Product.project_id)
-        .where(
-            Project.workspace_id == workspace_id,
-            Product.project_id.in_(project_ids),
-        ),
-        select(OrderFact.project_id).where(
-            OrderFact.workspace_id == workspace_id,
-            OrderFact.project_id.in_(project_ids),
-        ),
-    )
-    return set(await session.scalars(statement))
 
 
 async def get_project(

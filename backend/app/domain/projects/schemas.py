@@ -356,6 +356,5 @@ class ProjectResponse(BaseModel):
     language_code: str
     benchmark_mode: str
     default_repetitions: int
-    has_commerce_evidence: bool = False
     created_at: datetime
     updated_at: datetime

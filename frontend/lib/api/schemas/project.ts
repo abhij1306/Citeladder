@@ -156,7 +156,6 @@ export const projectSchema = responseObject({
   language_code: z.string(),
   benchmark_mode: benchmarkModeSchema,
   default_repetitions: z.number().int(),
-  has_commerce_evidence: z.boolean().default(false),
   brand: responseObject({
     aliases: z.array(z.string()),
     logo_url: z.string().nullable().optional(),

@@ -481,8 +481,8 @@ row is the removal condition. No other compatibility path is implied.
 
 #### I03 — completed 2026-08-15
 - Wave / branch: W3 / `feat/aeo-wave-3-product-loop`
-- Owners: shared navigation configuration/rendering, workspace-authorized Project projection, Settings Providers/Integrations tabs, and canonical Prompts read/manage modes.
-- Implemented: exact Overview/Analyze/Act/Track/Connect desktop groups and mobile slots; one shared query-aware station-link renderer for desktop/mobile secondary navigation; `has_commerce_evidence` from Product or OrderFact rows with hidden-by-default Commerce navigation and unchanged direct-route authorization.
+- Owners: shared navigation configuration/rendering, Settings Providers/Integrations tabs, and canonical Prompts read/manage modes.
+- Implemented: exact Overview/Analyze/Act/Track/Connect desktop groups and mobile slots; one shared query-aware station-link renderer for desktop/mobile secondary navigation; Commerce Suite as a regular Analyze destination.
 - Deleted / retained until: deleted `/providers` and `/prompt-research` App Router pages, the prompt redirect test, title/robots entries, comments, and E2E callers with no redirects; retained provider API/components/catalog modules and `/settings?tab=providers`, plus `/prompts` and its `mode=manage` state as the sole owners.
 - Commit: wave commit
 - Cumulative changed files vs wave merge base: 49
@@ -881,11 +881,9 @@ including dynamic deep links, `nav-items.ts`, `page-titles.ts`, `robots.ts`, rou
 component tests, E2E tests, comments, and active docs. Persisted historical evidence IDs remain;
 if a persisted UI link string exists, migrate or rebuild that projection inside the same slice.
 
-**Conditional Commerce decision:** expose one workspace-authorized `has_commerce_evidence`
-capability in the existing project/command-center projection. It is true when the active project
-has at least one persisted Product or OrderFact. The nav item is hidden when false; direct access
-to `/products` remains authorized and renders an honest no-commerce-evidence state so hiding
-navigation never becomes authorization or a 404.
+**Commerce Suite decision:** expose `/products` as a regular Analyze destination for every
+project. The Commerce Suite owns the catalog's honest empty state, so users can add, import, or
+discover their first products without a prior catalog or order record.
 
 **Top-bar Agent decision:** replace the `/agent` page with one button in the authenticated top bar
 that opens an accessible right-side sheet containing the existing `GrowthAgentWorkspace`. Its
@@ -1404,7 +1402,7 @@ removal ships as its own reviewed slice, and never before its replacement is liv
 | `frontend/app/(app)/agent/page.tsx` | Separate destination conflicts with the locked top-bar interaction | Build/test the Agent sheet, migrate invocation callers, then **delete** the route/nav/title/tests. Retain and reuse `GrowthAgentWorkspace` and its typed backend tools inside the sheet. |
 | Visibility `overview` tab | Command Center and Visibility both claim Overview | First move the latest comparable summary to WS1, keep latest/start rankings in Trends, move `EngineComparison` and prompt movement into Trends, and move competitor suggestions into the WS1 facts drawer. Then delete the `overview` tab token, `VisibilityOverview`, `OverviewSummary`, duplicated selected-run rankings composition, overview-only queries, tests, and comments. `/visibility` defaults to `trends`. |
 | Standalone Facts route/nav | Facts render at `/knowledge-base` | In WS1 move `brand-profile-panel.tsx` into the Overview drawer, migrate competitor-suggestion acceptance, then delete the route, `BrandKnowledgeScreen` if caller-free, nav/title/robots/tests/docs. Retain canonical Brand/BrandProfile APIs and the reusable editor panel. |
-| Commerce | Real conditional capability | Retain `/products` and product owners; remove only the unconditional nav item and use `has_commerce_evidence`. |
+| Commerce | Commerce Suite destination | Retain `/products` and product owners as an unconditional Analyze navigation item. |
 
 **Required pre/post searches:** search non-archive code/docs for `/site-health`,
 `/prompt-research`, `/providers`, `/knowledge-base`, `/agent`, `VisibilityOverview`,
