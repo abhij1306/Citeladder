@@ -68,11 +68,7 @@ def _root_analysis_id(
     rows: Sequence[Any], *, hash_by_site_url: dict[uuid.UUID, str], root_hash: str
 ) -> uuid.UUID | None:
     return next(
-        (
-            row.id
-            for row in rows
-            if hash_by_site_url.get(row.site_url_id) == root_hash
-        ),
+        (row.id for row in rows if hash_by_site_url.get(row.site_url_id) == root_hash),
         None,
     )
 
