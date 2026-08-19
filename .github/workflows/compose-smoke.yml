@@ -15,18 +15,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
         with:
           python-version: "3.12"
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           package_json_file: frontend/package.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -34,8 +34,8 @@ jobs:
 
       - name: Verify frozen dependency installs
         run: |
-          uv sync --frozen --extra dev --directory backend
-          pnpm --dir frontend install --frozen-lockfile
+          uv sync --frozen --extra dev --no-install-project --directory backend
+          pnpm --dir frontend install --frozen-lockfile --ignore-scripts
 
       - name: Create disposable Compose environment
         run: |
@@ -97,13 +97,16 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null
 
           for _ in $(seq 1 45); do
-            if curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/brand-discovery-catalog | python -m json.tool >/dev/null; then
+            if curl --fail --silent --show-error --output /var/tmp/catalog.json \
+              http://127.0.0.1:3000/api/v1/brand-discovery-catalog \
+              && python -m json.tool /var/tmp/catalog.json > /dev/null; then
               break
             fi
             sleep 2
           done
-          curl --fail --silent --show-error \
-            http://127.0.0.1:3000/api/v1/brand-discovery-catalog | python -m json.tool >/dev/null
+          curl --fail --silent --show-error --output /var/tmp/catalog.json \
+            http://127.0.0.1:3000/api/v1/brand-discovery-catalog
+          python -m json.tool /var/tmp/catalog.json > /dev/null
 
           "${compose[@]}" down --volumes --remove-orphans
           trap - EXIT
