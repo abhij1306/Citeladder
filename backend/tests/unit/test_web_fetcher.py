@@ -26,6 +26,7 @@ from app.connectors.web_evidence.contracts import (
 )
 from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.fetcher_body import (
+    _BOT_BLOCK_MARKER_BYTES,
     is_bot_block_result,
     redact_headers,
 )
@@ -98,6 +99,10 @@ def test_challenge_interstitial_remains_a_bot_block() -> None:
         )
         is True
     )
+
+
+def test_bot_block_markers_match_the_lowercased_body_prefix() -> None:
+    assert all(marker == marker.lower() for marker in _BOT_BLOCK_MARKER_BYTES)
 
 
 class _FakeResolver:

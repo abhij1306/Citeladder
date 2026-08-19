@@ -112,7 +112,10 @@ def _admitted_sitemap_urls(
         )
         if not decision.accepted or not decision.canonical_url:
             continue
-        canonical, url_hash_value = canonical_identity(decision.canonical_url)
+        try:
+            canonical, url_hash_value = canonical_identity(decision.canonical_url)
+        except UrlPolicyError:
+            continue
         if url_hash_value in seen_hashes:
             continue
         seen_hashes.add(url_hash_value)
@@ -121,13 +124,13 @@ def _admitted_sitemap_urls(
 
 
 class DiscoverPersistenceMixin(PhaseSupport):
+    """Own site setup, bounded sitemap ingestion, and discover persistence."""
+
     async def _fetch_well_known(
         self, url: str, *, purpose: str, max_bytes: int
     ) -> FetchResult | None:
         """Implemented by the acquisition-facing discover owner."""
         raise NotImplementedError
-
-    """Own site setup, bounded sitemap ingestion, and discover persistence."""
 
     async def _site_setup(
         self,

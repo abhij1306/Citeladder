@@ -57,6 +57,7 @@ from app.core.config.task_queue import (
 from app.core.security import encrypt_secret
 from app.domain.integrations.derive import (
     UnmappedPropertyError,
+    _parse_row_date,
     build_metric_row_values,
     derive_run,
     resolve_active_mapping,
@@ -80,6 +81,10 @@ from app.workers.integration_worker import IntegrationWorker
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "integrations"
 _WINDOW = (date(2026, 7, 20), date(2026, 7, 22))
 _PROPERTY_REF = "https://example.com"
+
+
+def test_invalid_compact_ga4_date_is_dropped() -> None:
+    assert _parse_row_date("20260230") is None
 
 
 def _fixture(name: str) -> dict:

@@ -94,7 +94,8 @@ class AuditTerminalizationMixin:
         request_snapshot: dict,
     ) -> None:
         response = attempts[-1].response
-        assert response is not None  # caller only invokes on a success
+        if response is None:
+            raise RuntimeError("successful audit persistence requires a response")
         search_events = _serialize_search_events(response)
         citations = _serialize_citations(response)
         artifact_id: uuid.UUID | None = None

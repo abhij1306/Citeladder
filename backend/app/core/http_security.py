@@ -31,6 +31,8 @@ class RequestBodyLimitMiddleware:
         declared = headers.get(b"content-length")
         if declared is None:
             return False
+        if not declared or not all(ord("0") <= value <= ord("9") for value in declared):
+            return True
         try:
             return int(declared) > max_bytes
         except ValueError:

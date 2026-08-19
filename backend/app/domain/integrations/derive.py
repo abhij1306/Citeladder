@@ -129,7 +129,10 @@ def _parse_row_date(raw: str) -> date | None:
     except ValueError:
         pass
     if len(text) == _GA4_COMPACT_DATE_LEN and text.isdigit():
-        return date(int(text[:4]), int(text[4:6]), int(text[6:]))
+        try:
+            return date(int(text[:4]), int(text[4:6]), int(text[6:]))
+        except ValueError:
+            return None
     return None
 
 

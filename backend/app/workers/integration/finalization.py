@@ -76,6 +76,10 @@ class RunFinalizer:
                     artifacts=artifacts,
                 )
             except UnmappedPropertyError as exc:
+                await session.rollback()
+                run = await self._claim_owned_run(session, ctx.run_id)
+                if run is None:
+                    return
                 self._fail_unmapped(run, exc, now)
                 await session.commit()
                 return

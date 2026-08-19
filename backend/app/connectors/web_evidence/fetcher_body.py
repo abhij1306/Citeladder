@@ -23,7 +23,7 @@ from app.core.config.site_health_acquisition import (
 from app.core.config.site_health_rules import PERSISTED_RESPONSE_HEADERS
 
 _BOT_BLOCK_MARKER_BYTES: tuple[bytes, ...] = tuple(
-    marker.encode("ascii") for marker in BOT_BLOCK_BODY_MARKERS
+    marker.lower().encode("ascii") for marker in BOT_BLOCK_BODY_MARKERS
 )
 
 

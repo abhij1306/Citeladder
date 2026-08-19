@@ -72,9 +72,12 @@ async def _event_stream(
     max_duration = float(site_health_settings.sse_max_duration_seconds)
     while True:
         async with SessionLocal() as session:
-            crawl = await service.load_crawl_for_stream(
-                session, workspace_id=workspace_id, crawl_id=crawl_id
-            )
+            try:
+                crawl = await service.load_crawl_for_stream(
+                    session, workspace_id=workspace_id, crawl_id=crawl_id
+                )
+            except SiteHealthNotFoundError:
+                return
             disclose = service._crawl_count_disclosure(crawl)
             new_events = await service.load_events(
                 session, crawl_id=crawl_id, after=last_id

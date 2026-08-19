@@ -188,7 +188,8 @@ def next_dataset_page(
 ) -> NextDatasetPage:
     """Derive completion and next durable position from a written page."""
     if cursor_mode:
-        assert page_info is not None
+        if page_info is None:
+            raise MalformedProviderPageError("cursor page is missing pageInfo")
         if not page_info["hasNextPage"]:
             return NextDatasetPage(start_row, None, complete=True)
         return NextDatasetPage(

@@ -20,12 +20,15 @@ def _json_rows(
 def _structured_rows(
     content: object,
     *,
+    max_bytes: int,
     error: Callable[[str], Exception],
 ) -> list[str] | None:
     if isinstance(content, list):
+        _ensure_structured_size(content, max_bytes=max_bytes, error=error)
         return [str(value) for value in content]
     if not isinstance(content, dict):
         return None
+    _ensure_structured_size(content, max_bytes=max_bytes, error=error)
     values = content.get("urls", content.get("items", []))
     if not isinstance(values, list):
         raise error("JSON preview input must contain a URL list")
@@ -35,6 +38,29 @@ def _structured_rows(
     ]
 
 
+def _ensure_structured_size(
+    content: list | dict,
+    *,
+    max_bytes: int,
+    error: Callable[[str], Exception],
+) -> None:
+    """Reject an oversized structured value without creating one JSON string."""
+    encoded_bytes = 0
+    exceeded = False
+    try:
+        for chunk in json.JSONEncoder(
+            ensure_ascii=False, separators=(",", ":")
+        ).iterencode(content):
+            encoded_bytes += len(chunk.encode("utf-8"))
+            if encoded_bytes > max_bytes:
+                exceeded = True
+                break
+    except (TypeError, ValueError) as exc:
+        raise error("invalid JSON preview input") from exc
+    if exceeded:
+        raise error("preview input is too large")
+
+
 def preview_rows(
     content: object,
     input_format: str,
@@ -42,7 +68,7 @@ def preview_rows(
     max_bytes: int,
     error: Callable[[str], Exception],
 ) -> list[str]:
-    structured = _structured_rows(content, error=error)
+    structured = _structured_rows(content, max_bytes=max_bytes, error=error)
     if structured is not None:
         return structured
     raw = str(content or "")

@@ -200,6 +200,18 @@ def test_preview_parses_csv_text_and_json_without_creating_a_crawl():
     ]
 
 
+@pytest.mark.parametrize(
+    "content",
+    [
+        ["https://example.com/one", "https://example.com/two"],
+        {"urls": ["https://example.com/one", "https://example.com/two"]},
+    ],
+)
+def test_preview_rejects_oversized_structured_input_before_building_rows(content):
+    with pytest.raises(CrawlPlanError, match="preview input is too large"):
+        preview_rows(content, "json", max_bytes=20, error=CrawlPlanError)
+
+
 def test_frozen_configuration_stamps_supplemental_page_profile_rule_version():
     class Runtime:
         discovery_mode = "sample"

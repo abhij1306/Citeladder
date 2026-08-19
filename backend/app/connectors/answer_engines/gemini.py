@@ -55,7 +55,10 @@ def _quota_detail(detail: object) -> list[str]:
     retry_delay = str(detail.get("retryDelay") or "").strip()
     if retry_delay:
         parts.append(f"retry={retry_delay}")
-    for violation in detail.get("violations") or []:
+    violations = detail.get("violations")
+    if not isinstance(violations, list):
+        return parts
+    for violation in violations:
         if not isinstance(violation, dict):
             continue
         metric = str(violation.get("quotaMetric") or "").strip()
@@ -67,11 +70,18 @@ def _quota_detail(detail: object) -> list[str]:
     return parts
 
 
-def safe_quota_detail(payload: dict[str, Any]) -> str:
+def safe_quota_detail(payload: object) -> str:
     """Extract provider quota identifiers without retaining echoed request text."""
-    error = payload.get("error") or {}
+    if not isinstance(payload, dict):
+        return ""
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return ""
     parts = [str(error.get("status") or "").strip()]
-    for detail in error.get("details") or []:
+    details = error.get("details")
+    if not isinstance(details, list):
+        return "; ".join(part for part in parts if part)
+    for detail in details:
         parts.extend(_quota_detail(detail))
     return "; ".join(part for part in parts if part)
 
