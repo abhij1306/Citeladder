@@ -34,7 +34,7 @@ jobs:
 
       - name: Verify frozen dependency installs
         run: |
-          uv sync --frozen --extra dev --no-install-project --directory backend
+          uv sync --frozen --extra dev --no-install-project --no-build --directory backend
           pnpm --dir frontend install --frozen-lockfile --ignore-scripts
 
       - name: Create disposable Compose environment
@@ -98,9 +98,8 @@ jobs:
 
           for _ in $(seq 1 45); do
             if curl --fail --silent --show-error --output /var/tmp/catalog.json \
-              http://127.0.0.1:3000/api/v1/brand-discovery-catalog \
-              && python -m json.tool /var/tmp/catalog.json > /dev/null; then
-              break
+              http://127.0.0.1:3000/api/v1/brand-discovery-catalog; then
+              python -m json.tool /var/tmp/catalog.json > /dev/null && break
             fi
             sleep 2
           done
