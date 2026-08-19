@@ -1,17 +1,9 @@
 /**
  * A pricing selection captured before the visitor authenticated.
  *
- * This record is UNTRUSTED NAVIGATION STATE and nothing more. It lives in
- * same-tab `sessionStorage`, which any script on the page can write, so it
- * stores no amount, no external id, no user/workspace id, and no
- * authorization claim — only enough to re-find the same catalog entry after
- * a full-page auth round-trip. Every field that matters (price, availability,
- * quantity bounds) is re-read from the LIVE catalog on resume; a stored value
- * is never replayed into a server request.
- *
- * The one field that carries forward is the idempotency key, deliberately: if
- * the visitor's first attempt did reach the backend, reusing the key replays
- * that intent instead of creating a second charge.
+ * This record is untrusted navigation state. It carries only enough to locate
+ * a current catalog entry after authentication; price and availability are
+ * always read from the live catalog before a server request is made.
  */
 import {
   PENDING_PRICING_INTENT_KEY,
@@ -35,47 +27,67 @@ export type PendingPricingIntentV1 = {
 
 const KINDS: readonly PendingIntentKind[] = ['checkout', 'addon', 'topup'];
 
-/**
- * Strict parse. Anything malformed, versioned differently, or older than the
- * max age is rejected — a stale intent was captured against a catalog that may
- * since have changed price or availability.
- */
+type IntentFields = Omit<PendingPricingIntentV1, 'version' | 'return_path'>;
+
+function recordFrom(raw: unknown): Record<string, unknown> | null {
+  return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : null;
+}
+
+function validKind(value: unknown): value is PendingIntentKind {
+  return typeof value === 'string' && KINDS.includes(value as PendingIntentKind);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value !== '';
+}
+
+function validQuantity(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1;
+}
+
+function validFields(value: Record<string, unknown>): value is Record<keyof IntentFields, unknown> {
+  return (
+    validKind(value.kind) &&
+    isNonEmptyString(value.catalog_key) &&
+    validQuantity(value.quantity) &&
+    typeof value.byok === 'boolean' &&
+    (value.country_code === null || typeof value.country_code === 'string') &&
+    isNonEmptyString(value.idempotency_key) &&
+    typeof value.created_at_ms === 'number' &&
+    Number.isFinite(value.created_at_ms)
+  );
+}
+
+function hasValidTimestamp(createdAt: number, now: number): boolean {
+  return now - createdAt <= PENDING_PRICING_INTENT_MAX_AGE_MS && createdAt <= now + 60_000;
+}
+
+/** Strict parse, rejecting malformed, stale, and future-versioned state. */
 export function parsePendingIntent(
   raw: unknown,
   now: number = Date.now(),
 ): PendingPricingIntentV1 | null {
-  if (typeof raw !== 'object' || raw === null) return null;
-  const value = raw as Record<string, unknown>;
-  if (value.version !== 1) return null;
-  if (typeof value.kind !== 'string' || !KINDS.includes(value.kind as PendingIntentKind)) {
-    return null;
-  }
-  if (typeof value.catalog_key !== 'string' || value.catalog_key === '') return null;
+  const value = recordFrom(raw);
   if (
-    typeof value.quantity !== 'number' ||
-    !Number.isInteger(value.quantity) ||
-    value.quantity < 1
+    !value ||
+    value.version !== 1 ||
+    value.return_path !== PRICING_RETURN_PATH ||
+    !validFields(value)
   ) {
     return null;
   }
-  if (typeof value.byok !== 'boolean') return null;
-  if (value.country_code !== null && typeof value.country_code !== 'string') return null;
-  if (typeof value.idempotency_key !== 'string' || value.idempotency_key === '') return null;
-  if (value.return_path !== PRICING_RETURN_PATH) return null;
-  if (typeof value.created_at_ms !== 'number' || !Number.isFinite(value.created_at_ms)) return null;
-  if (now - value.created_at_ms > PENDING_PRICING_INTENT_MAX_AGE_MS) return null;
-  if (value.created_at_ms > now + 60_000) return null; // clock skew / forged future stamp
+  if (!hasValidTimestamp(value.created_at_ms as number, now)) return null;
 
   return {
     version: 1,
     kind: value.kind as PendingIntentKind,
-    catalog_key: value.catalog_key,
-    quantity: value.quantity,
-    byok: value.byok,
+    catalog_key: value.catalog_key as string,
+    quantity: value.quantity as number,
+    byok: value.byok as boolean,
     country_code: value.country_code as string | null,
-    idempotency_key: value.idempotency_key,
+    idempotency_key: value.idempotency_key as string,
     return_path: PRICING_RETURN_PATH,
-    created_at_ms: value.created_at_ms,
+    created_at_ms: value.created_at_ms as number,
   };
 }
 
@@ -83,7 +95,6 @@ function storage(): Storage | null {
   try {
     return globalThis.sessionStorage ?? null;
   } catch {
-    // Storage can throw outright under strict privacy settings.
     return null;
   }
 }
@@ -92,22 +103,14 @@ export function writePendingIntent(intent: PendingPricingIntentV1): void {
   try {
     storage()?.setItem(PENDING_PRICING_INTENT_KEY, JSON.stringify(intent));
   } catch {
-    // A full or blocked store is not worth failing the click over — the
-    // visitor still reaches auth, just without the resume.
+    // A blocked store only means this tab cannot resume automatically.
   }
 }
 
 export function readPendingIntent(now: number = Date.now()): PendingPricingIntentV1 | null {
-  const raw = (() => {
-    try {
-      return storage()?.getItem(PENDING_PRICING_INTENT_KEY) ?? null;
-    } catch {
-      return null;
-    }
-  })();
-  if (raw === null) return null;
   try {
-    return parsePendingIntent(JSON.parse(raw), now);
+    const raw = storage()?.getItem(PENDING_PRICING_INTENT_KEY);
+    return raw === null || raw === undefined ? null : parsePendingIntent(JSON.parse(raw), now);
   } catch {
     return null;
   }
@@ -117,7 +120,7 @@ export function clearPendingIntent(): void {
   try {
     storage()?.removeItem(PENDING_PRICING_INTENT_KEY);
   } catch {
-    // Nothing to do — a stale record expires on its own.
+    // Stale records expire independently.
   }
 }
 

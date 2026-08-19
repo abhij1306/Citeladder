@@ -174,62 +174,73 @@ function readConflicts(value: unknown): PageKindEvidenceConflict[] {
   return out;
 }
 
+function recordFrom(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readSignals(value: unknown): PageKindEvidenceSignal[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((raw) => {
+    const entry = recordFrom(raw);
+    if (
+      !entry ||
+      typeof entry.signal !== 'string' ||
+      typeof entry.page_kind !== 'string' ||
+      typeof entry.weight !== 'number'
+    ) {
+      return [];
+    }
+    return [
+      {
+        signal: entry.signal,
+        pageKind: entry.page_kind,
+        weight: entry.weight,
+        detail: typeof entry.detail === 'string' ? entry.detail : '',
+      },
+    ];
+  });
+}
+
+function evidenceBasics(record: Record<string, unknown>): {
+  classifiedBy: string;
+  confidence: number;
+  confidenceThreshold: number;
+} | null {
+  const {
+    classified_by: classifiedBy,
+    confidence,
+    confidence_threshold: confidenceThreshold,
+  } = record;
+  return typeof classifiedBy === 'string' &&
+    typeof confidence === 'number' &&
+    typeof confidenceThreshold === 'number'
+    ? { classifiedBy, confidence, confidenceThreshold }
+    : null;
+}
+
 /**
  * Narrow the untyped `page_kind_evidence` record (zod `z.unknown()` values)
- * into the display view. Returns null for absent or malformed evidence — the
- * disclosure hides itself rather than rendering partial guesses. Malformed
- * signal entries are skipped individually so one bad entry cannot sink the
- * whole panel.
- *
- * `finalPageKind` is the analysis's own `page_kind`: the evidence dict
- * records the schema suggestion but not the final type, so the conflict flag
- * is derived here.
+ * into the display view. Returns null for absent or malformed evidence; bad
+ * entries within a valid collection are skipped individually.
  */
 export function readPageKindEvidence(
   evidence: unknown,
   finalPageKind: string | null,
 ): PageKindEvidenceView | null {
-  if (typeof evidence !== 'object' || evidence === null || Array.isArray(evidence)) {
-    return null;
-  }
-  const record = evidence as Record<string, unknown>;
-  const classifiedBy = typeof record.classified_by === 'string' ? record.classified_by : null;
-  const confidence = typeof record.confidence === 'number' ? record.confidence : null;
-  const confidenceThreshold =
-    typeof record.confidence_threshold === 'number' ? record.confidence_threshold : null;
-  if (classifiedBy === null || confidence === null || confidenceThreshold === null) {
-    return null;
-  }
-  const signals: PageKindEvidenceSignal[] = [];
-  if (Array.isArray(record.signals)) {
-    for (const raw of record.signals) {
-      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) continue;
-      const entry = raw as Record<string, unknown>;
-      if (
-        typeof entry.signal !== 'string' ||
-        typeof entry.page_kind !== 'string' ||
-        typeof entry.weight !== 'number'
-      ) {
-        continue;
-      }
-      signals.push({
-        signal: entry.signal,
-        pageKind: entry.page_kind,
-        weight: entry.weight,
-        detail: typeof entry.detail === 'string' ? entry.detail : '',
-      });
-    }
-  }
+  const record = recordFrom(evidence);
+  const basics = record && evidenceBasics(record);
+  if (!record || !basics) return null;
+
   const schemaSuggestedType =
     typeof record.schema_suggested_type === 'string' ? record.schema_suggested_type : null;
   return {
     classifierVersion:
       typeof record.classifier_version === 'string' ? record.classifier_version : '',
-    classifiedBy,
+    ...basics,
     schemaSuggestedType,
-    confidence,
-    confidenceThreshold,
-    signals,
+    signals: readSignals(record.signals),
     alternatives: readAlternatives(record.alternatives),
     conflicts: readConflicts(record.conflicts),
     otherReason: typeof record.other_reason === 'string' ? record.other_reason : null,

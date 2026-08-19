@@ -25,10 +25,12 @@ import {
 import { queryKeys } from '@/lib/api/query-keys';
 import { topicsApi } from '@/lib/api/topics';
 import { visibilityApi } from '@/lib/api/visibility';
-import type { Prompt, Topic, VisibilityExecutionEvidence } from '@/lib/api/types';
+import type { VisibilityExecutionEvidence } from '@/lib/api/types';
 import { useActiveProject } from '@/lib/project/project-context';
 import { usePromptSet } from '@/lib/prompts/use-prompt-set';
 import { cn } from '@/lib/utils';
+
+import { groupByTopic } from './topic-groups';
 
 /**
  * Per-prompt measured visibility: the share of persisted executions for the
@@ -62,49 +64,6 @@ function ScoreCell({ score }: Readonly<{ score: number | null }>) {
       {score}%
     </span>
   );
-}
-
-type TopicGroup = {
-  key: string;
-  topic: Topic | null;
-  prompts: Prompt[];
-  /** Mean of the group's measured prompt scores; null until any prompt has data. */
-  score: number | null;
-};
-
-function groupByTopic(
-  prompts: Prompt[],
-  topics: Topic[],
-  scores: Map<string, number>,
-): TopicGroup[] {
-  const byTopicId = new Map<string | null, Prompt[]>();
-  for (const prompt of prompts) {
-    const key = prompt.topic_id ?? null;
-    byTopicId.set(key, [...(byTopicId.get(key) ?? []), prompt]);
-  }
-  const groups: TopicGroup[] = [];
-  for (const topic of topics) {
-    const grouped = byTopicId.get(topic.id) ?? [];
-    if (grouped.length > 0) groups.push({ key: topic.id, topic, prompts: grouped, score: null });
-  }
-  // Ungrouped = prompts with no topic_id PLUS prompts whose topic_id has no
-  // matching topic (e.g. a deleted topic) — never silently dropped.
-  const knownTopicIds = new Set(topics.map((topic) => topic.id));
-  const ungrouped = [...(byTopicId.get(null) ?? [])];
-  for (const [topicId, bucket] of byTopicId) {
-    if (topicId !== null && !knownTopicIds.has(topicId)) ungrouped.push(...bucket);
-  }
-  if (ungrouped.length > 0)
-    groups.push({ key: 'ungrouped', topic: null, prompts: ungrouped, score: null });
-  for (const group of groups) {
-    const measured = group.prompts
-      .map((prompt) => scores.get(prompt.id))
-      .filter((score): score is number => score !== undefined);
-    group.score = measured.length
-      ? Math.round(measured.reduce((sum, score) => sum + score, 0) / measured.length)
-      : null;
-  }
-  return groups;
 }
 
 /**

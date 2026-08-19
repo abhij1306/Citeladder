@@ -1,11 +1,16 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog } from '@/components/ui/dialog';
+import {
+  CsvImportDialogShell,
+  CsvImportFileInput,
+  CsvImportPreview,
+  useCsvImportFile,
+} from '@/components/ui/csv-import';
 import { MutationNotice } from '@/components/ui/mutation-notice';
 import {
   Table,
@@ -18,18 +23,12 @@ import {
 import type { MutationNotice as MutationNoticeData } from '@/lib/api/mutation-notice';
 import type { ProductInput } from '@/lib/api/products';
 import type { ProductImportSummary } from '@/lib/api/types';
-import { parseProductCsv, validProductRows, type ParsedProductCsv } from '@/lib/products/csv';
-
-/** Read a File as text, falling back to FileReader where `File.text` is absent (jsdom). */
-const readFileText = (file: File) =>
-  typeof file.text === 'function'
-    ? file.text()
-    : new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result ?? ''));
-        reader.onerror = () => reject(reader.error);
-        reader.readAsText(file);
-      });
+import {
+  parseProductCsv,
+  validProductRows,
+  type ParsedProductCsv,
+  type ParsedProductRow,
+} from '@/lib/products/csv';
 
 /**
  * Product CSV import dialog (mirrors the prompts CSV import dialog). The file
@@ -61,25 +60,11 @@ export function ProductImportDialog({
   /** The server-side import summary (D1) — shown after a successful import. */
   result?: ProductImportSummary | null;
 }>) {
-  const [parsed, setParsed] = useState<ParsedProductCsv | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const { fileName, inputRef, parsed, reset, selectFile } =
+    useCsvImportFile<ParsedProductCsv>(parseProductCsv);
 
   const importable = useMemo(() => (parsed ? validProductRows(parsed) : []), [parsed]);
   const errorCount = parsed ? parsed.rows.filter((row) => row.errors.length > 0).length : 0;
-
-  const reset = () => {
-    setParsed(null);
-    setFileName(null);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-
-  const handleFile = async (file: File | undefined) => {
-    if (!file) return;
-    setFileName(file.name);
-    const text = await readFileText(file);
-    setParsed(parseProductCsv(text));
-  };
 
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
@@ -93,7 +78,7 @@ export function ProductImportDialog({
 
   if (result) {
     return (
-      <Dialog
+      <CsvImportDialogShell
         open={open}
         onOpenChange={handleOpenChange}
         title="Import complete"
@@ -106,12 +91,12 @@ export function ProductImportDialog({
         }
       >
         <ImportResultSummary result={result} />
-      </Dialog>
+      </CsvImportDialogShell>
     );
   }
 
   return (
-    <Dialog
+    <CsvImportDialogShell
       open={open}
       onOpenChange={handleOpenChange}
       title="Import products from CSV"
@@ -137,98 +122,89 @@ export function ProductImportDialog({
       <div className="grid gap-4">
         {error ? <MutationNotice notice={error} onRetry={onRetry} /> : null}
 
-        <label className="grid gap-1.5">
-          <span className="text-secondary text-xs font-medium">CSV file</span>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,text/csv"
-            aria-label="CSV file"
-            onChange={(event) => void handleFile(event.target.files?.[0])}
-            className="focus-ring border-border bg-well text-foreground file:bg-background-alt file:text-foreground block w-full rounded-sm border px-2 py-1.5 text-sm file:me-2 file:rounded-xs file:border-0 file:px-2 file:py-1 file:text-sm"
-          />
-        </label>
+        <CsvImportFileInput inputRef={inputRef} onSelect={(file) => void selectFile(file)} />
 
         {parsed && parsed.errors.length > 0 ? (
           <Alert tone="danger">{parsed.errors.join(' ')}</Alert>
         ) : null}
 
         {parsed && parsed.rows.length > 0 ? (
-          <div className="grid gap-2">
-            <div className="text-secondary flex items-center gap-3 text-sm">
-              <span>
-                Parsed <strong className="text-foreground">{parsed.rows.length}</strong> row
-                {parsed.rows.length === 1 ? '' : 's'}
-                {fileName ? ` from ${fileName}` : ''}.
-              </span>
-              {errorCount > 0 ? (
-                <Badge variant="status" value="danger">
-                  {errorCount} skipped
-                </Badge>
-              ) : null}
-            </div>
-
-            <div className="border-border-subtle max-h-85 overflow-auto rounded-sm border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Row</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Variant</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Currency</TableHead>
-                    <TableHead>URL</TableHead>
-                    <TableHead>GTIN</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {parsed.rows.map((row) => {
-                    const invalid = row.errors.length > 0;
-                    const attributes = row.input.attributes ?? {};
-                    return (
-                      <TableRow key={row.line} className={invalid ? 'opacity-60' : undefined}>
-                        <TableCell numeric className="text-muted">
-                          {row.line}
-                        </TableCell>
-                        <TableCell className="max-w-45 truncate">{row.input.name || '—'}</TableCell>
-                        <TableCell className="font-mono text-xs">{row.input.sku || '—'}</TableCell>
-                        <TableCell className="max-w-35 truncate">
-                          {row.input.variants?.[0]?.name || '—'}
-                        </TableCell>
-                        <TableCell>{String(attributes.category ?? '') || '—'}</TableCell>
-                        <TableCell numeric>
-                          {row.input.price !== null && row.input.price !== undefined
-                            ? row.input.price
-                            : '—'}
-                        </TableCell>
-                        <TableCell>{row.input.currency || '—'}</TableCell>
-                        <TableCell className="max-w-40 truncate">{row.input.url || '—'}</TableCell>
-                        <TableCell>{String(attributes.gtin ?? '') || '—'}</TableCell>
-                        <TableCell>
-                          {invalid ? (
-                            <span className="text-danger-text text-xs">{row.errors.join(' ')}</span>
-                          ) : row.warnings.length > 0 ? (
-                            <span className="text-warning-text text-xs">
-                              {row.warnings.join(' ')}
-                            </span>
-                          ) : (
-                            <span className="text-success-text text-xs">Ready</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
+          <ProductCsvPreview errorCount={errorCount} fileName={fileName} rows={parsed.rows} />
         ) : null}
       </div>
-    </Dialog>
+    </CsvImportDialogShell>
   );
+}
+
+function ProductCsvPreview({
+  errorCount,
+  fileName,
+  rows,
+}: Readonly<{
+  errorCount: number;
+  fileName: string | null;
+  rows: ParsedProductRow[];
+}>) {
+  return (
+    <CsvImportPreview errorCount={errorCount} fileName={fileName} rowCount={rows.length}>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Row</TableHead>
+            <TableHead>Name</TableHead>
+            <TableHead>SKU</TableHead>
+            <TableHead>Variant</TableHead>
+            <TableHead>Category</TableHead>
+            <TableHead>Price</TableHead>
+            <TableHead>Currency</TableHead>
+            <TableHead>URL</TableHead>
+            <TableHead>GTIN</TableHead>
+            <TableHead>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <ProductCsvPreviewRow key={row.line} row={row} />
+          ))}
+        </TableBody>
+      </Table>
+    </CsvImportPreview>
+  );
+}
+
+function ProductCsvPreviewRow({ row }: Readonly<{ row: ParsedProductRow }>) {
+  const attributes = row.input.attributes ?? {};
+  const invalid = row.errors.length > 0;
+  return (
+    <TableRow className={invalid ? 'opacity-60' : undefined}>
+      <TableCell numeric className="text-muted">
+        {row.line}
+      </TableCell>
+      <TableCell className="max-w-45 truncate">{row.input.name || '—'}</TableCell>
+      <TableCell className="font-mono text-xs">{row.input.sku || '—'}</TableCell>
+      <TableCell className="max-w-35 truncate">{row.input.variants?.[0]?.name || '—'}</TableCell>
+      <TableCell>{String(attributes.category ?? '') || '—'}</TableCell>
+      <ProductPriceCell price={row.input.price} />
+      <TableCell>{row.input.currency || '—'}</TableCell>
+      <TableCell className="max-w-40 truncate">{row.input.url || '—'}</TableCell>
+      <TableCell>{String(attributes.gtin ?? '') || '—'}</TableCell>
+      <TableCell>
+        <ProductCsvRowStatus row={row} />
+      </TableCell>
+    </TableRow>
+  );
+}
+
+function ProductPriceCell({ price }: Readonly<{ price: number | null | undefined }>) {
+  return <TableCell numeric>{price ?? '—'}</TableCell>;
+}
+
+function ProductCsvRowStatus({ row }: Readonly<{ row: ParsedProductRow }>) {
+  if (row.errors.length > 0)
+    return <span className="text-danger-text text-xs">{row.errors.join(' ')}</span>;
+  if (row.warnings.length > 0)
+    return <span className="text-warning-text text-xs">{row.warnings.join(' ')}</span>;
+  return <span className="text-success-text text-xs">Ready</span>;
 }
 
 /**

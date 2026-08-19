@@ -63,6 +63,41 @@ function SummaryBadge({ view }: Readonly<{ view: SiteFactsView }>) {
   );
 }
 
+function SiteFactsAlerts({
+  view,
+  blocked,
+}: Readonly<{ view: SiteFactsView; blocked: SiteFactsView['bots'] }>) {
+  if (view.robotsFetched && blocked.length > 0) return <BlockedBotsAlert blocked={blocked} />;
+  if (view.robotsFetchStatus === 'not_found') {
+    return (
+      <Alert tone="info">
+        No robots.txt — crawling proceeds fail-open; the AI-crawler stance defaults to allow.
+      </Alert>
+    );
+  }
+  if (view.robotsFetchStatus === 'fetch_failed') {
+    return (
+      <Alert tone="warning">
+        robots.txt could not be fetched, so the AI-crawler stance could not be read. Crawling
+        continued with the fail-open default.
+      </Alert>
+    );
+  }
+  return null;
+}
+
+function BlockedBotsAlert({ blocked }: Readonly<{ blocked: SiteFactsView['bots'] }>) {
+  const bots = blocked.map(({ bot }) => bot);
+  const singular = bots.length === 1;
+  return (
+    <Alert tone="danger">
+      {bots.join(', ')} {singular ? 'is' : 'are'} disallowed in robots.txt —{' '}
+      {singular ? engineLabel(bots[0]) : 'those answer engines'} cannot crawl these pages, so they
+      can never be cited in its answers.
+    </Alert>
+  );
+}
+
 /** Mono status code for one well-known file, `—` when no fetch answered. */
 function StatusValue({ status }: Readonly<{ status: number | null }>) {
   if (status === null) {
@@ -91,7 +126,10 @@ export function SiteFactsPanel({
 }>) {
   const view = readSiteFacts(dashboard?.crawl?.site_facts ?? crawl?.site_facts);
   if (view === null) return null;
+  return <SiteFactsViewPanel view={view} />;
+}
 
+function SiteFactsViewPanel({ view }: Readonly<{ view: SiteFactsView }>) {
   const blocked = view.bots.filter((bot) => bot.stance === 'block');
 
   return (
@@ -110,29 +148,7 @@ export function SiteFactsPanel({
           </span>
         </div>
 
-        {view.robotsFetched && blocked.length === 1 ? (
-          <Alert tone="danger">
-            {blocked[0].bot} is disallowed in robots.txt — {engineLabel(blocked[0].bot)} cannot
-            crawl these pages, so they can never be cited in its answers.
-          </Alert>
-        ) : null}
-        {view.robotsFetched && blocked.length > 1 ? (
-          <Alert tone="danger">
-            {blocked.map(({ bot }) => bot).join(', ')} are disallowed in robots.txt — those answer
-            engines cannot crawl these pages, so they can never cite them.
-          </Alert>
-        ) : null}
-        {view.robotsFetchStatus === 'not_found' ? (
-          <Alert tone="info">
-            No robots.txt — crawling proceeds fail-open; the AI-crawler stance defaults to allow.
-          </Alert>
-        ) : null}
-        {view.robotsFetchStatus === 'fetch_failed' ? (
-          <Alert tone="warning">
-            robots.txt could not be fetched, so the AI-crawler stance could not be read. Crawling
-            continued with the fail-open default.
-          </Alert>
-        ) : null}
+        <SiteFactsAlerts view={view} blocked={blocked} />
 
         <details className="border-border-subtle border-t pt-2">
           <summary className="focus-ring text-muted hover:text-foreground w-fit cursor-pointer rounded-sm text-xs font-medium">

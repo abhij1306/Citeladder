@@ -143,43 +143,48 @@ function StripContent({
     );
   }
 
-  if (phase === 'terminal') {
-    // B1: a failed crawl names its reason (the API-projected failure summary /
-    // humanized error_message, never a bare code) plus what to do next.
-    let message = 'This crawl ended before it produced results. Run a new crawl to try again.';
-    if (crawl.status === 'cancelled') {
-      message = 'This crawl was cancelled before it produced results.';
-    } else if (crawl.status === 'paused') {
-      message =
-        'This crawl is paused and has no completed score yet. Run a new crawl to try again.';
-    } else if (crawl.status === 'failed') {
-      const failure = crawlFailureCopy(crawl);
-      message = [endSentence(failure.reason), failure.guidance].filter(Boolean).join(' ');
-    }
-    return (
-      <Alert tone={crawl.status === 'failed' ? 'danger' : 'info'}>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="run-status" value={crawlBadgeValue(crawl.status)}>
-            {statusLabel(crawl.status)}
-          </Badge>
-          <span>{message}</span>
-        </div>
-      </Alert>
-    );
-  }
+  if (phase === 'terminal') return <TerminalNotice crawl={crawl} />;
+  return <DashboardNotice crawl={crawl} />;
+}
 
-  // phase === 'dashboard': quiet unless the run did not complete cleanly.
-  const runNotice = dashboardRunNotice(crawl);
-  if (!runNotice) return null;
+function TerminalNotice({ crawl }: Readonly<{ crawl: SiteCrawl }>) {
+  const failure = crawl.status === 'failed' ? crawlFailureCopy(crawl) : null;
+  const message =
+    crawl.status === 'cancelled'
+      ? 'This crawl was cancelled before it produced results.'
+      : crawl.status === 'paused'
+        ? 'This crawl is paused and has no completed score yet. Run a new crawl to try again.'
+        : failure
+          ? [endSentence(failure.reason), failure.guidance].filter(Boolean).join(' ')
+          : 'This crawl ended before it produced results. Run a new crawl to try again.';
   return (
-    <Alert tone={runNotice.tone}>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="run-status" value={runNotice.badge}>
-          {statusLabel(crawl.status)}
-        </Badge>
-        <span>{runNotice.message}</span>
-      </div>
+    <Alert tone={failure ? 'danger' : 'info'}>
+      <RunNotice crawl={crawl} message={message} />
     </Alert>
+  );
+}
+
+function DashboardNotice({ crawl }: Readonly<{ crawl: SiteCrawl }>) {
+  const notice = dashboardRunNotice(crawl);
+  return notice ? (
+    <Alert tone={notice.tone}>
+      <RunNotice crawl={crawl} message={notice.message} badge={notice.badge} />
+    </Alert>
+  ) : null;
+}
+
+function RunNotice({
+  crawl,
+  message,
+  badge = crawlBadgeValue(crawl.status),
+}: Readonly<{ crawl: SiteCrawl; message: string; badge?: ReturnType<typeof crawlBadgeValue> }>) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge variant="run-status" value={badge}>
+        {statusLabel(crawl.status)}
+      </Badge>
+      <span>{message}</span>
+    </div>
   );
 }
 
@@ -298,34 +303,9 @@ function AnalysisStrip({
   selectedError: boolean;
 }>) {
   const summary = crawl.score_summary;
-  // Fallbacks while the crawl is still running: `score_summary` is only
-  // written when the crawl terminalizes, so derive the live view from server
-  // counters instead of rendering 0s. `pages.length` is the last resort (a
-  // bounded window, but better than nothing before the quota loads).
   const selected =
     crawl.counters.selected || summary?.selected_count || selectedTotal || pages.length;
-  const completed = crawl.counters.analyzed;
-  const running = crawl.counters.running;
-  const queued = crawl.counters.queued;
-  // A recrawl runs analysis of the monitored set WHILE re-discovery streams —
-  // say so, instead of pretending only one sub-process exists. Never for a
-  // sample crawl: Free copy must not imply continued full-site scanning.
-  const discovering = !crawl.sample_mode && !isDiscoveryTerminal(crawl.discovery_status);
-  let narration: string;
-  if (cancelPending) {
-    narration = 'Cancelling — finishing the page in flight and stopping';
-  } else if (crawl.counters.activity.state === 'waiting') {
-    narration =
-      crawl.counters.activity.reason === 'host_gate'
-        ? 'Waiting for the site host gate while the worker lease stays healthy'
-        : 'Waiting for the next persisted retry window';
-  } else if (crawl.counters.activity.state === 'stalled') {
-    narration = 'Worker lease expired — recovery is pending';
-  } else if (discovering) {
-    narration = 'Auditing monitored pages while discovery re-scans the site in the background';
-  } else {
-    narration = 'Auditing monitored pages for Web Fundamentals and AEO health issues';
-  }
+  const narration = analysisNarration(crawl, cancelPending);
 
   return (
     <ProgressRow
@@ -334,28 +314,7 @@ function AnalysisStrip({
       // Background re-discovery can leave the counters still; the pulse is
       // what distinguishes "working" from "stuck".
       active={!cancelPending && crawl.counters.activity.state !== 'stalled'}
-      counts={[
-        { label: 'Total pages', value: selected },
-        { label: 'Completed', value: completed, className: 'text-run-completed' },
-        { label: 'In progress', value: running, className: 'text-run-running' },
-        { label: 'Queued', value: queued, className: 'text-muted' },
-        ...(crawl.counters.failure_breakdown.robots_denied > 0
-          ? [
-              {
-                label: 'Blocked by robots.txt',
-                value: crawl.counters.failure_breakdown.robots_denied,
-                className: 'text-run-blocked',
-              },
-            ]
-          : []),
-        ...(['http_4xx', 'http_5xx', 'timeout'] as const)
-          .filter((code) => crawl.counters.failure_breakdown[code] > 0)
-          .map((code) => ({
-            label: code === 'timeout' ? 'Timeouts' : code.replace('_', ' ').toUpperCase(),
-            value: crawl.counters.failure_breakdown[code],
-            className: 'text-run-error',
-          })),
-      ]}
+      counts={analysisCounts(crawl, selected)}
     >
       {selectedError ? (
         <Alert tone="warning">
@@ -365,4 +324,44 @@ function AnalysisStrip({
       ) : null}
     </ProgressRow>
   );
+}
+
+type ProgressCount = { label: string; value: number | null; className?: string };
+
+function analysisNarration(crawl: SiteCrawl, cancelPending: boolean): string {
+  if (cancelPending) return 'Cancelling — finishing the page in flight and stopping';
+  if (crawl.counters.activity.state === 'waiting') {
+    return crawl.counters.activity.reason === 'host_gate'
+      ? 'Waiting for the site host gate while the worker lease stays healthy'
+      : 'Waiting for the next persisted retry window';
+  }
+  if (crawl.counters.activity.state === 'stalled')
+    return 'Worker lease expired — recovery is pending';
+  return !crawl.sample_mode && !isDiscoveryTerminal(crawl.discovery_status)
+    ? 'Auditing monitored pages while discovery re-scans the site in the background'
+    : 'Auditing monitored pages for Web Fundamentals and AEO health issues';
+}
+
+function analysisCounts(crawl: SiteCrawl, selected: number): ProgressCount[] {
+  const { counters } = crawl;
+  const fixed: ProgressCount[] = [
+    { label: 'Total pages', value: selected },
+    { label: 'Completed', value: counters.analyzed, className: 'text-run-completed' },
+    { label: 'In progress', value: counters.running, className: 'text-run-running' },
+    { label: 'Queued', value: counters.queued, className: 'text-muted' },
+  ];
+  const robots = counters.failure_breakdown.robots_denied;
+  if (robots > 0) {
+    fixed.push({ label: 'Blocked by robots.txt', value: robots, className: 'text-run-blocked' });
+  }
+  return [
+    ...fixed,
+    ...(['http_4xx', 'http_5xx', 'timeout'] as const)
+      .filter((code) => counters.failure_breakdown[code] > 0)
+      .map((code) => ({
+        label: code === 'timeout' ? 'Timeouts' : code.replace('_', ' ').toUpperCase(),
+        value: counters.failure_breakdown[code],
+        className: 'text-run-error',
+      })),
+  ];
 }

@@ -19,10 +19,8 @@ import { emptyFilters, filterPrompts, type PromptFilters } from '@/lib/prompts/f
 import { usePromptSet } from '@/lib/prompts/use-prompt-set';
 import { segmentedItemClasses, segmentedTrackClasses } from '@/components/ui/segmented';
 
-import { CsvImportDialog } from './csv-import-dialog';
-import { GeneratePromptsDialog } from './generate-prompts-dialog';
 import { PromptEmptyState } from './prompt-empty-state';
-import { PromptFormDialog } from './prompt-form-dialog';
+import { PromptLibraryDialogs } from './prompt-library-dialogs';
 import { PromptTable } from './prompt-table';
 import { PromptToolbar } from './prompt-toolbar';
 import { ResizablePromptWorkspace } from './resizable-prompt-workspace';
@@ -31,6 +29,14 @@ import { TopicRail } from './topic-rail';
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return 'Something went wrong. Please try again.';
+}
+
+function mutationErrorMessage(
+  create: { isError: boolean; error: unknown },
+  update: { isError: boolean; error: unknown },
+): string | undefined {
+  if (create.isError) return errorMessage(create.error);
+  return update.isError ? errorMessage(update.error) : undefined;
 }
 
 const STATUS_TABS: { id: PromptStatus; label: string }[] = [
@@ -63,7 +69,7 @@ export function PromptLibrary({ onDoneManaging }: Readonly<{ onDoneManaging?: ()
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const topicsQuery = useQuery({
-    queryKey: projectId ? queryKeys.topics.list(projectId) : ['topics', 'list', 'none'],
+    queryKey: queryKeys.topics.list(projectId ?? ''),
     queryFn: ({ signal }) => topicsApi.list(projectId as string, { signal }),
     enabled: Boolean(projectId),
   });
@@ -318,45 +324,31 @@ export function PromptLibrary({ onDoneManaging }: Readonly<{ onDoneManaging?: ()
         </div>
       </ResizablePromptWorkspace>
 
-      <PromptFormDialog
-        open={formOpen}
-        onOpenChange={(open) => {
-          setFormOpen(open);
-          if (!open) setEditing(undefined);
-        }}
-        prompt={editing}
-        onSubmit={submitForm}
+      <PromptLibraryDialogs
+        formOpen={formOpen}
+        setFormOpen={setFormOpen}
+        editing={editing}
+        setEditing={setEditing}
+        submitForm={submitForm}
         isSaving={createMutation.isPending || updateMutation.isPending}
-        error={
-          createMutation.isError
-            ? errorMessage(createMutation.error)
-            : updateMutation.isError
-              ? errorMessage(updateMutation.error)
-              : undefined
-        }
-      />
-
-      <CsvImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onImport={async (rows) => {
+        formError={mutationErrorMessage(createMutation, updateMutation)}
+        importOpen={importOpen}
+        setImportOpen={setImportOpen}
+        importPrompts={async (rows) => {
           await importMutation.mutateAsync(rows).catch(() => undefined);
         }}
         isImporting={importMutation.isPending}
-        error={importMutation.isError ? errorMessage(importMutation.error) : undefined}
-      />
-
-      <GeneratePromptsDialog
-        open={generateOpen}
-        onOpenChange={setGenerateOpen}
+        importError={importMutation.isError ? errorMessage(importMutation.error) : undefined}
+        generateOpen={generateOpen}
+        setGenerateOpen={setGenerateOpen}
         topics={topics}
-        defaultTopicId={selectedTopicId}
-        onGenerate={async (input) => {
+        selectedTopicId={selectedTopicId}
+        generatePrompts={async (input) => {
           await generateMutation.mutateAsync(input).catch(() => undefined);
         }}
         isGenerating={generateMutation.isPending}
-        error={generateMutation.isError ? generateMutation.error : undefined}
-        result={generateResult}
+        generateError={generateMutation.isError ? generateMutation.error : undefined}
+        generateResult={generateResult}
       />
     </div>
   );

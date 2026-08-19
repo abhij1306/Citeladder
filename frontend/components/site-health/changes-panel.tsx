@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { siteHealthQueries } from '@/lib/api/site-health';
-import type { ChangeObservation } from '@/lib/api/types';
+import type { ChangeObservation, ChangesPage, ChangeSummary } from '@/lib/api/types';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
 
 const CLASS_LABELS = {
@@ -85,40 +85,81 @@ export function ChangesPanel({ projectId }: Readonly<{ projectId: string }>) {
     enabled: pairAvailable,
   });
 
-  if (summary.isLoading || (pairAvailable && changes.isLoading)) {
+  return (
+    <ChangesPanelContent
+      summary={summary}
+      changes={changes}
+      pairAvailable={pairAvailable}
+      pager={pager}
+    />
+  );
+}
+
+function ChangesPanelContent({
+  summary,
+  changes,
+  pairAvailable,
+  pager,
+}: Readonly<{
+  summary: UseQueryResult<ChangeSummary>;
+  changes: UseQueryResult<ChangesPage>;
+  pairAvailable: boolean;
+  pager: ReturnType<typeof useCursorStack>;
+}>) {
+  const state = changesState(summary, changes, pairAvailable);
+  return state ?? <ChangesTable summary={summary.data!} changes={changes.data!} pager={pager} />;
+}
+
+function changesState(
+  summary: UseQueryResult<ChangeSummary>,
+  changes: UseQueryResult<ChangesPage>,
+  pairAvailable: boolean,
+) {
+  const loading = summary.isLoading || (pairAvailable && changes.isLoading);
+  if (loading)
     return (
       <p role="status" className="text-secondary text-sm">
         Loading persisted website changes…
       </p>
     );
-  }
-  if (summary.isError || changes.isError) {
+  if (summary.isError || changes.isError)
     return <Alert tone="danger">Could not load Website Changes.</Alert>;
-  }
-  if (!summary.data || summary.data.state === 'unavailable') {
+  return comparisonState(summary.data, pairAvailable);
+}
+
+function comparisonState(summary: ChangeSummary | undefined, pairAvailable: boolean) {
+  if (!summary || summary.state === 'unavailable')
     return (
       <Alert tone="info">
         Website Changes need two usable crawls with persisted page evidence.
       </Alert>
     );
-  }
-  if (summary.data.state === 'non_comparable') {
+  if (summary.state === 'non_comparable')
     return (
       <Alert tone="warning">
         These crawls are not comparable (
-        {summary.data.reason_code?.replaceAll('_', ' ') ?? 'scope or version mismatch'}).
+        {summary.reason_code?.replaceAll('_', ' ') ?? 'scope or version mismatch'}).
       </Alert>
     );
-  }
-  if (!pairAvailable) {
-    return <Alert tone="danger">The persisted comparison is missing its exact crawl pair.</Alert>;
-  }
+  return pairAvailable ? null : (
+    <Alert tone="danger">The persisted comparison is missing its exact crawl pair.</Alert>
+  );
+}
 
-  const rows = changes.data?.items ?? [];
-  const counts = summary.data.summary.counts_by_class as Record<string, number> | undefined;
+function ChangesTable({
+  summary,
+  changes,
+  pager,
+}: Readonly<{
+  summary: ChangeSummary;
+  changes: ChangesPage;
+  pager: ReturnType<typeof useCursorStack>;
+}>) {
+  const rows = changes.items;
+  const counts = summary.summary.counts_by_class as Record<string, number> | undefined;
   return (
     <div className="grid min-w-0 gap-6" data-testid="website-changes">
-      {!summary.data.complete_pair ? (
+      {!summary.complete_pair ? (
         <Alert tone="warning">
           This comparison includes shared observed URLs only. Added and removed page claims are
           suppressed for partial crawls.
@@ -157,7 +198,7 @@ export function ChangesPanel({ projectId }: Readonly<{ projectId: string }>) {
                     <TableCell>
                       <Link
                         className="text-accent-text font-medium hover:underline"
-                        href={`/site/crawls/${summary.data.crawl_b_id}/pages/${row.site_url_id}`}
+                        href={`/site/crawls/${summary.crawl_b_id}/pages/${row.site_url_id}`}
                       >
                         {displayPath(row.normalized_url)}
                       </Link>
@@ -181,13 +222,13 @@ export function ChangesPanel({ projectId }: Readonly<{ projectId: string }>) {
               No changes were observed in this comparable pair.
             </p>
           )}
-          {pager.canPrev || changes.data?.next_cursor ? (
+          {pager.canPrev || changes.next_cursor ? (
             <div className="flex justify-end">
               <CursorPager
                 canPrev={pager.canPrev}
-                canNext={Boolean(changes.data?.next_cursor)}
+                canNext={Boolean(changes.next_cursor)}
                 onPrev={pager.pop}
-                onNext={() => pager.push(changes.data?.next_cursor ?? null)}
+                onNext={() => pager.push(changes.next_cursor)}
               />
             </div>
           ) : null}

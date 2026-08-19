@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
@@ -36,6 +36,7 @@ import { useUpdateOpportunityStatus } from '@/components/opportunities/use-oppor
 import { opportunitiesQueries, type OpportunitiesParams } from '@/lib/api/opportunities';
 import type {
   Opportunity,
+  OpportunitiesPage,
   OpportunityDetail,
   OpportunitySeverity,
   OpportunityStatus,
@@ -190,12 +191,38 @@ function StatusControl({ row, projectId }: Readonly<{ row: Opportunity; projectI
 }
 
 export function OpportunitiesCatalog({ projectId }: Readonly<{ projectId: string }>) {
+  const filters = useCatalogFilters();
+  const listQuery = useQuery(opportunitiesQueries.list(projectId, filters.params));
+  const rows = listQuery.data?.items ?? [];
+  const featured = useFeaturedRecommendation(rows, filters.statusFilter, filters.pager.cursor);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  return (
+    <div className="grid gap-6">
+      <FeaturedSection featured={featured} onOpen={setSelectedId} />
+      <RecommendationsSection
+        projectId={projectId}
+        filters={filters}
+        listQuery={listQuery}
+        rows={rows}
+        onOpen={setSelectedId}
+      />
+      <EvidenceDrawer
+        opportunityId={selectedId}
+        projectId={projectId}
+        open={selectedId !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function useCatalogFilters() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const pager = useCursorStack();
-
   const params: OpportunitiesParams = useMemo(
     () => ({
       type: typeFilter === 'all' ? undefined : typeFilter,
@@ -206,164 +233,207 @@ export function OpportunitiesCatalog({ projectId }: Readonly<{ projectId: string
     }),
     [typeFilter, severityFilter, statusFilter, pager.cursor],
   );
+  const reset =
+    <T,>(setter: (value: T) => void) =>
+    (value: T) => {
+      setter(value);
+      pager.reset();
+    };
+  return {
+    typeFilter,
+    setTypeFilter: reset(setTypeFilter),
+    severityFilter,
+    setSeverityFilter: reset(setSeverityFilter),
+    statusFilter,
+    setStatusFilter: reset(setStatusFilter),
+    pager,
+    params,
+  };
+}
 
-  const listQuery = useQuery(opportunitiesQueries.list(projectId, params));
-  const rows = listQuery.data?.items ?? [];
-  const nextCursor = listQuery.data?.next_cursor ?? null;
-  // First page of the triage queue only: the top-priority row is featured.
-  // (useCursorStack yields `undefined` on the empty stack, never null.)
-  const featuredId = statusFilter === 'active' && !pager.cursor ? (rows[0]?.id ?? null) : null;
-  const featuredQuery = useQuery({
+function useFeaturedRecommendation(
+  rows: Opportunity[],
+  statusFilter: StatusFilter,
+  cursor: string | undefined,
+) {
+  const featuredId = statusFilter === 'active' && !cursor ? (rows[0]?.id ?? null) : null;
+  return useQuery({
     ...opportunitiesQueries.detail(featuredId ?? ''),
     enabled: featuredId !== null,
   });
-  const featured = featuredQuery.data;
+}
 
+function FeaturedSection({
+  featured,
+  onOpen,
+}: Readonly<{
+  featured: ReturnType<typeof useFeaturedRecommendation>;
+  onOpen: (id: string) => void;
+}>) {
+  if (featured.isPending && !featured.data) return <Skeleton className="h-44 w-full" />;
+  return featured.data ? (
+    <FeaturedRecommendation detail={featured.data} onOpen={() => onOpen(featured.data.id)} />
+  ) : null;
+}
+
+function RecommendationsSection({
+  projectId,
+  filters,
+  listQuery,
+  rows,
+  onOpen,
+}: Readonly<{
+  projectId: string;
+  filters: ReturnType<typeof useCatalogFilters>;
+  listQuery: UseQueryResult<OpportunitiesPage, Error>;
+  rows: Opportunity[];
+  onOpen: (id: string) => void;
+}>) {
   return (
-    <div className="grid gap-6">
-      {featuredQuery.isPending && !featured && featuredId ? (
-        <Skeleton className="h-44 w-full" />
-      ) : featured ? (
-        <FeaturedRecommendation detail={featured} onOpen={() => setSelectedId(featured.id)} />
-      ) : null}
-
-      <section className="grid gap-3" aria-labelledby="recommendations-heading">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="grid gap-1">
-            <h2 id="recommendations-heading" className="text-foreground text-lg">
-              Prioritized recommendations
-            </h2>
-            <p className="text-muted text-xs">
-              Ordered by expected impact using your latest visibility and site evidence.
-            </p>
-          </div>
-          <div
-            className="flex flex-wrap items-center gap-2"
-            role="group"
-            aria-label="Recommendation filters"
-          >
-            <FilterMenu
-              label="Area"
-              value={typeFilter}
-              options={TYPE_FILTERS}
-              onChange={(value) => {
-                setTypeFilter(value);
-                pager.reset();
-              }}
-            />
-            <FilterMenu
-              label="Impact"
-              value={severityFilter}
-              options={SEVERITY_FILTERS}
-              onChange={(value) => {
-                setSeverityFilter(value);
-                pager.reset();
-              }}
-            />
-            <FilterMenu
-              label="Status"
-              value={statusFilter}
-              options={STATUS_FILTERS}
-              onChange={(value) => {
-                setStatusFilter(value);
-                pager.reset();
-              }}
-            />
-          </div>
+    <section className="grid gap-3" aria-labelledby="recommendations-heading">
+      <RecommendationsHeader filters={filters} />
+      <RecommendationsBody projectId={projectId} query={listQuery} rows={rows} onOpen={onOpen} />
+      {rows.length ? (
+        <div className="flex items-center justify-end gap-2">
+          <CursorPager
+            canPrev={filters.pager.canPrev}
+            canNext={Boolean(listQuery.data?.next_cursor)}
+            onPrev={filters.pager.pop}
+            onNext={() => filters.pager.push(listQuery.data?.next_cursor ?? null)}
+          />
         </div>
+      ) : null}
+    </section>
+  );
+}
 
-        {listQuery.isError && !listQuery.data ? (
-          <Alert tone="danger">Could not load opportunities. Please refresh.</Alert>
-        ) : listQuery.isPending && !listQuery.data ? (
-          <div className="grid gap-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        ) : rows.length === 0 ? (
-          <Card>
-            <CardContent className="text-secondary text-sm">
-              No recommendations match these filters. Try broadening the area, impact, or status.
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Recommendation</TableHead>
-                  <TableHead>Impact</TableHead>
-                  <TableHead>Area</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Detected</TableHead>
-                  <TableHead className="w-24" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id} className="hover:bg-background-alt">
-                    <TableCell>
-                      <div className="grid gap-0.5">
-                        <span className="text-foreground text-sm font-medium">{row.title}</span>
-                        {row.target_label ? (
-                          <span className="text-2xs text-muted break-all">{row.target_label}</span>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="status" value={severityBadgeValue(row.severity)}>
-                        {severityLabel(row.severity)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <OpportunityTypeBadge type={row.opportunity_type} />
-                    </TableCell>
-                    <TableCell>
-                      <StatusControl row={row} projectId={projectId} />
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-secondary text-xs whitespace-nowrap">
-                        {formatAudited(row.created_at)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedId(row.id);
-                        }}
-                      >
-                        Review
-                        <ChevronRight className="size-4" aria-hidden />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        )}
-
-        {rows.length > 0 ? (
-          <div className="flex items-center justify-end gap-2">
-            <CursorPager
-              canPrev={pager.canPrev}
-              canNext={Boolean(nextCursor)}
-              onPrev={pager.pop}
-              onNext={() => pager.push(nextCursor)}
-            />
-          </div>
-        ) : null}
-      </section>
-
-      <EvidenceDrawer
-        opportunityId={selectedId}
-        projectId={projectId}
-        open={selectedId !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedId(null);
-        }}
-      />
+function RecommendationsHeader({
+  filters,
+}: Readonly<{ filters: ReturnType<typeof useCatalogFilters> }>) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="grid gap-1">
+        <h2 id="recommendations-heading" className="text-foreground text-lg">
+          Prioritized recommendations
+        </h2>
+        <p className="text-muted text-xs">
+          Ordered by expected impact using your latest visibility and site evidence.
+        </p>
+      </div>
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Recommendation filters"
+      >
+        <FilterMenu
+          label="Area"
+          value={filters.typeFilter}
+          options={TYPE_FILTERS}
+          onChange={filters.setTypeFilter}
+        />
+        <FilterMenu
+          label="Impact"
+          value={filters.severityFilter}
+          options={SEVERITY_FILTERS}
+          onChange={filters.setSeverityFilter}
+        />
+        <FilterMenu
+          label="Status"
+          value={filters.statusFilter}
+          options={STATUS_FILTERS}
+          onChange={filters.setStatusFilter}
+        />
+      </div>
     </div>
+  );
+}
+
+function RecommendationsBody({
+  projectId,
+  query,
+  rows,
+  onOpen,
+}: Readonly<{
+  projectId: string;
+  query: UseQueryResult<OpportunitiesPage, Error>;
+  rows: Opportunity[];
+  onOpen: (id: string) => void;
+}>) {
+  if (query.isError && !query.data)
+    return <Alert tone="danger">Could not load opportunities. Please refresh.</Alert>;
+  if (query.isPending && !query.data)
+    return (
+      <div className="grid gap-3">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  if (!rows.length)
+    return (
+      <Card>
+        <CardContent className="text-secondary text-sm">
+          No recommendations match these filters. Try broadening the area, impact, or status.
+        </CardContent>
+      </Card>
+    );
+  return <RecommendationsTable projectId={projectId} rows={rows} onOpen={onOpen} />;
+}
+
+function RecommendationsTable({
+  projectId,
+  rows,
+  onOpen,
+}: Readonly<{ projectId: string; rows: Opportunity[]; onOpen: (id: string) => void }>) {
+  return (
+    <Card>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Recommendation</TableHead>
+            <TableHead>Impact</TableHead>
+            <TableHead>Area</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Detected</TableHead>
+            <TableHead className="w-24" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.id} className="hover:bg-background-alt">
+              <TableCell>
+                <div className="grid gap-0.5">
+                  <span className="text-foreground text-sm font-medium">{row.title}</span>
+                  {row.target_label ? (
+                    <span className="text-2xs text-muted break-all">{row.target_label}</span>
+                  ) : null}
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge variant="status" value={severityBadgeValue(row.severity)}>
+                  {severityLabel(row.severity)}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <OpportunityTypeBadge type={row.opportunity_type} />
+              </TableCell>
+              <TableCell>
+                <StatusControl row={row} projectId={projectId} />
+              </TableCell>
+              <TableCell>
+                <span className="text-secondary text-xs whitespace-nowrap">
+                  {formatAudited(row.created_at)}
+                </span>
+              </TableCell>
+              <TableCell>
+                <Button variant="ghost" size="sm" onClick={() => onOpen(row.id)}>
+                  Review
+                  <ChevronRight className="size-4" aria-hidden />
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Card>
   );
 }

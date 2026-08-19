@@ -27,30 +27,40 @@ export function DemandEvidenceDrawer({
   onOpenChange: (open: boolean) => void;
 }>) {
   if (!signal) return null;
+  return <DemandEvidenceContent signal={signal} open={open} onOpenChange={onOpenChange} />;
+}
 
-  const targetKind = signalTargetKind(signal);
-  const target = signalTarget(signal);
-  const metrics = signal.metrics;
-  const evidence = signal.evidence;
+function DemandEvidenceContent({
+  signal,
+  open,
+  onOpenChange,
+}: Readonly<{
+  signal: DemandSignal;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}>) {
+  const details = demandEvidenceDetails(signal);
 
-  const pages = competingPages(signal);
-
-  // Cohort details for CTR gap
-  const cohortMedianCtr = numericMetric(signal, 'cohort_median_ctr');
-  // The band label appends `.0`/`.9`, so only a whole number produces a valid
-  // range — a fractional 7.5 would otherwise render "Positions 7.5.0 – 7.5.9".
-  const rawBand = evidence.position_band;
-  const positionBand =
-    typeof rawBand === 'number' && Number.isFinite(rawBand) ? Math.floor(rawBand) : null;
-  const linkablePageUrl = safePageUrl(signal.page_url);
-
-  // Source provenance
-  const metricRowIds = Array.isArray(evidence.source_metric_row_ids)
-    ? (evidence.source_metric_row_ids as string[])
-    : [];
-  const artifactIds = Array.isArray(evidence.source_artifact_ids)
-    ? (evidence.source_artifact_ids as string[])
-    : [];
+  function demandEvidenceDetails(signal: DemandSignal) {
+    const evidence = signal.evidence;
+    const rawBand = evidence.position_band;
+    return {
+      targetKind: signalTargetKind(signal),
+      target: signalTarget(signal),
+      metrics: signal.metrics,
+      pages: competingPages(signal),
+      cohortMedianCtr: numericMetric(signal, 'cohort_median_ctr'),
+      positionBand:
+        typeof rawBand === 'number' && Number.isFinite(rawBand) ? Math.floor(rawBand) : null,
+      linkablePageUrl: safePageUrl(signal.page_url),
+      metricRowIds: Array.isArray(evidence.source_metric_row_ids)
+        ? (evidence.source_metric_row_ids as string[])
+        : [],
+      artifactIds: Array.isArray(evidence.source_artifact_ids)
+        ? (evidence.source_artifact_ids as string[])
+        : [],
+    };
+  }
 
   return (
     <Drawer
@@ -80,22 +90,22 @@ export function DemandEvidenceDrawer({
         {/* Header Info */}
         <div className="border-border-subtle grid gap-2 border-b pb-4">
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="neutral">{targetKind}</Badge>
+            <Badge variant="neutral">{details.targetKind}</Badge>
             <Badge variant="status" value="info">
               {signal.signal_type.replace(/_/g, ' ')}
             </Badge>
           </div>
-          <h2 className="text-foreground text-base font-semibold break-words">{target}</h2>
-          {linkablePageUrl && (
+          <h2 className="text-foreground text-base font-semibold break-words">{details.target}</h2>
+          {details.linkablePageUrl && (
             <div className="text-muted flex items-center gap-1.5 text-xs">
               <span className="shrink-0 font-medium">Resolved URL:</span>
               <a
-                href={linkablePageUrl}
+                href={details.linkablePageUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="text-accent-text inline-flex items-center gap-1 truncate hover:underline"
               >
-                {linkablePageUrl}
+                {details.linkablePageUrl}
                 <ExternalLink className="size-3" />
               </a>
             </div>
@@ -111,41 +121,47 @@ export function DemandEvidenceDrawer({
             <div>
               <span className="text-2xs text-muted">Impressions</span>
               <p className="text-foreground text-sm font-semibold tabular-nums">
-                {typeof metrics.impressions === 'number'
-                  ? metrics.impressions.toLocaleString()
+                {typeof details.metrics.impressions === 'number'
+                  ? details.metrics.impressions.toLocaleString()
                   : '—'}
               </p>
             </div>
             <div>
               <span className="text-2xs text-muted">Clicks</span>
               <p className="text-foreground text-sm font-semibold tabular-nums">
-                {typeof metrics.clicks === 'number' ? metrics.clicks.toLocaleString() : '—'}
+                {typeof details.metrics.clicks === 'number'
+                  ? details.metrics.clicks.toLocaleString()
+                  : '—'}
               </p>
             </div>
             <div>
               <span className="text-2xs text-muted">CTR</span>
               <p className="text-foreground text-sm font-semibold tabular-nums">
-                {typeof metrics.ctr === 'number' ? `${(metrics.ctr * 100).toFixed(1)}%` : '—'}
+                {typeof details.metrics.ctr === 'number'
+                  ? `${(details.metrics.ctr * 100).toFixed(1)}%`
+                  : '—'}
               </p>
             </div>
             <div>
               <span className="text-2xs text-muted">Avg Position</span>
               <p className="text-foreground text-sm font-semibold tabular-nums">
-                {typeof metrics.position === 'number' ? metrics.position.toFixed(1) : '—'}
+                {typeof details.metrics.position === 'number'
+                  ? details.metrics.position.toFixed(1)
+                  : '—'}
               </p>
             </div>
           </div>
         </section>
 
         {/* Cannibalization Breakdown if applicable */}
-        {pages.length > 0 && (
+        {details.pages.length > 0 && (
           <section className="grid gap-2">
             <div className="text-muted flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
               <Split className="text-warning size-3.5" />
-              <span>Competing URL Breakdown ({pages.length} Pages)</span>
+              <span>Competing URL Breakdown ({details.pages.length} Pages)</span>
             </div>
             <div className="border-border bg-panel divide-border-subtle divide-y rounded-md border">
-              {pages.map((page) => (
+              {details.pages.map((page) => (
                 <div key={page.url} className="p-2.5 text-xs">
                   <div className="text-foreground font-medium break-all">{page.url}</div>
                   <div className="text-muted text-2xs mt-1 flex items-center justify-between">
@@ -161,7 +177,7 @@ export function DemandEvidenceDrawer({
         )}
 
         {/* CTR Gap Cohort Benchmark if applicable */}
-        {cohortMedianCtr !== null && (
+        {details.cohortMedianCtr !== null && (
           <section className="grid gap-2">
             <h3 className="text-muted text-xs font-semibold tracking-wider uppercase">
               Position Cohort Benchmark
@@ -170,13 +186,15 @@ export function DemandEvidenceDrawer({
               <div className="flex justify-between">
                 <span className="text-muted">Position Band:</span>
                 <span className="text-foreground font-medium">
-                  {positionBand !== null ? `Positions ${positionBand}.0 – ${positionBand}.9` : '—'}
+                  {details.positionBand !== null
+                    ? `Positions ${details.positionBand}.0 – ${details.positionBand}.9`
+                    : '—'}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted">Cohort Median CTR:</span>
                 <span className="text-success font-semibold tabular-nums">
-                  {(cohortMedianCtr * 100).toFixed(1)}%
+                  {(details.cohortMedianCtr * 100).toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between">
@@ -209,11 +227,11 @@ export function DemandEvidenceDrawer({
             </div>
             <div className="flex justify-between">
               <span>Source Metric Rows:</span>
-              <span className="text-foreground">{metricRowIds.length} rows linked</span>
+              <span className="text-foreground">{details.metricRowIds.length} rows linked</span>
             </div>
             <div className="flex justify-between">
               <span>Source Artifacts:</span>
-              <span className="text-foreground">{artifactIds.length} artifacts</span>
+              <span className="text-foreground">{details.artifactIds.length} artifacts</span>
             </div>
             <div className="flex justify-between">
               <span>Evaluated:</span>

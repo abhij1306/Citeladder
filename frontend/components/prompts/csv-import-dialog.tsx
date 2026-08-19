@@ -1,11 +1,15 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Dialog } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+import {
+  CsvImportDialogShell,
+  CsvImportFileInput,
+  CsvImportPreview,
+  useCsvImportFile,
+} from '@/components/ui/csv-import';
 import {
   Table,
   TableBody,
@@ -17,17 +21,6 @@ import {
 import type { PromptInput } from '@/lib/api/prompts';
 import { parsePromptCsv, validRows, type ParsedCsv } from '@/lib/prompts/csv';
 import { intentLabels } from '@/lib/prompts/forms';
-
-/** Read a File as text, falling back to FileReader where `File.text` is absent (jsdom). */
-const readFileText = (file: File) =>
-  typeof file.text === 'function'
-    ? file.text()
-    : new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result ?? ''));
-        reader.onerror = () => reject(reader.error);
-        reader.readAsText(file);
-      });
 
 /**
  * CSV import dialog (F7). The file is parsed + validated in the browser and the
@@ -48,25 +41,11 @@ export function CsvImportDialog({
   isImporting?: boolean;
   error?: string;
 }>) {
-  const [parsed, setParsed] = useState<ParsedCsv | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const { fileName, inputRef, parsed, reset, selectFile } =
+    useCsvImportFile<ParsedCsv>(parsePromptCsv);
 
   const importable = useMemo(() => (parsed ? validRows(parsed) : []), [parsed]);
   const errorCount = parsed ? parsed.rows.filter((row) => row.errors.length > 0).length : 0;
-
-  const reset = () => {
-    setParsed(null);
-    setFileName(null);
-    if (inputRef.current) inputRef.current.value = '';
-  };
-
-  const handleFile = async (file: File | undefined) => {
-    if (!file) return;
-    setFileName(file.name);
-    const text = await readFileText(file);
-    setParsed(parsePromptCsv(text));
-  };
 
   const handleOpenChange = (next: boolean) => {
     if (!next) reset();
@@ -79,7 +58,7 @@ export function CsvImportDialog({
   };
 
   return (
-    <Dialog
+    <CsvImportDialogShell
       open={open}
       onOpenChange={handleOpenChange}
       title="Import prompts from CSV"
@@ -105,85 +84,64 @@ export function CsvImportDialog({
       <div className="grid gap-4">
         {error ? <Alert tone="danger">{error}</Alert> : null}
 
-        <label className="grid gap-1.5">
-          <span className="text-secondary text-xs font-medium">CSV file</span>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".csv,text/csv"
-            aria-label="CSV file"
-            onChange={(event) => void handleFile(event.target.files?.[0])}
-            className="focus-ring border-border bg-well text-foreground file:bg-background-alt file:text-foreground block w-full rounded-sm border px-2 py-1.5 text-sm file:me-2 file:rounded-xs file:border-0 file:px-2 file:py-1 file:text-sm"
-          />
-        </label>
+        <CsvImportFileInput inputRef={inputRef} onSelect={(file) => void selectFile(file)} />
 
         {parsed && parsed.errors.length > 0 ? (
           <Alert tone="danger">{parsed.errors.join(' ')}</Alert>
         ) : null}
 
         {parsed && parsed.rows.length > 0 ? (
-          <div className="grid gap-2">
-            <div className="text-secondary flex items-center gap-3 text-sm">
-              <span>
-                Parsed <strong className="text-foreground">{parsed.rows.length}</strong> row
-                {parsed.rows.length === 1 ? '' : 's'}
-                {fileName ? ` from ${fileName}` : ''}.
-              </span>
-              {errorCount > 0 ? (
-                <Badge variant="status" value="danger">
-                  {errorCount} skipped
-                </Badge>
-              ) : null}
-            </div>
-
-            <div className="border-border-subtle max-h-85 overflow-auto rounded-sm border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Row</TableHead>
-                    <TableHead>Text</TableHead>
-                    <TableHead>Theme</TableHead>
-                    <TableHead>Intent</TableHead>
-                    <TableHead>Cohort</TableHead>
-                    <TableHead>Enabled</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {parsed.rows.map((row) => {
-                    const invalid = row.errors.length > 0;
-                    return (
-                      <TableRow key={row.line} className={invalid ? 'opacity-60' : undefined}>
-                        <TableCell numeric className="text-muted">
-                          {row.line}
-                        </TableCell>
-                        <TableCell className="max-w-70 truncate">{row.input.text || '—'}</TableCell>
-                        <TableCell>{row.input.theme || '—'}</TableCell>
-                        <TableCell>{intentLabels[row.input.intent]}</TableCell>
-                        <TableCell>
-                          {row.input.cohort === 'comparison' ? 'Comparison' : 'Core'}
-                        </TableCell>
-                        <TableCell>{row.input.enabled ? 'Yes' : 'No'}</TableCell>
-                        <TableCell>
-                          {invalid ? (
-                            <span className="text-danger-text text-xs">{row.errors.join(' ')}</span>
-                          ) : row.warnings.length > 0 ? (
-                            <span className="text-warning-text text-xs">
-                              {row.warnings.join(' ')}
-                            </span>
-                          ) : (
-                            <span className="text-success-text text-xs">Ready</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
+          <CsvImportPreview
+            errorCount={errorCount}
+            fileName={fileName}
+            rowCount={parsed.rows.length}
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Row</TableHead>
+                  <TableHead>Text</TableHead>
+                  <TableHead>Theme</TableHead>
+                  <TableHead>Intent</TableHead>
+                  <TableHead>Cohort</TableHead>
+                  <TableHead>Enabled</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {parsed.rows.map((row) => {
+                  const invalid = row.errors.length > 0;
+                  return (
+                    <TableRow key={row.line} className={invalid ? 'opacity-60' : undefined}>
+                      <TableCell numeric className="text-muted">
+                        {row.line}
+                      </TableCell>
+                      <TableCell className="max-w-70 truncate">{row.input.text || '—'}</TableCell>
+                      <TableCell>{row.input.theme || '—'}</TableCell>
+                      <TableCell>{intentLabels[row.input.intent]}</TableCell>
+                      <TableCell>
+                        {row.input.cohort === 'comparison' ? 'Comparison' : 'Core'}
+                      </TableCell>
+                      <TableCell>{row.input.enabled ? 'Yes' : 'No'}</TableCell>
+                      <TableCell>
+                        {invalid ? (
+                          <span className="text-danger-text text-xs">{row.errors.join(' ')}</span>
+                        ) : row.warnings.length > 0 ? (
+                          <span className="text-warning-text text-xs">
+                            {row.warnings.join(' ')}
+                          </span>
+                        ) : (
+                          <span className="text-success-text text-xs">Ready</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CsvImportPreview>
         ) : null}
       </div>
-    </Dialog>
+    </CsvImportDialogShell>
   );
 }

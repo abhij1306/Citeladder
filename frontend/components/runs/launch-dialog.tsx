@@ -3,40 +3,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
-import { ConnectProviderDialog } from '@/components/providers/connect-provider-dialog';
-import { Button } from '@/components/ui/button';
-import { Dialog } from '@/components/ui/dialog';
-import { Field } from '@/components/ui/field';
-import { filterChipClasses } from '@/components/ui/filter-chip-variants';
-import { Input, inputClasses } from '@/components/ui/input';
-import { MutationNotice } from '@/components/ui/mutation-notice';
 import { mutationNoticeForError } from '@/lib/api/mutation-notice';
 import { promptsApi } from '@/lib/api/prompts';
 import { providersApi } from '@/lib/api/providers';
 import { queryKeys } from '@/lib/api/query-keys';
 import { runsApi } from '@/lib/api/runs';
 import type { Audit, LogicalEngine } from '@/lib/api/types';
-import { ENGINE_LABELS, ENGINE_ORDER, isConfigured, isVerified } from '@/lib/providers/catalog';
-import {
-  buildLaunchPayload,
-  canLaunch,
-  clampRepetitions,
-  DEFAULT_REPETITIONS,
-  MAX_REPETITIONS,
-  MIN_REPETITIONS,
-  toggleEngine,
-} from '@/lib/runs/launch';
+import { ENGINE_ORDER, isConfigured, isVerified } from '@/lib/providers/catalog';
+import { buildLaunchPayload, canLaunch, DEFAULT_REPETITIONS } from '@/lib/runs/launch';
 
-/**
- * Launch-audit dialog (F10, design.md §9.7).
- *
- * Collects the run configuration — a prompt set, one or more logical engines
- * (only those with a configured BYOK provider route are selectable), and a
- * repetition count — and posts it to `POST /audits` via `buildLaunchPayload`.
- * The active project comes from F5 context (passed in as `projectId`). On a
- * successful launch it invalidates the runs list and hands the new audit back
- * to the parent (which routes into the run detail page).
- */
+import { LaunchDialogView } from './launch-dialog-view';
+
+function availableEngines(
+  connections: Awaited<ReturnType<typeof providersApi.listConnections>> | undefined,
+) {
+  const verified = new Set<LogicalEngine>();
+  const stored = new Set<LogicalEngine>();
+  for (const connection of connections ?? []) {
+    if (!isConfigured(connection)) continue;
+    const target = isVerified(connection) ? verified : stored;
+    for (const route of connection.routes ?? []) target.add(route.logical_engine);
+  }
+  return {
+    configuredEngines: ENGINE_ORDER.filter((engine) => verified.has(engine)),
+    unverifiedEngines: ENGINE_ORDER.filter((engine) => stored.has(engine) && !verified.has(engine)),
+  };
+}
+
+/** Launch controller: queries, mutations, and form selection stay here; UI is in the view. */
 export function LaunchDialog({
   open,
   onOpenChange,
@@ -49,55 +43,26 @@ export function LaunchDialog({
   onLaunched?: (audit: Audit) => void;
 }>) {
   const queryClient = useQueryClient();
-
   const promptSetsQuery = useQuery({
     queryKey: queryKeys.prompts.sets(projectId),
     queryFn: ({ signal }) => promptsApi.listPromptSets(projectId, { signal }),
     enabled: open,
   });
-
   const connectionsQuery = useQuery({
     queryKey: queryKeys.providers.connections(),
     queryFn: ({ signal }) => providersApi.listConnections({ signal }),
     enabled: open,
   });
-
-  const promptSets = promptSetsQuery.data ?? [];
-  const connections = connectionsQuery.data;
-
-  // A logical engine is selectable only when a VERIFIED BYOK connection backs a
-  // route for it. A stored key is not enough: admission resolves only routes
-  // whose latest probe succeeded, so gating on `api_key_set` alone offered
-  // engines the backend would then refuse with `execution_credentials_unavailable`
-  // — the launch failed after the fact instead of the chip never appearing.
-  // `stored` tracks the difference so the empty state can say which case it is.
-  const { configuredEngines, unverifiedEngines } = useMemo(() => {
-    const verified = new Set<LogicalEngine>();
-    const stored = new Set<LogicalEngine>();
-    for (const connection of connections ?? []) {
-      if (!isConfigured(connection)) continue;
-      const target = isVerified(connection) ? verified : stored;
-      for (const route of connection.routes ?? []) {
-        target.add(route.logical_engine);
-      }
-    }
-    return {
-      configuredEngines: ENGINE_ORDER.filter((engine) => verified.has(engine)),
-      unverifiedEngines: ENGINE_ORDER.filter(
-        (engine) => stored.has(engine) && !verified.has(engine),
-      ),
-    };
-  }, [connections]);
-
+  const { configuredEngines, unverifiedEngines } = useMemo(
+    () => availableEngines(connectionsQuery.data),
+    [connectionsQuery.data],
+  );
   const [promptSetId, setPromptSetId] = useState<string | null>(null);
   const [engines, setEngines] = useState<LogicalEngine[]>([]);
   const [repetitions, setRepetitions] = useState(DEFAULT_REPETITIONS);
   const [measurementMode, setMeasurementMode] = useState<'pulse' | 'benchmark'>('pulse');
   const [connectOpen, setConnectOpen] = useState(false);
-
-  // Resolve the effective prompt set: the explicit selection, else the first.
-  const effectivePromptSetId = promptSetId ?? promptSets[0]?.id ?? null;
-
+  const effectivePromptSetId = promptSetId ?? promptSetsQuery.data?.[0]?.id ?? null;
   const selection = {
     projectId,
     promptSetId: effectivePromptSetId,
@@ -106,189 +71,53 @@ export function LaunchDialog({
     measurementMode,
   };
   const ready = canLaunch(selection);
-
   const estimateQuery = useQuery({
     queryKey: ['audit-estimate', selection],
     queryFn: () => runsApi.estimateAudit(buildLaunchPayload(selection)),
     enabled: open && ready,
   });
-
+  const reset = () => {
+    setEngines([]);
+    setPromptSetId(null);
+    setRepetitions(DEFAULT_REPETITIONS);
+    setMeasurementMode('pulse');
+  };
   const launchMutation = useMutation({
     mutationFn: () => runsApi.launchAudit(buildLaunchPayload(selection)),
     onSuccess: async (audit) => {
       queryClient.setQueryData(queryKeys.runs.detail(audit.id), audit);
       await queryClient.invalidateQueries({ queryKey: queryKeys.runs.all });
       onOpenChange(false);
-      setEngines([]);
-      setPromptSetId(null);
-      setRepetitions(DEFAULT_REPETITIONS);
-      setMeasurementMode('pulse');
+      reset();
       onLaunched?.(audit);
     },
   });
-
-  const noPromptSets = !promptSetsQuery.isLoading && promptSets.length === 0;
-  const noEngines = !connectionsQuery.isLoading && configuredEngines.length === 0;
-  // Set lookup: `selected` is computed per engine chip in the render loop.
-  const selectedEngines = new Set(engines);
+  const launchNotice = launchMutation.isError
+    ? mutationNoticeForError(launchMutation.error, { action: 'launch the audit' })
+    : null;
 
   return (
-    <>
-      <Dialog
-        open={open}
-        onOpenChange={onOpenChange}
-        title="Launch an audit"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => launchMutation.mutate()}
-              disabled={!ready || launchMutation.isPending}
-            >
-              {launchMutation.isPending ? 'Launching…' : 'Launch audit'}
-            </Button>
-          </>
-        }
-      >
-        <div className="grid gap-5">
-          {launchMutation.isError ? (
-            // A4: a 4xx (validation/precondition) renders the backend message
-            // verbatim; transient failures get the retry affordance.
-            <MutationNotice
-              notice={mutationNoticeForError(launchMutation.error, {
-                action: 'launch the audit',
-              })}
-              onRetry={() => launchMutation.mutate()}
-            />
-          ) : null}
-
-          <Field label="Prompt set" required>
-            {(props) =>
-              noPromptSets ? (
-                <p className="text-muted text-sm">
-                  No prompt set yet. Add prompts on the Prompts screen first.
-                </p>
-              ) : (
-                <select
-                  {...props}
-                  className={inputClasses}
-                  value={effectivePromptSetId ?? ''}
-                  onChange={(event) => setPromptSetId(event.target.value)}
-                >
-                  {promptSets.map((set) => (
-                    <option key={set.id} value={set.id}>
-                      {set.name}
-                      {typeof set.prompt_count === 'number' ? ` (${set.prompt_count})` : ''}
-                    </option>
-                  ))}
-                </select>
-              )
-            }
-          </Field>
-
-          <fieldset className="grid gap-2">
-            <legend className="text-secondary text-xs font-medium">Measurement mode</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(['pulse', 'benchmark'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={measurementMode === mode}
-                  onClick={() => {
-                    setMeasurementMode(mode);
-                    setRepetitions(mode === 'pulse' ? 1 : 3);
-                  }}
-                  className={filterChipClasses(measurementMode === mode)}
-                >
-                  {mode === 'pulse' ? 'Pulse · fast and inexpensive' : 'Benchmark · web grounded'}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="grid gap-2">
-            <legend className="text-secondary text-xs font-medium">
-              Engines <span className="text-danger">*</span>
-            </legend>
-            {noEngines ? (
-              <div className="grid gap-2">
-                <p className="text-muted text-sm">
-                  {unverifiedEngines.length > 0
-                    ? `A key is stored for ${unverifiedEngines
-                        .map((engine) => ENGINE_LABELS[engine])
-                        .join(
-                          ', ',
-                        )}, but it has not passed a connection test yet. Test it to launch an audit with it.`
-                    : 'No configured engines. Connect a provider to launch an audit.'}
-                </p>
-                <div>
-                  <Button variant="secondary" onClick={() => setConnectOpen(true)}>
-                    {unverifiedEngines.length > 0 ? 'Test connection' : 'Connect a provider'}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {configuredEngines.map((engine) => {
-                  const selected = selectedEngines.has(engine);
-                  return (
-                    <button
-                      key={engine}
-                      type="button"
-                      role="checkbox"
-                      aria-checked={selected}
-                      onClick={() => setEngines((prev) => toggleEngine(prev, engine))}
-                      className={filterChipClasses(selected)}
-                    >
-                      {ENGINE_LABELS[engine]}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </fieldset>
-
-          <Field
-            label="Repetitions"
-            hint={`How many times to run each prompt per engine (${MIN_REPETITIONS}–${MAX_REPETITIONS}).`}
-          >
-            {(props) => (
-              <Input
-                {...props}
-                type="number"
-                min={MIN_REPETITIONS}
-                max={MAX_REPETITIONS}
-                value={repetitions}
-                onChange={(event) => setRepetitions(Number(event.target.value))}
-                onBlur={() => setRepetitions((prev) => clampRepetitions(prev))}
-                className="w-28"
-              />
-            )}
-          </Field>
-
-          {estimateQuery.data ? (
-            <div className="border-border-subtle bg-well grid gap-1 rounded-lg border p-3 text-xs">
-              <span className="text-foreground font-medium">
-                {estimateQuery.data.execution_count} executions · up to{' '}
-                {estimateQuery.data.maximum_attempt_count} attempts
-              </span>
-              <span className="text-muted">
-                Maximum wall-clock budget {estimateQuery.data.maximum_wall_clock_seconds}s · cost{' '}
-                {estimateQuery.data.cost_status}
-                {estimateQuery.data.estimated_total_cost_microusd !== null
-                  ? ` · ~$${(estimateQuery.data.estimated_total_cost_microusd / 1_000_000).toFixed(4)}`
-                  : ' · unavailable'}
-              </span>
-            </div>
-          ) : null}
-        </div>
-      </Dialog>
-
-      {/* Guided BYOK connect (Task 3.2). Saving a key invalidates the shared
-          connections query, so `configuredEngines` above reflects it. */}
-      <ConnectProviderDialog open={connectOpen} onOpenChange={setConnectOpen} />
-    </>
+    <LaunchDialogView
+      open={open}
+      onOpenChange={onOpenChange}
+      promptSets={promptSetsQuery.data ?? []}
+      promptSetsLoading={promptSetsQuery.isLoading}
+      configuredEngines={configuredEngines}
+      unverifiedEngines={unverifiedEngines}
+      promptSetId={effectivePromptSetId}
+      setPromptSetId={setPromptSetId}
+      engines={engines}
+      setEngines={setEngines}
+      repetitions={repetitions}
+      setRepetitions={setRepetitions}
+      measurementMode={measurementMode}
+      setMeasurementMode={setMeasurementMode}
+      estimate={estimateQuery.data}
+      launchPending={launchMutation.isPending}
+      launchNotice={launchNotice}
+      onLaunch={() => launchMutation.mutate()}
+      connectOpen={connectOpen}
+      setConnectOpen={setConnectOpen}
+    />
   );
 }

@@ -1,51 +1,24 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, Menu, X } from 'lucide-react';
-import { AnimatePresence, m, useReducedMotion } from 'motion/react';
+import { Menu, X } from 'lucide-react';
+import { useReducedMotion } from 'motion/react';
 import Link from 'next/link';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { authApi } from '@/lib/api/auth';
 import { projectsApi } from '@/lib/api/projects';
 import { queryKeys } from '@/lib/api/query-keys';
-import {
-  DEMO_CTA,
-  DEMO_HREF,
-  NAV_DROPS,
-  NAV_LINKS,
-  type NavDropKey,
-} from '@/lib/marketing-content/nav';
+import { DEMO_CTA, DEMO_HREF, type NavDropKey } from '@/lib/marketing-content/nav';
+import { ACTIVE_PROJECT_STORAGE_KEY } from '@/lib/project/active-project-storage';
 import { cn } from '@/lib/utils';
 
 import { ButtonLink } from '../primitives/button';
-import { ACTIVE_PROJECT_STORAGE_KEY } from '@/lib/project/active-project-storage';
-
 import { Wordmark } from '../primitives/wordmark';
-import { NavItemLink } from './nav-items';
+import { DesktopNavigation } from './nav-desktop';
+import { MobileNavigation } from './nav-mobile';
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as const;
-
-function hasStoredActiveProject(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return Boolean(window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY));
-  } catch {
-    return false;
-  }
-}
-
-const NAV_LINK =
-  'website-nav text-secondary hover:text-foreground relative z-1 inline-flex items-center gap-2 ' +
-  'rounded-sm px-4 py-4 font-medium transition-colors duration-300';
-
-/**
- * Panel geometry per menu. A drop with a labelled group renders two columns —
- * the plain rows, then that group as a rail on paper. Everything else is a
- * single column. The widths are declared rather than measured because the
- * panel is anchored and clamped before it paints; a column is sized so a
- * one-line description stays on one line.
- */
 const COLUMN = 380;
 const DROP_LAYOUT: Record<NavDropKey, { width: number; twoColumn: boolean }> = {
   platform: { width: COLUMN, twoColumn: false },
@@ -53,53 +26,50 @@ const DROP_LAYOUT: Record<NavDropKey, { width: number; twoColumn: boolean }> = {
   resources: { width: COLUMN, twoColumn: false },
 };
 
-/**
- * MarketingNav — the fixed Proof chrome shared by every marketing route.
- *
- * Desktop: Platform / Solutions / Resources open hover-intent panels (hover
- * AND keyboard focus; the trigger click only ever OPENS, so a hover-open panel
- * never flickers shut under the cursor; item click, blur-out and Esc close).
- * One stable panel element stays mounted across trigger switches. Dropdown
- * contents swap immediately so the pointer target never moves or blinks.
- *
- * The lens is the deck's signature: a paper pill that glides under whichever
- * trigger the pointer is on. It is measured from the live element rather than
- * hard-coded, so it stays correct when labels change, and it is suppressed
- * under reduced motion (a pill that teleports is worse than no pill).
- *
- * ≤1024px the links collapse into a hamburger + slide-down accordions. Open
- * state is React-driven so `aria-expanded` is always truthful.
- */
-// react-doctor-disable-next-line react-doctor/no-giant-component -- desktop and mobile navigation intentionally share focus, hover, session, and geometry state in one accessibility owner.
-export function MarketingNav() {
-  const [scrolled, setScrolled] = useState(false);
-  const [openDrop, setOpenDrop] = useState<NavDropKey | null>(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [openAcc, setOpenAcc] = useState<NavDropKey | null>(null);
-  const [lens, setLens] = useState<{ left: number; width: number } | null>(null);
-  const [panelLeft, setPanelLeft] = useState(0);
-  const closeTimer = useRef<number | null>(null);
-  const linksRef = useRef<HTMLDivElement>(null);
-  const navRef = useRef<HTMLElement>(null);
-  const reduceMotion = useReducedMotion();
+const noStoredActiveProject = () => false;
 
+function readStoredActiveProject(): boolean {
+  try {
+    return Boolean(window.localStorage.getItem(ACTIVE_PROJECT_STORAGE_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function subscribeToStoredActiveProject(onStoreChange: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === ACTIVE_PROJECT_STORAGE_KEY && event.storageArea === window.localStorage) {
+      onStoreChange();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+  return () => window.removeEventListener('storage', onStorage);
+}
+
+function useMarketingSession() {
+  const hasStoredProject = useSyncExternalStore(
+    subscribeToStoredActiveProject,
+    readStoredActiveProject,
+    noStoredActiveProject,
+  );
   const me = useQuery({
     queryKey: queryKeys.auth.me(),
     queryFn: ({ signal }) => authApi.me({ signal }),
     retry: false,
     refetchOnWindowFocus: false,
   });
-
-  const { data: projects } = useQuery({
+  const projects = useQuery({
     queryKey: queryKeys.projects.list(),
     queryFn: ({ signal }) => projectsApi.listProjects({ signal }),
     enabled: me.isSuccess,
   });
+  const hasProject = (projects.data?.length ?? 0) > 0 || hasStoredProject;
 
-  const isAuthenticated = me.isSuccess;
-  const surfaceVisible = scrolled || mobileOpen;
-  const dashboardHref =
-    (projects && projects.length > 0) || hasStoredActiveProject() ? '/projects' : '/onboarding';
+  return { isAuthenticated: me.isSuccess, dashboardHref: hasProject ? '/projects' : '/onboarding' };
+}
+
+function useScrolled() {
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
@@ -108,86 +78,118 @@ export function MarketingNav() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(
-    () => () => {
-      if (closeTimer.current) window.clearTimeout(closeTimer.current);
-    },
-    [],
-  );
+  return scrolled;
+}
 
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setMobileOpen(false);
-        setOpenAcc(null);
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [mobileOpen]);
-
-  // Escape closes an open desktop panel from anywhere, not only from inside
-  // the menu subtree. A panel opened by HOVER leaves focus wherever it was, so
-  // a handler scoped to the links container would simply never hear the key.
-  useEffect(() => {
-    if (openDrop === null) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpenDrop(null);
-      (document.activeElement as HTMLElement | null)?.blur();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [openDrop]);
+function useDesktopDropdown(reduceMotion: boolean | null) {
+  const [openDrop, setOpenDrop] = useState<NavDropKey | null>(null);
+  const [lens, setLens] = useState<{ left: number; width: number } | null>(null);
+  const [panelLeft, setPanelLeft] = useState(0);
+  const closeTimer = useRef<number | null>(null);
+  const linksRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   const clearDropClose = () => {
     if (closeTimer.current) window.clearTimeout(closeTimer.current);
     closeTimer.current = null;
   };
   const closeDrop = () => setOpenDrop(null);
-  const openDesktopDrop = (key: NavDropKey) => {
-    clearDropClose();
-    setOpenDrop(key);
-  };
   const scheduleDropClose = () => {
     clearDropClose();
     closeTimer.current = window.setTimeout(closeDrop, 220);
   };
-
   const moveLens = (element: HTMLElement) => {
     const container = linksRef.current;
     if (!container || reduceMotion) return;
-    const a = element.getBoundingClientRect();
-    const b = container.getBoundingClientRect();
-    setLens({ left: a.left - b.left, width: a.width });
+    const trigger = element.getBoundingClientRect();
+    const bounds = container.getBoundingClientRect();
+    setLens({ left: trigger.left - bounds.left, width: trigger.width });
   };
-
-  /**
-   * Centre the panel beneath its top-level item, then clamp it inside the nav.
-   */
-  const anchorPanel = (trigger: HTMLElement, key: NavDropKey) => {
+  const openDropAt = (key: NavDropKey, trigger: HTMLElement) => {
     const container = linksRef.current;
     const nav = navRef.current;
     if (!container || !nav) return;
+    clearDropClose();
+    setOpenDrop(key);
+    moveLens(trigger);
     const triggerBox = trigger.getBoundingClientRect();
     const containerBox = container.getBoundingClientRect();
     const navBox = nav.getBoundingClientRect();
     const width = DROP_LAYOUT[key].width;
     const desired = triggerBox.left + triggerBox.width / 2 - width / 2;
-    const clamped = Math.min(
+    const left = Math.min(
       Math.max(desired, navBox.left),
       Math.max(navBox.right - width, navBox.left),
     );
-    setPanelLeft(clamped - containerBox.left);
+    setPanelLeft(left - containerBox.left);
   };
 
-  const escapeToClose = (event: React.KeyboardEvent) => {
-    if (event.key === 'Escape') {
+  useEffect(
+    () => () => {
+      if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    },
+    [],
+  );
+  useEffect(() => {
+    if (openDrop === null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
       closeDrop();
       (document.activeElement as HTMLElement | null)?.blur();
-    }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [openDrop]);
+
+  return {
+    openDrop,
+    lens,
+    panelLeft,
+    linksRef,
+    navRef,
+    clearDropClose,
+    closeDrop,
+    scheduleDropClose,
+    openDropAt,
+    moveLens,
+    clearLens: () => setLens(null),
   };
+}
+
+/** Fixed marketing chrome with accessible desktop dropdowns and mobile accordions. */
+export function MarketingNav() {
+  const reduceMotion = useReducedMotion();
+  const { isAuthenticated, dashboardHref } = useMarketingSession();
+  const scrolled = useScrolled();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [openAcc, setOpenAcc] = useState<NavDropKey | null>(null);
+  const {
+    navRef,
+    linksRef,
+    openDrop,
+    lens,
+    panelLeft,
+    clearDropClose,
+    closeDrop,
+    scheduleDropClose,
+    openDropAt,
+    moveLens,
+    clearLens,
+  } = useDesktopDropdown(reduceMotion);
+  const surfaceVisible = scrolled || mobileOpen;
+  const closeMenu = () => {
+    setMobileOpen(false);
+    setOpenAcc(null);
+  };
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMenu();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileOpen]);
 
   return (
     <div
@@ -195,8 +197,6 @@ export function MarketingNav() {
       data-scrolled={scrolled ? 'true' : undefined}
       className={cn(
         'safe-top fixed inset-x-0 top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-300',
-        // Tesla frosted-glass nav: transparent over the hero, then a
-        // three-quarter white with a backdrop blur once the page scrolls.
         surfaceVisible
           ? 'border-border-subtle bg-panel/80 backdrop-blur-md'
           : 'border-transparent bg-transparent',
@@ -211,241 +211,87 @@ export function MarketingNav() {
           <Wordmark />
         </Link>
 
-        <div
-          ref={linksRef}
-          className="relative mx-auto hidden items-center lg:flex"
-          onMouseEnter={clearDropClose}
-          onMouseLeave={() => {
-            scheduleDropClose();
-            setLens(null);
-          }}
-          onBlurCapture={(event) => {
-            // The panel is a sibling of the triggers, so "did focus leave?" is
-            // a question about the whole group, not about one item.
-            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) closeDrop();
-          }}
-          onKeyDown={escapeToClose}
-        >
-          {lens && (
-            <m.span
-              layout={!reduceMotion}
-              aria-hidden
-              style={{ left: lens.left, width: lens.width }}
-              transition={{ layout: { duration: 0.18, ease: EASE_OUT } }}
-              className={cn(
-                'border-border-subtle bg-panel shadow-elevated pointer-events-none rounded-md',
-                'absolute inset-y-0 border',
-              )}
-            />
-          )}
+        <DesktopNavigation
+          layout={DROP_LAYOUT}
+          lens={lens}
+          panelLeft={panelLeft}
+          openDrop={openDrop}
+          reduceMotion={reduceMotion}
+          linksRef={linksRef}
+          lensTransition={{ layout: { duration: 0.18, ease: EASE_OUT } }}
+          clearDropClose={clearDropClose}
+          scheduleDropClose={scheduleDropClose}
+          closeDrop={closeDrop}
+          openDropAt={openDropAt}
+          moveLens={moveLens}
+          clearLens={clearLens}
+        />
 
-          {NAV_DROPS.map(({ key, label, href }) => (
-            <div
-              key={key}
-              className="relative z-1 flex items-center"
-              onMouseEnter={(event) => {
-                openDesktopDrop(key);
-                anchorPanel(event.currentTarget, key);
-                moveLens(event.currentTarget);
-              }}
-            >
-              <Link
-                href={href}
-                className={NAV_LINK}
-                aria-haspopup="true"
-                aria-expanded={openDrop === key}
-                aria-controls={openDrop === key ? `desktop-nav-panel-${key}` : undefined}
-                onFocus={(event) => {
-                  const parent = event.currentTarget.parentElement;
-                  if (!parent) return;
-                  openDesktopDrop(key);
-                  anchorPanel(parent, key);
-                  moveLens(parent);
-                }}
-              >
-                {label}
-              </Link>
-            </div>
-          ))}
-
-          {NAV_LINKS.map(({ label, href }) => (
-            <Link
-              key={href}
-              href={href}
-              className={NAV_LINK}
-              // Both pointer and keyboard arrival on a plain link must retire
-              // an open panel — otherwise tabbing out of a dropdown leaves it
-              // hanging over the page with nothing focused inside it.
-              onMouseEnter={(event) => {
-                scheduleDropClose();
-                moveLens(event.currentTarget);
-              }}
-              onFocus={(event) => {
-                scheduleDropClose();
-                moveLens(event.currentTarget);
-              }}
-            >
-              {label}
-            </Link>
-          ))}
-
-          <AnimatePresence>
-            {openDrop !== null && (
-              /* Deliberately no `role="menu"`: the panel holds ordinary links,
-                 not `menuitem` children, and the ARIA menu pattern would
-                 promise arrow-key navigation this nav does not implement. */
-              <div
-                id={`desktop-nav-panel-${openDrop}`}
-                onMouseEnter={clearDropClose}
-                style={{
-                  left: panelLeft,
-                  width: DROP_LAYOUT[openDrop].width,
-                  maxWidth: 'calc(100vw - 2rem)',
-                }}
-                className={cn(
-                  'border-border-subtle bg-panel shadow-elevated absolute top-full rounded-md',
-                  'mt-2 overflow-hidden border',
-                )}
-              >
-                <div className={cn('grid', DROP_LAYOUT[openDrop].twoColumn && 'sm:grid-cols-2')}>
-                  {(NAV_DROPS.find((d) => d.key === openDrop)?.groups ?? []).map((group) =>
-                    group.label ? (
-                      // The labelled group is a rail on paper — a plain
-                      // border-left left it reading as one long list of
-                      // unrelated rows.
-                      <div
-                        key={group.label}
-                        className="border-border-subtle bg-background-alt border-t p-3 sm:border-t-0 sm:border-l"
-                      >
-                        <p className="website-eyebrow text-muted px-4 pt-3 pb-3">{group.label}</p>
-                        {group.items.map((item) => (
-                          <NavItemLink key={item.title} item={item} onSelect={closeDrop} />
-                        ))}
-                      </div>
-                    ) : (
-                      <div key="items" className="p-3">
-                        {group.items.map((item) => (
-                          <NavItemLink key={item.title} item={item} onSelect={closeDrop} />
-                        ))}
-                      </div>
-                    ),
-                  )}
-                </div>
-              </div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="ml-auto flex shrink-0 items-center gap-3 lg:ml-0">
-          {isAuthenticated ? (
-            <ButtonLink href={dashboardHref} variant="primary">
-              Dashboard
-            </ButtonLink>
-          ) : (
-            <>
-              <Link
-                href="/login"
-                className="website-nav text-muted hover:text-foreground hidden px-4 transition-colors sm:inline-flex"
-              >
-                Log in
-              </Link>
-              <ButtonLink href={DEMO_HREF} variant="primary">
-                {DEMO_CTA}
-              </ButtonLink>
-            </>
-          )}
-          <button
-            type="button"
-            className="border-border-subtle text-foreground grid size-10 place-items-center rounded-md border lg:hidden"
-            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileOpen}
-            aria-controls="mobile-menu"
-            onClick={() => setMobileOpen((open) => !open)}
-          >
-            {mobileOpen ? (
-              <X className="size-4" aria-hidden />
-            ) : (
-              <Menu className="size-4" aria-hidden />
-            )}
-          </button>
-        </div>
+        <NavActions
+          isAuthenticated={isAuthenticated}
+          dashboardHref={dashboardHref}
+          mobileOpen={mobileOpen}
+          onToggleMenu={() => setMobileOpen((open) => !open)}
+        />
       </nav>
 
       {mobileOpen && (
-        <div
-          id="mobile-menu"
-          className="border-border-subtle bg-background-alt safe-bottom max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-t px-6 py-5 lg:hidden"
-        >
-          {NAV_DROPS.map(({ key, label, href, groups }) => (
-            <div key={key} className="border-border-subtle border-b last:border-b-0">
-              <div className="flex items-center">
-                <Link
-                  href={href}
-                  className="website-nav text-foreground flex-1 py-5"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  {label}
-                </Link>
-                <button
-                  type="button"
-                  className="text-foreground grid size-10 place-items-center"
-                  aria-label={`Open ${label} menu`}
-                  aria-expanded={openAcc === key}
-                  aria-controls={`acc-${key}`}
-                  onClick={() => setOpenAcc((current) => (current === key ? null : key))}
-                >
-                  <ChevronDown
-                    aria-hidden
-                    className={cn(
-                      'size-4 transition-transform duration-300',
-                      openAcc === key && 'rotate-180',
-                    )}
-                  />
-                </button>
-              </div>
-              <div id={`acc-${key}`} hidden={openAcc !== key} className="pb-3">
-                {groups.map((group) => (
-                  <Fragment key={group.label ?? 'items'}>
-                    {group.label && (
-                      <p className="website-eyebrow text-muted px-4 pt-4 pb-2">{group.label}</p>
-                    )}
-                    {group.items.map((item) => (
-                      <NavItemLink
-                        key={item.title}
-                        item={item}
-                        onSelect={() => {
-                          setMobileOpen(false);
-                          setOpenAcc(null);
-                        }}
-                      />
-                    ))}
-                  </Fragment>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <div className="mt-5 grid gap-3">
-            {NAV_LINKS.map(({ label, href }) => (
-              <Link
-                key={href}
-                href={href}
-                className="website-nav text-foreground py-3"
-                onClick={() => setMobileOpen(false)}
-              >
-                {label}
-              </Link>
-            ))}
-            <Link
-              href={isAuthenticated ? dashboardHref : '/login'}
-              className="website-nav text-muted py-3"
-              onClick={() => setMobileOpen(false)}
-            >
-              {isAuthenticated ? 'Dashboard' : 'Log in'}
-            </Link>
-          </div>
-        </div>
+        <MobileNavigation
+          isAuthenticated={isAuthenticated}
+          dashboardHref={dashboardHref}
+          openAcc={openAcc}
+          setOpenAcc={setOpenAcc}
+          closeMenu={closeMenu}
+        />
       )}
+    </div>
+  );
+}
+
+function NavActions({
+  isAuthenticated,
+  dashboardHref,
+  mobileOpen,
+  onToggleMenu,
+}: Readonly<{
+  isAuthenticated: boolean;
+  dashboardHref: string;
+  mobileOpen: boolean;
+  onToggleMenu: () => void;
+}>) {
+  return (
+    <div className="ml-auto flex shrink-0 items-center gap-3 lg:ml-0">
+      {isAuthenticated ? (
+        <ButtonLink href={dashboardHref} variant="primary">
+          Dashboard
+        </ButtonLink>
+      ) : (
+        <>
+          <Link
+            href="/login"
+            className="website-nav text-muted hover:text-foreground hidden px-4 transition-colors sm:inline-flex"
+          >
+            Log in
+          </Link>
+          <ButtonLink href={DEMO_HREF} variant="primary">
+            {DEMO_CTA}
+          </ButtonLink>
+        </>
+      )}
+      <button
+        type="button"
+        className="border-border-subtle text-foreground grid size-10 place-items-center rounded-md border lg:hidden"
+        aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={mobileOpen}
+        aria-controls="mobile-menu"
+        onClick={onToggleMenu}
+      >
+        {mobileOpen ? (
+          <X className="size-4" aria-hidden />
+        ) : (
+          <Menu className="size-4" aria-hidden />
+        )}
+      </button>
     </div>
   );
 }

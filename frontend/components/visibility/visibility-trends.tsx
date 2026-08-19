@@ -78,38 +78,7 @@ export function VisibilityTrends({
   }
 
   const points = query.data ?? [];
-
-  if (points.length === 0) {
-    return isFiltered ? (
-      <Card>
-        <CardContent className="grid justify-items-center gap-2 py-12 text-center">
-          <CardEyebrow>Trends</CardEyebrow>
-          <h2 className={displayHeadingLgClasses}>No runs match these filters</h2>
-          <p className="text-secondary max-w-md text-sm">
-            No completed audits fall inside the selected engine and date range. Widen the range or
-            clear the engine filter to see more history.
-          </p>
-        </CardContent>
-      </Card>
-    ) : (
-      <Card>
-        <CardContent className="grid justify-items-center gap-4 py-12 text-center">
-          <CardEyebrow>Trends</CardEyebrow>
-          <div className="grid gap-1">
-            <h2 className={displayHeadingLgClasses}>No trend history yet</h2>
-            <p className="text-secondary max-w-md text-sm">
-              {hasRuns
-                ? 'No snapshots to plot yet — history appears here as audits complete.'
-                : 'Launch audits over time to track Visibility Score and Share of Voice.'}
-            </p>
-          </div>
-          <Button asChild variant="ghost" size="md">
-            <Link href="/runs">Go to Runs</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (points.length === 0) return <TrendEmptyState isFiltered={isFiltered} hasRuns={hasRuns} />;
 
   const stats = trendStats(points);
   const versionNote = versionMarkerSummary(points);
@@ -180,6 +149,43 @@ export function VisibilityTrends({
         <PromptMovement promptQuery={promptQuery} />
       </section>
     </div>
+  );
+}
+
+function TrendEmptyState({
+  isFiltered,
+  hasRuns,
+}: Readonly<{ isFiltered: boolean; hasRuns: boolean }>) {
+  if (isFiltered)
+    return (
+      <Card>
+        <CardContent className="grid justify-items-center gap-2 py-12 text-center">
+          <CardEyebrow>Trends</CardEyebrow>
+          <h2 className={displayHeadingLgClasses}>No runs match these filters</h2>
+          <p className="text-secondary max-w-md text-sm">
+            No completed audits fall inside the selected engine and date range. Widen the range or
+            clear the engine filter to see more history.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  return (
+    <Card>
+      <CardContent className="grid justify-items-center gap-4 py-12 text-center">
+        <CardEyebrow>Trends</CardEyebrow>
+        <div className="grid gap-1">
+          <h2 className={displayHeadingLgClasses}>No trend history yet</h2>
+          <p className="text-secondary max-w-md text-sm">
+            {hasRuns
+              ? 'No snapshots to plot yet — history appears here as audits complete.'
+              : 'Launch audits over time to track Visibility Score and Share of Voice.'}
+          </p>
+        </div>
+        <Button asChild variant="ghost" size="md">
+          <Link href="/runs">Go to Runs</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

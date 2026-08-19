@@ -54,7 +54,7 @@ for (const path of files(root)) {
   }
   const ownsWebsiteEditorialCopy =
     (label.startsWith('components/marketing/') &&
-      label !== 'components/marketing/landing/agent-console.tsx' &&
+      !label.startsWith('components/marketing/landing/agent-console') &&
       !label.startsWith('components/marketing/scenes/')) ||
     label.startsWith('components/auth/') ||
     label.startsWith('components/onboarding/');

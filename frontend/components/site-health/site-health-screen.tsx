@@ -13,23 +13,25 @@ import { mutationNoticeForError } from '@/lib/api/mutation-notice';
 import { useProjectContext } from '@/lib/project/project-context';
 import { useSiteHealthScreen } from '@/lib/site-health/use-site-health-screen';
 
-/**
- * Site Health screen container (Slice 7).
- *
- * Resolves the active project, then delegates all data orchestration
- * (entitlement, dashboard, pages, mutations, export, phase resolution) to
- * `useSiteHealthScreen` and rendering to the canonical
- * `SiteHealthDashboardLayout` — one always-mounted screen whose sections
- * update in place across the discover → select → analyze → scored flow. The
- * header offers the single primary control (`primaryAction`) so start/cancel/
- * re-crawl is available from the same place at every point.
- */
 export function SiteHealthScreen() {
-  const [tab, setTab] = useState<'pages' | 'aeo-readiness' | 'changes'>('pages');
-  const { activeProject, isLoading: projectLoading } = useProjectContext();
+  const { activeProject, isLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
-
   const screen = useSiteHealthScreen(projectId);
+  if (isLoading) return <ScreenSkeleton label="Loading your Site Health project…" />;
+  if (!projectId)
+    return (
+      <ScreenMessage tone="info">
+        Select or create a project to analyze its site health.
+      </ScreenMessage>
+    );
+  return <LoadedSiteHealthScreen projectId={projectId} screen={screen} />;
+}
+
+function LoadedSiteHealthScreen({
+  projectId,
+  screen,
+}: Readonly<{ projectId: string; screen: ReturnType<typeof useSiteHealthScreen> }>) {
+  const [tab, setTab] = useState<'pages' | 'aeo-readiness' | 'changes'>('pages');
   const {
     entitlementQuery,
     dashboardQuery,
@@ -46,90 +48,30 @@ export function SiteHealthScreen() {
     exporting,
     exportError,
   } = screen;
-
-  if (projectLoading) {
-    return <ScreenSkeleton label="Loading your Site Health project…" />;
-  }
-
-  if (!projectId) {
-    return (
-      <div className="grid gap-6">
-        <ScreenHeader />
-        <Alert tone="info">Select or create a project to analyze its site health.</Alert>
-      </div>
-    );
-  }
-
-  // Error states must precede the resolving skeleton. A failed entitlement
-  // query deliberately resolves to no access mode, which also produces the
-  // fail-closed `resolving` phase. Checking the phase first made this branch
-  // unreachable and left the route looking as though it was loading forever.
-  if (entitlementQuery.isError || dashboardQuery.isError) {
-    return (
-      <div className="grid gap-6">
-        <ScreenHeader />
-        <Alert tone="danger">Could not load Site Health. Please refresh.</Alert>
-      </div>
-    );
-  }
-
-  if (entitlementQuery.data?.resolver_status === 'entitlement_unresolved') {
-    return (
-      <div className="grid gap-6">
-        <ScreenHeader />
-        <Alert tone="warning">
-          Site Health access could not be resolved. Refresh to try again, or contact your workspace
-          administrator if this continues.
-        </Alert>
-      </div>
-    );
-  }
-
-  // A 'resolving' phase means the server dashboard projection has not settled
-  // yet. Holding the skeleton for that beat avoids rendering a client guess.
-  if (entitlementQuery.isLoading || dashboardQuery.isLoading || phase === 'resolving') {
-    const label = entitlementQuery.isLoading
-      ? 'Checking Site Health access…'
-      : 'Loading your latest Site Health crawl…';
-    return <ScreenSkeleton label={label} />;
-  }
-
-  // A crawl has one contextual action. Before the first run it lives in the
-  // empty-state card; afterwards the header changes from Stop to Run new crawl
-  // solely from the persisted crawl status. Export remains secondary.
+  const blockingState = screenBlockingState({
+    entitlementLoading: entitlementQuery.isLoading,
+    dashboardLoading: dashboardQuery.isLoading,
+    entitlementError: entitlementQuery.isError,
+    dashboardError: dashboardQuery.isError,
+    resolverStatus: entitlementQuery.data?.resolver_status,
+    phase,
+  });
+  if (blockingState) return blockingState;
   const headerActions = crawl ? (
-    <div className="flex items-center gap-2">
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => runExport('csv', 'pages')}
-        disabled={exporting}
-      >
-        {exporting ? 'Exporting…' : 'Export'}
-      </Button>
-      {active ? (
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={cancelCrawl}
-          disabled={cancelMutation.isPending}
-        >
-          {cancelMutation.isPending ? 'Stopping…' : 'Stop crawl'}
-        </Button>
-      ) : (
-        <Button size="sm" onClick={() => startCrawl()} disabled={startPending}>
-          {startPending ? 'Starting…' : 'Run new crawl'}
-        </Button>
-      )}
-    </div>
+    <CrawlActions
+      active={active}
+      exporting={exporting}
+      cancelPending={cancelMutation.isPending}
+      startPending={startPending}
+      onExport={() => runExport('csv', 'pages')}
+      onCancel={cancelCrawl}
+      onStart={startCrawl}
+    />
   ) : undefined;
-
   return (
     <div className="grid min-w-0 gap-6">
       {exportError ? <Alert tone="danger">{exportError}</Alert> : null}
       {createMutation.isError ? (
-        // A4: recrawl/start — 4xx verbatim (e.g. a crawl is already running),
-        // transient failures get the retry affordance.
         <MutationNotice
           notice={mutationNoticeForError(createMutation.error, { action: 'start a crawl' })}
           onRetry={startCrawl}
@@ -147,42 +89,147 @@ export function SiteHealthScreen() {
           persisted remain visible below.
         </Alert>
       ) : null}
-      <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b">
-        <div className="-mb-px flex gap-1" role="tablist" aria-label="Website analysis">
-          {(
-            [
-              ['pages', 'Pages'],
-              ['aeo-readiness', 'AEO Readiness'],
-              ['changes', 'Changes'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              aria-selected={tab === value}
-              className={`min-h-10 border-b-2 px-3 text-sm font-medium transition-colors ${tab === value ? 'border-accent text-foreground' : 'text-muted hover:text-foreground border-transparent'}`}
-              onClick={() => setTab(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {headerActions ? <div className="pb-1">{headerActions}</div> : null}
+      <AnalysisTabs tab={tab} setTab={setTab} actions={headerActions} />
+      <AnalysisPanel
+        tab={tab}
+        crawlId={crawl?.id}
+        projectId={projectId}
+        screen={screen}
+        entitlement={entitlementQuery.data!}
+      />
+    </div>
+  );
+}
+
+function AnalysisTabs({
+  tab,
+  setTab,
+  actions,
+}: Readonly<{
+  tab: string;
+  setTab: (tab: 'pages' | 'aeo-readiness' | 'changes') => void;
+  actions: React.ReactNode;
+}>) {
+  return (
+    <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b">
+      <div className="-mb-px flex gap-1" role="tablist" aria-label="Website analysis">
+        {(['pages', 'aeo-readiness', 'changes'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            className={`min-h-10 border-b-2 px-3 text-sm font-medium transition-colors ${tab === value ? 'border-accent text-foreground' : 'text-muted hover:text-foreground border-transparent'}`}
+            onClick={() => setTab(value)}
+          >
+            {value === 'aeo-readiness' ? 'AEO Readiness' : value[0].toUpperCase() + value.slice(1)}
+          </button>
+        ))}
       </div>
-      {/* ONE screen. The Site Intelligence workspace used to wrap this whole
-          dashboard as its "Pages" tab — the old screen nested inside the new
-          one, two live information architectures over the same crawl. The
-          workspace and its five panels are deleted; Site Health is Site
-          Health, and issues live on the Issues screen. */}
-      {tab === 'pages' ? (
-        <SiteHealthDashboardLayout screen={screen} entitlement={entitlementQuery.data!} />
-      ) : tab === 'aeo-readiness' && crawl ? (
-        <AeoReadinessPanel projectId={projectId} crawlId={crawl.id} />
-      ) : tab === 'changes' ? (
-        <ChangesPanel key={projectId} projectId={projectId} />
+      {actions ? <div className="pb-1">{actions}</div> : null}
+    </div>
+  );
+}
+
+function AnalysisPanel({
+  tab,
+  crawlId,
+  projectId,
+  screen,
+  entitlement,
+}: Readonly<{
+  tab: string;
+  crawlId: string | undefined;
+  projectId: string;
+  screen: ReturnType<typeof useSiteHealthScreen>;
+  entitlement: NonNullable<ReturnType<typeof useSiteHealthScreen>['entitlementQuery']['data']>;
+}>) {
+  if (tab === 'pages')
+    return <SiteHealthDashboardLayout screen={screen} entitlement={entitlement} />;
+  if (tab === 'aeo-readiness' && crawlId)
+    return <AeoReadinessPanel projectId={projectId} crawlId={crawlId} />;
+  if (tab === 'changes') return <ChangesPanel key={projectId} projectId={projectId} />;
+  return <Alert tone="info">Run a crawl before opening Website analysis.</Alert>;
+}
+
+function screenBlockingState({
+  entitlementLoading,
+  dashboardLoading,
+  entitlementError,
+  dashboardError,
+  resolverStatus,
+  phase,
+}: Readonly<{
+  entitlementLoading: boolean;
+  dashboardLoading: boolean;
+  entitlementError: boolean;
+  dashboardError: boolean;
+  resolverStatus: string | undefined;
+  phase: string;
+}>) {
+  if (entitlementError || dashboardError)
+    return <ScreenMessage tone="danger">Could not load Site Health. Please refresh.</ScreenMessage>;
+  if (resolverStatus === 'entitlement_unresolved')
+    return (
+      <ScreenMessage tone="warning">
+        Site Health access could not be resolved. Refresh to try again, or contact your workspace
+        administrator if this continues.
+      </ScreenMessage>
+    );
+  if (entitlementLoading || dashboardLoading || phase === 'resolving')
+    return (
+      <ScreenSkeleton
+        label={
+          entitlementLoading
+            ? 'Checking Site Health access…'
+            : 'Loading your latest Site Health crawl…'
+        }
+      />
+    );
+  return null;
+}
+
+function ScreenMessage({
+  tone,
+  children,
+}: Readonly<{ tone: 'danger' | 'warning' | 'info'; children: string }>) {
+  return (
+    <div className="grid gap-6">
+      <ScreenHeader />
+      <Alert tone={tone}>{children}</Alert>
+    </div>
+  );
+}
+function CrawlActions({
+  active,
+  exporting,
+  cancelPending,
+  startPending,
+  onExport,
+  onCancel,
+  onStart,
+}: Readonly<{
+  active: boolean;
+  exporting: boolean;
+  cancelPending: boolean;
+  startPending: boolean;
+  onExport: () => void;
+  onCancel: () => void;
+  onStart: () => void;
+}>) {
+  return (
+    <div className="flex items-center gap-2">
+      <Button variant="secondary" size="sm" onClick={onExport} disabled={exporting}>
+        {exporting ? 'Exporting…' : 'Export'}
+      </Button>
+      {active ? (
+        <Button variant="destructive" size="sm" onClick={onCancel} disabled={cancelPending}>
+          {cancelPending ? 'Stopping…' : 'Stop crawl'}
+        </Button>
       ) : (
-        <Alert tone="info">Run a crawl before opening Website analysis.</Alert>
+        <Button size="sm" onClick={() => onStart()} disabled={startPending}>
+          {startPending ? 'Starting…' : 'Run new crawl'}
+        </Button>
       )}
     </div>
   );

@@ -375,66 +375,99 @@ export function contractGuardIsStrict(env: NodeJS.ProcessEnv = process.env): boo
   return Boolean(env.CITELADDER_CONTRACT_STRICT);
 }
 
-/**
- * Obtain the backend OpenAPI document. Returns null (with `errors` noting
- * each attempted source) when no source is available — the caller decides
- * whether that is a skip (vitest wrapper) or a failure (`check:contract` /
- * CI, via `contractGuardIsStrict`).
- */
-export async function acquireOpenApiSpec(options?: {
+export type AcquireOpenApiOptions = {
   env?: NodeJS.ProcessEnv;
   root?: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
-}): Promise<{ acquired: AcquiredSpec | null; errors: string[] }> {
-  const env = options?.env ?? process.env;
-  const root = options?.root ?? frontendRoot();
-  const errors: string[] = [];
+};
 
-  // 1. Explicit export (CI override).
-  const exportPath = env.CITELADDER_OPENAPI_JSON;
-  if (exportPath) {
-    try {
-      const spec = JSON.parse(readFileSync(exportPath, 'utf8')) as OpenApiSpec;
-      return { acquired: { spec, source: 'env-file', detail: exportPath }, errors };
-    } catch (error) {
-      errors.push(`CITELADDER_OPENAPI_JSON (${exportPath}): ${String(error)}`);
-    }
+type AcquisitionAttempt = { acquired: AcquiredSpec | null; error?: string };
+
+function fileSpecAttempt(exportPath: string | undefined): AcquisitionAttempt {
+  if (!exportPath) return { acquired: null };
+  try {
+    return {
+      acquired: {
+        spec: JSON.parse(readFileSync(exportPath, 'utf8')) as OpenApiSpec,
+        source: 'env-file',
+        detail: exportPath,
+      },
+    };
+  } catch (error) {
+    return { acquired: null, error: `CITELADDER_OPENAPI_JSON (${exportPath}): ${String(error)}` };
   }
+}
 
-  // 2. Offline generation from the checked-in backend code (deterministic).
+function codegenSpecAttempt(root: string, timeoutMs?: number): AcquisitionAttempt {
   const backendDir = resolve(root, '../backend');
   const python = backendPythonCandidates(root).find((candidate) => existsSync(candidate));
-  if (python && existsSync(backendDir)) {
-    try {
-      const stdout = execFileSync(python, ['-c', GENERATE_OPENAPI_PY], {
-        cwd: backendDir,
-        timeout: options?.timeoutMs ?? CONTRACT_CODEGEN_TIMEOUT_MS,
-        maxBuffer: 64 * 1024 * 1024,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-      const spec = JSON.parse(stdout.toString()) as OpenApiSpec;
-      return { acquired: { spec, source: 'backend-codegen', detail: backendDir }, errors };
-    } catch (error) {
-      errors.push(`backend codegen (${backendDir}): ${String(error)}`);
-    }
-  } else {
-    errors.push(`backend codegen: no backend virtualenv found next to ${root}`);
+  if (!python || !existsSync(backendDir)) {
+    return {
+      acquired: null,
+      error: `backend codegen: no backend virtualenv found next to ${root}`,
+    };
   }
+  try {
+    const stdout = execFileSync(python, ['-c', GENERATE_OPENAPI_PY], {
+      cwd: backendDir,
+      timeout: timeoutMs ?? CONTRACT_CODEGEN_TIMEOUT_MS,
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return {
+      acquired: {
+        spec: JSON.parse(stdout.toString()) as OpenApiSpec,
+        source: 'backend-codegen',
+        detail: backendDir,
+      },
+    };
+  } catch (error) {
+    return { acquired: null, error: `backend codegen (${backendDir}): ${String(error)}` };
+  }
+}
 
-  // 3. Live backend (last resort — handy in local dev).
-  const fetchImpl = options?.fetchImpl ?? fetch;
-  const origin = env.CITELADDER_BACKEND_ORIGIN ?? CONTRACT_BACKEND_ORIGIN;
+async function liveSpecAttempt(
+  origin: string,
+  fetchImpl: typeof fetch,
+): Promise<AcquisitionAttempt> {
   try {
     const response = await fetchImpl(`${origin}/openapi.json`, {
       signal: AbortSignal.timeout(CONTRACT_LIVE_FETCH_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const spec = (await response.json()) as OpenApiSpec;
-    return { acquired: { spec, source: 'live-fetch', detail: origin }, errors };
+    return {
+      acquired: {
+        spec: (await response.json()) as OpenApiSpec,
+        source: 'live-fetch',
+        detail: origin,
+      },
+    };
   } catch (error) {
-    errors.push(`live fetch (${origin}): ${String(error)}`);
+    return { acquired: null, error: `live fetch (${origin}): ${String(error)}` };
   }
+}
 
-  return { acquired: null, errors };
+function recordAttempt(errors: string[], attempt: AcquisitionAttempt): AcquiredSpec | null {
+  if (attempt.error) errors.push(attempt.error);
+  return attempt.acquired;
+}
+
+/** Obtain the backend OpenAPI document from file, codegen, then live fetch. */
+export async function acquireOpenApiSpec(
+  options?: AcquireOpenApiOptions,
+): Promise<{ acquired: AcquiredSpec | null; errors: string[] }> {
+  const env = options?.env ?? process.env;
+  const root = options?.root ?? frontendRoot();
+  const errors: string[] = [];
+  const fileSpec = recordAttempt(errors, fileSpecAttempt(env.CITELADDER_OPENAPI_JSON));
+  if (fileSpec) return { acquired: fileSpec, errors };
+  const codegenSpec = recordAttempt(errors, codegenSpecAttempt(root, options?.timeoutMs));
+  if (codegenSpec) return { acquired: codegenSpec, errors };
+  const origin = env.CITELADDER_BACKEND_ORIGIN ?? CONTRACT_BACKEND_ORIGIN;
+  const liveSpec = recordAttempt(
+    errors,
+    await liveSpecAttempt(origin, options?.fetchImpl ?? fetch),
+  );
+  return { acquired: liveSpec, errors };
 }

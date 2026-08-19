@@ -43,35 +43,74 @@ function preparationMessage(state: OpportunitySummary['activation_state']): stri
  */
 export function OpportunitiesScreen() {
   const { activeProject, isLoading: projectLoading } = useProjectContext();
-  const projectId = activeProject?.id ?? null;
+  return (
+    <OpportunitiesContent projectId={activeProject?.id ?? null} projectLoading={projectLoading} />
+  );
+}
 
+function OpportunitiesContent({
+  projectId,
+  projectLoading,
+}: Readonly<{ projectId: string | null; projectLoading: boolean }>) {
   const summaryQuery = useQuery({
     ...opportunitiesQueries.summary(projectId ?? ''),
     enabled: Boolean(projectId),
     refetchInterval: (query) => opportunitySummaryPollingInterval(query.state),
   });
   const summary = summaryQuery.data ?? null;
-  const loading = projectLoading || (Boolean(projectId) && summaryQuery.isPending && !summary);
-
+  const screen = opportunityScreenState(
+    projectId,
+    projectLoading,
+    summaryQuery.isPending,
+    summaryQuery.isError,
+    summary,
+  );
   return (
     <div className="grid gap-6">
-      {!projectLoading && !projectId ? (
-        <Alert tone="info">Select or create a project to view its opportunities.</Alert>
-      ) : loading ? (
-        <div className="grid gap-4">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-40 w-full" />
-        </div>
-      ) : summaryQuery.isError && !summary ? (
-        <Alert tone="danger">Could not load opportunities. Please refresh.</Alert>
-      ) : projectId && summary && !summary.computed ? (
-        <PreparingRecommendations projectId={projectId} summary={summary} />
-      ) : projectId && summary ? (
-        <>
-          <SummaryStrip projectId={projectId} summary={summary} />
-          <OpportunitiesCatalog key={projectId} projectId={projectId} />
-        </>
-      ) : null}
+      <OpportunitiesScreenBody state={screen} projectId={projectId} summary={summary} />
+    </div>
+  );
+}
+
+function opportunityScreenState(
+  projectId: string | null,
+  projectLoading: boolean,
+  pending: boolean,
+  error: boolean,
+  summary: OpportunitySummary | null,
+) {
+  if (projectLoading) return 'loading';
+  if (!projectId) return 'missing-project';
+  if (!summary) return pending ? 'loading' : error ? 'error' : 'empty';
+  return summary.computed ? 'ready' : 'preparing';
+}
+
+function OpportunitiesScreenBody({
+  state,
+  projectId,
+  summary,
+}: Readonly<{ state: string; projectId: string | null; summary: OpportunitySummary | null }>) {
+  if (state === 'missing-project')
+    return <Alert tone="info">Select or create a project to view its opportunities.</Alert>;
+  if (state === 'loading') return <LoadingSkeleton />;
+  if (state === 'error')
+    return <Alert tone="danger">Could not load opportunities. Please refresh.</Alert>;
+  if (!projectId || !summary) return null;
+  if (state === 'preparing')
+    return <PreparingRecommendations projectId={projectId} summary={summary} />;
+  return (
+    <>
+      <SummaryStrip projectId={projectId} summary={summary} />
+      <OpportunitiesCatalog key={projectId} projectId={projectId} />
+    </>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="grid gap-4">
+      <Skeleton className="h-20 w-full" />
+      <Skeleton className="h-40 w-full" />
     </div>
   );
 }

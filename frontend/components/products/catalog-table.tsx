@@ -23,14 +23,7 @@ import {
 import { TablePagination, useTablePage } from '@/components/ui/table-pagination';
 import { Tooltip } from '@/components/ui/tooltip';
 import type { IntegrationSyncRun } from '@/lib/api/integrations';
-import type {
-  CommerceCatalogHealth,
-  CommerceConnectionSummary,
-  Product,
-  ProductCompleteness,
-} from '@/lib/api/types';
-import { formatUtcTimestamp } from '@/lib/format';
-import { SYNC_RUN_BADGE, syncRunStatusLabel } from '@/lib/integrations/sync-runs';
+import type { CommerceCatalogHealth, Product, ProductCompleteness } from '@/lib/api/types';
 import {
   completenessHoverDetail,
   feedHealthDisplay,
@@ -38,6 +31,8 @@ import {
   formatPrice,
   PRODUCT_ORIGIN_LABELS,
 } from '@/lib/products/catalog';
+
+import { SyncCell } from './catalog-table-sync-cell';
 
 /** Rows per page on the catalog table (client-side; the list arrives whole). */
 const PAGE_SIZE = 10;
@@ -261,66 +256,4 @@ function FeedHealthCell({
     );
   if (display.ruleIds.length === 0) return badge;
   return <Tooltip content={display.ruleIds.join(', ')}>{badge}</Tooltip>;
-}
-
-/**
- * Sync cell: the bound connection's current-or-latest sync as a run-status
- * badge plus the last-synced/completed timestamp; a failed run surfaces its
- * non-secret `error_code`. A live polled run (from the panel's 3s polling)
- * takes precedence over the persisted summary. Unbound products render `—`.
- */
-function SyncCell({
-  product,
-  connection,
-  override,
-  pending,
-}: Readonly<{
-  product: Product;
-  connection: CommerceConnectionSummary | undefined;
-  override: IntegrationSyncRun | undefined;
-  pending: boolean;
-}>) {
-  if (pending) {
-    return <span className="text-subtle text-xs">…</span>;
-  }
-  if (!product.connection_id || !connection) {
-    return <span className="text-subtle">—</span>;
-  }
-  const persisted = connection.latest_sync;
-  // The polled run only overrides the summary it actually tracks.
-  const live =
-    override && persisted && override.id === persisted.sync_run_id
-      ? {
-          status: override.status,
-          error_code: override.error_code,
-          completed_at: override.completed_at,
-        }
-      : persisted
-        ? {
-            status: persisted.status,
-            error_code: persisted.error_code,
-            completed_at: persisted.completed_at,
-          }
-        : null;
-  if (!live) {
-    return <span className="text-muted text-xs">Never synced</span>;
-  }
-  const timestamp = live.completed_at ?? connection.last_synced_at;
-  return (
-    <div className="grid gap-0.5">
-      <span className="flex items-center gap-2">
-        <Badge variant="run-status" value={SYNC_RUN_BADGE[live.status]}>
-          {syncRunStatusLabel(live.status)}
-        </Badge>
-        {live.status === 'failed' && live.error_code ? (
-          <span className="text-danger-text text-2xs font-mono">{live.error_code}</span>
-        ) : null}
-      </span>
-      {timestamp ? (
-        <span className="text-muted text-2xs font-mono tabular-nums">
-          {formatUtcTimestamp(timestamp)}
-        </span>
-      ) : null}
-    </div>
-  );
 }

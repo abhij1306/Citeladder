@@ -110,81 +110,88 @@ type DiagnosticInsight = {
  * evidence" cannot print a count it did not measure.
  */
 function getDiagnosticInsight(signal: DemandSignal): DiagnosticInsight {
-  const impressions = numericMetric(signal, 'impressions');
-  const position = numericMetric(signal, 'position');
-  const ctr = numericMetric(signal, 'ctr');
+  return (DIAGNOSTIC_INSIGHTS[signal.signal_type] ?? defaultInsight)(signal);
+}
 
-  switch (signal.signal_type) {
-    case 'striking_distance': {
-      const observed = [
-        position !== null ? `ranks #${position.toFixed(1)}` : null,
-        impressions !== null ? `${impressions.toLocaleString('en-US')} impressions` : null,
-      ].filter(Boolean);
-      return {
-        headline: 'Within reach of the top results',
-        detail: observed.length
-          ? `This query ${observed.join(' with ')} — close enough that better coverage can lift it into the positions that earn clicks.`
-          : 'This query ranks close enough to the top results that better coverage can lift it into the positions that earn clicks.',
-        tone: 'info',
-      };
-    }
-    case 'query_cannibalization': {
-      const pages = competingPages(signal);
-      return {
-        headline:
-          pages.length > 0 ? `${pages.length} competing URLs detected` : 'Competing URLs detected',
-        detail:
-          'More than one page on your domain ranks for this query, splitting its impressions between them.',
-        tone: 'warning',
-      };
-    }
-    case 'property_relative_ctr_gap':
-    case 'high_impression_low_ctr': {
-      const median = numericMetric(signal, 'cohort_median_ctr');
-      const comparable = median !== null && ctr !== null;
-      return {
-        headline: 'Underperforming expected CTR',
-        detail: comparable
-          ? `A ${(ctr * 100).toFixed(1)}% click-through rate against a ${(median * 100).toFixed(1)}% median for this position band. The ranking is fine; the result is not being clicked.`
-          : 'Impressions are not converting into clicks at the rate this ranking position usually earns.',
-        tone: 'danger',
-      };
-    }
-    case 'emerging_query': {
-      const prior = numericMetric(signal, 'prior_impressions');
-      const recent = numericMetric(signal, 'recent_impressions');
-      // Growth is only quotable when both windows were measured and the prior
-      // window is non-zero — otherwise the percentage is undefined, not 100%.
-      const quotable = prior !== null && recent !== null && prior > 0;
-      return {
-        headline: 'Surging search momentum',
-        detail: quotable
-          ? `Impressions grew ${Math.round(((recent - prior) / prior) * 100)}% (+${(recent - prior).toLocaleString('en-US')}) across the last two 14-day windows.`
-          : 'Impressions rose across the last two 14-day windows. A strong candidate for dedicated coverage.',
-        tone: 'success',
-      };
-    }
-    case 'declining_query':
-      return {
-        headline: 'Declining search momentum',
-        detail:
-          'Impressions fell across the last two 14-day windows. Review freshness and what now outranks you.',
-        tone: 'danger',
-      };
-    case 'branded_query_performance':
-      return {
-        headline: 'Branded query cohort',
-        detail:
-          'Navigational demand for your brand, tracked separately so it cannot skew the organic gap analysis.',
-        tone: 'neutral',
-      };
-    default:
-      return {
-        headline: 'Search demand gap',
-        detail: 'A Search Console gap identified by demand analysis.',
-        tone: 'neutral',
-      };
-  }
+const DIAGNOSTIC_INSIGHTS: Record<string, (signal: DemandSignal) => DiagnosticInsight> = {
+  striking_distance: strikingDistanceInsight,
+  query_cannibalization: cannibalizationInsight,
+  property_relative_ctr_gap: ctrGapInsight,
+  high_impression_low_ctr: ctrGapInsight,
+  emerging_query: emergingInsight,
+  declining_query: () => ({
+    headline: 'Declining search momentum',
+    detail:
+      'Impressions fell across the last two 14-day windows. Review freshness and what now outranks you.',
+    tone: 'danger',
+  }),
+  branded_query_performance: () => ({
+    headline: 'Branded query cohort',
+    detail:
+      'Navigational demand for your brand, tracked separately so it cannot skew the organic gap analysis.',
+    tone: 'neutral',
+  }),
+};
+
+function strikingDistanceInsight(signal: DemandSignal): DiagnosticInsight {
+  const position = numericMetric(signal, 'position');
+  const impressions = numericMetric(signal, 'impressions');
+  const observed = [
+    position !== null ? `ranks #${position.toFixed(1)}` : null,
+    impressions !== null ? `${impressions.toLocaleString('en-US')} impressions` : null,
+  ].filter(Boolean);
+  return {
+    headline: 'Within reach of the top results',
+    detail: observed.length
+      ? `This query ${observed.join(' with ')} — close enough that better coverage can lift it into the positions that earn clicks.`
+      : 'This query ranks close enough to the top results that better coverage can lift it into the positions that earn clicks.',
+    tone: 'info',
+  };
+}
+
+function cannibalizationInsight(signal: DemandSignal): DiagnosticInsight {
+  const pages = competingPages(signal);
+  return {
+    headline:
+      pages.length > 0 ? `${pages.length} competing URLs detected` : 'Competing URLs detected',
+    detail:
+      'More than one page on your domain ranks for this query, splitting its impressions between them.',
+    tone: 'warning',
+  };
+}
+
+function ctrGapInsight(signal: DemandSignal): DiagnosticInsight {
+  const median = numericMetric(signal, 'cohort_median_ctr');
+  const ctr = numericMetric(signal, 'ctr');
+  const comparable = median !== null && ctr !== null;
+  return {
+    headline: 'Underperforming expected CTR',
+    detail: comparable
+      ? `A ${(ctr * 100).toFixed(1)}% click-through rate against a ${(median * 100).toFixed(1)}% median for this position band. The ranking is fine; the result is not being clicked.`
+      : 'Impressions are not converting into clicks at the rate this ranking position usually earns.',
+    tone: 'danger',
+  };
+}
+
+function emergingInsight(signal: DemandSignal): DiagnosticInsight {
+  const prior = numericMetric(signal, 'prior_impressions');
+  const recent = numericMetric(signal, 'recent_impressions');
+  const quotable = prior !== null && recent !== null && prior > 0;
+  return {
+    headline: 'Surging search momentum',
+    detail: quotable
+      ? `Impressions grew ${Math.round(((recent - prior) / prior) * 100)}% (+${(recent - prior).toLocaleString('en-US')}) across the last two 14-day windows.`
+      : 'Impressions rose across the last two 14-day windows. A strong candidate for dedicated coverage.',
+    tone: 'success',
+  };
+}
+
+function defaultInsight(): DiagnosticInsight {
+  return {
+    headline: 'Search demand gap',
+    detail: 'A Search Console gap identified by demand analysis.',
+    tone: 'neutral',
+  };
 }
 
 export function DemandSignalCard({

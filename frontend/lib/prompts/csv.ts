@@ -43,52 +43,60 @@ export type ParsedCsv = {
   errors: string[];
 };
 
+type CsvState = {
+  rows: string[][];
+  field: string;
+  row: string[];
+  inQuotes: boolean;
+};
+
+function pushField(state: CsvState): void {
+  state.row.push(state.field);
+  state.field = '';
+}
+
+function pushRow(state: CsvState): void {
+  pushField(state);
+  state.rows.push(state.row);
+  state.row = [];
+}
+
+function consumeQuotedCharacter(state: CsvState, text: string, index: number): number {
+  if (text[index] !== '"') {
+    state.field += text[index];
+    return index;
+  }
+  if (text[index + 1] === '"') {
+    state.field += '"';
+    return index + 1;
+  }
+  state.inQuotes = false;
+  return index;
+}
+
+function consumePlainCharacter(state: CsvState, text: string, index: number): number {
+  const char = text[index];
+  if (char === '"') state.inQuotes = true;
+  else if (char === ',') pushField(state);
+  else if (char === '\n' || char === '\r') {
+    pushRow(state);
+    return char === '\r' && text[index + 1] === '\n' ? index + 1 : index;
+  } else state.field += char;
+  return index;
+}
+
 /** Tokenize CSV text into a matrix of string cells (RFC-4180-ish). */
 export function tokenizeCsv(raw: string): string[][] {
-  const rows: string[][] = [];
-  let field = '';
-  let row: string[] = [];
-  let inQuotes = false;
-  // Strip a UTF-8 BOM if present.
   const text = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw;
+  const state: CsvState = { rows: [], field: '', row: [], inQuotes: false };
 
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i += 1;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += char;
-      }
-      continue;
-    }
-    if (char === '"') {
-      inQuotes = true;
-    } else if (char === ',') {
-      row.push(field);
-      field = '';
-    } else if (char === '\n' || char === '\r') {
-      if (char === '\r' && text[i + 1] === '\n') i += 1;
-      row.push(field);
-      field = '';
-      rows.push(row);
-      row = [];
-    } else {
-      field += char;
-    }
+  for (let index = 0; index < text.length; index += 1) {
+    index = state.inQuotes
+      ? consumeQuotedCharacter(state, text, index)
+      : consumePlainCharacter(state, text, index);
   }
-  // Flush the trailing field/row (files without a final newline).
-  if (field.length > 0 || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-  // Drop rows that are entirely empty (blank lines).
-  return rows.filter((cells) => cells.some((cell) => cell.trim() !== ''));
+  if (state.field.length > 0 || state.row.length > 0) pushRow(state);
+  return state.rows.filter((cells) => cells.some((cell) => cell.trim() !== ''));
 }
 
 function asBool(value: string | undefined, fallback: boolean): boolean {

@@ -12,7 +12,7 @@ const eslintConfig = [
       // `_`-prefixed bindings mark intentional omissions (e.g. the
       // destructure-to-omit pattern in tests).
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',

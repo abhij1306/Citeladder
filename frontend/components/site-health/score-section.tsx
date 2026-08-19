@@ -32,37 +32,41 @@ export function ScoreSection({
   selectedTotal: number | null;
 }>) {
   const summary = dashboard?.score_summary ?? crawl?.score_summary ?? null;
-
-  // Live scores kick in per-field whenever a terminal score is missing —
-  // including a summary written with null metrics (e.g. mid-run projection).
-  const liveScores =
-    analyzing &&
-    (summary === null ||
-      summary.overall_score === null ||
-      summary.technical_score === null ||
-      summary.aeo_score === null)
-      ? computeLiveScores(pages)
-      : null;
-
-  const overall = summary?.overall_score ?? liveScores?.overall ?? null;
-  const technical = summary?.technical_score ?? liveScores?.technical ?? null;
-  const aeo = summary?.aeo_score ?? liveScores?.aeo ?? null;
+  const scores = scoreValues(summary, pages, analyzing);
 
   return (
     <div className="grid gap-4 sm:grid-cols-3" data-testid="score-section">
       <ScoreCard
         label="Site Health"
-        value={overall}
+        value={scores.overall}
         sub={overallSub(summary, analyzing, crawl, selectedTotal)}
       />
       <ScoreCard
         label="Web Fundamentals"
-        value={technical}
+        value={scores.technical}
         sub="Response codes, headers, delivery"
       />
-      <ScoreCard label="AEO" value={aeo} sub="Schema, structured data, AI-readiness" />
+      <ScoreCard label="AEO" value={scores.aeo} sub="Schema, structured data, AI-readiness" />
     </div>
   );
+}
+
+function scoreValues(
+  summary: SiteHealthDashboard['score_summary'],
+  pages: PageSummary[],
+  analyzing: boolean,
+): { overall: number | null; technical: number | null; aeo: number | null } {
+  const incomplete =
+    summary === null ||
+    summary.overall_score === null ||
+    summary.technical_score === null ||
+    summary.aeo_score === null;
+  const liveScores = analyzing && incomplete ? computeLiveScores(pages) : null;
+  return {
+    overall: summary?.overall_score ?? liveScores?.overall ?? null,
+    technical: summary?.technical_score ?? liveScores?.technical ?? null,
+    aeo: summary?.aeo_score ?? liveScores?.aeo ?? null,
+  };
 }
 
 function overallSub(

@@ -94,6 +94,19 @@ describe('RunDetailPage', () => {
     expect(within(row).getByRole('button', { name: 'Evidence' })).toBeInTheDocument();
   });
 
+  it('shows the humanized audit error detail when the initial run request fails', async () => {
+    mswServer.use(
+      http.get(`/api/v1/audits/${AUDIT_ID}`, () =>
+        HttpResponse.json({ detail: 'This run is no longer available.' }, { status: 404 }),
+      ),
+      http.get(`/api/v1/audits/${AUDIT_ID}/executions`, () => HttpResponse.json([])),
+    );
+
+    renderWithProviders(<RunDetailPage />);
+
+    expect(await screen.findByText('This run is no longer available.')).toBeInTheDocument();
+  });
+
   it('keeps the running audit and executions mounted during background refetches', async () => {
     let auditCalls = 0;
     let executionCalls = 0;

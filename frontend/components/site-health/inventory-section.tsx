@@ -20,7 +20,7 @@ import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import { PagesTable } from '@/components/site-health/pages-table';
 import { RootErrorsBlock } from '@/components/site-health/root-errors-block';
 import { siteHealthQueries, type PagesParams } from '@/lib/api/site-health';
-import type { SiteCrawl } from '@/lib/api/types';
+import type { PagesPage, SiteCrawl } from '@/lib/api/types';
 import { segmentedItemClasses, segmentedTrackClasses } from '@/components/ui/segmented';
 import { cn } from '@/lib/utils';
 import { useCursorStack } from '@/lib/site-health/use-cursor-stack';
@@ -178,6 +178,47 @@ const TABS: ReadonlyArray<{ key: TabKey; label: string; params: PagesParams }> =
  * → completed and its scores fill in — the SAME rows, in place, until the run
  * settles. Finishing changes nothing structurally.
  */
+function ScoredInventoryBody({
+  query,
+  rows,
+  rootErrors,
+  active,
+  crawlId,
+}: Readonly<{
+  query: { isError: boolean; isLoading: boolean };
+  rows: PagesPage['items'];
+  rootErrors: NonNullable<PagesPage['root_errors']>;
+  active: boolean;
+  crawlId: string;
+}>) {
+  if (query.isError)
+    return (
+      <div className="p-[var(--card-padding)]">
+        <Alert tone="danger">Could not load pages for this view. Try again.</Alert>
+      </div>
+    );
+  if (query.isLoading)
+    return (
+      <div className="grid min-h-40 gap-2 p-[var(--card-padding)]">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  if (rows.length === 0 && rootErrors.length === 0)
+    return (
+      <p className="text-secondary p-[var(--card-padding)] text-sm">
+        {active ? 'Pages appear here as the audit reaches them.' : 'No pages in this view.'}
+      </p>
+    );
+  return (
+    <div className="grid gap-3 p-[var(--card-padding)]">
+      <RootErrorsBlock errors={rootErrors} />
+      {rows.length > 0 ? <PagesTable pages={rows} crawlId={crawlId} /> : null}
+    </div>
+  );
+}
+
 function ScoredInventory({
   crawl,
   active,
@@ -237,35 +278,15 @@ function ScoredInventory({
   // semantics (a root failure never created a page row).
   const rootErrors = tab === 'errors' ? (pagesQuery.data?.root_errors ?? []) : [];
 
-  let body: ReactNode;
-  if (pagesQuery.isError) {
-    body = (
-      <div className="p-[var(--card-padding)]">
-        <Alert tone="danger">Could not load pages for this view. Try again.</Alert>
-      </div>
-    );
-  } else if (pagesQuery.isLoading) {
-    body = (
-      <div className="grid min-h-40 gap-2 p-[var(--card-padding)]">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-      </div>
-    );
-  } else if (rows.length === 0 && rootErrors.length === 0) {
-    body = (
-      <p className="text-secondary p-[var(--card-padding)] text-sm">
-        {active ? 'Pages appear here as the audit reaches them.' : 'No pages in this view.'}
-      </p>
-    );
-  } else {
-    body = (
-      <div className="grid gap-3 p-[var(--card-padding)]">
-        <RootErrorsBlock errors={rootErrors} />
-        {rows.length > 0 ? <PagesTable pages={rows} crawlId={crawl.id} /> : null}
-      </div>
-    );
-  }
+  const body = (
+    <ScoredInventoryBody
+      query={pagesQuery}
+      rows={rows}
+      rootErrors={rootErrors}
+      active={active}
+      crawlId={crawl.id}
+    />
+  );
 
   return (
     <Card>

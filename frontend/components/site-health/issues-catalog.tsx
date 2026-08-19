@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { siteHealthQueries, type IssuesParams } from '@/lib/api/site-health';
-import type { IssueDimension, SiteIssue } from '@/lib/api/types';
+import type { IssueDimension, SiteIssue, SiteIssueDetail } from '@/lib/api/types';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import {
@@ -22,7 +22,6 @@ import {
 } from '@/lib/site-health/issues';
 import { pageDisplayTitle } from '@/lib/site-health/status';
 import { cn } from '@/lib/utils';
-
 const ISSUE_LIMIT = 25;
 const AFFECTED_URL_LIMIT = 25;
 
@@ -281,6 +280,51 @@ function IssueCard({ issue, crawlId }: Readonly<{ issue: SiteIssue; crawlId: str
   };
 
   return (
+    <IssueCardView
+      issue={issue}
+      crawlId={crawlId}
+      copied={copied}
+      expanded={expanded}
+      detailQuery={detailQuery}
+      affected={affected}
+      nextCursor={nextCursor}
+      canPrevAffected={canPrevAffected}
+      onToggle={toggleExpanded}
+      onCopy={copyPrompt}
+      onPrevious={goPrevAffected}
+      onNext={goNextAffected}
+    />
+  );
+}
+
+function IssueCardView({
+  issue,
+  crawlId,
+  copied,
+  expanded,
+  detailQuery,
+  affected,
+  nextCursor,
+  canPrevAffected,
+  onToggle,
+  onCopy,
+  onPrevious,
+  onNext,
+}: Readonly<{
+  issue: SiteIssue;
+  crawlId: string;
+  copied: boolean;
+  expanded: boolean;
+  detailQuery: { isError: boolean; isLoading: boolean };
+  affected: SiteIssueDetail['affected_urls'];
+  nextCursor: string | null;
+  canPrevAffected: boolean;
+  onToggle: () => void;
+  onCopy: () => void;
+  onPrevious: () => void;
+  onNext: () => void;
+}>) {
+  return (
     <Card>
       <CardContent className="grid gap-3">
         <div className="flex items-start justify-between gap-3">
@@ -325,83 +369,106 @@ function IssueCard({ issue, crawlId }: Readonly<{ issue: SiteIssue; crawlId: str
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={toggleExpanded} aria-expanded={expanded}>
+          <Button size="sm" onClick={onToggle} aria-expanded={expanded}>
             {expanded ? 'Hide affected URLs' : 'View affected URLs'}
           </Button>
-          <Button variant="secondary" size="sm" onClick={copyPrompt}>
+          <Button variant="secondary" size="sm" onClick={onCopy}>
             {copied ? 'Copied' : 'Copy fix prompt'}
           </Button>
         </div>
 
         {expanded ? (
-          <div className="border-border-subtle grid rounded-lg border">
-            {issue.remediation ? (
-              <div className="border-border-subtle grid gap-1 border-b p-3">
-                <span className="text-2xs text-muted font-medium tracking-wide uppercase">
-                  How to fix
-                </span>
-                <p className="text-secondary text-sm whitespace-pre-line">{issue.remediation}</p>
-              </div>
-            ) : null}
-            {detailQuery.isError ? (
-              <div className="p-3">
-                <Alert tone="danger">Could not load affected URLs.</Alert>
-              </div>
-            ) : detailQuery.isLoading ? (
-              <div className="grid gap-2 p-3">
-                <Skeleton className="h-6 w-full" />
-                <Skeleton className="h-6 w-full" />
-              </div>
-            ) : affected.length === 0 ? (
-              <p className="text-secondary p-3 text-sm">No affected URLs found.</p>
-            ) : (
-              <ul className="divide-border-subtle divide-y">
-                {affected.map((url) => (
-                  <li key={url.site_url_id} className="px-3 py-2">
-                    <Link
-                      href={`/site/crawls/${crawlId}/pages/${url.site_url_id}`}
-                      className="hover:text-accent flex min-w-0 flex-col gap-0.5"
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="text-foreground truncate text-sm font-medium">
-                          {pageDisplayTitle(url.title, url.display_url)}
-                        </span>
-                        <PageKindBadge pageKind={url.page_kind} />
-                      </span>
-                      {/* Unbreakable single-token URLs are truncated rather
-                          than allowed to widen the panel. */}
-                      <span className="mono text-2xs text-muted truncate" title={url.display_url}>
-                        {url.display_url}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {affected.length > 0 || canPrevAffected ? (
-              <div className="border-border-subtle flex items-center justify-end gap-2 border-t p-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={goPrevAffected}
-                  disabled={!canPrevAffected}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={goNextAffected}
-                  disabled={!nextCursor}
-                >
-                  Next
-                </Button>
-              </div>
-            ) : null}
-          </div>
+          <AffectedUrlsPanel
+            issue={issue}
+            crawlId={crawlId}
+            detailQuery={detailQuery}
+            affected={affected}
+            nextCursor={nextCursor}
+            canPrevAffected={canPrevAffected}
+            onPrevious={onPrevious}
+            onNext={onNext}
+          />
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function AffectedUrlsPanel({
+  issue,
+  crawlId,
+  detailQuery,
+  affected,
+  nextCursor,
+  canPrevAffected,
+  onPrevious,
+  onNext,
+}: Readonly<{
+  issue: SiteIssue;
+  crawlId: string;
+  detailQuery: { isError: boolean; isLoading: boolean };
+  affected: SiteIssueDetail['affected_urls'];
+  nextCursor: string | null;
+  canPrevAffected: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}>) {
+  return (
+    <div className="border-border-subtle grid rounded-lg border">
+      {issue.remediation ? (
+        <div className="border-border-subtle grid gap-1 border-b p-3">
+          <span className="text-2xs text-muted font-medium tracking-wide uppercase">
+            How to fix
+          </span>
+          <p className="text-secondary text-sm whitespace-pre-line">{issue.remediation}</p>
+        </div>
+      ) : null}
+      {detailQuery.isError ? (
+        <div className="p-3">
+          <Alert tone="danger">Could not load affected URLs.</Alert>
+        </div>
+      ) : detailQuery.isLoading ? (
+        <div className="grid gap-2 p-3">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-full" />
+        </div>
+      ) : affected.length === 0 ? (
+        <p className="text-secondary p-3 text-sm">No affected URLs found.</p>
+      ) : (
+        <ul className="divide-border-subtle divide-y">
+          {affected.map((url) => (
+            <li key={url.site_url_id} className="px-3 py-2">
+              <Link
+                href={`/site/crawls/${crawlId}/pages/${url.site_url_id}`}
+                className="hover:text-accent flex min-w-0 flex-col gap-0.5"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="text-foreground truncate text-sm font-medium">
+                    {pageDisplayTitle(url.title, url.display_url)}
+                  </span>
+                  <PageKindBadge pageKind={url.page_kind} />
+                </span>
+                {/* Unbreakable single-token URLs are truncated rather
+                          than allowed to widen the panel. */}
+                <span className="mono text-2xs text-muted truncate" title={url.display_url}>
+                  {url.display_url}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      {affected.length > 0 || canPrevAffected ? (
+        <div className="border-border-subtle flex items-center justify-end gap-2 border-t p-2">
+          <Button variant="secondary" size="sm" onClick={onPrevious} disabled={!canPrevAffected}>
+            Previous
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onNext} disabled={!nextCursor}>
+            Next
+          </Button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

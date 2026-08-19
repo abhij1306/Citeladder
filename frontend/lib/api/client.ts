@@ -124,6 +124,43 @@ function canRetryNetworkFailure(options: InternalRequestOptions) {
   );
 }
 
+async function apiErrorFrom(response: Response, requestId: string): Promise<ApiError> {
+  const parsed = await readErrorBody(response).catch((error: unknown) => {
+    if (isTimeoutError(error)) throw timeoutApiError(requestId);
+    throw error;
+  });
+  return new ApiError(
+    parsed.message,
+    response.status,
+    parsed.raw,
+    response.headers.get('x-request-id') ?? parsed.requestId ?? requestId,
+    {
+      code: parsed.code,
+      retryable: parsed.retryable,
+      retryAfterSeconds: retryAfterSeconds(response.headers.get('retry-after')),
+    },
+  );
+}
+
+function finalRequestError(error: unknown, requestId: string): Error {
+  if (isTimeoutError(error)) return timeoutApiError(requestId);
+  return error instanceof Error ? error : new Error('Failed to reach API.');
+}
+
+function shouldRetryRequest(
+  error: unknown,
+  attempt: number,
+  maxAttempts: number,
+  options: InternalRequestOptions,
+): boolean {
+  return !(
+    error instanceof ApiError ||
+    isAbortError(error) ||
+    attempt >= maxAttempts ||
+    !canRetryNetworkFailure(options)
+  );
+}
+
 async function requestResponse(path: string, options: InternalRequestOptions) {
   const requestId = options.requestId ?? createRequestId();
   const maxAttempts = canRetryNetworkFailure(options) ? 2 : 1;
@@ -133,43 +170,17 @@ async function requestResponse(path: string, options: InternalRequestOptions) {
     try {
       const response = await fetchResponse(path, options, requestId);
       if (response.ok) return { response, requestId };
-      // Reading the body can itself time out (the per-attempt signal covers the
-      // whole exchange, not just the headers). Without this the expiry escaped
-      // as a bare TimeoutError DOMException — bypassing the retryable
-      // ApiError conversion below and surfacing as an opaque failure.
-      const parsed = await readErrorBody(response).catch((error: unknown) => {
-        if (isTimeoutError(error)) throw timeoutApiError(requestId);
-        throw error;
-      });
-      throw new ApiError(
-        parsed.message,
-        response.status,
-        parsed.raw,
-        response.headers.get('x-request-id') ?? parsed.requestId ?? requestId,
-        {
-          code: parsed.code,
-          retryable: parsed.retryable,
-          retryAfterSeconds: retryAfterSeconds(response.headers.get('retry-after')),
-        },
-      );
+      throw await apiErrorFrom(response, requestId);
     } catch (error) {
       lastError = error;
-      if (
-        error instanceof ApiError ||
-        isAbortError(error) ||
-        attempt >= maxAttempts ||
-        !canRetryNetworkFailure(options)
-      ) {
-        // A timeout expiry is converted here (not at catch time) so a GET /
-        // idempotent call with attempts left retries it like any other
-        // network-class failure; the final surface is the retryable ApiError.
-        throw isTimeoutError(error) ? timeoutApiError(requestId) : error;
+      if (!shouldRetryRequest(error, attempt, maxAttempts, options)) {
+        throw finalRequestError(error, requestId);
       }
       await delay(API_RETRY_BACKOFF_MS * attempt, options.signal);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error('Failed to reach API.');
+  throw finalRequestError(lastError, requestId);
 }
 
 /** The A3 surface: a timeout is a transient network-class failure (retryable). */
@@ -315,43 +326,38 @@ async function readErrorBody(response: Response): Promise<ErrorPayload> {
   }
 }
 
-function extractFromPayload(payload: unknown, fallback: string): Omit<ErrorPayload, 'raw'> {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return { message: fallback };
-  }
-  const record = payload as Record<string, unknown>;
+function objectRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
 
-  // 1. Canonical envelope (A1): { detail, error: { code, message, … } }.
-  const envelope = record.error;
-  if (envelope && typeof envelope === 'object' && !Array.isArray(envelope)) {
-    const block = envelope as Record<string, unknown>;
-    const message = stringField(block.message);
-    if (message) {
-      return {
+function envelopePayload(value: unknown): Omit<ErrorPayload, 'raw'> | null {
+  const block = objectRecord(value);
+  const message = block && stringField(block.message);
+  return message
+    ? {
         message,
         code: stringField(block.code),
         retryable: typeof block.retryable === 'boolean' ? block.retryable : undefined,
         requestId: stringField(block.request_id),
-      };
-    }
-  }
+      }
+    : null;
+}
 
-  const detail = record.detail;
-  // 2. String detail.
-  if (typeof detail === 'string' && detail.trim()) return { message: detail };
-  // 3. Object detail: { code, message, … }.
-  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
-    const block = detail as Record<string, unknown>;
-    const message = stringField(block.message);
-    if (message) return { message, code: stringField(block.code) };
-  }
-  // 4. FastAPI validation array: first item humanized as `loc: msg`.
-  if (Array.isArray(detail)) {
-    const message = humanizeValidationItem(detail[0]);
-    if (message) return { message };
-  }
-  // 5. Status text — the payload is never stringified into the message.
-  return { message: fallback };
+function detailPayload(value: unknown): Omit<ErrorPayload, 'raw'> | null {
+  if (typeof value === 'string' && value.trim()) return { message: value };
+  const block = objectRecord(value);
+  const message = block && stringField(block.message);
+  if (message) return { message, code: stringField(block.code) };
+  const validationMessage = Array.isArray(value) ? humanizeValidationItem(value[0]) : undefined;
+  return validationMessage ? { message: validationMessage } : null;
+}
+
+function extractFromPayload(payload: unknown, fallback: string): Omit<ErrorPayload, 'raw'> {
+  const record = objectRecord(payload);
+  if (!record) return { message: fallback };
+  return envelopePayload(record.error) ?? detailPayload(record.detail) ?? { message: fallback };
 }
 
 /** A non-empty trimmed string field, or undefined. */

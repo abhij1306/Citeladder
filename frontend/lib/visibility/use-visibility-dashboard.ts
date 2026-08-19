@@ -224,25 +224,37 @@ export function useVisibilityQueries(
   projectId: string | null,
   filters: ReturnType<typeof useVisibilityFilters>,
 ) {
-  const { activeTab, selectedRunId, engine, promptId, range, granularity, cohort } = filters;
-
-  const { auditsQuery, runOptions, activeRun, activeRunId, hasRuns } = useRunSelection(
+  const runs = useRunSelection(projectId, filters.selectedRunId);
+  const scope = useQueryScope(filters);
+  const trendsEnabled = Boolean(projectId) && runs.hasRuns && filters.activeTab === 'trends';
+  const visibilityQuery = useVisibilityProjection(
     projectId,
-    selectedRunId,
+    runs.activeRunId,
+    scope.cohort,
+    trendsEnabled,
   );
+  const trendQuery = useTrendQuery(projectId, scope, trendsEnabled);
+  const evidence = useEvidenceQueries(
+    projectId,
+    Boolean(projectId) && runs.hasRuns && isEvidenceTab(filters.activeTab),
+    { activeRunId: runs.activeRunId, promptId: filters.promptId, ...scope },
+  );
+  return { ...runs, visibilityQuery, trendQuery, ...evidence };
+}
 
-  const evidenceTab = isEvidenceTab(activeTab);
-  const engineParam = engine === 'all' ? undefined : engine;
-  // Resolve the range preset to a `from` bound once per range change. Computing
-  // it inline would call `new Date()` on every render and churn the query key.
-  const fromParam = useMemo(() => rangeToFrom(range), [range]);
+function useQueryScope(filters: ReturnType<typeof useVisibilityFilters>) {
+  const engineParam = filters.engine === 'all' ? undefined : filters.engine;
+  const fromParam = useMemo(() => rangeToFrom(filters.range), [filters.range]);
+  return { engineParam, fromParam, granularity: filters.granularity, cohort: filters.cohort };
+}
 
-  // Trends retains the selected-run projection for model comparison.
-  // The projection is NOT engine-scoped server-side (the endpoint takes only
-  // `audit_id`); engine is applied client-side in `EngineComparison`. So engine
-  // is deliberately absent from the key — including it would force a refetch of
-  // identical data (and a skeleton flash) on every engine change.
-  const visibilityQuery = useQuery({
+function useVisibilityProjection(
+  projectId: string | null,
+  activeRunId: string | null,
+  cohort: 'core' | 'comparison',
+  enabled: boolean,
+) {
+  return useQuery({
     queryKey: [...queryKeys.visibility.project(projectId ?? '', activeRunId ?? undefined), cohort],
     queryFn: ({ signal }) =>
       visibilityApi.getProjectVisibility(
@@ -250,44 +262,34 @@ export function useVisibilityQueries(
         { audit_id: activeRunId ?? undefined, cohort },
         { signal },
       ),
-    enabled: Boolean(projectId) && hasRuns && activeTab === 'trends',
+    enabled,
   });
+}
 
-  // Trends: the cross-run series. Enabled only on the Trends tab. Engine, date
-  // range, and granularity fold into the query key.
-  const trendQuery = useQuery({
+function useTrendQuery(
+  projectId: string | null,
+  scope: ReturnType<typeof useQueryScope>,
+  enabled: boolean,
+) {
+  return useQuery({
     queryKey: queryKeys.visibility.trends(projectId ?? '', {
-      engine: engineParam ?? null,
-      from: fromParam ?? null,
-      granularity,
-      cohort,
+      engine: scope.engineParam ?? null,
+      from: scope.fromParam ?? null,
+      granularity: scope.granularity,
+      cohort: scope.cohort,
     }),
     queryFn: ({ signal }) =>
       visibilityApi.getVisibilityTrends(
         projectId!,
-        { engine: engineParam, from: fromParam, granularity, cohort },
+        {
+          engine: scope.engineParam,
+          from: scope.fromParam,
+          granularity: scope.granularity,
+          cohort: scope.cohort,
+        },
         { signal },
       ),
-    enabled: Boolean(projectId) && hasRuns && activeTab === 'trends',
+    enabled,
     placeholderData: keepPreviousData,
   });
-
-  // Shared execution-evidence + prompt options for the two evidence tabs.
-  const { evidenceQuery, promptOptions } = useEvidenceQueries(
-    projectId,
-    Boolean(projectId) && hasRuns && evidenceTab,
-    { activeRunId, promptId, engineParam, fromParam, cohort },
-  );
-
-  return {
-    auditsQuery,
-    runOptions,
-    activeRun,
-    activeRunId,
-    hasRuns,
-    visibilityQuery,
-    trendQuery,
-    evidenceQuery,
-    promptOptions,
-  };
 }
