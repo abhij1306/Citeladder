@@ -1,4 +1,4 @@
-FROM node:22.17.1-bookworm-slim@sha256:2fa754a9ba4d7adbd2a51d182eaabbe355c82b673624035a38c0d42b08724854 AS dependencies
+FROM node:26.7.0-bookworm-slim@sha256:cd565714d4da3e84bfd341e31448f81d47c6362198f152345297c9c1154e6341 AS dependencies
 
 ENV PNPM_HOME=/pnpm
 ENV PATH="${PNPM_HOME}:${PATH}"
@@ -8,7 +8,7 @@ RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-FROM node:22.17.1-bookworm-slim@sha256:2fa754a9ba4d7adbd2a51d182eaabbe355c82b673624035a38c0d42b08724854 AS builder
+FROM node:26.7.0-bookworm-slim@sha256:cd565714d4da3e84bfd341e31448f81d47c6362198f152345297c9c1154e6341 AS builder
 
 ARG BACKEND_ORIGIN
 ARG BUILD_REVISION=unknown
@@ -30,7 +30,7 @@ COPY frontend/public ./public
 COPY frontend/next.config.ts frontend/postcss.config.mjs frontend/tsconfig.json ./
 RUN pnpm build
 
-FROM node:22.17.1-bookworm-slim@sha256:2fa754a9ba4d7adbd2a51d182eaabbe355c82b673624035a38c0d42b08724854 AS runtime
+FROM node:26.7.0-bookworm-slim@sha256:cd565714d4da3e84bfd341e31448f81d47c6362198f152345297c9c1154e6341 AS runtime
 
 ARG BACKEND_ORIGIN
 ARG BUILD_REVISION=unknown
