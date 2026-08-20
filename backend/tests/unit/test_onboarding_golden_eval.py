@@ -31,6 +31,7 @@ from evaluations.onboarding_golden import (
 )
 
 FEEDONOMICS = CASES_BY_SLUG["feedonomics-united-states"]
+GRAZA = CASES_BY_SLUG["graza-united-states"]
 
 
 def _valid_portfolio(case) -> list[PortfolioPrompt]:
@@ -129,6 +130,10 @@ def test_portfolio_evaluation_accepts_gold_derived_portfolios() -> None:
     assert result.market_visibility_count == 5
     assert result.brand_relevant_count == 5
     assert result.branded_count == 5
+
+
+def test_market_signal_rate_matches_whole_words() -> None:
+    result = evaluate_portfolio(GRAZA, _valid_portfolio(GRAZA))
     assert result.market_signal_rate > 0
 
 

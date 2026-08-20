@@ -112,6 +112,8 @@ from tests.component.audit_worker_helpers import (
 from tests.component.log_capture import capture_log_messages
 from tests.component.occupancy_helpers import seed_occupancy_grants
 
+pytest_plugins = ("tests.component.audit_worker_helpers",)
+
 
 @pytest.mark.asyncio
 async def test_worker_runs_all_tasks_and_finalizes(
