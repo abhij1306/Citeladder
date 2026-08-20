@@ -289,6 +289,7 @@ async def test_recompute_persists_rows_and_snapshot_with_provenance(
     assert result["audit_id"] == scn.audit_id
     assert result["site_crawl_id"] == scn.crawl_id
     assert result["counts_by_type"] == {
+        "commerce": 0,
         "site": 2,
         "topic": 0,
         "traffic": 0,

@@ -434,7 +434,7 @@ async def test_commerce_rules_fire_from_persisted_product_evidence(
     rows = await _live_rows(db_session, scn)
     not_mentioned = _by_rule(rows, "product_not_mentioned")
     assert not_mentioned.target_key == f"product:{product_zero_id}"
-    assert not_mentioned.opportunity_type == "visibility"
+    assert not_mentioned.opportunity_type == "commerce"
     assert not_mentioned.severity == "high"
     assert not_mentioned.priority_score == 30.0
     assert not_mentioned.evidence is not None
