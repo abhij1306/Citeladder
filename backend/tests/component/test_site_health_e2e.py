@@ -50,14 +50,14 @@ from app.models.site_health.runtime import SiteHealthProfile
 from app.models.site_health.urls import SiteUrl, SiteUrlObservation
 from app.models.user import User
 from app.models.workspace import Workspace, WorkspaceMember
+from tests.component.site_health_api_helpers import (
+    _register,
+    _seed_scenario,
+)
 
 # Reuse the exact seed helpers the focused component suite uses so the E2E
 # journey exercises the same fixtures/shapes (no duplicated seeding logic).
 from tests.component.site_health_helpers import seed_monitored_urls_allowance
-from tests.component.test_site_health_api import (
-    _register,
-    _seed_scenario,
-)
 
 pytestmark = pytest.mark.asyncio
 

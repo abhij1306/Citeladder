@@ -9,8 +9,10 @@ asserting different things about the same worker.
 from __future__ import annotations
 
 import asyncio
+import uuid
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.workers.audit.execution as audit_execution
@@ -25,11 +27,16 @@ from app.connectors.answer_engines.contracts import (
 from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.audits import AUDIT_TRIGGER_MANUAL, audit_settings
 from app.core.config.provider_catalog import (
+    ENGINE_CLAUDE,
     ENGINE_GEMINI,
+    ERROR_CLIENT,
     ERROR_RATE_LIMIT,
+    TRANSPORT_ANTHROPIC,
     TRANSPORT_GOOGLE,
 )
 from app.domain.audits.creation import create_audit
+from app.models.audit import ProviderCapacityBucket, ProviderCapacityLease
+from app.models.billing import ConsumableLedger
 from tests.component.audit_helpers import seed_audit_fixtures
 
 
@@ -154,3 +161,55 @@ class _StallingAdapter(_StubAdapter):
         self.calls += 1
         await asyncio.sleep(3600)
         raise AssertionError("unreachable: the wait_for ceiling cancels first")
+
+
+class _ClaudeStubAdapter(_StubAdapter):
+    """Claude/anthropic provenance stub for funded-route executions."""
+
+    logical_engine = ENGINE_CLAUDE
+    transport_provider = TRANSPORT_ANTHROPIC
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def execute(self, request: AnswerEngineRequest) -> AnswerEngineResponse:
+        self.calls += 1
+        return await super().execute(request)
+
+
+class _ClientErrorAdapter(_StubAdapter):
+    """Always fail with a non-retryable client error."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def execute(self, request: AnswerEngineRequest) -> AnswerEngineResponse:
+        self.calls += 1
+        raise ProviderError("bad request", error_code=ERROR_CLIENT, retryable=False)
+
+
+async def _leased_pools(
+    session: AsyncSession, task_id: uuid.UUID
+) -> list[tuple[ProviderCapacityLease, ProviderCapacityBucket]]:
+    """Return the capacity leases and buckets used by one task."""
+    rows = (
+        await session.execute(
+            select(ProviderCapacityLease, ProviderCapacityBucket)
+            .join(
+                ProviderCapacityBucket,
+                ProviderCapacityLease.bucket_id == ProviderCapacityBucket.id,
+            )
+            .where(ProviderCapacityLease.task_id == task_id)
+        )
+    ).all()
+    return [(lease, bucket) for lease, bucket in rows]
+
+
+async def _ledger_entries(
+    session: AsyncSession, task_id: uuid.UUID, kind: str | None = None
+) -> list[ConsumableLedger]:
+    """Return ledger entries for one task, optionally filtered by kind."""
+    stmt = select(ConsumableLedger).where(ConsumableLedger.task_id == task_id)
+    if kind is not None:
+        stmt = stmt.where(ConsumableLedger.entry_kind == kind)
+    return list((await session.scalars(stmt)).all())

@@ -8,7 +8,7 @@ eventually debited or released" on the four paths that used to break it:
   - the queue sweeper terminalized a crash-looped task at max attempts with
     no funded release (the queue stays billing-agnostic — the audit worker,
     its caller, owns the janitor release);
-  - ``_record_crash`` terminalized without the funded-ledger release the
+  - crash terminalization omitted the funded-ledger release the
     cancel/deadline/fail-terminal paths all run;
   - ``assert pricing is not None`` crashed a successful task AFTER the
     provider call, rolling back artifact + attempts + funded bill/release.
@@ -29,7 +29,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.connectors.answer_engines.contracts import (
+    AnswerEngineRequest,
+    AnswerEngineResponse,
+)
+from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.audits import (
+    AUDIT_QUEUE_SPEC,
     AUDIT_STATUS_CANCELLED,
     AUDIT_TRIGGER_MANUAL,
     MEASUREMENT_MODE_PULSE,
@@ -42,7 +48,13 @@ from app.core.config.entitlements import (
     LEDGER_ENTRY_RELEASE,
     LEDGER_ENTRY_RESERVATION,
 )
-from app.core.config.provider_catalog import ENGINE_CLAUDE
+from app.core.config.provider_catalog import (
+    ENGINE_CLAUDE,
+    ERROR_TIMEOUT,
+    ROUTE_CAPACITY_POLICIES,
+    TRANSPORT_ANTHROPIC,
+    RouteCapacityPolicy,
+)
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
     TASK_STATUS_FAILED,
@@ -54,6 +66,7 @@ from app.domain.audits.errors import AuditValidationError
 from app.domain.entitlements.cache import clear_cache
 from app.domain.entitlements.ledger import (
     consumable_usage,
+    record_billable_attempt,
     release_terminal_funded_task,
 )
 from app.domain.entitlements.types import GrantSpec
@@ -63,6 +76,7 @@ from app.models.audit import (
     RawResponseArtifact,
 )
 from app.models.billing import BillingAccount, ConsumableLedger
+from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.audit import execution as audit_execution
 from app.workers.audit_worker import AuditWorker
 from tests.component.audit_helpers import (
@@ -70,9 +84,9 @@ from tests.component.audit_helpers import (
     seed_audit_fixtures,
     seed_platform_connection,
 )
+from tests.component.audit_worker_helpers import _StubAdapter
 from tests.component.log_capture import capture_log_messages
 from tests.component.occupancy_helpers import seed_occupancy_grants
-from tests.component.test_audit_worker import _StubAdapter
 
 
 @pytest.fixture(autouse=True)
@@ -234,19 +248,37 @@ async def test_cancel_racing_in_flight_worker_release_settles_once(
         account, seed = await _seed_funded(session, prompt_count=2)
         audit = await _create_funded(session, seed)
 
-    worker = AuditWorker(session_factory=session_factory, owner="w-race")
-    claimed = await worker._queue.claim(owner=worker.owner, limit=1)
+    queue = PostgresTaskQueue(session_factory, AUDIT_QUEUE_SPEC)
+    owner = "w-race"
+    claimed = await queue.claim(owner=owner, limit=1)
     assert len(claimed) == 1
     raced_task_id = claimed[0].id
 
-    # The worker bills its one actual call and terminally releases — this is
-    # the persist-success commit; queue.succeed has NOT landed yet.
+    # Arrange the persisted ledger state produced by a successful worker call;
+    # queue.succeed has not landed yet, which preserves the cancellation race.
     async with session_factory() as session:
         task = await session.get(AuditTask, raced_task_id)
         assert task is not None
         task.attempt_count = 1
-        await worker._apply_funded_ledger(
-            session, task=task, billable=True, terminal=True
+        configuration = audit.configuration or {}
+        reservation_id = uuid.UUID(
+            configuration["task_reservations"][str(raced_task_id)]
+        )
+        await record_billable_attempt(
+            session,
+            reservation_id=reservation_id,
+            task_id=raced_task_id,
+            attempt=1,
+            idempotency_key=f"{raced_task_id}:1:funded-billable",
+            at=datetime.now(UTC),
+        )
+        await release_terminal_funded_task(
+            session,
+            reservation_id=reservation_id,
+            audit_id=audit.id,
+            task_id=raced_task_id,
+            trigger="unused",
+            at=datetime.now(UTC),
         )
         await session.commit()
 
@@ -388,7 +420,8 @@ async def test_sweeper_terminalized_funded_task_releases_reservation(
         audit = await _create_funded(session, seed)
 
     worker = AuditWorker(session_factory=session_factory, owner="w-swept")
-    claimed = await worker._queue.claim(owner=worker.owner, limit=1)
+    queue = PostgresTaskQueue(session_factory, AUDIT_QUEUE_SPEC)
+    claimed = await queue.claim(owner=worker.owner, limit=1)
     assert len(claimed) == 1
     task_id = claimed[0].id
 
@@ -400,7 +433,7 @@ async def test_sweeper_terminalized_funded_task_releases_reservation(
         task.lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
         await session.commit()
 
-    await worker._sweep_expired_leases()
+    await worker.run_once()
 
     async with session_factory() as session:
         task = await session.get(AuditTask, task_id)
@@ -420,7 +453,7 @@ async def test_sweeper_terminalized_funded_task_releases_reservation(
         assert usage.available == usage.granted
 
     # A repeat sweep observes nothing terminal and releases nothing more.
-    await worker._sweep_queue()
+    await worker.run_once()
     async with session_factory() as session:
         task = await session.get(AuditTask, task_id)
         assert task is not None
@@ -432,37 +465,54 @@ async def test_sweeper_terminalized_funded_task_releases_reservation(
 
 @pytest.mark.asyncio
 async def test_crash_after_billed_attempt_bills_once_and_releases_remainder(
-    session_factory: async_sessionmaker[AsyncSession], monkeypatch
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A crash terminalization bills the actual call once and releases the
     unbilled remainder: the failure path committed the attempt-1 bill
-    (will_retry=True) and ``queue.retry`` then raised, so ``_record_crash``
+    (will_retry=True) and ``queue.retry`` then raised, so crash handling
     terminalizes — releasing only the still-reserved unit."""
     # Pin BOTH: the frozen budget comes from the mode policy, and these
     # audits are planned in the default (pulse) mode.
     monkeypatch.setattr(audit_settings, "max_attempts", 2)
     monkeypatch.setattr(audit_settings, "pulse_max_attempts", 2)
+    monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
+    monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
+    monkeypatch.setitem(
+        ROUTE_CAPACITY_POLICIES,
+        (ENGINE_CLAUDE, TRANSPORT_ANTHROPIC),
+        RouteCapacityPolicy(
+            capacity=100.0,
+            refill_tokens_per_second=100.0,
+            max_cooldown_seconds=60.0,
+        ),
+    )
     async with session_factory() as session:
         account, seed = await _seed_funded(session, prompt_count=1)
         await _create_funded(session, seed)
 
-    worker = AuditWorker(session_factory=session_factory, owner="w-crash")
-    claimed = await worker._queue.claim(owner=worker.owner, limit=1)
-    assert len(claimed) == 1
-    task_id = claimed[0].id
-
-    # The failure path's committed bill for the one actual call (attempt 1);
-    # the queue.retry raise is what sends the task into _record_crash.
     async with session_factory() as session:
-        task = await session.get(AuditTask, task_id)
-        assert task is not None
-        task.attempt_count = 1
-        await worker._apply_funded_ledger(
-            session, task=task, billable=True, terminal=False
-        )
-        await session.commit()
+        task_id = await session.scalar(select(AuditTask.id))
+        assert task_id is not None
 
-    await worker._record_crash(task_id, RuntimeError("retry raise boom"))
+    class RetryableFailureAdapter(_StubAdapter):
+        async def execute(self, request: AnswerEngineRequest) -> AnswerEngineResponse:
+            raise ProviderError(
+                "temporary timeout",
+                error_code=ERROR_TIMEOUT,
+                retryable=True,
+            )
+
+    async def retry_raises(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("retry raise boom")
+
+    monkeypatch.setattr(
+        audit_execution, "build_adapter", lambda **_: RetryableFailureAdapter()
+    )
+    monkeypatch.setattr(PostgresTaskQueue, "retry", retry_raises)
+
+    worker = AuditWorker(session_factory=session_factory, owner="w-crash")
+    await worker.run_once()
 
     async with session_factory() as session:
         task = await session.get(AuditTask, task_id)
@@ -486,9 +536,9 @@ async def test_crash_after_billed_attempt_bills_once_and_releases_remainder(
         assert usage.reserved == 0
         assert usage.available == usage.granted - 1
 
-    # Replay: the task is already terminal and lease-free, so the fail is
-    # owner-guarded and no further release is attempted.
-    await worker._record_crash(task_id, RuntimeError("replay boom"))
+    # Replay through the public worker contract: the task is terminal and no
+    # further release is attempted.
+    await worker.run_once()
     async with session_factory() as session:
         debited = await _ledger_rows(session, task_id=task_id, kind=LEDGER_ENTRY_DEBIT)
         released = await _ledger_rows(

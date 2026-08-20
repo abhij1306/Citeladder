@@ -20,7 +20,7 @@ from app.models.site_health.analysis import SitePageAnalysis
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.urls import SiteUrlObservation
-from tests.component.test_site_health_api import _register, _seed_scenario
+from tests.component.site_health_api_helpers import _register, _seed_scenario
 
 pytestmark = pytest.mark.asyncio
 
