@@ -44,13 +44,35 @@ from tests.component.analysis_api_helpers import (
     _seed_snapshot,
     _trend_metrics,
 )
-from tests.component.audit_helpers import seed_audit_fixtures
+from tests.component.audit_helpers import Seed, seed_audit_fixtures
 
 # The model the PLANNER freezes for these audits. Read from the catalog rather
 # than pinned as a literal: these assertions are about provenance travelling
 # intact from the frozen route to the projection, not about which Gemini build
 # is current, and a literal here goes stale on every model-version bump.
 GEMINI_MODEL = measurement_route(ENGINE_GEMINI, "pulse").transport_model
+
+
+async def _seed_reference_snapshot(session: AsyncSession) -> Seed:
+    seed = await seed_audit_fixtures(session, prompt_count=1)
+    await _seed_snapshot(
+        session,
+        workspace_id=seed.workspace_id,
+        project_id=seed.project_id,
+        completed_at=datetime(2026, 1, 5, tzinfo=UTC),
+        metrics=_trend_metrics(
+            brand_rate=1.0,
+            owned_rate=0.5,
+            competitor_rate=0.5,
+            brand_count=4,
+            competitor_count=2,
+            total_completed=4,
+        ),
+        visibility_score=100.0,
+        total_completed=4,
+    )
+    await session.commit()
+    return seed
 
 
 async def test_trends_raw_points_chronological_with_provenance(
@@ -136,24 +158,7 @@ async def test_trends_response_and_mention_sov_and_rankings(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        seed = await seed_audit_fixtures(session, prompt_count=1)
-        await _seed_snapshot(
-            session,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-            completed_at=datetime(2026, 1, 5, tzinfo=UTC),
-            metrics=_trend_metrics(
-                brand_rate=1.0,
-                owned_rate=0.5,
-                competitor_rate=0.5,
-                brand_count=4,
-                competitor_count=2,
-                total_completed=4,
-            ),
-            visibility_score=100.0,
-            total_completed=4,
-        )
-        await session.commit()
+        seed = await _seed_reference_snapshot(session)
         points = await get_visibility_trends(
             session,
             workspace_id=seed.workspace_id,
@@ -451,24 +456,7 @@ async def test_trends_workspace_isolation(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with session_factory() as session:
-        seed = await seed_audit_fixtures(session, prompt_count=1)
-        await _seed_snapshot(
-            session,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-            completed_at=datetime(2026, 1, 5, tzinfo=UTC),
-            metrics=_trend_metrics(
-                brand_rate=1.0,
-                owned_rate=0.5,
-                competitor_rate=0.5,
-                brand_count=4,
-                competitor_count=2,
-                total_completed=4,
-            ),
-            visibility_score=100.0,
-            total_completed=4,
-        )
-        await session.commit()
+        seed = await _seed_reference_snapshot(session)
         # A foreign workspace sees nothing (invariant 5).
         foreign = await get_visibility_trends(
             session,
