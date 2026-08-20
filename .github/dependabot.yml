@@ -33,7 +33,7 @@ updates:
         update-types: [patch, minor]
 
   - package-ecosystem: docker
-    directory: /infra/docker
+    directory: /
     schedule:
       interval: weekly
       day: monday

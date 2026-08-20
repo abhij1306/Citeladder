@@ -72,14 +72,14 @@ backend cross-origin directly.
 These commands use the Compose database exposed on host port `55432`:
 
 ```
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml ps db
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml exec db pg_isready -U postgres -d citeladder
+docker compose --env-file .env -f docker-compose.yml ps db
+docker compose --env-file .env -f docker-compose.yml exec db pg_isready -U postgres -d citeladder
 ```
 
 Open a PostgreSQL shell inside the database container:
 
 ```
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml exec db psql -U postgres -d citeladder
+docker compose --env-file .env -f docker-compose.yml exec db psql -U postgres -d citeladder
 ```
 
 Useful commands inside `psql`:
@@ -116,15 +116,15 @@ one-shot migration job, API, frontend, and workers. Copy the template once; it i
 must not be committed.
 
 ```bash
-cp infra/docker/.env.example infra/docker/.env
+cp .env.example .env
 ```
 
-On PowerShell, use `Copy-Item infra/docker/.env.example infra/docker/.env` instead. Edit the
+On PowerShell, use `Copy-Item .env.example .env` instead. Edit the
 copy before using non-local credentials or provider integrations.
 
 ### Start the full local stack
 
-Inherited `POSTGRES_*` or `DATABASE_URL` variables can override `infra/docker/.env`. Clear those
+Inherited `POSTGRES_*` or `DATABASE_URL` variables can override `.env`. Clear those
 variables for the Compose invocation and pass the env file explicitly.
 
 PowerShell:
@@ -134,7 +134,7 @@ Remove-Item Env:POSTGRES_USER -ErrorAction SilentlyContinue
 Remove-Item Env:POSTGRES_DB -ErrorAction SilentlyContinue
 Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
 $env:POSTGRES_PASSWORD = "citeladder_dev_password"
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml up -d --build --force-recreate
+docker compose --env-file .env -f docker-compose.yml up -d --build --force-recreate
 ```
 
 Bash:
@@ -142,11 +142,11 @@ Bash:
 ```bash
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=citeladder_dev_password \
-  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml up -d --build --force-recreate
+  docker compose --env-file .env -f docker-compose.yml up -d --build --force-recreate
 ```
 
 The password supplied to Compose must match `POSTGRES_PASSWORD` in
-`infra/docker/.env`. The stack includes PostgreSQL, migrations, the FastAPI API, Next.js
+`.env`. The stack includes PostgreSQL, migrations, the FastAPI API, Next.js
 frontend, and project workers. Wait for the `migrate` job to complete before treating the stack
 as ready; the `frontend` service is available at `http://localhost:3000` and the API at
 `http://localhost:8000`.
@@ -154,31 +154,31 @@ as ready; the `frontend` service is available at `http://localhost:3000` and the
 ### Inspect and operate services
 
 ```bash
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml ps
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml logs -f web
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml logs -f frontend
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml logs -f worker
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml logs --tail 100 migrate
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml restart web frontend
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml config
+docker compose --env-file .env -f docker-compose.yml ps
+docker compose --env-file .env -f docker-compose.yml logs -f web
+docker compose --env-file .env -f docker-compose.yml logs -f frontend
+docker compose --env-file .env -f docker-compose.yml logs -f worker
+docker compose --env-file .env -f docker-compose.yml logs --tail 100 migrate
+docker compose --env-file .env -f docker-compose.yml restart web frontend
+docker compose --env-file .env -f docker-compose.yml config
 ```
 
 Rebuild the affected application service after a source change:
 
 ```bash
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml up -d --build web frontend
+docker compose --env-file .env -f docker-compose.yml up -d --build web frontend
 ```
 
 Stop the stack while keeping the PostgreSQL volume:
 
 ```bash
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml down
+docker compose --env-file .env -f docker-compose.yml down
 ```
 
 Stop the stack and delete its PostgreSQL volume (**destructive; deletes local DB data**):
 
 ```bash
-docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml down -v
+docker compose --env-file .env -f docker-compose.yml down -v
 ```
 
 ## Backend: FastAPI, workers, and migrations

@@ -63,12 +63,12 @@ PostgreSQL, applies the migration baseline once, then starts FastAPI, the browse
 frontend, and the workers. Do not run host-side migrations or `pnpm dev` alongside this stack.
 
 ```bash
-cp infra/docker/.env.example infra/docker/.env
+cp .env.example .env
 
 # Use the env -u workaround (gotcha 1) and select the copied env file — verbatim:
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=citeladder_dev_password \
-  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml \
+  docker compose --env-file .env -f docker-compose.yml \
   up -d --build --force-recreate
 
 # The frontend proxies relative /api/* requests to the API inside Compose.
@@ -77,9 +77,9 @@ curl -fsS http://localhost:8000/health
 ```
 
 The stack's frontend is at `http://localhost:3000`, and FastAPI is at
-`http://localhost:8000`. Inspect readiness with `docker compose --env-file infra/docker/.env -f
-infra/docker/docker-compose.yml ps`; the one-shot `migrate` service must have completed
-successfully. See `infra/docker/docker-compose.yml` for the executable process list and
+`http://localhost:8000`. Inspect readiness with `docker compose --env-file .env -f
+docker-compose.yml ps`; the one-shot `migrate` service must have completed
+successfully. See `docker-compose.yml` for the executable process list and
 [`release-checklist.md`](release-checklist.md) for clean-clone release verification.
 
 ## Testing
@@ -177,7 +177,7 @@ repo values.
 ```bash
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=<repo-.env-value> \
-  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml \
+  docker compose --env-file .env -f docker-compose.yml \
   up -d --build --force-recreate
 ```
 

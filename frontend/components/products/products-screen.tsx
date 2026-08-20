@@ -6,16 +6,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useProjectContext } from '@/lib/project/project-context';
 import {
   useCatalogQueries,
-  useCommerceDiscovery,
-  useMarketIntelligence,
+  useCommerceComparison,
+  useCommerceOpportunities,
+  useCommerceOverview,
   useProductsTab,
   useProductVisibilityQueries,
 } from '@/lib/products/use-products-screen';
 
+import { AiVisibilityPanel } from './ai-visibility-panel';
 import { CatalogPanel } from './catalog-panel';
-import { CommerceDiscoveryPanel } from './commerce-discovery-panel';
-import { MarketIntelligencePanel } from './market-intelligence-panel';
-import { ProductVisibilityPanel } from './product-visibility-panel';
+import { CommerceOpportunitiesPanel } from './commerce-opportunities-panel';
+import { CommerceOverviewPanel } from './commerce-overview-panel';
+import { CompetitorsPanel } from './competitors-panel';
 import { ProductsTabs } from './products-tabs';
 
 export function ProductsScreenSkeleton() {
@@ -23,8 +25,7 @@ export function ProductsScreenSkeleton() {
     <div className="grid gap-4" aria-hidden>
       <Skeleton className="h-8 w-72" />
       <Card>
-        <CardContent className="grid gap-3">
-          <Skeleton className="h-8 w-56" />
+        <CardContent>
           <Skeleton className="h-48 w-full" />
         </CardContent>
       </Card>
@@ -32,45 +33,32 @@ export function ProductsScreenSkeleton() {
   );
 }
 
-/**
- * Commerce workspace container. Resolves the active project (F5 context) and
- * renders one shell: an accessible four-tab tablist (**Discover** default |
- * **Catalog** | **AI Conversations** | **Market Intelligence**) with exactly one panel at a time; the
- * active tab is mirrored in `?tab=` (mirror `visibility-dashboard.tsx`).
- * Every tab's query hooks are instantiated HERE with explicit `enabled`
- * flags, so only the active tab's queries run — hidden tabs stay inert.
- */
+/** Five-tab Commerce suite. Every inactive tab remains query-inert. */
 export function ProductsScreen() {
   const { activeProject, isLoading: isProjectLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
-
   const { activeTab, selectTab } = useProductsTab();
+  const overviewQueries = useCommerceOverview(projectId, activeTab === 'overview');
   const catalogQueries = useCatalogQueries(projectId, activeTab === 'catalog');
-  const visibilityQueries = useProductVisibilityQueries(projectId, activeTab === 'conversations');
-  const discoveryQueries = useCommerceDiscovery(projectId, activeTab === 'discover');
-  const marketQueries = useMarketIntelligence(projectId, activeTab === 'market_intelligence');
+  const visibilityQueries = useProductVisibilityQueries(projectId, activeTab === 'visibility');
+  const comparisonQueries = useCommerceComparison(projectId, activeTab === 'competitors');
+  const opportunityQueries = useCommerceOpportunities(projectId, activeTab === 'opportunities');
 
-  if (isProjectLoading) {
-    return <ProductsScreenSkeleton />;
-  }
-
-  if (!projectId) {
+  if (isProjectLoading) return <ProductsScreenSkeleton />;
+  if (!projectId)
     return <Alert tone="info">Select or create a project to manage its product catalog.</Alert>;
-  }
 
   const panel =
-    activeTab === 'conversations' ? (
-      <ProductVisibilityPanel
-        projectId={projectId}
-        queries={visibilityQueries}
-        onGoToCatalog={() => selectTab('catalog')}
-      />
-    ) : activeTab === 'catalog' ? (
+    activeTab === 'catalog' ? (
       <CatalogPanel projectId={projectId} queries={catalogQueries} />
-    ) : activeTab === 'market_intelligence' ? (
-      <MarketIntelligencePanel projectId={projectId} queries={marketQueries} />
+    ) : activeTab === 'visibility' ? (
+      <AiVisibilityPanel projectId={projectId} queries={visibilityQueries} />
+    ) : activeTab === 'competitors' ? (
+      <CompetitorsPanel queries={comparisonQueries} />
+    ) : activeTab === 'opportunities' ? (
+      <CommerceOpportunitiesPanel queries={opportunityQueries} />
     ) : (
-      <CommerceDiscoveryPanel projectId={projectId} queries={discoveryQueries} />
+      <CommerceOverviewPanel queries={overviewQueries} onSelectTab={selectTab} />
     );
 
   return <ProductsTabs activeTab={activeTab} onSelectTab={selectTab} panel={panel} />;

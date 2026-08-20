@@ -4,21 +4,16 @@ import userEvent from '@testing-library/user-event';
 
 import { ProductsScreen } from './products-screen';
 
-// The screen's tab state is URL-synced (?tab=); stub next/navigation with a
-// controllable search-param + a shallow-history spy.
+let urlTab: string | null = null;
 const replaceStateSpy = vi.fn((_data: unknown, _unused: string, url: string) => {
   urlTab = new URL(url, 'http://localhost').searchParams.get('tab');
 });
-let urlTab: string | null = null;
 vi.stubGlobal('history', { ...window.history, replaceState: replaceStateSpy });
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/products',
   useSearchParams: () => new URLSearchParams(urlTab ? `tab=${urlTab}` : ''),
 }));
-
-// Isolate the tab orchestration: the panels are stubbed (their own tests
-// cover their contents); the project context resolves a fixed project.
 vi.mock('@/lib/project/project-context', () => ({
   useProjectContext: () => ({
     activeProject: { id: '11111111-1111-4111-8111-111111111111' },
@@ -26,115 +21,97 @@ vi.mock('@/lib/project/project-context', () => ({
   }),
 }));
 
+const enabledCalls = {
+  overview: vi.fn(),
+  catalog: vi.fn(),
+  visibility: vi.fn(),
+  competitors: vi.fn(),
+  opportunities: vi.fn(),
+};
 vi.mock('@/lib/products/use-products-screen', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/lib/products/use-products-screen')>();
   return {
     ...original,
-    useCatalogQueries: () => ({
-      productsQuery: { isLoading: false },
-      catalogHealthQuery: { isLoading: false },
-    }),
-    useProductVisibilityQueries: () => ({
-      auditsQuery: { isLoading: false },
-      runOptions: [],
-      activeRunId: null,
-      selectRun: vi.fn(),
-      engine: 'all',
-      setEngine: vi.fn(),
-      engineParam: undefined,
-      visibilityQuery: { isLoading: true },
-    }),
-    useCommerceDiscovery: () => ({
-      runsQuery: { isLoading: false, data: [] },
-      candidatesQuery: { isLoading: false, data: [] },
-      previewMutation: {},
-      createMutation: {},
-      decisionMutation: {},
-      setSelectedRunId: vi.fn(),
-    }),
-    useMarketIntelligence: () => ({
-      comparisonsQuery: { isLoading: false, data: [] },
-      createMutation: {},
-    }),
+    useCommerceOverview: (_id: string, enabled: boolean) => {
+      enabledCalls.overview(enabled);
+      return {};
+    },
+    useCatalogQueries: (_id: string, enabled: boolean) => {
+      enabledCalls.catalog(enabled);
+      return {};
+    },
+    useProductVisibilityQueries: (_id: string, enabled: boolean) => {
+      enabledCalls.visibility(enabled);
+      return {};
+    },
+    useCommerceComparison: (_id: string, enabled: boolean) => {
+      enabledCalls.competitors(enabled);
+      return {};
+    },
+    useCommerceOpportunities: (_id: string, enabled: boolean) => {
+      enabledCalls.opportunities(enabled);
+      return {};
+    },
   };
 });
 
-vi.mock('./catalog-panel', () => ({
-  CatalogPanel: () => <div data-testid="catalog-panel">Catalog panel</div>,
+vi.mock('./commerce-overview-panel', () => ({
+  CommerceOverviewPanel: () => <div data-testid="overview-panel" />,
 }));
-
-vi.mock('./product-visibility-panel', () => ({
-  ProductVisibilityPanel: () => <div data-testid="visibility-panel">Visibility panel</div>,
+vi.mock('./catalog-panel', () => ({ CatalogPanel: () => <div data-testid="catalog-panel" /> }));
+vi.mock('./ai-visibility-panel', () => ({
+  AiVisibilityPanel: () => <div data-testid="visibility-panel" />,
+}));
+vi.mock('./competitors-panel', () => ({
+  CompetitorsPanel: () => <div data-testid="competitors-panel" />,
+}));
+vi.mock('./commerce-opportunities-panel', () => ({
+  CommerceOpportunitiesPanel: () => <div data-testid="opportunities-panel" />,
 }));
 
 describe('ProductsScreen tabs', () => {
   beforeEach(() => {
     replaceStateSpy.mockClear();
+    Object.values(enabledCalls).forEach((spy) => spy.mockClear());
     urlTab = null;
   });
 
-  it('defaults to Discover and renders exactly one panel', () => {
+  it('defaults to Overview and renders the five-tab contract', () => {
     render(<ProductsScreen />);
-
-    expect(screen.getByRole('tab', { name: 'Discover' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Catalog' })).toHaveAttribute('aria-selected', 'false');
-    expect(screen.getByRole('tab', { name: 'AI Conversations' })).toHaveAttribute(
-      'aria-selected',
-      'false',
-    );
-    expect(screen.getByRole('tab', { name: 'Market Intelligence' })).toHaveAttribute(
-      'aria-selected',
-      'false',
-    );
-    expect(screen.getByTestId('commerce-discover-panel')).toBeInTheDocument();
-    expect(screen.queryByTestId('catalog-panel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('visibility-panel')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(5);
+    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'AI Visibility' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Competitors' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Opportunities' })).toBeInTheDocument();
+    expect(screen.getByTestId('overview-panel')).toBeInTheDocument();
     expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
   });
 
-  it('switches panels on tab click and mirrors the tab into ?tab=', async () => {
+  it('mirrors tab selection into the URL', async () => {
     const user = userEvent.setup();
     render(<ProductsScreen />);
-
-    await user.click(screen.getByRole('tab', { name: 'AI Conversations' }));
+    await user.click(screen.getByRole('tab', { name: 'AI Visibility' }));
     expect(screen.getByTestId('visibility-panel')).toBeInTheDocument();
-    expect(screen.queryByTestId('commerce-discover-panel')).not.toBeInTheDocument();
-    expect(replaceStateSpy).toHaveBeenCalledWith(null, '', '/products?tab=conversations');
-
-    await user.click(screen.getByRole('tab', { name: 'Catalog' }));
-    expect(screen.getByTestId('catalog-panel')).toBeInTheDocument();
-    expect(replaceStateSpy).toHaveBeenCalledWith(null, '', '/products?tab=catalog');
+    expect(replaceStateSpy).toHaveBeenCalledWith(null, '', '/products?tab=visibility');
   });
 
-  it('reads the initial tab from ?tab= (invalid values fall back to Discover)', () => {
-    urlTab = 'conversations';
+  it('reads an initial tab and falls back to Overview for removed values', () => {
+    urlTab = 'competitors';
+    const { unmount } = render(<ProductsScreen />);
+    expect(screen.getByTestId('competitors-panel')).toBeInTheDocument();
+    unmount();
+    urlTab = 'discover';
     render(<ProductsScreen />);
-    expect(screen.getByTestId('visibility-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('overview-panel')).toBeInTheDocument();
   });
 
-  it('switches to Market Intelligence and mirrors it into ?tab=', async () => {
-    const user = userEvent.setup();
+  it('enables only the active tab query group', () => {
+    urlTab = 'opportunities';
     render(<ProductsScreen />);
-
-    await user.click(screen.getByRole('tab', { name: 'Market Intelligence' }));
-    expect(screen.getByTestId('commerce-market-panel')).toBeInTheDocument();
-    expect(screen.queryByTestId('catalog-panel')).not.toBeInTheDocument();
-    expect(replaceStateSpy).toHaveBeenCalledWith(null, '', '/products?tab=market_intelligence');
-  });
-
-  it('reads the Market Intelligence tab from ?tab=market_intelligence', () => {
-    urlTab = 'market_intelligence';
-    render(<ProductsScreen />);
-    expect(screen.getByTestId('commerce-market-panel')).toBeInTheDocument();
-  });
-
-  it('supports ArrowRight keyboard navigation between tabs', async () => {
-    const user = userEvent.setup();
-    render(<ProductsScreen />);
-
-    screen.getByRole('tab', { name: 'Discover' }).focus();
-    await user.keyboard('{ArrowRight}');
-    expect(screen.getByRole('tab', { name: 'Catalog' })).toHaveFocus();
-    expect(screen.getByTestId('catalog-panel')).toBeInTheDocument();
+    expect(enabledCalls.opportunities).toHaveBeenLastCalledWith(true);
+    expect(enabledCalls.overview).toHaveBeenLastCalledWith(false);
+    expect(enabledCalls.catalog).toHaveBeenLastCalledWith(false);
+    expect(enabledCalls.visibility).toHaveBeenLastCalledWith(false);
+    expect(enabledCalls.competitors).toHaveBeenLastCalledWith(false);
   });
 });

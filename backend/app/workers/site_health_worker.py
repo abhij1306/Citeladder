@@ -60,7 +60,7 @@ from app.core.config.site_health_runtime import (
 )
 from app.core.config.task_queue import TASK_STATUS_RUNNING
 from app.core.database import SessionLocal
-from app.core.telemetry import configure_logging
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.site_health.schemas import (
     DiscoveryOutput,
 )
@@ -734,6 +734,7 @@ class SiteHealthWorker(
 
 def main() -> None:  # pragma: no cover - process entrypoint
     configure_logging()
+    instrument_worker("site-health-worker")
     worker = SiteHealthWorker()
     asyncio.run(worker.run_forever())
 

@@ -28,6 +28,7 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.core.database import SessionLocal, dispose_engine
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.projects.discovery import process_discovery
 from app.models.discovery import BrandDiscovery, BrandDiscoveryTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
@@ -247,6 +248,8 @@ async def _run_loop(worker_id: str, shutdown: asyncio.Event) -> None:
 
 
 async def main() -> None:
+    configure_logging()
+    instrument_worker("brand-discovery-worker")
     worker_id = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
     shutdown = asyncio.Event()
     _install_shutdown_handler(shutdown)

@@ -257,9 +257,18 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("LOGFIRE_TOKEN", "logfire_token"),
     )
+    # BASE name only. Each runnable process appends its own role suffix
+    # (``citeladder-api``, ``citeladder-audit-worker``) in ``core/telemetry.py``,
+    # because compose gives every service the same environment block.
     logfire_service_name: str = Field(
-        default="citeladder-backend",
+        default="citeladder",
         validation_alias=AliasChoices("LOGFIRE_SERVICE_NAME", "logfire_service_name"),
+    )
+    # Region-specific Logfire ingest endpoint. Configurable so a self-hosted or
+    # EU deployment is an environment change, not a code change.
+    logfire_base_url: str = Field(
+        default="https://logfire-us.pydantic.dev",
+        validation_alias=AliasChoices("LOGFIRE_BASE_URL", "logfire_base_url"),
     )
     logfire_environment: str = Field(
         default="",

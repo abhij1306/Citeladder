@@ -1,0 +1,34 @@
+{
+  "name": "citeladder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Evidence-grounded growth intelligence platform. Root manifest: a single entry point for the install, build, test, and lint commands of the Next.js frontend (frontend/) and the FastAPI backend (backend/). It declares no dependencies of its own and is never installed — pnpm's workspace root is frontend/, and Python dependencies are owned by backend/uv.lock.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abhij1306/Citeladder.git"
+  },
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "setup": "pnpm run setup:frontend && pnpm run setup:backend",
+    "setup:frontend": "pnpm --dir frontend install --frozen-lockfile",
+    "setup:backend": "uv sync --frozen --extra dev --directory backend",
+    "build": "pnpm --dir frontend build",
+    "dev": "pnpm --dir frontend dev",
+    "test": "pnpm run test:frontend && pnpm run test:backend",
+    "test:frontend": "pnpm --dir frontend test",
+    "test:backend": "uv run --directory backend python -m pytest",
+    "test:e2e": "pnpm --dir frontend test:e2e",
+    "lint": "pnpm run lint:frontend && pnpm run lint:backend",
+    "lint:frontend": "pnpm --dir frontend lint",
+    "lint:backend": "uv run --directory backend ruff check .",
+    "format": "pnpm --dir frontend format",
+    "format:check": "pnpm --dir frontend format:check",
+    "typecheck": "pnpm run typecheck:frontend && pnpm run typecheck:backend",
+    "typecheck:frontend": "pnpm --dir frontend exec tsc --noEmit",
+    "typecheck:backend": "uv run --directory backend mypy"
+  }
+}

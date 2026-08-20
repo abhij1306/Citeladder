@@ -74,8 +74,12 @@ def _project_competitors(project: Project) -> list[dict[str, Any]]:
             ),
             "name": competitor_product.name or "",
             "aliases": list(competitor_product.aliases or []),
+            "variants": _project_variants(competitor_product.variants),
             "price": _price(competitor_product.price),
             "currency": competitor_product.currency or "",
+            "url": competitor_product.url or "",
+            "attributes": dict(competitor_product.attributes or {}),
+            "availability": competitor_product.availability or "",
         }
         for competitor_product in project.competitor_products
     ]

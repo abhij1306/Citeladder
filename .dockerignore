@@ -33,5 +33,3 @@ frontend/**/*.test.ts
 frontend/**/*.test.tsx
 backend/tests
 backend/scripts
-
-infra/docker/.env

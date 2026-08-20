@@ -129,7 +129,7 @@ The deployment performs these actions:
 1. verifies the AWS account and region;
 2. creates the two ECR repositories if absent and enables scan-on-push;
 3. builds and pushes one immutable-tagged backend image from
-   `infra/docker/Dockerfile`;
+   root [`Dockerfile`](../../Dockerfile);
 4. builds and pushes one immutable-tagged frontend image from
    `infra/aws/frontend.Dockerfile`;
 5. creates/updates CloudWatch log groups;

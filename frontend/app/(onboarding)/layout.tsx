@@ -8,7 +8,7 @@ import { ProjectProvider } from '@/lib/project/project-context';
 /**
  * Onboarding is authenticated but deliberately has no application shell. It
  * still needs the same project context as the app because completion selects
- * the newly created project before navigating to activation progress.
+ * the newly created project before navigating to the command center.
  */
 export default function OnboardingLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (

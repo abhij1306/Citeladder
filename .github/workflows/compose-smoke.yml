@@ -39,7 +39,7 @@ jobs:
 
       - name: Create disposable Compose environment
         run: |
-          cat > infra/docker/.env <<'EOF'
+          cat > .env <<'EOF'
           APP_ENV=development
           POSTGRES_DB=citeladder_smoke
           POSTGRES_USER=postgres
@@ -58,7 +58,7 @@ jobs:
       - name: Build and start empty-database stack
         run: |
           set -euo pipefail
-          compose=(env -u POSTGRES_DB -u POSTGRES_USER -u POSTGRES_PASSWORD -u DATABASE_URL docker compose --project-name citeladder-smoke --env-file infra/docker/.env -f infra/docker/docker-compose.yml)
+          compose=(env -u POSTGRES_DB -u POSTGRES_USER -u POSTGRES_PASSWORD -u DATABASE_URL docker compose --project-name citeladder-smoke --env-file .env -f docker-compose.yml)
           cleanup() {
             status=$?
             if [ "$status" -ne 0 ]; then

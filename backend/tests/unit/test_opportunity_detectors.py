@@ -9,6 +9,7 @@ import pytest
 from app.analysis.opportunities.detectors import (
     AnalysisEvidence,
     CommerceEvidence,
+    ProductAttributeGapEvidence,
     ProductEntryEvidence,
     PromptSnapshotEvidence,
     SiteEvidence,
@@ -19,6 +20,7 @@ from app.analysis.opportunities.detectors import (
     detect_competitor_product_dominates,
     detect_owned_page_not_cited,
     detect_price_mention_mismatch,
+    detect_product_attribute_gap,
     detect_product_not_mentioned,
     detect_site_issue_opportunities,
 )
@@ -493,6 +495,29 @@ def test_product_not_mentioned_fires_on_zero_mentions() -> None:
     assert hit.evidence["audit_id"] == str(evidence.audit_id)
     # Competitor products never fire the own-catalog rule.
     assert hit.target_key != "competitor-product:c-zero"
+
+
+def test_product_attribute_gap_uses_persisted_comparison_provenance() -> None:
+    metric_id = str(uuid.uuid4())
+    evidence = CommerceEvidence(
+        audit_id=uuid.uuid4(),
+        entries=(),
+        attribute_gaps=(
+            ProductAttributeGapEvidence(
+                product_id="p-gap",
+                product_name="Summit 40L",
+                product_sku="SUMMIT-40",
+                competitor_name="TrailBlaze",
+                gaps=({"field": "warranty", "competitor_value": "Lifetime"},),
+                source_metric_ids=(metric_id,),
+            ),
+        ),
+    )
+    (hit,) = detect_product_attribute_gap(evidence)
+    assert hit.rule_id == "product_attribute_gap"
+    assert hit.target_key == "product:p-gap"
+    assert hit.source_metric_ids == (metric_id,)
+    assert hit.evidence["attribute_gaps"][0]["field"] == "warranty"
 
 
 def test_product_not_mentioned_empty_evidence_yields_no_hits() -> None:

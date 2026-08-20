@@ -69,10 +69,10 @@ sites:
 ```python
 from fastapi import status
 from app.core.http_errors import (
-    api_error,          # build one (for a router-local `_not_found(exc)` factory)
-    raise_api_error,    # plain failure; code defaults to the status's canonical code
+    api_error,  # build one (for a router-local `_not_found(exc)` factory)
+    raise_api_error,  # plain failure; code defaults to the status's canonical code
     raise_coded_error,  # coded dialect; `detail` stays the {"code", "message"} dict
-    raise_not_found,    # the repeated 404, detail exactly "{resource} not found"
+    raise_not_found,  # the repeated 404, detail exactly "{resource} not found"
 )
 
 raise_not_found("Crawl", cause=exc)
@@ -158,9 +158,7 @@ The shared error envelope includes the following stable coded failures for
 these routes: `url_hard_excluded`, `url_out_of_scope`,
 `url_preview_invalid`, `crawl_limit_not_available`, `acquisition_budget_exceeded`,
 `scraperapi_unavailable`, `opportunity_guidance_unavailable`,
-`opportunity_guidance_idempotency_conflict`,
-`commerce_candidate_not_found`, `commerce_candidate_already_accepted`,
-`competitor_match_requires_review`, and `comparison_snapshot_unavailable`.
+and `opportunity_guidance_idempotency_conflict`.
 They use the existing `{ code, message, request_id, details? }` envelope; details
 contain only safe validation or aggregate information and never secrets, raw HTML,
 or provider request headers.

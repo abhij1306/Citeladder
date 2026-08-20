@@ -47,7 +47,7 @@ causal claims.
 | Integrations/Traffic/Analytics/Demand | GSC/Traffic evidence, snapshots, signals |
 | Prompts/Audits/Visibility | Prompt portfolios and answer-engine measurement |
 | Opportunities | One persisted cross-system action store |
-| Commerce | Catalog/product specialization |
+| Commerce | Catalog/product specialization, audit-time analysis, visibility trends, and audit-bound competitor comparisons |
 | Growth Agent | Standalone explain/roadmap runs and append-only typed-tool attempts |
 
 The command-center read projection is useful before the first visibility audit.
@@ -347,6 +347,30 @@ after the Site Intelligence removal.
 - Derived data carries direct source IDs and relevant versions.
 - Configuration and product policy live under `app/core/config/*`.
 - PostgreSQL remains the durable queue; do not add Redis without measured need.
+
+## Observability
+
+Telemetry is optional and fails open. `app/core/telemetry.py` owns both the
+structured-logging setup and the Pydantic Logfire wiring; nothing ships to
+Logfire unless `LOGFIRE_ENABLED` is true AND `LOGFIRE_TOKEN` is set, and tests
+stay local unless `LOGFIRE_ENABLED_IN_TESTS` is also set. A missing token,
+missing SDK, or unavailable instrumentor degrades to the JSON stdout logs
+alone — telemetry never fails an import, a test run, or a process start.
+
+- Each runnable process configures Logfire once, under its own service name:
+  `instrument_fastapi(app)` reports as `<LOGFIRE_SERVICE_NAME>-api`, and each
+  worker's `instrument_worker("<role>")` reports as
+  `<LOGFIRE_SERVICE_NAME>-<role>`. Compose hands every service the same
+  environment block, so the role suffix has to come from the process entrypoint.
+- Shared instrumentation per process: system metrics, HTTPX, SQLAlchemy (bound
+  to the app engine), and a `LogfireLoggingHandler` added ALONGSIDE the
+  structlog stdout handler. Database spans come from SQLAlchemy only; adding
+  the asyncpg instrumentor on top would double every query span.
+- HTTPX instrumentation records method, URL, status, and timing. Request and
+  response bodies stay out of telemetry, so answer-engine prompts and
+  completions are never shipped off-box (invariant 6).
+- `LOGFIRE_BASE_URL` selects the region ingest endpoint; the write token lives
+  in `.env` or the deployment secret store and is never committed.
 
 ## Verification
 

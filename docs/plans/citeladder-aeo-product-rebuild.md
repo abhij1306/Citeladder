@@ -1799,15 +1799,15 @@ Runs **after** all feature slices merge, so no partial migration or stale image 
    ```bash
    env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
      POSTGRES_PASSWORD=<repo-.env-value> \
-     docker compose -f infra/docker/docker-compose.yml build --no-cache
+     docker compose build --no-cache
    env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
      POSTGRES_PASSWORD=<repo-.env-value> \
-     docker compose -f infra/docker/docker-compose.yml up -d --force-recreate
+     docker compose up -d --force-recreate
    ```
    Do **not** run a blanket `docker image prune -f` — it affects unrelated images on the
    machine and is not required for correctness.
    (The `env -u …` form is mandatory — see the Compose gotcha in
-   [`docker-compose.yml`](../../infra/docker/docker-compose.yml) and invariant 11 of
+   [`docker-compose.yml`](../../docker-compose.yml) and invariant 11 of
    `DEVELOPMENT.md`.)
 5. **Repopulate and re-verify end to end** on the clean stack: onboard a project (confirm ICP)
    → crawl → connect GSC/GA4 → sync → recompute demand/opportunities → run an audit → confirm

@@ -70,6 +70,7 @@ def test_v2_enabled_rule_set() -> None:
         "product_not_mentioned",
         "competitor_product_dominates",
         "price_mention_mismatch",
+        "product_attribute_gap",
         "confirmed_prompt_decline",
         "search_demand_content_gap",
         "striking_distance_query",
@@ -95,7 +96,7 @@ def test_vocabulary_frozensets_non_empty() -> None:
     assert OPPORTUNITY_STATUSES
     assert OPPORTUNITY_ACTIVE_STATUSES
     assert OPPORTUNITY_ACTIVE_STATUSES <= OPPORTUNITY_STATUSES
-    assert OPPORTUNITY_TYPES == {"visibility", "site", "traffic", "topic"}
+    assert OPPORTUNITY_TYPES == {"visibility", "commerce", "site", "traffic", "topic"}
     assert OPPORTUNITY_SEVERITIES == {
         "critical",
         "high",

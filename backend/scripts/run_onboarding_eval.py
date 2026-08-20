@@ -11,7 +11,7 @@ Usage (from ``backend/``)::
     uv run python -m scripts.run_onboarding_eval --baseline
     uv run python -m scripts.run_onboarding_eval --case feedonomics-united-states
 
-Credentials are read from ``infra/docker/.env`` when the process environment
+Credentials are read from the repository-root ``.env`` when the process environment
 does not already carry them.  Keys are never logged.
 """
 
@@ -34,8 +34,8 @@ if str(BACKEND) not in sys.path:
 
 
 def _load_env() -> None:
-    """Populate the process env from infra/docker/.env without overriding it."""
-    env_path = REPOSITORY / "infra" / "docker" / ".env"
+    """Populate the process env from the root .env without overriding it."""
+    env_path = REPOSITORY / ".env"
     if not env_path.exists():
         return
     for line in env_path.read_text(encoding="utf-8").splitlines():

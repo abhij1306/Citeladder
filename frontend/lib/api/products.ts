@@ -16,6 +16,7 @@ import {
   productImportResponseSchema,
   productSchema,
   productVisibilitySchema,
+  productVisibilityTrendResponseSchema,
   strictValidate,
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
@@ -26,6 +27,7 @@ import type {
   ProductEvidenceResponse,
   ProductImportResponse,
   ProductVisibility,
+  ProductVisibilityTrend,
 } from './types';
 
 const productListSchema = z.array(productSchema);
@@ -54,6 +56,9 @@ export type CompetitorProductInput = {
   price?: number | null;
   currency?: string;
   url?: string;
+  variants?: { name: string; sku?: string; price?: number | null }[];
+  attributes?: Record<string, unknown>;
+  availability?: string;
 };
 
 export type CompetitorProductUpdateInput = Partial<Omit<CompetitorProductInput, 'competitor_id'>>;
@@ -190,6 +195,25 @@ export const productsApi = {
       options,
     );
     return strictValidate(productVisibilitySchema, res, 'products.getProductVisibility');
+  },
+  getProductVisibilityTrend: async (
+    projectId: string,
+    productId: string,
+    engine?: string,
+    options?: ApiRequestOptions,
+  ) => {
+    const res = await apiClient.get<ProductVisibilityTrend>(
+      withQuery(
+        `/projects/${projectId}/products/visibility/trends`,
+        definedQuery({ product_id: productId, engine }),
+      ),
+      options,
+    );
+    return strictValidate(
+      productVisibilityTrendResponseSchema,
+      res,
+      'products.getProductVisibilityTrend',
+    );
   },
   /** Persisted mention evidence for one product (bounded, newest-first). */
   getProductEvidence: async (

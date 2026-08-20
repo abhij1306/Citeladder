@@ -55,7 +55,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_RUNNING,
 )
 from app.core.database import SessionLocal
-from app.core.telemetry import configure_logging
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.audits.state_events import apply_transition, record_event
 from app.domain.entitlements.ledger import (
     release_terminal_funded_task,
@@ -528,6 +528,7 @@ class AuditWorker(AuditExecutionMixin, AuditTerminalizationMixin, DrainableWorke
 
 def main() -> None:  # pragma: no cover - process entrypoint
     configure_logging()
+    instrument_worker("audit-worker")
     worker = AuditWorker()
     asyncio.run(worker.run_forever())
 

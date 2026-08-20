@@ -177,13 +177,7 @@ export function useOnboardingFlow() {
         .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() }))
         .catch(() => undefined);
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() });
-      const params = new URLSearchParams({ project: result.project_id });
-      if (result.crawl_id) {
-        params.set('activation', '1');
-        params.set('crawl', result.crawl_id);
-        if (result.page_limit !== null) params.set('limit', String(result.page_limit));
-      }
-      router.replace(`/projects?${params.toString()}`);
+      router.replace('/projects');
     },
   });
 

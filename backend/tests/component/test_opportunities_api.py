@@ -175,6 +175,7 @@ async def test_recompute_returns_snapshot_with_provenance(
         "topic": 0,
         "traffic": 0,
         "visibility": 2,
+        "commerce": 0,
     }
     assert body["counts_by_severity"]["high"] == 1
     assert body["counts_by_status"]["open"] == 4

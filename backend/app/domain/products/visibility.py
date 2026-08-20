@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -40,24 +41,28 @@ from app.domain.products.schemas import (
     FrozenPromptContext,
     ProductVisibilityEntry,
     ProductVisibilityResponse,
+    ProductVisibilitySummary,
+    ProductVisibilityTrendPoint,
+    ProductVisibilityTrendResponse,
 )
 from app.models.audit import Audit, AuditPromptSnapshot, AuditTask
 from app.models.product import (
+    Product,
     ProductMention,
     ProductMetricSnapshot,
     ProductResponseAnalysis,
 )
+from app.models.project import Project
 
 # A run is projection-eligible when fully or partially completed (mirror B6).
 _DASHBOARD_STATUSES = (
     AUDIT_STATUS_COMPLETED,
     AUDIT_STATUS_PARTIALLY_COMPLETED,
 )
+_AUDIT_RECENCY_ORDER = (Audit.completed_at.desc().nullslast(), Audit.created_at.desc())
 
-# Single source for the repeated "audit missing" detail (asserted by tests).
 _AUDIT_NOT_FOUND = "Audit not found"
 
-# Zero-value fallbacks for the strict JSONB shapes (v1 rows / no data).
 _EMPTY_DESTINATION_MIX: dict[str, Any] = {"total": 0, "by_kind": [], "by_domain": []}
 _EMPTY_CO_PLACEMENT: dict[str, Any] = {"items": [], "truncated": False}
 
@@ -249,11 +254,47 @@ ConversationContext = dict[
 ]
 
 
+def _rate(numerator: int, denominator: int) -> float:
+    return round(numerator / denominator, 4) if denominator else 0.0
+
+
+def _top_three(metrics: dict[str, Any]) -> int:
+    distribution = metrics["rank_distribution"]
+    return int(distribution.get("top_1") or 0) + int(distribution.get("top_2_3") or 0)
+
+
+async def _analysis_count(
+    session: AsyncSession, *, audit_id: uuid.UUID, engine: str | None
+) -> int:
+    statement = (
+        select(func.count())
+        .select_from(ProductResponseAnalysis)
+        .where(ProductResponseAnalysis.audit_id == audit_id)
+    )
+    if engine is not None:
+        statement = statement.where(ProductResponseAnalysis.logical_engine == engine)
+    return int(await session.scalar(statement) or 0)
+
+
+def _engine_coverage(snapshot: ProductMetricSnapshot, engine: str | None) -> int:
+    per_engine = (snapshot.metrics or {}).get("per_engine") or {}
+    if engine is not None:
+        aggregate = per_engine.get(engine) or {}
+        return int(int(aggregate.get("mention_count") or 0) > 0)
+    return sum(
+        int(int((aggregate or {}).get("mention_count") or 0) > 0)
+        for aggregate in per_engine.values()
+    )
+
+
 def _own_visibility_entries(
     config: ProductScoringConfig,
     by_entry: dict[str, ProductMetricSnapshot],
     sliced: dict[str, dict[str, Any]],
     conversation: ConversationContext,
+    total_analyses: int,
+    previous_visibility: dict[uuid.UUID, float],
+    engine: str | None,
 ) -> list[ProductVisibilityEntry]:
     projected: list[ProductVisibilityEntry] = []
     for entry in config.products:
@@ -287,6 +328,18 @@ def _own_visibility_entries(
                 prompt_coverage=coverage,
                 frozen_prompt_context=prompts,
                 conversation_themes=themes,
+                visibility_rate=_rate(metrics["mention_count"], total_analyses),
+                top_three_rate=_rate(_top_three(metrics), total_analyses),
+                engine_coverage=_engine_coverage(snapshot, engine),
+                visibility_delta=(
+                    round(
+                        _rate(metrics["mention_count"], total_analyses)
+                        - previous_visibility[snapshot.product_id],
+                        4,
+                    )
+                    if snapshot.product_id in previous_visibility
+                    else None
+                ),
             )
         )
     return projected
@@ -297,6 +350,8 @@ def _competitor_visibility_entries(
     by_entry: dict[str, ProductMetricSnapshot],
     sliced: dict[str, dict[str, Any]],
     conversation: ConversationContext,
+    total_analyses: int,
+    engine: str | None,
 ) -> list[CompetitorProductVisibilityEntry]:
     projected: list[CompetitorProductVisibilityEntry] = []
     for entry in config.competitor_products:
@@ -333,6 +388,9 @@ def _competitor_visibility_entries(
                 prompt_coverage=coverage,
                 frozen_prompt_context=prompts,
                 conversation_themes=themes,
+                visibility_rate=_rate(metrics["mention_count"], total_analyses),
+                top_three_rate=_rate(_top_three(metrics), total_analyses),
+                engine_coverage=_engine_coverage(snapshot, engine),
             )
         )
     return projected
@@ -376,15 +434,25 @@ async def get_product_visibility(
     }
     conversation = await _conversation_context(session, audit_id=audit.id)
 
-    products = _own_visibility_entries(config, by_entry, sliced, conversation)
-    competitor_products = _competitor_visibility_entries(
-        config, by_entry, sliced, conversation
+    total_analyses = await _analysis_count(session, audit_id=audit.id, engine=engine)
+    previous_visibility = await _previous_visibility_rates(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        before=audit.created_at,
+        engine=engine,
     )
-
-    total_analyses = await session.scalar(
-        select(func.count())
-        .select_from(ProductResponseAnalysis)
-        .where(ProductResponseAnalysis.audit_id == audit.id)
+    products = _own_visibility_entries(
+        config,
+        by_entry,
+        sliced,
+        conversation,
+        total_analyses,
+        previous_visibility,
+        engine,
+    )
+    competitor_products = _competitor_visibility_entries(
+        config, by_entry, sliced, conversation, total_analyses, engine
     )
     # Response-level version label: the first catalog entry's selected
     # snapshot (deterministic catalog order). Row-level DTOs carry their own
@@ -404,11 +472,253 @@ async def get_product_visibility(
         product_analyzer_version=first.product_analyzer_version,
         product_scoring_rule_version=first.product_scoring_rule_version,
         total_mentions=sum(m["mention_count"] for m in sliced.values()),
-        total_analyses=int(total_analyses or 0),
+        total_analyses=total_analyses,
+        summary=_visibility_summary(products, competitor_products, total_analyses),
         products=products,
         competitor_products=competitor_products,
         created_at=max(s.created_at for s in selected),
     )
+
+
+def _visibility_summary(
+    products: list[ProductVisibilityEntry],
+    competitors: list[CompetitorProductVisibilityEntry],
+    total_analyses: int,
+) -> ProductVisibilitySummary:
+    denominator = total_analyses * len(products)
+    ranked = [entry for entry in products if entry.avg_rank is not None]
+    rank_mentions = sum(entry.mention_count for entry in ranked)
+    average_rank = (
+        round(
+            sum((entry.avg_rank or 0) * entry.mention_count for entry in ranked)
+            / rank_mentions,
+            2,
+        )
+        if rank_mentions
+        else None
+    )
+    return ProductVisibilitySummary(
+        products_tracked=len(products),
+        products_visible=sum(entry.mention_count > 0 for entry in products),
+        visibility_rate=_rate(
+            sum(entry.mention_count for entry in products), denominator
+        ),
+        top_three_rate=_rate(
+            sum(
+                _top_three({"rank_distribution": entry.rank_distribution})
+                for entry in products
+            ),
+            denominator,
+        ),
+        average_rank=average_rank,
+        competitor_wins=sum(
+            int(entry.rank_distribution.get("top_1") or 0) for entry in competitors
+        ),
+    )
+
+
+async def _previous_visibility_rates(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    before: datetime,
+    engine: str | None,
+) -> dict[uuid.UUID, float]:
+    previous_audit_id = await session.scalar(
+        select(Audit.id)
+        .where(
+            Audit.workspace_id == workspace_id,
+            Audit.project_id == project_id,
+            Audit.status.in_(_DASHBOARD_STATUSES),
+            Audit.created_at < before,
+            select(ProductMetricSnapshot.id)
+            .where(ProductMetricSnapshot.audit_id == Audit.id)
+            .exists(),
+        )
+        .order_by(*_AUDIT_RECENCY_ORDER)
+        .limit(1)
+    )
+    if previous_audit_id is None:
+        return {}
+    snapshots = list(
+        (
+            await session.scalars(
+                select(ProductMetricSnapshot).where(
+                    ProductMetricSnapshot.audit_id == previous_audit_id,
+                    ProductMetricSnapshot.workspace_id == workspace_id,
+                    ProductMetricSnapshot.product_id.is_not(None),
+                )
+            )
+        ).all()
+    )
+    total = await _analysis_count(session, audit_id=previous_audit_id, engine=engine)
+    return {
+        snapshot.product_id: _rate(
+            _entry_metrics(snapshot, engine)["mention_count"], total
+        )
+        for snapshot in select_current_snapshots(snapshots).values()
+        if snapshot.product_id is not None
+    }
+
+
+async def get_product_visibility_trend(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    product_id: uuid.UUID,
+    engine: str | None = None,
+    limit: int = 3,
+) -> ProductVisibilityTrendResponse:
+    if engine is not None and engine not in LOGICAL_ENGINES:
+        raise TrendQueryError(f"Unknown logical engine: {engine!r}")
+    product = await session.scalar(
+        select(Product)
+        .join(Project, Product.project_id == Project.id)
+        .where(
+            Product.id == product_id,
+            Product.project_id == project_id,
+            Project.workspace_id == workspace_id,
+        )
+    )
+    if product is None:
+        raise AnalysisNotFoundError("Product not found")
+    audit_ids = await _trend_audit_ids(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        product_id=product_id,
+        limit=limit,
+    )
+    audits, selected = await _trend_sources(
+        session, audit_ids=audit_ids, product_id=product_id
+    )
+    totals = await _trend_totals(session, audit_ids=audit_ids, engine=engine)
+    points = _trend_points(
+        audit_ids=audit_ids,
+        audits=audits,
+        snapshots=selected,
+        totals=totals,
+        engine=engine,
+    )
+    return ProductVisibilityTrendResponse(
+        project_id=project_id,
+        product_id=product.id,
+        sku=product.sku,
+        name=product.name,
+        points=points,
+    )
+
+
+async def _trend_audit_ids(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    product_id: uuid.UUID,
+    limit: int,
+) -> list[uuid.UUID]:
+    return list(
+        (
+            await session.scalars(
+                select(Audit.id)
+                .where(
+                    Audit.workspace_id == workspace_id,
+                    Audit.project_id == project_id,
+                    Audit.status.in_(_DASHBOARD_STATUSES),
+                    select(ProductMetricSnapshot.id)
+                    .where(
+                        ProductMetricSnapshot.audit_id == Audit.id,
+                        ProductMetricSnapshot.product_id == product_id,
+                    )
+                    .exists(),
+                )
+                .order_by(*_AUDIT_RECENCY_ORDER)
+                .limit(limit)
+            )
+        ).all()
+    )
+
+
+async def _trend_sources(
+    session: AsyncSession,
+    *,
+    audit_ids: list[uuid.UUID],
+    product_id: uuid.UUID,
+) -> tuple[dict[uuid.UUID, Audit], dict[uuid.UUID, ProductMetricSnapshot]]:
+    audits = {
+        row.id: row
+        for row in (
+            await session.scalars(select(Audit).where(Audit.id.in_(audit_ids)))
+        ).all()
+    }
+    snapshots = list(
+        (
+            await session.scalars(
+                select(ProductMetricSnapshot).where(
+                    ProductMetricSnapshot.audit_id.in_(audit_ids),
+                    ProductMetricSnapshot.product_id == product_id,
+                )
+            )
+        ).all()
+    )
+    selected: dict[uuid.UUID, ProductMetricSnapshot] = {}
+    for snapshot in snapshots:
+        existing = selected.get(snapshot.audit_id)
+        if existing is None or (
+            _is_current_version(snapshot) and not _is_current_version(existing)
+        ):
+            selected[snapshot.audit_id] = snapshot
+    return audits, selected
+
+
+async def _trend_totals(
+    session: AsyncSession,
+    *,
+    audit_ids: list[uuid.UUID],
+    engine: str | None,
+) -> dict[uuid.UUID, int]:
+    totals_statement = select(ProductResponseAnalysis.audit_id, func.count()).where(
+        ProductResponseAnalysis.audit_id.in_(audit_ids)
+    )
+    if engine is not None:
+        totals_statement = totals_statement.where(
+            ProductResponseAnalysis.logical_engine == engine
+        )
+    result = await session.execute(
+        totals_statement.group_by(ProductResponseAnalysis.audit_id)
+    )
+    total_rows = result.all()
+    return {audit_id: count for audit_id, count in total_rows}
+
+
+def _trend_points(
+    *,
+    audit_ids: list[uuid.UUID],
+    audits: dict[uuid.UUID, Audit],
+    snapshots: dict[uuid.UUID, ProductMetricSnapshot],
+    totals: dict[uuid.UUID, int],
+    engine: str | None,
+) -> list[ProductVisibilityTrendPoint]:
+    points: list[ProductVisibilityTrendPoint] = []
+    for audit_id in reversed(audit_ids):
+        trend_snapshot = snapshots.get(audit_id)
+        audit = audits.get(audit_id)
+        if trend_snapshot is None or audit is None:
+            continue
+        metrics = _entry_metrics(trend_snapshot, engine)
+        denominator = int(totals.get(audit_id) or 0)
+        points.append(
+            ProductVisibilityTrendPoint(
+                audit_id=audit_id,
+                observed_at=audit.completed_at or audit.created_at,
+                visibility_rate=_rate(metrics["mention_count"], denominator),
+                top_three_rate=_rate(_top_three(metrics), denominator),
+                average_rank=metrics["avg_rank"],
+            )
+        )
+    return points
 
 
 def _snapshot_entry_id(snapshot: ProductMetricSnapshot) -> str:
@@ -485,6 +795,6 @@ async def _latest_product_audit_id(
             Audit.status.in_(_DASHBOARD_STATUSES),
             has_snapshots,
         )
-        .order_by(Audit.completed_at.desc().nullslast(), Audit.created_at.desc())
+        .order_by(*_AUDIT_RECENCY_ORDER)
         .limit(1)
     )

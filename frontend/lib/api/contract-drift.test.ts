@@ -117,9 +117,7 @@ describe('diffContract', () => {
   it('does NOT fail when an absent-tolerant (defaulted) field is missing', () => {
     const auditKeys = declaredKeysFor('auditSchema');
     const properties = Object.fromEntries(
-      (auditKeys?.declared ?? [])
-        .filter((k) => k !== 'measurement_mode')
-        .map((k) => [k, {}]),
+      (auditKeys?.declared ?? []).filter((k) => k !== 'measurement_mode').map((k) => [k, {}]),
     );
     const result = diffContract(
       specWith({ ...realComponentsExcept(['AuditResponse']), AuditResponse: { properties } }),

@@ -36,8 +36,8 @@ from app.core.config.projects import (
 # catalog change, and ``FORMULA_VERSION`` on any scoring change so a derived
 # row is always traceable to the exact logic that produced it (mirrors
 # ``SCORING_RULE_VERSION`` in ``config/analysis.py``).
-ANALYZER_VERSION: Final = "opp-analyzer-5"
-RULE_VERSION: Final = "opp-rules-6"
+ANALYZER_VERSION: Final = "opp-analyzer-6"
+RULE_VERSION: Final = "opp-rules-7"
 FORMULA_VERSION: Final = "opp-formula-1"
 CONFIRMED_DECLINE_MIN_FACTOR: Final = 0.1
 CONFIRMED_DECLINE_GAP_NORMALIZER: Final = 10.0
@@ -49,12 +49,14 @@ DEMAND_SIGNAL_GAP_FACTOR: Final = 2.0
 # =========================================================================
 # Opportunity type: which subsystem family the rule's evidence comes from.
 OPPORTUNITY_TYPE_VISIBILITY: Final = "visibility"
+OPPORTUNITY_TYPE_COMMERCE: Final = "commerce"
 OPPORTUNITY_TYPE_SITE: Final = "site"
 OPPORTUNITY_TYPE_TRAFFIC: Final = "traffic"
 OPPORTUNITY_TYPE_TOPIC: Final = "topic"
 OPPORTUNITY_TYPES: Final[frozenset[str]] = frozenset(
     {
         OPPORTUNITY_TYPE_VISIBILITY,
+        OPPORTUNITY_TYPE_COMMERCE,
         OPPORTUNITY_TYPE_SITE,
         OPPORTUNITY_TYPE_TRAFFIC,
         OPPORTUNITY_TYPE_TOPIC,
@@ -166,9 +168,8 @@ class OpportunityRule:
 # the three commerce-derived rules are enabled; ``low_share_of_voice_theme``
 # (no persisted per-topic SOV aggregate) and ``high_traffic_low_visibility``
 # (no Traffic surface) ship disabled as documented config-only entries. The
-# commerce rules are typed ``visibility``: their evidence is the same audit's
-# persisted product-analysis slice (ProductMetricSnapshot/ProductMention), so
-# no new opportunity-type token is introduced.
+# Commerce rules use their own type so the Commerce Suite can reuse the shared
+# Opportunity owner without mixing product actions into brand visibility.
 OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
     OpportunityRule(
         rule_id="brand_absent_high_value_prompt",
@@ -284,7 +285,7 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
     ),
     OpportunityRule(
         rule_id="product_not_mentioned",
-        opportunity_type=OPPORTUNITY_TYPE_VISIBILITY,
+        opportunity_type=OPPORTUNITY_TYPE_COMMERCE,
         severity=SEVERITY_HIGH,
         title="Catalog product never mentioned by answer engines",
         remediation=(
@@ -296,7 +297,7 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
     ),
     OpportunityRule(
         rule_id="competitor_product_dominates",
-        opportunity_type=OPPORTUNITY_TYPE_VISIBILITY,
+        opportunity_type=OPPORTUNITY_TYPE_COMMERCE,
         severity=SEVERITY_HIGH,
         title="Competitor product dominates product share of voice",
         remediation=(
@@ -308,7 +309,7 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
     ),
     OpportunityRule(
         rule_id="price_mention_mismatch",
-        opportunity_type=OPPORTUNITY_TYPE_VISIBILITY,
+        opportunity_type=OPPORTUNITY_TYPE_COMMERCE,
         severity=SEVERITY_MEDIUM,
         title="Quoted prices disagree with the catalog",
         remediation=(
@@ -316,6 +317,16 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
             " this product. Make the current price prominent and"
             " machine-readable on the product page (visible price plus"
             " schema.org Offer markup) so engines stop citing stale figures."
+        ),
+    ),
+    OpportunityRule(
+        rule_id="product_attribute_gap",
+        opportunity_type=OPPORTUNITY_TYPE_COMMERCE,
+        severity=SEVERITY_HIGH,
+        title="Competitor product includes stronger attribute coverage",
+        remediation=(
+            "Review the observed attribute gaps and make the applicable product "
+            "details explicit in the catalog and visible product content."
         ),
     ),
     OpportunityRule(

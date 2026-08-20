@@ -106,6 +106,10 @@ def test_shim_produces_expected_dict_shape() -> None:
         "aliases": ["CityCommuter"],
         "price": 2399.00,
         "currency": "USD",
+        "url": "",
+        "variants": [],
+        "attributes": {},
+        "availability": "",
     }
     assert isinstance(competitor_product["price"], float)
 

@@ -95,6 +95,12 @@ const BACKEND_ORIGIN = resolveBackendOrigin();
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  // Pinned explicitly because the repository root now carries a delegating
+  // `package.json`. Next infers the tracing root by walking up for a lockfile
+  // or workspace manifest, so an ancestor manifest can silently move the root
+  // and change which files land in `.next/standalone`. This directory is the
+  // real application root; state it rather than depend on the inference.
+  outputFileTracingRoot: import.meta.dirname,
   // Next 16.3's standalone tracer copies only `@swc/helpers/cjs`, but the
   // generated server chunks require the `esm/` variants, so `node server.js`
   // in the runtime image dies on `Cannot find module

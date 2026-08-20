@@ -10,6 +10,7 @@ from app.analysis.opportunities.detectors import (
     AnalysisEvidence,
     CommerceEvidence,
     DetectorHit,
+    ProductAttributeGapEvidence,
     ProductEntryEvidence,
     PromptSnapshotEvidence,
     SiteEvidence,
@@ -20,6 +21,7 @@ from app.analysis.opportunities.detectors import (
     detect_competitor_product_dominates,
     detect_owned_page_not_cited,
     detect_price_mention_mismatch,
+    detect_product_attribute_gap,
     detect_product_not_mentioned,
     detect_site_issue_opportunities,
 )
@@ -76,6 +78,7 @@ from app.models.analysis import (
 )
 from app.models.audit import Audit, AuditPromptSnapshot
 from app.models.brand import OwnedDomain
+from app.models.commerce import CompetitorComparisonSnapshot
 from app.models.demand import DemandSnapshot
 from app.models.opportunity import (
     Opportunity,
@@ -394,6 +397,56 @@ def _project_commerce_entry(
     )
 
 
+def _project_commerce_entries(config, by_entry) -> list[ProductEntryEvidence]:
+    own = [
+        _project_commerce_entry(
+            snapshot=by_entry.get(entry.id),
+            entry_id=entry.id,
+            kind="product",
+            name=entry.name,
+            sku=entry.sku,
+            competitor_name="",
+        )
+        for entry in config.products
+    ]
+    competitors = [
+        _project_commerce_entry(
+            snapshot=by_entry.get(entry.id),
+            entry_id=entry.id,
+            kind="competitor_product",
+            name=entry.name,
+            sku="",
+            competitor_name=entry.competitor,
+        )
+        for entry in config.competitor_products
+    ]
+    return own + competitors
+
+
+def _comparison_attribute_gaps(
+    comparison: CompetitorComparisonSnapshot | None,
+) -> tuple[ProductAttributeGapEvidence, ...]:
+    if comparison is None:
+        return ()
+    payload = comparison.comparison or {}
+    source_metric_ids = tuple(
+        str(value) for value in (payload.get("source_metric_ids") or [])
+    )
+    return tuple(
+        ProductAttributeGapEvidence(
+            product_id=str(item.get("own_product", {}).get("id") or ""),
+            product_name=str(item.get("own_product", {}).get("name") or ""),
+            product_sku=str(item.get("own_product", {}).get("sku") or ""),
+            competitor_name=str(
+                item.get("competitor_product", {}).get("competitor_name") or ""
+            ),
+            gaps=tuple(item.get("attribute_gaps") or []),
+            source_metric_ids=source_metric_ids,
+        )
+        for item in (payload.get("items") or [])
+    )
+
+
 async def _load_commerce_evidence(
     session: AsyncSession, *, workspace_id: uuid.UUID, audit: Audit
 ) -> CommerceEvidence:
@@ -427,28 +480,18 @@ async def _load_commerce_evidence(
     )
     by_entry = select_current_snapshots(snapshots)
 
-    entries = [
-        _project_commerce_entry(
-            snapshot=by_entry.get(entry.id),
-            entry_id=entry.id,
-            kind="product",
-            name=entry.name,
-            sku=entry.sku,
-            competitor_name="",
+    entries = _project_commerce_entries(config, by_entry)
+    comparison = await session.scalar(
+        select(CompetitorComparisonSnapshot).where(
+            CompetitorComparisonSnapshot.workspace_id == workspace_id,
+            CompetitorComparisonSnapshot.audit_id == audit.id,
         )
-        for entry in config.products
-    ] + [
-        _project_commerce_entry(
-            snapshot=by_entry.get(entry.id),
-            entry_id=entry.id,
-            kind="competitor_product",
-            name=entry.name,
-            sku="",
-            competitor_name=entry.competitor,
-        )
-        for entry in config.competitor_products
-    ]
-    return CommerceEvidence(audit_id=audit.id, entries=tuple(entries))
+    )
+    return CommerceEvidence(
+        audit_id=audit.id,
+        entries=tuple(entries),
+        attribute_gaps=_comparison_attribute_gaps(comparison),
+    )
 
 
 async def _confirmed_decline_hits(
@@ -544,6 +587,7 @@ async def _collect_recompute_hits(
             hits.extend(detect_product_not_mentioned(commerce))
             hits.extend(detect_competitor_product_dominates(commerce))
             hits.extend(detect_price_mention_mismatch(commerce))
+            hits.extend(detect_product_attribute_gap(commerce))
             hits.extend(
                 await _confirmed_decline_hits(
                     session, workspace_id=workspace_id, audit=audit

@@ -46,7 +46,7 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.core.database import SessionLocal
-from app.core.telemetry import configure_logging
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.content.grounding import (
     GroundingEnvelope,
     validate_provider_output,
@@ -402,6 +402,7 @@ class ContentWorker(DrainableWorkerMixin):
 
 def main() -> None:  # pragma: no cover - process entrypoint
     configure_logging()
+    instrument_worker("content-worker")
     worker = ContentWorker()
     asyncio.run(worker.run_forever())
 

@@ -15,47 +15,17 @@ from typing import Final
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.config.task_queue import ERROR_MAX_ATTEMPTS, PostgresQueueSpec
-
-# --- Discovery and catalog-comparison policy --------------------------------
-# These knobs are deliberately centralised: discovery workers may change over
-# time, but a persisted run freezes the values and versions below.
-COMMERCE_DISCOVERY_VERSION: Final = "commerce-discovery-1"
+# --- Deterministic comparison policy -----------------------------------------
 COMMERCE_MATCHER_VERSION: Final = "commerce-matcher-1"
 COMMERCE_COMPARISON_VERSION: Final = "commerce-comparison-1"
-COMMERCE_DISCOVERY_RUN_STATUS_QUEUED: Final = "queued"
-COMMERCE_DISCOVERY_RUN_STATUS_RUNNING: Final = "running"
-COMMERCE_DISCOVERY_RUN_STATUS_COMPLETED: Final = "completed"
-COMMERCE_DISCOVERY_RUN_STATUS_PARTIALLY_COMPLETED: Final = "partially_completed"
-COMMERCE_DISCOVERY_RUN_STATUS_FAILED: Final = "failed"
-COMMERCE_DISCOVERY_RUN_TERMINAL_STATUSES: Final[frozenset[str]] = frozenset(
-    {
-        COMMERCE_DISCOVERY_RUN_STATUS_COMPLETED,
-        COMMERCE_DISCOVERY_RUN_STATUS_PARTIALLY_COMPLETED,
-        COMMERCE_DISCOVERY_RUN_STATUS_FAILED,
-    }
-)
-COMMERCE_DISCOVERY_TASK_KIND_DISCOVER: Final = "discover"
-COMMERCE_ACQUISITION_STATE_QUEUE_READY: Final = "queue_ready"
-COMMERCE_ACQUISITION_STATE_ACQUIRED: Final = "acquired"
-COMMERCE_MATCH_REASON_REVIEWED_DISCOVERY: Final = "reviewed_discovery"
-COMMERCE_DISCOVERED_SKU_PREFIX: Final = "discovered-"
-COMMERCE_EVIDENCE_LABEL_CATALOG: Final = "catalog"
-COMMERCE_EVIDENCE_LABEL_DISCOVERY: Final = "discovery"
-COMMERCE_DISCOVERY_INPUT_UPLOAD: Final = "upload"
-COMMERCE_DISCOVERY_INPUT_URL: Final = "url"
-COMMERCE_DISCOVERY_INPUTS: Final[frozenset[str]] = frozenset(
-    {COMMERCE_DISCOVERY_INPUT_UPLOAD, COMMERCE_DISCOVERY_INPUT_URL}
-)
-COMMERCE_CANDIDATE_KIND_OWN: Final = "own"
-COMMERCE_CANDIDATE_KIND_COMPETITOR: Final = "competitor"
-COMMERCE_CANDIDATE_KINDS: Final[frozenset[str]] = frozenset(
-    {COMMERCE_CANDIDATE_KIND_OWN, COMMERCE_CANDIDATE_KIND_COMPETITOR}
-)
-COMMERCE_REVIEW_ACCEPTED: Final = "accepted"
-COMMERCE_REVIEW_REJECTED: Final = "rejected"
-COMMERCE_REVIEW_STATUSES: Final[frozenset[str]] = frozenset(
-    {COMMERCE_REVIEW_ACCEPTED, COMMERCE_REVIEW_REJECTED}
+COMMERCE_RECOMMENDATION_ATTRIBUTE_KEYS: Final[tuple[str, ...]] = (
+    "terrain",
+    "fit",
+    "support",
+    "waterproof",
+    "material",
+    "weight",
+    "availability",
 )
 COMMERCE_MATCH_GTIN: Final = "gtin"
 COMMERCE_MATCH_BRAND_MODEL: Final = "brand_model"
@@ -79,103 +49,18 @@ COMMERCE_SIMILARITY_ATTRIBUTE_KEYS: Final[tuple[str, ...]] = (
     "color",
     "size",
 )
-COMMERCE_EVIDENCE_KIND_UPLOAD: Final = "upload"
-COMMERCE_EVIDENCE_KIND_URL: Final = "url"
-COMMERCE_EVIDENCE_KIND_CRAWLED: Final = "crawled"
-COMMERCE_EVIDENCE_KIND_STRUCTURED: Final = "structured"
-COMMERCE_EVIDENCE_KIND_GOOGLE_SHOPPING: Final = "google_shopping"
-COMMERCE_EVIDENCE_KINDS: Final[frozenset[str]] = frozenset(
-    {
-        COMMERCE_EVIDENCE_KIND_UPLOAD,
-        COMMERCE_EVIDENCE_KIND_URL,
-        COMMERCE_EVIDENCE_KIND_CRAWLED,
-        COMMERCE_EVIDENCE_KIND_STRUCTURED,
-        COMMERCE_EVIDENCE_KIND_GOOGLE_SHOPPING,
-    }
-)
-COMMERCE_DISCOVERY_ERROR_EMPTY_EXTRACTION: Final = "commerce_empty_extraction"
-COMMERCE_DISCOVERY_ERROR_HTTP_STATUS: Final = "commerce_http_status"
-COMMERCE_DISCOVERY_ERROR_WORKER_CRASH: Final = "commerce_worker_crash"
 
 
 class CommerceIntelligenceSettings(BaseSettings):
-    """Operational bounds for deterministic Commerce discovery workers."""
-
     model_config = SettingsConfigDict(env_prefix="COMMERCE_", extra="ignore")
 
-    discovery_lease_ttl_seconds: float = Field(default=120.0, ge=1.0)
-    discovery_max_attempts: int = Field(default=3, ge=1, le=20)
-    discovery_preview_max_rows: int = Field(default=500, ge=1, le=5000)
-    discovery_max_candidates_per_run: int = Field(default=500, ge=1, le=5000)
-    discovery_max_artifact_payload_chars: int = Field(default=16_000, ge=256)
-    discovery_worker_batch_size: int = Field(default=4, ge=1, le=100)
-    discovery_heartbeat_interval_seconds: float = Field(default=30.0, gt=0)
-    discovery_poll_interval_seconds: float = Field(default=1.0, gt=0)
-    discovery_lease_reclaim_batch_size: int = Field(default=100, ge=1, le=1000)
-    discovery_retry_base_delay_seconds: float = Field(default=2.0, gt=0)
-    discovery_retry_max_delay_seconds: float = Field(default=60.0, gt=0)
-    discovery_max_extraction_bytes: int = Field(default=1_000_000, ge=1024)
-    discovery_max_field_chars: int = Field(default=1024, ge=32, le=16_000)
-    discovery_max_schema_blocks: int = Field(default=32, ge=1, le=500)
-    discovery_max_schema_nodes: int = Field(default=200, ge=1, le=5000)
-    discovery_max_variants: int = Field(default=50, ge=1, le=500)
-    discovery_max_aliases: int = Field(default=50, ge=1, le=500)
-    discovery_max_attribute_items: int = Field(default=50, ge=1, le=500)
-    discovery_max_trace_entries: int = Field(default=20, ge=1, le=500)
-    discovery_retryable_http_statuses: tuple[int, ...] = (429,)
-    discovery_server_error_status_floor: int = Field(default=500, ge=400, le=599)
-    discovery_allowed_content_types: tuple[str, ...] = (
-        "text/html",
-        "application/xhtml+xml",
-        "application/json",
-        "application/ld+json",
-    )
-    discovery_structured_source_hosts: tuple[str, ...] = ()
-    discovery_google_shopping_source_hosts: tuple[str, ...] = ()
-    discovery_schema_confidence: float = Field(default=0.9, ge=0, le=1)
-    discovery_html_confidence: float = Field(default=0.6, ge=0, le=1)
     comparison_max_entries: int = Field(default=1_000, ge=1, le=10_000)
     title_attribute_similarity_threshold: float = Field(default=0.82, ge=0, le=1)
     match_ambiguity_margin: float = Field(default=0.05, ge=0, le=1)
 
-    def retry_delay(
-        self, attempt: int, retry_after_seconds: float | None = None
-    ) -> float:
-        """Deterministic bounded backoff for a completed network attempt."""
-        if retry_after_seconds is not None:
-            return min(retry_after_seconds, self.discovery_retry_max_delay_seconds)
-        return min(
-            self.discovery_retry_base_delay_seconds * (2**attempt),
-            self.discovery_retry_max_delay_seconds,
-        )
-
 
 commerce_intelligence_settings = CommerceIntelligenceSettings()
 
-
-def _commerce_discovery_task_model():
-    # Lazy import keeps models -> config imports acyclic.
-    from app.models.commerce import CommerceDiscoveryTask
-
-    return CommerceDiscoveryTask
-
-
-def _commerce_discovery_claim_order(model):
-    return (
-        model.priority.desc(),
-        model.available_at.asc(),
-        model.randomized_position.asc(),
-        model.id.asc(),
-    )
-
-
-COMMERCE_DISCOVERY_QUEUE_SPEC = PostgresQueueSpec(
-    model_ref=_commerce_discovery_task_model,
-    lease_ttl=lambda: commerce_intelligence_settings.discovery_lease_ttl_seconds,
-    claim_order=_commerce_discovery_claim_order,
-    max_attempts_error=ERROR_MAX_ATTEMPTS,
-    parent_id_attr="run_id",
-)
 
 # --- Win rate (§5.1) -------------------------------------------------------
 # When True, the win-rate denominator is only the SKU's mention rows with a

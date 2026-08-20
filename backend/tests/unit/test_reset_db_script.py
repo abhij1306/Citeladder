@@ -18,7 +18,7 @@ def _load_reset_db_module():
     return module
 
 
-def test_database_url_falls_back_to_docker_env(monkeypatch, tmp_path: Path) -> None:
+def test_database_url_falls_back_to_root_env(monkeypatch, tmp_path: Path) -> None:
     reset_db = _load_reset_db_module()
     docker_env = tmp_path / "docker.env"
     docker_env.write_text(
@@ -27,7 +27,7 @@ def test_database_url_falls_back_to_docker_env(monkeypatch, tmp_path: Path) -> N
     )
 
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.setattr(reset_db, "DOCKER_ENV_FILE", docker_env)
+    monkeypatch.setattr(reset_db, "ROOT_ENV_FILE", docker_env)
     monkeypatch.setattr(reset_db, "PROJECT_ROOT", tmp_path / "missing-root")
     monkeypatch.setattr(reset_db, "BACKEND_DIR", tmp_path / "missing-backend")
 
@@ -47,14 +47,13 @@ def test_database_url_is_derived_from_docker_postgres_components(
                 "POSTGRES_DB=citeladder",
                 "POSTGRES_HOST=127.0.0.1",
                 "POSTGRES_HOST_PORT=55432",
-                "DATABASE_URL=postgresql://stale:stale@localhost/stale",
             )
         ),
         encoding="utf-8",
     )
 
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.setattr(reset_db, "DOCKER_ENV_FILE", docker_env)
+    monkeypatch.setattr(reset_db, "ROOT_ENV_FILE", docker_env)
     monkeypatch.setattr(reset_db, "PROJECT_ROOT", tmp_path / "missing-root")
     monkeypatch.setattr(reset_db, "BACKEND_DIR", tmp_path / "missing-backend")
 
@@ -76,9 +75,42 @@ def test_database_url_environment_has_highest_precedence(
     environment_url = "postgresql+asyncpg://user:password@localhost:55432/app"
 
     monkeypatch.setenv("DATABASE_URL", environment_url)
-    monkeypatch.setattr(reset_db, "DOCKER_ENV_FILE", docker_env)
+    monkeypatch.setattr(reset_db, "ROOT_ENV_FILE", docker_env)
 
     assert reset_db._database_url() == environment_url
+
+
+def test_database_url_uses_final_merged_postgres_components(
+    monkeypatch, tmp_path: Path
+) -> None:
+    reset_db = _load_reset_db_module()
+    root_env = tmp_path / ".env"
+    backend_dir = tmp_path / "backend"
+    backend_dir.mkdir()
+    root_env.write_text(
+        "\n".join(
+            (
+                "POSTGRES_USER=root-user",
+                "POSTGRES_PASSWORD=root-password",
+                "POSTGRES_DB=root-db",
+                "POSTGRES_HOST=root-host",
+                "POSTGRES_HOST_PORT=5432",
+            )
+        ),
+        encoding="utf-8",
+    )
+    (backend_dir / ".env").write_text(
+        "POSTGRES_HOST=backend-host\n",
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("POSTGRES_HOST_PORT", "55432")
+    monkeypatch.setattr(reset_db, "ROOT_ENV_FILE", root_env)
+    monkeypatch.setattr(reset_db, "BACKEND_DIR", backend_dir)
+
+    assert reset_db._database_url() == (
+        "postgresql+asyncpg://root-user:root-password@backend-host:55432/root-db"
+    )
 
 
 def test_database_url_reports_every_supported_source(
@@ -86,11 +118,14 @@ def test_database_url_reports_every_supported_source(
 ) -> None:
     reset_db = _load_reset_db_module()
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.setattr(reset_db, "DOCKER_ENV_FILE", tmp_path / "missing-docker.env")
+    monkeypatch.setattr(reset_db, "ROOT_ENV_FILE", tmp_path / "missing-root.env")
     monkeypatch.setattr(reset_db, "PROJECT_ROOT", tmp_path / "missing-root")
     monkeypatch.setattr(reset_db, "BACKEND_DIR", tmp_path / "missing-backend")
 
-    with pytest.raises(RuntimeError, match=r"infra/docker/\.env"):
+    with pytest.raises(
+        RuntimeError,
+        match=r"^DATABASE_URL is required in the environment, \.env, or backend/\.env$",
+    ):
         reset_db._database_url()
 
 
@@ -166,7 +201,7 @@ def test_development_reset_requires_dev_login_configuration(
     monkeypatch, tmp_path: Path
 ) -> None:
     reset_db = _load_reset_db_module()
-    monkeypatch.setattr(reset_db, "DOCKER_ENV_FILE", tmp_path / "missing-docker.env")
+    monkeypatch.setattr(reset_db, "ROOT_ENV_FILE", tmp_path / "missing-root.env")
     monkeypatch.setattr(reset_db, "PROJECT_ROOT", tmp_path / "missing-root")
     monkeypatch.setattr(reset_db, "BACKEND_DIR", tmp_path / "missing-backend")
     monkeypatch.setenv("APP_ENV", "development")

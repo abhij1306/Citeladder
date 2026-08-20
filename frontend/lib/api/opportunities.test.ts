@@ -227,7 +227,13 @@ describe('opportunity schemas (strictValidate drift policy)', () => {
   });
 
   it('exposes the full vocabulary enums', () => {
-    expect(opportunityTypeSchema.options).toEqual(['visibility', 'site', 'traffic', 'topic']);
+    expect(opportunityTypeSchema.options).toEqual([
+      'visibility',
+      'commerce',
+      'site',
+      'traffic',
+      'topic',
+    ]);
     expect(opportunitySeveritySchema.options).toEqual([
       'critical',
       'high',

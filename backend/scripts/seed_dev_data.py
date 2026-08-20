@@ -459,6 +459,7 @@ async def seed() -> None:
                     url=spec.url,
                     price=spec.price,
                     currency=spec.currency,
+                    attributes=spec.attributes,
                 )
             )
         session.add(
@@ -469,6 +470,7 @@ async def seed() -> None:
                 url=DEMO_COMPETITOR_PRODUCT_SPEC.url,
                 price=DEMO_COMPETITOR_PRODUCT_SPEC.price,
                 currency=DEMO_COMPETITOR_PRODUCT_SPEC.currency,
+                attributes=DEMO_COMPETITOR_PRODUCT_SPEC.attributes,
             )
         )
 
@@ -777,29 +779,32 @@ async def seed() -> None:
                 changed_by_user_id=demo_user_id,
             )
 
-    set_seed_audit_generation(1)
     audit_worker.build_adapter = _build_seed_adapter
     audit_settings.min_request_interval_seconds = 0.0
     audit_settings.heartbeat_interval_seconds = 3600.0
     try:
-        async with SessionLocal() as session:
-            comparison_audit = await create_audit(
-                session,
-                trigger=AUDIT_TRIGGER_SYSTEM,
-                workspace_id=workspace_id,
-                project_id=project_id,
-                engines=[ENGINE_CHATGPT, ENGINE_CLAUDE, ENGINE_GEMINI],
-                prompt_set_id=None,
-                prompt_ids=active_prompt_ids,
-                repetitions=2,
-                random_seed="43",
-                measurement_mode="pulse",
+        comparison_audit_id = audit1_id
+        for generation, random_seed in ((1, "43"), (2, "44")):
+            set_seed_audit_generation(generation)
+            async with SessionLocal() as session:
+                comparison_audit = await create_audit(
+                    session,
+                    trigger=AUDIT_TRIGGER_SYSTEM,
+                    workspace_id=workspace_id,
+                    project_id=project_id,
+                    engines=[ENGINE_CHATGPT, ENGINE_CLAUDE, ENGINE_GEMINI],
+                    prompt_set_id=None,
+                    prompt_ids=active_prompt_ids,
+                    repetitions=2,
+                    random_seed=random_seed,
+                    measurement_mode="pulse",
+                )
+                comparison_audit_id = comparison_audit.id
+            comparison_worker = AuditWorker(
+                session_factory=SessionLocal,
+                owner=f"seed-worker-comparison-{generation}",
             )
-            comparison_audit_id = comparison_audit.id
-        comparison_worker = AuditWorker(
-            session_factory=SessionLocal, owner="seed-worker-comparison"
-        )
-        await comparison_worker.run_until_idle()
+            await comparison_worker.run_until_idle()
     finally:
         set_seed_audit_generation(0)
         audit_worker.build_adapter = _original_build_adapter

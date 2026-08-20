@@ -10,7 +10,7 @@ const uuid = () => z.uuid();
 
 // Opportunity vocabulary (config-owned; per-subsystem severity enum — the
 // site-health `issueSeveritySchema` is NOT reused, they evolve independently).
-export const opportunityTypeSchema = z.enum(['visibility', 'site', 'traffic', 'topic']);
+export const opportunityTypeSchema = z.enum(['visibility', 'commerce', 'site', 'traffic', 'topic']);
 export const opportunitySeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'info']);
 export const opportunityStatusSchema = z.enum(['open', 'in_progress', 'dismissed', 'resolved']);
 export const implementationStateSchema = z.enum([

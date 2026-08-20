@@ -29,6 +29,7 @@ function priorityFrom(severity: Opportunity['severity']): InsightPriority {
  */
 const TYPE_LAYER: Record<Opportunity['opportunity_type'], InsightLayer> = {
   visibility: 'demand',
+  commerce: 'demand',
   traffic: 'demand',
   topic: 'content',
   site: 'site',

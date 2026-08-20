@@ -83,7 +83,7 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.core.database import SessionLocal
-from app.core.telemetry import configure_logging
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.analytics.sanitize import sanitize_referral_url
 from app.domain.commerce.sanitize import sanitize_order_payload
 from app.models.integrations import (
@@ -793,4 +793,5 @@ class IntegrationWorker(DrainableWorkerMixin):
 
 if __name__ == "__main__":  # pragma: no cover
     configure_logging()
+    instrument_worker("integration-worker")
     asyncio.run(IntegrationWorker().run_forever())

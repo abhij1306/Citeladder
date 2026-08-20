@@ -841,7 +841,7 @@ if ($LASTEXITCODE -ne 0) {
 $backendLocal = "citeladder-backend:$ImageTag"
 $frontendLocal = "citeladder-frontend:$ImageTag"
 
-Invoke-Native -Command "docker" -Arguments @("build", "--file", "infra/docker/Dockerfile", "--tag", $backendLocal, "--label", "org.opencontainers.image.revision=$ImageTag", ".") | Out-Null
+Invoke-Native -Command "docker" -Arguments @("build", "--file", "Dockerfile", "--tag", $backendLocal, "--label", "org.opencontainers.image.revision=$ImageTag", ".") | Out-Null
 Invoke-Native -Command "docker" -Arguments @("build", "--file", "infra/aws/frontend.Dockerfile", "--build-arg", "BACKEND_ORIGIN=$($config.backendOrigin)", "--tag", $frontendLocal, "--label", "org.opencontainers.image.revision=$ImageTag", ".") | Out-Null
 
 Invoke-Native -Command "docker" -Arguments @("tag", $backendLocal, $backendImage) | Out-Null

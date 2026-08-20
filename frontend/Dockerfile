@@ -14,12 +14,25 @@ FROM node:26.7.0-bookworm-slim@sha256:cd565714d4da3e84bfd341e31448f81d47c6362198
 
 ARG BACKEND_ORIGIN
 ARG BUILD_REVISION=unknown
+# `NEXT_PUBLIC_*` values are inlined into the client bundle by `next build`,
+# so they have to exist HERE — supplying them only at container runtime is
+# too late for anything rendered in the browser. Each one is optional and the
+# reader handles absence (lib/config/env.ts, lib/config/operational.ts), so an
+# empty arg produces a working build with the feature simply unconfigured.
+# NEXT_PUBLIC_SITE_URL is additionally read server-side (sitemap, robots, OG
+# metadata), so the compose frontend service also passes it at runtime.
+ARG NEXT_PUBLIC_SITE_URL
+ARG NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE
+ARG NEXT_PUBLIC_API_REQUEST_TIMEOUT_MS
 ENV PNPM_HOME=/pnpm
 ENV PATH="${PNPM_HOME}:${PATH}"
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV BACKEND_ORIGIN=${BACKEND_ORIGIN}
 ENV BUILD_REVISION=${BUILD_REVISION}
+ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+ENV NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE=${NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE}
+ENV NEXT_PUBLIC_API_REQUEST_TIMEOUT_MS=${NEXT_PUBLIC_API_REQUEST_TIMEOUT_MS}
 WORKDIR /app
 
 # Node 26 no longer bundles corepack, so pnpm is installed from npm.

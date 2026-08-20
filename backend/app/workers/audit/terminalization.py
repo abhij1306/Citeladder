@@ -42,6 +42,7 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.domain.audits.state_events import apply_transition, record_event
+from app.domain.commerce.comparisons import persist_comparison_snapshot
 from app.domain.opportunities.verification import enqueue_audit_opportunity_tasks
 from app.domain.providers.credentials import pause_connection_after_key_failure
 from app.models.audit import (
@@ -501,6 +502,14 @@ class AuditTerminalizationMixin:
             # per-product ProductMetricSnapshot rows from the persisted
             # product analyses; the brand finalize below stays untouched.
             await finalize_audit_product_analysis(session, audit=audit)
+            try:
+                async with session.begin_nested():
+                    await persist_comparison_snapshot(session, audit=audit)
+            except Exception:
+                logger.exception(
+                    "commerce comparison projection failed",
+                    extra={"audit_id": str(audit_id)},
+                )
             await finalize_audit_analysis(session, audit=audit)
             workspace_id = audit.workspace_id
             project_id = audit.project_id

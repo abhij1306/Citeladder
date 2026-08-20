@@ -12,9 +12,9 @@
 #
 #   env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
 #     POSTGRES_PASSWORD=<repo-.env-value> \
-#     docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml up -d --force-recreate
+#     docker compose --env-file .env -f docker-compose.yml up -d --force-recreate
 #
-# Compose reads infra/docker/.env by default; copy .env.example -> .env there.
+# Compose reads the root .env by default; copy .env.example -> .env.
 # =============================================================================
 
 services:
@@ -39,8 +39,8 @@ services:
   # Applies migrations once, then exits; web + worker wait on its success.
   migrate:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: "no"
     env_file:
       - .env
@@ -55,8 +55,8 @@ services:
 
   web:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -78,13 +78,27 @@ services:
 
   frontend:
     build:
-      context: ../..
+      context: .
       dockerfile: frontend/Dockerfile
       args:
         # Server-only Next rewrite destination. Browser requests stay relative
         # to the frontend origin and are proxied across the Compose network.
         BACKEND_ORIGIN: http://web:8000
+        # Build-time because `next build` inlines NEXT_PUBLIC_* into the client
+        # bundle. All three are optional; unset means the feature is simply not
+        # configured. Changing one requires a rebuild, not a restart.
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+        NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE: ${NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE:-}
+        NEXT_PUBLIC_API_REQUEST_TIMEOUT_MS: ${NEXT_PUBLIC_API_REQUEST_TIMEOUT_MS:-}
     restart: unless-stopped
+    environment:
+      # Read per request on the server: NEXT_PUBLIC_SITE_URL by sitemap/robots/OG
+      # metadata, and the demo pair by the /demo funnel. These are NOT baked into
+      # the image, so they take effect on restart. The frontend deliberately has
+      # no `env_file: .env` — it must not receive backend secrets.
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+      DEMO_BOOKING_URL: ${DEMO_BOOKING_URL:-}
+      PUBLIC_SALES_EMAIL: ${PUBLIC_SALES_EMAIL:-}
     depends_on:
       web:
         condition: service_healthy
@@ -93,8 +107,8 @@ services:
 
   worker:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -106,7 +120,7 @@ services:
         condition: service_completed_successfully
     # Audit worker is a separate Postgres-queue process.
     command: ["python", "-m", "app.workers.audit_worker"]
-    # The Dockerfile HEALTHCHECK probes the web /health endpoint, which worker
+    # The Dockerfile HEALTHCHECK probes the web /ready endpoint, which worker
     # containers don't serve — disable it so they don't report unhealthy.
     healthcheck:
       disable: true
@@ -115,8 +129,8 @@ services:
   # planner used by manual runs. The unique schedule slot prevents duplicates.
   audit-scheduler:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -134,8 +148,8 @@ services:
   # queue — the dedicated process app/workers/site_health_worker.py expects.
   site-health-worker:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -153,8 +167,8 @@ services:
   # application-model research, then deterministic industry-library fallback.
   brand-discovery-worker:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -172,8 +186,8 @@ services:
   # the separately configured content provider.
   content-worker:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -191,8 +205,8 @@ services:
   # content/audit queues. It performs no provider I/O and owns no second queue.
   agent-worker:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -210,8 +224,8 @@ services:
   # registered per-kind projection executor (no network I/O — invariant 7).
   analytics-worker:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -230,8 +244,8 @@ services:
   # writes immutable import artifacts + derived metric rows.
   integration-worker:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
@@ -250,8 +264,8 @@ services:
   # active-window index) and retries pending_revocation grant revokes.
   integration-dispatcher:
     build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env

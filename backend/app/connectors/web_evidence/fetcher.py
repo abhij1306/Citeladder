@@ -131,7 +131,7 @@ class SecureFetcher(HttpAcquisitionMixin, AcquisitionLadderMixin):
             self._owns_curl_transport = True
         # Only a transport WE created may be closed on exit. An injected one is
         # owned by the caller and is commonly shared across fetchers (see
-        # ``CommerceDiscoveryWorker``, which builds one fetcher per task);
+        # other bounded acquisition workers, which build one fetcher per task);
         # closing it here would shut down the shared browser after the first
         # fetch and leave every later task with a dead rung.
         self._owns_browser_transport = False

@@ -31,7 +31,7 @@ from app.core.config.audit_schedules import (
 )
 from app.core.config.audits import AUDIT_TRIGGER_SCHEDULED
 from app.core.database import SessionLocal
-from app.core.telemetry import configure_logging
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.audits.creation import create_audit
 from app.models.audit import Audit
 from app.models.audit_schedule import AuditSchedule
@@ -281,6 +281,7 @@ def main() -> None:  # pragma: no cover - process entrypoint
     configure_logging()
     if "--healthcheck" in sys.argv:
         raise SystemExit(healthcheck())
+    instrument_worker("audit-scheduler")
     asyncio.run(AuditScheduler().run_forever())
 
 

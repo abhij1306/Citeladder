@@ -52,7 +52,7 @@ from app.core.config.integrations_transport import (
 )
 from app.core.database import SessionLocal
 from app.core.security import decrypt_secret
-from app.core.telemetry import configure_logging
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.integrations.errors import IntegrationConnectionNotFoundError
 from app.domain.integrations.sync import (
     ActiveWindowConflictError,
@@ -347,6 +347,7 @@ class IntegrationDispatcher:
 
 def main() -> None:  # pragma: no cover - process entrypoint
     configure_logging()
+    instrument_worker("integration-dispatcher")
     dispatcher = IntegrationDispatcher()
     asyncio.run(dispatcher.run_forever())
 

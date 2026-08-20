@@ -13,7 +13,7 @@ from dotenv import dotenv_values
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 BACKEND_DIR = PROJECT_ROOT / "backend"
-DOCKER_ENV_FILE = PROJECT_ROOT / "infra" / "docker" / ".env"
+ROOT_ENV_FILE = PROJECT_ROOT / ".env"
 PROTECTED_DATABASES = frozenset({"postgres", "template0", "template1"})
 DEVELOPMENT_ENVS = frozenset({"development", "dev", "local", "test", "testing"})
 DEFAULT_PROVISION_TIMEOUT_SECONDS = 300.0
@@ -23,15 +23,15 @@ DESTRUCTIVE_RESET_TOKEN = "drop-and-recreate"
 
 def _configuration() -> dict[str, str]:
     """Load repository env files, with the process environment taking priority."""
-    values = _read_env_file(DOCKER_ENV_FILE)
-    docker_database_url = _docker_database_url(values)
-    if docker_database_url:
-        values["DATABASE_URL"] = docker_database_url
-
-    for env_file in (PROJECT_ROOT / ".env", BACKEND_DIR / ".env"):
-        if env_file.is_file():
-            values.update(_read_env_file(env_file))
+    values = _read_env_file(ROOT_ENV_FILE)
+    backend_env_file = BACKEND_DIR / ".env"
+    if backend_env_file.is_file():
+        values.update(_read_env_file(backend_env_file))
     values.update(os.environ)
+    if not values.get("DATABASE_URL", "").strip():
+        docker_database_url = _docker_database_url(values)
+        if docker_database_url:
+            values["DATABASE_URL"] = docker_database_url
     return values
 
 
@@ -68,8 +68,7 @@ def _database_url() -> str:
     database_url = _configuration().get("DATABASE_URL", "").strip()
     if not database_url:
         raise RuntimeError(
-            "DATABASE_URL is required in the environment, .env, backend/.env, "
-            "or infra/docker/.env"
+            "DATABASE_URL is required in the environment, .env, or backend/.env"
         )
     return database_url
 

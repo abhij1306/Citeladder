@@ -14,6 +14,31 @@ knowledge store, or product architecture.
 - Content and Demand workflows may reference product/catalog IDs through their
   existing typed contracts.
 
+## Commerce Suite
+
+`/products` ships one five-tab contract:
+
+1. **Overview** — latest persisted product visibility KPIs, largest product
+   gaps, and links to Commerce opportunities.
+2. **Catalog** — product add, import, edit, delete, completeness, and feed
+   health.
+3. **AI Visibility** — per-SKU visibility rate, top-three rate, average
+   position, engine coverage, and prior-audit change.
+4. **Competitors** — a typed, read-only side-by-side projection created during
+   audit finalization by deterministic matching.
+5. **Opportunities** — the shared Opportunity API filtered to
+   `opportunity_type=commerce`; review confirmation is browser-only and does
+   not mutate a provider or create a second recommendation store.
+
+Product detail retains persisted evidence and shows the latest three product
+visibility snapshots. Overview is the default tab. All reads use durable
+catalog, audit, metric, comparison, and opportunity rows; the UI has no mock or
+seed-data fallback.
+
+The removed Commerce discovery queue, candidates, review workflow, manual
+comparison mutation, AI Conversations view, and generic Market Intelligence
+view are not active architecture and must not be recreated.
+
 The removed commerce industry pack and industry-role classifier are historical.
 Do not recreate them beside the generic page-kind pipeline.
 

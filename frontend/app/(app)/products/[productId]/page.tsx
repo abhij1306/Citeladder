@@ -27,6 +27,14 @@ export default function ProductDetailPage() {
     queryKey: queryKeys.products.detail(productId),
     queryFn: ({ signal }) => productsApi.get(productId, { signal }),
   });
+  const trendQuery = useQuery({
+    queryKey: queryKeys.products.visibilityTrend(productQuery.data?.project_id ?? '', productId),
+    queryFn: ({ signal }) =>
+      productsApi.getProductVisibilityTrend(productQuery.data!.project_id, productId, undefined, {
+        signal,
+      }),
+    enabled: Boolean(productQuery.data?.project_id),
+  });
 
   if (productQuery.isLoading) {
     return (
@@ -70,6 +78,35 @@ export default function ProductDetailPage() {
     >
       <TooltipProvider>
         <div className="grid gap-6">
+          <Card>
+            <CardContent className="grid gap-3">
+              <div>
+                <h2 className="text-lg">Visibility history</h2>
+                <p className="text-secondary text-sm">
+                  The latest three completed audit snapshots.
+                </p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {(trendQuery.data?.points ?? []).map((point) => (
+                  <div key={point.audit_id} className="border-border rounded-sm border p-3 text-sm">
+                    <strong>{Math.round(point.visibility_rate * 100)}% visible</strong>
+                    <p className="text-secondary">
+                      Top three {Math.round(point.top_three_rate * 100)}%
+                    </p>
+                    <p className="text-muted text-xs">
+                      {new Date(point.observed_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+                {trendQuery.isError ? (
+                  <p className="text-danger text-sm">Could not load visibility history.</p>
+                ) : null}
+                {!trendQuery.isLoading && !trendQuery.isError && !trendQuery.data?.points.length ? (
+                  <p className="text-muted text-sm">No visibility history yet.</p>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
           <ProductEvidenceTable product={productQuery.data} />
         </div>
       </TooltipProvider>

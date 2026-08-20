@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 
 const TYPE_LABEL: Record<OpportunityType, string> = {
   visibility: 'Visibility',
+  commerce: 'Commerce',
   site: 'Site',
   traffic: 'Traffic',
   topic: 'Topic',
@@ -13,7 +14,7 @@ export function OpportunityTypeBadge({ type }: Readonly<{ type: OpportunityType 
   return (
     <Badge
       className={cn(
-        type === 'visibility' && 'text-accent-text',
+        (type === 'visibility' || type === 'commerce') && 'text-accent-text',
         type === 'site' && 'text-info-text',
         (type === 'topic' || type === 'traffic') && 'text-citation-third-party-text',
       )}

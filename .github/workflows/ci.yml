@@ -42,11 +42,15 @@ jobs:
           # Complexity policy compares ceilings with the PR/push base so a
           # branch cannot make its own complexity budget larger.
           fetch-depth: 0
-      # Pinned to match the runtime image (infra/docker/Dockerfile is
-      # python:3.12.x) and backend/.python-version. Unpinned, uv resolved the
-      # newest interpreter it could find — CI was validating on 3.14 while
-      # production ran 3.12, so the gate and the deployment disagreed about
-      # which Python the code has to work on.
+      # Pinned to backend/.python-version (3.12), which is also the floor in
+      # `requires-python`. Unpinned, uv resolved the newest interpreter it
+      # could find, so the gate and the declared floor disagreed about which
+      # Python the code has to work on.
+      #
+      # DRIFT: the runtime image (./Dockerfile) is currently python:3.14.7
+      # after a Dependabot base-image bump, so CI validates 3.12 while the
+      # container ships 3.14. Close this by moving both to one version — do
+      # not silently widen the pin here.
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -117,6 +121,11 @@ jobs:
         run: pnpm test
       - name: Lint
         run: pnpm lint
+      # Formatting was enforceable (`format:check` has always existed) but not
+      # enforced, so Prettier drift could land silently and then show up as
+      # noise in an unrelated diff. Gated here; `pnpm format` fixes it.
+      - name: Format check
+        run: pnpm format:check
       - name: Type check
         run: pnpm exec tsc --noEmit
       - name: Complexity and duplication policies

@@ -55,7 +55,7 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.core.database import SessionLocal
-from app.core.telemetry import configure_logging
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.analytics.ai_referrals_snapshot import refresh_ai_referrals_snapshot
 from app.domain.analytics.ingest import ingest_referrals
 from app.domain.analytics.tasks import (
@@ -283,6 +283,7 @@ class AnalyticsWorker(DrainableWorkerMixin):
 
 def main() -> None:  # pragma: no cover - process entrypoint
     configure_logging()
+    instrument_worker("analytics-worker")
     worker = AnalyticsWorker()
     asyncio.run(worker.run_forever())
 

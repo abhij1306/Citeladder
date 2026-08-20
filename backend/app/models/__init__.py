@@ -58,11 +58,6 @@ from app.models.brand import (
     UnintendedDomain,
 )
 from app.models.commerce import (
-    CommerceCandidateReview,
-    CommerceDiscoveryArtifact,
-    CommerceDiscoveryCandidate,
-    CommerceDiscoveryRun,
-    CommerceDiscoveryTask,
     CompetitorComparisonSnapshot,
     FeedIssue,
     OrderFact,
@@ -169,11 +164,6 @@ __all__ = [
     "CompetitorProduct",
     "ContentGeneration",
     "ContentGenerationAttempt",
-    "CommerceCandidateReview",
-    "CommerceDiscoveryArtifact",
-    "CommerceDiscoveryCandidate",
-    "CommerceDiscoveryRun",
-    "CommerceDiscoveryTask",
     "ConsumableLedger",
     "DiscoveryModelConfig",
     "DemandSignal",

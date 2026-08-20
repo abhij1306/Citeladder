@@ -162,10 +162,8 @@ class ProductResponse(BaseModel):
     currency: str
     url: str
     attributes: dict[str, Any]
-    # manual | imported | synced | discovered (config/products.py PRODUCT_ORIGINS).
-    origin: Literal["manual", "imported", "synced", "discovered"]
-    source_candidate_id: uuid.UUID | None
-    source_artifact_id: uuid.UUID | None
+    # manual | imported | synced (config/products.py PRODUCT_ORIGINS).
+    origin: Literal["manual", "imported", "synced"]
     # Feed provenance (commerce suite): required-nullable — null for
     # unbound manual/imported products. Never a token or PII field.
     connection_id: uuid.UUID | None
@@ -234,8 +232,6 @@ class CompetitorProductResponse(BaseModel):
     attributes: dict[str, Any]
     availability: str
     extraction_fresh_at: datetime | None
-    source_candidate_id: uuid.UUID | None
-    source_artifact_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 
@@ -296,6 +292,15 @@ class CompetitorCoPlacement(BaseModel):
     truncated: bool = False
 
 
+class FrozenPromptContext(BaseModel):
+    """Frozen audit prompt context; no valence or sentiment inference."""
+
+    prompt_index: int
+    text: str
+    theme: str
+    intent: str
+
+
 class ProductVisibilityEntry(BaseModel):
     """One own product's persisted aggregate for the selected audit."""
 
@@ -320,6 +325,10 @@ class ProductVisibilityEntry(BaseModel):
     prompt_coverage: float | None = None
     frozen_prompt_context: list[FrozenPromptContext] = Field(default_factory=list)
     conversation_themes: list[str] = Field(default_factory=list)
+    visibility_rate: float
+    top_three_rate: float
+    engine_coverage: int = Field(ge=0)
+    visibility_delta: float | None
 
 
 class CompetitorProductVisibilityEntry(BaseModel):
@@ -344,15 +353,18 @@ class CompetitorProductVisibilityEntry(BaseModel):
     prompt_coverage: float | None = None
     frozen_prompt_context: list[FrozenPromptContext] = Field(default_factory=list)
     conversation_themes: list[str] = Field(default_factory=list)
+    visibility_rate: float
+    top_three_rate: float
+    engine_coverage: int = Field(ge=0)
 
 
-class FrozenPromptContext(BaseModel):
-    """Frozen audit prompt context; no valence or sentiment inference."""
-
-    prompt_index: int
-    text: str
-    theme: str
-    intent: str
+class ProductVisibilitySummary(BaseModel):
+    products_tracked: int = Field(ge=0)
+    products_visible: int = Field(ge=0)
+    visibility_rate: float
+    top_three_rate: float
+    average_rank: float | None
+    competitor_wins: int = Field(ge=0)
 
 
 class ProductVisibilityResponse(BaseModel):
@@ -369,9 +381,26 @@ class ProductVisibilityResponse(BaseModel):
     product_scoring_rule_version: str
     total_mentions: int
     total_analyses: int
+    summary: ProductVisibilitySummary
     products: list[ProductVisibilityEntry]
     competitor_products: list[CompetitorProductVisibilityEntry]
     created_at: datetime
+
+
+class ProductVisibilityTrendPoint(BaseModel):
+    audit_id: uuid.UUID
+    observed_at: datetime
+    visibility_rate: float
+    top_three_rate: float
+    average_rank: float | None
+
+
+class ProductVisibilityTrendResponse(BaseModel):
+    project_id: uuid.UUID
+    product_id: uuid.UUID
+    sku: str
+    name: str
+    points: list[ProductVisibilityTrendPoint]
 
 
 class ProductEvidenceItem(BaseModel):

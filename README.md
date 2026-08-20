@@ -141,12 +141,12 @@ Compose network.
 
 ```bash
 # 1. Copy the local-only template. Edit it before enabling integrations or using non-local secrets.
-cp infra/docker/.env.example infra/docker/.env
+cp .env.example .env
 
 # 2. From the repository root, build and start the complete local stack.
 env -u POSTGRES_PASSWORD -u POSTGRES_USER -u POSTGRES_DB -u DATABASE_URL \
   POSTGRES_PASSWORD=citeladder_dev_password \
-  docker compose --env-file infra/docker/.env -f infra/docker/docker-compose.yml \
+  docker compose --env-file .env -f docker-compose.yml \
   up -d --build --force-recreate
 
 # 3. Once `docker compose ... ps` shows the services healthy, verify the application and API.
@@ -190,6 +190,27 @@ docs/plans/                            active target implementation plans
 docs/evaluations/                      evaluation corpora, provenance, and labels
 docs/archive/                          historical plans and superseded context
 ```
+
+<a id="full-validation"></a>
+## Full validation
+
+The repository root carries a delegating `package.json` so install, build, test,
+lint, and type-check each have one command that works from a fresh clone without
+knowing which half of the monorepo owns them. It declares no dependencies of its
+own — `pnpm --dir frontend` and `uv --directory backend` still do the real work,
+and running the underlying command directly is equivalent.
+
+```bash
+pnpm setup       # frozen installs: frontend (pnpm) + backend (uv)
+pnpm test        # vitest, then pytest
+pnpm lint        # eslint, then ruff
+pnpm typecheck   # tsc --noEmit, then mypy
+pnpm build       # next build
+```
+
+Compose is deliberately absent from that list: the startup command carries a
+mandatory `env -u POSTGRES_…` prefix (gotcha 1) that a shortcut script cannot
+express portably, so use the [Quick start](#quick-start) command verbatim.
 
 <a id="focused-validation"></a>
 ## Focused validation

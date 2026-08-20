@@ -32,7 +32,6 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
-    Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -41,15 +40,10 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.config.commerce import (
     COMMERCE_COMPARISON_VERSION,
-    COMMERCE_DISCOVERY_RUN_STATUS_QUEUED,
-    COMMERCE_DISCOVERY_TASK_KIND_DISCOVER,
-    COMMERCE_DISCOVERY_VERSION,
     COMMERCE_IMPORTER_VERSION,
     COMMERCE_MATCHER_VERSION,
     ORDER_SANITIZE_VERSION,
-    commerce_intelligence_settings,
 )
-from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.database import Base
 
 _FK_WORKSPACE = "workspaces.id"
@@ -225,260 +219,8 @@ class FeedIssue(Base):
 
 
 # ---------------------------------------------------------------------------
-# Commerce discovery and comparison. These rows are intentionally separate
-# from integration feed evidence: they may originate from reviewed uploads or
-# future web acquisition, but remain workspace-scoped and append-only.
+# Audit-bound competitor comparison projection.
 # ---------------------------------------------------------------------------
-class CommerceDiscoveryRun(Base):
-    __tablename__ = "commerce_discovery_runs"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    input_kind: Mapped[str] = mapped_column(String(32))
-    status: Mapped[str] = mapped_column(
-        String(24), default=COMMERCE_DISCOVERY_RUN_STATUS_QUEUED, index=True
-    )
-    configuration: Mapped[dict] = mapped_column(JSONB, default=dict)
-    discovery_version: Mapped[str] = mapped_column(
-        String(64), default=COMMERCE_DISCOVERY_VERSION
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-
-class CommerceDiscoveryTask(Base):
-    """Queue row served unchanged by ``PostgresTaskQueue`` (invariant 8)."""
-
-    __tablename__ = "commerce_discovery_tasks"
-    __table_args__ = (
-        UniqueConstraint(
-            "idempotency_key", name="uq_commerce_discovery_task_idempotency"
-        ),
-        UniqueConstraint(
-            "run_id", "source_key", name="uq_commerce_discovery_task_source"
-        ),
-        Index("ix_commerce_discovery_tasks_claim", "status", "available_at"),
-        Index("ix_commerce_discovery_tasks_lease", "status", "lease_expires_at"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    run_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("commerce_discovery_runs.id", ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    task_kind: Mapped[str] = mapped_column(
-        String(32), default=COMMERCE_DISCOVERY_TASK_KIND_DISCOVER
-    )
-    source_url: Mapped[str] = mapped_column(Text, default="")
-    source_key: Mapped[str] = mapped_column(String(128))
-    idempotency_key: Mapped[str] = mapped_column(String(180))
-    status: Mapped[str] = mapped_column(
-        String(24), default=TASK_STATUS_QUEUED, index=True
-    )
-    priority: Mapped[int] = mapped_column(Integer, default=0)
-    randomized_position: Mapped[int] = mapped_column(Integer, default=0)
-    available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, index=True
-    )
-    lease_owner: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    lease_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    heartbeat_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
-    max_attempts: Mapped[int] = mapped_column(
-        Integer, default=commerce_intelligence_settings.discovery_max_attempts
-    )
-    result_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("commerce_discovery_artifacts.id", ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    error_code: Mapped[str] = mapped_column(String(64), default="")
-    error_detail: Mapped[str] = mapped_column(Text, default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
-    )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-
-class CommerceDiscoveryArtifact(Base):
-    """Immutable, bounded acquisition/upload evidence; never raw HTML."""
-
-    __tablename__ = "commerce_discovery_artifacts"
-    __table_args__ = (
-        UniqueConstraint("task_id", name="uq_commerce_discovery_artifact_task"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    task_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("commerce_discovery_tasks.id", ondelete=_ON_DELETE_CASCADE),
-    )
-    run_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("commerce_discovery_runs.id", ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    evidence_kind: Mapped[str] = mapped_column(String(32))
-    source_url: Mapped[str] = mapped_column(Text, default="")
-    content_hash: Mapped[str] = mapped_column(String(64))
-    extracted: Mapped[dict] = mapped_column(JSONB, default=dict)
-    acquisition: Mapped[dict] = mapped_column(JSONB, default=dict)
-    discovery_version: Mapped[str] = mapped_column(
-        String(64), default=COMMERCE_DISCOVERY_VERSION
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-
-
-class CommerceDiscoveryCandidate(Base):
-    __tablename__ = "commerce_discovery_candidates"
-    __table_args__ = (
-        UniqueConstraint(
-            "run_id", "candidate_hash", name="uq_commerce_candidate_run_hash"
-        ),
-        Index("ix_commerce_discovery_candidates_project", "project_id", "created_at"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    run_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("commerce_discovery_runs.id", ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    task_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("commerce_discovery_tasks.id", ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    artifact_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("commerce_discovery_artifacts.id", ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    candidate_kind: Mapped[str] = mapped_column(String(16))
-    competitor_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("competitors.id", ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    candidate_hash: Mapped[str] = mapped_column(String(64))
-    identity: Mapped[dict] = mapped_column(JSONB, default=dict)
-    extraction_confidence: Mapped[float] = mapped_column(default=0.0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-
-
-class CommerceCandidateReview(Base):
-    """Append-only reviewer decision. Accepted links are never overwritten."""
-
-    __tablename__ = "commerce_candidate_reviews"
-    __table_args__ = (
-        Index("ix_commerce_candidate_reviews_candidate", "candidate_id", "created_at"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    candidate_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("commerce_discovery_candidates.id", ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    status: Mapped[str] = mapped_column(String(16))
-    target_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("products.id", ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    target_competitor_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("competitor_products.id", ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    match_reason: Mapped[str] = mapped_column(String(64), default="")
-    match_confidence: Mapped[float] = mapped_column(default=0.0)
-    review_note: Mapped[str] = mapped_column(Text, default="")
-    matcher_version: Mapped[str] = mapped_column(
-        String(64), default=COMMERCE_MATCHER_VERSION
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-
-
 class CompetitorComparisonSnapshot(Base):
     """Versioned immutable projection of two persisted catalog states."""
 
@@ -498,6 +240,12 @@ class CompetitorComparisonSnapshot(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    audit_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("audits.id", ondelete=_ON_DELETE_CASCADE),
+        unique=True,
         index=True,
     )
     competitor_id: Mapped[uuid.UUID | None] = mapped_column(

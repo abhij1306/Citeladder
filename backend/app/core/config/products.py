@@ -27,13 +27,11 @@ PRODUCT_ORIGIN_IMPORTED: Final = "imported"
 # (``connection_id``/``external_item_ref``/``last_seen_sync_run_id``) carry
 # the feed identity.
 PRODUCT_ORIGIN_SYNCED: Final = "synced"
-PRODUCT_ORIGIN_DISCOVERED: Final = "discovered"
 PRODUCT_ORIGINS: Final[frozenset[str]] = frozenset(
     {
         PRODUCT_ORIGIN_MANUAL,
         PRODUCT_ORIGIN_IMPORTED,
         PRODUCT_ORIGIN_SYNCED,
-        PRODUCT_ORIGIN_DISCOVERED,
     }
 )
 DEFAULT_PRODUCT_ORIGIN: Final = PRODUCT_ORIGIN_MANUAL

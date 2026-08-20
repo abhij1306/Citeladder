@@ -1091,7 +1091,7 @@ async def test_browser_rung_failure_keeps_prior_server_evidence():
 async def test_injected_browser_transport_is_not_closed_by_the_fetcher():
     """An injected transport belongs to the caller, who may share it.
 
-    ``CommerceDiscoveryWorker`` builds one fetcher per task around a single
+    Bounded acquisition workers build one fetcher per task around a single
     shared browser transport; closing it on the first fetcher's exit would
     leave every later task with a dead rung.
     """

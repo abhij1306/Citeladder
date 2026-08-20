@@ -10,7 +10,7 @@ import uuid
 from app.connectors.agent.factory import create_model_gateway
 from app.core.config.agent import default_agent_settings
 from app.core.database import SessionLocal, dispose_engine
-from app.core.telemetry import configure_logging
+from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.agent.service import claim_task, execute_claimed_task
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,7 @@ async def _main() -> None:
 
 def main() -> None:  # pragma: no cover
     configure_logging()
+    instrument_worker("agent-worker")
     asyncio.run(_main())
 
 

@@ -23,12 +23,13 @@ import { parseProductCsv, validProductRows } from './csv';
 import { emptyProductForm, formValuesToProductUpdate } from './forms';
 
 describe('normalizeProductsTab', () => {
-  it('defaults to Discover and passes through known tabs', () => {
-    expect(normalizeProductsTab(null)).toBe('discover');
-    expect(normalizeProductsTab('bogus')).toBe('discover');
-    expect(normalizeProductsTab('discover')).toBe('discover');
-    expect(normalizeProductsTab('conversations')).toBe('conversations');
-    expect(normalizeProductsTab('market_intelligence')).toBe('market_intelligence');
+  it('defaults to Overview and passes through known tabs', () => {
+    expect(normalizeProductsTab(null)).toBe('overview');
+    expect(normalizeProductsTab('bogus')).toBe('overview');
+    expect(normalizeProductsTab('overview')).toBe('overview');
+    expect(normalizeProductsTab('visibility')).toBe('visibility');
+    expect(normalizeProductsTab('competitors')).toBe('competitors');
+    expect(normalizeProductsTab('opportunities')).toBe('opportunities');
     expect(normalizeProductsTab('catalog')).toBe('catalog');
   });
 });
@@ -58,6 +59,13 @@ describe('summarizeProductVisibility', () => {
     attribute_dimension_frequency: {},
     buyer_destination_mix: { total: 0, by_kind: [], by_domain: [] },
     competitor_co_placement: { items: [], truncated: false },
+    prompt_coverage: null,
+    frozen_prompt_context: [],
+    conversation_themes: [],
+    visibility_rate: 0.5,
+    top_three_rate: 0.25,
+    engine_coverage: 1,
+    visibility_delta: null,
   };
   const base: ProductVisibility = {
     project_id: '11111111-1111-4111-8111-111111111111',
@@ -67,6 +75,14 @@ describe('summarizeProductVisibility', () => {
     product_scoring_rule_version: 'r1',
     total_mentions: 10,
     total_analyses: 4,
+    summary: {
+      products_tracked: 2,
+      products_visible: 2,
+      visibility_rate: 0.75,
+      top_three_rate: 0.5,
+      average_rank: 2,
+      competitor_wins: 1,
+    },
     products: [
       {
         product_id: '33333333-3333-4333-8333-333333333333',

@@ -56,6 +56,12 @@ const entryV2 = {
     ],
   },
   competitor_co_placement: { items: [], truncated: false },
+  prompt_coverage: 0.5,
+  frozen_prompt_context: [],
+  conversation_themes: [],
+  visibility_rate: 0.5,
+  top_three_rate: 0.5,
+  engine_coverage: 1,
 };
 
 const visibility = {
@@ -66,6 +72,14 @@ const visibility = {
   product_scoring_rule_version: 'product-scoring-v1',
   total_mentions: 4,
   total_analyses: 2,
+  summary: {
+    products_tracked: 1,
+    products_visible: 1,
+    visibility_rate: 1,
+    top_three_rate: 1,
+    average_rank: 1,
+    competitor_wins: 1,
+  },
   products: [
     {
       product_id: UUID,
@@ -77,6 +91,7 @@ const visibility = {
       rank_distribution: { top_1: 2, top_2_3: 0, top_4_5: 0, rank_6_plus: 0, unranked: 0 },
       price_mention_count: 2,
       price_accuracy_rate: 1.0,
+      visibility_delta: 0.25,
       ...entryV2,
     },
   ],
@@ -245,6 +260,10 @@ describe('productsApi', () => {
       price: 2399.0,
       currency: 'USD',
       url: '',
+      variants: [],
+      attributes: {},
+      availability: '',
+      extraction_fresh_at: null,
       created_at: '2026-07-15T00:00:00Z',
       updated_at: '2026-07-15T00:00:00Z',
     };
@@ -296,6 +315,31 @@ describe('productsApi', () => {
     const sliced = new URLSearchParams(slicedUrl.split('?')[1]);
     expect(sliced.get('audit_id')).toBe(UUID3);
     expect(sliced.get('engine')).toBe('gemini');
+  });
+
+  it('reads the three-point product visibility trend', async () => {
+    const trend = {
+      project_id: UUID2,
+      product_id: UUID,
+      sku: 'AC-VB500',
+      name: 'Acme VoltBike 500',
+      points: [
+        {
+          audit_id: UUID3,
+          observed_at: '2026-07-15T00:00:00Z',
+          visibility_rate: 0.5,
+          top_three_rate: 0.5,
+          average_rank: 1,
+        },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(trend));
+    vi.stubGlobal('fetch', fetchMock);
+    const { productsApi } = await import('./products');
+    await productsApi.getProductVisibilityTrend(UUID2, UUID, 'gemini');
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      `/api/v1/projects/${UUID2}/products/visibility/trends?product_id=${UUID}&engine=gemini`,
+    );
   });
 
   it('builds the evidence path with audit/engine/limit filters', async () => {

@@ -60,6 +60,10 @@ export const competitorProductSchema = responseObject({
   price: z.number().nullable(),
   currency: z.string(),
   url: z.string(),
+  variants: z.array(productVariantSchema),
+  attributes: z.record(z.string(), z.unknown()),
+  availability: z.string(),
+  extraction_fresh_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -167,6 +171,16 @@ const productVisibilityEntryV2Fields = {
   attribute_dimension_frequency: attributeDimensionFrequencySchema,
   buyer_destination_mix: buyerDestinationMixSchema,
   competitor_co_placement: competitorCoPlacementSchema,
+  prompt_coverage: z.number().nullable(),
+  frozen_prompt_context: z.array(
+    responseObject({
+      prompt_index: z.number().int(),
+      text: z.string(),
+      theme: z.string(),
+      intent: z.string(),
+    }),
+  ),
+  conversation_themes: z.array(z.string()),
 } as const;
 
 export const productVisibilityEntrySchema = responseObject({
@@ -181,6 +195,10 @@ export const productVisibilityEntrySchema = responseObject({
   price_mention_count: z.number().int(),
   // null = no verifiable price mentions (never a fabricated 0).
   price_accuracy_rate: z.number().nullable(),
+  visibility_rate: z.number(),
+  top_three_rate: z.number(),
+  engine_coverage: z.number().int().nonnegative(),
+  visibility_delta: z.number().nullable(),
   ...productVisibilityEntryV2Fields,
 });
 
@@ -194,6 +212,9 @@ export const competitorProductVisibilityEntrySchema = responseObject({
   rank_distribution: z.record(z.string(), z.number().int()),
   price_mention_count: z.number().int(),
   price_accuracy_rate: z.number().nullable(),
+  visibility_rate: z.number(),
+  top_three_rate: z.number(),
+  engine_coverage: z.number().int().nonnegative(),
   ...productVisibilityEntryV2Fields,
 });
 
@@ -207,9 +228,33 @@ export const productVisibilitySchema = responseObject({
   product_scoring_rule_version: z.string(),
   total_mentions: z.number().int(),
   total_analyses: z.number().int(),
+  summary: responseObject({
+    products_tracked: z.number().int().nonnegative(),
+    products_visible: z.number().int().nonnegative(),
+    visibility_rate: z.number(),
+    top_three_rate: z.number(),
+    average_rank: z.number().nullable(),
+    competitor_wins: z.number().int().nonnegative(),
+  }),
   products: z.array(productVisibilityEntrySchema),
   competitor_products: z.array(competitorProductVisibilityEntrySchema),
   created_at: z.string(),
+});
+
+export const productVisibilityTrendPointSchema = responseObject({
+  audit_id: uuid(),
+  observed_at: z.string(),
+  visibility_rate: z.number(),
+  top_three_rate: z.number(),
+  average_rank: z.number().nullable(),
+});
+
+export const productVisibilityTrendResponseSchema = responseObject({
+  project_id: uuid(),
+  product_id: uuid(),
+  sku: z.string(),
+  name: z.string(),
+  points: z.array(productVisibilityTrendPointSchema),
 });
 
 // Evidence kind vocabulary (backend projection): one stable `evidence_id`

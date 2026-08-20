@@ -34,6 +34,7 @@ class _ProductSpec:
     sku: str
     url: str
     price: float
+    attributes: dict[str, str]
     currency: str = "USD"
 
 
@@ -44,6 +45,7 @@ class _CompetitorProductSpec:
     name: str
     url: str
     price: float
+    attributes: dict[str, str]
     currency: str = "USD"
 
 
@@ -60,18 +62,27 @@ DEMO_PRODUCT_SPECS: tuple[_ProductSpec, ...] = (
         sku="WGC-S40-BLK",
         url="https://wanderlustgear.com/backpacks/summit-40l",
         price=189.99,
+        attributes={"gtin": "00850000000401", "brand": "Wanderlust Gear"},
     ),
     _ProductSpec(
         name="Voyager 25L Carry-On Pack",
         sku="WGC-V25-GRY",
         url="https://wanderlustgear.com/backpacks/voyager-25l",
         price=129.99,
+        attributes={"gtin": "00850000000251", "brand": "Wanderlust Gear"},
     ),
 )
 DEMO_COMPETITOR_PRODUCT_SPEC = _CompetitorProductSpec(
     name="TrailBlaze Alpine 45",
     url="https://trailblazepacks.com/alpine-45",
     price=174.99,
+    attributes={
+        "gtin": "00850000000401",
+        "brand": "TrailBlaze Packs",
+        "material": "Recycled ripstop nylon",
+        "warranty": "Lifetime",
+        "weight": "1.4 kg",
+    },
 )
 
 # Wanderlust prompt fixtures: (text, intent, status, origin) covering every

@@ -10,13 +10,21 @@ venv/
 
 # Env / secrets
 .env
+# Logfire CLI credentials: contains a project write token.
+.logfire/
 *.env
 !.env.example
-infra/docker/.env
 
 # Node / frontend (F1+)
 node_modules/
 .next/
+
+# The root package.json only delegates to frontend/ and backend/; it declares
+# no dependencies. pnpm still materializes an empty project there on any root
+# `pnpm run`, and a second lockfile at the repository root would move the
+# workspace root that Next.js and the tooling infer. frontend/pnpm-lock.yaml
+# (not anchored here) stays tracked.
+/pnpm-lock.yaml
 
 # Local measurement sweep output (committed artifacts live in
 # backend/docs/measurements/ instead)

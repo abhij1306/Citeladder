@@ -42,6 +42,7 @@ RULE_OWNED_PAGE_NOT_CITED = "owned_page_not_cited"
 RULE_PRODUCT_NOT_MENTIONED = "product_not_mentioned"
 RULE_COMPETITOR_PRODUCT_DOMINATES = "competitor_product_dominates"
 RULE_PRICE_MENTION_MISMATCH = "price_mention_mismatch"
+RULE_PRODUCT_ATTRIBUTE_GAP = "product_attribute_gap"
 
 
 # =========================================================================
@@ -148,6 +149,17 @@ class CommerceEvidence:
 
     audit_id: uuid.UUID
     entries: tuple[ProductEntryEvidence, ...]
+    attribute_gaps: tuple[ProductAttributeGapEvidence, ...] = ()
+
+
+@dataclass(frozen=True)
+class ProductAttributeGapEvidence:
+    product_id: str
+    product_name: str
+    product_sku: str
+    competitor_name: str
+    gaps: tuple[dict[str, Any], ...]
+    source_metric_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -538,5 +550,37 @@ def detect_price_mention_mismatch(evidence: CommerceEvidence) -> list[DetectorHi
             if entry.kind == "product"
             and entry.price_mismatch_rate is not None
             and entry.price_mismatch_rate > COMMERCE_PRICE_MISMATCH_RATE_THRESHOLD
+        ]
+    )
+
+
+def detect_product_attribute_gap(evidence: CommerceEvidence) -> list[DetectorHit]:
+    rule = OPPORTUNITY_RULES_BY_ID[RULE_PRODUCT_ATTRIBUTE_GAP]
+    if not rule.enabled:
+        return []
+    return _sorted_commerce_hits(
+        [
+            DetectorHit(
+                rule_id=rule.rule_id,
+                target_key=f"product:{gap.product_id}",
+                target_prompt_id=None,
+                target_url=None,
+                target_theme=None,
+                evidence={
+                    "product_name": gap.product_name,
+                    "product_sku": gap.product_sku,
+                    "product_kind": "product",
+                    "competitor_name": gap.competitor_name,
+                    "attribute_gaps": list(gap.gaps),
+                    "audit_id": str(evidence.audit_id),
+                },
+                source_analysis_ids=(),
+                source_issue_ids=(),
+                source_metric_ids=gap.source_metric_ids,
+                value_factor=COMMERCE_VALUE_FACTOR,
+                gap_factor=COMMERCE_GAP_FACTOR,
+            )
+            for gap in evidence.attribute_gaps
+            if gap.gaps and gap.source_metric_ids
         ]
     )

@@ -47,7 +47,7 @@ function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['prog
     status,
     progress: {
       phase,
-      completed_steps: status === 'ready' ? 5 : 2,
+      completed_steps: status === 'ready' ? 4 : 2,
       total_steps: 4,
       pages_read: 3,
       competitors_found: 1,
@@ -154,7 +154,7 @@ describe('OnboardingScreen', () => {
     );
   });
 
-  it('submits one confirmed ICP completion and redirects to factual activation progress', async () => {
+  it('submits one confirmed ICP completion and redirects to the command center', async () => {
     discoveryState = discovery('ready', 'preparing_review');
     let completionBody: unknown;
     mswServer.use(
@@ -198,9 +198,7 @@ describe('OnboardingScreen', () => {
     });
     expect(JSON.stringify(completionBody)).not.toContain('prompt_groups');
     expect(setActiveProjectId).toHaveBeenCalledWith(PROJECT_ID);
-    expect(replace).toHaveBeenCalledWith(
-      `/projects?project=${PROJECT_ID}&activation=1&crawl=${CRAWL_ID}&limit=10`,
-    );
+    expect(replace).toHaveBeenCalledWith('/projects');
   });
 
   it('gates creation on the one thing the confirm screen asks for', async () => {

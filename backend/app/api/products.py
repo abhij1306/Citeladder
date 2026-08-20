@@ -60,6 +60,7 @@ from app.domain.products.schemas import (
     ProductResponse,
     ProductUpdate,
     ProductVisibilityResponse,
+    ProductVisibilityTrendResponse,
     competitor_product_to_response,
     product_to_response,
 )
@@ -83,6 +84,7 @@ from app.domain.products.service import (
 )
 from app.domain.products.visibility import (
     get_product_visibility,
+    get_product_visibility_trend,
 )
 from app.domain.products.visibility_evidence import get_product_evidence
 from app.domain.products.visibility_export import (
@@ -429,6 +431,32 @@ async def product_visibility_endpoint(
             workspace_id=ctx.workspace_id,
             project_id=project_id,
             audit_id=audit_id,
+            engine=engine,
+        )
+    except AnalysisNotFoundError as exc:
+        raise_not_found("Product visibility", cause=exc)
+    except TrendQueryError as exc:
+        raise _unprocessable(str(exc)) from exc
+
+
+@router.get(
+    "/projects/{project_id}/products/visibility/trends",
+    response_model=ProductVisibilityTrendResponse,
+)
+async def product_visibility_trend_endpoint(
+    project_id: uuid.UUID,
+    product_id: Annotated[uuid.UUID, Query()],
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    engine: Annotated[str | None, Query()] = None,
+) -> ProductVisibilityTrendResponse:
+    """Three-point visibility history from persisted product snapshots."""
+    try:
+        return await get_product_visibility_trend(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            product_id=product_id,
             engine=engine,
         )
     except AnalysisNotFoundError as exc:

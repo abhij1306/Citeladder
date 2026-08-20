@@ -6,12 +6,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ProductsScreen, ProductsScreenSkeleton } from '@/components/products/products-screen';
 
 /**
- * Commerce workspace: one shell with Discover, Catalog, AI Conversations,
- * and Market Intelligence tabs —
- *   - **Catalog** (default): the project's own product catalog (CRUD + CSV
- *     import) with per-SKU completeness badges;
- *   - **Visibility**: the selected run's product-vs-competitor projection —
- *     share of voice, mentions, rank distribution, and price accuracy.
+ * Commerce workspace: Overview, Catalog, AI Visibility, Competitors, and
+ * Opportunities. Overview is the default and every tab reads persisted data.
  * The active tab is mirrored in `?tab=`. The page title renders in the top
  * bar (F5), so there is no in-page header block.
  */
