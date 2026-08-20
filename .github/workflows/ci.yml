@@ -37,7 +37,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/citeladder
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Complexity policy compares ceilings with the PR/push base so a
           # branch cannot make its own complexity budget larger.
@@ -104,7 +104,7 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@v6
@@ -155,7 +155,7 @@ jobs:
     name: Security (pip-audit, detect-secrets)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Same pin as the backend job: the audited requirements must be the set
       # resolved for the interpreter that actually ships.
       - name: Install uv

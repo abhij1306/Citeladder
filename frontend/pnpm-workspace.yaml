@@ -29,8 +29,8 @@ overrides:
   # Migrated from the `pnpm.overrides` field in package.json, which pnpm 11 no
   # longer reads (it was being silently ignored). Keeps the React type packages
   # pinned to a single version across the tree.
-  '@types/react': '19.2.17'
-  '@types/react-dom': '19.2.3'
+  '@types/react': '19.2.18'
+  '@types/react-dom': '19.2.4'
   # Force sharp up off the vulnerable libvips line (GHSA-f88m-g3jw-g9cj:
   # CVE-2026-33327/33328/35590/35591, fixed in sharp 0.35.0). sharp reaches us
   # only as an OPTIONAL dependency of next, which still declares '^0.34.5' as
