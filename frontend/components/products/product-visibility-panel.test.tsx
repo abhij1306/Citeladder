@@ -24,8 +24,6 @@ function makeQueries(overrides: Record<string, unknown> = {}): VisibilityQueries
     engine: 'all',
     setEngine: vi.fn(),
     engineParam: undefined,
-    surface: '',
-    setSurface: vi.fn(),
     visibilityQuery: { isLoading: false, isError: false, data: undefined },
     ...overrides,
   } as unknown as VisibilityQueries;
@@ -113,7 +111,6 @@ function makeVisibility(overrides: Partial<ProductVisibility> = {}): ProductVisi
         competitor_co_placement: { items: [], truncated: false },
       },
     ],
-    available_surfaces: ['', 'chatgpt-shopping'],
     created_at: '2026-07-15T00:00:00Z',
     ...overrides,
   };
@@ -325,22 +322,18 @@ describe('ProductVisibilityPanel states', () => {
     expect(screen.getByText(/product analyzer v1/)).toBeInTheDocument();
   });
 
-  it('defaults the run selector to Latest and the surface to Answer-engine APIs', () => {
+  it('defaults the run selector to Latest', () => {
     renderWithData();
     expect(screen.getByRole('button', { name: 'Select run' })).toHaveTextContent('Latest');
-    expect(screen.getByRole('button', { name: 'Filter by surface' })).toHaveTextContent(
-      'Answer-engine APIs',
-    );
   });
 
-  it('builds the export URL with the audit, engine, and surface slice', () => {
+  it('builds the export URL with the audit and engine slice', () => {
     renderPanel(
       makeQueries({
         activeRunId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         runOptions: [{ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', label: 'Jul 24, 2026' }],
         engine: 'gemini',
         engineParam: 'gemini',
-        surface: 'chatgpt-shopping',
         visibilityQuery: { isLoading: false, isError: false, data: makeVisibility() },
       }),
     );
@@ -351,17 +344,6 @@ describe('ProductVisibilityPanel states', () => {
     const params = new URLSearchParams(href.split('?')[1]);
     expect(params.get('audit_id')).toBe('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
     expect(params.get('engine')).toBe('gemini');
-    expect(params.get('surface')).toBe('chatgpt-shopping');
-  });
-
-  it('lists the measurement surface plus configured surfaces verbatim', async () => {
-    const user = userEvent.setup();
-    renderWithData();
-    await user.click(screen.getByRole('button', { name: 'Filter by surface' }));
-    expect(screen.getByRole('menuitemradio', { name: 'Answer-engine APIs' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitemradio', { name: 'chatgpt-shopping' })).toBeInTheDocument();
-    // There is deliberately no "All surfaces" aggregate option.
-    expect(screen.queryByRole('menuitemradio', { name: /all surfaces/i })).not.toBeInTheDocument();
   });
 });
 
@@ -415,30 +397,20 @@ describe('ProductVisibilityPanel sub-tabs', () => {
 });
 
 describe('product visibility query key', () => {
-  it('defaults to the latest audit, all engines, and the measurement surface', () => {
+  it('defaults to the latest audit and all engines', () => {
     expect(queryKeys.products.visibility(PROJECT)).toEqual([
       'products',
       'visibility',
       PROJECT,
       'latest',
       'all',
-      'measurement',
     ]);
-    expect(queryKeys.products.visibility(PROJECT, 'abc', 'gemini', '')).toEqual([
+    expect(queryKeys.products.visibility(PROJECT, 'abc', 'gemini')).toEqual([
       'products',
       'visibility',
       PROJECT,
       'abc',
       'gemini',
-      'measurement',
-    ]);
-    expect(queryKeys.products.visibility(PROJECT, 'abc', 'gemini', 'chatgpt-shopping')).toEqual([
-      'products',
-      'visibility',
-      PROJECT,
-      'abc',
-      'gemini',
-      'chatgpt-shopping',
     ]);
   });
 });

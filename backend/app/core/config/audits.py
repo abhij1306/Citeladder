@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import TYPE_CHECKING, Any, Final, TypeGuard
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 if TYPE_CHECKING:
@@ -25,37 +26,7 @@ from app.core.config.projects import (
 )
 from app.core.config.task_queue import (
     ERROR_MAX_ATTEMPTS,
-    TASK_CLAIMABLE_STATUSES,
-    TASK_LEASED_STATUSES,
-    TASK_STATUS_CANCELLED,
-    TASK_STATUS_CAPACITY_WAIT,
-    TASK_STATUS_FAILED,
-    TASK_STATUS_LEASED,
-    TASK_STATUS_QUEUED,
-    TASK_STATUS_RETRY_WAIT,
-    TASK_STATUS_RUNNING,
-    TASK_STATUS_SUCCEEDED,
-    TASK_TERMINAL_STATUSES,
     PostgresQueueSpec,
-)
-
-# Queue-row statuses + the max-attempts token are queue-neutral: they are
-# owned by ``config/task_queue.py`` and re-exported here so existing audit
-# imports (``from app.core.config.audits import TASK_STATUS_*``) keep working
-# unchanged while the audit and Site Health queues share one vocabulary.
-__all_queue_reexports = (
-    ERROR_MAX_ATTEMPTS,
-    TASK_CLAIMABLE_STATUSES,
-    TASK_LEASED_STATUSES,
-    TASK_STATUS_CANCELLED,
-    TASK_STATUS_CAPACITY_WAIT,
-    TASK_STATUS_FAILED,
-    TASK_STATUS_LEASED,
-    TASK_STATUS_QUEUED,
-    TASK_STATUS_RETRY_WAIT,
-    TASK_STATUS_RUNNING,
-    TASK_STATUS_SUCCEEDED,
-    TASK_TERMINAL_STATUSES,
 )
 
 # --- Audit lifecycle statuses --------------------------------------------
@@ -182,6 +153,7 @@ class MeasurementModePolicy:
     timeout_seconds: float
     repetitions: int
     answer_instruction: str
+    max_attempts: int
 
 
 # --- Task (queue row) statuses -------------------------------------------
@@ -420,6 +392,13 @@ class AuditSettings(BaseSettings):
     benchmark_timeout_seconds: float = 60.0
     pulse_repetitions: int = 1
     benchmark_repetitions: int = 3
+    # Retry budget PER MODE. Pulse is the cheap, frequent shape: it runs
+    # without retrieval, on one repetition, and a provider that failed twice
+    # in a row is not going to be talked round by three more paid calls. The
+    # worst case for a 3-engine x 30-prompt pulse run drops from 450 provider
+    # calls to 180. Benchmark keeps the full ``max_attempts`` budget because
+    # its citation evidence is what a report is built on.
+    pulse_max_attempts: int = Field(default=2, gt=0)
     # Days of history folded into a trend series by the reporting projection.
     trend_smoothing_days: int = 7
     # Hard ceiling on a single frozen prompt's length (validated by the planner).
@@ -437,6 +416,10 @@ class AuditSettings(BaseSettings):
     # The API layer READS these; it never hard-codes them (invariant 1).
     sse_poll_seconds: float = 1.0
     sse_terminal_grace_polls: int = 2
+    # Bounds ONE event page (the JSON replay and each stream poll). A resuming
+    # client carries the last id it rendered, so a capped page is a page —
+    # never a silently truncated history. Mirrors the Site Health cap.
+    max_event_page: int = 1_000
 
     def retry_delay(
         self, attempt: int, retry_after_seconds: float | None = None
@@ -477,6 +460,7 @@ def measurement_policy_for_mode(mode: str) -> MeasurementModePolicy:
             timeout_seconds=audit_settings.pulse_timeout_seconds,
             repetitions=audit_settings.pulse_repetitions,
             answer_instruction=PULSE_ANSWER_INSTRUCTION,
+            max_attempts=audit_settings.pulse_max_attempts,
         )
     if mode == MEASUREMENT_MODE_BENCHMARK:
         return MeasurementModePolicy(
@@ -485,6 +469,7 @@ def measurement_policy_for_mode(mode: str) -> MeasurementModePolicy:
             timeout_seconds=audit_settings.benchmark_timeout_seconds,
             repetitions=audit_settings.benchmark_repetitions,
             answer_instruction=BENCHMARK_ANSWER_INSTRUCTION,
+            max_attempts=audit_settings.max_attempts,
         )
     raise ValueError(
         f"unknown measurement mode {mode!r}; expected one of "
@@ -511,6 +496,7 @@ def frozen_policy_configuration(policy: MeasurementModePolicy) -> dict:
         "timeout_seconds": policy.timeout_seconds,
         "repetitions": policy.repetitions,
         "answer_instruction": policy.answer_instruction,
+        "max_attempts": policy.max_attempts,
     }
 
 
@@ -539,25 +525,27 @@ def _is_frozen_policy(value: object) -> TypeGuard[dict[str, Any]]:
         "timeout_seconds",
         "repetitions",
         "answer_instruction",
+        "max_attempts",
     }
     if not required.issubset(value):
         return False
-    retrieval = value["retrieval_enabled"]
-    max_output_tokens = value["max_output_tokens"]
-    timeout_seconds = value["timeout_seconds"]
-    repetitions = value["repetitions"]
-    answer_instruction = value["answer_instruction"]
     return (
-        isinstance(retrieval, bool)
-        and isinstance(max_output_tokens, int)
-        and not isinstance(max_output_tokens, bool)
-        and max_output_tokens > 0
-        and _is_finite_positive_number(timeout_seconds)
-        and isinstance(repetitions, int)
-        and not isinstance(repetitions, bool)
-        and repetitions > 0
-        and isinstance(answer_instruction, str)
+        isinstance(value["retrieval_enabled"], bool)
+        and _is_positive_int(value["max_output_tokens"])
+        and _is_finite_positive_number(value["timeout_seconds"])
+        and _is_positive_int(value["repetitions"])
+        and isinstance(value["answer_instruction"], str)
+        and _is_positive_int(value["max_attempts"])
     )
+
+
+def _is_positive_int(value: object) -> bool:
+    """A REAL positive int.
+
+    ``bool`` is an ``int`` subclass, so ``True`` would otherwise validate as a
+    count of one out of a poisoned frozen blob.
+    """
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
 
 def _is_finite_positive_number(value: object) -> bool:
@@ -586,15 +574,18 @@ def measurement_policy_from_configuration(
     frozen ``measurement_mode`` (``benchmark`` when even that is absent). Every
     audit planned from T3 onward returns exactly what the planner froze.
     """
-    frozen = configuration.get(MEASUREMENT_POLICY_KEY)
-    if not _is_frozen_policy(frozen):
+    if MEASUREMENT_POLICY_KEY not in configuration:
         return _mode_fallback_policy(configuration)
+    frozen = configuration[MEASUREMENT_POLICY_KEY]
+    if not _is_frozen_policy(frozen):
+        raise ValueError("invalid frozen measurement policy")
     return MeasurementModePolicy(
         retrieval_enabled=bool(frozen["retrieval_enabled"]),
         max_output_tokens=int(frozen["max_output_tokens"]),
         timeout_seconds=float(frozen["timeout_seconds"]),
         repetitions=int(frozen["repetitions"]),
         answer_instruction=str(frozen["answer_instruction"]),
+        max_attempts=int(frozen["max_attempts"]),
     )
 
 

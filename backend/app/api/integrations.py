@@ -16,7 +16,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Cookie, Depends, Query, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,7 +53,7 @@ from app.core.config.integrations_transport import (
     normalize_shopify_shop_domain,
 )
 from app.core.errors import ApiException
-from app.core.http_errors import raise_not_found
+from app.core.http_errors import raise_api_error, raise_not_found
 from app.domain.abuse.service import UsageLimitExceededError, enforce_and_commit
 from app.domain.integrations.errors import (
     IntegrationConnectionNotFoundError,
@@ -136,11 +136,12 @@ async def _enforce_discovery_limit(
             window_seconds=abuse_settings.property_discovery_window_seconds,
         )
     except UsageLimitExceededError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many property lookups",
+        raise_api_error(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many property lookups",
             headers={"Retry-After": str(exc.retry_after_seconds)},
-        ) from exc
+            cause=exc,
+        )
 
 
 def _landing_redirect(params: dict[str, str]) -> RedirectResponse:
@@ -179,20 +180,27 @@ async def integration_oauth_start(
     provider_account_ref = ""
     if provider == INTEGRATION_PROVIDER_SHOPIFY:
         if not shop.strip():
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise_api_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "A valid Shopify shop domain is required",
+                code=ERROR_OAUTH_SHOP_INVALID,
                 detail=ERROR_OAUTH_SHOP_INVALID,
             )
         try:
             provider_account_ref = normalize_shopify_shop_domain(shop)
         except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise_api_error(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "A valid Shopify shop domain is required",
+                code=ERROR_OAUTH_SHOP_INVALID,
                 detail=ERROR_OAUTH_SHOP_INVALID,
-            ) from exc
+                cause=exc,
+            )
     elif shop.strip():
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "The shop parameter is only valid for Shopify",
+            code=ERROR_OAUTH_SHOP_INVALID,
             detail=ERROR_OAUTH_SHOP_INVALID,
         )
     try:
@@ -205,10 +213,13 @@ async def integration_oauth_start(
             provider_account_ref=provider_account_ref,
         )
     except IntegrationNotConfiguredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "The integration provider is not configured",
+            code=ERROR_OAUTH_NOT_CONFIGURED,
             detail=ERROR_OAUTH_NOT_CONFIGURED,
-        ) from exc
+            cause=exc,
+        )
     response = RedirectResponse(
         oauth_start.authorize_url, status_code=status.HTTP_302_FOUND
     )
@@ -380,21 +391,34 @@ async def enqueue_sync_endpoint(
     except IntegrationConnectionNotFoundError as exc:
         raise_not_found(_RES_CONNECTION, cause=exc)
     except SyncWindowInvalidError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "The requested sync window is invalid",
+            code=ERROR_SYNC_WINDOW_INVALID,
             detail=ERROR_SYNC_WINDOW_INVALID,
-        ) from exc
+            cause=exc,
+        )
     except ActiveWindowConflictError as exc:
         # Same detail shape as the project-level sync fan-out 409
         # (api/traffic.py) — one dict contract per error token; here the
         # conflict means nothing was enqueued by this call.
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+        raise_api_error(
+            status.HTTP_409_CONFLICT,
+            "A sync window is already active for this connection",
+            code=ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
+            # ``detail`` keeps the exact legacy body: clients read ``error``
+            # plus ``enqueued_connection_ids`` to learn which connections DID
+            # enqueue before the clash. ``details`` mirrors it in the envelope.
+            details={
+                "error": ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
+                "enqueued_connection_ids": [],
+            },
             detail={
                 "error": ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
                 "enqueued_connection_ids": [],
             },
-        ) from exc
+            cause=exc,
+        )
     return IntegrationSyncEnqueueResponse(
         sync_run_id=run.id, connection_id=run.connection_id, status=run.status
     )
@@ -491,20 +515,29 @@ async def create_mapping_endpoint(
     except ProjectNotFoundError as exc:
         raise_not_found(_RES_PROJECT, cause=exc)
     except MappingProviderMismatchError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "The mapping provider does not match the connection provider",
+            code=ERROR_MAPPING_PROVIDER_MISMATCH,
             detail=ERROR_MAPPING_PROVIDER_MISMATCH,
-        ) from exc
+            cause=exc,
+        )
     except MappingPropertyNotOwnedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "The property does not belong to the selected project",
+            code=ERROR_MAPPING_PROPERTY_NOT_OWNED,
             detail=ERROR_MAPPING_PROPERTY_NOT_OWNED,
-        ) from exc
+            cause=exc,
+        )
     except MappingActiveOwnerConflictError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+        raise_api_error(
+            status.HTTP_409_CONFLICT,
+            "An active mapping already owns this property",
+            code=ERROR_MAPPING_ACTIVE_OWNER_CONFLICT,
             detail=ERROR_MAPPING_ACTIVE_OWNER_CONFLICT,
-        ) from exc
+            cause=exc,
+        )
 
 
 @router.delete("/mappings/{mapping_id}", status_code=status.HTTP_204_NO_CONTENT)

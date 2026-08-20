@@ -210,6 +210,13 @@ async def test_worker_failure_and_cancel_keep_results_immutable(
     cancelled_id = await _seed_generation(session_factory, project_id)
     cancelled = await client.post(f"/api/v1/content/generations/{cancelled_id}/cancel")
     assert cancelled.json()["status"] == TASK_STATUS_CANCELLED
+    repeated = await client.post(f"/api/v1/content/generations/{cancelled_id}/cancel")
+    assert repeated.status_code == 409
+    assert repeated.json()["detail"] == "cancel_not_allowed"
+    assert repeated.json()["error"]["code"] == "cancel_not_allowed"
+    assert repeated.json()["error"]["message"] == (
+        "This content generation can no longer be cancelled"
+    )
     assert await _worker(session_factory, _transport()).run_until_idle() == 0
     assert (await client.get(f"/api/v1/content/generations/{cancelled_id}")).json()[
         "output_text"

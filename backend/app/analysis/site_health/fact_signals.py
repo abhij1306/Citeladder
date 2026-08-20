@@ -6,16 +6,11 @@ import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
+from app.analysis.site_health.dom import node_text as _text
 from app.connectors.web_evidence.url_policy import registrable_domain
 from app.core.config import site_health_acquisition as config
 from app.core.config.site_health_rules import ANSWER_FIRST_MAX_HOPS
-
-
-def _text(node: Any) -> str:
-    try:
-        return (node.text_content() or "").strip()
-    except Exception:
-        return ""
 
 
 def _is_cta_anchor(node: Any) -> bool:
@@ -61,8 +56,8 @@ def cta_texts(root: Any) -> list[str]:
                 _cta_value(node),
                 config.SITE_HEALTH_MAX_CTA_TEXT_CHARS,
             )
-    except Exception:
-        pass
+    except DOM_ERRORS as exc:
+        dom_failure("cta_texts", exc)
     return texts[: config.SITE_HEALTH_MAX_CTA_TEXTS]
 
 
@@ -84,8 +79,8 @@ def form_fields(root: Any) -> list[str]:
             _append_unique(
                 fields, seen, candidate, config.SITE_HEALTH_MAX_FORM_FIELD_CHARS
             )
-    except Exception:
-        pass
+    except DOM_ERRORS as exc:
+        dom_failure("form_fields", exc)
     return fields[: config.SITE_HEALTH_MAX_FORM_FIELDS]
 
 
@@ -131,7 +126,8 @@ def _external_host(entry: dict, *, base_host: str, base_registrable: str) -> str
         return None
     try:
         parts = urlsplit(str(entry.get("url") or "").strip())
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_external_host", exc)
         return None
     host = (parts.hostname or "").lower()
     if not host or parts.scheme not in ("http", "https"):
@@ -145,8 +141,11 @@ def _external_host(entry: dict, *, base_host: str, base_registrable: str) -> str
 
 def _first_heading(root: Any) -> Any | None:
     try:
-        return next(node for node in root.iter() if node.tag in ("h1", "h2"))
-    except Exception:
+        # Default rather than catching StopIteration: "no heading on the page"
+        # is an ordinary result, not a DOM failure worth reporting.
+        return next((node for node in root.iter() if node.tag in ("h1", "h2")), None)
+    except DOM_ERRORS as exc:
+        dom_failure("_first_heading", exc)
         return None
 
 
@@ -156,7 +155,8 @@ def _sibling_answer(heading: Any) -> str:
             text = _text(sibling)
             if text:
                 return " ".join(text.split())
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_sibling_answer", exc)
         return ""
     return ""
 
@@ -179,7 +179,8 @@ def _walk_answer(root: Any, heading: Any) -> str:
             text = _text(node)
             if text:
                 return " ".join(text.split())
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_walk_answer", exc)
         return ""
     return ""
 

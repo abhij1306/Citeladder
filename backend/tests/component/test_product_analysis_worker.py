@@ -206,7 +206,6 @@ async def test_persisted_artifacts_rescore_to_v2_rows_and_snapshots(
             assert analysis.product_scoring_rule_version == _V2_SCORING_RULE
             assert analysis.logical_engine == ENGINE_GEMINI
             assert analysis.transport_provider == TRANSPORT_GOOGLE
-            assert analysis.shopping_surface == ""
             assert analysis.own_product_mention_count == 1
             assert analysis.competitor_product_mention_count == 1
             assert analysis.products_with_price_match == 2
@@ -304,14 +303,7 @@ async def test_persisted_artifacts_rescore_to_v2_rows_and_snapshots(
                 "count": 2,
             }
         ]
-        # Per-engine + per-surface breakdowns (measurement-only gate).
         assert metrics["per_engine"][ENGINE_GEMINI]["mention_count"] == 2
-        assert set(metrics["per_surface"].keys()) == {""}
-        assert metrics["per_surface"][""]["mention_count"] == 2
-        assert (
-            metrics["per_surface"][""]["per_engine"][ENGINE_GEMINI]["mention_count"]
-            == 2
-        )
         assert len(own_snapshot.source_analysis_ids) == 2
         assert len(own_snapshot.source_artifact_ids) == 2
         assert competitor_snapshot.avg_rank == 2.0
@@ -384,7 +376,6 @@ async def test_v1_rows_survive_v2_rescore_and_finalize(
             transport_model=task.transport_model,
             prompt_index=task.prompt_index,
             repetition=task.repetition,
-            shopping_surface="",
             own_product_mention_count=1,
             competitor_product_mention_count=1,
             products_with_price_match=2,

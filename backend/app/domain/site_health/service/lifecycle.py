@@ -59,8 +59,8 @@ from app.domain.site_health.service.common import (
     _load_project,
 )
 from app.domain.site_health.service.presentation import (
-    _crawl_count_disclosure,
     _score_summary,
+    crawl_count_disclosure,
     project_crawl,
     project_phase_run,
 )
@@ -259,7 +259,7 @@ async def _crawl_counters(session: AsyncSession, crawl: SiteCrawl) -> dict:
         ).all()
     }
     blocked = int(task_counts.blocked)
-    disclose = _crawl_count_disclosure(crawl)
+    disclose = crawl_count_disclosure(crawl)
     return {
         "discovered": int(crawl.admitted_url_count or 0) if disclose else None,
         "selected": selected,
@@ -414,7 +414,7 @@ async def cancel_crawl(
         crawl_id=crawl.id,
         event_type=EVENT_CRAWL_CANCELLED,
         message="crawl cancelled",
-        count_disclosure=_crawl_count_disclosure(crawl),
+        count_disclosure=crawl_count_disclosure(crawl),
     )
     if snapshot_written:
         await enqueue_change_refresh(session, crawl=crawl)
@@ -543,6 +543,7 @@ async def load_events(
     *,
     crawl_id: uuid.UUID,
     after: uuid.UUID | None = None,
+    limit: int | None = None,
 ) -> list[SiteCrawlEvent]:
     """Ordered crawl events (``created_at``, then ``id``), optionally after an id.
 
@@ -582,6 +583,10 @@ async def load_events(
                 ),
             )
         )
+    if limit is not None:
+        # Bounds ONE page. Callers resume with the last id they rendered, so a
+        # capped page is a page — never a silently truncated history.
+        stmt = stmt.limit(limit)
     return list((await session.scalars(stmt)).all())
 
 

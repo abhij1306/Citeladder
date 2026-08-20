@@ -31,7 +31,6 @@ from app.core.config.audits import (
 if TYPE_CHECKING:
     # Type-only: domain schemas never import a model at runtime (circular).
     from app.models.audit import AuditEvent
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
 from app.core.config.projects import MAX_REPETITIONS, MIN_REPETITIONS
 from app.core.config.provider_catalog import LOGICAL_ENGINES
 
@@ -186,9 +185,10 @@ class AuditCreate(BaseModel):
     benchmark_mode: BenchmarkModeStr | None = None
     # Measurement mode — an axis INDEPENDENT of ``benchmark_mode`` (prompt
     # framing): it selects the frozen route/output policy (retrieval, output
-    # cap, timeout, repetitions, answer instruction). Defaults to ``benchmark``
-    # so an explicit manual run keeps its full-run shape; a later PR3
-    # schedule/trial caller passes its own mode explicitly.
+    # cap, timeout, repetitions, answer instruction). Defaults to ``pulse``:
+    # the cheap shape (no retrieval, one repetition, a short attempt budget) is
+    # what an unqualified manual run should cost. A caller that wants the
+    # full-run citation evidence asks for ``benchmark`` explicitly.
     # The literal spellings are written out rather than interpolated from the
     # config constants: a type checker cannot see through a name inside
     # ``Literal[...]``. The constants remain the DEFAULT and the value the rest
@@ -302,7 +302,6 @@ class AuditTaskResponse(BaseModel):
     logical_engine: str
     transport_provider: str
     transport_model: str
-    shopping_surface: str = SHOPPING_SURFACE_MEASUREMENT
     measurement_mode: str = ""
     retrieval_enabled: bool | None = None
     status: str
@@ -347,17 +346,6 @@ class AuditEngineSnapshotResponse(BaseModel):
     transport_model: str
 
 
-class AuditShoppingSurfaceSnapshotResponse(BaseModel):
-    """Frozen shopping-surface identity (empty list while the gate is off)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    shopping_surface: str
-    logical_engine: str
-    transport_provider: str
-    transport_model: str
-
-
 class AuditResponse(BaseModel):
     """Audit projection. Includes engine provenance but never the key.
 
@@ -382,9 +370,6 @@ class AuditResponse(BaseModel):
     failed_count: int
     error_message: str = ""
     engine_snapshots: list[AuditEngineSnapshotResponse] = Field(default_factory=list)
-    shopping_surface_snapshots: list[AuditShoppingSurfaceSnapshotResponse] = Field(
-        default_factory=list
-    )
     model_provenance: list[ModelProvenance] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

@@ -17,7 +17,6 @@ from app.core.config.commerce import (
     PRODUCT_EVIDENCE_KIND_ATTRIBUTE_MENTION,
     PRODUCT_EVIDENCE_KIND_BUYER_DESTINATION,
     PRODUCT_EVIDENCE_KIND_PRODUCT_MENTION,
-    SHOPPING_SURFACE_MEASUREMENT,
 )
 from app.core.config.products import (
     PRODUCT_EVIDENCE_DEFAULT_LIMIT,
@@ -58,7 +57,6 @@ def _evidence_common(
         "prompt_text": prompt_snapshot.text or "",
         "prompt_index": analysis.prompt_index,
         "repetition": analysis.repetition,
-        "shopping_surface": analysis.shopping_surface,
         "matched_name": matched_name,
         "matched_sku": matched_sku,
     }
@@ -71,7 +69,6 @@ async def _load_evidence_rows(
     product_id: uuid.UUID,
     audit_id: uuid.UUID | None,
     engine: str | None,
-    surface: str,
     limit: int,
 ) -> tuple[
     list[
@@ -105,7 +102,6 @@ async def _load_evidence_rows(
             ProductMention.workspace_id == workspace_id,
             ProductMention.product_id == product_id,
             Audit.status.in_(_DASHBOARD_STATUSES),
-            ProductResponseAnalysis.shopping_surface == surface,
         )
     )
     if audit_id is not None:
@@ -244,7 +240,6 @@ async def get_product_evidence(
     product_id: uuid.UUID,
     audit_id: uuid.UUID | None = None,
     engine: str | None = None,
-    surface: str = SHOPPING_SURFACE_MEASUREMENT,
     limit: int = PRODUCT_EVIDENCE_DEFAULT_LIMIT,
 ) -> ProductEvidenceResponse:
     """Project persisted product, attribute, and destination evidence."""
@@ -275,7 +270,6 @@ async def get_product_evidence(
         product_id=product_id,
         audit_id=audit_id,
         engine=engine,
-        surface=surface,
         limit=limit,
     )
     destinations = await _load_destinations(

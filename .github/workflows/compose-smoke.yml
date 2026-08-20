@@ -88,6 +88,9 @@ jobs:
             sleep 2
           done
           curl --fail --silent --show-error http://127.0.0.1:8000/health | grep -qx '{"status":"ok"}'
+          # Readiness is the probe that proves the stack can actually serve:
+          # /health stays 200 with the database down, /ready does not.
+          curl --fail --silent --show-error http://127.0.0.1:8000/ready | grep -qx '{"status":"ready"}'
           for _ in $(seq 1 45); do
             if curl --fail --silent --show-error http://127.0.0.1:3000/ >/dev/null; then
               break

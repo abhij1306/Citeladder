@@ -40,7 +40,6 @@ from app.core.config.audits import (
     POOL_KIND_FUNDED_ACCOUNT,
     POOL_KIND_FUNDED_GLOBAL,
     POOL_KIND_TRANSPORT,
-    TASK_STATUS_CAPACITY_WAIT,
     TELEMETRY_CAPACITY_RATE_LIMITED,
     TELEMETRY_CAPACITY_WAIT,
     audit_settings,
@@ -51,6 +50,7 @@ from app.core.config.provider_catalog import (
     TRANSPORT_GOOGLE,
     RouteCapacityPolicy,
 )
+from app.core.config.task_queue import TASK_STATUS_CAPACITY_WAIT
 from app.domain.audits.creation import create_audit
 from app.models.audit import (
     AuditTask,

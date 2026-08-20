@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.audits import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
+from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.domain.audits.schemas import (
     AuditEnginePerformance,
     AuditPerformanceResponse,

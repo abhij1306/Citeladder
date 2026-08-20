@@ -209,10 +209,6 @@ export const productVisibilitySchema = responseObject({
   total_analyses: z.number().int(),
   products: z.array(productVisibilityEntrySchema),
   competitor_products: z.array(competitorProductVisibilityEntrySchema),
-  // Distinct persisted analysis surfaces for the audit: the measurement
-  // surface is `''` (UI label "Answer-engine APIs"); configured surface
-  // ids follow verbatim. There is deliberately no "All surfaces" option.
-  available_surfaces: z.array(z.string()),
   created_at: z.string(),
 });
 
@@ -249,8 +245,6 @@ export const productEvidenceItemSchema = responseObject({
   prompt_index: z.number().int(),
   repetition: z.number().int(),
   product_analyzer_version: z.string(),
-  // Analysis surface this row was projected from ('' = measurement).
-  shopping_surface: z.string(),
   matched_name: z.string(),
   matched_sku: z.string(),
   created_at: z.string(),

@@ -7,8 +7,12 @@ facts, and JSON-LD / microdata validation against the config schema map.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
+import pytest
+
+from app.analysis.site_health.dom import node_text, xpath
 from app.analysis.site_health.parser import extract_page_facts
 from app.analysis.site_health.structured_data import (
     parse_jsonld_blocks,
@@ -209,6 +213,58 @@ def test_malformed_html_never_crashes():
     assert facts["headings"]["h1_count"] == 1
 
 
+def test_dom_read_failure_is_logged_while_an_empty_page_is_silent(caplog):
+    """An extraction error and a genuinely empty page must not look alike.
+
+    Both produce an empty fact bucket, and before sh-extractor-8 that was the
+    whole story: a broken traversal was swallowed with ``except Exception:
+    pass``, so the rules scored a parser bug as "this page has no CTAs".
+    The bucket still fails open — but the failure now leaves a record, and an
+    empty page still leaves none.
+    """
+    empty_page = b"<html><head><title>t</title></head><body></body></html>"
+
+    with caplog.at_level(logging.DEBUG, logger="app.analysis.site_health.dom"):
+        facts = _facts(empty_page)
+    # A real page with nothing in it: empty results, and nothing to report.
+    assert facts["has_html"] is True
+    assert caplog.records == []
+
+    # Now make one traversal raise the way a hostile document or an internal
+    # bug would. The task still completes with partial facts...
+    class _Exploding:
+        def __getattr__(self, name):
+            raise AttributeError(name)
+
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG, logger="app.analysis.site_health.dom"):
+        assert node_text(_Exploding()) == ""
+        assert xpath(_Exploding(), "//a") == []
+
+    # ...and both failures are attributable to the operation that failed.
+    assert len(caplog.records) == 2
+    operations = [record.operation for record in caplog.records]
+    assert operations == ["node_text", "xpath://a"]
+    assert all(record.error_type == "AttributeError" for record in caplog.records)
+    assert all(record.exc_info is not None for record in caplog.records)
+
+
+def test_dom_errors_does_not_swallow_a_programming_error():
+    """Fail-open covers bad HTML, not bad code.
+
+    A ``KeyError`` or ``RuntimeError` from a traversal is a defect; catching
+    it would hide the bug behind an empty fact bucket, which is exactly the
+    failure mode sh-extractor-8 exists to remove.
+    """
+
+    class _Bug:
+        def text_content(self):
+            raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError):
+        node_text(_Bug())
+
+
 def test_malformed_jsonld_block_skipped_but_others_kept():
     body = (
         b"<html><head><title>x</title>"
@@ -375,10 +431,11 @@ _V2_PAGE = b"""
 """
 
 
-def test_extractor_version_is_sh_extractor_7():
-    # sh-extractor-7 includes the W2 encoded-delimiter boundary correction.
-    assert EXTRACTOR_VERSION == "sh-extractor-7"
-    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-7"
+def test_extractor_version_is_sh_extractor_8():
+    # sh-extractor-8 narrows and logs DOM traversal failures; v7 added the W2
+    # encoded-delimiter boundary correction.
+    assert EXTRACTOR_VERSION == "sh-extractor-8"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-8"
 
 
 # --- sh-extractor-3: industry-role classifier facts -------------------------

@@ -11,7 +11,7 @@ from typing import Any, Final
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.audits import MEASUREMENT_MODE_PULSE, TASK_STATUS_QUEUED
+from app.core.config.audits import MEASUREMENT_MODE_PULSE
 from app.core.config.billing_contracts import TELEMETRY_FUNDED_BUDGET_EXHAUSTED
 from app.core.config.billing_settings import billing_settings
 from app.core.config.costs import (
@@ -31,6 +31,7 @@ from app.core.config.provider_catalog import (
     CREDENTIAL_SOURCE_BYOK,
     TELEMETRY_FUNDED_ADMISSION_DENIED,
 )
+from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.audits.errors import FundedAdmissionError
 from app.domain.audits.frozen_plan import _FrozenPlan
 from app.domain.audits.resolution import _ResolvedRoute

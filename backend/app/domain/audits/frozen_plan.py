@@ -17,7 +17,6 @@ from app.core.config.audits import (
     measurement_policy_for_mode,
     system_instruction_for_mode,
 )
-from app.core.config.commerce import SHOPPING_SURFACES
 from app.core.config.entitlements import CREDENTIAL_MODE_FUNDED
 from app.core.config.projects import (
     BENCHMARK_MODES,
@@ -237,12 +236,8 @@ def _frozen_configuration(
         MEASUREMENT_POLICY_KEY: frozen_policy_configuration(plan.policy),
         "system_instruction": plan.system_instruction,
         "engines": list(routes.keys()),
-        # Frozen shopping-surface gate (§7.1): ``[]`` while the gate is
-        # disabled — no probe slots are generated and ``total`` is not
-        # multiplied.
-        "shopping_surfaces": list(SHOPPING_SURFACES),
         "repetitions": plan.repetitions,
-        "max_attempts": audit_settings.max_attempts,
+        "max_attempts": plan.policy.max_attempts,
         "max_run_seconds": audit_settings.max_run_seconds,
         # The frozen per-call timeout is the MODE's, not the generic live
         # ``request_timeout_seconds``: an env change mid-run must never alter an

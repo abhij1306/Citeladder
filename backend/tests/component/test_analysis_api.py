@@ -39,7 +39,6 @@ from app.core.config.audits import (
     MEASUREMENT_POLICY_KEY,
     audit_settings,
 )
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
     ENGINE_GEMINI,
@@ -1373,7 +1372,6 @@ async def _seed_evidence_execution(
     audit=None,
     status: str = AUDIT_STATUS_COMPLETED,
     analyzer_version: str = "b6-analysis-1",
-    surface: str = SHOPPING_SURFACE_MEASUREMENT,
 ):
     """Seed one dashboard-ready execution with full evidence child rows."""
     if audit is None:
@@ -1437,10 +1435,7 @@ async def _seed_evidence_execution(
         transport_provider=transport_provider,
         transport_model=transport_model,
         prompt_text=prompt_text,
-        shopping_surface=surface,
-        idempotency_key=(
-            f"{audit.id}:{prompt_index}:{repetition}:{logical_engine}:{surface}"
-        ),
+        idempotency_key=(f"{audit.id}:{prompt_index}:{repetition}:{logical_engine}"),
         answer_text="Acme Corp is great. Globex is an alternative.",
         search_used=search_used,
         search_events=task_events if task_events is not None else [],
@@ -1477,7 +1472,6 @@ async def _seed_evidence_execution(
         transport_model=transport_model,
         prompt_index=prompt_index,
         repetition=repetition,
-        shopping_surface=surface,
         brand_mentioned=bool(brand_mentions),
         search_used=search_used,
         search_query_count=search_query_count,
@@ -1610,71 +1604,6 @@ async def test_evidence_projects_mentions_citations_and_queries(
     assert item.measurement_mode == MEASUREMENT_MODE_PULSE
     assert item.retrieval_enabled is None
     assert "mode" not in item.model_dump()
-
-
-@pytest.mark.asyncio
-async def test_probe_surface_rows_excluded_from_brand_evidence_and_export(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """§7.1: probe (non-measurement surface) rows never leak into brand reads.
-
-    Seeds one measurement execution and one probe execution in the SAME audit
-    on the SAME logical engine: brand evidence and the export bundle must
-    contain only the measurement row (both the task slot and the analysis
-    row are filtered, defense-in-depth).
-    """
-    async with session_factory() as session:
-        seed = await seed_audit_fixtures(session, prompt_count=1)
-        (
-            audit,
-            _snapshot,
-            measurement_task,
-            measurement_analysis,
-        ) = await _seed_evidence_execution(
-            session,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-            completed_at=datetime(2026, 2, 1, tzinfo=UTC),
-            brand_mentions=[("Acme Corp", 0)],
-        )
-        # Same audit, same logical engine, different slot: a shopping probe.
-        _audit, _s, probe_task, probe_analysis = await _seed_evidence_execution(
-            session,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-            completed_at=datetime(2026, 2, 1, tzinfo=UTC),
-            prompt_index=1,
-            audit=audit,
-            surface="google_shopping",
-            brand_mentions=[("Acme Corp", 0)],
-        )
-        await session.commit()
-        assert measurement_task.shopping_surface == ""
-        assert measurement_analysis.shopping_surface == ""
-        assert probe_task.shopping_surface == "google_shopping"
-        assert probe_analysis.shopping_surface == "google_shopping"
-
-        # Brand evidence: only the measurement execution is projected, even
-        # when slicing by the probe's own engine.
-        result = await get_visibility_evidence(
-            session,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-        )
-        assert [item.task_id for item in result.items] == [measurement_task.id]
-        by_engine = await get_visibility_evidence(
-            session,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-            logical_engine=ENGINE_GEMINI,
-        )
-        assert [item.task_id for item in by_engine.items] == [measurement_task.id]
-
-        # Brand export bundle: probe tasks are never exported.
-        _audit_row, export_tasks = await load_export_bundle(
-            session, workspace_id=seed.workspace_id, audit_id=audit.id
-        )
-        assert [task.id for task in export_tasks] == [measurement_task.id]
 
 
 @pytest.mark.asyncio

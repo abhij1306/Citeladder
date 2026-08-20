@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    Index,
     String,
     Text,
 )
@@ -35,10 +36,22 @@ class SiteCrawlEvent(Base):
 
     Payloads for sample (Free) crawls never include frontier, discarded-
     candidate, or total-site counts (product contract — no total disclosure).
-    Indexed by ``created_at`` for ordered polling/streaming.
+
+    The composite index covers the exact ``(crawl_id, created_at, id)``
+    ordering ``load_events`` resumes on, so a long-lived stream pages through
+    new events instead of scanning the crawl's whole history. The separate
+    single-column indexes cannot serve that ordering.
     """
 
     __tablename__ = "site_crawl_events"
+    __table_args__ = (
+        Index(
+            "ix_site_crawl_events_crawl_id_created_at_id",
+            "crawl_id",
+            "created_at",
+            "id",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4

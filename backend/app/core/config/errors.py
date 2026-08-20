@@ -40,6 +40,14 @@ CODE_INVALID_CURSOR: Final = "invalid_cursor"
 # Fallback for a legacy ``HTTPException`` whose status has no mapped code.
 CODE_HTTP_ERROR: Final = "http_error"
 
+# Prompt-generation API codes. Provider transport classifications remain in
+# ``provider_catalog``; these values are the stable client-facing vocabulary.
+ERROR_RATE_LIMIT: Final = CODE_RATE_LIMITED
+ERROR_AGENT_CALL_FAILED: Final = "agent_call_failed"
+ERROR_AGENT_NOT_CONFIGURED: Final = "agent_not_configured"
+ERROR_GENERATION_INVALID: Final = "generation_invalid"
+ERROR_GENERATION_UNPARSEABLE: Final = "generation_unparseable"
+
 # Status -> default code for legacy raw ``HTTPException`` raises (string or
 # uncoded detail). Coded raises always carry their own explicit code; this
 # table is the shim's fallback so every response still has a stable code.

@@ -95,7 +95,6 @@ COMMERCE_EVIDENCE_KINDS: Final[frozenset[str]] = frozenset(
 )
 COMMERCE_DISCOVERY_ERROR_EMPTY_EXTRACTION: Final = "commerce_empty_extraction"
 COMMERCE_DISCOVERY_ERROR_HTTP_STATUS: Final = "commerce_http_status"
-COMMERCE_DISCOVERY_ERROR_LEGACY_PLACEHOLDER: Final = "commerce_legacy_placeholder"
 COMMERCE_DISCOVERY_ERROR_WORKER_CRASH: Final = "commerce_worker_crash"
 
 
@@ -370,14 +369,6 @@ MERCHANT_DOMAINS: Final[dict[str, tuple[str, str]]] = {
     "target.com": ("Target", MERCHANT_KIND_RETAILER),
     "bestbuy.com": ("Best Buy", MERCHANT_KIND_RETAILER),
 }
-
-SHOPPING_SURFACE_MEASUREMENT: Final = ""
-# The disabled probe gate. A future record maps surface id -> its frozen
-# identity keys (``logical_engine``, ``transport_provider``,
-# ``transport_model``); the planner then freezes one
-# ``AuditShoppingSurfaceSnapshot`` per configured surface. No entries in M2a
-# and ``MEASUREMENT_ROUTES`` is unchanged, so no probe tasks/snapshots exist.
-SHOPPING_SURFACES: Final[dict[str, dict[str, str]]] = {}
 
 # --- Product evidence projection --------------------------------------------
 # The three projected evidence kinds on ``GET /products/{id}/visibility/

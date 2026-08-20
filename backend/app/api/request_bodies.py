@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request, UploadFile, status
+from fastapi import Request, UploadFile, status
 
 from app.core.config.http import IMPORT_BODY_MAX_BYTES, IMPORT_READ_CHUNK_BYTES
+from app.core.http_errors import raise_api_error
 
 
 def _check_declared_length(request: Request, limit: int) -> None:
@@ -14,15 +15,13 @@ def _check_declared_length(request: Request, limit: int) -> None:
     try:
         declared = int(raw)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Content-Length header",
-        ) from exc
-    if declared > limit:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail="Import body too large",
+        raise_api_error(
+            status.HTTP_400_BAD_REQUEST,
+            "Invalid Content-Length header",
+            cause=exc,
         )
+    if declared > limit:
+        raise_api_error(status.HTTP_413_CONTENT_TOO_LARGE, "Import body too large")
 
 
 async def read_limited_upload(
@@ -39,10 +38,7 @@ async def read_limited_upload(
             return bytes(body)
         body.extend(chunk)
         if len(body) > limit:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail="Import file too large",
-            )
+            raise_api_error(status.HTTP_413_CONTENT_TOO_LARGE, "Import file too large")
 
 
 async def read_limited_body(
@@ -54,8 +50,5 @@ async def read_limited_body(
     async for chunk in request.stream():
         body.extend(chunk)
         if len(body) > limit:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail="Import body too large",
-            )
+            raise_api_error(status.HTTP_413_CONTENT_TOO_LARGE, "Import body too large")
     return bytes(body)

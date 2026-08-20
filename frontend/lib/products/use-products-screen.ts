@@ -67,9 +67,6 @@ export function useCatalogQueries(projectId: string | null, enabled = true) {
 export function useProductVisibilityQueries(projectId: string | null, enabled = true) {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [engine, setEngine] = useState<ProductEngineFilter>('all');
-  // Analysis surface slice: '' is the measurement surface (the UI labels it
-  // "Answer-engine APIs"); configured surface ids arrive via the projection.
-  const [surface, setSurface] = useState<string>('');
 
   const auditsQuery = useQuery({
     queryKey: queryKeys.runs.list({ project_id: projectId ?? '' }),
@@ -90,16 +87,11 @@ export function useProductVisibilityQueries(projectId: string | null, enabled = 
 
   const engineParam = engine === 'all' ? undefined : engine;
   const visibilityQuery = useQuery({
-    queryKey: queryKeys.products.visibility(
-      projectId ?? '',
-      activeRunId ?? undefined,
-      engineParam,
-      surface,
-    ),
+    queryKey: queryKeys.products.visibility(projectId ?? '', activeRunId ?? undefined, engineParam),
     queryFn: ({ signal }) =>
       productsApi.getProductVisibility(
         projectId!,
-        { audit_id: activeRunId ?? undefined, engine: engineParam, surface },
+        { audit_id: activeRunId ?? undefined, engine: engineParam },
         { signal },
       ),
     enabled: Boolean(projectId) && enabled,
@@ -114,8 +106,6 @@ export function useProductVisibilityQueries(projectId: string | null, enabled = 
     engine,
     setEngine,
     engineParam,
-    surface,
-    setSurface,
     visibilityQuery,
   };
 }

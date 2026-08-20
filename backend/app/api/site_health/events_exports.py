@@ -71,6 +71,7 @@ async def _event_stream(
     poll = float(site_health_settings.sse_poll_interval_seconds)
     max_duration = float(site_health_settings.sse_max_duration_seconds)
     while True:
+        page_size = site_health_settings.max_event_page
         async with SessionLocal() as session:
             try:
                 crawl = await service.load_crawl_for_stream(
@@ -78,14 +79,18 @@ async def _event_stream(
                 )
             except SiteHealthNotFoundError:
                 return
-            disclose = service._crawl_count_disclosure(crawl)
+            disclose = service.crawl_count_disclosure(crawl)
             new_events = await service.load_events(
-                session, crawl_id=crawl_id, after=last_id
+                session, crawl_id=crawl_id, after=last_id, limit=page_size
             )
             for event in new_events:
                 last_id = event.id
                 yield _sse_payload(event, count_disclosure=disclose)
             terminal = crawl.status in CRAWL_TERMINAL_STATUSES
+        if len(new_events) == page_size:
+            # Drain a full backlog page immediately. Otherwise terminal grace
+            # could close the stream before the client receives later pages.
+            continue
         if terminal:
             terminal_polls += 1
             if terminal_polls >= _SSE_TERMINAL_GRACE_POLLS:
@@ -112,9 +117,27 @@ async def get_events_endpoint(
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
 
-    disclose = service._crawl_count_disclosure(crawl)
+    disclose = service.crawl_count_disclosure(crawl)
+
+    # Resume from Last-Event-ID (header or query) so neither a reconnecting
+    # stream NOR a JSON replay re-sends what the client already rendered.
+    last_event_id: uuid.UUID | None = None
+    raw_last = request.headers.get("Last-Event-ID") or request.query_params.get(
+        "last_event_id"
+    )
+    if raw_last:
+        try:
+            last_event_id = uuid.UUID(raw_last)
+        except ValueError:
+            last_event_id = None
+
     if not stream:
-        events = await service.load_events(session, crawl_id=crawl_id)
+        events = await service.load_events(
+            session,
+            crawl_id=crawl_id,
+            after=last_event_id,
+            limit=site_health_settings.max_event_page,
+        )
         body = [
             {
                 "id": str(e.id),
@@ -129,17 +152,6 @@ async def get_events_endpoint(
         ]
         return JSONResponse(content=body)
 
-    # Resume from Last-Event-ID (header or query) so a reconnect does not
-    # replay the whole stream.
-    last_event_id: uuid.UUID | None = None
-    raw_last = request.headers.get("Last-Event-ID") or request.query_params.get(
-        "last_event_id"
-    )
-    if raw_last:
-        try:
-            last_event_id = uuid.UUID(raw_last)
-        except ValueError:
-            last_event_id = None
     return StreamingResponse(
         _event_stream(ctx.workspace_id, crawl_id, last_event_id=last_event_id),
         media_type="text/event-stream",

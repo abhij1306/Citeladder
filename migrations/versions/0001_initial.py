@@ -1155,32 +1155,12 @@ def upgrade() -> None:
     op.create_index(
         op.f("ix_audit_events_created_at"), "audit_events", ["created_at"], unique=False
     )
-    op.create_table(
-        "audit_shopping_surface_snapshots",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("audit_id", sa.UUID(), nullable=False),
-        sa.Column("shopping_surface", sa.String(length=32), nullable=False),
-        sa.Column("logical_engine", sa.String(length=32), nullable=False),
-        sa.Column("transport_provider", sa.String(length=32), nullable=False),
-        sa.Column("transport_model", sa.String(length=255), nullable=False),
-        sa.Column("connection_id", sa.UUID(), nullable=True),
-        sa.Column("base_url", sa.String(length=1024), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["connection_id"], ["provider_connections.id"], ondelete="SET NULL"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "audit_id",
-            "shopping_surface",
-            name="uq_audit_shopping_surface_snapshot_surface",
-        ),
-    )
+    # Covers the exact (audit_id, created_at, id) ordering the SSE/list keyset
+    # resumes on; the single-column indexes above cannot serve it.
     op.create_index(
-        op.f("ix_audit_shopping_surface_snapshots_audit_id"),
-        "audit_shopping_surface_snapshots",
-        ["audit_id"],
+        "ix_audit_events_audit_id_created_at_id",
+        "audit_events",
+        ["audit_id", "created_at", "id"],
         unique=False,
     )
     op.create_table(
@@ -2432,6 +2412,14 @@ def upgrade() -> None:
         ["created_at"],
         unique=False,
     )
+    # Covers the exact (crawl_id, created_at, id) ordering ``load_events``
+    # resumes on; the single-column indexes above cannot serve it.
+    op.create_index(
+        "ix_site_crawl_events_crawl_id_created_at_id",
+        "site_crawl_events",
+        ["crawl_id", "created_at", "id"],
+        unique=False,
+    )
     op.create_table(
         "site_health_snapshots",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -2539,7 +2527,6 @@ def upgrade() -> None:
         sa.Column("logical_engine", sa.String(length=32), nullable=False),
         sa.Column("transport_provider", sa.String(length=32), nullable=False),
         sa.Column("transport_model", sa.String(length=255), nullable=False),
-        sa.Column("shopping_surface", sa.String(length=32), nullable=False),
         sa.Column("prompt_text", sa.Text(), nullable=False),
         sa.Column(
             "provider_route_snapshot",
@@ -2598,7 +2585,6 @@ def upgrade() -> None:
             "prompt_index",
             "repetition",
             "logical_engine",
-            "shopping_surface",
             name="uq_audit_task_slot",
         ),
         sa.UniqueConstraint("idempotency_key", name="uq_audit_task_idempotency_key"),
@@ -3491,7 +3477,6 @@ def upgrade() -> None:
         sa.Column("transport_model", sa.String(length=255), nullable=False),
         sa.Column("prompt_index", sa.Integer(), nullable=False),
         sa.Column("repetition", sa.Integer(), nullable=False),
-        sa.Column("shopping_surface", sa.String(length=32), nullable=False),
         sa.Column("own_product_mention_count", sa.Integer(), nullable=False),
         sa.Column("competitor_product_mention_count", sa.Integer(), nullable=False),
         sa.Column("products_with_price_match", sa.Integer(), nullable=False),
@@ -3625,7 +3610,6 @@ def upgrade() -> None:
         sa.Column(
             "cohort", sa.String(length=32), server_default="core", nullable=False
         ),
-        sa.Column("shopping_surface", sa.String(length=32), nullable=False),
         sa.Column("brand_mentioned", sa.Boolean(), nullable=False),
         sa.Column("brand_first_offset", sa.Integer(), nullable=True),
         sa.Column("owned_domain_cited", sa.Boolean(), nullable=False),
@@ -6121,6 +6105,9 @@ def downgrade() -> None:
     )
     op.drop_table("site_health_snapshots")
     op.drop_index(
+        "ix_site_crawl_events_crawl_id_created_at_id", table_name="site_crawl_events"
+    )
+    op.drop_index(
         op.f("ix_site_crawl_events_created_at"), table_name="site_crawl_events"
     )
     op.drop_index(op.f("ix_site_crawl_events_crawl_id"), table_name="site_crawl_events")
@@ -6388,11 +6375,7 @@ def downgrade() -> None:
         table_name="billing_subscriptions",
     )
     op.drop_table("billing_subscriptions")
-    op.drop_index(
-        op.f("ix_audit_shopping_surface_snapshots_audit_id"),
-        table_name="audit_shopping_surface_snapshots",
-    )
-    op.drop_table("audit_shopping_surface_snapshots")
+    op.drop_index("ix_audit_events_audit_id_created_at_id", table_name="audit_events")
     op.drop_index(op.f("ix_audit_events_created_at"), table_name="audit_events")
     op.drop_index(op.f("ix_audit_events_audit_id"), table_name="audit_events")
     op.drop_table("audit_events")

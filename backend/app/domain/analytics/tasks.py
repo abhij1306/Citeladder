@@ -33,9 +33,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-# ``ANALYZER_VERSION`` is OWNED by config/analysis.py ("b6-analysis-1") and
-# reused for the analytics provenance stamp (invariant 2) — NEVER the
-# same-named constant in config/site_health_contracts.py ("sh-analyzer-1").
+# ``ANALYZER_VERSION`` is OWNED by config/analysis.py and reused for the
+# analytics provenance stamp (invariant 2) — NEVER the same-named constant in
+# config/site_health_contracts.py, which versions a different analyzer. The
+# values are deliberately not quoted here: both are bumped on their own
+# schedule, and a comment restating them just drifts (this one did).
 from app.core.config.analysis import ANALYZER_VERSION
 from app.core.config.analytics import (
     AI_REFERRAL_RULE_VERSION,

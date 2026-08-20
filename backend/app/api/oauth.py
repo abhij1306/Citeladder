@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from app.core.config.oauth import (
+    CODE_OAUTH_CALLBACK_NOT_IMPLEMENTED,
+    CODE_OAUTH_PROVIDER_NOT_CONFIGURED,
+    CODE_OAUTH_PROVIDER_UNKNOWN,
     OAUTH_AUTHORIZE_URLS,
     OAUTH_PROVIDER_LABELS,
     OAUTH_SCOPES,
@@ -18,6 +21,7 @@ from app.core.config.oauth import (
     oauth_provider_configured,
     oauth_settings,
 )
+from app.core.http_errors import raise_api_error
 from app.core.security import create_oauth_state
 from app.domain.auth.schemas import (
     OAuthProviderInfo,
@@ -31,18 +35,26 @@ router = APIRouter(prefix="/auth/oauth", tags=["auth"])
 def _require_known_provider(provider: str) -> None:
     """404 when ``provider`` is not in the OAuth catalog."""
     if not is_oauth_provider(provider):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "oauth_provider_unknown", "provider": provider},
+        raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            f"Unknown OAuth provider {provider!r}",
+            code=CODE_OAUTH_PROVIDER_UNKNOWN,
+            details={"provider": provider},
+            # ``detail`` stays the exact coded dict this endpoint has always
+            # returned: no ``message`` key, which its clients do not expect.
+            detail={"code": CODE_OAUTH_PROVIDER_UNKNOWN, "provider": provider},
         )
 
 
 def _require_configured_provider(provider: str) -> None:
     """503 when ``provider`` is known but not enabled + credentialed."""
     if not oauth_provider_configured(provider):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"code": "oauth_provider_not_configured", "provider": provider},
+        raise_api_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            f"OAuth provider {provider!r} is not configured",
+            code=CODE_OAUTH_PROVIDER_NOT_CONFIGURED,
+            details={"provider": provider},
+            detail={"code": CODE_OAUTH_PROVIDER_NOT_CONFIGURED, "provider": provider},
         )
 
 
@@ -98,7 +110,10 @@ async def oauth_callback(provider: str) -> None:
     """
     _require_known_provider(provider)
     _require_configured_provider(provider)
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail={"code": "oauth_callback_not_implemented", "provider": provider},
+    raise_api_error(
+        status.HTTP_501_NOT_IMPLEMENTED,
+        f"The OAuth callback for {provider!r} is not implemented",
+        code=CODE_OAUTH_CALLBACK_NOT_IMPLEMENTED,
+        details={"provider": provider},
+        detail={"code": CODE_OAUTH_CALLBACK_NOT_IMPLEMENTED, "provider": provider},
     )

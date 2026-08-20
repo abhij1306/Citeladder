@@ -15,7 +15,7 @@ The five cases are:
 
 For every case, validate candidate competitors with `evaluate_competitors` and
 the proposed prompt set with `evaluate_portfolio` from
-`app.evaluations.onboarding_golden`.
+`evaluations.onboarding_golden`.
 
 The deterministic gate requires exactly ten prompts: five neutral
 `market_visibility` prompts and five unbranded `brand_relevant` prompts grounded

@@ -42,6 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import app.api.audits as audits_api
 import app.core.config.audits as audits_config
+from app.api.audits import _load_events
 from app.core.config.audits import (
     AUDIT_STATUS_COMPLETED,
     AUDIT_TRIGGER_MANUAL,
@@ -150,7 +151,7 @@ async def _create_terminal_audit(
 async def _load_rows(
     session_factory: async_sessionmaker[AsyncSession], audit_id: uuid.UUID
 ) -> list[AuditEvent]:
-    """Persisted events in stream order (mirrors ``_load_events``)."""
+    """Persisted events in stream order, unfiltered (the expected-value reader)."""
     async with session_factory() as session:
         stmt = (
             select(AuditEvent)
@@ -260,6 +261,47 @@ async def test_resume_after_id_streams_only_later_events(
     listed = await client.get(f"/api/v1/audits/{audit_id}/events", headers=headers)
     assert listed.status_code == 200
     assert [e["id"] for e in listed.json()] == [str(r.id) for r in rows[1:]]
+
+
+async def test_load_events_resumes_in_sql_without_reading_the_whole_history(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient,
+) -> None:
+    """The resume boundary is a SQL keyset, not a Python scan of every row.
+
+    Two properties matter and neither is visible from the endpoint alone:
+    resuming returns ONLY the rows after the anchor, and a stale/foreign
+    anchor returns nothing rather than silently replaying the full history to
+    a client that already rendered it.
+    """
+    seed = await _register_and_seed(client, session_factory)
+    audit_id = await _create_terminal_audit(session_factory, seed)
+    rows = await _load_rows(session_factory, audit_id)
+    assert len(rows) > 1
+    # A REAL event of a different audit — the anchor shape the keyset actually
+    # has to reject. An id with no row at all is the easy half of the case: a
+    # foreign anchor carries a genuine ``created_at``, so only the subquery's
+    # ``audit_id`` scoping keeps it from paging through this audit's history.
+    other_audit_id = await _create_terminal_audit(session_factory, seed)
+    foreign_rows = await _load_rows(session_factory, other_audit_id)
+    assert foreign_rows
+
+    async with session_factory() as session:
+        resumed = await _load_events(session, audit_id, after=rows[0].id)
+        assert [e.id for e in resumed] == [r.id for r in rows[1:]]
+
+        # The last row is the end of the stream, not a wrap-around.
+        assert await _load_events(session, audit_id, after=rows[-1].id) == []
+
+        # An anchor that is not an event of THIS audit yields an empty page.
+        # The pre-keyset scan fell back to the ENTIRE history here.
+        assert await _load_events(session, audit_id, after=foreign_rows[0].id) == []
+        assert await _load_events(session, audit_id, after=uuid.uuid4()) == []
+
+        # No anchor still means "from the beginning".
+        assert [e.id for e in await _load_events(session, audit_id, after=None)] == [
+            r.id for r in rows
+        ]
 
 
 @pytest.mark.parametrize("suffix", ["", "?stream=true"])

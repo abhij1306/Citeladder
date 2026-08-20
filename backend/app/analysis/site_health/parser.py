@@ -21,6 +21,8 @@ from urllib.parse import unquote, urljoin, urlsplit
 from lxml import etree
 from lxml import html as lxml_html
 
+from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
+from app.analysis.site_health.dom import node_text as _text
 from app.analysis.site_health.fact_links import links_and_assets
 from app.analysis.site_health.fact_signals import (
     cta_texts,
@@ -103,13 +105,6 @@ def _safe_parser_encoding(charset: str) -> str | None:
     return normalized.lower()
 
 
-def _text(node: Any) -> str:
-    try:
-        return (node.text_content() or "").strip()
-    except Exception:
-        return ""
-
-
 def _parse_robots_directives(root: Any) -> dict[str, bool]:
     """Extract robots meta directives (noindex / nofollow) from the head.
 
@@ -127,7 +122,8 @@ def _parse_robots_directives(root: Any) -> dict[str, bool]:
             "'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
             "'abcdefghijklmnopqrstuvwxyz')='googlebot']"
         )
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_parse_robots_directives", exc)
         nodes = []
     for node in nodes:
         content = (node.get("content") or "").lower()
@@ -147,7 +143,8 @@ def _meta_content(root: Any, *, name: str) -> str:
             "'abcdefghijklmnopqrstuvwxyz')=$n]",
             n=name.lower(),
         )
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_meta_content", exc)
         return ""
     for node in nodes:
         content = (node.get("content") or "").strip()
@@ -161,7 +158,8 @@ def _meta_property_map(root: Any, *, prefix: str) -> dict[str, str]:
     out: dict[str, str] = {}
     try:
         nodes = root.xpath("//meta[@property or @name]")
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_meta_property_map", exc)
         return out
     for node in nodes:
         key = (node.get("property") or node.get("name") or "").strip().lower()
@@ -180,7 +178,8 @@ def _canonical_href(root: Any) -> str:
             "'ABCDEFGHIJKLMNOPQRSTUVWXYZ',"
             "'abcdefghijklmnopqrstuvwxyz')='canonical']"
         )
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_canonical_href", exc)
         return ""
     for node in nodes:
         href = (node.get("href") or "").strip()
@@ -199,7 +198,8 @@ def _headings(root: Any) -> dict[str, Any]:
         tag = f"h{level}"
         try:
             nodes = root.xpath(f"//{tag}")
-        except Exception:
+        except DOM_ERRORS as exc:
+            dom_failure("_headings", exc)
             nodes = []
         counts[tag] = len(nodes)
         if level == 1:
@@ -259,8 +259,8 @@ def _contact_points(root: Any) -> list[dict[str, str]]:
                 continue
             seen.add(key)
             points.append({"channel": channel, "value": value})
-    except Exception:
-        pass
+    except DOM_ERRORS as exc:
+        dom_failure("_contact_points", exc)
     return points
 
 
@@ -295,7 +295,8 @@ def _images(root: Any) -> dict[str, int]:
     """Count images and how many are missing a non-empty alt attribute."""
     try:
         nodes = root.xpath("//img")
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_images", exc)
         nodes = []
     total = len(nodes)
     missing_alt = 0
@@ -344,7 +345,8 @@ def _structured_data(root: Any, *, max_blocks: int) -> dict[str, Any]:
             "'abcdefghijklmnopqrstuvwxyz')='application/ld+json']"
         ):
             raw_jsonld.append(script.text_content() or "")
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_structured_data", exc)
         raw_jsonld = []
     jsonld_facts = parse_jsonld_blocks(raw_jsonld, max_blocks=max_blocks)
 
@@ -354,7 +356,8 @@ def _structured_data(root: Any, *, max_blocks: int) -> dict[str, Any]:
             itemtype = (node.get("itemtype") or "").strip()
             if itemtype:
                 itemtypes.append(itemtype)
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_structured_data", exc)
         itemtypes = []
     microdata_facts = validate_microdata_types(itemtypes, max_blocks=max_blocks)
 
@@ -391,7 +394,8 @@ def _delivery_facts(
     scheme = ""
     try:
         scheme = (urlsplit(final_url).scheme or "").lower()
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_delivery_facts", exc)
         scheme = ""
     content_encoding = headers.get("content-encoding", "").strip().lower()
     security_headers = {name: name in headers for name in _SECURITY_HEADERS}
@@ -437,8 +441,8 @@ def _first_declared_time(root: Any) -> str:
             candidate = (node.get("datetime") or "").strip()
             if candidate:
                 return candidate
-    except Exception:
-        pass
+    except DOM_ERRORS as exc:
+        dom_failure("_first_declared_time", exc)
     return ""
 
 
@@ -477,7 +481,8 @@ def _landmarks(root: Any) -> dict[str, bool]:
     for tag in out:
         try:
             out[tag] = bool(root.xpath(f"//{tag}"))
-        except Exception:
+        except DOM_ERRORS as exc:
+            dom_failure("_landmarks", exc)
             out[tag] = False
     return out
 
@@ -501,7 +506,8 @@ def _expand_gated_words(root: Any) -> int:
     candidates: list[Any] = []
     try:
         candidates = root.xpath(".//details[not(@open)] | .//*[@aria-expanded='false']")
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_expand_gated_words", exc)
         return 0
     counted: set[Any] = set()
     words = 0
@@ -522,7 +528,8 @@ def _hreflang_alternates(root: Any, *, final_url: str) -> list[dict[str, str]]:
     alternates: list[dict[str, str]] = []
     try:
         nodes = root.xpath("//link[@hreflang]")
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_hreflang_alternates", exc)
         return alternates
     for node in nodes:
         if len(alternates) >= _MAX_HREFLANG_ALTERNATES:
@@ -536,7 +543,8 @@ def _hreflang_alternates(root: Any, *, final_url: str) -> list[dict[str, str]]:
             continue
         try:
             absolute = urljoin(final_url or "", href)
-        except Exception:
+        except DOM_ERRORS as exc:
+            dom_failure("_hreflang_alternates", exc)
             continue
         alternates.append(
             {
@@ -569,7 +577,8 @@ def _inline_script_chars(root: Any) -> int:
             total += len(script.text_content() or "")
             if total >= _MAX_INLINE_SCRIPT_CHARS:
                 return _MAX_INLINE_SCRIPT_CHARS
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_inline_script_chars", exc)
         return total
     return total
 
@@ -646,7 +655,8 @@ def _blocking_scripts(root: Any) -> int:
             if script.get("async") is not None or script.get("defer") is not None:
                 continue
             count += 1
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_blocking_scripts", exc)
         return 0
     return count
 
@@ -658,8 +668,8 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         title_node = next(root.iter("title"), None)
         if title_node is not None:
             facts["title"] = _text(title_node)[:_MAX_TITLE_CHARS]
-    except Exception:
-        pass
+    except DOM_ERRORS as exc:
+        dom_failure("_extract_document", exc)
     facts["meta_description"] = _meta_content(root, name="description")
     facts["robots"] = _parse_robots_directives(root)
     facts["canonical_url"] = _canonical_href(root)
@@ -673,7 +683,8 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
     )
     try:
         base_host = urlsplit(final_url).hostname or ""
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_extract_document", exc)
         base_host = ""
     facts["links"] = links_and_assets(
         root, base_host=base_host, max_links=settings.max_links_per_page

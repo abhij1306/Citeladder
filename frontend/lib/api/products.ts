@@ -64,11 +64,6 @@ export type ProductEvidenceParams = {
   audit_id?: string;
   /** Logical engine slice (`chatgpt` | `gemini` | `claude`); omit for all. */
   engine?: string;
-  /**
-   * Analysis surface slice: `''` (or omitted) is the measurement surface
-   * ("Answer-engine APIs"); a configured surface id slices to that surface.
-   */
-  surface?: string;
   /** Newest-window size (backend default 100, max 500). */
   limit?: number;
 };
@@ -79,17 +74,13 @@ export type ProductVisibilityParams = {
   audit_id?: string;
   /** Logical engine slice; omit for the cross-engine aggregate. */
   engine?: string;
-  /** Analysis surface slice (`''`/omitted = measurement). */
-  surface?: string;
 };
 
 /** Query params for the product visibility CSV export URL. */
 export type ProductVisibilityExportParams = {
   audit_id?: string;
-  /** Engine slice; export receives the same engine+surface intersection. */
+  /** Engine slice; the export receives the on-screen engine slice. */
   engine?: string;
-  /** Analysis surface slice (`''`/omitted = measurement). */
-  surface?: string;
 };
 
 export const productsApi = {
@@ -187,8 +178,7 @@ export const productsApi = {
     apiClient.delete<void>(`/competitor-products/${competitorProductId}`, options),
   /**
    * Selected-audit product dashboard (defaults to the latest product audit).
-   * `engine` slices entries to their persisted per-engine aggregate and
-   * `surface` slices to one analysis surface (`''`/omitted = measurement).
+   * `engine` slices entries to their persisted per-engine aggregate.
    */
   getProductVisibility: async (
     projectId: string,
@@ -215,7 +205,7 @@ export const productsApi = {
   },
   /**
    * Same-origin export URL (browser navigation / download link). Receives
-   * the same engine + surface intersection as the on-screen slice.
+   * the same engine slice as the on-screen projection.
    */
   exportCsvUrl: (projectId: string, params?: ProductVisibilityExportParams) =>
     withQuery(

@@ -7,9 +7,9 @@ corpus can grow without any one file becoming unreadable.
 
 from __future__ import annotations
 
-from app.evaluations.onboarding_cases_commerce import COMMERCE_CASES
-from app.evaluations.onboarding_cases_services import SOFTWARE_AND_SERVICE_CASES
-from app.evaluations.onboarding_corpus import GoldenOnboardingCase
+from evaluations.onboarding_cases_commerce import COMMERCE_CASES
+from evaluations.onboarding_cases_services import SOFTWARE_AND_SERVICE_CASES
+from evaluations.onboarding_corpus import GoldenOnboardingCase
 
 GOLDEN_ONBOARDING_CASES: tuple[GoldenOnboardingCase, ...] = (
     *COMMERCE_CASES,

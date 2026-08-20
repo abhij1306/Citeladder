@@ -51,6 +51,10 @@ ACTIVE_EXACT = {
     "docs/plans/content-intelligence.md",
     "docs/plans/demand-intelligence.md",
     "docs/plans/growth-agent.md",
+    "docs/plans/backend-test-corpus-rework.md",
+    "docs/plans/deep-research-report.md",
+    "docs/debt/backend-debt-report.md",
+    "docs/debt/backend-waste-report.md",
 }
 ACTIVE_PREFIXES = (
     "docs/evaluations/",
@@ -67,6 +71,10 @@ DOCUMENT_SUFFIXES = {".md", ".mdx", ".rst", ".txt"}
 # as unclassified authorities on every failed visual run.
 SKIP_PREFIXES = (
     ".git/",
+    # Scratch agent worktrees: full checkouts of the repo, so every archived
+    # doc in them is re-scanned with its relative links resolving against a
+    # tree that has no repo root. Ignored by git; ignored here too.
+    ".aislop/",
     "node_modules/",
     ".venv/",
     "backend/.venv/",

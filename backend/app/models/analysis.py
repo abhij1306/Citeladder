@@ -32,7 +32,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
 from app.core.database import Base
 from app.models.constants import (
     CASCADE_ALL_DELETE_ORPHAN,
@@ -115,12 +114,6 @@ class ResponseAnalysis(DerivedRowProvenanceMixin, Base):
     prompt_class: Mapped[str] = mapped_column(String(32), default="")
     cohort: Mapped[str] = mapped_column(
         String(32), default="core", server_default="core", index=True
-    )
-    # Shopping-surface slot identity (§7.1): brand metric denominators filter
-    # on this column (defense-in-depth beside the AuditTask filter) so
-    # direct/retry/legacy write paths cannot contaminate brand metrics.
-    shopping_surface: Mapped[str] = mapped_column(
-        String(32), default=SHOPPING_SURFACE_MEASUREMENT
     )
 
     # Flat headline signals (ported reference metrics, per-execution).

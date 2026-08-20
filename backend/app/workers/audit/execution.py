@@ -23,8 +23,6 @@ from app.core.config.audits import (
     AUDIT_TERMINAL_STATUSES,
     CAPACITY_OUTCOME_FAILED,
     EVENT_TASK_CAPACITY_WAIT,
-    TASK_STATUS_LEASED,
-    TASK_STATUS_RUNNING,
     audit_settings,
     measurement_policy_from_configuration,
 )
@@ -37,6 +35,7 @@ from app.core.config.costs import (
 from app.core.config.provider_catalog import (
     ERROR_PARSE,
 )
+from app.core.config.task_queue import TASK_STATUS_LEASED, TASK_STATUS_RUNNING
 from app.core.security import decrypt_secret
 from app.domain.audits.cost_projection import build_execution_cost_projection
 from app.domain.audits.state_events import record_event

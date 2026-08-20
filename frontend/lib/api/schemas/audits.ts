@@ -29,15 +29,6 @@ export const auditEngineSnapshotSchema = responseObject({
   transport_model: z.string(),
 });
 
-// Frozen shopping-surface identity (B5 `AuditShoppingSurfaceSnapshotResponse`;
-// empty list while the shopping-surface gate is off).
-export const auditShoppingSurfaceSnapshotSchema = responseObject({
-  shopping_surface: z.string(),
-  logical_engine: z.string(),
-  transport_provider: z.string(),
-  transport_model: z.string(),
-});
-
 /**
  * Canonical measurement mode. This is an axis INDEPENDENT of `benchmark_mode`
  * (prompt framing): it selects the frozen route/output policy. `''` means the
@@ -78,7 +69,6 @@ export const auditSchema = responseObject({
   failed_count: z.number().int(),
   error_message: z.string(),
   engine_snapshots: z.array(auditEngineSnapshotSchema),
-  shopping_surface_snapshots: z.array(auditShoppingSurfaceSnapshotSchema).default([]),
   created_at: z.string(),
   updated_at: z.string(),
   started_at: z.string().nullable(),
@@ -200,9 +190,6 @@ export const executionSchema = responseObject({
   logical_engine: z.string(),
   transport_provider: z.string(),
   transport_model: z.string(),
-  // Frozen shopping-surface identity per task (B5; additive — older backends
-  // omit it, so it parses with a default like `shopping_surface_snapshots`).
-  shopping_surface: z.string().default(''),
   // Execution surface: the provenance triple is SINGULAR (one execution = one
   // exact model), projected from the frozen task snapshots only.
   measurement_mode: measurementModeSchema.default(''),

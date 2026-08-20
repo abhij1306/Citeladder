@@ -92,6 +92,16 @@ def _crawler_stance(requested_url: str, robots_body: str | None) -> dict[str, st
     return stance
 
 
+def _llms_url(authority: str) -> str:
+    """The well-known llms.txt URL for an authority ("" when there is none).
+
+    One owner for the spelling: site facts state the URL even on the crawls
+    that never fetch it, so ``fetched`` stays the discriminator between "not
+    attempted" and "attempted and absent" (invariant 7).
+    """
+    return f"{authority}{LLMS_TXT_PATH}" if authority else ""
+
+
 def _admitted_sitemap_urls(
     collector: SitemapCollector,
     *,
@@ -153,13 +163,20 @@ class DiscoverPersistenceMixin(PhaseSupport):
                 str(url)[:2048] for url in robots_policy.sitemaps()[:16]
             ]
 
-        llms_url, llms_fetched, llms_status, llms_present = await self._llms_facts(
-            authority, robots_policy
-        )
-
+        # Both well-known probes sit behind the same guard. A sample crawl is
+        # the free, automatic shape; it does not ingest the sitemap tree, so
+        # paying for an llms.txt fetch it will not act on is a request the
+        # site owner never asked us to make.
+        llms_url = _llms_url(authority)
+        llms_fetched = False
+        llms_status: int | None = None
+        llms_present = False
         sitemap_urls: tuple[str, ...] = ()
         sitemap_files: tuple[str, ...] = ()
         if not sample_mode and authority:
+            llms_url, llms_fetched, llms_status, llms_present = await self._llms_facts(
+                authority, robots_policy
+            )
             seeds = declared_sitemaps or [
                 f"{authority}{path}" for path in SITEMAP_DEFAULT_PATHS
             ]
@@ -197,7 +214,7 @@ class DiscoverPersistenceMixin(PhaseSupport):
     async def _llms_facts(
         self, authority: str, robots_policy: RobotsPolicy | None
     ) -> tuple[str, bool, int | None, bool]:
-        llms_url = f"{authority}{LLMS_TXT_PATH}" if authority else ""
+        llms_url = _llms_url(authority)
         if not llms_url or (
             robots_policy is not None and not robots_policy.can_fetch(llms_url)
         ):
@@ -238,6 +255,12 @@ class DiscoverPersistenceMixin(PhaseSupport):
         attempted: set[str] = set()
         async with self._new_fetcher() as fetcher:
             while queue and len(attempted) < settings.max_sitemap_documents:
+                if collector.url_count >= settings.max_sitemap_urls:
+                    # The collector is full: no further document can add a URL,
+                    # so every remaining fetch and parse is pure cost. A large
+                    # index used to burn all 32 document fetches to produce
+                    # nothing past this point.
+                    break
                 url, depth = queue.pop(0)
                 if url in attempted:
                     continue

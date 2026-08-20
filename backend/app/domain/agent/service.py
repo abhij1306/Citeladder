@@ -19,6 +19,9 @@ from app.core.config.agent import (
     AGENT_INSTRUCTION_VERSION,
     AGENT_POLICY_VERSION,
     AGENT_TASK_POLICIES,
+    TOOL_ATTEMPT_COMPLETED,
+    TOOL_ATTEMPT_FAILED,
+    TOOL_ATTEMPT_UNAVAILABLE,
     default_agent_settings,
 )
 from app.domain.agent.projection import SOURCE_METADATA as _SOURCE_METADATA
@@ -254,6 +257,7 @@ async def execute_claimed_task(
             )
             return
         evidence.append({"tool": tool_name, "evidence": output})
+        available = output.get("state") != "unavailable"
         session.add(
             AgentToolAttempt(
                 workspace_id=run.workspace_id,
@@ -263,7 +267,14 @@ async def execute_claimed_task(
                 ordinal=ordinal,
                 tool_name=tool_name,
                 tool_version=TOOL_VERSION,
-                status="completed",
+                # A missing snapshot is its OWN outcome. Logging it as
+                # ``completed`` made "we read this source and it was fine"
+                # indistinguishable from "this source does not exist"
+                # (invariant 7). The row is always written — a skipped read is
+                # never an absent row.
+                status=(
+                    TOOL_ATTEMPT_COMPLETED if available else TOOL_ATTEMPT_UNAVAILABLE
+                ),
                 input={},
                 artifact_refs=list(output.get("artifact_refs") or []),
                 output_hash=_json_hash(output),
@@ -307,7 +318,13 @@ async def execute_claimed_task(
                 {
                     "objective": run.objective,
                     "task_type": run.task_type,
-                    "evidence": evidence,
+                    "evidence": _available_evidence(evidence),
+                    # Named, not dropped. The model must know which sources
+                    # were not readable so it cannot narrate the remainder as
+                    # complete coverage; it has nothing to explain about them,
+                    # so their empty bodies are not paid for. The user-facing
+                    # limitation text stays deterministic (``_limitations``).
+                    "unavailable_sources": _unavailable_tools(evidence),
                 },
                 sort_keys=True,
                 ensure_ascii=False,
@@ -456,7 +473,7 @@ async def _record_tool_failure(
             ordinal=ordinal,
             tool_name=tool_name,
             tool_version=TOOL_VERSION,
-            status="failed",
+            status=TOOL_ATTEMPT_FAILED,
             input={},
             artifact_refs=[],
             output_hash="",
@@ -490,21 +507,24 @@ def _parse_narrative(content: str) -> dict[str, Any]:
         value = json.loads(content)
     except (TypeError, ValueError) as exc:
         raise ValueError("provider returned invalid structured output") from exc
-    if not isinstance(value, dict) or not str(value.get("summary") or "").strip():
+    if not isinstance(value, dict):
         raise ValueError("provider returned an invalid summary")
-    observations = value.get("observations")
-    if not isinstance(observations, list):
-        raise ValueError("provider returned invalid observations")
-    limitations = value.get("limitations")
-    if not isinstance(limitations, list):
-        raise ValueError("provider returned invalid limitations")
+    summary = value.get("summary")
+    if not isinstance(summary, str) or not summary.strip():
+        raise ValueError("provider returned an invalid summary")
     return {
-        "summary": str(value["summary"]).strip(),
-        "observations": [
-            str(item).strip() for item in observations if str(item).strip()
-        ],
-        "limitations": [str(item).strip() for item in limitations if str(item).strip()],
+        "summary": summary.strip(),
+        "observations": _normalized_string_list(
+            value.get("observations"), "observations"
+        ),
+        "limitations": _normalized_string_list(value.get("limitations"), "limitations"),
     }
+
+
+def _normalized_string_list(value: object, field: str) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"provider returned invalid {field}")
+    return [item.strip() for item in value if item.strip()]
 
 
 def _artifact_refs(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -517,12 +537,26 @@ def _artifact_refs(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(refs.values())
 
 
+def _is_unavailable(item: dict[str, Any]) -> bool:
+    return item["evidence"].get("state") == "unavailable"
+
+
+def _available_evidence(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The evidence entries that actually carry facts to narrate."""
+    return [item for item in evidence if not _is_unavailable(item)]
+
+
+def _unavailable_tools(evidence: list[dict[str, Any]]) -> list[str]:
+    """Tool names whose source did not exist, in allowlist order."""
+    return [str(item.get("tool") or "") for item in evidence if _is_unavailable(item)]
+
+
 def _limitations(evidence: list[dict[str, Any]]) -> list[str]:
     limitations: list[str] = []
     for item in evidence:
         tool = item.get("tool")
         source = _SOURCE_METADATA.get(tool) if isinstance(tool, str) else None
-        if source is None or item["evidence"].get("state") != "unavailable":
+        if source is None or not _is_unavailable(item):
             continue
         limitations.append(
             f"{source[1]} is unavailable. "

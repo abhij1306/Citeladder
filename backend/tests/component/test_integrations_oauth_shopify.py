@@ -34,7 +34,10 @@ async def test_oauth_start_rejects_invalid_shop_targets(
         f"{oauth_tests._BASE}/oauth/{provider}/start", params=params
     )
     assert response.status_code == 422
-    assert response.json()["detail"] == "oauth_shop_invalid"
+    body = response.json()
+    assert body["detail"] == "oauth_shop_invalid"
+    assert body["error"]["code"] == "oauth_shop_invalid"
+    assert body["error"]["message"] != "oauth_shop_invalid"
     assert await db_session.scalar(select(func.count(IntegrationOAuthState.jti))) == 0
 
 

@@ -15,7 +15,7 @@ import ipaddress
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.browser_cookies import (
@@ -25,6 +25,7 @@ from app.api.browser_cookies import (
 from app.api.deps import get_current_user, get_db
 from app.core.config import settings, trusted_proxy_networks
 from app.core.config.abuse import abuse_settings
+from app.core.http_errors import raise_api_error
 from app.domain.abuse.service import UsageLimitExceededError, enforce_and_commit
 from app.domain.auth.schemas import (
     AuthResponse,
@@ -70,11 +71,12 @@ async def _enforce_limit(
             window_seconds=window,
         )
     except UsageLimitExceededError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many requests",
+        raise_api_error(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Too many requests",
             headers={"Retry-After": str(exc.retry_after_seconds)},
-        ) from exc
+            cause=exc,
+        )
 
 
 def _trusted_client_identity(request: Request) -> str:
@@ -153,9 +155,7 @@ async def login(
             limit=abuse_settings.login_email_limit,
             window=abuse_settings.login_window_seconds,
         )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
-        )
+        raise_api_error(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
     token, user = authenticated
     clear_integration_oauth_cookie(response)
     _set_session_cookie(response, token)

@@ -6,7 +6,7 @@ committed runner replays synthetic fixtures and every run it emits is labelled
 ``fixture_derived=true``.
 """
 
-from app.domain.measurement.harness import (
+from evaluations.measurement.harness import (
     FixtureMeasurementRunner,
     LiveExecutionNotEnabledError,
     MeasurementCase,

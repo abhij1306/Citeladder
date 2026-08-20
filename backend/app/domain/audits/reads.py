@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
 from app.domain.audits.errors import AuditNotFoundError
 from app.models.audit import Audit, AuditTask
 
@@ -21,7 +20,6 @@ async def get_audit(
         select(Audit)
         .options(
             selectinload(Audit.engine_snapshots),
-            selectinload(Audit.shopping_surface_snapshots),
         )
         .where(
             Audit.id == audit_id,
@@ -45,7 +43,6 @@ async def list_audits(
         select(Audit)
         .options(
             selectinload(Audit.engine_snapshots),
-            selectinload(Audit.shopping_surface_snapshots),
         )
         .where(Audit.workspace_id == workspace_id)
         .order_by(Audit.created_at.desc())
@@ -61,16 +58,12 @@ async def list_tasks(
     *,
     workspace_id: uuid.UUID,
     audit_id: uuid.UUID,
-    surface: str = SHOPPING_SURFACE_MEASUREMENT,
 ) -> list[AuditTask]:
-    """List an audit's tasks for ONE shopping surface (default measurement)."""
+    """List an audit's tasks in randomized execution order."""
     audit = await get_audit(session, workspace_id=workspace_id, audit_id=audit_id)
     stmt = (
         select(AuditTask)
-        .where(
-            AuditTask.audit_id == audit_id,
-            AuditTask.shopping_surface == surface,
-        )
+        .where(AuditTask.audit_id == audit_id)
         .order_by(AuditTask.randomized_position.asc())
     )
     tasks = list((await session.scalars(stmt)).all())

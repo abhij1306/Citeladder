@@ -342,22 +342,14 @@ export function NoAuditEmpty({
  */
 export function NoMentionsEmpty({
   engineParam,
-  surface,
   onGoToCatalog,
 }: Readonly<{
   engineParam: string | undefined;
-  surface: string;
   onGoToCatalog: () => void;
 }>) {
   // Name the active slice so a filtered-to-zero view never reads as "the
-  // whole run had nothing". BOTH filters are named when both are set — the
-  // engine-only fallback silently dropped the surface, so a doubly-filtered
-  // empty view under-reported why it was empty.
-  const filters = [
-    engineParam ? engineLabel(engineParam) : null,
-    surface ? `the ${surface} surface` : null,
-  ].filter((part): part is string => part !== null);
-  const slice = filters.length > 0 ? ` on ${filters.join(' and ')}` : '';
+  // whole run had nothing".
+  const slice = engineParam ? ` on ${engineLabel(engineParam)}` : '';
   return (
     <EmptyState
       icon={Package}

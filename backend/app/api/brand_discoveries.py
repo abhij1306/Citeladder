@@ -5,11 +5,12 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
 from app.core.errors import ApiException
+from app.core.http_errors import raise_api_error
 from app.domain.entitlements.enforcement import OccupancyError
 from app.domain.projects.discovery import (
     BrandDiscoveryError,
@@ -61,7 +62,7 @@ async def create_brand_discovery(
             idempotency_key=idempotency_key,
         )
     except BrandDiscoveryError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
     return BrandDiscoveryResponse.model_validate(row)
 
 
@@ -74,7 +75,7 @@ async def get_brand_discovery(
             session, workspace_id=ctx.workspace_id, discovery_id=discovery_id
         )
     except LookupError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        raise_api_error(status.HTTP_404_NOT_FOUND, str(exc), cause=exc)
     return BrandDiscoveryResponse.model_validate(row)
 
 
@@ -100,10 +101,10 @@ async def complete_brand_discovery(
         )
     except LookupError as exc:
         await session.rollback()
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        raise_api_error(status.HTTP_404_NOT_FOUND, str(exc), cause=exc)
     except BrandDiscoveryError as exc:
         await session.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+        raise_api_error(status.HTTP_409_CONFLICT, str(exc), cause=exc)
     except OccupancyError as exc:
         await session.rollback()
         raise ApiException.coded(

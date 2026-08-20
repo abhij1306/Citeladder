@@ -85,6 +85,19 @@ def test_narrative_contract_is_minimal_and_strict() -> None:
         _parse_narrative('{"summary":""}')
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"summary": 42, "observations": [], "limitations": []},
+        {"summary": "Valid", "observations": [42], "limitations": []},
+        {"summary": "Valid", "observations": [], "limitations": [False]},
+    ],
+)
+def test_narrative_contract_rejects_non_string_values(payload: dict) -> None:
+    with pytest.raises(ValueError):
+        _parse_narrative(json.dumps(payload))
+
+
 def test_public_artifact_reference_requires_a_uuid() -> None:
     with pytest.raises(ValidationError):
         AgentArtifactReference.model_validate({"kind": "snapshot", "id": "not-a-uuid"})

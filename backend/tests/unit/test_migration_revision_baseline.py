@@ -35,7 +35,7 @@ def test_0001_initial_is_the_only_migration_revision() -> None:
     source = _BASELINE.read_text(encoding="utf-8")
     assert 'revision = "0001_initial"' in source
     assert "down_revision = None" in source
-    assert len(_created_tables(source)) == 117
+    assert len(_created_tables(source)) == 116
     assert "industry_pack_id" not in source
     assert "from app.models" not in source
 

@@ -94,7 +94,6 @@ const visibility = {
       ...entryV2,
     },
   ],
-  available_surfaces: ['', 'chatgpt-shopping'],
   created_at: '2026-07-15T00:00:00Z',
 };
 
@@ -113,7 +112,6 @@ const evidence = {
       prompt_index: 0,
       repetition: 0,
       product_analyzer_version: 'product-analysis-2',
-      shopping_surface: '',
       matched_name: 'Acme VoltBike 500',
       matched_sku: 'AC-VB500',
       created_at: '2026-07-15T00:00:00Z',
@@ -293,16 +291,11 @@ describe('productsApi', () => {
       `/api/v1/projects/${UUID2}/products/visibility?audit_id=${UUID3}`,
     );
 
-    await productsApi.getProductVisibility(UUID2, {
-      audit_id: UUID3,
-      engine: 'gemini',
-      surface: 'chatgpt-shopping',
-    });
+    await productsApi.getProductVisibility(UUID2, { audit_id: UUID3, engine: 'gemini' });
     const slicedUrl = String(fetchMock.mock.calls[2]?.[0]);
     const sliced = new URLSearchParams(slicedUrl.split('?')[1]);
     expect(sliced.get('audit_id')).toBe(UUID3);
     expect(sliced.get('engine')).toBe('gemini');
-    expect(sliced.get('surface')).toBe('chatgpt-shopping');
   });
 
   it('builds the evidence path with audit/engine/limit filters', async () => {
@@ -320,7 +313,6 @@ describe('productsApi', () => {
     await productsApi.getProductEvidence(UUID, {
       audit_id: UUID3,
       engine: 'gemini',
-      surface: 'chatgpt-shopping',
       limit: 50,
     });
     const url = String(fetchMock.mock.calls[1]?.[0]);
@@ -328,11 +320,10 @@ describe('productsApi', () => {
     const params = new URLSearchParams(url.split('?')[1]);
     expect(params.get('audit_id')).toBe(UUID3);
     expect(params.get('engine')).toBe('gemini');
-    expect(params.get('surface')).toBe('chatgpt-shopping');
     expect(params.get('limit')).toBe('50');
   });
 
-  it('builds same-origin export URLs with audit/engine/surface params', async () => {
+  it('builds same-origin export URLs with audit/engine params', async () => {
     const { productsApi } = await import('./products');
     expect(productsApi.exportCsvUrl(UUID2)).toBe(
       `/api/v1/projects/${UUID2}/products/visibility/export.csv`,
@@ -341,13 +332,10 @@ describe('productsApi', () => {
       `/api/v1/projects/${UUID2}/products/visibility/export.csv?audit_id=${UUID3}`,
     );
     const sliced = new URLSearchParams(
-      productsApi
-        .exportCsvUrl(UUID2, { audit_id: UUID3, engine: 'gemini', surface: 'chatgpt-shopping' })
-        .split('?')[1],
+      productsApi.exportCsvUrl(UUID2, { audit_id: UUID3, engine: 'gemini' }).split('?')[1],
     );
     expect(sliced.get('audit_id')).toBe(UUID3);
     expect(sliced.get('engine')).toBe('gemini');
-    expect(sliced.get('surface')).toBe('chatgpt-shopping');
   });
 
   it('fails loud on contract drift (numeric id, missing completeness)', async () => {

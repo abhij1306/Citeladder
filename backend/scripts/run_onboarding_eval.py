@@ -69,11 +69,11 @@ from app.domain.projects.onboarding.prompt_validation import (  # noqa: E402
 )
 from app.domain.projects.onboarding.research import research_brand  # noqa: E402
 from app.domain.projects.onboarding.site_resolution import resolve_site  # noqa: E402
-from app.evaluations.onboarding_cases import (  # noqa: E402
+from evaluations.onboarding_cases import (  # noqa: E402
     COLLISION_PAIR,
     GOLDEN_ONBOARDING_CASES,
 )
-from app.evaluations.onboarding_golden import (  # noqa: E402
+from evaluations.onboarding_golden import (  # noqa: E402
     PortfolioPrompt,
     collision_score,
     evaluate_competitors,

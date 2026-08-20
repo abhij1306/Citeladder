@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import Cookie, Depends, Header, HTTPException, Path, status
+from fastapi import Cookie, Depends, Header, Path, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.core.http_errors import raise_not_found
+from app.core.http_errors import raise_api_error, raise_not_found
 from app.core.security import decode_access_token
 from app.domain.workspaces.service import get_membership
 from app.models.project import Project
@@ -43,9 +43,7 @@ async def get_current_user(
 ) -> User:
     """Resolve the authenticated user from the HttpOnly session cookie."""
     if not session_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
-        )
+        raise_api_error(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
     try:
         payload = decode_access_token(session_token)
         user_id = uuid.UUID(str(payload["sub"]))
@@ -54,9 +52,7 @@ async def get_current_user(
     # subclass (app/core/security.py) — covered here together with a missing
     # "sub" claim (KeyError) and a malformed UUID (ValueError).
     except (KeyError, ValueError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        ) from exc
+        raise_api_error(status.HTTP_401_UNAUTHORIZED, "Invalid token", cause=exc)
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
@@ -67,17 +63,11 @@ async def get_current_user(
         # "Inactive user" sent every such session hunting for a deactivated
         # account that never existed. Still 401, so the client's existing
         # clear-and-redirect path is unchanged.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session no longer valid"
-        )
+        raise_api_error(status.HTTP_401_UNAUTHORIZED, "Session no longer valid")
     if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Inactive user"
-        )
+        raise_api_error(status.HTTP_401_UNAUTHORIZED, "Inactive user")
     if token_version != user.session_version:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session no longer valid"
-        )
+        raise_api_error(status.HTTP_401_UNAUTHORIZED, "Session no longer valid")
     return user
 
 
@@ -160,10 +150,11 @@ async def require_active_workspace(
         try:
             workspace_id = uuid.UUID(x_workspace_id)
         except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid X-Workspace-Id",
-            ) from exc
+            raise_api_error(
+                status.HTTP_400_BAD_REQUEST,
+                "Invalid X-Workspace-Id",
+                cause=exc,
+            )
         member = await get_membership(session, workspace_id, user.id)
         if member is None:
             raise_not_found("Workspace")

@@ -12,9 +12,8 @@ from app.core.config.audits import (
     AUDIT_ACTIVE_STATUSES,
     AUDIT_STATUS_CANCELLED,
     EVENT_AUDIT_CANCELLED,
-    TASK_STATUS_CANCELLED,
-    TASK_TERMINAL_STATUSES,
 )
+from app.core.config.task_queue import TASK_STATUS_CANCELLED, TASK_TERMINAL_STATUSES
 from app.domain.audits.errors import AuditValidationError
 from app.domain.audits.reads import get_audit
 from app.domain.audits.state_events import apply_transition, record_event

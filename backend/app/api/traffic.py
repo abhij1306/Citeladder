@@ -25,16 +25,18 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
+from app.core.config.errors import CODE_INVALID_CURSOR
 from app.core.config.integrations_contracts import (
     ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
     SYNC_KIND_ON_DEMAND,
 )
 from app.core.config.traffic import TRAFFIC_DEFAULT_GRANULARITY
-from app.core.http_errors import raise_not_found
+from app.core.errors import ApiException
+from app.core.http_errors import api_error, raise_api_error, raise_not_found
 from app.domain.integrations.schemas import IntegrationSyncEnqueueResponse
 from app.domain.integrations.sync import (
     ActiveWindowConflictError,
@@ -74,18 +76,16 @@ async def _get_project_or_404(
         raise_not_found("Project", cause=exc)
 
 
-def _unprocessable(exc: TrafficQueryError) -> HTTPException:
+def _unprocessable(exc: TrafficQueryError) -> ApiException:
     # Query-validation contract (the trends/A9 precedent): a bad
     # granularity/window/sort is a 422, never a 404 or a 500.
-    return HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-    )
+    return api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
 
 
-def _bad_cursor(exc: TrafficCursorError) -> HTTPException:
+def _bad_cursor(exc: TrafficCursorError) -> ApiException:
     # A cursor replayed against different filters (or tampered/malformed)
     # is a 400 — never a silent row skip (site-health convention, C4).
-    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return api_error(status.HTTP_400_BAD_REQUEST, str(exc), code=CODE_INVALID_CURSOR)
 
 
 @router.get("/{project_id}/traffic", response_model=TrafficDashboardResponse)
@@ -233,15 +233,21 @@ async def sync_traffic_endpoint(
                 sync_kind=SYNC_KIND_ON_DEMAND,
             )
         except ActiveWindowConflictError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "error": ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
-                    "enqueued_connection_ids": [
-                        str(row.connection_id) for row in enqueued
-                    ],
-                },
-            ) from exc
+            # ``detail`` keeps the exact legacy body: clients read ``error``
+            # plus ``enqueued_connection_ids`` to learn which connections DID
+            # enqueue before the clash. ``details`` mirrors it in the envelope.
+            conflict = {
+                "error": ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
+                "enqueued_connection_ids": [str(row.connection_id) for row in enqueued],
+            }
+            raise_api_error(
+                status.HTTP_409_CONFLICT,
+                "A sync window is already active for this connection",
+                code=ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
+                details=conflict,
+                detail=conflict,
+                cause=exc,
+            )
         enqueued.append(
             IntegrationSyncEnqueueResponse(
                 sync_run_id=run.id,

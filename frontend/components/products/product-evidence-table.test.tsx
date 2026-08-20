@@ -77,7 +77,6 @@ function evidenceItem(kind: string, id: string) {
     prompt_index: 0,
     repetition: 1,
     product_analyzer_version: 'product-analysis-2',
-    shopping_surface: '',
     matched_name: 'Acme VoltBike 500',
     matched_sku: 'AC-VB500',
     created_at: '2026-07-15T00:00:00Z',
@@ -261,7 +260,7 @@ describe('ProductEvidenceTable kind sub-tabs', () => {
     expect(screen.queryByText(/they appear here once a run completes/)).not.toBeInTheDocument();
   });
 
-  it('sends engine + surface + limit on the evidence request', async () => {
+  it('sends engine + limit on the evidence request', async () => {
     const user = userEvent.setup();
     const urls: string[] = [];
     mswServer.use(
@@ -275,7 +274,6 @@ describe('ProductEvidenceTable kind sub-tabs', () => {
     await waitFor(() => expect(urls.length).toBeGreaterThan(0));
     const params = new URL(urls[0]!).searchParams;
     expect(params.get('limit')).toBe('100');
-    expect(params.get('surface')).toBe('');
 
     await user.click(screen.getByRole('button', { name: 'Filter by engine' }));
     await user.click(screen.getByRole('menuitemradio', { name: 'Gemini' }));

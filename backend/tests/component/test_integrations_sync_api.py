@@ -219,13 +219,17 @@ async def test_enqueue_invalid_window_is_422(
         json={"window_start": "2026-07-05", "window_end": "2026-07-01"},
     )
     assert inverted.status_code == 422
-    assert inverted.json()["detail"] == "sync_window_invalid"
+    body = inverted.json()
+    assert body["detail"] == "sync_window_invalid"
+    assert body["error"]["code"] == "sync_window_invalid"
+    assert body["error"]["message"] == "The requested sync window is invalid"
 
     half = await client.post(
         f"{_BASE}/{gsc.id}/sync", json={"window_start": "2026-07-01"}
     )
     assert half.status_code == 422
     assert half.json()["detail"] == "sync_window_invalid"
+    assert half.json()["error"]["code"] == "sync_window_invalid"
 
 
 @pytest.mark.asyncio

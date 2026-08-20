@@ -9,13 +9,12 @@ from app.core.config.audits import (
     AUDIT_TRIGGER_MANUAL,
     EVENT_AUDIT_CREATED,
     EVENT_AUDIT_QUEUED,
-    TASK_STATUS_FAILED,
-    TASK_STATUS_SUCCEEDED,
 )
 from app.core.config.provider_catalog import (
     CREDENTIAL_SOURCE_BYOK,
     CREDENTIAL_SOURCE_PLATFORM,
 )
+from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.domain.audits.creation import create_audit
 from app.domain.audits.reads import list_tasks
 from app.domain.audits.repair import AuditRepairError, create_repair_audit

@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import (
@@ -31,7 +31,7 @@ from app.core.config.analysis import (
 )
 from app.core.config.brand_logos import BRAND_LOGO_CACHE_MAX_AGE_SECONDS
 from app.core.errors import ApiException
-from app.core.http_errors import raise_not_found
+from app.core.http_errors import raise_api_error, raise_not_found
 from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
 from app.domain.analysis.evidence import get_visibility_evidence
 from app.domain.analysis.metrics import get_prompt_metrics
@@ -259,10 +259,7 @@ async def get_visibility_trends_endpoint(
             cohort=cohort,
         )
     except TrendQueryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
 
 
 @router.get(
@@ -315,10 +312,7 @@ async def get_visibility_evidence_endpoint(
     except AnalysisNotFoundError as exc:
         raise_not_found("Audit", cause=exc)
     except TrendQueryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
 
 
 def _logo_response(
@@ -441,10 +435,11 @@ async def get_command_center_endpoint(
             audit_id=audit_id,
         )
     except LookupError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No completed command-center measurement is available",
-        ) from exc
+        raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            "No completed command-center measurement is available",
+            cause=exc,
+        )
 
 
 @router.get("/{project_id}/reports/executive.pdf", response_class=Response)
@@ -463,14 +458,15 @@ async def get_executive_report_endpoint(
             audit_id=audit_id,
         )
     except LookupError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No completed command-center measurement is available",
-        ) from exc
+        raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            "No completed command-center measurement is available",
+            cause=exc,
+        )
     if not command_center.report_available or command_center.measurement is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No completed command-center measurement is available",
+        raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            "No completed command-center measurement is available",
         )
     slug = re.sub(r"[^a-z0-9]+", "-", project.brand_name.lower()).strip("-")
     date = command_center.measurement.completed_at.date().isoformat()
@@ -509,10 +505,11 @@ async def get_visibility_endpoint(
             cohort=cohort,
         )
     except AnalysisNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No visibility metrics available for project",
-        ) from exc
+        raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            "No visibility metrics available for project",
+            cause=exc,
+        )
 
 
 @router.get(

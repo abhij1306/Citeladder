@@ -7,6 +7,7 @@ import pytest
 from fastapi.middleware.cors import CORSMiddleware
 from httpx import ASGITransport
 
+from app import main
 from app.main import app
 
 
@@ -19,6 +20,52 @@ async def test_health_returns_200() -> None:
         response = await client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_ready_returns_200_when_the_database_answers() -> None:
+    """Readiness is a real dependency check, not a second liveness route."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        response = await client.get("/ready")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+@pytest.mark.asyncio
+async def test_ready_returns_503_when_the_database_is_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dead database must take the instance out of rotation.
+
+    This is the gap ``/health`` alone left: the process is up and answering
+    HTTP, so liveness stays 200 while nothing it needs is reachable.
+    """
+
+    class _DeadSession:
+        async def __aenter__(self):
+            raise OSError("connection refused")
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(main, "SessionLocal", lambda: _DeadSession())
+
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as client:
+        ready = await client.get("/ready")
+        alive = await client.get("/health")
+
+    assert ready.status_code == 503
+    assert ready.json() == {"status": "unavailable", "database": "down"}
+    # Liveness deliberately still passes — restarting this process fixes
+    # nothing when the database is what is down.
+    assert alive.status_code == 200
+    assert alive.json() == {"status": "ok"}
 
 
 @pytest.mark.asyncio
@@ -113,4 +160,5 @@ def test_health_route_and_router_stubs_registered() -> None:
 
     paths = {getattr(route, "path", None) for route in app.routes}
     assert "/health" in paths
+    assert "/ready" in paths
     assert len(_ROUTERS) == 22

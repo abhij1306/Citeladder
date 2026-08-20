@@ -61,8 +61,8 @@ from app.domain.site_health.service.lifecycle import (
     load_events,
 )
 from app.domain.site_health.service.presentation import (
-    _crawl_count_disclosure,
     _score_summary,
+    crawl_count_disclosure,
     display_label_for,
     presentation_status_for,
     project_crawl,
@@ -106,9 +106,8 @@ __all__ = [
     "project_crawl",
     "project_phase_run",
     "display_label_for",
-    # Re-exported for the router's Free-redaction check and the pure unit tests;
-    # both predate the split and neither should have to know which module they
-    # ended up in.
-    "_crawl_count_disclosure",
+    "crawl_count_disclosure",
+    # Re-exported for the pure unit tests, which predate the split and should
+    # not have to know which module it ended up in.
     "_score_summary",
 ]

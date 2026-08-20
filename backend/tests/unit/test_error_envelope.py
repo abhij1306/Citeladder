@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.config.errors import (
     CODE_HTTP_ERROR,
     CODE_INTERNAL_ERROR,
+    CODE_METHOD_NOT_ALLOWED,
     CODE_NOT_FOUND,
     CODE_RATE_LIMITED,
     CODE_VALIDATION_ERROR,
@@ -164,41 +165,34 @@ async def test_shim_classifies_retryable_statuses() -> None:
     assert body["error"]["retryable"] is True
 
 
-async def test_shim_keeps_coded_dict_detail_verbatim() -> None:
-    legacy = {"code": "opportunity_superseded", "message": "row superseded"}
-    exc = HTTPException(status_code=409, detail=legacy)
+async def test_shim_preserves_non_string_detail_payloads() -> None:
+    for detail in ({"reason": "missing"}, ["first", "second"]):
+        exc = HTTPException(status_code=422, detail=detail)
+        body = json.loads((await http_exception_shim_handler(_request(), exc)).body)
+
+        assert body["detail"] == detail
+        assert body["error"]["message"] == "Unprocessable Entity"
+
+
+async def test_shim_covers_the_frameworks_own_errors() -> None:
+    """What still reaches the shim is Starlette's, not the application's.
+
+    Every router raises an ``ApiException`` through ``core/http_errors.py``,
+    so the coded-dialect parsing the shim used to carry (a ``{"code",
+    "message", ...}`` detail split into code/message/details) is gone with the
+    raises that produced it — ``ApiException.coded`` owns that shape now. The
+    shim's remaining job is the framework's plain-string 404/405 and the
+    detail-less error.
+    """
+    # Starlette's unknown-path 404 carries its own string detail.
+    exc = HTTPException(status_code=405, detail="Method Not Allowed")
     body = json.loads((await http_exception_shim_handler(_request(), exc)).body)
-    assert body["detail"] == legacy  # echoed unchanged
-    assert body["error"]["code"] == "opportunity_superseded"
-    assert body["error"]["message"] == "row superseded"
-    assert body["error"]["retryable"] is False
+    assert body["detail"] == "Method Not Allowed"
+    assert body["error"]["code"] == CODE_METHOD_NOT_ALLOWED
+    assert body["error"]["message"] == "Method Not Allowed"
     assert "details" not in body["error"]
 
-
-async def test_shim_lifts_dict_extras_into_details() -> None:
-    legacy = {
-        "code": "site_health_quota_exceeded",
-        "message": "over quota",
-        "limit": 50,
-        "currently_used": 51,
-    }
-    exc = HTTPException(status_code=403, detail=legacy)
-    body = json.loads((await http_exception_shim_handler(_request(), exc)).body)
-    assert body["detail"] == legacy
-    assert body["error"]["code"] == "site_health_quota_exceeded"
-    assert body["error"]["details"] == {"limit": 50, "currently_used": 51}
-
-
-async def test_shim_uncoded_and_missing_details_fall_back() -> None:
-    # Uncoded dict: status-derived code; phrase message when no message key.
-    exc = HTTPException(status_code=409, detail={"hint": "retry later"})
-    body = json.loads((await http_exception_shim_handler(_request(), exc)).body)
-    assert body["detail"] == {"hint": "retry later"}
-    assert body["error"]["code"] == "conflict"
-    assert body["error"]["message"] == "Conflict"
-    assert body["error"]["details"] == {"hint": "retry later"}
-
-    # None detail: phrase message, and ``detail`` is still a string.
+    # No usable detail: the status phrase becomes both message and detail.
     exc_none = HTTPException(status_code=418)
     body_none = json.loads(
         (await http_exception_shim_handler(_request(), exc_none)).body
@@ -206,6 +200,7 @@ async def test_shim_uncoded_and_missing_details_fall_back() -> None:
     assert body_none["error"]["code"] == CODE_HTTP_ERROR  # 418 unmapped
     assert body_none["error"]["message"] == "I'm a Teapot"
     assert body_none["detail"] == "I'm a Teapot"
+    assert "details" not in body_none["error"]
 
 
 # =========================================================================

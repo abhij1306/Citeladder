@@ -14,7 +14,6 @@ from app.core.config.analysis import (
     VISIBILITY_EVIDENCE_DEFAULT_LIMIT,
     VISIBILITY_EVIDENCE_MAX_LIMIT,
 )
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
 from app.core.config.prompts import (
     ORGANIC_PROMPT_COHORTS,
     PROMPT_COHORT_CORE,
@@ -189,11 +188,6 @@ def _evidence_statement(
             Audit.workspace_id == workspace_id,
             Audit.project_id == project_id,
             Audit.status.in_(_DASHBOARD_STATUSES),
-            # Brand evidence is MEASUREMENT-ONLY (§7.1): filter BOTH the
-            # task slot and the analysis row (defense-in-depth) so probe
-            # rows never surface in brand evidence.
-            AuditTask.shopping_surface == SHOPPING_SURFACE_MEASUREMENT,
-            ResponseAnalysis.shopping_surface == SHOPPING_SURFACE_MEASUREMENT,
         )
     )
     if audit_id is not None:
@@ -360,9 +354,6 @@ async def load_export_bundle(
                 select(AuditTask)
                 .where(AuditTask.audit_id == audit_id)
                 .where(AuditTask.workspace_id == workspace_id)
-                # Brand exports are MEASUREMENT-ONLY (§7.1): probe rows are
-                # never exported with brand executions.
-                .where(AuditTask.shopping_surface == SHOPPING_SURFACE_MEASUREMENT)
                 .order_by(AuditTask.prompt_index.asc(), AuditTask.repetition.asc())
             )
         ).all()

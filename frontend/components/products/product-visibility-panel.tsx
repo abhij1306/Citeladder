@@ -28,7 +28,6 @@ import { BuyerDestinationBreakdown } from './buyer-destination-breakdown';
 import { CompetitorCoPlacementMatrix } from './competitor-co-placement-matrix';
 import { EngineFilterDropdown } from './engine-filter-dropdown';
 import { NestedTabs } from '@/components/ui/nested-tabs';
-import { SurfaceFilterDropdown } from './surface-filter-dropdown';
 import {
   NoAuditEmpty,
   NoMentionsEmpty,
@@ -63,17 +62,8 @@ export function ProductVisibilityPanel({
   queries: VisibilityQueries;
   onGoToCatalog: () => void;
 }>) {
-  const {
-    runOptions,
-    activeRunId,
-    selectRun,
-    engine,
-    setEngine,
-    engineParam,
-    surface,
-    setSurface,
-    visibilityQuery,
-  } = queries;
+  const { runOptions, activeRunId, selectRun, engine, setEngine, engineParam, visibilityQuery } =
+    queries;
   const [subTab, setSubTab] = useState<VisibilitySubTab>('overview');
 
   if (visibilityQuery.isLoading) {
@@ -132,8 +122,8 @@ export function ProductVisibilityPanel({
 
   // D2 state (b): the selected run COMPLETED but recorded zero product
   // mentions in this slice — explain why and what to do, never the wall of
-  // zeros (COM-1/COM-2). The toolbar stays so the run/engine/surface slice
-  // can be changed in place.
+  // zeros (COM-1/COM-2). The toolbar stays so the run/engine slice can be
+  // changed in place.
   if (visibility.total_mentions === 0) {
     return (
       <div className="grid gap-4">
@@ -145,15 +135,8 @@ export function ProductVisibilityPanel({
           engine={engine}
           setEngine={setEngine}
           engineParam={engineParam}
-          surfaces={visibility.available_surfaces}
-          surface={surface}
-          setSurface={setSurface}
         />
-        <NoMentionsEmpty
-          engineParam={engineParam}
-          surface={surface}
-          onGoToCatalog={onGoToCatalog}
-        />
+        <NoMentionsEmpty engineParam={engineParam} onGoToCatalog={onGoToCatalog} />
       </div>
     );
   }
@@ -221,9 +204,6 @@ export function ProductVisibilityPanel({
         engine={engine}
         setEngine={setEngine}
         engineParam={engineParam}
-        surfaces={visibility.available_surfaces}
-        surface={surface}
-        setSurface={setSurface}
       />
 
       {showV1Alert ? <Alert tone="info">{V1_DIRECTION_ALERT}</Alert> : null}
@@ -240,7 +220,7 @@ export function ProductVisibilityPanel({
   );
 }
 
-/** The Run/Engine/Surface/Export toolbar — shared by the data view and the
+/** The Run/Engine/Export toolbar — shared by the data view and the
  * zero-mentions empty state so the slice stays editable in place (D2). */
 function VisibilityToolbar({
   projectId,
@@ -250,9 +230,6 @@ function VisibilityToolbar({
   engine,
   setEngine,
   engineParam,
-  surfaces,
-  surface,
-  setSurface,
 }: Readonly<{
   projectId: string;
   runOptions: VisibilityQueries['runOptions'];
@@ -261,9 +238,6 @@ function VisibilityToolbar({
   engine: VisibilityQueries['engine'];
   setEngine: VisibilityQueries['setEngine'];
   engineParam: string | undefined;
-  surfaces: string[];
-  surface: string;
-  setSurface: (surface: string) => void;
 }>) {
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="product-visibility-toolbar">
@@ -275,15 +249,12 @@ function VisibilityToolbar({
 
       <EngineFilterDropdown engine={engine} onChange={setEngine} />
 
-      <SurfaceFilterDropdown surfaces={surfaces} surface={surface} onChange={setSurface} />
-
       <div className="ml-auto">
         <Button asChild variant="ghost" size="sm">
           <a
             href={productsApi.exportCsvUrl(projectId, {
               audit_id: activeRunId ?? undefined,
               engine: engineParam,
-              surface,
             })}
             download
           >

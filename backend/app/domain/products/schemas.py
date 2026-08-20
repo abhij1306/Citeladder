@@ -371,10 +371,6 @@ class ProductVisibilityResponse(BaseModel):
     total_analyses: int
     products: list[ProductVisibilityEntry]
     competitor_products: list[CompetitorProductVisibilityEntry]
-    # Distinct persisted analysis surfaces for the audit ∪ {""}: measurement
-    # ("" = "Answer-engine APIs") first, then non-empty values ascending.
-    # Exactly [""] while the shopping-surface gate is disabled.
-    available_surfaces: list[str] = Field(default_factory=list)
     created_at: datetime
 
 
@@ -400,7 +396,6 @@ class ProductEvidenceItem(BaseModel):
     prompt_index: int
     repetition: int
     product_analyzer_version: str
-    shopping_surface: str
     matched_name: str
     matched_sku: str
     created_at: datetime

@@ -42,8 +42,6 @@ vi.mock('@/lib/products/use-products-screen', async (importOriginal) => {
       engine: 'all',
       setEngine: vi.fn(),
       engineParam: undefined,
-      surface: '',
-      setSurface: vi.fn(),
       visibilityQuery: { isLoading: true },
     }),
     useCommerceDiscovery: () => ({

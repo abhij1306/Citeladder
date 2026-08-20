@@ -30,3 +30,9 @@ frontend/.*.mjs
 frontend/.*.png
 .runtime/
 backend/.runtime/
+
+# Coverage artifacts (measured on every run; CI uploads nothing today)
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

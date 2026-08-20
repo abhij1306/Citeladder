@@ -194,10 +194,10 @@ def test_aggregate_empty_is_none():
     assert agg.analyzed_url_count == 0
 
 
-# --- v2 P1: per-page-type rollup (spec §5.2/§5.6) ----------------------------
+# --- v2 P1: per-page-KIND rollup (spec §5.2/§5.6) ----------------------------
 
 
-def test_by_page_type_groups_counts_and_means():
+def test_by_page_kind_groups_counts_and_means():
     analyses = [
         PageKindScoreInput("article", 100.0, 80.0, 90.0),
         PageKindScoreInput("article", 60.0, 40.0, 50.0),
@@ -215,7 +215,7 @@ def test_by_page_type_groups_counts_and_means():
     assert product["overall_score"] == pytest.approx(80.0)
 
 
-def test_by_page_type_skips_none_scores_never_zero():
+def test_by_page_kind_skips_none_scores_never_zero():
     # A completed analysis with no scores contributes to the count but is
     # skipped in the means (missing/errored URLs never become zeros).
     analyses = [
@@ -230,16 +230,16 @@ def test_by_page_type_skips_none_scores_never_zero():
     assert article["overall_score"] == pytest.approx(80.0)
 
 
-def test_by_page_type_omits_types_without_analyses():
+def test_by_page_kind_omits_types_without_analyses():
     rollup = aggregate_by_page_kind([PageKindScoreInput("faq", 50.0, 50.0, 50.0)])
     assert set(rollup) == {"faq"}
 
 
-def test_by_page_type_empty_input_is_empty():
+def test_by_page_kind_empty_input_is_empty():
     assert aggregate_by_page_kind([]) == {}
 
 
-def test_by_page_type_key_order_follows_taxonomy():
+def test_by_page_kind_key_order_follows_taxonomy():
     analyses = [
         PageKindScoreInput("other", 10.0, 10.0, 10.0),
         PageKindScoreInput("article", 20.0, 20.0, 20.0),

@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 
 import pytest
+from pydantic import ValidationError
 
 from app.connectors.answer_engines.contracts import (
     AnswerEngineRequest,
@@ -34,6 +35,7 @@ from app.core.config.audits import (
     MEASUREMENT_MODES,
     PULSE_ANSWER_INSTRUCTION,
     PULSE_ANSWER_INSTRUCTION_SHA256,
+    AuditSettings,
     MeasurementModePolicy,
     audit_settings,
     frozen_policy_configuration,
@@ -94,6 +96,9 @@ def test_measurement_policy_for_pulse_returns_frozen_caps() -> None:
         timeout_seconds=30.0,
         repetitions=1,
         answer_instruction=PULSE_ANSWER_INSTRUCTION,
+        # Pulse retries twice, not five times: the cheap shape carries its own
+        # attempt budget.
+        max_attempts=2,
     )
 
 
@@ -106,6 +111,7 @@ def test_measurement_policy_for_benchmark_returns_frozen_caps() -> None:
         timeout_seconds=60.0,
         repetitions=3,
         answer_instruction=BENCHMARK_ANSWER_INSTRUCTION,
+        max_attempts=5,
     )
 
 
@@ -156,7 +162,7 @@ def test_frozen_policy_is_isolated_from_later_live_setting_changes(
     assert restored.max_output_tokens == frozen["max_output_tokens"]
 
 
-def test_missing_or_incomplete_frozen_policy_uses_mode_defaults() -> None:
+def test_missing_frozen_policy_uses_mode_defaults() -> None:
     expected = measurement_policy_for_mode(MEASUREMENT_MODE_PULSE)
 
     assert (
@@ -165,30 +171,46 @@ def test_missing_or_incomplete_frozen_policy_uses_mode_defaults() -> None:
         )
         == expected
     )
-    assert (
+
+
+@pytest.mark.parametrize(
+    "frozen",
+    [
+        {
+            "retrieval_enabled": False,
+            "max_output_tokens": 600,
+            "timeout_seconds": 30.0,
+            "repetitions": 1,
+            "answer_instruction": "answer",
+            # A row frozen before the attempt budget was introduced must be
+            # migrated rather than silently inheriting a live mutable value.
+        },
+        {
+            "retrieval_enabled": "false",
+            "max_output_tokens": None,
+            "timeout_seconds": 1,
+            "repetitions": 1,
+            "answer_instruction": "answer",
+            "max_attempts": 2,
+        },
+    ],
+)
+def test_present_invalid_frozen_policy_fails_closed(frozen: dict) -> None:
+    with pytest.raises(ValueError, match="invalid frozen measurement policy"):
         measurement_policy_from_configuration(
             {
                 "measurement_mode": MEASUREMENT_MODE_PULSE,
-                "measurement_policy": {"retrieval_enabled": False},
+                "measurement_policy": frozen,
             }
         )
-        == expected
-    )
-    assert (
-        measurement_policy_from_configuration(
-            {
-                "measurement_mode": MEASUREMENT_MODE_PULSE,
-                "measurement_policy": {
-                    "retrieval_enabled": "false",
-                    "max_output_tokens": None,
-                    "timeout_seconds": 1,
-                    "repetitions": 1,
-                    "answer_instruction": "answer",
-                },
-            }
-        )
-        == expected
-    )
+
+
+@pytest.mark.parametrize("pulse_max_attempts", [0, -1])
+def test_audit_settings_reject_non_positive_pulse_attempt_budgets(
+    pulse_max_attempts: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        AuditSettings(pulse_max_attempts=pulse_max_attempts)
 
 
 def test_unknown_legacy_measurement_mode_defaults_to_benchmark() -> None:

@@ -16,7 +16,6 @@ from app.core.config.commerce import (
     PRICE_RELATION_LOWER,
     PRICE_RELATION_MATCH,
     PRICE_RELATION_MISMATCH,
-    SHOPPING_SURFACE_MEASUREMENT,
 )
 from app.domain.products.visibility import (
     _EMPTY_CO_PLACEMENT,
@@ -39,7 +38,6 @@ _CSV_COLUMNS = [
     "price_accuracy",
     "engine",
     "product_analyzer_version",
-    "surface",
     "win_rate",
     "price_mismatch_rate",
     "price_relation_match_count",
@@ -98,7 +96,6 @@ def _csv_row(
     engine: str,
     aggregate: dict,
     analyzer_version: str,
-    surface: str,
 ) -> dict[str, object]:
     relation_counts = aggregate.get("price_relation_counts") or {}
     row = {
@@ -111,7 +108,6 @@ def _csv_row(
         "price_accuracy": _optional_csv_value(aggregate.get("price_accuracy_rate")),
         "engine": engine,
         "product_analyzer_version": analyzer_version,
-        "surface": surface,
         "win_rate": _optional_csv_value(aggregate.get("win_rate")),
         "price_mismatch_rate": _optional_csv_value(
             aggregate.get("price_mismatch_rate")
@@ -122,13 +118,8 @@ def _csv_row(
     return row
 
 
-def _per_engine_metrics(snapshot: ProductMetricSnapshot, surface: str) -> dict:
-    metrics = snapshot.metrics or {}
-    if surface == SHOPPING_SURFACE_MEASUREMENT:
-        return metrics.get("per_engine") or {}
-    return ((metrics.get("per_surface") or {}).get(surface) or {}).get(
-        "per_engine"
-    ) or {}
+def _per_engine_metrics(snapshot: ProductMetricSnapshot) -> dict:
+    return (snapshot.metrics or {}).get("per_engine") or {}
 
 
 async def load_product_visibility_export_bundle(
@@ -150,7 +141,6 @@ async def load_product_visibility_export_bundle(
 def product_visibility_csv(
     audit: Audit,
     snapshots: list[ProductMetricSnapshot],
-    surface: str = SHOPPING_SURFACE_MEASUREMENT,
 ) -> str:
     """Render persisted product visibility rows as a deterministic CSV."""
     config = build_product_scoring_config(audit.configuration)
@@ -171,13 +161,13 @@ def product_visibility_csv(
                 name=name,
                 sku=sku,
                 engine="all",
-                aggregate=_entry_metrics(snapshot, None, surface),
+                aggregate=_entry_metrics(snapshot, None),
                 analyzer_version=snapshot.product_analyzer_version,
-                surface=surface,
             )
         )
-        for engine in sorted(_per_engine_metrics(snapshot, surface)):
-            aggregate = _per_engine_metrics(snapshot, surface)[engine]
+        per_engine = _per_engine_metrics(snapshot)
+        for engine in sorted(per_engine):
+            aggregate = per_engine[engine]
             if aggregate is None:
                 continue
             writer.writerow(
@@ -188,7 +178,6 @@ def product_visibility_csv(
                     engine=engine,
                     aggregate=_normalize_aggregate(aggregate),
                     analyzer_version=snapshot.product_analyzer_version,
-                    surface=surface,
                 )
             )
     return buffer.getvalue()

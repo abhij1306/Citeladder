@@ -34,7 +34,7 @@ from app.core.config.measurement import (
     route_fixture_path,
     route_reasoning_efforts,
 )
-from app.domain.measurement.harness import (
+from evaluations.measurement.harness import (
     FixtureMeasurementRunner,
     LiveExecutionNotEnabledError,
     MeasurementCase,

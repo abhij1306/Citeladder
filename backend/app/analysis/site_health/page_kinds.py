@@ -99,7 +99,7 @@ def _normalized_path(final_url: str) -> str:
     """
     try:
         path = urlsplit(final_url or "").path or ""
-    except Exception:
+    except ValueError:
         return ""
     path = path[:_MAX_PATH_CHARS].lower()
     while path.endswith("/"):

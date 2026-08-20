@@ -22,9 +22,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from fastapi.responses import PlainTextResponse, Response, StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.exports import audit_to_csv, audit_to_markdown
@@ -36,7 +36,6 @@ from app.core.config.audits import (
     CODE_PROMPT_COUNT_POLICY_UNCONFIGURED,
     audit_settings,
 )
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
 from app.core.config.entitlements import (
     CODE_FUNDED_BUDGET_EXHAUSTED,
     CODE_FUNDED_COST_UNRESOLVED,
@@ -49,13 +48,12 @@ from app.core.config.prompts import (
 )
 from app.core.database import SessionLocal
 from app.core.errors import ApiException
-from app.core.http_errors import raise_not_found
+from app.core.http_errors import raise_api_error, raise_not_found
 from app.domain.abuse.service import UsageLimitExceededError
-from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
+from app.domain.analysis.errors import AnalysisNotFoundError
 from app.domain.analysis.evidence import load_export_bundle
 from app.domain.analysis.metrics import get_metrics
 from app.domain.analysis.schemas import MetricsResponse
-from app.domain.analysis.trends import validate_shopping_surface
 from app.domain.audits.cancellation import cancel_audit
 from app.domain.audits.cost_estimate import estimate_audit
 from app.domain.audits.creation import create_audit
@@ -125,15 +123,14 @@ def _translate_create_audit_errors() -> Iterator[None]:
     try:
         yield
     except AuditValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
     except UsageLimitExceededError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Workspace usage limit exceeded",
+        raise_api_error(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "Workspace usage limit exceeded",
             headers={"Retry-After": str(exc.retry_after_seconds)},
-        ) from exc
+            cause=exc,
+        )
     except (
         RateAdmissionDeniedError,
         FundedAdmissionError,
@@ -180,9 +177,7 @@ async def estimate_audit_endpoint(
             session, workspace_id=ctx.workspace_id, payload=payload
         )
     except AuditEstimateError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
 
 
 @router.get("", response_model=list[AuditResponse])
@@ -232,9 +227,7 @@ async def cancel_audit_endpoint(
     except AuditNotFoundError as exc:
         raise_not_found("Audit", cause=exc)
     except AuditValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_409_CONFLICT, str(exc), cause=exc)
     return AuditResponse.model_validate(audit)
 
 
@@ -270,9 +263,7 @@ async def rerun_failures_endpoint(
     except LookupError as exc:
         raise_not_found("Audit", cause=exc)
     except AuditRepairError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_409_CONFLICT, str(exc), cause=exc)
     return AuditResponse.model_validate(child)
 
 
@@ -281,21 +272,15 @@ async def list_executions_endpoint(
     audit_id: uuid.UUID,
     ctx: _WorkspaceDep,
     session: _SessionDep,
-    surface: Annotated[str, Query()] = SHOPPING_SURFACE_MEASUREMENT,
 ) -> list[AuditTaskResponse]:
     try:
         tasks = await list_tasks(
             session,
             workspace_id=ctx.workspace_id,
             audit_id=audit_id,
-            surface=validate_shopping_surface(surface),
         )
     except AuditNotFoundError as exc:
         raise_not_found("Audit", cause=exc)
-    except TrendQueryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
     return [AuditTaskResponse.model_validate(t) for t in tasks]
 
 
@@ -315,10 +300,11 @@ async def get_metrics_endpoint(
             session, workspace_id=ctx.workspace_id, audit_id=audit_id
         )
     except AnalysisNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Metrics not available for audit",
-        ) from exc
+        raise_api_error(
+            status.HTTP_404_NOT_FOUND,
+            "Metrics not available for audit",
+            cause=exc,
+        )
 
 
 @router.get("/{audit_id}/export.csv")
@@ -400,8 +386,10 @@ async def list_events_endpoint(
 async def _list_event_responses(
     session: AsyncSession, audit_id: uuid.UUID, *, after: uuid.UUID | None
 ) -> list[AuditEventResponse]:
-    """The JSON event list (optionally after the resume cursor)."""
-    events = await _load_events(session, audit_id, after=after)
+    """One JSON event page (optionally after the resume cursor)."""
+    events = await _load_events(
+        session, audit_id, after=after, limit=audit_settings.max_event_page
+    )
     return [audit_event_response(e) for e in events]
 
 
@@ -430,24 +418,54 @@ async def _authorize_resume_cursor(
 
 
 async def _load_events(
-    session: AsyncSession, audit_id: uuid.UUID, *, after: uuid.UUID | None
+    session: AsyncSession,
+    audit_id: uuid.UUID,
+    *,
+    after: uuid.UUID | None,
+    limit: int | None = None,
 ) -> list[AuditEvent]:
+    """Ordered audit events (``created_at``, then ``id``), optionally after an id.
+
+    ``after`` is a resume anchor (the SSE loop's last delivered event, or a
+    client ``Last-Event-ID``): the boundary is applied in SQL as a keyset over
+    the SAME ``(audit_id, created_at, id)`` ordering the composite index
+    covers, so a long-lived stream never loads the audit's whole history on
+    every poll just to drop its head. An anchor that is not an event of THIS
+    audit (stale, or from another audit) yields no events — replaying the full
+    history to a resuming client would duplicate everything it already
+    rendered. ``limit`` bounds ONE page; callers resume with the last id they
+    rendered, so a capped page is a page, never a truncated history. Mirrors
+    ``domain.site_health.service.lifecycle.load_events``.
+    """
     stmt = (
         select(AuditEvent)
         .where(AuditEvent.audit_id == audit_id)
         .order_by(AuditEvent.created_at.asc(), AuditEvent.id.asc())
     )
-    events = list((await session.scalars(stmt)).all())
-    if after is None:
-        return events
-    seen = False
-    tail: list[AuditEvent] = []
-    for event in events:
-        if seen:
-            tail.append(event)
-        elif event.id == after:
-            seen = True
-    return tail if seen else events
+    if after is not None:
+        # The anchor's timestamp as a scalar subquery rather than a second
+        # round trip. A stale/foreign anchor yields NULL, and both keyset
+        # comparisons against NULL are NULL — so the page comes back empty on
+        # its own rather than replaying from the beginning.
+        anchor_created_at = (
+            select(AuditEvent.created_at)
+            .where(AuditEvent.id == after, AuditEvent.audit_id == audit_id)
+            .scalar_subquery()
+        )
+        stmt = stmt.where(
+            or_(
+                AuditEvent.created_at > anchor_created_at,
+                and_(
+                    AuditEvent.created_at == anchor_created_at,
+                    AuditEvent.id > after,
+                ),
+            )
+        )
+    if limit is not None:
+        # Bounds ONE page. Callers resume with the last id they rendered, so a
+        # capped page is a page — never a silently truncated history.
+        stmt = stmt.limit(limit)
+    return list((await session.scalars(stmt)).all())
 
 
 def _sse_payload(event: AuditEvent) -> str:
@@ -480,14 +498,22 @@ async def _event_stream(
     last_id = last_event_id
     terminal_polls = 0
     while True:
+        page_size = audit_settings.max_event_page
         async with SessionLocal() as session:
-            new_events = await _load_events(session, audit_id, after=last_id)
+            new_events = await _load_events(
+                session, audit_id, after=last_id, limit=page_size
+            )
             for event in new_events:
                 last_id = event.id
                 yield _sse_payload(event)
             audit = await session.get(Audit, audit_id)
         if audit is None:
             break
+        if len(new_events) == page_size:
+            # A full page may not be the whole backlog. Drain the remainder
+            # before the terminal grace can close the stream, so the cap never
+            # costs a client events it has not been sent.
+            continue
         if audit.status in AUDIT_TERMINAL_STATUSES:
             terminal_polls += 1
             if terminal_polls >= audit_settings.sse_terminal_grace_polls:

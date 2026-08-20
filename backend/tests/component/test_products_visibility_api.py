@@ -25,17 +25,13 @@ from app.analysis.product_service import (
     build_product_scoring_config,
     finalize_audit_product_analysis,
 )
-from app.core.config.audits import (
-    AUDIT_STATUS_COMPLETED,
-    AUDIT_TRIGGER_MANUAL,
-    TASK_STATUS_FAILED,
-    TASK_STATUS_SUCCEEDED,
-)
+from app.core.config.audits import AUDIT_STATUS_COMPLETED, AUDIT_TRIGGER_MANUAL
 from app.core.config.products import (
     PRODUCT_ANALYZER_VERSION,
     PRODUCT_SCORING_RULE_VERSION,
 )
 from app.core.config.provider_catalog import ENGINE_GEMINI
+from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.domain.audits.creation import create_audit
 from app.models.audit import Audit, AuditTask, RawResponseArtifact
 from app.models.brand import Competitor
@@ -51,7 +47,6 @@ from app.models.user import User
 from app.models.workspace import WorkspaceMember
 from tests.component.audit_helpers import Seed, seed_audit_fixtures
 
-_FIXTURE_SURFACE = "fixture-shopping"
 _V1_ANALYZER = "product-analysis-1"
 _V1_RULE = "product-scoring-v1"
 _ANSWER = (
@@ -150,7 +145,7 @@ async def _persist_answer(
     return artifact
 
 
-def _clone_surface_task(source: AuditTask, *, surface: str, repetition: int = 0):
+def _clone_task(source: AuditTask, *, repetition: int = 0):
     return AuditTask(
         audit_id=source.audit_id,
         workspace_id=source.workspace_id,
@@ -162,42 +157,34 @@ def _clone_surface_task(source: AuditTask, *, surface: str, repetition: int = 0)
         logical_engine=source.logical_engine,
         transport_provider=source.transport_provider,
         transport_model=source.transport_model,
-        shopping_surface=surface,
         prompt_text=source.prompt_text,
         provider_route_snapshot=source.provider_route_snapshot,
         idempotency_key=(
             f"{source.audit_id}:{source.prompt_index}:{repetition}:"
-            f"{source.logical_engine}:{surface}"
+            f"{source.logical_engine}"
         ),
     )
 
 
-async def _finish_with_two_surfaces(
+async def _finish_scored_audit(
     session_factory: async_sessionmaker[AsyncSession], audit_id: uuid.UUID
-) -> tuple[uuid.UUID, uuid.UUID]:
+) -> uuid.UUID:
     async with session_factory() as session:
         audit = await session.get(Audit, audit_id)
-        measurement = await session.scalar(
+        task = await session.scalar(
             select(AuditTask).where(AuditTask.audit_id == audit_id)
         )
-        assert audit is not None and measurement is not None
-        probe = _clone_surface_task(measurement, surface=_FIXTURE_SURFACE)
-        session.add(probe)
-        await session.flush()
-        await _persist_answer(session, measurement)
-        await _persist_answer(session, probe)
+        assert audit is not None and task is not None
+        await _persist_answer(session, task)
         config = build_product_scoring_config(audit.configuration)
-        measurement_analysis = await analyze_task_products(
-            session, task=measurement, config=config
-        )
-        probe_analysis = await analyze_task_products(session, task=probe, config=config)
-        assert measurement_analysis is not None and probe_analysis is not None
+        analysis = await analyze_task_products(session, task=task, config=config)
+        assert analysis is not None
         await finalize_audit_product_analysis(session, audit=audit)
         audit.status = AUDIT_STATUS_COMPLETED
         audit.completed_at = datetime.now(UTC)
         audit.completed_count = 1
         await session.commit()
-        return measurement.id, probe.id
+        return task.id
 
 
 def _headers(seed: Seed) -> dict[str, str]:
@@ -231,7 +218,6 @@ async def test_v1_graph_survives_rescore_and_current_projection_wins(
             transport_model=task.transport_model,
             prompt_index=0,
             repetition=0,
-            shopping_surface="",
             own_product_mention_count=1,
             score={"products": [], "competitor_products": []},
         )
@@ -298,46 +284,28 @@ async def test_v1_graph_survives_rescore_and_current_projection_wins(
 
 
 @pytest.mark.asyncio
-async def test_surface_slices_evidence_shapes_and_stable_ids(
+async def test_visibility_slices_evidence_shapes_and_stable_ids(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.core.config import commerce as commerce_config
-
-    monkeypatch.setattr(
-        commerce_config, "SHOPPING_SURFACES", {_FIXTURE_SURFACE: {"label": "Fixture"}}
-    )
     seed, product, competitor, audit = await _seed_catalog_user_and_audit(
         client, session_factory
     )
-    await _finish_with_two_surfaces(session_factory, audit.id)
+    await _finish_scored_audit(session_factory, audit.id)
     base = f"/api/v1/projects/{seed.project_id}/products/visibility"
 
-    measurement = await client.get(
+    overall = await client.get(
         base, params={"audit_id": str(audit.id)}, headers=_headers(seed)
     )
-    probe = await client.get(
+    by_engine = await client.get(
         base,
-        params={"audit_id": str(audit.id), "surface": _FIXTURE_SURFACE},
+        params={"audit_id": str(audit.id), "engine": ENGINE_GEMINI},
         headers=_headers(seed),
     )
-    intersected = await client.get(
-        base,
-        params={
-            "audit_id": str(audit.id),
-            "surface": _FIXTURE_SURFACE,
-            "engine": ENGINE_GEMINI,
-        },
-        headers=_headers(seed),
-    )
-    assert (
-        measurement.status_code == probe.status_code == intersected.status_code == 200
-    )
-    for body in (measurement.json(), probe.json(), intersected.json()):
+    assert overall.status_code == by_engine.status_code == 200
+    for body in (overall.json(), by_engine.json()):
         assert body["total_analyses"] == 1
         assert body["total_mentions"] == 2
-        assert body["available_surfaces"] == ["", _FIXTURE_SURFACE]
         own = body["products"][0]
         assert own["price_relation_counts"] == {
             "match": 1,
@@ -365,14 +333,10 @@ async def test_surface_slices_evidence_shapes_and_stable_ids(
 
     evidence_url = f"/api/v1/products/{product.id}/visibility/evidence"
     first = await client.get(
-        evidence_url,
-        params={"audit_id": str(audit.id), "surface": _FIXTURE_SURFACE},
-        headers=_headers(seed),
+        evidence_url, params={"audit_id": str(audit.id)}, headers=_headers(seed)
     )
     second = await client.get(
-        evidence_url,
-        params={"audit_id": str(audit.id), "surface": _FIXTURE_SURFACE},
-        headers=_headers(seed),
+        evidence_url, params={"audit_id": str(audit.id)}, headers=_headers(seed)
     )
     assert first.status_code == second.status_code == 200
     first_items, second_items = first.json()["items"], second.json()["items"]
@@ -401,7 +365,6 @@ async def test_surface_slices_evidence_shapes_and_stable_ids(
             "prompt_index",
             "repetition",
             "product_analyzer_version",
-            "shopping_surface",
             "matched_name",
             "matched_sku",
             "created_at",
@@ -427,21 +390,15 @@ async def test_surface_slices_evidence_shapes_and_stable_ids(
             assert uuid.UUID(item["evidence_id"]) in merchant_ids
 
     assert (
-        await client.get(base, params={"surface": "unknown"}, headers=_headers(seed))
+        await client.get(base, params={"engine": "unknown"}, headers=_headers(seed))
     ).status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_surface_csv_is_stable_exact_and_projection_only(
+async def test_visibility_csv_is_stable_exact_and_projection_only(
     client: httpx.AsyncClient,
     session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.core.config import commerce as commerce_config
-
-    monkeypatch.setattr(
-        commerce_config, "SHOPPING_SURFACES", {_FIXTURE_SURFACE: {"label": "Fixture"}}
-    )
     seed, product, _competitor, audit = await _seed_catalog_user_and_audit(
         client, session_factory
     )
@@ -454,9 +411,9 @@ async def test_surface_csv_is_stable_exact_and_projection_only(
         configuration["products"][0]["sku"] = "+CMD"
         stored.configuration = configuration
         await session.commit()
-    await _finish_with_two_surfaces(session_factory, audit.id)
+    await _finish_scored_audit(session_factory, audit.id)
     url = f"/api/v1/projects/{seed.project_id}/products/visibility/export.csv"
-    params = {"audit_id": str(audit.id), "surface": _FIXTURE_SURFACE}
+    params = {"audit_id": str(audit.id)}
     first = await client.get(url, params=params, headers=_headers(seed))
     second = await client.get(url, params=params, headers=_headers(seed))
     assert first.status_code == second.status_code == 200
@@ -472,7 +429,6 @@ async def test_surface_csv_is_stable_exact_and_projection_only(
         "price_accuracy",
         "engine",
         "product_analyzer_version",
-        "surface",
         "win_rate",
         "price_mismatch_rate",
         "price_relation_match_count",
@@ -485,7 +441,6 @@ async def test_surface_csv_is_stable_exact_and_projection_only(
     ]
     own = next(row for row in rows if row["sku"])
     assert own["product"].startswith("'=") and own["sku"].startswith("'+")
-    assert own["surface"] == _FIXTURE_SURFACE
     for key in (
         "attribute_dimension_frequency",
         "buyer_destination_mix",
@@ -534,7 +489,6 @@ async def test_mixed_v1_v2_evidence_projects_legacy_relation_fallback(
             transport_model=task.transport_model,
             prompt_index=0,
             repetition=0,
-            shopping_surface="",
             score={
                 "products": [],
                 "competitor_products": [],
@@ -558,7 +512,7 @@ async def test_mixed_v1_v2_evidence_projects_legacy_relation_fallback(
                 price_matches_catalog=False,
             )
         )
-        current_task = _clone_surface_task(task, surface="", repetition=1)
+        current_task = _clone_task(task, repetition=1)
         session.add(current_task)
         await session.flush()
         await _persist_answer(session, current_task)

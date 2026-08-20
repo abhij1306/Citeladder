@@ -36,7 +36,6 @@ from fastapi import (
     APIRouter,
     Depends,
     Header,
-    HTTPException,
     Query,
     Request,
     Response,
@@ -68,6 +67,7 @@ from app.core.config.billing_contracts import (
 from app.core.config.billing_settings import (
     billing_settings,
 )
+from app.core.http_errors import raise_api_error
 from app.domain.billing.catalog import public_catalog
 from app.domain.billing.idempotency import (
     IdempotencyConflictError,
@@ -128,7 +128,7 @@ def _idempotency_key(
     try:
         return validate_idempotency_key(idempotency_key)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise_api_error(400, str(exc), cause=exc)
 
 
 IdempotencyKey = Annotated[str, Depends(_idempotency_key)]
@@ -146,9 +146,9 @@ def _safe_commercial_errors() -> Iterator[None]:
         IdempotencyConflictError,
         BillingConflictError,
     ) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise_api_error(409, str(exc), cause=exc)
     except BillingProviderError as exc:
-        raise HTTPException(status_code=502, detail=exc.code) from exc
+        raise_api_error(502, exc.code, cause=exc)
 
 
 def _activation_status_code(activation: ActivationResponse) -> int:
@@ -469,15 +469,15 @@ async def razorpay_webhook(
     body = bytearray()
     async for chunk in request.stream():
         if len(body) + len(chunk) > billing_settings.max_webhook_body_bytes:
-            raise HTTPException(status_code=413, detail="Webhook body too large")
+            raise_api_error(413, "Webhook body too large")
         body.extend(chunk)
     raw_body = bytes(body)
     if not verify_razorpay_signature(raw_body, signature):
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+        raise_api_error(400, "Invalid webhook signature")
     try:
         await process_razorpay_webhook(session, raw_body=raw_body, event_id=event_id)
     except InvalidWebhookError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise_api_error(400, str(exc), cause=exc)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -32,7 +32,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
 from app.core.config.products import DEFAULT_PRODUCT_ORIGIN
 from app.core.database import Base
 from app.models.constants import (
@@ -247,11 +246,6 @@ class ProductResponseAnalysis(Base):
     transport_model: Mapped[str] = mapped_column(String(255), default="")
     prompt_index: Mapped[int] = mapped_column(Integer, default=0)
     repetition: Mapped[int] = mapped_column(Integer, default=0)
-    # Shopping-surface slot identity (§7.1): "" = answer-engine-API
-    # measurement; probe surfaces stamp their configured id.
-    shopping_surface: Mapped[str] = mapped_column(
-        String(32), default=SHOPPING_SURFACE_MEASUREMENT
-    )
 
     # Flat headline signals (per-execution).
     own_product_mention_count: Mapped[int] = mapped_column(Integer, default=0)

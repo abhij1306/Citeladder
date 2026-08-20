@@ -16,16 +16,14 @@ from app.core.config.audits import (
     AUDIT_TRIGGER_REPAIR,
     EVENT_AUDIT_CREATED,
     EVENT_AUDIT_QUEUED,
-    TASK_STATUS_FAILED,
-    TASK_STATUS_QUEUED,
 )
 from app.core.config.provider_catalog import CREDENTIAL_SOURCE_BYOK
+from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_QUEUED
 from app.domain.audits.state_events import apply_transition, record_event
 from app.models.audit import (
     Audit,
     AuditEngineSnapshot,
     AuditPromptSnapshot,
-    AuditShoppingSurfaceSnapshot,
     AuditTask,
 )
 
@@ -106,7 +104,6 @@ async def create_repair_audit(
     await session.flush()
     prompt_map = _clone_prompt_snapshots(session, child.id, tasks, prompts_by_id)
     engine_map = await _clone_engine_snapshots(session, parent.id, child.id, tasks)
-    await _clone_surface_snapshots(session, parent.id, child.id, tasks)
     await session.flush()
     _clone_tasks(session, child, workspace_id, tasks, prompt_map, engine_map)
     _queue_repair(session, child, tasks)
@@ -248,32 +245,6 @@ async def _clone_engine_snapshots(session, parent_id, child_id, tasks):
     return clones
 
 
-async def _clone_surface_snapshots(session, parent_id, child_id, tasks):
-    used_surfaces = {task.shopping_surface for task in tasks}
-    sources = list(
-        (
-            await session.scalars(
-                select(AuditShoppingSurfaceSnapshot).where(
-                    AuditShoppingSurfaceSnapshot.audit_id == parent_id,
-                    AuditShoppingSurfaceSnapshot.shopping_surface.in_(used_surfaces),
-                )
-            )
-        ).all()
-    )
-    for source in sources:
-        session.add(
-            AuditShoppingSurfaceSnapshot(
-                audit_id=child_id,
-                shopping_surface=source.shopping_surface,
-                logical_engine=source.logical_engine,
-                transport_provider=source.transport_provider,
-                transport_model=source.transport_model,
-                connection_id=source.connection_id,
-                base_url=source.base_url,
-            )
-        )
-
-
 def _clone_tasks(session, child, workspace_id, tasks, prompt_map, engine_map):
     for position, source in enumerate(tasks):
         session.add(
@@ -289,12 +260,11 @@ def _clone_tasks(session, child, workspace_id, tasks, prompt_map, engine_map):
                 logical_engine=source.logical_engine,
                 transport_provider=source.transport_provider,
                 transport_model=source.transport_model,
-                shopping_surface=source.shopping_surface,
                 prompt_text=source.prompt_text,
                 provider_route_snapshot=source.provider_route_snapshot,
                 idempotency_key=(
                     f"{child.id}:{source.prompt_index}:{source.repetition}:"
-                    f"{source.logical_engine}:{source.shopping_surface}"
+                    f"{source.logical_engine}"
                 ),
                 max_attempts=source.max_attempts,
                 status=TASK_STATUS_QUEUED,

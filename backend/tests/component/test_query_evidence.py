@@ -297,7 +297,10 @@ async def test_api_requires_window_rejects_bad_cursor_and_is_workspace_safe(
         },
     )
     assert response.status_code == 422
-    assert response.json()["detail"] == "query_evidence_cursor_invalid"
+    body = response.json()
+    assert body["detail"] == "query_evidence_cursor_invalid"
+    assert body["error"]["code"] == "query_evidence_cursor_invalid"
+    assert body["error"]["message"] == "The query evidence cursor is invalid"
     summary = await client.get(
         f"{prefix}/summary",
         params={

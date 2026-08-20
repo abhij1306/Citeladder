@@ -9,7 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.config import commerce as commerce_config
 from app.core.config.analysis import (
     VISIBILITY_TREND_DEFAULT_GRANULARITY,
     VISIBILITY_TREND_GRANULARITIES,
@@ -39,23 +38,6 @@ from app.domain.audits.schemas import (
 )
 from app.models.analysis import MetricSnapshot
 from app.models.audit import Audit
-
-
-def validate_shopping_surface(surface: str) -> str:
-    """Validate a requested shopping surface against the configured gate.
-
-    Returns ``surface`` unchanged when it is the measurement identity or a
-    configured ``SHOPPING_SURFACES`` key; raises ``TrendQueryError`` (HTTP
-    422) otherwise. Reads the commerce gate at CALL time so tests can
-    monkeypatch ``app.core.config.commerce.SHOPPING_SURFACES`` with a
-    fixture surface while the shipped gate stays empty.
-    """
-    if (
-        surface == commerce_config.SHOPPING_SURFACE_MEASUREMENT
-        or surface in commerce_config.SHOPPING_SURFACES
-    ):
-        return surface
-    raise TrendQueryError(f"Unknown shopping surface: {surface!r}")
 
 
 async def get_visibility_trends(

@@ -189,8 +189,15 @@ class SiteHealthSettings(BaseSettings):
 
     # --- Sitemap limits ---
     max_sitemap_index_depth: int = 3
-    max_sitemap_urls: int = 50000
-    max_sitemap_decoded_bytes: int = 50_000_000
+    # Parse budget and admit budget are deliberately the SAME number. Parsing
+    # 50,000 URLs to admit at most 5,000 spent the whole cost of the extra
+    # 45,000 for a result no crawl could use; with the two aligned, the walker
+    # stops fetching documents the moment the collector saturates.
+    max_sitemap_urls: int = 5000
+    # 8 MB decoded per sitemap document. The 50 MB ceiling was sized for the
+    # 50,000-URL parse budget above; a document large enough to need more than
+    # 8 MB cannot contribute past the aligned cap anyway.
+    max_sitemap_decoded_bytes: int = 8_000_000
     # v2 P2 site-setup ingestion (Starter crawls): how many sitemap DOCUMENTS
     # (index children included) one crawl fetches, and how many sitemap URLs
     # one crawl admits into the frontier (bounded, deterministic).
@@ -253,6 +260,10 @@ class SiteHealthSettings(BaseSettings):
     # --- SSE / events ---
     sse_poll_interval_seconds: float = 2.0
     sse_max_duration_seconds: float = 300.0
+    # Bounds one JSON event-replay page. The UI resumes with ``Last-Event-ID``
+    # over the same keyset the stream uses, so a long crawl's event log is
+    # paged rather than materialized whole on every poll.
+    max_event_page: int = 1_000
 
     @model_validator(mode="after")
     def _validate_sample_limits(self) -> SiteHealthSettings:
@@ -277,6 +288,7 @@ class SiteHealthSettings(BaseSettings):
             "max_seed_urls",
             "max_narrowing_globs",
             "max_glob_length",
+            "max_event_page",
         ):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive")

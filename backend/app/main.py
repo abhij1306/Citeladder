@@ -1,13 +1,15 @@
 # FastAPI application factory, middleware, lifespan, and router registration.
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
+from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.agent import router as agent_router
@@ -37,8 +39,8 @@ from app.api.workspaces import router as workspaces_router
 from app.connectors.answer_engines.http_client import aclose_shared_clients
 from app.connectors.billing.http_client import aclose_shared_billing_clients
 from app.core.config import get_frontend_origins, settings
-from app.core.config.api import API_V1_PREFIX
-from app.core.database import dispose_engine
+from app.core.config.api import API_V1_PREFIX, READINESS_TIMEOUT_SECONDS
+from app.core.database import SessionLocal, dispose_engine
 from app.core.errors import (
     ApiException,
     api_exception_handler,
@@ -170,7 +172,35 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["health"])
     async def health() -> dict[str, str]:
+        """Liveness: this process is up and serving HTTP.
+
+        Deliberately dependency-free and byte-stable — the compose smoke test
+        asserts this exact body, and a liveness probe that fails on a database
+        blip would restart a process that has nothing wrong with it. Use
+        ``/ready`` to ask whether the stack can actually serve.
+        """
         return {"status": "ok"}
+
+    @app.get("/ready", tags=["health"])
+    async def ready() -> Response:
+        """Readiness: this process can reach the database it needs.
+
+        HTTP 200 here means a request has a real chance of being served; 503
+        means take this instance out of rotation. Bounded by a config-owned
+        timeout so a wedged database fails the probe instead of hanging it.
+        It never calls a provider or crawls (invariant 6) — readiness is not
+        a health report on the whole product.
+        """
+        try:
+            async with asyncio.timeout(READINESS_TIMEOUT_SECONDS):
+                async with SessionLocal() as session:
+                    await session.execute(text("SELECT 1"))
+        except Exception:
+            logger.warning("readiness probe failed", exc_info=True)
+            return JSONResponse(
+                status_code=503, content={"status": "unavailable", "database": "down"}
+            )
+        return JSONResponse(status_code=200, content={"status": "ready"})
 
     for router in _ROUTERS:
         app.include_router(router, prefix=API_V1_PREFIX)

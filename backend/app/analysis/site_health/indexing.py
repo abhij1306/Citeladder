@@ -19,7 +19,10 @@ def _split_compare_url(raw: str) -> tuple[SplitResult, int | None] | None:
             port = parts.port
         except ValueError:
             port = None
-    except Exception:
+    except ValueError:
+        # ``urlsplit`` raises only ValueError, and only on a genuinely
+        # unparseable URL (a bad IPv6 literal, a non-numeric port). Anything
+        # else out of here is a bug and must not be turned into "no URL".
         return None
     return parts, port
 

@@ -8,11 +8,20 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.commerce import COMMERCE_DISCOVERY_QUEUE_SPEC
-from app.models.commerce import CommerceDiscoveryRun, CommerceDiscoveryTask
+from app.core.config.commerce import (
+    COMMERCE_DISCOVERY_QUEUE_SPEC,
+    COMMERCE_EVIDENCE_KIND_CRAWLED,
+)
+from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
+from app.models.commerce import (
+    CommerceDiscoveryArtifact,
+    CommerceDiscoveryRun,
+    CommerceDiscoveryTask,
+)
 from app.models.project import Project
 from app.models.workspace import Workspace
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.commerce_discovery_worker import CommerceDiscoveryWorker
 
 
 async def _register(client: httpx.AsyncClient) -> None:
@@ -224,3 +233,68 @@ async def test_discovery_task_uses_shared_postgres_queue_contract(
     assert await queue.mark_running(task_id=task.id, owner="commerce-worker")
     assert await queue.heartbeat(task_id=task.id, owner="commerce-worker")
     assert await queue.succeed(task_id=task.id, owner="commerce-worker")
+
+
+@pytest.mark.asyncio
+async def test_reclaimed_crawl_task_with_an_artifact_succeeds_idempotently(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A second claim after the artifact was written must not fail the task.
+
+    Lease expiry and redeploys re-claim a task whose acquisition already
+    landed. Both input kinds answer the same question — is there already an
+    artifact? — so a crawl-style rerun terminalizes on that artifact exactly
+    like an upload, rather than burning a terminal failure and never
+    reconciling the run.
+    """
+    async with session_factory() as session:
+        workspace = Workspace(name="Commerce rerun workspace")
+        session.add(workspace)
+        await session.flush()
+        project = Project(workspace_id=workspace.id, name="Commerce rerun project")
+        session.add(project)
+        await session.flush()
+        run = CommerceDiscoveryRun(
+            workspace_id=workspace.id,
+            project_id=project.id,
+            input_kind="url",
+        )
+        session.add(run)
+        await session.flush()
+        task = CommerceDiscoveryTask(
+            run_id=run.id,
+            workspace_id=workspace.id,
+            project_id=project.id,
+            source_key="https://example.com/p/1",
+            idempotency_key="commerce-rerun-existing-artifact",
+        )
+        session.add(task)
+        await session.flush()
+        artifact = CommerceDiscoveryArtifact(
+            task_id=task.id,
+            run_id=run.id,
+            workspace_id=workspace.id,
+            project_id=project.id,
+            evidence_kind=COMMERCE_EVIDENCE_KIND_CRAWLED,
+            source_url="https://example.com/p/1",
+            content_hash="a" * 64,
+        )
+        session.add(artifact)
+        await session.commit()
+        task_id, artifact_id = task.id, artifact.id
+
+    worker = CommerceDiscoveryWorker(
+        session_factory=session_factory, owner="commerce-rerun"
+    )
+    queue = PostgresTaskQueue(session_factory, COMMERCE_DISCOVERY_QUEUE_SPEC)
+    claimed = await queue.claim(owner=worker.owner, limit=1)
+    assert [item.id for item in claimed] == [task_id]
+
+    assert await worker._ack_upload_or_existing(claimed[0]) is True
+
+    async with session_factory() as session:
+        settled = await session.get(CommerceDiscoveryTask, task_id)
+        assert settled is not None
+        assert settled.status == TASK_STATUS_SUCCEEDED
+        assert settled.result_artifact_id == artifact_id
+        assert settled.error_code == ""

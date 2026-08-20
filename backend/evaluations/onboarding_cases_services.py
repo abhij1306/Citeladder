@@ -2,13 +2,13 @@
 
 SaaS, regulated finance, and the local and professional services whose sites
 advertise the categories they work IN -- the read the research model most
-often gets wrong. See :mod:`app.evaluations.onboarding_cases_commerce` for
-the other half and :mod:`app.evaluations.onboarding_corpus` for the schema.
+often gets wrong. See :mod:`evaluations.onboarding_cases_commerce` for
+the other half and :mod:`evaluations.onboarding_corpus` for the schema.
 """
 
 from __future__ import annotations
 
-from app.evaluations.onboarding_corpus import GoldenOnboardingCase
+from evaluations.onboarding_corpus import GoldenOnboardingCase
 
 _FEEDONOMICS = GoldenOnboardingCase(
     slug="feedonomics-united-states",

@@ -197,6 +197,16 @@ def _reject_unsafe_prompt(text: str) -> None:
         )
 
 
+def prompt_fixture_digest(path: Path | None = None) -> str:
+    """SHA-256 of the prompt artifact :func:`load_measurement_prompts` reads.
+
+    Resolves ``path`` exactly the way the loader does, so a run that measured a
+    custom prompt set can stamp the manifest with the digest of THAT file
+    rather than of the default one it never opened.
+    """
+    return sha256_file(path or MEASUREMENT_PROMPTS_PATH)
+
+
 def load_measurement_prompts(
     path: Path | None = None,
 ) -> tuple[MeasurementPrompt, ...]:
@@ -221,6 +231,14 @@ def load_measurement_prompts(
     prompts: list[MeasurementPrompt] = []
     seen: set[str] = set()
     for entry in raw_prompts:
+        if not isinstance(entry, dict):
+            # A bare string (or number, or list) in the array is a malformed
+            # prompt set, which is the CLI's MeasurementConfigurationError
+            # path — not an AttributeError out of ``entry.get``.
+            raise MeasurementConfigurationError(
+                "each measurement prompt must be an object, found "
+                f"{type(entry).__name__}"
+            )
         prompt_id = str(entry.get("prompt_id") or "").strip()
         text = str(entry.get("text") or "").strip()
         if not prompt_id or not text:
@@ -327,8 +345,15 @@ async def run_matrix(
     cases: Sequence[MeasurementCase],
     prompts: Sequence[MeasurementPrompt],
     runner: MeasurementRunner,
+    prompt_fixture_sha256: str | None = None,
 ) -> MeasurementRun:
-    """Execute the sweep through ``runner`` and collect the run artifact."""
+    """Execute the sweep through ``runner`` and collect the run artifact.
+
+    ``prompt_fixture_sha256`` is the digest of the artifact that produced
+    ``prompts`` (see :func:`prompt_fixture_digest`). A caller that loaded a
+    custom prompt file passes its digest; omitting it means the default
+    fixture, which is then hashed here.
+    """
     planned = len(cases) * len(prompts)
     if planned > measurement_settings.max_observations:
         raise MeasurementConfigurationError(
@@ -350,7 +375,11 @@ async def run_matrix(
         generated_at=datetime.now(UTC).isoformat(),
         schema_version=MEASUREMENT_ARTIFACT_SCHEMA_VERSION,
         script_version=MEASUREMENT_SCRIPT_VERSION,
-        prompt_fixture_sha256=sha256_file(MEASUREMENT_PROMPTS_PATH),
+        prompt_fixture_sha256=(
+            prompt_fixture_sha256
+            if prompt_fixture_sha256 is not None
+            else prompt_fixture_digest()
+        ),
         fixture_sha256=runner.fixture_hashes(),
         unset_pricing=UNSET_PRICING,
         observations=tuple(observations),

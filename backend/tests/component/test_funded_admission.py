@@ -25,7 +25,6 @@ from app.core.config.audits import (
     AUDIT_TRIGGER_MANUAL,
     MEASUREMENT_MODE_BENCHMARK,
     MEASUREMENT_MODE_PULSE,
-    TASK_STATUS_QUEUED,
     audit_settings,
 )
 from app.core.config.billing_contracts import (
@@ -51,6 +50,7 @@ from app.core.config.provider_catalog import (
     ENGINE_GEMINI,
     TELEMETRY_FUNDED_ADMISSION_DENIED,
 )
+from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.audits.creation import create_audit
 from app.domain.audits.errors import FundedAdmissionError
 from app.domain.entitlements.cache import clear_cache
@@ -70,6 +70,26 @@ from tests.component.occupancy_helpers import seed_occupancy_grants
 # retrieval OFF — search fields not applicable). Benchmark claude exercises
 # the retrieval-ON incompleteness (search fee absent).
 _PULSE_CLAUDE_MICROUSD = 2_890
+
+# What ONE funded pulse audit here reserves: two tasks (2 prompts x 1 engine x
+# 1 repetition), each reserving the mode's frozen attempt budget. DERIVED, not
+# spelled: the pulse attempt budget is a cost knob, and a test that hard-codes
+# the product silently stops testing the ceiling the moment it moves.
+_FUNDED_TASK_COUNT = 2
+_AUDIT_RESERVED_MICROUSD = (
+    _PULSE_CLAUDE_MICROUSD * audit_settings.pulse_max_attempts * _FUNDED_TASK_COUNT
+)
+_MICROUSD_PER_MINOR = MICRO_USD_PER_USD // 100
+# Budgets expressed against that reservation, so both cases keep their meaning:
+# one that cannot fund a single audit, and one that funds exactly one of two.
+_BUDGET_BELOW_ONE_AUDIT = (_AUDIT_RESERVED_MICROUSD - 1) // _MICROUSD_PER_MINOR
+_BUDGET_FOR_ONE_AUDIT = -(-_AUDIT_RESERVED_MICROUSD // _MICROUSD_PER_MINOR)
+assert _BUDGET_BELOW_ONE_AUDIT * _MICROUSD_PER_MINOR < _AUDIT_RESERVED_MICROUSD
+assert (
+    _AUDIT_RESERVED_MICROUSD
+    <= _BUDGET_FOR_ONE_AUDIT * _MICROUSD_PER_MINOR
+    < 2 * _AUDIT_RESERVED_MICROUSD
+)
 
 
 @pytest.fixture(autouse=True)
@@ -155,7 +175,9 @@ async def test_funded_run_reserves_each_task_before_claimable_and_freezes_proven
             ).all()
         )
         assert len(tasks) == 2
-        max_attempts = audit_settings.max_attempts
+        # The budget the PLANNER FROZE onto each task — the measurement
+        # mode's, not the generic live ``audit_settings.max_attempts``.
+        max_attempts = tasks[0].max_attempts
         expected_cost = _PULSE_CLAUDE_MICROUSD * max_attempts * len(tasks)
         # Audit-level funded provenance persisted in the same transaction.
         assert audit.funding_account_id == account.id
@@ -206,8 +228,10 @@ async def test_budget_exhaustion_persists_nothing_and_emits_telemetry(
 ) -> None:
     async with session_factory() as session:
         _account, workspace_id, project_id, prompt_set_id = await _seed_funded(session)
-        # Ceiling 2 minor-USD = 20_000 microusd < the 28_900 candidate.
-        monkeypatch.setattr(billing_settings, "funded_monthly_budget_minor", 2)
+        # A ceiling below one audit's reservation: admission must fail closed.
+        monkeypatch.setattr(
+            billing_settings, "funded_monthly_budget_minor", _BUDGET_BELOW_ONE_AUDIT
+        )
         with capture_log_messages("app.billing") as events:
             with pytest.raises(FundedAdmissionError) as exc_info:
                 await _create_funded(
@@ -235,9 +259,11 @@ async def test_concurrent_funded_admissions_never_exceed_ceiling(
     async with session_factory() as session:
         account, workspace_id, project_id, prompt_set_id = await _seed_funded(session)
         account_id = account.id
-    # Ceiling 3 minor-USD = 30_000 microusd; each audit reserves 28_900, so
-    # exactly ONE of two concurrent admissions may commit.
-    monkeypatch.setattr(billing_settings, "funded_monthly_budget_minor", 3)
+    # A ceiling that funds one audit but not two, so exactly ONE of two
+    # concurrent admissions may commit.
+    monkeypatch.setattr(
+        billing_settings, "funded_monthly_budget_minor", _BUDGET_FOR_ONE_AUDIT
+    )
 
     async def _admit() -> str:
         async with session_factory() as session:
@@ -255,7 +281,7 @@ async def test_concurrent_funded_admissions_never_exceed_ceiling(
 
     results = await asyncio.gather(_admit(), _admit())
     assert sorted(results) == [CODE_FUNDED_BUDGET_EXHAUSTED, "ok"]
-    ceiling = 3 * MICRO_USD_PER_USD // 100
+    ceiling = _BUDGET_FOR_ONE_AUDIT * _MICROUSD_PER_MINOR
     async with session_factory() as session:
         reserved = await session.scalar(
             select(
@@ -263,7 +289,7 @@ async def test_concurrent_funded_admissions_never_exceed_ceiling(
             ).where(Audit.funding_account_id == account_id)
         )
         assert int(reserved or 0) <= ceiling
-        assert int(reserved or 0) == 28_900
+        assert int(reserved or 0) == _AUDIT_RESERVED_MICROUSD
 
 
 @pytest.mark.asyncio

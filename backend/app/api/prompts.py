@@ -19,7 +19,6 @@ from typing import Annotated
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
     Request,
     UploadFile,
     status,
@@ -31,12 +30,27 @@ from app.api.deps import WorkspaceContext, get_db, require_active_workspace
 from app.api.request_bodies import read_limited_body, read_limited_upload
 from app.api.usage_limits import enforce_workspace_request
 from app.connectors.agent.client import AgentNotConfiguredError
-from app.connectors.agent.factory import create_model_gateway as DefaultAgentClient
+from app.connectors.agent.factory import create_model_gateway
 from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.abuse import abuse_settings
-from app.core.config.provider_catalog import ERROR_RATE_LIMIT
+from app.core.config.errors import (
+    ERROR_AGENT_CALL_FAILED,
+    ERROR_AGENT_NOT_CONFIGURED,
+    ERROR_GENERATION_INVALID,
+    ERROR_GENERATION_UNPARSEABLE,
+    ERROR_RATE_LIMIT,
+)
+from app.core.config.provider_catalog import (
+    ERROR_RATE_LIMIT as PROVIDER_ERROR_RATE_LIMIT,
+)
 from app.core.errors import ApiException
-from app.core.http_errors import raise_not_found
+from app.core.http_errors import (
+    api_error,
+    coded_error,
+    raise_api_error,
+    raise_coded_error,
+    raise_not_found,
+)
 from app.domain.entitlements.enforcement import OccupancyError
 from app.domain.prompts.csv_import import parse_prompt_csv
 from app.domain.prompts.generation import (
@@ -107,33 +121,28 @@ _RES_PROMPT_SET = "Prompt set"
 _RES_PROJECT = "Project"
 
 
-def _not_found(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
+def _not_found(detail: str) -> ApiException:
+    return api_error(status.HTTP_404_NOT_FOUND, detail)
 
 
-def _conflict(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+def _conflict(detail: str) -> ApiException:
+    return api_error(status.HTTP_409_CONFLICT, detail)
 
 
-def _generation_provider_error(exc: ProviderError) -> HTTPException:
-    if exc.error_code == ERROR_RATE_LIMIT:
+def _generation_provider_error(exc: ProviderError) -> ApiException:
+    if exc.error_code == PROVIDER_ERROR_RATE_LIMIT:
         retry_after = (
             str(max(1, math.ceil(exc.retry_after_seconds)))
             if exc.retry_after_seconds is not None
             else None
         )
-        return HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={
-                "code": "rate_limited",
-                "message": "The AI provider is rate limited. Please try again shortly.",
-            },
+        return coded_error(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            ERROR_RATE_LIMIT,
+            "The AI provider is rate limited. Please try again shortly.",
             headers={"Retry-After": retry_after} if retry_after else None,
         )
-    return HTTPException(
-        status_code=status.HTTP_502_BAD_GATEWAY,
-        detail={"code": "agent_call_failed", "message": str(exc)},
-    )
+    return coded_error(status.HTTP_502_BAD_GATEWAY, ERROR_AGENT_CALL_FAILED, str(exc))
 
 
 async def _map_prompt_mutation[T](call: Callable[[], Awaitable[T]]) -> T:
@@ -366,10 +375,11 @@ async def import_prompts_endpoint(
     try:
         rows = await _resolve_import_rows(request, file)
     except (ValueError, ValidationError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid prompt import payload: {exc}",
-        ) from exc
+        raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Invalid prompt import payload",
+            cause=exc,
+        )
     try:
         prompt_set = await _map_prompt_mutation(
             lambda: import_prompts(
@@ -413,23 +423,22 @@ async def generate_prompts_endpoint(
     except PromptSetNotFoundError as exc:
         raise_not_found(_RES_PROMPT_SET, cause=exc)
     except GenerationValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "generation_invalid", "message": str(exc)},
-        ) from exc
+        raise_coded_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            ERROR_GENERATION_INVALID,
+            str(exc),
+            cause=exc,
+        )
     try:
-        agent = DefaultAgentClient()
+        agent = create_model_gateway()
     except AgentNotConfiguredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={
-                "code": "agent_not_configured",
-                "message": (
-                    "No default agent is configured. Set the configured provider's "
-                    "API key in the backend environment."
-                ),
-            },
-        ) from exc
+        raise_coded_error(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            ERROR_AGENT_NOT_CONFIGURED,
+            "No default agent is configured. Set the configured provider's "
+            "API key in the backend environment.",
+            cause=exc,
+        )
     await enforce_workspace_request(
         session,
         workspace_id=ctx.workspace_id,
@@ -451,15 +460,19 @@ async def generate_prompts_endpoint(
     except PromptSetNotFoundError as exc:
         raise_not_found(_RES_PROMPT_SET, cause=exc)
     except GenerationValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "generation_invalid", "message": str(exc)},
-        ) from exc
+        raise_coded_error(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            ERROR_GENERATION_INVALID,
+            str(exc),
+            cause=exc,
+        )
     except GenerationOutputError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={"code": "generation_unparseable", "message": str(exc)},
-        ) from exc
+        raise_coded_error(
+            status.HTTP_502_BAD_GATEWAY,
+            ERROR_GENERATION_UNPARSEABLE,
+            str(exc),
+            cause=exc,
+        )
     except ProviderError as exc:
         raise _generation_provider_error(exc) from exc
     counts = (

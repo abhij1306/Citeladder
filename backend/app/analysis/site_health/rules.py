@@ -748,7 +748,12 @@ def evaluate_rule(rule: SiteHealthRule, facts: dict) -> RuleEvaluation:
         )
     try:
         outcome, evidence = check(facts)
-    except Exception as exc:  # a broken check is ERROR, never a crash
+    # The one blind catch this package keeps, because it does not swallow:
+    # ANY failure of a rule check becomes an explicit RULE_OUTCOME_ERROR
+    # carrying the exception type, which invariant 7 keeps distinct from a
+    # pass, a fail, and a not-applicable. Narrowing it would let an
+    # unanticipated defect crash the whole page evaluation instead.
+    except Exception as exc:  # noqa: BLE001
         return RuleEvaluation(
             outcome=RULE_OUTCOME_ERROR,
             evidence={"error": f"{type(exc).__name__}: {exc}"[:512]},

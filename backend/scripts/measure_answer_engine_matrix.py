@@ -37,7 +37,7 @@ from app.core.config.measurement import (
     SOURCE_LIVE,
     measurement_settings,
 )
-from app.domain.measurement.harness import (
+from evaluations.measurement.harness import (
     FixtureMeasurementRunner,
     LiveExecutionNotEnabledError,
     MeasurementConfigurationError,

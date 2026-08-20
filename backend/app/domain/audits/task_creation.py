@@ -9,14 +9,10 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.audits import (
-    TASK_STATUS_PENDING_RESERVATION,
-    TASK_STATUS_QUEUED,
-    audit_settings,
-)
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
+from app.core.config.audits import TASK_STATUS_PENDING_RESERVATION
 from app.core.config.costs import ExpectedExecutionCost
 from app.core.config.entitlements import CAPABILITY_REGISTRY
+from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.audits.frozen_plan import _FrozenPlan, _task_route_snapshot
 from app.domain.audits.funded_admission import (
     _NULL_FUNDING_ACCOUNT_ID,
@@ -75,13 +71,7 @@ async def _create_audit_tasks(
         prompt_snapshot = prompt_snapshots[prompt_index]
         engine_snapshot = engine_snapshots[engine]
         route = routes[engine]
-        # The trailing surface segment is intentional: it reserves the
-        # shopping-surface identity in the idempotency key (measurement is
-        # the empty string, so shipped keys end in ":").
-        idempotency_key = (
-            f"{audit.id}:{prompt_index}:{repetition}:{engine}:"
-            f"{SHOPPING_SURFACE_MEASUREMENT}"
-        )
+        idempotency_key = f"{audit.id}:{prompt_index}:{repetition}:{engine}"
         task = AuditTask(
             audit_id=audit.id,
             workspace_id=workspace_id,
@@ -93,10 +83,9 @@ async def _create_audit_tasks(
             logical_engine=engine,
             transport_provider=route.transport_provider,
             transport_model=route.transport_model,
-            shopping_surface=SHOPPING_SURFACE_MEASUREMENT,
             prompt_text=prompt_snapshot.text,
             idempotency_key=idempotency_key,
-            max_attempts=audit_settings.max_attempts,
+            max_attempts=plan.policy.max_attempts,
             status=(
                 TASK_STATUS_PENDING_RESERVATION
                 if funded.enabled

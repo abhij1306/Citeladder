@@ -1,7 +1,7 @@
 """Component tests for AI prompt generation, topics, and the review lifecycle.
 
 The default agent is always faked at the API boundary
-(``app.api.prompts.DefaultAgentClient``) so no test ever performs live
+(``app.api.prompts.create_model_gateway``) so no test ever performs live
 provider I/O, regardless of what keys exist in the developer's ``.env``.
 
 Covers:
@@ -88,7 +88,7 @@ class FakeAgent:
 @pytest.fixture
 def fake_agent(monkeypatch: pytest.MonkeyPatch) -> FakeAgent:
     agent = FakeAgent()
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
     return agent
 
 
@@ -301,7 +301,7 @@ async def test_generate_unconfigured_agent_returns_503(
     def _unconfigured() -> None:
         raise AgentNotConfiguredError("no key")
 
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", _unconfigured)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", _unconfigured)
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={"count": 3, "confirm_send_evidence": True},
@@ -330,7 +330,7 @@ async def test_generate_reports_upstream_rate_limits_as_retryable(
                 retry_after_seconds=4,
             )
 
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", RateLimitedAgent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", RateLimitedAgent)
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={"count": 3, "confirm_send_evidence": True},
@@ -356,7 +356,7 @@ async def test_generate_foreign_set_is_404_even_when_unconfigured(
     def _unconfigured() -> None:
         raise AgentNotConfiguredError("no key")
 
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", _unconfigured)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", _unconfigured)
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={"count": 3, "confirm_send_evidence": True},
@@ -370,7 +370,7 @@ async def test_generate_unparseable_output_returns_502(
 ) -> None:
     _, prompt_set_id = await _make_project_and_set(client, "gen8@example.com")
     agent = FakeAgent(response="this is not json")
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={"count": 3, "confirm_send_evidence": True},
@@ -436,7 +436,7 @@ async def test_generate_into_target_topic(
             }
         )
     )
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={
@@ -486,7 +486,7 @@ async def test_generation_reuses_existing_topic_with_description(
             }
         )
     )
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
 
     response = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
@@ -537,7 +537,7 @@ async def test_generate_activates_validated_requested_count(
     """The requested, validated portfolio becomes active without measuring it."""
     _, prompt_set_id = await _make_project_and_set(client, "pool1@example.com")
     agent = FakeAgent(response=_agent_response_with_n_prompts(25))
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
 
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
@@ -577,7 +577,7 @@ async def test_generate_comparison_cohort_is_active_and_branded(
             {"topics": [{"name": "Comparisons", "prompts": comparison_prompts}]}
         )
     )
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
 
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
@@ -615,7 +615,7 @@ async def test_generate_counts_intra_response_duplicates(
             }
         )
     )
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={"count": 5, "confirm_send_evidence": True},
@@ -646,7 +646,7 @@ async def test_generate_bounds_existing_prompt_context(
         assert created.status_code == 201
 
     agent = FakeAgent(response=_agent_response_with_n_prompts(2, topic="New"))
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: agent)
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: agent)
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={"count": 2, "confirm_send_evidence": True},
@@ -921,7 +921,6 @@ async def test_generation_unrelated_integrity_error_is_not_remapped(
 # --------------------------------------------------------------------------
 # Topics CRUD
 # --------------------------------------------------------------------------
-@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_create_prompt_accepts_topic_id(client: httpx.AsyncClient) -> None:
     """Onboarding creates topics first, then files prompts under them directly.
@@ -1376,3 +1375,21 @@ async def test_import_over_occupancy_returns_coded_403(
     }
     got = await client.get(f"/api/v1/prompt-sets/{prompt_set_id}")
     assert got.json()["prompts"] == []
+
+
+@pytest.mark.asyncio
+async def test_import_validation_does_not_echo_parser_details(
+    client: httpx.AsyncClient,
+) -> None:
+    _, prompt_set_id = await _make_project_and_set(
+        client, "import-safe-validation@example.com"
+    )
+
+    response = await client.post(
+        f"/api/v1/prompt-sets/{prompt_set_id}/import",
+        content=b'{"prompts": [',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Invalid prompt import payload"

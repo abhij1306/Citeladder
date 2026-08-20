@@ -62,7 +62,7 @@ jobs:
       # treated as proven). Cleared to zero, and gated here so the next one
       # fails the build instead of joining a backlog.
       - name: Mypy
-        run: uv run mypy app
+        run: uv run mypy
       # Fixed CC/LOC defaults plus narrow legacy exceptions. The base-revision
       # comparison rejects higher defaults, higher exceptions, and new
       # exceptions; there is deliberately no baseline rewrite command.
@@ -76,15 +76,22 @@ jobs:
             .venv/bin/python -m scripts.check_complexity
           fi
       - name: Dead-code policy
-        run: .venv/bin/vulture app --min-confidence 80
+        run: .venv/bin/vulture app evaluations --min-confidence 80
       - name: Radon advisory report
         run: |
           .venv/bin/radon cc app -s -n C
           .venv/bin/radon mi app -s -n B
+      # Coverage is measured on the same run that gates behaviour, so the floor
+      # cannot drift from what the suite actually executes. The floor lives in
+      # ``[tool.coverage.report] fail_under`` and is the MEASURED number
+      # rounded down — raising it is a deliberate step in
+      # docs/plans/backend-test-corpus-rework.md, never a guess.
       - name: Pytest
         # Verbose node ids make an anomalous runner/database stall attributable;
         # faulthandler prints thread stacks if one test exceeds two minutes.
-        run: .venv/bin/python -m pytest -vv -o faulthandler_timeout=120
+        run: >-
+          .venv/bin/python -m pytest -vv -o faulthandler_timeout=120
+          --cov --cov-report=xml --cov-report=term
 
   frontend:
     name: Frontend (vitest, tsc, policy, build)

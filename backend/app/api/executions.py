@@ -10,10 +10,11 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
+from app.core.http_errors import raise_api_error
 from app.domain.analysis.errors import AnalysisNotFoundError
 from app.domain.analysis.evidence import get_execution_evidence
 from app.domain.analysis.schemas import ExecutionEvidenceResponse
@@ -37,7 +38,4 @@ async def get_execution_endpoint(
             session, workspace_id=ctx.workspace_id, task_id=execution_id
         )
     except AnalysisNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Execution not found",
-        ) from exc
+        raise_api_error(status.HTTP_404_NOT_FOUND, "Execution not found", cause=exc)

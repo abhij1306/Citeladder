@@ -171,7 +171,10 @@ async def test_provider_mismatch_rejected_422(
         },
     )
     assert resp.status_code == 422
-    assert resp.json()["detail"] == "mapping_provider_mismatch"
+    body = resp.json()
+    assert body["detail"] == "mapping_provider_mismatch"
+    assert body["error"]["code"] == "mapping_provider_mismatch"
+    assert body["error"]["message"] != "mapping_provider_mismatch"
     assert await db_session.scalar(select(IntegrationPropertyMapping)) is None
 
 
@@ -197,7 +200,9 @@ async def test_property_not_owned_domain_rejected_422(
             },
         )
         assert resp.status_code == 422, property_ref
-        assert resp.json()["detail"] == "mapping_property_not_owned"
+        body = resp.json()
+        assert body["detail"] == "mapping_property_not_owned"
+        assert body["error"]["code"] == "mapping_property_not_owned"
     assert await db_session.scalar(select(IntegrationPropertyMapping)) is None
 
 
@@ -261,7 +266,9 @@ async def test_one_active_owner_conflict_409_then_recreate_after_disable(
     assert first.status_code == 201
     duplicate = await client.post(f"{_BASE}/{gsc.id}/mappings", json=payload)
     assert duplicate.status_code == 409
-    assert duplicate.json()["detail"] == "mapping_active_owner_conflict"
+    body = duplicate.json()
+    assert body["detail"] == "mapping_active_owner_conflict"
+    assert body["error"]["code"] == "mapping_active_owner_conflict"
 
     # Disabling frees the (workspace, provider, property_ref) slot: the
     # partial unique index only covers ACTIVE rows.

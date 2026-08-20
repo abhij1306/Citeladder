@@ -28,7 +28,6 @@ from app.core.config.audits import (
 from app.core.config.commerce import (
     PRICE_RELATION_MATCH,
     PRICE_RELATION_MISMATCH,
-    SHOPPING_SURFACE_MEASUREMENT,
 )
 from app.core.config.products import (
     PRODUCT_ANALYZER_VERSION,
@@ -64,7 +63,7 @@ _EMPTY_CO_PLACEMENT: dict[str, Any] = {"items": [], "truncated": False}
 
 
 async def _conversation_context(
-    session: AsyncSession, *, audit_id: uuid.UUID, surface: str
+    session: AsyncSession, *, audit_id: uuid.UUID
 ) -> dict[
     tuple[str, uuid.UUID], tuple[float | None, list[FrozenPromptContext], list[str]]
 ]:
@@ -95,7 +94,6 @@ async def _conversation_context(
                 AuditPromptSnapshot.id == AuditTask.prompt_snapshot_id,
             )
             .where(ProductMention.audit_id == audit_id)
-            .where(ProductResponseAnalysis.shopping_surface == surface)
         )
     ).all()
     grouped: dict[tuple[str, uuid.UUID], dict[int, FrozenPromptContext]] = {}
@@ -182,9 +180,6 @@ def _normalize_aggregate(aggregate: dict[str, Any]) -> dict[str, Any]:
 
 def _overall_metrics(snapshot: ProductMetricSnapshot) -> dict[str, Any]:
     metrics = snapshot.metrics or {}
-    measurement = (metrics.get("per_surface") or {}).get(SHOPPING_SURFACE_MEASUREMENT)
-    if measurement is not None:
-        return _normalize_aggregate(measurement)
     return _normalize_aggregate(
         {
             **metrics,
@@ -203,30 +198,19 @@ def _overall_metrics(snapshot: ProductMetricSnapshot) -> dict[str, Any]:
 def _entry_metrics(
     snapshot: ProductMetricSnapshot,
     engine: str | None = None,
-    surface: str = SHOPPING_SURFACE_MEASUREMENT,
 ) -> dict[str, Any]:
-    """One snapshot's entry metrics, engine/surface-sliced (persisted only).
+    """One snapshot's entry metrics, engine-sliced (persisted only).
 
-    With ``engine=None`` on the measurement surface the overall snapshot
-    columns are served. With an engine the PERSISTED per-engine aggregate
-    (written at finalize) is served; a non-empty surface reads
-    ``metrics["per_surface"][surface]`` then its nested per-engine slice.
-    Missing data reads as a zero-filled aggregate — never a recompute
-    (invariant 7).
+    With ``engine=None`` the overall snapshot columns are served. With an
+    engine the PERSISTED per-engine aggregate (written at finalize) is
+    served. Missing data reads as a zero-filled aggregate — never a
+    recompute (invariant 7).
     """
-    if surface == SHOPPING_SURFACE_MEASUREMENT and engine is None:
-        # Current snapshots persist an exact measurement slice beside future
-        # probe surfaces. Prefer it so probe analyses cannot inflate the
-        # default dashboard; legacy snapshots without ``per_surface`` retain
-        # their historical snapshot-column fallback.
+    if engine is None:
         return _overall_metrics(snapshot)
-    metrics = snapshot.metrics or {}
-    if surface == SHOPPING_SURFACE_MEASUREMENT:
-        scope: dict[str, Any] = metrics
-    else:
-        scope = (metrics.get("per_surface") or {}).get(surface) or {}
-    if engine is not None:
-        scope = (scope.get("per_engine") or {}).get(engine) or {}
+    scope: dict[str, Any] = ((snapshot.metrics or {}).get("per_engine") or {}).get(
+        engine
+    ) or {}
     return _normalize_aggregate(scope)
 
 
@@ -258,26 +242,6 @@ def select_current_snapshots(
         ):
             by_entry[entry_id] = snapshot
     return by_entry
-
-
-async def _available_surfaces(
-    session: AsyncSession, *, audit_id: uuid.UUID
-) -> list[str]:
-    """Distinct persisted analysis surfaces ∪ {""}: measurement first."""
-    persisted = {
-        str(surface)
-        for surface in (
-            await session.scalars(
-                select(ProductResponseAnalysis.shopping_surface)
-                .where(ProductResponseAnalysis.audit_id == audit_id)
-                .distinct()
-            )
-        ).all()
-    }
-    persisted.add(SHOPPING_SURFACE_MEASUREMENT)
-    return [SHOPPING_SURFACE_MEASUREMENT] + sorted(
-        surface for surface in persisted if surface != SHOPPING_SURFACE_MEASUREMENT
-    )
 
 
 ConversationContext = dict[
@@ -381,7 +345,6 @@ async def get_product_visibility(
     project_id: uuid.UUID,
     audit_id: uuid.UUID | None = None,
     engine: str | None = None,
-    surface: str = SHOPPING_SURFACE_MEASUREMENT,
 ) -> ProductVisibilityResponse:
     """Serve the selected-audit product dashboard projection.
 
@@ -393,9 +356,7 @@ async def get_product_visibility(
 
     ``engine`` slices every entry to its PERSISTED per-engine aggregate
     (stored in the snapshot at finalize) — still a pure projection, never a
-    recompute. ``surface`` selects the persisted per-surface aggregate
-    (measurement "" by default; surfaces never aggregate together). An
-    unknown engine raises ``TrendQueryError`` (HTTP 422).
+    recompute. An unknown engine raises ``TrendQueryError`` (HTTP 422).
     """
     if engine is not None and engine not in LOGICAL_ENGINES:
         raise TrendQueryError(f"Unknown logical engine: {engine!r}")
@@ -410,12 +371,10 @@ async def get_product_visibility(
     by_entry = select_current_snapshots(snapshots)
 
     sliced = {
-        entry_id: _entry_metrics(snapshot, engine, surface)
+        entry_id: _entry_metrics(snapshot, engine)
         for entry_id, snapshot in by_entry.items()
     }
-    conversation = await _conversation_context(
-        session, audit_id=audit.id, surface=surface
-    )
+    conversation = await _conversation_context(session, audit_id=audit.id)
 
     products = _own_visibility_entries(config, by_entry, sliced, conversation)
     competitor_products = _competitor_visibility_entries(
@@ -426,7 +385,6 @@ async def get_product_visibility(
         select(func.count())
         .select_from(ProductResponseAnalysis)
         .where(ProductResponseAnalysis.audit_id == audit.id)
-        .where(ProductResponseAnalysis.shopping_surface == surface)
     )
     # Response-level version label: the first catalog entry's selected
     # snapshot (deterministic catalog order). Row-level DTOs carry their own
@@ -449,7 +407,6 @@ async def get_product_visibility(
         total_analyses=int(total_analyses or 0),
         products=products,
         competitor_products=competitor_products,
-        available_surfaces=await _available_surfaces(session, audit_id=audit.id),
         created_at=max(s.created_at for s in selected),
     )
 

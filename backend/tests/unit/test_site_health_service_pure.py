@@ -239,7 +239,7 @@ def _crawl_with_summary(summary: dict | None) -> SimpleNamespace:
     return SimpleNamespace(score_summary=summary, scoring_version="sh-scoring-2")
 
 
-def test_score_summary_projects_by_page_type() -> None:
+def test_score_summary_projects_by_page_kind() -> None:
     crawl = _crawl_with_summary(
         {
             "overall_score": 75.0,

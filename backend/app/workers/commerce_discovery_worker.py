@@ -42,7 +42,6 @@ from app.core.config.commerce import (
     COMMERCE_CANDIDATE_KINDS,
     COMMERCE_DISCOVERY_ERROR_EMPTY_EXTRACTION,
     COMMERCE_DISCOVERY_ERROR_HTTP_STATUS,
-    COMMERCE_DISCOVERY_ERROR_LEGACY_PLACEHOLDER,
     COMMERCE_DISCOVERY_ERROR_WORKER_CRASH,
     COMMERCE_DISCOVERY_INPUT_UPLOAD,
     COMMERCE_DISCOVERY_QUEUE_SPEC,
@@ -543,6 +542,16 @@ class CommerceDiscoveryWorker(DrainableWorkerMixin):
             )
 
     async def _ack_upload_or_existing(self, claimed: CommerceDiscoveryTask) -> bool:
+        """Terminalize a task whose artifact already exists, without refetching.
+
+        Both input kinds resolve to the same question — is there already an
+        artifact for this task? — and both answer it by succeeding on that
+        artifact id. An upload carries it on the task row; a crawl-style run
+        wrote its own, so it is looked up. Re-claiming after the artifact was
+        written (lease expiry, redeploy) is therefore idempotent rather than a
+        second acquisition or a failure. Returns ``True`` when the task was
+        terminalized here and the caller must not acquire.
+        """
         async with self._session_factory() as session:
             task = await session.get(CommerceDiscoveryTask, claimed.id)
             run = await session.get(CommerceDiscoveryRun, claimed.run_id)
@@ -556,16 +565,6 @@ class CommerceDiscoveryWorker(DrainableWorkerMixin):
                         CommerceDiscoveryArtifact.task_id == task.id
                     )
                 )
-                if artifact_id is not None:
-                    await session.rollback()
-                    await self._finalize_failure(
-                        task.id,
-                        error_code=COMMERCE_DISCOVERY_ERROR_LEGACY_PLACEHOLDER,
-                        error_detail=COMMERCE_DISCOVERY_ERROR_LEGACY_PLACEHOLDER,
-                        retryable=False,
-                        consumed_network_attempt=False,
-                    )
-                    return True
             if artifact_id is None:
                 return False
         acknowledged = await self._queue.succeed(

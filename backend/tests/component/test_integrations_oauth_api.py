@@ -720,7 +720,10 @@ async def test_start_unconfigured_provider_503(
     await _register(client, "int-unconfigured@example.com")
     resp = await client.get(f"{_BASE}/oauth/gsc/start")
     assert resp.status_code == 503
-    assert resp.json()["detail"] == "oauth_not_configured"
+    body = resp.json()
+    assert body["detail"] == "oauth_not_configured"
+    assert body["error"]["code"] == "oauth_not_configured"
+    assert body["error"]["message"] == "The integration provider is not configured"
 
 
 @pytest.mark.asyncio

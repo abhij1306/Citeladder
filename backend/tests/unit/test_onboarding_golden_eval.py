@@ -8,15 +8,15 @@ import httpx
 
 from app.core.config.brand_discovery import SERVICE_BUSINESS_MODELS
 from app.domain.prompts.portfolio import contains_tracked_name
-from app.evaluations.onboarding_cases import COLLISION_PAIR, GOLDEN_ONBOARDING_CASES
-from app.evaluations.onboarding_corpus import (
+from evaluations.onboarding_cases import COLLISION_PAIR, GOLDEN_ONBOARDING_CASES
+from evaluations.onboarding_corpus import (
     BUSINESS_MODELS,
     BUYER_REGISTERS,
     BUYER_TYPES,
     KNOWLEDGE_STRENGTHS,
     MARKET_SCOPES,
 )
-from app.evaluations.onboarding_golden import (
+from evaluations.onboarding_golden import (
     CASES_BY_SLUG,
     PORTFOLIO_MAX,
     PORTFOLIO_MIN,
@@ -129,6 +129,7 @@ def test_portfolio_evaluation_accepts_gold_derived_portfolios() -> None:
     assert result.market_visibility_count == 5
     assert result.brand_relevant_count == 5
     assert result.branded_count == 5
+    assert result.market_signal_rate > 0
 
 
 def test_portfolio_counts_are_bounded_not_exact() -> None:

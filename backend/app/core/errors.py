@@ -109,6 +109,7 @@ class ApiException(HTTPException):
         *,
         retryable: bool | None = None,
         details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> ApiException:
         """Coded-error dialect: ``detail`` keeps its exact legacy dict shape.
 
@@ -125,6 +126,7 @@ class ApiException(HTTPException):
             retryable=retryable,
             details=details,
             detail=legacy,
+            headers=headers,
         )
 
     def is_retryable(self) -> bool:
@@ -187,31 +189,6 @@ def _json_safe(value: Any) -> Any:
     return None if value is None else jsonable_encoder(value)
 
 
-def _legacy_detail_parts(
-    exc: HTTPException,
-) -> tuple[str | None, str | None, dict[str, Any] | None, Any]:
-    detail: Any = exc.detail
-    if isinstance(detail, str) and not detail:
-        detail = None
-    if isinstance(detail, dict):
-        code, message = _legacy_code_message(detail)
-        extras = _legacy_extras(detail)
-        return code or None, message or None, extras or None, detail
-    return None, detail if isinstance(detail, str) and detail else None, None, detail
-
-
-def _legacy_code_message(detail: dict[str, Any]) -> tuple[str | None, str | None]:
-    code = detail.get("code") if isinstance(detail.get("code"), str) else None
-    message = detail.get("message") if isinstance(detail.get("message"), str) else None
-    return code, message
-
-
-def _legacy_extras(detail: dict[str, Any]) -> dict[str, Any]:
-    return {
-        key: value for key, value in detail.items() if key not in ("code", "message")
-    }
-
-
 async def api_exception_handler(request: Request, exc: ApiException) -> JSONResponse:
     """Render an :class:`ApiException` as the unified envelope."""
     return JSONResponse(
@@ -228,48 +205,34 @@ async def api_exception_handler(request: Request, exc: ApiException) -> JSONResp
     )
 
 
-def _parse_legacy_detail(
-    exc: HTTPException,
-) -> tuple[str | None, str, dict[str, Any] | None, str | dict[str, Any]]:
-    """Split a legacy ``HTTPException.detail`` into envelope parts.
-
-    Extracted from ``http_exception_shim_handler`` so the handler reads as
-    "parse, then build the response": all the shape-sniffing a legacy detail
-    needs (string / coded dict / absent) lives here, and the handler stays at
-    one job. Returns ``(code, message, details, detail)`` where ``message`` is
-    always resolved and ``detail`` is always JSON-safe.
-    """
-    code, message, details, detail = _legacy_detail_parts(exc)
-    if message is None:
-        message = _status_phrase(exc.status_code)
-    if not isinstance(detail, (str, dict)):
-        # A missing/non-text legacy detail (e.g. None) becomes the human
-        # message so ``detail`` is always present and JSON-safe.
-        detail = message
-    return code, message, details, detail
-
-
 async def http_exception_shim_handler(
     request: Request, exc: HTTPException
 ) -> JSONResponse:
-    """Compatibility shim: a legacy raw ``HTTPException`` -> the same envelope.
+    """Render a raw ``HTTPException`` as the same envelope.
 
-    A string detail maps to the status-derived default code. A coded dict
-    detail (``{"code", "message", ...}``) keeps its code verbatim and lifts
-    any extra keys into ``error.details``; the legacy detail itself (string or
-    dict) is echoed in ``detail`` unchanged so existing readers keep working.
-    Also covers Starlette's own routing errors (unknown path 404, 405).
+    The application itself no longer raises one — every router raises an
+    ``ApiException`` through ``core/http_errors.py``, which the handler above
+    covers. What still arrives here is the framework's own: Starlette's
+    unknown-path 404 and method-not-allowed 405, plus anything a third-party
+    dependency raises. Those carry a plain string detail, so the code comes
+    from the status (``STATUS_DEFAULT_CODE``) and the message is the detail
+    or the status phrase.
     """
-    code, message, details, detail = _parse_legacy_detail(exc)
+    detail = _json_safe(exc.detail)
+    has_detail = detail not in (None, "", [], {})
+    message = (
+        detail
+        if isinstance(detail, str) and has_detail
+        else _status_phrase(exc.status_code)
+    )
     return JSONResponse(
         status_code=exc.status_code,
         content=error_envelope(
-            code=code or STATUS_DEFAULT_CODE.get(exc.status_code, CODE_HTTP_ERROR),
+            code=STATUS_DEFAULT_CODE.get(exc.status_code, CODE_HTTP_ERROR),
             message=message,
             request_id=request_id_for(request),
             retryable=is_retryable_status(exc.status_code),
-            details=details,
-            detail=detail,
+            detail=detail if has_detail else message,
         ),
         headers=getattr(exc, "headers", None),
     )

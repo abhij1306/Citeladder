@@ -88,8 +88,11 @@ USER 10001:10001
 
 EXPOSE 8000
 
-# Orchestrator liveness probe against the app's /health route.
+# Orchestrator readiness probe. /ready (not /health) because an orchestrator
+# uses this to decide whether to send traffic: a container whose database is
+# unreachable answers /health with 200 and would keep taking requests it
+# cannot serve. /ready returns 503 in exactly that case.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health').status==200 else 1)"
+    CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/ready').status==200 else 1)"
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

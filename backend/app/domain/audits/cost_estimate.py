@@ -116,7 +116,7 @@ def _estimate_engine(
         prompt_count=prompt_count,
         repetition_count=repetitions,
         execution_count=executions,
-        maximum_attempt_count=executions * audit_settings.max_attempts,
+        maximum_attempt_count=executions * policy.max_attempts,
         estimated_input_tokens=input_tokens,
         estimated_output_tokens=output_tokens,
         estimated_search_calls=searches,

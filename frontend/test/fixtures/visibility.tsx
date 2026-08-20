@@ -73,7 +73,6 @@ export function makeAudit(id: string, completedAt: string): Audit {
     failed_count: 0,
     error_message: '',
     engine_snapshots: [],
-    shopping_surface_snapshots: [],
     created_at: completedAt,
     updated_at: completedAt,
     started_at: completedAt,

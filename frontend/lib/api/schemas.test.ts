@@ -638,13 +638,11 @@ describe('products contract (agentic commerce)', () => {
           ...entryV2,
         },
       ],
-      available_surfaces: [''],
       created_at: '2026-07-15T00:00:00Z',
     };
     const parsed = strictValidate(productVisibilitySchema, projection, 'productVisibility');
     expect(parsed.competitor_products[0]?.competitor_product_id).toBeNull();
     expect(parsed.competitor_products[0]?.price_accuracy_rate).toBeNull();
-    expect(parsed.available_surfaces).toEqual(['']);
     // A negative frequency count is contract drift.
     expect(() =>
       strictValidate(
@@ -684,7 +682,6 @@ describe('products contract (agentic commerce)', () => {
       prompt_index: 0,
       repetition: 0,
       product_analyzer_version: 'product-analysis-2',
-      shopping_surface: '',
       matched_name: 'Acme VoltBike 500',
       matched_sku: 'AC-VB500',
       created_at: '2026-07-15T00:00:00Z',

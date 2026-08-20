@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
@@ -22,6 +22,7 @@ from app.core.config.provider_catalog import (
     LOGICAL_ENGINES,
     measurement_routes_for_engine,
 )
+from app.core.http_errors import raise_api_error
 from app.domain.billing.schemas import ProviderConnectionStatesResponse
 from app.domain.providers.schemas import (
     ProviderCatalogEngine,
@@ -90,9 +91,7 @@ async def create_connection_endpoint(
             session, workspace_id=ctx.workspace_id, payload=payload
         )
     except (InvalidRouteError, InvalidProviderEndpointError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_400_BAD_REQUEST, str(exc), cause=exc)
     return connection_to_response(connection)
 
 
@@ -111,17 +110,11 @@ async def update_connection_endpoint(
             payload=payload,
         )
     except ProviderConnectionNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND
-        ) from exc
+        raise_api_error(status.HTTP_404_NOT_FOUND, _NOT_FOUND, cause=exc)
     except RetiredConnectionReadOnlyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_409_CONFLICT, str(exc), cause=exc)
     except (InvalidRouteError, InvalidProviderEndpointError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_400_BAD_REQUEST, str(exc), cause=exc)
     return connection_to_response(connection)
 
 
@@ -136,9 +129,7 @@ async def delete_connection_endpoint(
             connection_id=connection_id,
         )
     except ProviderConnectionNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND
-        ) from exc
+        raise_api_error(status.HTTP_404_NOT_FOUND, _NOT_FOUND, cause=exc)
 
 
 @router.post(
@@ -157,9 +148,7 @@ async def test_connection_endpoint(
             connection_id=connection_id,
         )
     except ProviderConnectionNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND
-        ) from exc
+        raise_api_error(status.HTTP_404_NOT_FOUND, _NOT_FOUND, cause=exc)
     await enforce_workspace_request(
         session,
         workspace_id=ctx.workspace_id,
@@ -172,13 +161,9 @@ async def test_connection_endpoint(
             session, workspace_id=ctx.workspace_id, connection_id=connection_id
         )
     except RetiredConnectionReadOnlyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_409_CONFLICT, str(exc), cause=exc)
     except InvalidProviderEndpointError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_400_BAD_REQUEST, str(exc), cause=exc)
 
 
 # --- Provider catalog (read-only reference data) --------------------------

@@ -22,10 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.connectors.answer_engines.contracts import (
     AnswerEngineRequest,
     AnswerEngineResponse,
-    CitationResult,
     FinishReason,
-    NormalizedUsage,
-    SearchEventResult,
 )
 from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.audits import (
@@ -38,18 +35,12 @@ from app.core.config.audits import (
     CAPACITY_CODE_CONCURRENCY,
     CAPACITY_CODE_RATE_LIMITED,
     EVENT_TASK_CAPACITY_WAIT,
-    EVENT_TASK_RETRY,
-    EVENT_TASK_SUCCEEDED,
     MEASUREMENT_MODE_PULSE,
     MEASUREMENT_POLICY_KEY,
     POOL_KIND_CONNECTION,
     POOL_KIND_TRANSPORT,
     PULSE_ANSWER_INSTRUCTION,
-    TASK_CLAIMABLE_STATUSES,
-    TASK_STATUS_CAPACITY_WAIT,
     TASK_STATUS_PENDING_RESERVATION,
-    TASK_STATUS_QUEUED,
-    TASK_STATUS_RETRY_WAIT,
     audit_settings,
 )
 from app.core.config.costs import (
@@ -65,11 +56,9 @@ from app.core.config.entitlements import (
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
     ENGINE_CLAUDE,
-    ENGINE_GEMINI,
     ERROR_AUTH,
     ERROR_CLIENT,
     ERROR_INVALID_SURFACE,
-    ERROR_RATE_LIMIT,
     ERROR_TIMEOUT,
     ROUTE_CAPACITY_POLICIES,
     TELEMETRY_BYOK_PAUSED,
@@ -79,6 +68,12 @@ from app.core.config.provider_catalog import (
     TRANSPORT_OPENAI,
     RouteCapacityPolicy,
     route_policy,
+)
+from app.core.config.task_queue import (
+    TASK_CLAIMABLE_STATUSES,
+    TASK_STATUS_CAPACITY_WAIT,
+    TASK_STATUS_QUEUED,
+    TASK_STATUS_RETRY_WAIT,
 )
 from app.domain.audits.cancellation import cancel_audit
 from app.domain.audits.creation import create_audit
@@ -107,85 +102,15 @@ from tests.component.audit_helpers import (
     seed_audit_fixtures,
     seed_platform_connection,
 )
+from tests.component.audit_worker_helpers import (
+    _FlakyAdapter,
+    _make_audit,
+    _pin_attempt_budget,
+    _StallingAdapter,
+    _StubAdapter,
+)
 from tests.component.log_capture import capture_log_messages
 from tests.component.occupancy_helpers import seed_occupancy_grants
-
-
-class _StubAdapter:
-    """In-memory stand-in for an answer-engine adapter (no network)."""
-
-    logical_engine = ENGINE_GEMINI
-    transport_provider = TRANSPORT_GOOGLE
-
-    def __init__(self, **_: object) -> None:
-        # No-op: stub holds no state; accepts and ignores adapter build kwargs.
-        pass
-
-    async def execute(self, request: AnswerEngineRequest) -> AnswerEngineResponse:
-        return AnswerEngineResponse(
-            logical_engine=self.logical_engine,
-            transport_provider=self.transport_provider,
-            transport_model=request.model,
-            answer_text=f"Acme is a great option for {request.prompt}.",
-            search_used=True,
-            search_events=(SearchEventResult(sequence=0, query=request.prompt),),
-            citations=(
-                CitationResult(
-                    ordinal=0,
-                    url="https://acme.com/",
-                    title="Acme",
-                    domain="acme.com",
-                    start_index=0,
-                    end_index=4,
-                    cited_text="Acme",
-                ),
-            ),
-            provider_metadata={"query_text_available": True},
-            # The typed usage contract (what all three live parsers emit).
-            normalized_usage=NormalizedUsage(
-                uncached_input_tokens=10,
-                output_tokens=20,
-                total_tokens=30,
-                web_search_requests=1,
-            ),
-            finish_reason=FinishReason.STOP,
-            raw_finish_reason="end_turn",
-            latency_ms=5,
-        )
-
-
-@pytest.fixture
-def _stub_adapter(monkeypatch: pytest.MonkeyPatch):
-    def _build(**_: object) -> _StubAdapter:
-        return _StubAdapter()
-
-    monkeypatch.setattr(audit_execution, "build_adapter", _build)
-    monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
-    monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
-
-
-async def _make_audit(
-    session_factory: async_sessionmaker[AsyncSession],
-    *,
-    prompts: int,
-    reps: int,
-    measurement_mode: str | None = None,
-):
-    async with session_factory() as session:
-        seed = await seed_audit_fixtures(session, prompt_count=prompts)
-    async with session_factory() as session:
-        audit = await create_audit(
-            session,
-            trigger=AUDIT_TRIGGER_MANUAL,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-            engines=seed.engines,
-            prompt_set_id=seed.prompt_set_id,
-            repetitions=reps,
-            random_seed="1",
-            measurement_mode=measurement_mode,
-        )
-        return seed, audit
 
 
 @pytest.mark.asyncio
@@ -778,199 +703,6 @@ async def test_worker_discards_success_when_lease_lost_mid_call(
         assert task.result_artifact_id is None
 
 
-class _FlakyAdapter(_StubAdapter):
-    """Fails with a retryable error ``fail_times`` times, then succeeds."""
-
-    def __init__(self, *, fail_times: int, retry_after: float = 0.2) -> None:
-        self._fail_times = fail_times
-        # A 429 writes the shared pool cooldown (T4): keep the hint tiny by
-        # default so the drain bridges it instead of waiting the full
-        # configured max cooldown.
-        self._retry_after = retry_after
-        self.calls = 0
-
-    async def execute(self, request: AnswerEngineRequest) -> AnswerEngineResponse:
-        self.calls += 1
-        if self.calls <= self._fail_times:
-            raise ProviderError(
-                "temporary rate limit",
-                error_code=ERROR_RATE_LIMIT,
-                retryable=True,
-                retry_after_seconds=self._retry_after,
-            )
-        return await super().execute(request)
-
-
-@pytest.mark.asyncio
-async def test_worker_records_one_attempt_per_provider_call(
-    session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Two retryable failures then a success -> three append-only ProviderAttempt
-    # rows (invariant 3: one row per attempt), not a single collapsed row.
-    _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
-
-    adapter = _FlakyAdapter(fail_times=2)
-    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
-    monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
-    monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
-    # Zero the delay knobs so the internal retry loop is fast + deterministic.
-    monkeypatch.setattr(audit_settings, "retry_base_delay_seconds", 0.0)
-    monkeypatch.setattr(audit_settings, "retry_jitter_seconds", 0.0)
-
-    worker = AuditWorker(session_factory=session_factory, owner="w-flaky")
-    await worker.run_until_idle()
-
-    async with session_factory() as session:
-        task = await session.scalar(
-            select(AuditTask).where(AuditTask.audit_id == audit.id)
-        )
-        assert task is not None
-        assert task.status == "succeeded"
-        assert task.attempt_count == 3
-
-        attempts = (
-            await session.scalars(
-                select(ProviderAttempt)
-                .where(ProviderAttempt.audit_id == audit.id)
-                .order_by(ProviderAttempt.attempt_number.asc())
-            )
-        ).all()
-        assert len(attempts) == 3
-        assert [a.status for a in attempts] == [
-            ATTEMPT_STATUS_FAILED,
-            ATTEMPT_STATUS_FAILED,
-            ATTEMPT_STATUS_SUCCEEDED,
-        ]
-        assert [a.attempt_number for a in attempts] == [1, 2, 3]
-        # The first two carry the retryable error; the last carries the artifact.
-        assert attempts[0].error_code == ERROR_RATE_LIMIT
-        assert attempts[1].error_code == ERROR_RATE_LIMIT
-        assert attempts[-1].artifact_id is not None
-
-        # Exactly one immutable artifact for the single successful call.
-        artifacts = await session.scalar(
-            select(func.count())
-            .select_from(RawResponseArtifact)
-            .where(RawResponseArtifact.audit_id == audit.id)
-        )
-        assert artifacts == 1
-
-
-_FIXTURE_SURFACE = "google_shopping"
-
-
-def _probe_row(measurement: AuditTask, *, surface: str) -> AuditTask:
-    """A shopping-surface probe sharing the measurement slot (5th column)."""
-    return AuditTask(
-        audit_id=measurement.audit_id,
-        workspace_id=measurement.workspace_id,
-        prompt_snapshot_id=measurement.prompt_snapshot_id,
-        engine_snapshot_id=measurement.engine_snapshot_id,
-        prompt_index=measurement.prompt_index,
-        repetition=measurement.repetition,
-        randomized_position=measurement.randomized_position,
-        logical_engine=measurement.logical_engine,
-        transport_provider=measurement.transport_provider,
-        transport_model=measurement.transport_model,
-        shopping_surface=surface,
-        prompt_text=measurement.prompt_text,
-        provider_route_snapshot=measurement.provider_route_snapshot,
-        idempotency_key=f"{measurement.idempotency_key}{surface}",
-        max_attempts=measurement.max_attempts,
-    )
-
-
-@pytest.mark.asyncio
-async def test_probe_rows_skip_brand_analysis_and_keep_denominators(
-    session_factory: async_sessionmaker[AsyncSession],
-    _stub_adapter,
-) -> None:
-    """§7.1 isolation: probe rows never move brand metrics/counts.
-
-    Seeds one TERMINAL probe (already succeeded — the worker must ignore it)
-    and one LIVE probe (queued — the worker drains it but skips brand
-    analysis). Progress denominators, the MetricSnapshot, and the
-    ResponseAnalysis rows must be identical to the measurement-only baseline.
-    """
-    seed, audit = await _make_audit(session_factory, prompts=2, reps=1)  # 2
-
-    async with session_factory() as session:
-        measurement = await session.scalar(
-            select(AuditTask)
-            .where(AuditTask.audit_id == audit.id)
-            .order_by(AuditTask.prompt_index)
-            .limit(1)
-        )
-        assert measurement is not None
-        assert measurement.shopping_surface == ""
-        terminal_probe = _probe_row(measurement, surface=_FIXTURE_SURFACE)
-        terminal_probe.status = "succeeded"
-        terminal_probe.answer_text = "probe answer persisted earlier"
-        terminal_probe.attempt_count = 1
-        terminal_probe.completed_at = datetime.now(UTC)
-        live_probe = _probe_row(measurement, surface="bing_shopping")
-        session.add_all([terminal_probe, live_probe])
-        await session.commit()
-        terminal_probe_id = terminal_probe.id
-        live_probe_id = live_probe.id
-
-    worker = AuditWorker(session_factory=session_factory, owner="w-probes")
-    await worker.run_until_idle()
-
-    async with session_factory() as session:
-        # The live probe drained through the worker: artifact + answer, but
-        # NO brand score (brand analysis is measurement-only, §7.1).
-        live = await session.get(AuditTask, live_probe_id)
-        assert live is not None
-        assert live.status == "succeeded"
-        assert live.result_artifact_id is not None
-        assert live.answer_text
-        assert live.score is None
-
-        # The terminal probe was never touched by the worker.
-        terminal = await session.get(AuditTask, terminal_probe_id)
-        assert terminal is not None
-        assert terminal.status == "succeeded"
-        assert terminal.result_artifact_id is None
-        assert terminal.score is None
-
-        # Brand denominators are measurement-only: identical to the baseline
-        # (2 measurement tasks, both succeeded) as if no probe rows existed.
-        refreshed = await session.get(Audit, audit.id)
-        assert refreshed is not None
-        assert refreshed.status == AUDIT_STATUS_COMPLETED
-        assert refreshed.completed_count == 2
-        assert refreshed.failed_count == 0
-
-        snapshot = await session.scalar(
-            select(MetricSnapshot).where(MetricSnapshot.audit_id == audit.id)
-        )
-        assert snapshot is not None
-        assert snapshot.total_completed == 2
-        assert snapshot.total_failed == 0
-        assert snapshot.visibility_score == 100.0
-
-        # Brand analyses exist only for the two measurement tasks.
-        analyses = (
-            await session.scalars(
-                select(ResponseAnalysis.task_id).where(
-                    ResponseAnalysis.audit_id == audit.id
-                )
-            )
-        ).all()
-        assert len(analyses) == 2
-        assert live_probe_id not in set(analyses)
-        assert terminal_probe_id not in set(analyses)
-
-        # Executions listing still defaults to the measurement surface.
-        tasks = await list_tasks(
-            session, workspace_id=seed.workspace_id, audit_id=audit.id
-        )
-        assert len(tasks) == 2
-        assert all(t.shopping_surface == "" for t in tasks)
-
-
 # =========================================================================
 # C4(a): the audit-finalize Opportunities refresh task
 # =========================================================================
@@ -1194,18 +926,6 @@ async def test_frozen_policy_survives_a_live_settings_change(
 # =========================================================================
 
 
-class _StallingAdapter(_StubAdapter):
-    """Never returns inside the call; the frozen timeout must cut it off."""
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    async def execute(self, request: AnswerEngineRequest) -> AnswerEngineResponse:
-        self.calls += 1
-        await asyncio.sleep(3600)
-        raise AssertionError("unreachable: the wait_for ceiling cancels first")
-
-
 class _ClaudeStubAdapter(_StubAdapter):
     """Claude/anthropic provenance stub for funded-route executions."""
 
@@ -1255,146 +975,6 @@ async def _ledger_entries(
     if kind is not None:
         stmt = stmt.where(ConsumableLedger.entry_kind == kind)
     return list((await session.scalars(stmt)).all())
-
-
-@pytest.mark.asyncio
-async def test_queue_retry_is_the_sole_retry_loop(
-    session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """One external call per queue attempt; retries go through queue backoff.
-
-    Two retryable failures then a success produce THREE queue attempts (each
-    its own claim + ``task.retry`` event) — never a nested in-call retry loop:
-    the queue's retry_wait/available_at is the only retry mechanism, and the
-    ceiling is the frozen ``task.max_attempts``.
-    """
-    _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
-    adapter = _FlakyAdapter(fail_times=2)
-    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
-    monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
-    monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
-    monkeypatch.setattr(audit_settings, "retry_base_delay_seconds", 0.0)
-    monkeypatch.setattr(audit_settings, "retry_jitter_seconds", 0.0)
-
-    worker = AuditWorker(session_factory=session_factory, owner="w-retry")
-    await worker.run_until_idle()
-
-    async with session_factory() as session:
-        task = await session.scalar(
-            select(AuditTask).where(AuditTask.audit_id == audit.id)
-        )
-        assert task is not None
-        assert task.status == "succeeded"
-        assert task.attempt_count == 3
-        # Three queue attempts -> exactly three external calls (no nesting).
-        assert adapter.calls == 3
-        attempts = (
-            await session.scalars(
-                select(ProviderAttempt)
-                .where(ProviderAttempt.task_id == task.id)
-                .order_by(ProviderAttempt.attempt_number.asc())
-            )
-        ).all()
-        assert [a.attempt_number for a in attempts] == [1, 2, 3]
-        assert [a.status for a in attempts] == [
-            ATTEMPT_STATUS_FAILED,
-            ATTEMPT_STATUS_FAILED,
-            ATTEMPT_STATUS_SUCCEEDED,
-        ]
-        events = (
-            await session.scalars(
-                select(AuditEvent).where(AuditEvent.audit_id == audit.id)
-            )
-        ).all()
-        retry_events = [e for e in events if e.event_type == EVENT_TASK_RETRY]
-        succeeded_events = [e for e in events if e.event_type == EVENT_TASK_SUCCEEDED]
-        # Two queue backoff cycles (retry_wait + available_at), then success.
-        assert len(retry_events) == 2
-        assert len(succeeded_events) == 1
-
-
-@pytest.mark.asyncio
-async def test_max_attempts_ceiling_comes_from_the_frozen_task_config(
-    session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The queue retry loop stops at the FROZEN ``task.max_attempts``.
-
-    The planner freezes the budget onto the task row; a live settings bump
-    after planning must never extend an in-flight run (invariant 9).
-    """
-    monkeypatch.setattr(audit_settings, "max_attempts", 3)  # frozen at planning
-    _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
-    monkeypatch.setattr(audit_settings, "max_attempts", 50)  # live bump: no effect
-    adapter = _FlakyAdapter(fail_times=100)  # always fails retryably
-    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
-    monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
-    monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
-    monkeypatch.setattr(audit_settings, "retry_base_delay_seconds", 0.0)
-    monkeypatch.setattr(audit_settings, "retry_jitter_seconds", 0.0)
-
-    worker = AuditWorker(session_factory=session_factory, owner="w-ceiling")
-    await worker.run_until_idle()
-
-    async with session_factory() as session:
-        task = await session.scalar(
-            select(AuditTask).where(AuditTask.audit_id == audit.id)
-        )
-        assert task is not None
-        assert task.status == "failed"
-        # The frozen 3-attempt ceiling held, not the live 50.
-        assert task.attempt_count == 3
-        assert adapter.calls == 3
-        attempts = await session.scalar(
-            select(func.count())
-            .select_from(ProviderAttempt)
-            .where(ProviderAttempt.task_id == task.id)
-        )
-        assert attempts == 3
-
-
-@pytest.mark.asyncio
-async def test_frozen_mode_timeout_drives_the_call_ceiling(
-    session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The per-call ceiling is the FROZEN per-mode timeout, never live config.
-
-    The stalled adapter would hang this test for an hour if the worker read
-    the live settings bumped after planning (invariant 9); the frozen 0.05s
-    pulse timeout cuts the call off instead.
-    """
-    monkeypatch.setattr(audit_settings, "pulse_timeout_seconds", 0.05)
-    monkeypatch.setattr(audit_settings, "max_attempts", 1)
-    _seed, audit = await _make_audit(
-        session_factory, prompts=1, reps=1, measurement_mode=MEASUREMENT_MODE_PULSE
-    )
-    monkeypatch.setattr(audit_settings, "pulse_timeout_seconds", 3600.0)  # no effect
-    adapter = _StallingAdapter()
-    monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
-    monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
-    monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
-
-    worker = AuditWorker(session_factory=session_factory, owner="w-frozen-to")
-    await worker.run_until_idle()
-
-    async with session_factory() as session:
-        task = await session.scalar(
-            select(AuditTask).where(AuditTask.audit_id == audit.id)
-        )
-        assert task is not None
-        assert task.status == "failed"
-        assert task.error_code == ERROR_TIMEOUT
-        assert task.attempt_count == 1
-        assert task.request_snapshot["timeout_seconds"] == 0.05
-        attempt = await session.scalar(
-            select(ProviderAttempt).where(ProviderAttempt.task_id == task.id)
-        )
-        assert attempt is not None
-        assert attempt.attempt_number == 1
-        assert attempt.error_code == ERROR_TIMEOUT
-        assert adapter.calls == 1
 
 
 @pytest.mark.asyncio
@@ -1603,7 +1183,7 @@ async def test_429_release_writes_shared_cooldown_and_parks_reclaim(
     ``capacity_wait`` WITHOUT a second external call. Phase 3: after the
     cooldown passes the task executes — one more queue attempt, one call.
     """
-    monkeypatch.setattr(audit_settings, "max_attempts", 3)  # frozen budget
+    _pin_attempt_budget(monkeypatch, 3)  # frozen budget
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
     adapter = _FlakyAdapter(fail_times=1, retry_after=30.0)
     monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)

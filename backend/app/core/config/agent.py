@@ -27,7 +27,19 @@ from app.core.config import BASE_DIR, PROJECT_ROOT
 STRUCTURED_OUTPUT_PROMPT_JSON = "prompt_json"
 STRUCTURED_OUTPUT_JSON_SCHEMA = "json_schema"
 
-AGENT_POLICY_VERSION: Final = "bounded-agent-v3"
+# v4: a bounded evidence read whose snapshot does not exist is recorded as an
+# explicit ``unavailable`` attempt and withheld from the narration payload,
+# instead of being logged as ``completed`` and shipped to the provider as an
+# empty fact the model was asked to explain.
+AGENT_POLICY_VERSION: Final = "bounded-agent-v4"
+
+# Status vocabulary for one ``AgentToolAttempt`` row. ``unavailable`` is a
+# THIRD outcome, distinct from both a successful read and a failed one
+# (invariant 7): the source did not exist, which is neither an error nor an
+# observed zero. Every executed tool writes exactly one row.
+TOOL_ATTEMPT_COMPLETED: Final = "completed"
+TOOL_ATTEMPT_UNAVAILABLE: Final = "unavailable"
+TOOL_ATTEMPT_FAILED: Final = "failed"
 AGENT_INSTRUCTION_VERSION: Final = "bounded-agent-narration-v3"
 AGENT_LIST_DEFAULT_LIMIT: Final = 25
 AGENT_LIST_MAX_LIMIT: Final = 100

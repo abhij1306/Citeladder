@@ -1,15 +1,15 @@
 """Golden onboarding cases whose buyer walks away with a PRODUCT.
 
 Marketplaces, retailers and D2C brands. Split from
-:mod:`app.evaluations.onboarding_cases` because one file of hand-authored
+:mod:`evaluations.onboarding_cases` because one file of hand-authored
 cases outgrew the module ceiling; the product/service boundary is the axis
 the corpus exists to test, so it is the one the split follows.
-See :mod:`app.evaluations.onboarding_corpus` for the schema.
+See :mod:`evaluations.onboarding_corpus` for the schema.
 """
 
 from __future__ import annotations
 
-from app.evaluations.onboarding_corpus import GoldenOnboardingCase
+from evaluations.onboarding_corpus import GoldenOnboardingCase
 
 _FLIPKART = GoldenOnboardingCase(
     slug="flipkart-india",

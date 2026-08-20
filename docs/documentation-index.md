@@ -22,6 +22,20 @@ listed here must prove a current operational purpose or move to the archive.
 | [`plans/content-intelligence.md`](plans/content-intelligence.md) | Content strategy, briefs, generation, review, and verification |
 | [`plans/demand-intelligence.md`](plans/demand-intelligence.md) | GSC/GA4, journeys, prompts, and AI Visibility |
 | [`plans/growth-agent.md`](plans/growth-agent.md) | Typed tools, context, decisions, and schedules |
+| [`plans/backend-test-corpus-rework.md`](plans/backend-test-corpus-rework.md) | Deferred test-corpus restructuring after the production coverage gate is measured |
+
+## Engineering decision inputs
+
+These documents record bounded research or completed audit evidence. They are
+not runtime or implementation authority; findings are implemented only when
+they are reflected in code, tests, configuration, migrations, or an active
+plan.
+
+| Document | Role |
+|---|---|
+| [`debt/backend-debt-report.md`](debt/backend-debt-report.md) | 2026-08 backend debt audit and remediation input |
+| [`debt/backend-waste-report.md`](debt/backend-waste-report.md) | 2026-08 backend residue audit and remediation input |
+| [`plans/deep-research-report.md`](plans/deep-research-report.md) | Non-authoritative Feedonomics demo research input |
 
 ## Current-runtime references
 

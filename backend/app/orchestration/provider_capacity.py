@@ -58,7 +58,6 @@ from app.core.config.audits import (
     POOL_KIND_FUNDED_ACCOUNT,
     POOL_KIND_FUNDED_GLOBAL,
     POOL_KIND_TRANSPORT,
-    TASK_STATUS_CAPACITY_WAIT,
     TELEMETRY_CAPACITY_RATE_LIMITED,
     TELEMETRY_CAPACITY_WAIT,
     audit_settings,
@@ -67,6 +66,7 @@ from app.core.config.provider_catalog import (
     RouteCapacityPolicy,
     route_capacity_policy,
 )
+from app.core.config.task_queue import TASK_STATUS_CAPACITY_WAIT
 from app.models.audit import ProviderCapacityBucket, ProviderCapacityLease
 
 logger = logging.getLogger("app.orchestration.provider_capacity")

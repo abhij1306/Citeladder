@@ -13,7 +13,7 @@
 #   * ``UNSET_PRICING`` names the pricing inputs that are deliberately absent.
 #     Anything reading them must fail closed rather than substitute zero.
 #   * Fixture-derived runs are labelled ``fixture_derived=true`` and can never
-#     satisfy a live gate (see ``app/domain/measurement/harness.py``).
+#     satisfy a live gate (see ``backend/evaluations/measurement/harness.py``).
 from __future__ import annotations
 
 from pathlib import Path

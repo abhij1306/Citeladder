@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
@@ -17,6 +17,8 @@ from app.core.config.content import (
     ERROR_IDEMPOTENCY_CONFLICT,
     ERROR_PROVIDER_NOT_CONFIGURED,
 )
+from app.core.errors import ApiException
+from app.core.http_errors import api_error, raise_api_error
 from app.domain.abuse.service import UsageLimitExceededError
 from app.domain.content.schemas import (
     ContentFeedbackRequest,
@@ -48,24 +50,24 @@ _WorkspaceDep = Annotated[WorkspaceContext, Depends(require_active_workspace)]
 _SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
 
-def _not_found(exc: Exception) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+def _not_found(exc: Exception) -> ApiException:
+    return api_error(status.HTTP_404_NOT_FOUND, str(exc))
 
 
-def _usage_limited(exc: UsageLimitExceededError) -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail="Workspace usage limit exceeded",
+def _usage_limited(exc: UsageLimitExceededError) -> ApiException:
+    return api_error(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        "Workspace usage limit exceeded",
         headers={"Retry-After": str(exc.retry_after_seconds)},
     )
 
 
-def _enqueue_conflict(exc: Exception) -> HTTPException:
+def _enqueue_conflict(exc: Exception) -> ApiException:
     if isinstance(exc, ProviderNotConfiguredError):
         detail = ERROR_PROVIDER_NOT_CONFIGURED
     else:
         detail = ERROR_IDEMPOTENCY_CONFLICT
-    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+    return api_error(status.HTTP_409_CONFLICT, detail)
 
 
 @router.get("/skills", response_model=ContentSkillCatalog)
@@ -170,9 +172,7 @@ async def content_feedback_endpoint(
     except ContentGenerationNotFoundError as exc:
         raise _not_found(exc) from exc
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_409_CONFLICT, str(exc), cause=exc)
     return to_detail(row)
 
 
@@ -241,7 +241,11 @@ async def cancel_generation_endpoint(
     except ContentGenerationNotFoundError as exc:
         raise _not_found(exc) from exc
     except CancelNotAllowedError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=ERROR_CANCEL_NOT_ALLOWED
-        ) from exc
+        raise_api_error(
+            status.HTTP_409_CONFLICT,
+            "This content generation can no longer be cancelled",
+            code=ERROR_CANCEL_NOT_ALLOWED,
+            detail=ERROR_CANCEL_NOT_ALLOWED,
+            cause=exc,
+        )
     return to_detail(row)

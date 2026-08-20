@@ -23,6 +23,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -37,12 +38,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 # canonical finish-reason enum can be reused here without a layering cycle
 # (invariant 2 — one owner for the closed vocabulary, never re-literalled).
 from app.connectors.answer_engines.contracts import FinishReason
-from app.core.config.audits import (
-    AUDIT_STATUS_DRAFT,
-    MEASUREMENT_MODE_PULSE,
-    TASK_STATUS_QUEUED,
-)
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
+from app.core.config.audits import AUDIT_STATUS_DRAFT, MEASUREMENT_MODE_PULSE
+from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.database import Base
 from app.models.constants import (
     CASCADE_ALL_DELETE_ORPHAN,
@@ -175,15 +172,6 @@ class Audit(Base):
         passive_deletes=True,
         order_by="AuditEngineSnapshot.created_at",
     )
-    shopping_surface_snapshots: Mapped[list[AuditShoppingSurfaceSnapshot]] = (
-        relationship(
-            "AuditShoppingSurfaceSnapshot",
-            back_populates="audit",
-            cascade=CASCADE_ALL_DELETE_ORPHAN,
-            passive_deletes=True,
-            order_by="AuditShoppingSurfaceSnapshot.created_at",
-        )
-    )
     tasks: Mapped[list[AuditTask]] = relationship(
         "AuditTask",
         back_populates="audit",
@@ -292,51 +280,6 @@ class AuditEngineSnapshot(Base):
     audit: Mapped[Audit] = relationship("Audit", back_populates="engine_snapshots")
 
 
-class AuditShoppingSurfaceSnapshot(Base):
-    """Immutable frozen copy of one shopping-surface route (§7.1, D2).
-
-    Sibling of ``AuditEngineSnapshot`` (which is NOT widened): one row per
-    configured shopping surface, recording the surface id plus its frozen
-    provenance triple + connection. The planner creates no rows while the
-    ``SHOPPING_SURFACES`` gate is empty (M2a).
-    """
-
-    __tablename__ = "audit_shopping_surface_snapshots"
-    __table_args__ = (
-        UniqueConstraint(
-            "audit_id",
-            "shopping_surface",
-            name="uq_audit_shopping_surface_snapshot_surface",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    audit_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(FK_AUDITS_ID, ondelete="CASCADE"),
-        index=True,
-    )
-    shopping_surface: Mapped[str] = mapped_column(String(32))
-    logical_engine: Mapped[str] = mapped_column(String(32))
-    transport_provider: Mapped[str] = mapped_column(String(32))
-    transport_model: Mapped[str] = mapped_column(String(255))
-    connection_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("provider_connections.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    base_url: Mapped[str] = mapped_column(String(1024), default="")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-
-    audit: Mapped[Audit] = relationship(
-        "Audit", back_populates="shopping_surface_snapshots"
-    )
-
-
 class AuditTask(Base):
     """One queue+lease row: a single (prompt x engine x repetition) slot.
 
@@ -344,8 +287,7 @@ class AuditTask(Base):
     ``lease_expires_at`` + ``heartbeat_at``) plus ``attempt_count`` /
     ``max_attempts`` implement the Postgres queue (invariant 8). Double-claim is
     prevented by ``SKIP LOCKED`` plus the unique ``idempotency_key`` and the
-    unique ``(audit_id, prompt_index, repetition, logical_engine,
-    shopping_surface)`` slot key.
+    unique ``(audit_id, prompt_index, repetition, logical_engine)`` slot key.
     Also serves as the per-execution row (answer/citations/score/snapshot).
     """
 
@@ -357,7 +299,6 @@ class AuditTask(Base):
             "prompt_index",
             "repetition",
             "logical_engine",
-            "shopping_surface",
             name="uq_audit_task_slot",
         ),
     )
@@ -397,12 +338,6 @@ class AuditTask(Base):
     logical_engine: Mapped[str] = mapped_column(String(32))
     transport_provider: Mapped[str] = mapped_column(String(32))
     transport_model: Mapped[str] = mapped_column(String(255))
-    # Shopping-surface slot identity (§7.1): "" = answer-engine-API
-    # measurement. The queue itself never filters on it; brand-metric
-    # queries filter to measurement.
-    shopping_surface: Mapped[str] = mapped_column(
-        String(32), default=SHOPPING_SURFACE_MEASUREMENT
-    )
     # Frozen prompt text (denormalized from the snapshot for the worker).
     prompt_text: Mapped[str] = mapped_column(Text, default="")
     # Frozen route resolution for this slot (never contains the key).
@@ -631,9 +566,18 @@ class ProviderAttempt(Base):
 
 
 class AuditEvent(Base):
-    """Append-only audit lifecycle event (the SSE source, invariant 3)."""
+    """Append-only audit lifecycle event (the SSE source, invariant 3).
+
+    The composite index covers the exact ``(audit_id, created_at, id)``
+    ordering the SSE/list keyset resumes on, so a long-lived stream pages
+    through new events instead of scanning the audit's whole history. The
+    separate single-column indexes cannot serve that ordering.
+    """
 
     __tablename__ = "audit_events"
+    __table_args__ = (
+        Index("ix_audit_events_audit_id_created_at_id", "audit_id", "created_at", "id"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4

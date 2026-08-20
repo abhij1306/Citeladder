@@ -1,6 +1,6 @@
 """Scoring for the onboarding golden corpus.
 
-The corpus in :mod:`app.evaluations.onboarding_corpus` states what good looks
+The corpus in :mod:`evaluations.onboarding_corpus` states what good looks
 like; this module measures a produced result against it.  It is a quality gate
 for a generated review payload, not a source of production facts: the live
 onboarding flow must still derive its recommendation from the supplied official
@@ -29,12 +29,12 @@ import httpx
 
 from app.analysis.normalization import normalize_alias
 from app.domain.prompts.portfolio import contains_tracked_name
-from app.evaluations.onboarding_cases import (
+from evaluations.onboarding_cases import (
     CASES_BY_SLUG,
     COLLISION_PAIR,
     GOLDEN_ONBOARDING_CASES,
 )
-from app.evaluations.onboarding_corpus import GoldenOnboardingCase
+from evaluations.onboarding_corpus import GoldenOnboardingCase
 
 __all__ = [
     "CASES_BY_SLUG",
@@ -288,11 +288,19 @@ def _signal_rate(
     """
     if not prompts:
         return 0.0
-    terms = [_normalized(term) for term in market_terms]
+    # Whole words only, for the same reason `_neutral_texts` strips them that
+    # way: a bare "us" market term is a substring of "business" and
+    # "customers", so containment would report a market signal that is not
+    # there.
+    patterns = [
+        re.compile(r"\b" + re.escape(term) + r"\b")
+        for term in (_normalized(term) for term in market_terms)
+        if term
+    ]
     hits = sum(
         1
         for prompt in prompts
-        if any(term and term in _normalized(prompt.text) for term in terms)
+        if any(pattern.search(_normalized(prompt.text)) for pattern in patterns)
     )
     return hits / len(prompts)
 

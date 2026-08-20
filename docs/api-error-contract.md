@@ -1,7 +1,7 @@
 # API Error Contract — CiteLadder
 
 > The canonical, end-to-end contract for **how a CiteLadder API call fails**: the wire
-> envelope every non-2xx response carries, how the backend produces it, and how the
+> envelope every 4xx and 5xx response carries, how the backend produces it, and how the
 > frontend consumes it. Companion docs: [`AGENTS.md`](../AGENTS.md),
 > [`invariants.md`](invariants.md), [`backend-architecture.md`](backend-architecture.md)
 > (§6 subsystem ownership), [`frontend-architecture.md`](frontend-architecture.md) (§6
@@ -10,13 +10,15 @@
 One owner per concept (invariant 2): the envelope is **produced** only by
 `backend/app/core/errors.py`; on the frontend, `frontend/lib/api/client.ts` owns
 **parsing** the wire envelope and `frontend/lib/api/errors.ts` owns the `ApiError`
-type and its display-safe projection (`humanizeApiError`). Codes live in
-`backend/app/core/config/errors.py` (invariant 1) — never inline.
+type and its display-safe projection (`humanizeApiError`). Generic codes live in
+`backend/app/core/config/errors.py`; feature-specific codes live in their single owning
+`backend/app/core/config/*` module (for example `oauth.py` or `provider_catalog.py`).
+Codes are never declared inline at raise sites.
 
 ## 1. The wire envelope
 
-Every non-2xx response — from a router raise, a validation failure, a Starlette routing
-404, or an unhandled crash — carries exactly this shape:
+Every 4xx or 5xx response — from a router raise, a validation failure, a Starlette
+routing 404, or an unhandled crash — carries exactly this shape:
 
 ```jsonc
 {
@@ -53,22 +55,31 @@ selection/opportunity/crawl endpoints already returned. New code reads `error`.
 
 | Handler | Covers | Result |
 |---|---|---|
-| `api_exception_handler` | `ApiException` raised by migrated routers | The raise's own code/message/details |
-| `http_exception_shim_handler` | Legacy raw `HTTPException` + Starlette routing 404/405 | Status-derived default code; a coded dict keeps its code and lifts extras into `details` |
+| `api_exception_handler` | `ApiException` — what every router raises | The raise's own code/message/details |
+| `http_exception_shim_handler` | The **framework's** own `HTTPException`: Starlette routing 404/405, third-party dependencies | Status-derived default code; the string detail becomes the message |
 | `request_validation_error_handler` | `RequestValidationError` | 422 `validation_error` with **sanitized** field errors |
 | `unhandled_exception_handler` | Any uncaught `Exception` | 500 `internal_error` — full detail to the log, **nothing internal to the client** |
 
 ### Raising an error
 
+Routers **do not raise raw `HTTPException`.** `app/core/http_errors.py` is the one
+door, so the status → code mapping and the detail strings cannot drift between raise
+sites:
+
 ```python
 from fastapi import status
-from app.core.errors import ApiException
-from app.core.config.errors import CODE_NOT_FOUND
+from app.core.http_errors import (
+    api_error,          # build one (for a router-local `_not_found(exc)` factory)
+    raise_api_error,    # plain failure; code defaults to the status's canonical code
+    raise_coded_error,  # coded dialect; `detail` stays the {"code", "message"} dict
+    raise_not_found,    # the repeated 404, detail exactly "{resource} not found"
+)
 
-raise ApiException(status.HTTP_404_NOT_FOUND, CODE_NOT_FOUND, "Crawl not found")
+raise_not_found("Crawl", cause=exc)
 
-# Coded dialect — `detail` keeps its exact legacy dict shape:
-raise ApiException.coded(
+raise_api_error(status.HTTP_409_CONFLICT, "That window is already active", cause=exc)
+
+raise_coded_error(
     status.HTTP_409_CONFLICT,
     "stale_selection_version",
     "The selection changed since you loaded it.",
@@ -76,8 +87,10 @@ raise ApiException.coded(
 )
 ```
 
-Repeated 404s go through `app.core.http_errors.raise_not_found("Crawl")` so the detail
-string stays consistent across routers.
+`raise_api_error` also takes an explicit `detail=` for the handful of endpoints whose
+clients read a dict body that is *not* the `{"code", "message"}` dialect (the OAuth
+`{"code", "provider"}` shape, the sync-conflict `{"error", "enqueued_connection_ids"}`
+shape). The canonical `error` block still carries a real code and a human message.
 
 ### Two things that must never leak
 

@@ -30,7 +30,6 @@ from app.core.config.audits import (
     MEASUREMENT_POLICY_KEY,
     PULSE_ANSWER_INSTRUCTION,
     PULSE_ANSWER_INSTRUCTION_SHA256,
-    TASK_STATUS_QUEUED,
     audit_settings,
     measurement_policy_from_configuration,
     system_instruction_for_mode,
@@ -43,6 +42,7 @@ from app.core.config.entitlements import (
 )
 from app.core.config.projects import BENCHMARK_MODES
 from app.core.config.provider_catalog import ENGINE_CLAUDE, route_policy
+from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.domain.audits.cancellation import cancel_audit
 from app.domain.audits.creation import create_audit
 from app.domain.audits.errors import AuditValidationError
@@ -93,23 +93,14 @@ async def test_create_audit_enqueues_one_task_per_slot(
         )
         assert len(tasks) == 6
         assert {t.status for t in tasks} == {TASK_STATUS_QUEUED}
-        # Every planned task is a measurement-surface slot (§7.1).
-        assert {t.shopping_surface for t in tasks} == {""}
-        # Idempotency keys are unique + stable-shaped; the trailing empty
-        # segment reserves the shopping-surface identity.
+        # Idempotency keys are unique and stable-shaped.
         keys = {t.idempotency_key for t in tasks}
         assert len(keys) == 6
         for task in tasks:
             assert task.idempotency_key == (
                 f"{audit.id}:{task.prompt_index}:{task.repetition}:"
-                f"{task.logical_engine}:{task.shopping_surface}"
+                f"{task.logical_engine}"
             )
-            assert task.idempotency_key.endswith(":")
-
-        # The disabled surface gate freezes as an empty list; no surface
-        # snapshot rows exist.
-        assert audit.configuration["shopping_surfaces"] == []
-        assert audit.shopping_surface_snapshots == []
 
         # Snapshots frozen.
         prompts = (
@@ -146,7 +137,7 @@ async def test_fixed_seed_reproduces_slot_order(
     async with session_factory() as session:
         audit_a = await _create(session, seed_a, seed_value="99", reps=3)
         order_a = [
-            (t.prompt_index, t.repetition, t.logical_engine, t.shopping_surface)
+            (t.prompt_index, t.repetition, t.logical_engine)
             for t in sorted(
                 await list_tasks(
                     session,
@@ -159,7 +150,7 @@ async def test_fixed_seed_reproduces_slot_order(
     async with session_factory() as session:
         audit_b = await _create(session, seed_b, seed_value="99", reps=3)
         order_b = [
-            (t.prompt_index, t.repetition, t.logical_engine, t.shopping_surface)
+            (t.prompt_index, t.repetition, t.logical_engine)
             for t in sorted(
                 await list_tasks(
                     session,
@@ -405,10 +396,6 @@ async def test_create_audit_freezes_product_catalog(
         assert competitor_products[0]["competitor_name"] == "Globex"
         # The brand scoring identity is untouched by the catalog freeze.
         assert configuration["brand_name"] == "Acme Corp"
-        # The disabled shopping-surface gate freezes as an empty list and
-        # creates no surface snapshot rows.
-        assert configuration["shopping_surfaces"] == []
-        assert audit.shopping_surface_snapshots == []
 
     # Later catalog edits never alter the frozen audit (deterministic
     # re-scoring, invariant 9).
@@ -441,7 +428,6 @@ async def test_create_audit_empty_catalog_freezes_empty_lists(
         audit = await _create(session, seed, seed_value="7", reps=1)
         assert audit.configuration["products"] == []
         assert audit.configuration["competitor_products"] == []
-        assert audit.configuration["shopping_surfaces"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -545,7 +531,11 @@ async def test_full_frozen_configuration_for_pulse_mode(
             "timeout_seconds": audit_settings.pulse_timeout_seconds,
             "repetitions": audit_settings.pulse_repetitions,
             "answer_instruction": PULSE_ANSWER_INSTRUCTION,
+            # Pulse carries its OWN attempt budget, below the generic
+            # ``max_attempts`` benchmark runs keep.
+            "max_attempts": audit_settings.pulse_max_attempts,
         }
+        assert audit_settings.pulse_max_attempts < audit_settings.max_attempts
         # The frozen per-call timeout is the MODE's, not the generic live knob.
         assert (
             configuration["request_timeout_seconds"]

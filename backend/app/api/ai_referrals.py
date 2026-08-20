@@ -13,12 +13,13 @@ import uuid
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
 from app.core.config.analytics import ANALYTICS_DEFAULT_GRANULARITY
-from app.core.http_errors import raise_not_found
+from app.core.errors import ApiException
+from app.core.http_errors import api_error, raise_not_found
 from app.domain.analytics.schemas import AiReferralsResponse
 from app.domain.analytics.service import (
     AiReferralsQueryError,
@@ -45,12 +46,10 @@ async def _get_project_or_404(
         raise_not_found("Project", cause=exc)
 
 
-def _unprocessable(exc: AiReferralsQueryError) -> HTTPException:
+def _unprocessable(exc: AiReferralsQueryError) -> ApiException:
     # Query-validation contract (the trends ``TrendQueryError`` precedent):
     # a bad granularity/window/source is a 422, never a 404 or a 500.
-    return HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-    )
+    return api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
 
 
 @router.get("/{project_id}/ai-referrals")

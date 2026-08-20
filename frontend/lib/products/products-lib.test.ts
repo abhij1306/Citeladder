@@ -95,7 +95,6 @@ describe('summarizeProductVisibility', () => {
       },
     ],
     competitor_products: [],
-    available_surfaces: [''],
     created_at: '2026-07-15T00:00:00Z',
   };
 

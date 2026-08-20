@@ -12,7 +12,10 @@ from datetime import date
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.demand import QUERY_EVIDENCE_MAX_LIMIT
+from app.core.config.demand import (
+    ERROR_QUERY_EVIDENCE_CURSOR_INVALID,
+    QUERY_EVIDENCE_MAX_LIMIT,
+)
 from app.domain.demand.query_classification import normalize_query
 from app.models.demand import QueryEvidenceRow, QueryEvidenceSnapshot
 
@@ -69,7 +72,7 @@ def _decode_cursor(value: str) -> tuple[uuid.UUID, date, uuid.UUID]:
             uuid.UUID(str(raw[2])),
         )
     except (ValueError, TypeError, json.JSONDecodeError, binascii.Error) as exc:
-        raise QueryEvidenceCursorError("query_evidence_cursor_invalid") from exc
+        raise QueryEvidenceCursorError(ERROR_QUERY_EVIDENCE_CURSOR_INVALID) from exc
 
 
 async def list_query_evidence(
@@ -101,7 +104,7 @@ async def list_query_evidence(
     if cursor:
         cursor_snapshot_id, cursor_date, cursor_id = _decode_cursor(cursor)
         if cursor_snapshot_id != snapshot.id:
-            raise QueryEvidenceCursorError("query_evidence_cursor_invalid")
+            raise QueryEvidenceCursorError(ERROR_QUERY_EVIDENCE_CURSOR_INVALID)
         statement = statement.where(
             or_(
                 QueryEvidenceRow.date > cursor_date,

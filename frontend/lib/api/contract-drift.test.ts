@@ -48,14 +48,14 @@ describe('componentProperties', () => {
 
 describe('declaredKeysFor', () => {
   it('splits declared keys into required vs absent-tolerant', () => {
-    // auditSchema: required ids/counts; shopping_surface_snapshots has a
-    // .default([]) so it tolerates an absent key.
+    // auditSchema: required ids/counts; measurement_mode has a default so it
+    // tolerates an absent key from audits created before mode freezing.
     const keys = declaredKeysFor('auditSchema');
     expect(keys).not.toBeNull();
     expect(keys?.declared).toContain('id');
-    expect(keys?.declared).toContain('shopping_surface_snapshots');
+    expect(keys?.declared).toContain('measurement_mode');
     expect(keys?.required).toContain('id');
-    expect(keys?.required).not.toContain('shopping_surface_snapshots');
+    expect(keys?.required).not.toContain('measurement_mode');
   });
 
   it('resolves page wrappers and arrays to their object shape', () => {
@@ -118,7 +118,7 @@ describe('diffContract', () => {
     const auditKeys = declaredKeysFor('auditSchema');
     const properties = Object.fromEntries(
       (auditKeys?.declared ?? [])
-        .filter((k) => k !== 'shopping_surface_snapshots')
+        .filter((k) => k !== 'measurement_mode')
         .map((k) => [k, {}]),
     );
     const result = diffContract(

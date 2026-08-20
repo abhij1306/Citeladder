@@ -13,6 +13,13 @@ from typing import Final
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # --- OAuth providers (third-party sign-in surface) ------------------------
+# Coded API errors this subsystem returns. Owned here, not spelled inline in
+# the router (invariant 1) — these strings are the machine-readable half of
+# the OAuth contract and clients branch on them.
+CODE_OAUTH_PROVIDER_UNKNOWN: Final = "oauth_provider_unknown"
+CODE_OAUTH_PROVIDER_NOT_CONFIGURED: Final = "oauth_provider_not_configured"
+CODE_OAUTH_CALLBACK_NOT_IMPLEMENTED: Final = "oauth_callback_not_implemented"
+
 OAUTH_GOOGLE: Final = "google"
 OAUTH_GITHUB: Final = "github"
 OAUTH_APPLE: Final = "apple"

@@ -291,7 +291,7 @@ async def test_generation_drops_off_domain_model_output(
                 "]}]}"
             )
 
-    monkeypatch.setattr(prompts_api, "DefaultAgentClient", lambda: _MixedAgent())
+    monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: _MixedAgent())
     resp = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={"count": 2, "confirm_send_evidence": True},

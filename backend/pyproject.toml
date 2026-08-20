@@ -44,6 +44,7 @@ dev = [
   "mypy>=2.3.0,<3",
   "pytest>=9.0.3,<10",
   "pytest-asyncio>=1.1.0,<2",
+  "pytest-cov>=7.0.0,<8",
   "radon==6.0.1",
   "ruff>=0.6.0,<1",
   "types-defusedxml>=0.7.0,<1",
@@ -66,6 +67,8 @@ extend-exclude = ["migrations/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "W"]
+# ``app/analysis/site_health/.ruff.toml`` extends this with BLE001 + S110 for
+# the fact extractors only — see that file for why.
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -79,9 +82,45 @@ testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 
+# Coverage is MEASURED and reported on every CI run; the floor below is the
+# measured number rounded down, not an aspiration. Raising it is a deliberate
+# step in the deferred test-corpus plan (docs/plans/backend-test-corpus-rework.md).
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+  # Not runtime code: the offline eval corpus, one-shot scripts, and the
+  # single Alembic revision are exercised by their own gates, not by pytest.
+  "evaluations/*",
+  "scripts/*",
+  "migrations/*",
+  "tests/*",
+]
+
+[tool.coverage.report]
+# MEASURED, not chosen: the suite reports 84% statement+branch coverage of
+# ``app`` today, so the floor is 84 — one point below is a real regression, not
+# a rounding artefact. Raising it is a deliberate step in
+# docs/plans/backend-test-corpus-rework.md, taken after the split lands
+# coverage on the seams that are currently thin (agent_worker 0%,
+# brand_discovery_worker 29%), never as a guess.
+fail_under = 84
+show_missing = false
+skip_covered = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  '@(abc\.)?abstractmethod',
+  '\.\.\.',
+]
+
 [tool.mypy]
 python_version = "3.12"
-files = ["app"]
+# ``evaluations`` is offline fixture/eval code that is deliberately NOT part of
+# the runtime package (setuptools ships ``app*`` only, and the API/worker image
+# copies ``backend/app``). It stays typechecked here so moving it out of
+# ``app/`` did not silently drop it from the gate.
+files = ["app", "evaluations"]
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true
 warn_redundant_casts = true

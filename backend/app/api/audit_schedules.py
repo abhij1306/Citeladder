@@ -5,11 +5,11 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_project_member
-from app.core.http_errors import raise_not_found
+from app.core.http_errors import raise_api_error, raise_not_found
 from app.domain.audits.schedule_schemas import (
     AuditScheduleCreate,
     AuditScheduleResponse,
@@ -49,9 +49,7 @@ async def create_audit_schedule_endpoint(
             payload=payload,
         )
     except AuditScheduleValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
     return AuditScheduleResponse.model_validate(schedule)
 
 
@@ -107,9 +105,7 @@ async def update_audit_schedule_endpoint(
     except AuditScheduleNotFoundError as exc:
         raise_not_found("Audit schedule", cause=exc)
     except AuditScheduleValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
-        ) from exc
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
     return AuditScheduleResponse.model_validate(schedule)
 
 

@@ -5,7 +5,7 @@ Measured 2026-08-16 against `main` @ `278586d8`, before any product change.
 end of this document.**
 
 This is the Phase 0 gate for the onboarding context rebuild. The corpus in
-[`app/evaluations/onboarding_cases.py`](../../backend/app/evaluations/onboarding_cases.py)
+[`evaluations/onboarding_cases.py`](../../backend/evaluations/onboarding_cases.py)
 is the *specification*; this run measures how far today's pipeline is from it, so the rebuild
 can be derived backwards from real gaps rather than from assumption.
 

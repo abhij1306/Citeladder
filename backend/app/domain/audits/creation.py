@@ -169,7 +169,7 @@ async def create_audit(
         plan=plan,
         expected_costs=expected_costs,
         tasks_per_engine=len(prompts) * reps,
-        max_attempts=audit_settings.max_attempts,
+        max_attempts=plan.policy.max_attempts,
         at=admission_at,
     )
 

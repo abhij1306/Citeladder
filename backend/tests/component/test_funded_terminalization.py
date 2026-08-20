@@ -33,9 +33,6 @@ from app.core.config.audits import (
     AUDIT_STATUS_CANCELLED,
     AUDIT_TRIGGER_MANUAL,
     MEASUREMENT_MODE_PULSE,
-    TASK_STATUS_CANCELLED,
-    TASK_STATUS_FAILED,
-    TASK_STATUS_SUCCEEDED,
     audit_settings,
 )
 from app.core.config.entitlements import (
@@ -46,6 +43,11 @@ from app.core.config.entitlements import (
     LEDGER_ENTRY_RESERVATION,
 )
 from app.core.config.provider_catalog import ENGINE_CLAUDE
+from app.core.config.task_queue import (
+    TASK_STATUS_CANCELLED,
+    TASK_STATUS_FAILED,
+    TASK_STATUS_SUCCEEDED,
+)
 from app.domain.audits.cancellation import cancel_audit
 from app.domain.audits.creation import create_audit
 from app.domain.audits.errors import AuditValidationError
@@ -159,7 +161,10 @@ async def test_cancel_releases_every_unclaimed_funded_reservation(
         )
         assert len(tasks) == 2
         usage = await _usage(session, account.id)
-        assert usage.reserved == audit_settings.max_attempts * 2
+        # The reservation is keyed to the budget the PLANNER FROZE onto each
+        # task, which is the measurement mode's (pulse retries fewer times
+        # than benchmark) — never the generic live ``max_attempts``.
+        assert usage.reserved == sum(t.max_attempts for t in tasks)
 
         cancelled = await cancel_audit(
             session, workspace_id=seed.workspace_id, audit_id=audit.id
@@ -186,8 +191,8 @@ async def test_cancel_releases_every_unclaimed_funded_reservation(
             )
             # The full reservation is released exactly once, by the cancel
             # trigger; nothing was ever called, so nothing is debited.
-            assert sum(r.units for r in reserved) == audit_settings.max_attempts
-            assert sum(r.units for r in released) == audit_settings.max_attempts
+            assert sum(r.units for r in reserved) == task.max_attempts
+            assert sum(r.units for r in released) == task.max_attempts
             assert all(
                 f"{audit.id}:{task.id}:funded-release-cancel" in r.idempotency_key
                 for r in released
@@ -258,11 +263,14 @@ async def test_cancel_racing_in_flight_worker_release_settles_once(
         # reservation exactly once — the bill's own unit release plus the
         # worker's terminal release of the remaining max_attempts-1 — and
         # cancel's release wrote NOTHING (no cancel-triggered row exists).
-        assert sum(r.units for r in released) == audit_settings.max_attempts
+        raced_task = await session.get(AuditTask, raced_task_id)
+        assert raced_task is not None
+        frozen_attempts = raced_task.max_attempts
+        assert sum(r.units for r in released) == frozen_attempts
         worker_releases = [
             r for r in released if ":funded-release-unused" in r.idempotency_key
         ]
-        assert sum(r.units for r in worker_releases) == audit_settings.max_attempts - 1
+        assert sum(r.units for r in worker_releases) == frozen_attempts - 1
         assert not any(":funded-release-cancel" in r.idempotency_key for r in released)
         assert [d.attempt for d in debited] == [1]
         task = await session.get(AuditTask, raced_task_id)
@@ -280,7 +288,7 @@ async def test_cancel_racing_in_flight_worker_release_settles_once(
         other_released = await _ledger_rows(
             session, task_id=other.id, kind=LEDGER_ENTRY_RELEASE
         )
-        assert sum(r.units for r in other_released) == audit_settings.max_attempts
+        assert sum(r.units for r in other_released) == other.max_attempts
         assert all(
             f"{audit.id}:{other.id}:funded-release-cancel" in r.idempotency_key
             for r in other_released
@@ -359,7 +367,9 @@ async def test_concurrent_same_trigger_release_hits_the_designed_guard(
             session, task_id=task_id, kind=LEDGER_ENTRY_RELEASE
         )
         # One settled release covering the full reservation — never two rows.
-        assert sum(r.units for r in released) == audit_settings.max_attempts
+        task = await session.get(AuditTask, task_id)
+        assert task is not None
+        assert sum(r.units for r in released) == task.max_attempts
         assert len(released) == 1
         usage = await _usage(session, account_id)
         assert usage.reserved == 0
@@ -399,7 +409,7 @@ async def test_sweeper_terminalized_funded_task_releases_reservation(
         released = await _ledger_rows(
             session, task_id=task_id, kind=LEDGER_ENTRY_RELEASE
         )
-        assert sum(r.units for r in released) == audit_settings.max_attempts
+        assert sum(r.units for r in released) == task.max_attempts
         assert all(
             f"{audit.id}:{task_id}:funded-release-sweep" in r.idempotency_key
             for r in released
@@ -412,10 +422,12 @@ async def test_sweeper_terminalized_funded_task_releases_reservation(
     # A repeat sweep observes nothing terminal and releases nothing more.
     await worker._sweep_queue()
     async with session_factory() as session:
+        task = await session.get(AuditTask, task_id)
+        assert task is not None
         released = await _ledger_rows(
             session, task_id=task_id, kind=LEDGER_ENTRY_RELEASE
         )
-        assert sum(r.units for r in released) == audit_settings.max_attempts
+        assert sum(r.units for r in released) == task.max_attempts
 
 
 @pytest.mark.asyncio
@@ -426,7 +438,10 @@ async def test_crash_after_billed_attempt_bills_once_and_releases_remainder(
     unbilled remainder: the failure path committed the attempt-1 bill
     (will_retry=True) and ``queue.retry`` then raised, so ``_record_crash``
     terminalizes — releasing only the still-reserved unit."""
+    # Pin BOTH: the frozen budget comes from the mode policy, and these
+    # audits are planned in the default (pulse) mode.
     monkeypatch.setattr(audit_settings, "max_attempts", 2)
+    monkeypatch.setattr(audit_settings, "pulse_max_attempts", 2)
     async with session_factory() as session:
         account, seed = await _seed_funded(session, prompt_count=1)
         await _create_funded(session, seed)

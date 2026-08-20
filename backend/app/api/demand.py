@@ -6,15 +6,16 @@ import uuid
 from datetime import date
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
 from app.core.config.demand import (
+    ERROR_QUERY_EVIDENCE_CURSOR_INVALID,
     QUERY_EVIDENCE_DEFAULT_LIMIT,
     QUERY_EVIDENCE_MAX_LIMIT,
 )
-from app.core.http_errors import raise_not_found
+from app.core.http_errors import raise_api_error, raise_not_found
 from app.domain.analytics.enqueue import enqueue_demand_snapshot_refresh
 from app.domain.demand.query_classification import append_override
 from app.domain.demand.query_evidence_reads import (
@@ -187,10 +188,13 @@ async def query_evidence(
             resolution_outcome=resolution_outcome,
         )
     except QueryEvidenceCursorError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="query_evidence_cursor_invalid",
-        ) from exc
+        raise_api_error(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "The query evidence cursor is invalid",
+            code=ERROR_QUERY_EVIDENCE_CURSOR_INVALID,
+            detail=ERROR_QUERY_EVIDENCE_CURSOR_INVALID,
+            cause=exc,
+        )
     return QueryEvidencePageView(
         snapshot=_query_snapshot_view(snapshot),
         items=[QueryEvidenceRowView.model_validate(row) for row in page.rows],

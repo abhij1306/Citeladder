@@ -28,17 +28,18 @@ from app.core.config.audits import (
     EVENT_TASK_FAILED,
     EVENT_TASK_RETRY,
     EVENT_TASK_SUCCEEDED,
-    TASK_STATUS_LEASED,
-    TASK_STATUS_RUNNING,
-    TASK_STATUS_SUCCEEDED,
-    TASK_TERMINAL_STATUSES,
     audit_settings,
 )
-from app.core.config.commerce import SHOPPING_SURFACE_MEASUREMENT
 from app.core.config.provider_catalog import (
     ERROR_AUTH,
     ERROR_PARSE,
     RETRYABLE_ERRORS,
+)
+from app.core.config.task_queue import (
+    TASK_STATUS_LEASED,
+    TASK_STATUS_RUNNING,
+    TASK_STATUS_SUCCEEDED,
+    TASK_TERMINAL_STATUSES,
 )
 from app.domain.audits.state_events import apply_transition, record_event
 from app.domain.opportunities.verification import enqueue_audit_opportunity_tasks
@@ -134,19 +135,15 @@ class AuditTerminalizationMixin:
             # against the just-persisted answer + citations (no provider call)
             # and writes the derived ResponseAnalysis + mention/citation rows,
             # each stamped with the raw-artifact provenance + analyzer_version.
-            # Brand analysis is MEASUREMENT-ONLY (§7.1): a shopping-surface
-            # probe task skips it entirely so brand metrics stay isolated.
-            if task.shopping_surface == SHOPPING_SURFACE_MEASUREMENT:
-                config = build_scoring_config(audit.configuration)
-                analysis = await analyze_task(session, task=task, config=config)
-                if analysis is not None:
-                    task.score = analysis.score
+            config = build_scoring_config(audit.configuration)
+            analysis = await analyze_task(session, task=task, config=config)
+            if analysis is not None:
+                task.score = analysis.score
 
             # Sibling deterministic PRODUCT pass (Agentic Commerce): scores
             # the frozen catalog against the same persisted answer and writes
             # ProductResponseAnalysis/ProductMention/MerchantMention rows
-            # (no-op on an empty frozen catalog). Runs for EVERY surface so
-            # product probe evidence remains eligible. Never touches the
+            # (no-op on an empty frozen catalog). Never touches the
             # brand-level rows above.
             product_config = build_product_scoring_config(audit.configuration)
             await analyze_task_products(session, task=task, config=product_config)
@@ -389,10 +386,7 @@ class AuditTerminalizationMixin:
     async def _progress_counts(
         self, session: AsyncSession, audit_id: uuid.UUID
     ) -> tuple[int, int, int]:
-        """``(succeeded, failed, remaining)`` over an audit's MEASUREMENT rows.
-
-        Progress/completion denominators are MEASUREMENT-ONLY (§7.1):
-        shopping-surface probe rows never move audit counts.
+        """``(succeeded, failed, remaining)`` over an audit's task rows.
 
         ``failed`` is terminal-but-not-succeeded rather than ``total -
         succeeded``: mid-run the difference matters, because a still-queued or
@@ -400,22 +394,21 @@ class AuditTerminalizationMixin:
         The two definitions converge once ``remaining`` is 0, so the counts
         this publishes DURING a run land on exactly the terminal figures.
         """
-        measurement = (
+        counted = (
             select(func.count())
             .select_from(AuditTask)
             .where(AuditTask.audit_id == audit_id)
-            .where(AuditTask.shopping_surface == SHOPPING_SURFACE_MEASUREMENT)
         )
-        total = int(await session.scalar(measurement) or 0)
+        total = int(await session.scalar(counted) or 0)
         succeeded = int(
             await session.scalar(
-                measurement.where(AuditTask.status == TASK_STATUS_SUCCEEDED)
+                counted.where(AuditTask.status == TASK_STATUS_SUCCEEDED)
             )
             or 0
         )
         terminal = int(
             await session.scalar(
-                measurement.where(AuditTask.status.in_(list(TASK_TERMINAL_STATUSES)))
+                counted.where(AuditTask.status.in_(list(TASK_TERMINAL_STATUSES)))
             )
             or 0
         )

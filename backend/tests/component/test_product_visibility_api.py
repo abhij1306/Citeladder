@@ -214,7 +214,6 @@ async def test_visibility_defaults_to_latest_and_explicit_audit(
     assert body["product_analyzer_version"] == "product-analysis-2"
     assert body["product_scoring_rule_version"] == "product-scoring-v2"
     # The shopping-surface gate ships empty: only measurement is available.
-    assert body["available_surfaces"] == [""]
     # 2 prompts x 1 rep -> 2 executions, each mentioning both entries.
     assert body["total_analyses"] == 2
     assert body["total_mentions"] == 4
@@ -405,7 +404,6 @@ async def test_evidence_items_windowing_and_filters(
     assert item["logical_engine"] == ENGINE_GEMINI
     assert item["transport_model"]
     assert item["product_analyzer_version"] == "product-analysis-2"
-    assert item["shopping_surface"] == ""
     assert item["prompt_text"].startswith("best option")
     assert item["matched_name"] == "Acme VoltBike 500"
     assert item["matched_sku"] == "AC-VB500"
@@ -544,7 +542,6 @@ async def test_export_csv_download(
         "price_accuracy",
         "engine",
         "product_analyzer_version",
-        "surface",
         "win_rate",
         "price_mismatch_rate",
         "price_relation_match_count",
@@ -563,7 +560,6 @@ async def test_export_csv_download(
     assert all(row["audit_id"] == str(audit.id) for row in rows)
     # v2 provenance + metrics on every row; surface stays measurement ("").
     assert all(row["product_analyzer_version"] == "product-analysis-2" for row in rows)
-    assert all(row["surface"] == "" for row in rows)
     own_overall = next(row for row in own_rows if row["engine"] == "all")
     assert float(own_overall["win_rate"]) == 1.0
     # Zero mismatch is an explicit 0.0 cell, not a blank.

@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any, Final
 from urllib.parse import urlsplit
 
+from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
+from app.analysis.site_health.dom import node_text as _text
 from app.core.config import site_health_acquisition as config
 
 # These are immutable normalized-fact labels, not task kinds. They remain
@@ -16,17 +18,11 @@ _LINK_KIND_SCRIPT: Final = "script"
 _LINK_KIND_STYLESHEET: Final = "stylesheet"
 
 
-def _text(node: Any) -> str:
-    try:
-        return (node.text_content() or "").strip()
-    except Exception:
-        return ""
-
-
 def _is_internal_asset(url: str, *, base_host: str) -> bool:
     try:
         host = urlsplit(url).hostname
-    except Exception:
+    except DOM_ERRORS as exc:
+        dom_failure("_is_internal_asset", exc)
         return False
     return host is None or (bool(base_host) and host.lower() == base_host.lower())
 
@@ -53,8 +49,8 @@ def _anchor_assets(
                     ],
                 }
             )
-    except Exception:
-        pass
+    except DOM_ERRORS as exc:
+        dom_failure("_anchor_assets", exc)
     return anchors
 
 
@@ -82,8 +78,8 @@ def _simple_assets(
                     "is_internal": _is_internal_asset(url, base_host=base_host),
                 }
             )
-    except Exception:
-        pass
+    except DOM_ERRORS as exc:
+        dom_failure("_simple_assets", exc)
     return assets
 
 
@@ -106,8 +102,8 @@ def _stylesheet_assets(
                     "is_internal": _is_internal_asset(href, base_host=base_host),
                 }
             )
-    except Exception:
-        pass
+    except DOM_ERRORS as exc:
+        dom_failure("_stylesheet_assets", exc)
     return stylesheets
 
 

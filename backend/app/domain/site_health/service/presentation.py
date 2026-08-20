@@ -124,8 +124,12 @@ def display_label_for(rule_id: str, evidence: dict | None = None) -> str:
 # =========================================================================
 # Crawl projection (model aliases -> strict contract)
 # =========================================================================
-def _crawl_count_disclosure(crawl: SiteCrawl) -> bool:
+def crawl_count_disclosure(crawl: SiteCrawl) -> bool:
     """Whether this crawl may disclose total/discovered counts.
+
+    Public because count redaction is a product invariant the HTTP layer must
+    apply on every events read — the router calls this by name rather than
+    reaching for an underscore the package re-exported.
 
     Reads only the frozen ``configuration.count_disclosure`` snapshot (so a
     later allowance change never retroactively reveals a sample crawl's
@@ -136,17 +140,14 @@ def _crawl_count_disclosure(crawl: SiteCrawl) -> bool:
 
 
 def _page_kind_buckets(summary: dict) -> dict:
-    """The per-page-kind rollup, reading the pre-rename key as a fallback.
+    """The per-page-kind rollup out of the persisted ``score_summary`` JSON.
 
-    ``score_summary`` is persisted JSON. Rows scored before this release wrote
-    the same breakdown under ``by_page_type``, so reading only the new key
-    would render every historical crawl's breakdown as an empty map — the
-    scores stay right while the per-kind detail silently disappears.
+    One key, one writer: the scorer has only ever written ``by_page_kind``
+    (``service/lifecycle.py``). The pre-rename ``by_page_type`` fallback that
+    used to live here read a key no code path produces and no test feeds — a
+    compatibility branch for rows that do not exist.
     """
-    buckets = summary.get("by_page_kind")
-    if buckets is None:
-        buckets = summary.get("by_page_type")
-    return buckets or {}
+    return summary.get("by_page_kind") or {}
 
 
 def _score_summary(crawl: SiteCrawl) -> dict | None:
@@ -259,7 +260,7 @@ def project_crawl(
     leave it ``None`` (N+1 avoidance). It carries no count disclosures, so
     Free redaction does not touch it.
     """
-    disclose = _crawl_count_disclosure(crawl)
+    disclose = crawl_count_disclosure(crawl)
     summary = _score_summary(crawl)
     analysis_requested_count = int(crawl.analysis_requested_count or 0)
     discovery_requested_count = int(crawl.discovery_requested_count or 0)

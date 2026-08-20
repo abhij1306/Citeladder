@@ -24,11 +24,11 @@ from app.analysis.product_scoring import (
     aggregate_product_run,
     score_product_execution,
 )
-from app.core.config.audits import TASK_STATUS_SUCCEEDED
 from app.core.config.products import (
     PRODUCT_ANALYZER_VERSION,
     PRODUCT_SCORING_RULE_VERSION,
 )
+from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
 from app.models.audit import Audit, AuditTask, RawResponseArtifact
 from app.models.product import (
     CompetitorProduct,
@@ -218,7 +218,6 @@ async def analyze_task_products(
         transport_model=task.transport_model,
         prompt_index=task.prompt_index,
         repetition=task.repetition,
-        shopping_surface=task.shopping_surface,
         own_product_mention_count=score["own_product_mention_count"],
         competitor_product_mention_count=score["competitor_product_mention_count"],
         products_with_price_match=score["products_with_price_match"],
@@ -348,21 +347,14 @@ def _select_aggregate_analyses(
 def _aggregate_by(
     analyses: list[ProductResponseAnalysis],
     config: ProductScoringConfig,
-    *,
-    surface: str | None = None,
 ) -> dict[str, dict[str, dict]]:
-    """Group persisted analyses by engine (within ``surface`` when given)."""
-    scoped = [
-        analysis
-        for analysis in analyses
-        if surface is None or analysis.shopping_surface == surface
-    ]
+    """Group persisted analyses by logical engine."""
     grouped: dict[str, dict[str, dict]] = {}
-    for engine in sorted({analysis.logical_engine for analysis in scoped}):
+    for engine in sorted({analysis.logical_engine for analysis in analyses}):
         grouped[engine] = aggregate_product_run(
             [
                 analysis.score or {}
-                for analysis in scoped
+                for analysis in analyses
                 if analysis.logical_engine == engine
             ],
             config,
@@ -379,8 +371,6 @@ async def _product_finalize_inputs(
     list[ProductResponseAnalysis],
     dict[str, dict],
     dict[str, dict[str, dict]],
-    dict[str, dict[str, dict]],
-    dict[str, dict[str, dict[str, dict]]],
 ]:
     succeeded_tasks = list(
         (
@@ -409,23 +399,7 @@ async def _product_finalize_inputs(
         [analysis.score or {} for analysis in analyses], config
     )
     per_engine = _aggregate_by(analyses, config)
-    surfaces = sorted({analysis.shopping_surface for analysis in analyses})
-    per_surface = {
-        surface: aggregate_product_run(
-            [
-                analysis.score or {}
-                for analysis in analyses
-                if analysis.shopping_surface == surface
-            ],
-            config,
-        )
-        for surface in surfaces
-    }
-    per_surface_engine = {
-        surface: _aggregate_by(analyses, config, surface=surface)
-        for surface in surfaces
-    }
-    return analyses, aggregates, per_engine, per_surface, per_surface_engine
+    return analyses, aggregates, per_engine
 
 
 async def _persist_product_snapshots(
@@ -435,8 +409,6 @@ async def _persist_product_snapshots(
     analyses: list[ProductResponseAnalysis],
     aggregates: dict[str, dict],
     per_engine: dict[str, dict[str, dict]],
-    per_surface: dict[str, dict[str, dict]],
-    per_surface_engine: dict[str, dict[str, dict[str, dict]]],
     existing_snapshots: list[ProductMetricSnapshot],
     config: ProductScoringConfig,
 ) -> list[ProductMetricSnapshot]:
@@ -467,8 +439,6 @@ async def _persist_product_snapshots(
                     else live_competitors
                 ),
                 per_engine=per_engine,
-                per_surface=per_surface,
-                per_surface_engine=per_surface_engine,
             )
         )
     return snapshots
@@ -484,8 +454,6 @@ def _upsert_product_snapshot(
     existing: ProductMetricSnapshot | None,
     live_ids: set[str],
     per_engine: dict[str, dict[str, dict]],
-    per_surface: dict[str, dict[str, dict]],
-    per_surface_engine: dict[str, dict[str, dict[str, dict]]],
 ) -> ProductMetricSnapshot:
     is_product = aggregate["kind"] == "product"
     evidence = [
@@ -510,8 +478,6 @@ def _upsert_product_snapshot(
         is_live=entry_id in live_ids,
         evidence=evidence,
         per_engine=per_engine,
-        per_surface=per_surface,
-        per_surface_engine=per_surface_engine,
     )
     return snapshot
 
@@ -522,11 +488,9 @@ async def finalize_audit_product_analysis(
     """Upsert the per-(audit, entry) ``ProductMetricSnapshot`` rows.
 
     Defensively ensures every succeeded task has a CURRENT-version product
-    analysis (mirror ``finalize_audit_analysis``; the succeeded-task query
-    is deliberately unfiltered by surface — product analysis covers
-    measurement and future probe rows), then aggregates from the SELECTED
-    persisted analyses only (invariant 7): overall, per-engine, and
-    per-surface (with nested per-engine) breakdowns. Only the
+    analysis (mirror ``finalize_audit_analysis``), then aggregates from the
+    SELECTED persisted analyses only (invariant 7): overall and per-engine
+    breakdowns. Only the
     current-version snapshot keyed by (entry_id, analyzer/rule version) is
     created/updated — a v1 snapshot is never mutated. Stamps the exact
     selected evidence set per snapshot (invariant 4). Idempotent. Caller
@@ -537,13 +501,9 @@ async def finalize_audit_product_analysis(
     if not config.products and not config.competitor_products:
         return []
 
-    (
-        analyses,
-        aggregates,
-        per_engine,
-        per_surface,
-        per_surface_engine,
-    ) = await _product_finalize_inputs(session, audit=audit, config=config)
+    analyses, aggregates, per_engine = await _product_finalize_inputs(
+        session, audit=audit, config=config
+    )
     existing_snapshots = list(
         (
             await session.scalars(
@@ -559,8 +519,6 @@ async def finalize_audit_product_analysis(
         analyses=analyses,
         aggregates=aggregates,
         per_engine=per_engine,
-        per_surface=per_surface,
-        per_surface_engine=per_surface_engine,
         existing_snapshots=existing_snapshots,
         config=config,
     )
@@ -575,8 +533,6 @@ def _apply_snapshot_fields(
     is_live: bool,
     evidence: list[ProductResponseAnalysis],
     per_engine: dict[str, dict[str, dict]],
-    per_surface: dict[str, dict[str, dict]],
-    per_surface_engine: dict[str, dict[str, dict[str, dict]]],
 ) -> None:
     """Write the aggregate onto a (new or existing) snapshot row."""
     # Same live-row guard as the mention rows: never write a FK pointing at a
@@ -602,20 +558,6 @@ def _apply_snapshot_fields(
         "per_engine": {
             engine: engine_aggregates.get(entry_id)
             for engine, engine_aggregates in per_engine.items()
-        },
-        # per_surface[surface]: the same aggregate shape plus a nested
-        # per-engine slice (no extra snapshot row per surface).
-        "per_surface": {
-            surface: {
-                **(surface_aggregates.get(entry_id) or {}),
-                "per_engine": {
-                    engine: engine_aggregates.get(entry_id)
-                    for engine, engine_aggregates in per_surface_engine.get(
-                        surface, {}
-                    ).items()
-                },
-            }
-            for surface, surface_aggregates in per_surface.items()
         },
     }
     snapshot.source_analysis_ids = [str(a.id) for a in evidence]

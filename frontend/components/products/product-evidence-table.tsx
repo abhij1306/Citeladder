@@ -64,21 +64,15 @@ export function ProductEvidenceTable({
   const [engine, setEngine] = useState<ProductEngineFilter>('all');
   const [subTab, setSubTab] = useState<ProductEvidenceSubTab>('mentions');
   const engineParam = engine === 'all' ? undefined : engine;
-  // Surface participates in the evidence key/request; the drill-down always
-  // reads the measurement surface ('') — surface discovery lives on the
-  // Visibility projection (`available_surfaces`), which this page never loads.
-  const surface = '';
-
   const evidenceQuery = useQuery({
     queryKey: queryKeys.products.evidence(product.id, {
       engine: engineParam ?? null,
-      surface,
       limit: EVIDENCE_LIMIT,
     }),
     queryFn: ({ signal }) =>
       productsApi.getProductEvidence(
         product.id,
-        { engine: engineParam, surface, limit: EVIDENCE_LIMIT },
+        { engine: engineParam, limit: EVIDENCE_LIMIT },
         { signal },
       ),
   });

@@ -178,7 +178,7 @@ export function summarizeProductVisibility(
 }
 
 // ---------------------------------------------------------------------------
-// Commerce v2 (analyzer v2 columns, feed health, surface slicing)
+// Commerce v2 (analyzer v2 columns and feed health)
 // ---------------------------------------------------------------------------
 
 /** Catalog origin badge labels (backend `Product.origin` vocabulary). */
@@ -195,9 +195,6 @@ export const BUYER_DESTINATION_KIND_LABELS: Record<BuyerDestinationKind, string>
   brand_site: 'Brand site',
   other: 'Other',
 };
-
-/** UI label for the measurement surface (`''` in `available_surfaces`). */
-export const MEASUREMENT_SURFACE_LABEL = 'Answer-engine APIs';
 
 /**
  * The analyzer-v1 version lineage (mirrors the backend config-owned
