@@ -106,6 +106,7 @@ async def test_snapshot_uses_only_latest_completed_analysis_and_issues(
                 technical_score=score,
                 aeo_score=score,
                 overall_score=score,
+                is_current=analysis_id == high_analysis_id,
                 created_at=same_created_at,
             )
             session.add(analysis)
