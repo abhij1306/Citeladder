@@ -64,8 +64,7 @@ class AcquisitionProvenance:
 
     This is deliberately metadata-only: it contains neither raw response
     content nor server credentials. ``options`` has only the small allowlisted,
-    transport-neutral option set used to reproduce the request shape (for the
-    browser rung: the readiness/capture bounds it ran under).
+    transport-neutral option set used to reproduce the request shape.
     """
 
     transport: str
@@ -206,7 +205,7 @@ class DnsResolver(Protocol):
 
 @runtime_checkable
 class AcquisitionTransport(Protocol):
-    """One rung in Site Health's server-owned acquisition ladder.
+    """The bounded, pinned Site Health acquisition transport.
 
     Implementations receive a target that the caller has already
     canonicalized, scope-checked, DNS-resolved, and pinned. They must preserve
@@ -226,7 +225,5 @@ class AcquisitionTransport(Protocol):
     async def aclose(self) -> None:
         """Release any transport-owned resources.
 
-        A rung backed only by per-request state has nothing to release; a rung
-        that owns OS processes or long-lived contexts must shut them down here,
-        because the fetcher closes every rung it constructed.
+        A transport backed only by per-request state has nothing to release.
         """

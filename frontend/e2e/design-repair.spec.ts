@@ -75,17 +75,20 @@ const readyDiscovery = {
     {
       topic_id: '77777777-7777-4777-8777-777777777771',
       name: 'Day Schools',
-      evidence_refs: ['page-1'],
+      description: '',
+      source_refs: ['page-1'],
     },
     {
       topic_id: '77777777-7777-4777-8777-777777777772',
       name: 'Boarding Schools',
-      evidence_refs: ['page-1'],
+      description: '',
+      source_refs: ['page-1'],
     },
     {
       topic_id: '77777777-7777-4777-8777-777777777773',
       name: 'School Admissions',
-      evidence_refs: ['page-1'],
+      description: '',
+      source_refs: ['page-1'],
     },
   ],
   prompt_suggestions: [],

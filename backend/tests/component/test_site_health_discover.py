@@ -1,4 +1,4 @@
-"""Discover phase: inventory admission, robots policy, sitemaps, the fetch ladder.
+"""Discover phase: inventory admission, robots policy, sitemaps, and fetching.
 
 Split from the former test_site_health_worker.py monolith; shared setup lives
 in ``site_health_worker_helpers``.
@@ -17,7 +17,6 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.connectors.web_evidence.contracts import ResolvedTarget
 from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
     ERROR_BOT_BLOCKED,
@@ -76,79 +75,12 @@ from tests.component.site_health_worker_helpers import (
     _configure_crawl,
     _FakeResolver,
     _html,
+    _HttpxHandlerTransport,
     _seed_analyze_ready,
     _seed_root_discover,
     _seed_runtime,
     _worker,
 )
-
-
-@pytest.mark.asyncio
-async def test_worker_reuses_and_closes_secure_http_client(
-    session_factory: async_sessionmaker[AsyncSession],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(site_health_settings, "browser_enabled", False)
-    worker = SiteHealthWorker(
-        session_factory=session_factory,
-        resolver=_FakeResolver(),
-        transport=httpx.MockTransport(lambda _request: httpx.Response(204)),
-    )
-
-    first_target = ResolvedTarget(
-        url="https://example.com/one",
-        scheme="https",
-        host="example.com",
-        port=443,
-        connect_ip="203.0.113.10",
-    )
-    second_target = ResolvedTarget(
-        url="https://example.com/two",
-        scheme="https",
-        host="example.com",
-        port=443,
-        connect_ip="203.0.113.10",
-    )
-    shared_client = worker._shared_http_client(first_target)
-    assert worker._shared_http_client(second_target) is shared_client
-    assert not shared_client.is_closed
-
-    await worker.aclose()
-    assert shared_client.is_closed
-
-
-@pytest.mark.asyncio
-async def test_worker_partitions_tls_clients_for_hostnames_sharing_an_ip(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """Different hostname certificates always get distinct TLS pools."""
-    worker = SiteHealthWorker(
-        session_factory=session_factory,
-        resolver=_FakeResolver(),
-        transport=httpx.MockTransport(lambda _request: httpx.Response(204)),
-    )
-    first = ResolvedTarget(
-        url="https://first.example/",
-        scheme="https",
-        host="first.example",
-        port=443,
-        connect_ip="203.0.113.10",
-    )
-    second = ResolvedTarget(
-        url="https://second.example/",
-        scheme="https",
-        host="second.example",
-        port=443,
-        connect_ip="203.0.113.10",
-    )
-
-    first_client = worker._shared_http_client(first)
-    second_client = worker._shared_http_client(second)
-
-    assert first_client is not second_client
-    await worker.aclose()
-    assert first_client.is_closed
-    assert second_client.is_closed
 
 
 @pytest.mark.asyncio
@@ -912,7 +844,7 @@ async def test_discover_robots_5xx_fails_unavailable_without_page_fetch(
         session_factory=session_factory,
         owner="p2-robots5xx",
         resolver=_FakeResolver(),
-        transport=httpx.MockTransport(handler),
+        transport=_HttpxHandlerTransport(handler),
     )
     await worker.run_until_idle()
 
@@ -1255,11 +1187,11 @@ async def test_plain_fetch_persists_one_attempt_row(
         assert row.status_code == 200
         assert row.outcome == FETCH_ATTEMPT_OUTCOME_SUCCESS
         assert row.artifact_id == artifact.id
-        assert row.acquisition_transport == "httpx"
+        assert row.acquisition_transport == "curl_cffi"
         assert row.acquisition_rung == 1
         assert row.acquisition_trigger == "initial"
         assert row.acquisition_options is None
-        assert artifact.acquisition_transport == "httpx"
+        assert artifact.acquisition_transport == "curl_cffi"
         assert artifact.acquisition_rung == 1
         assert artifact.acquisition_trigger == "initial"
         assert artifact.acquisition_options is None
@@ -1291,7 +1223,7 @@ async def test_plain_403_without_challenge_marker_stays_http_4xx(
         session_factory=session_factory,
         owner="p3-plain403",
         resolver=_FakeResolver(),
-        transport=httpx.MockTransport(handler),
+        transport=_HttpxHandlerTransport(handler),
     )
     await worker.run_until_idle()
 
@@ -1353,7 +1285,7 @@ async def test_bot_block_presents_blocked_via_bot_blocked_token(
         session_factory=session_factory,
         owner="p3-blocked",
         resolver=_FakeResolver(),
-        transport=httpx.MockTransport(handler),
+        transport=_HttpxHandlerTransport(handler),
     )
     await worker.run_until_idle()
 

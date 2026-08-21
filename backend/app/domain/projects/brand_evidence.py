@@ -25,14 +25,14 @@ from app.connectors.web_evidence.url_policy import UrlPolicyError, canonicalize
 from app.core.config.brand_evidence import (
     BRAND_EVIDENCE_CACHE_MAX_ENTRIES,
     BRAND_EVIDENCE_CACHE_SECONDS,
-    BRAND_EVIDENCE_COMMERCIAL_LINK_TERMS,
     BRAND_EVIDENCE_EDITORIAL_LINK_TERMS,
     BRAND_EVIDENCE_FALLBACK_PATHS,
     BRAND_EVIDENCE_MAX_PAGES,
     BRAND_EVIDENCE_MIN_WORDS,
+    BRAND_EVIDENCE_NAVIGATION_VERBS,
     BRAND_EVIDENCE_NEGATIVE_CACHE_SECONDS,
+    BRAND_EVIDENCE_OFFERING_HUB_TERMS,
     BRAND_EVIDENCE_TOTAL_TIMEOUT_SECONDS,
-    BRAND_EVIDENCE_USER_AGENT,
     BRAND_EVIDENCE_UTILITY_LINK_TERMS,
     BRAND_EVIDENCE_VERSION,
 )
@@ -96,9 +96,21 @@ def _link_terms(link: BrandEvidenceLink) -> set[str]:
     return set(_LINK_TOKEN.findall(text))
 
 
-def _commercial_navigation_links(page: BrandEvidencePage) -> list[BrandEvidenceLink]:
-    """Prefer explicit commerce links, then other non-editorial nav links."""
-    ranked: list[tuple[int, int, BrandEvidenceLink]] = []
+def _offering_navigation_links(page: BrandEvidencePage) -> list[BrandEvidenceLink]:
+    """Prefer links to where the business lists what it offers.
+
+    The previous ranker used a thirteen-term retail vocabulary (shop, catalog,
+    departments...). For a marketplace whose category rail is not in the header
+    it matched nothing real, so the four internal reads became the gift-card
+    store, a search stub and two login redirects -- four of five evidence pages
+    saying nothing about what the business sells. The offering-hub vocabulary
+    covers capabilities, practice areas, specialties, treatments, courses and
+    use cases as well as shop and catalog, so it hits for every business model.
+
+    A shallow path outranks a deep one: an offering INDEX is what is worth
+    reading, not one leaf of it.
+    """
+    ranked: list[tuple[int, int, int, BrandEvidenceLink]] = []
     for index, link in enumerate(page.navigation_links):
         terms = _link_terms(link)
         excluded = (
@@ -106,10 +118,13 @@ def _commercial_navigation_links(page: BrandEvidencePage) -> list[BrandEvidenceL
         )
         if terms & excluded:
             continue
-        priority = 0 if terms & BRAND_EVIDENCE_COMMERCIAL_LINK_TERMS else 1
-        ranked.append((priority, index, link))
-    ranked.sort(key=lambda item: (item[0], item[1]))
-    return [item[2] for item in ranked]
+        if link.label.casefold() in BRAND_EVIDENCE_NAVIGATION_VERBS:
+            continue
+        depth = len([part for part in urlsplit(link.url).path.split("/") if part])
+        priority = 0 if terms & BRAND_EVIDENCE_OFFERING_HUB_TERMS else 1
+        ranked.append((priority, depth, index, link))
+    ranked.sort(key=lambda item: (item[0], item[1], item[2]))
+    return [item[3] for item in ranked]
 
 
 def _selected_internal_links(
@@ -117,7 +132,7 @@ def _selected_internal_links(
 ) -> list[BrandEvidenceLink]:
     selected = [
         link
-        for link in (_commercial_navigation_links(page) if page is not None else [])
+        for link in (_offering_navigation_links(page) if page is not None else [])
         if link.url != homepage
     ]
     known = {homepage, *(link.url for link in selected)}
@@ -143,10 +158,7 @@ async def _gather(homepage: str) -> list[BrandEvidencePage]:
         seen_urls.add(page.url)
         pages.append(page)
 
-    async with SecureFetcher(
-        resolver=SystemDnsResolver(),
-        user_agent=BRAND_EVIDENCE_USER_AGENT,
-    ) as fetcher:
+    async with SecureFetcher(resolver=SystemDnsResolver()) as fetcher:
         home_page = await fetch_brand_page(homepage, fetcher=fetcher)
         if home_page is not None:
             home_page = replace(home_page, role="homepage")

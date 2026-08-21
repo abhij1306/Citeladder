@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.connectors.agent.client import AgentNotConfiguredError
 from app.connectors.agent.factory import create_model_gateway
@@ -21,8 +20,6 @@ from app.core.config.brand_discovery import (
     CAPTURE_METHOD_CRAWLER,
     CONTEXT_PROFILE_VERSION,
     DISCOVERY_RESEARCH_SYSTEM_PROMPT,
-    DISCOVERY_TOPIC_MAX,
-    DISCOVERY_TOPIC_MIN,
     KNOWLEDGE_STRENGTHS,
     MARKET_SCOPES,
     SECTORS,
@@ -35,8 +32,8 @@ from app.domain.projects.discovery_schemas import (
     DiscoveryCompetitorSuggestion,
     DiscoveryEvidence,
     DiscoveryProfile,
-    DiscoveryTopic,
 )
+from app.domain.projects.offering_harvest import harvest_offerings
 from app.domain.projects.onboarding.normalization import (
     InvalidWebsiteUrl,
     normalize_website_url,
@@ -45,6 +42,7 @@ from app.domain.projects.onboarding.site_resolution import (
     SiteNotFoundError,
     resolve_site,
 )
+from app.domain.projects.onboarding.topic_selection import select_topics
 
 # Verify more candidates than we can keep. Domain resolution is the main
 # source of loss, and it is not correlated with how good a competitor is, so a
@@ -52,20 +50,10 @@ from app.domain.projects.onboarding.site_resolution import (
 COMPETITOR_POOL_MULTIPLIER = 3
 
 
-class ResearchTopic(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(min_length=1, max_length=255)
-    evidence_refs: list[str] = Field(min_length=1)
-
-
 class ResearchEnvelope(BaseModel):
     status: Literal["ready", "insufficient_evidence"] = "ready"
     profile: DiscoveryProfile = Field(default_factory=DiscoveryProfile)
     competitors: list[DiscoveryCompetitorSuggestion] = Field(default_factory=list)
-    topics: list[ResearchTopic] = Field(
-        default_factory=list, max_length=DISCOVERY_TOPIC_MAX
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +61,7 @@ class ResearchResult:
     profile: dict
     competitors: list[dict]
     topics: list[dict]
+    offerings: list[dict]
     evidence: list[dict]
     warnings: list[str]
     provider: str
@@ -104,62 +93,6 @@ async def _site_evidence(site) -> BrandEvidence:
     except Exception:  # noqa: BLE001 - evidence is best-effort by contract
         return BrandEvidence()
     return evidence
-
-
-def _commercial_evidence_refs(evidence: BrandEvidence) -> set[str]:
-    return {
-        f"page-{index}"
-        for index, page in enumerate(evidence.pages, start=1)
-        if page.role == "commercial"
-    }
-
-
-def _admit_topic(
-    candidate: ResearchTopic,
-    *,
-    commercial_refs: set[str],
-    brand_key: str,
-    seen: set[str],
-) -> DiscoveryTopic | None:
-    name = " ".join(candidate.name.split())
-    key = name.casefold()
-    refs = list(dict.fromkeys(candidate.evidence_refs))
-    if not name or key in seen or (brand_key and brand_key in key):
-        return None
-    if not refs or any(ref not in commercial_refs for ref in refs):
-        return None
-    seen.add(key)
-    return DiscoveryTopic(topic_id=uuid.uuid4(), name=name, evidence_refs=refs)
-
-
-def _admitted_topics(
-    model_result: ResearchEnvelope | None,
-    evidence: BrandEvidence,
-    *,
-    brand_name: str,
-) -> list[DiscoveryTopic]:
-    """Admit only 3–5 distinct topics grounded in supplied commercial pages."""
-    if model_result is None or model_result.status != "ready":
-        return []
-    if len(model_result.topics) > DISCOVERY_TOPIC_MAX:
-        return []
-    commercial_refs = _commercial_evidence_refs(evidence)
-    brand_key = " ".join(brand_name.casefold().split())
-    seen: set[str] = set()
-    admitted = [
-        topic
-        for candidate in model_result.topics
-        if (
-            topic := _admit_topic(
-                candidate,
-                commercial_refs=commercial_refs,
-                brand_key=brand_key,
-                seen=seen,
-            )
-        )
-        is not None
-    ]
-    return admitted if len(admitted) >= DISCOVERY_TOPIC_MIN else []
 
 
 def _fallback_profile(*, brand_name: str, industry: str) -> DiscoveryProfile:
@@ -312,7 +245,6 @@ async def research_brand(
     subindustry: str,
     language_code: str,
     site,
-    industry_context: dict,
 ) -> ResearchResult:
     website_evidence = await _site_evidence(site)
     model_result, provider, model = await _research_model(
@@ -322,7 +254,6 @@ async def research_brand(
         subindustry=subindustry,
         primary_market=primary_market,
         language_code=language_code,
-        industry_context=industry_context,
         site_evidence=website_evidence.serialize()[
             : brand_discovery_settings.synthesis_evidence_max_chars
         ],
@@ -337,20 +268,51 @@ async def research_brand(
         model_available=model_result is not None,
         competitors_found=bool(verified),
     )
-    topics = _admitted_topics(model_result, website_evidence, brand_name=brand_name)
+    # Pass B owns topics. It reads the site's published offering list, which is
+    # harvested from pages already fetched -- no extra requests.
+    harvest = harvest_offerings(website_evidence.pages, brand_terms=[brand_name])
+    selection = await select_topics(
+        brand_name=brand_name,
+        brand_aliases=[],
+        competitors=[item.name for item in verified],
+        business_category=profile.category,
+        business_aliases=[*profile.category_aliases, *profile.category_options],
+        sector=profile.sector,
+        business_model=profile.business_model,
+        market=primary_market,
+        harvest=harvest,
+        page_evidence=_page_evidence(website_evidence),
+        # A recognised brand may name topics from prior knowledge when its site
+        # could not be read; an unrecognised one still may not.
+        allow_model_prior=profile.has_reliable_prior(),
+    )
+    warnings.extend(selection.warnings)
     evidence = _research_evidence(site, website_evidence, model_result, provider, model)
-    if not topics:
-        warnings.append("insufficient_commercial_topics")
     return ResearchResult(
         profile=profile.model_dump(),
         competitors=[item.model_dump() for item in verified],
-        topics=[topic.model_dump(mode="json") for topic in topics],
+        topics=[topic.model_dump(mode="json") for topic in selection.topics],
+        offerings=harvest.serialize(),
         evidence=evidence,
         warnings=list(dict.fromkeys(warnings)),
         provider=provider,
         model=model,
         pages_read=len(website_evidence.pages),
     )
+
+
+def _page_evidence(evidence: BrandEvidence) -> list[dict[str, str]]:
+    """Bounded per-page text for topic selection, keyed by the same refs."""
+    budget = brand_discovery_settings.topic_evidence_max_chars_per_page
+    return [
+        {
+            "evidence_ref": f"page-{index}",
+            "url": page.url,
+            "title": page.title,
+            "text": page.text[:budget],
+        }
+        for index, page in enumerate(evidence.pages, start=1)
+    ]
 
 
 def _customer_warnings(*, model_available: bool, competitors_found: bool) -> list[str]:
@@ -437,7 +399,6 @@ def _research_request(
     subindustry,
     primary_market,
     language_code,
-    industry_context,
     site_evidence="",
 ):
     # The industry pair is passed as a *hint* only. It used to supply the topic

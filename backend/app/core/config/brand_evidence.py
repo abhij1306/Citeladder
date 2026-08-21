@@ -15,19 +15,21 @@ so one hallucination propagates into every downstream surface.
 
 from typing import Final
 
-BRAND_EVIDENCE_USER_AGENT: Final = "CiteLadderBrandEvidenceBot/1.0"
-
-# One homepage plus a small set of commercial pages per draft. The budget is
+# One homepage plus a small set of offering pages per draft. The budget is
 # deliberately tight because this runs during onboarding.
 BRAND_EVIDENCE_REQUEST_TIMEOUT_SECONDS: Final = 5.0
 BRAND_EVIDENCE_TOTAL_TIMEOUT_SECONDS: Final = 12.0
 BRAND_EVIDENCE_MAX_REDIRECTS: Final = 3
 BRAND_EVIDENCE_MAX_HTML_BYTES: Final = 2_097_152
 BRAND_EVIDENCE_MAX_PAGES: Final = 5
-BRAND_EVIDENCE_MAX_NAVIGATION_LINKS: Final = 60
+# Every same-origin link on the page, not a document-order prefix of them. The
+# offering harvest ranks before it truncates, and a large catalogue homepage
+# carries hundreds of anchors with the real categories far past position 60.
+# These are short strings; the harvest, not this cap, decides what survives.
+BRAND_EVIDENCE_MAX_NAVIGATION_LINKS: Final = 400
 
 # Generic secondary paths used only to fill unused slots after homepage
-# navigation has supplied its commercial candidates.
+# navigation has supplied its offering candidates.
 BRAND_EVIDENCE_FALLBACK_PATHS: Final[tuple[str, ...]] = (
     "/about",
     "/about-us",
@@ -36,44 +38,199 @@ BRAND_EVIDENCE_FALLBACK_PATHS: Final[tuple[str, ...]] = (
     "/pricing",
 )
 
-# Link classification selects commercial navigation without encoding any
-# industry's actual categories. Unknown primary-navigation destinations are
-# eligible after explicit commercial links; editorial and account/utility
-# destinations are excluded from topic-originating evidence.
-BRAND_EVIDENCE_COMMERCIAL_LINK_TERMS: Final[frozenset[str]] = frozenset(
+# Where a business publishes "here is what we offer". The words differ by
+# industry -- a retailer says shop, a law firm says capabilities, a hospital
+# says specialties -- but the structure is the same everywhere, so one
+# vocabulary routes internal-page selection for every business model. This
+# replaces a thirteen-term retail list that selected a marketplace's gift-card
+# page, a search stub and two login redirects as its four "commercial" reads.
+# Entries must be single tokens as produced by ``[a-z0-9]+``: a path such as
+# ``/what-we-do`` tokenizes to {what, we, do}, so a hyphenated entry would never
+# match anything. Multi-word concepts are listed in their concatenated form and
+# by their distinctive part.
+BRAND_EVIDENCE_OFFERING_HUB_TERMS: Final[frozenset[str]] = frozenset(
     {
-        "book",
+        "capabilities",
+        "capability",
         "catalog",
+        "catalogue",
         "categories",
         "category",
+        "centres",
+        "centers",
         "collection",
+        "collections",
+        "courses",
         "departments",
+        "disciplines",
+        "expertise",
+        "industries",
+        "offerings",
+        "platform",
+        "practice",
+        "practices",
         "pricing",
-        "product",
         "products",
+        "programs",
+        "programmes",
+        "sectors",
         "services",
         "shop",
         "solutions",
+        "specialities",
+        "specialties",
         "store",
+        "treatments",
+        "whatwedo",
+        "usecases",
     }
 )
+
+# Link classification selects offering navigation without encoding any
+# industry's actual categories.
 BRAND_EVIDENCE_EDITORIAL_LINK_TERMS: Final[frozenset[str]] = frozenset(
     {"article", "blog", "guide", "insights", "journal", "news", "resources"}
 )
+# Things a company publishes ABOUT ITSELF. None of them is something a customer
+# wants, and on a large institutional site they outnumber the offering links by
+# an order of magnitude: one hospital homepage led with its entire investor
+# relations and board-of-directors tree, which filled the whole harvest budget
+# with "Shareholding Pattern" and "Unclaimed Dividends".
 BRAND_EVIDENCE_UTILITY_LINK_TERMS: Final[frozenset[str]] = frozenset(
     {
+        # account and transaction chrome
         "account",
-        "careers",
+        "basket",
         "cart",
-        "contact",
+        "checkout",
         "help",
         "login",
-        "privacy",
-        "sign-in",
+        "logout",
         "signin",
+        "signup",
+        "register",
+        "wishlist",
+        "orders",
+        # corporate, governance and investor relations
+        "about",
+        "accessibility",
+        "alumni",
+        "annualreport",
+        "awards",
+        "board",
+        "careers",
+        "complaints",
+        "contact",
+        "corporate",
+        "csr",
+        "dividend",
+        "esg",
+        "governance",
+        "investor",
+        "investors",
+        "leadership",
+        "legal",
+        "milestones",
+        "press",
+        "privacy",
+        "shareholding",
+        "sustainability",
         "terms",
     }
 )
+# Labels lifted from image alt text, and locale switchers. Neither is ever an
+# offering, and both appear on sites in every industry.
+BRAND_EVIDENCE_JUNK_LABEL_TERMS: Final[frozenset[str]] = frozenset(
+    {"image", "logo", "icon", "banner", "thumbnail", "img"}
+)
+BRAND_EVIDENCE_LOCALE_LABELS: Final[frozenset[str]] = frozenset(
+    {
+        "english",
+        "deutsch",
+        "français",
+        "francais",
+        "español",
+        "espanol",
+        "italiano",
+        "português",
+        "portugues",
+        "nederlands",
+        "svenska",
+        "dansk",
+        "norsk",
+        "suomi",
+        "polski",
+        "türkçe",
+        "turkce",
+        "русский",
+        "日本語",
+        "한국어",
+        "中文",
+        "简体中文",
+        "繁體中文",
+        "العربية",
+        "हिन्दी",
+    }
+)
+# A run of labels sharing a template -- "Ambulance in Chennai", "Ambulance in
+# Delhi", "Hapur, India", "Kheri, India" -- is one offering expressed once per
+# location, not many offerings. Keeping a few of each family preserves the
+# signal and stops a store locator or city index flooding the budget. Generic:
+# it needs no place-name list and works in any language.
+BRAND_EVIDENCE_MAX_NODES_PER_LABEL_FAMILY: Final = 3
+
+# Bare navigation verbs. They label a control, never an offering.
+BRAND_EVIDENCE_NAVIGATION_VERBS: Final[frozenset[str]] = frozenset(
+    {
+        "all",
+        "apply now",
+        "book now",
+        "browse",
+        "explore",
+        "get started",
+        "home",
+        "learn more",
+        "menu",
+        "more",
+        "new",
+        "offers",
+        "overview",
+        "read more",
+        "sale",
+        "search",
+        "see all",
+        "shop now",
+        "sign up",
+        "start now",
+        "view all",
+    }
+)
+
+# Harvest bounds. Ranking happens first; these decide how much survives.
+BRAND_EVIDENCE_MAX_OFFERING_NODES: Final = 60
+# No single site section may consume the budget. Grouping by first path segment
+# and capping is what stops an investor-relations tree crowding out clinical or
+# product navigation.
+BRAND_EVIDENCE_MAX_NODES_PER_PREFIX: Final = 8
+# Nor may one fetched PAGE consume the budget. A store locator, a city index or
+# a brand sitemap yields hundreds of shallow links that all pass every other
+# filter, and without this one such page buries the homepage's real rail.
+BRAND_EVIDENCE_MAX_NODES_PER_PAGE: Final = 25
+BRAND_EVIDENCE_OFFERING_LABEL_MAX_WORDS: Final = 6
+BRAND_EVIDENCE_OFFERING_LABEL_MIN_CHARS: Final = 3
+BRAND_EVIDENCE_OFFERING_MAX_PATH_DEPTH: Final = 3
+# Below this many surviving nodes the harvest is reported as empty and topic
+# selection falls back to page text alone.
+BRAND_EVIDENCE_MIN_OFFERING_NODES: Final = 3
+
+# Detail pages, not offering hubs: one phone model or one article is never a
+# topic.
+BRAND_EVIDENCE_DETAIL_PATH_PATTERN: Final = (
+    r"(?:/p/|/dp/|/product/|/item/|[?&]pid=|/blog/|/news/|/press/|/\d{4}/\d{2}/)"
+)
+# Partner, consultant and clinician directories otherwise dominate
+# professional-service and healthcare sites.
+BRAND_EVIDENCE_PERSON_LABEL_PATTERN: Final = r"^(?:dr|mr|mrs|ms|prof)\.?\s"
 
 # Text budget handed to the agent per page, and in total. Large enough to carry
 # a real self-description, small enough to keep the user message bounded.

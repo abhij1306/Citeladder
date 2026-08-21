@@ -327,12 +327,18 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
     barrier = asyncio.Barrier(2)
 
     def _agent_payload(topic: str) -> str:
+        # Each prompt opens with a different token. Generation caps how many
+        # prompts may share their first three words, so a stub that repeats one
+        # opening is rejected as templated and this test would never reach the
+        # grant at all.
         return json.dumps(
             {
                 "prompts": [
                     {
                         "topic_id": topic_id,
-                        "text": f"{topic} running shoes for {chr(97 + idx) * 20}",
+                        "text": (
+                            f"{chr(97 + idx) * 20} {topic} running shoes for buyers"
+                        ),
                         "intent": "discovery",
                     }
                     for idx in range(5)

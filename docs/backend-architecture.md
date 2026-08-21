@@ -163,20 +163,16 @@ toward the cap; excess creates return `workspace_limit_exceeded`.
 
 ## Site Health
 
-`connectors/web_evidence` is the only website acquisition boundary. The ladder
-is `secure_httpx -> curl_cffi -> patchright`, gated by config-owned evidence and
-resource limits.
-
-Patchright enforces both limits independently: Chromium CDP network events
-account for cumulative response bytes during acquisition, while rendered DOM
-serialization enforces the decoded-document cap before HTML crosses the driver
-boundary.
+`connectors/web_evidence` is the only website acquisition boundary. Its sole
+transport is SSRF-pinned `curl_cffi`, bounded by config-owned wire, decoded,
+timeout, redirect, admission, and scope limits.
 
 Site Health owns crawl, URL, task, attempt, artifact, evaluation, analysis,
 issue, change snapshot, event, and export persistence. `SitePageAnalysis` is the one
 page-understanding row. It stores scores, analyzer/scoring versions,
-`page_kind`, classifier version/evidence, and source IDs. It is append-only per
-artifact/analyzer version with one current row.
+`page_kind`, classifier version/evidence, and source IDs. It is UUID-identified
+and append-only; repeated analyses may reuse one immutable artifact, with one
+current row per page in a crawl.
 
 `SiteIssue` is the immutable failure-copy boundary. It freezes the catalog
 description and remediation alongside rule/analyzer versions at creation;
@@ -206,9 +202,8 @@ marker. Standard user-triggered crawls never create manual phase runs and procee
 snapshot and terminalization; starting an explicit development phase marks its
 crawl as manually controlled. The internal `input_mode=auto` token describes
 the standard user-triggered **Run new crawl** request; it is not a scheduled or
-autonomous crawl feature. The Site Health worker owns reusable secure HTTP
-clients partitioned by original origin, while each request continues to enforce
-the connector's DNS, pinned-IP, redirect, robots, scope, and host-gate controls.
+autonomous crawl feature. Each curl request continues to enforce the
+connector's DNS, pinned-IP, redirect, robots, scope, and host-gate controls.
 Sitemap observation inserts are bounded batched writes.
 The default host-gate concurrency and start spacing permit at least six request
 starts per second on a responsive host, while robots crawl-delay overrides
@@ -221,10 +216,9 @@ or HTTP attempt. Analysis falls back to its own secure fetch only when no
 complete current-extractor discovery artifact exists. A concurrent analysis is
 deferred through the existing PostgreSQL queue until its active discovery
 prerequisite commits, without recording a failure or consuming an acquisition
-attempt. `SiteFetchAttempt` remains the append-only owner for bounded per-crawl
-host rung outcomes: after two consecutive rung-1 `403`/`429` responses, rung 2
-is preferred for 20 acquisitions, then rung 1 is probed; success restores rung
-1 immediately. This adds no fetch-artifact column or mutable crawl-config state.
+attempt. `SiteFetchAttempt` remains the append-only owner for bounded curl call
+outcomes, and a host-level `429` cooldown prevents queued tasks from stampeding
+the same host. This adds no fetch-artifact column or mutable crawl-config state.
 
 Usable terminal Site Health evidence has one change-intelligence downstream DAG.
 A conflict-safe `change_intel` task selects the immediate persisted A/B pair,
@@ -308,15 +302,23 @@ Prompt generation, scheduled audits, provider attempts, and answer-engine
 measurements use existing queue owners and immutable evidence. Visibility does
 not write business truth.
 
-Onboarding topic discovery is the sole AI owner of the initial taxonomy. It
-admits three to five evidence-backed commercial topics, persists their UUIDs on
-the discovery record, and never pads a thin site with built-in categories.
-Prompt generation receives those persisted IDs and cannot create, rename,
-repair, or replace topics. Its initial portfolio is selected from 12 candidates
-as exactly eight organic prompts and two brand-diagnostic prompts, with every
-topic covered. Later library generation is also restricted to existing project
-topic IDs. See [`visibility-prompt.md`](visibility-prompt.md) for the complete
-runtime contract and model instructions.
+Onboarding topic selection is the sole AI owner of the initial taxonomy. A
+deterministic harvest reads the offering list the site already publishes -- its
+departments, products, capabilities, specialties or courses -- from pages
+already fetched, and the model selects and names topics from that list rather
+than inventing them. Topic count follows the evidence up to a cap; a site whose
+offering list cannot be read reports insufficient evidence instead of being
+padded with built-in categories.
+
+Prompt generation receives those persisted UUIDs and cannot create, rename,
+repair, or replace topics. It runs per topic in small batches, with the buyer
+register demonstrated by exemplars chosen for the brand's `business_model`, and
+a deterministic validator that rejects template lead-ins, pasted positioning,
+repeated openings, and brand leakage into the organic cohort. A topic that
+yields no usable prompt is reported as a warning, not a failure. Later library
+generation is also restricted to existing project topic IDs. See
+[`visibility-prompt.md`](visibility-prompt.md) for the complete runtime
+contract and model instructions.
 
 ## Growth Agent
 

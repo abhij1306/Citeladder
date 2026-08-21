@@ -158,9 +158,14 @@ async def test_connection_failure_retains_safe_curl_error_code(monkeypatch) -> N
 
 
 @pytest.mark.asyncio
-async def test_request_headers_override_defaults_case_insensitively(
+async def test_user_agent_is_left_to_the_impersonation_profile(
     monkeypatch,
 ) -> None:
+    """A caller UA is dropped rather than contradicting the TLS fingerprint.
+
+    Sending a crawler UA over a Chrome fingerprint makes Akamai reset the
+    HTTP/2 stream (curl 92), so the profile owns the header.
+    """
     captured: dict[str, str] = {}
 
     def session_factory(**kwargs):
@@ -168,9 +173,7 @@ async def test_request_headers_override_defaults_case_insensitively(
         return _Session(_Response())
 
     monkeypatch.setattr(curl_transport, "AsyncSession", session_factory)
-    transport = curl_transport.CurlCffiTransport(
-        impersonation_profile="chrome", user_agent="CiteLadder default"
-    )
+    transport = curl_transport.CurlCffiTransport(impersonation_profile="chrome")
     await transport.fetch(
         FetchRequest(
             url="https://example.com/",
@@ -183,5 +186,5 @@ async def test_request_headers_override_defaults_case_insensitively(
         timeout_seconds=5,
     )
 
-    assert captured["user-agent"] == "Workspace crawler"
+    assert "user-agent" not in captured
     assert "User-Agent" not in captured

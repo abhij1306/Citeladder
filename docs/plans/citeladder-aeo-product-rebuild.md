@@ -1079,10 +1079,10 @@ Website ──▶ Discover profile ──▶ User confirms/edits ICP + positioni
   `frontend/components/onboarding/onboarding-screen.tsx` / `review-step.tsx`
   (fields already exist on `DiscoveryProfile`: `target_audience`, `positioning`,
   `products_services` — no schema change).
-- Backend: discovery persists three to five canonical, evidence-backed topic
-  UUIDs. After confirmation, Pass 2 generates prompts only for those IDs and
-  persists the exact 8-organic/2-brand-diagnostic portfolio with project
-  creation. Returning to the ICP step invalidates any client preview;
+- Backend: discovery persists three to ten canonical, evidence-backed topic
+  UUIDs. After confirmation, prompt generation uses only those IDs and
+  persists up to 12 core prompts, two brand-diagnostic prompts, and one
+  comparison prompt with project creation. Returning to the ICP step invalidates any client preview;
   submitting again performs a fresh idempotent server generation. The complete
   shipped contract is [`visibility-prompt.md`](../visibility-prompt.md).
 - **Fix provenance — one contract, defined here and used everywhere.** Project creation marks
@@ -1565,10 +1565,9 @@ GET**, persisting separate artifacts keyed `(task_id, fetch_purpose)`:
 | cube27 | 22 | 56 | 2.5× (incl. redirects) |
 | flipkart | 150 admitted | **540** | 3.6× |
 
-flipkart is worst because of a **second** multiplier: rung-1 `httpx` returns **403 on 232
-attempts**, then rung-2 `curl_cffi` retries and succeeds (224×, avg **851ms**). So a flipkart
-page costs up to **four** HTTP round trips (discover 403 → discover curl → analyze 403 →
-analyze curl).
+The historical implementation added a second transport multiplier before the
+shared-artifact cutover. The shipped crawler now uses SSRF-pinned `curl_cffi`
+directly, so a URL never pays for a preliminary transport probe.
 
 **A naive "reuse the discover artifact" fix cannot work.** `SiteFetchArtifact` has **no raw HTML
 body column** and carries bounded normalized facts **for analyze tasks only**
@@ -1602,17 +1601,15 @@ against the same artifact rather than inserting a duplicate. Immutability holds 
 two referents, never mutated (invariant 4).
 
 **Transport handling — do not mutate `SiteCrawl.configuration`.** It is a **frozen** snapshot
-("Freezes the entitlement/config/rule/version snapshots"). Instead add **bounded per-crawl host
-observations** recording rung outcomes. The fallback/recovery rule is fixed: two consecutive
-rung-1 403/429 responses for a host prefer rung 2 for the next 20 acquisitions; then one rung-1
-probe is attempted. A successful probe immediately restores rung 1; another 403/429 starts a new
-20-acquisition interval. Timeouts/5xx remain normal retry evidence and do not pin a transport.
+("Freezes the entitlement/config/rule/version snapshots"). Append-only attempt rows record the
+sole curl transport's bounded outcomes. A host-level 429 cooldown slows every queued task for the
+host, while timeouts and 5xx responses retain the ordinary task retry policy.
 
 Re-measure wall time and request count on all three sites; record before/after in the PR.
 
 **Documentation update (SH-2):** update `site-health.md` and `backend-architecture.md` with the
-single-acquisition ownership, artifact reuse/fallback, extractor-version gate, and host-rung
-observation/recovery policy; update the evaluation artifact with request amplification and wall
+single-acquisition ownership, artifact reuse/fallback, extractor-version gate, and host cooldown
+policy; update the evaluation artifact with request amplification and wall
 time; record proof that no fetch-artifact schema widening occurred.
 
 ### SH-3 — flipkart was not "stuck": it was blocked, and the UI could not say so

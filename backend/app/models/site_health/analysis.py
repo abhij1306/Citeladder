@@ -49,30 +49,22 @@ class SitePageAnalysis(Base):
     analyzer/scoring versions, the generic ``page_kind``, and the source
     evaluation/artifact ID arrays for full provenance.
 
-    APPEND-ONLY, keyed by ``(artifact_id, analyzer_version)`` with one
-    ``is_current`` row per artifact. Recomputing the same artifact under a NEW
-    analyzer version writes a NEW row rather than mutating the old one, so a
-    re-analysis never silently reinterprets history. A read API renders the
-    frozen version on the row it loads.
+    APPEND-ONLY, with its own UUID identity and one ``is_current`` row per page
+    in a crawl. ``artifact_id`` is provenance and may be reused by repeated
+    analyses of the same immutable discovery evidence.
 
     ``PageUnderstanding`` is this row's API/DTO name, NOT a second table.
     """
 
     __tablename__ = "site_page_analyses"
     __table_args__ = (
-        # The append-only identity. ``artifact_id`` alone is deliberately NOT
-        # unique: one artifact legitimately has several analyses, one per
-        # analyzer version.
-        UniqueConstraint(
-            "artifact_id",
-            "analyzer_version",
-            name="uq_site_page_analysis_version",
-        ),
-        # One current row per artifact, enforced by the database rather than by
-        # convention, so a failed supersede can never leave two live rows.
+        # The UUID primary key owns row identity. This page-scoped constraint
+        # matches the writer's supersede boundary without making reusable
+        # artifact provenance unique.
         Index(
             "uq_site_page_analysis_current",
-            "artifact_id",
+            "crawl_id",
+            "site_url_id",
             unique=True,
             postgresql_where=text("is_current"),
         ),
@@ -125,8 +117,7 @@ class SitePageAnalysis(Base):
     # detail "why this type?" disclosure.
     page_kind_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    # --- Pack-governed industry role (independent of page_kind) ----------
-    # Exactly one live row per artifact (see the partial unique index above).
+    # Exactly one live row per page within a crawl (see the partial index).
     is_current: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Source provenance arrays (evaluation + artifact IDs).

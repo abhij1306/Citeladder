@@ -3713,18 +3713,13 @@ def upgrade() -> None:
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "artifact_id",
-            "analyzer_version",
-            name="uq_site_page_analysis_version",
-        ),
     )
-    # One live understanding per artifact, enforced by the database so a failed
-    # supersede cannot leave two current rows behind.
+    # Artifact IDs are reusable provenance. The row UUID is the analysis
+    # identity, with one current understanding per page in a crawl.
     op.create_index(
         "uq_site_page_analysis_current",
         "site_page_analyses",
-        ["artifact_id"],
+        ["crawl_id", "site_url_id"],
         unique=True,
         postgresql_where=sa.text("is_current"),
     )

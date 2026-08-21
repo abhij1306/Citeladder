@@ -196,9 +196,6 @@ def _evidence_statement(
         stmt = stmt.where(AuditPromptSnapshot.prompt_id == prompt_id)
     if logical_engine is not None:
         stmt = stmt.where(ResponseAnalysis.logical_engine == logical_engine)
-    # `core` is a view over new core rows plus legacy organic cohort values.
-    # Keeping historical rows readable does not authorize new writes using the
-    # superseded cohort taxonomy.
     stmt = stmt.where(
         ResponseAnalysis.cohort.in_(
             tuple(ORGANIC_PROMPT_COHORTS) if cohort == PROMPT_COHORT_CORE else (cohort,)

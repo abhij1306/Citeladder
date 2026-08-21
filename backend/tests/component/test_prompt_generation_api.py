@@ -532,7 +532,10 @@ def _agent_response_with_n_prompts(
     """A single-topic response carrying ``n`` distinct prompts.
 
     Texts embed the topic so responses from different runs never collide on
-    the per-set dedupe hash (letting a test insert fresh rows each run).
+    the per-set dedupe hash (letting a test insert fresh rows each run), and
+    each opens with a different token: generation caps how many prompts may
+    share their first three words, so a stub that repeats one opening is
+    rejected as templated rather than accepted as a batch.
     """
     text_prefix = discriminator or topic
     return json.dumps(
@@ -543,7 +546,8 @@ def _agent_response_with_n_prompts(
                     "prompts": [
                         {
                             "text": (
-                                f"{text_prefix} running shoes for {chr(97 + i) * 20}"
+                                f"{chr(97 + i) * 20} {text_prefix} running "
+                                "shoes for buyers"
                             ),
                             "intent": "discovery",
                         }
@@ -631,9 +635,18 @@ async def test_generate_counts_intra_response_duplicates(
                     {
                         "name": "Running Shoes",
                         "prompts": [
-                            {"text": "Best Shoes?", "intent": "discovery"},
-                            {"text": "best  shoes", "intent": "discovery"},
-                            {"text": "hiking shoes", "intent": "discovery"},
+                            {
+                                "text": "Best running shoes for flat feet?",
+                                "intent": "discovery",
+                            },
+                            {
+                                "text": "best  running shoes for flat feet",
+                                "intent": "discovery",
+                            },
+                            {
+                                "text": "hiking shoes for wet weather trails",
+                                "intent": "discovery",
+                            },
                         ],
                     }
                 ]
@@ -678,9 +691,11 @@ async def test_generate_bounds_existing_prompt_context(
     )
     assert resp.status_code == 201
     sent = agent.calls[0]["user"]
-    # Only the first 3 existing prompts appear in the "do NOT duplicate" block.
+    # Only the most recent 3 existing prompts appear in the "do NOT duplicate"
+    # block: the context is the tail of the set, so 3, 4 and 5 are sent and the
+    # older 0, 1 and 2 are left out.
     included = [i for i in range(6) if f"existing acme context prompt {i}" in sent]
-    assert len(included) == 3
+    assert included == [3, 4, 5]
 
 
 @pytest.mark.asyncio

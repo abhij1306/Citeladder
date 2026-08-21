@@ -116,6 +116,12 @@ def test_default_host_policy_allows_six_starts_per_second():
     assert site_health_settings.per_host_delay_seconds <= 1 / 6
 
 
+@pytest.mark.parametrize("cooldown", [0, -1])
+def test_rate_limit_fallback_cooldown_must_be_positive(cooldown: float) -> None:
+    with pytest.raises(ValidationError, match="rate_limit_cooldown_seconds"):
+        SiteHealthSettings(rate_limit_cooldown_seconds=cooldown)
+
+
 def test_automatic_page_limit_must_fit_public_maximum():
     with pytest.raises(
         ValidationError,

@@ -2,7 +2,7 @@
 
 The focused Site Health owners retain crawl/fetch policy and the base page
 taxonomy.  This small companion owns only the product-page fields and rules
-that can evolve independently of the acquisition ladder.  Analysis modules
+that can evolve independently of website acquisition. Analysis modules
 read these tables; they do not embed product-schema policy inline.
 """
 
@@ -31,7 +31,7 @@ PAGE_PROFILE_RULE_VERSION: Final = f"{RULE_CATALOG_VERSION}-product-1"
 
 # Product / Offer property paths retained by the bounded structured-data
 # extractor.  These are intentionally separate from the generic per-type
-# expectation table so fetch-ladder work does not need to touch it.
+# expectation table so acquisition work does not need to touch it.
 PRODUCT_SCHEMA_PROPERTY_PATHS: Final[frozenset[str]] = frozenset(
     {
         "sku",

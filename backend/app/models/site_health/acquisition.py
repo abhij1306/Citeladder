@@ -153,15 +153,14 @@ class SiteFetchArtifact(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     wire_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     decoded_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Provenance of the terminal successful acquisition rung. Attempt rows hold
-    # the complete ladder; this repeats the winning safe metadata for direct
-    # artifact reads without joining attempts.
+    # Safe acquisition provenance repeated for direct artifact reads without
+    # joining attempt rows. ``acquisition_rung`` is retained as a stable
+    # persisted field and is always 1 for the sole curl transport.
     acquisition_transport: Mapped[str] = mapped_column(String(32), default="")
     acquisition_rung: Mapped[int | None] = mapped_column(Integer, nullable=True)
     acquisition_trigger: Mapped[str] = mapped_column(String(32), default="")
     impersonation_profile: Mapped[str] = mapped_column(String(64), default="")
-    # Bounded, transport-neutral options describing the winning rung's request
-    # shape (never a credential, never a vendor request id).
+    # Bounded, transport-neutral request options (never credentials or IDs).
     acquisition_options: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     acquisition_policy_version: Mapped[str] = mapped_column(String(32), default="")
     extractor_version: Mapped[str] = mapped_column(String(32), default="")

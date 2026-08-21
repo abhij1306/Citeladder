@@ -31,7 +31,7 @@ must not be reintroduced as parallel owners.
 ```text
 explicit user Run new crawl -> seed + sitemap + internal links
   -> URL admission and corpus disposition
-  -> secure_httpx -> curl_cffi -> patchright acquisition ladder
+  -> SSRF-pinned curl_cffi acquisition
   -> immutable fetch attempt and artifact
   -> bounded normalized HTML/delivery/structured-data facts
   -> deterministic page_kind assessment
@@ -81,12 +81,9 @@ repair lifecycle state, or call a model.
   exist (including a Free sample analyze-only URL), analysis uses the normal
   secure acquisition fallback. An analyze task that races an active discovery
   task is durably deferred without consuming a network-attempt budget.
-- Append-only fetch-attempt rows are also the bounded per-crawl host transport
-  observations; the frozen crawl configuration is never mutated. Two
-  consecutive rung-1 `403`/`429` outcomes prefer rung 2 for the next 20 host
-  acquisitions, followed by one rung-1 recovery probe. A successful probe
-  immediately restores rung 1; another `403`/`429` starts a fresh interval.
-  Timeouts and `5xx` evidence use ordinary retry policy and never pin a rung.
+- Append-only fetch-attempt rows retain each curl call's bounded delivery and
+  error provenance. A host-level `429` cooldown gates new starts while task
+  retries retain their ordinary bounded queue policy.
 - Anchor extraction may repair an encoded query delimiter only when the first
   encoded suffix key is a config-owned tracking parameter. That boundary-only
   rewrite interprets encoded `=` and `&` separators in the identified query,
@@ -260,8 +257,9 @@ missing-content issues.
 
 ## Provenance
 
-`SitePageAnalysis` is append-only per artifact and analyzer version. Rule rows
-carry rule version and exact source IDs. Any change to extraction,
+`SitePageAnalysis` is UUID-identified and append-only. Repeated analyses may
+reference the same immutable artifact; only one row per page in a crawl is
+current. Rule rows carry rule version and exact source IDs. Any change to extraction,
 classification, analysis semantics, or the rule catalog must bump its config
 version so an old artifact is never silently reinterpreted as the same result.
 

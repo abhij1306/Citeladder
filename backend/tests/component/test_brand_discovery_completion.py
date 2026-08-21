@@ -71,7 +71,8 @@ async def _seed_ready_discovery(
         {
             "topic_id": str(uuid.uuid4()),
             "name": name,
-            "evidence_refs": ["page-1"],
+            "description": "",
+            "source_refs": ["nav-1"],
         }
         for name in ("Workflow Analytics", "Process Mining", "Journey Analysis")
     ]

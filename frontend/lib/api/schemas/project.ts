@@ -30,13 +30,7 @@ export const promptIntentSchema = z.enum([
 // Prompt library lifecycle. Measurement still requires an explicit audit run
 // or schedule; generated prompts do not need a second approval state.
 export const promptStatusSchema = z.enum(['active', 'archived']);
-export const promptCohortSchema = z.enum([
-  'market_visibility',
-  'brand_relevant',
-  'brand_diagnostic',
-  'core',
-  'comparison',
-]);
+export const promptCohortSchema = z.enum(['core', 'brand_diagnostic', 'comparison']);
 
 // Backend `PromptResponse.theme` is a non-null string (empty when unset), so
 // the wire value is always a string — never null.

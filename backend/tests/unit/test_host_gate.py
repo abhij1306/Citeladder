@@ -91,3 +91,32 @@ async def test_successive_starts_are_spaced_by_the_delay(
     # Tolerance for timer granularity (a Windows tick is ~15ms): the assertion
     # is "clearly paced", not "paced to the millisecond".
     assert abs(starts[1] - starts[0]) >= 0.08
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("retry_after, expected", [(None, 2.0), (10.0, 3.0)])
+async def test_rate_limit_cooldown_uses_fallback_and_clamps_retry_after(
+    monkeypatch: pytest.MonkeyPatch,
+    retry_after: float | None,
+    expected: float,
+) -> None:
+    now = 100.0
+    sleeps: list[float] = []
+
+    async def advance(delay: float) -> None:
+        nonlocal now
+        sleeps.append(delay)
+        now += delay
+
+    monkeypatch.setattr("app.workers.site_health.host_gate.time.monotonic", lambda: now)
+    monkeypatch.setattr("app.workers.site_health.host_gate.asyncio.sleep", advance)
+    monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 0.0)
+    monkeypatch.setattr(site_health_settings, "rate_limit_cooldown_seconds", 2.0)
+    monkeypatch.setattr(site_health_settings, "max_crawl_delay_seconds", 3.0)
+    gate = HostGate()
+
+    gate.note_rate_limited("example.com", retry_after)
+    async with gate.slot("example.com", "https://example.com/"):
+        pass
+
+    assert sleeps == [expected]

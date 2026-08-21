@@ -16,6 +16,12 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.connectors.web_evidence.contracts import (
+    AcquisitionTransport,
+    FetchRequest,
+    FetchResult,
+    ResolvedTarget,
+)
 from app.core.config.entitlements import (
     CAPABILITY_REGISTRY_REVISION,
 )
@@ -115,11 +121,53 @@ class _ByteStream(httpx.AsyncByteStream):
         return None
 
 
+class _HttpxHandlerTransport(AcquisitionTransport):
+    """Adapt existing offline HTTP handlers to the acquisition contract."""
+
+    def __init__(self, handler) -> None:
+        self._handler = handler
+
+    async def fetch(
+        self,
+        request: FetchRequest,
+        target: ResolvedTarget,
+        *,
+        max_wire_bytes: int,
+        max_decoded_bytes: int,
+        timeout_seconds: float,
+    ) -> FetchResult:
+        del timeout_seconds
+        response = self._handler(
+            httpx.Request(request.method, target.url, headers=request.headers)
+        )
+        body = await response.aread()
+        if len(body) > max_wire_bytes or len(body) > max_decoded_bytes:
+            raise AssertionError("offline response exceeded configured test bounds")
+        content_type = response.headers.get("content-type", "").split(";", 1)[0]
+        return FetchResult(
+            requested_url=request.url,
+            final_url=target.url,
+            status_code=response.status_code,
+            redacted_headers=dict(response.headers),
+            content_type=content_type,
+            http_version=response.http_version or "HTTP/1.1",
+            body=body,
+            wire_bytes=len(body),
+            decoded_bytes=len(body),
+            ttfb_ms=1,
+            latency_ms=1,
+            redirect_location=response.headers.get("location", ""),
+        )
+
+    async def aclose(self) -> None:
+        return None
+
+
 def _site_transport(
     pages: dict[str, bytes | tuple[bytes, dict[str, str]]],
     *,
     requests: list[tuple[str, str]] | None = None,
-) -> httpx.MockTransport:
+) -> AcquisitionTransport:
     """A mock transport serving ``pages`` (keyed by path) as text/html.
 
     Values are either raw body bytes (served with a bare text/html content
@@ -152,7 +200,7 @@ def _site_transport(
             stream=_ByteStream(body),
         )
 
-    return httpx.MockTransport(handler)
+    return _HttpxHandlerTransport(handler)
 
 
 async def _configure_crawl(

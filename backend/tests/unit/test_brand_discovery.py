@@ -2,41 +2,50 @@
 
 from __future__ import annotations
 
-import uuid
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 
-from app.connectors.web_evidence.brand_evidence import BrandEvidencePage
-from app.core.config.brand_discovery import (
-    DISCOVERY_PROMPT_MAX_WORDS,
-    _discovery_research_system_prompt,
-    _onboarding_portfolio_system_prompt,
+from app.connectors.web_evidence.brand_evidence import (
+    BrandEvidenceLink,
+    BrandEvidencePage,
 )
-from app.domain.projects.brand_evidence import BrandEvidence
+from app.core.config.brand_discovery import _discovery_research_system_prompt
+from app.core.config.visibility_prompts import (
+    MODEL_PRIOR_SOURCE_REF,
+    TEMPLATE_LEAD_INS,
+    TOPIC_SELECTION_SYSTEM_PROMPT,
+    VISIBILITY_PROMPT_MAX_WORDS,
+    prompt_system_prompt,
+)
 from app.domain.projects.discovery_schemas import (
     BrandDiscoveryCreate,
     CompetitorQualification,
     ConfirmedDiscoveryProfile,
     DiscoveryCompetitorSuggestion,
 )
+from app.domain.projects.offering_harvest import harvest_offerings
 from app.domain.projects.onboarding.normalization import (
     InvalidWebsiteUrl,
     normalize_primary_market,
     normalize_website_url,
 )
-from app.domain.projects.onboarding.portfolio_generation import _parsed_prompts
-from app.domain.projects.onboarding.prompt_validation import select_portfolio
+from app.domain.projects.onboarding.prompt_validation import (
+    PortfolioValidator,
+    brand_terms,
+    market_terms,
+    ordered_portfolio,
+    positioning_shingles,
+)
 from app.domain.projects.onboarding.research import (
-    ResearchEnvelope,
-    ResearchTopic,
-    _admitted_topics,
     _customer_warnings,
     _is_peer_company,
 )
 from app.domain.projects.onboarding.service import discovery_catalog
 from app.domain.projects.onboarding.site_resolution import resolve_site
+from app.domain.projects.onboarding.topic_admission import admit_topics
+from app.domain.prompts.style import words as _words
 
 
 def _profile() -> dict:
@@ -103,216 +112,452 @@ def test_services_firm_does_not_accept_product_vendor_as_peer() -> None:
     assert _is_peer_company(_competitor(None), brand_model="professional_service")
 
 
-def test_research_prompt_owns_three_to_five_evidence_backed_topics() -> None:
+def test_research_prompt_no_longer_owns_topics() -> None:
+    """Topic selection is its own pass; the research prompt must not compete."""
     prompt = _discovery_research_system_prompt()
-    assert "three to five" in prompt
-    assert "fewer than three" in prompt
-    assert "Evidence ref" in prompt
-    assert "Do not generate search prompts" in prompt
+    assert "TOPICS." not in prompt
+    assert "COMPETITORS must be substitutable" in prompt
 
 
-def test_portfolio_prompt_requires_short_buyer_queries() -> None:
-    prompt = _onboarding_portfolio_system_prompt()
+def test_topic_prompt_asks_for_selection_not_invention() -> None:
+    prompt = TOPIC_SELECTION_SYSTEM_PROMPT
+    assert "SELECT, MERGE, and NAME - do not invent" in prompt
+    assert "offering_candidates" in prompt
+    # The exact failure the old contract shipped is named as a non-example.
+    assert "Ecommerce Marketplace" in prompt
+    assert "insufficient_evidence" in prompt
 
-    assert f"2 to {DISCOVERY_PROMPT_MAX_WORDS} words" in prompt
-    assert "shortest query" in prompt
-    assert "Never paste the target audience" in prompt
+
+def test_prompt_instruction_shows_register_for_the_business_kind() -> None:
+    """A law firm's prompts must not be taught with shopping examples."""
+    legal = prompt_system_prompt("professional_service")
+    retail = prompt_system_prompt("retail")
+    assert "redundancy dispute" in legal
+    assert "cheap baby clothes in bulk" not in legal
+    assert "cheap baby clothes in bulk" in retail
+    assert f"{VISIBILITY_PROMPT_MAX_WORDS} words" in retail
+    # An unknown facet still gets a concrete register rather than nothing.
+    assert "GOOD" in prompt_system_prompt("")
 
 
-def _evidence() -> BrandEvidence:
-    return BrandEvidence(
-        pages=(
-            BrandEvidencePage(
-                url="https://acme.example",
-                title="Acme",
-                meta_description="",
-                text="Shoes, clothing, and bags for families.",
-                role="commercial",
-            ),
-        )
+def _candidate(name: str, refs: list[str] | None = None) -> dict:
+    return {"name": name, "description": "", "source_refs": refs or ["nav-1"]}
+
+
+def _admit(names: list[str], **kwargs) -> list[str]:
+    topics = admit_topics(
+        [_candidate(name) for name in names],
+        known_refs=kwargs.get("known_refs", {"nav-1"}),
+        forbidden_terms=kwargs.get("forbidden_terms", ["Acme"]),
+        business_terms=kwargs.get("business_terms", []),
     )
+    return [topic.name for topic in topics]
 
 
-def _research(topics: list[ResearchTopic], status: str = "ready") -> ResearchEnvelope:
-    return ResearchEnvelope(
-        status=status,
-        profile=_profile(),
-        topics=topics,
-    )
+def test_forbidden_terms_match_complete_tokens_and_phrases() -> None:
+    assert _admit(
+        ["Hair Care", "Air Purifiers", "Nail Care", "AI", "Enterprise AI Tools"],
+        forbidden_terms=["AI"],
+    ) == ["Hair Care", "Air Purifiers", "Nail Care"]
 
 
-def test_pass_one_admits_three_to_five_topics_and_assigns_uuid() -> None:
-    topics = [
-        ResearchTopic(name=name, evidence_refs=["page-1"])
-        for name in ("Footwear", "Family Clothing", "Travel Bags")
-    ]
-
-    admitted = _admitted_topics(_research(topics), _evidence(), brand_name="Acme")
-
-    assert [topic.name for topic in admitted] == [
-        "Footwear",
-        "Family Clothing",
-        "Travel Bags",
-    ]
-    assert all(isinstance(topic.topic_id, uuid.UUID) for topic in admitted)
-
-
-def test_pass_one_rejects_too_few_or_unbound_topics_without_padding() -> None:
-    too_few = [
-        ResearchTopic(name="Footwear", evidence_refs=["page-1"]),
-        ResearchTopic(name="Bags", evidence_refs=["page-1"]),
-    ]
-    bad_ref = [
-        ResearchTopic(name=name, evidence_refs=["missing"])
-        for name in ("Footwear", "Clothing", "Bags")
-    ]
-
-    assert not _admitted_topics(_research(too_few), _evidence(), brand_name="Acme")
-    assert not _admitted_topics(_research(bad_ref), _evidence(), brand_name="Acme")
-
-
-def test_pass_one_skips_invalid_candidates_when_three_grounded_topics_remain() -> None:
-    topics = [
-        ResearchTopic(name="Acme Footwear", evidence_refs=["page-1"]),
-        ResearchTopic(name="Footwear", evidence_refs=["page-1"]),
-        ResearchTopic(name="Family Clothing", evidence_refs=["missing"]),
-        ResearchTopic(name="Travel Bags", evidence_refs=["page-1"]),
-        ResearchTopic(name="Family Clothing", evidence_refs=["page-1"]),
-    ]
-
-    admitted = _admitted_topics(_research(topics), _evidence(), brand_name="Acme")
-
-    assert [topic.name for topic in admitted] == [
-        "Footwear",
-        "Travel Bags",
-        "Family Clothing",
-    ]
-
-
-def test_pass_one_topic_schema_forbids_prompt_owned_fields() -> None:
-    with pytest.raises(ValidationError):
-        ResearchTopic.model_validate(
-            {
-                "name": "Footwear",
-                "evidence_refs": ["page-1"],
-                "customer_need": "Buy shoes",
-            }
-        )
-
-
-def test_pass_two_drops_rows_that_try_to_output_a_theme() -> None:
-    assert not _parsed_prompts(
-        {
-            "prompts": [
-                {
-                    "topic_id": str(uuid.uuid4()),
-                    "text": "best walking shoes",
-                    "intent": "discovery",
-                    "cohort": "organic",
-                    "theme": "model invented topic",
-                }
+def test_admission_rejects_the_topics_that_shipped_to_a_real_customer() -> None:
+    """The exact five-row output that made this contract necessary."""
+    assert (
+        _admit(
+            [
+                "Online Retail",
+                "Ecommerce Marketplace",
+                "Online General Merchandise",
+                "Online Department Store",
+                "Consumer Goods Online Store",
             ]
-        }
-    )
-
-
-def _portfolio_candidates(topic_ids: list[str]) -> list[dict]:
-    organic_texts = (
-        "what should I look for when choosing everyday footwear",
-        "which family clothing options work well across seasons",
-        "how do I choose a durable bag for frequent travel",
-        "what footwear is comfortable for long days of walking",
-        "which clothing materials are easiest for families to maintain",
-        "what features matter most in cabin luggage",
-        "where can I find supportive shoes for daily commuting",
-        "how should I compare clothing quality before buying online",
-        "which travel bags balance low weight and useful storage",
-        "what makes a shoe suitable for both work and weekends",
-    )
-    prompts = []
-    for index, text in enumerate(organic_texts):
-        prompts.append(
-            {
-                "topic_id": topic_ids[index % len(topic_ids)],
-                "text": text,
-                "cohort": "organic",
-                "intent": "discovery" if index % 2 == 0 else "purchase",
-            }
         )
-    prompts.extend(
+        == []
+    )
+
+
+def test_provider_rule_only_rejects_names_that_are_wholly_provider_words() -> None:
+    """Substring containment rejected real departments on real retailers."""
+    assert _admit(["School Uniforms", "Bank Holidays", "Online Payments"]) == [
+        "School Uniforms",
+        "Bank Holidays",
+        "Online Payments",
+    ]
+
+
+def test_admission_keeps_what_customers_actually_shop_for() -> None:
+    assert _admit(
+        ["Kids Clothing", "Air Conditioners", "Knee Replacement", "Payment Links"]
+    ) == ["Kids Clothing", "Air Conditioners", "Knee Replacement", "Payment Links"]
+
+
+def test_admission_allows_buyer_qualifiers_the_old_contract_banned() -> None:
+    """Cheap, affordable and price bounds are how demand is really expressed."""
+    names = _admit(
+        ["Mobile Phones Under 25000", "Affordable Winter Jackets", "Emergency Plumbing"]
+    )
+    assert len(names) == 3
+
+
+def test_admission_collapses_restatements_of_one_topic() -> None:
+    names = _admit(["Air Conditioners", "Air Conditioner", "Footwear", "Homewares"])
+    assert names == ["Air Conditioners", "Footwear", "Homewares"]
+
+
+def test_recognised_brand_keeps_topics_with_no_resolvable_evidence() -> None:
+    """adidas: the site 403s, but the model knows the brand.
+
+    Refusing here contradicted the same run's profile pass, which named the
+    category and five competitors from that identical prior knowledge.
+    """
+    topics = admit_topics(
         [
-            {
-                "topic_id": topic_ids[0],
-                "text": "is Acme good for everyday use",
-                "cohort": "brand_context",
-                "intent": "discovery",
-            },
-            {
-                "topic_id": topic_ids[-1],
-                "text": "should I buy this from Acme",
-                "cohort": "brand_context",
-                "intent": "purchase",
-            },
+            _candidate("Running Shoes", ["missing"]),
+            _candidate("Football Boots", []),
+            _candidate("Training Apparel", ["missing"]),
+        ],
+        known_refs=set(),
+        forbidden_terms=["Adidas"],
+        business_terms=[],
+        allow_model_prior=True,
+    )
+    assert [topic.name for topic in topics] == [
+        "Running Shoes",
+        "Football Boots",
+        "Training Apparel",
+    ]
+    # Provenance stays legible: none of these came from a page we fetched.
+    assert {ref for topic in topics for ref in topic.source_refs} == {
+        MODEL_PRIOR_SOURCE_REF
+    }
+
+
+def test_unrecognised_brand_still_requires_real_evidence() -> None:
+    """The permission is narrow: without recognition nothing changes."""
+    assert (
+        admit_topics(
+            [
+                _candidate("Running Shoes", ["missing"]),
+                _candidate("Football Boots", []),
+                _candidate("Training Apparel", ["missing"]),
+            ],
+            known_refs=set(),
+            forbidden_terms=[],
+            business_terms=[],
+            allow_model_prior=False,
+        )
+        == []
+    )
+
+
+def test_recognised_brand_still_prefers_real_refs_when_they_resolve() -> None:
+    """A page-backed topic keeps its page ref rather than being stamped."""
+    topics = admit_topics(
+        [_candidate("Running Shoes"), _candidate("Bags"), _candidate("Hats")],
+        known_refs={"nav-1"},
+        forbidden_terms=[],
+        business_terms=[],
+        allow_model_prior=True,
+    )
+    assert {ref for topic in topics for ref in topic.source_refs} == {"nav-1"}
+
+
+def test_admission_keeps_departments_that_merely_look_alike() -> None:
+    """Character similarity would merge these; token identity must not."""
+    names = _admit(["Women's Footwear", "Men's Footwear", "Kids' Footwear"])
+    assert len(names) == 3
+
+
+def test_admission_drops_brand_and_unbound_evidence_without_padding() -> None:
+    assert _admit(["Acme Footwear", "Footwear", "Bags"]) == []
+    assert (
+        admit_topics(
+            [
+                _candidate("Footwear", ["missing"]),
+                _candidate("Bags"),
+                _candidate("Hats"),
+            ],
+            known_refs={"nav-1"},
+            forbidden_terms=[],
+            business_terms=[],
+        )
+        == []
+    )
+
+
+def test_category_restatement_rule_yields_to_a_single_offering_business() -> None:
+    """A mattress brand whose category IS mattresses must keep the topic."""
+    names = _admit(
+        ["Mattresses", "Pillows", "Bed Frames"], business_terms=["mattresses"]
+    )
+    assert "Mattresses" in names
+    # With enough specific topics the restatement is dropped instead.
+    names = _admit(
+        ["Mattresses", "Pillows", "Bed Frames", "Mattress Toppers"],
+        business_terms=["mattresses"],
+    )
+    assert "Mattresses" not in names
+
+
+def _validator(**kwargs) -> PortfolioValidator:
+    return PortfolioValidator(
+        topic_ids=kwargs.get("topic_ids", frozenset({"t1", "t2"})),
+        brand_terms=kwargs.get("brand_terms", ["Acme"]),
+        competitor_terms=kwargs.get("competitor_terms", ["Rival"]),
+        positioning=kwargs.get("positioning", frozenset()),
+        market_words=kwargs.get("market_words", ("India", "Indian")),
+    )
+
+
+def _offer(validator: PortfolioValidator, text: str, **kwargs) -> str:
+    return validator.offer(
+        {
+            "topic_id": kwargs.get("topic_id", "t1"),
+            "text": text,
+            "intent": kwargs.get("intent", "discovery"),
+        },
+        cohort=kwargs.get("cohort", "core"),
+    )
+
+
+@pytest.mark.parametrize("lead_in", TEMPLATE_LEAD_INS)
+def test_every_shipped_template_frame_is_rejected(lead_in: str) -> None:
+    """The old prompt asked for these to be avoided; the model used them."""
+    assert _offer(_validator(), f"{lead_in} kids clothing today") == "template_lead_in"
+
+
+def test_pasted_positioning_is_rejected() -> None:
+    validator = _validator(
+        positioning=positioning_shingles(
+            [
+                "Indian consumers seeking a wide range of products with "
+                "competitive pricing, convenience, and fast delivery"
+            ]
+        )
+    )
+    assert (
+        _offer(
+            validator,
+            "Shoes for Indian consumers seeking a wide range of products "
+            "with competitive pricing",
+        )
+        == "positioning_paste_in"
+    )
+
+
+def test_buyer_language_is_accepted() -> None:
+    validator = _validator()
+    assert _offer(validator, "I want to buy cheap baby clothes in bulk") == ""
+    assert (
+        _offer(
+            validator,
+            "Looking for kids school shoes before term starts",
+            topic_id="t2",
+        )
+        == ""
+    )
+    assert len(validator.accepted) == 2
+
+
+def test_repeated_openings_are_capped_across_the_portfolio() -> None:
+    validator = _validator()
+    assert _offer(validator, "best running shoes for flat feet") == ""
+    assert (
+        _offer(validator, "best running shoes under 5000 rupees", topic_id="t2") == ""
+    )
+    assert _offer(validator, "best running shoes for wide toes") == "repeated_opening"
+
+
+def test_ordinary_words_containing_a_country_code_are_not_market_mentions() -> None:
+    """A bare "IN" matched inside "running", capping nearly every prompt."""
+    assert "IN" not in market_terms("IN", [])
+    validator = _validator(market_words=market_terms("IN", []))
+    assert not validator._names_market("best running shoes for finding flat feet")
+    assert validator._names_market("cheap school shoes in India")
+
+
+def test_words_tokenize_every_script_not_just_ascii() -> None:
+    assert _words("सस्ते बच्चों के कपड़े") == ["सस्ते", "बच्चों", "के", "कपड़े"]
+    assert _words("Men's Shoes under 5000!") == ["men", "s", "shoes", "under", "5000"]
+
+
+def test_named_brand_rows_reject_an_unknown_topic_id() -> None:
+    """An invented id is a rejection, not a silently detached prompt."""
+    validator = _validator()
+    assert (
+        _offer(
+            validator,
+            "is Acme any good for school shoes",
+            topic_id="not-a-real-topic",
+            cohort="brand_diagnostic",
+        )
+        == "topic_id"
+    )
+    # A canonical id is kept, so the row stays bound to the topic it names.
+    assert (
+        _offer(
+            validator,
+            "is Acme any good for school shoes",
+            topic_id="t1",
+            cohort="brand_diagnostic",
+        )
+        == ""
+    )
+    assert validator.accepted[0]["topic_id"] == "t1"
+    # Naming no topic at all remains valid for this cohort.
+    assert (
+        _offer(
+            validator,
+            "does Acme sell wide fit kids trainers",
+            topic_id="",
+            cohort="brand_diagnostic",
+        )
+        == ""
+    )
+    assert validator.accepted[1]["topic_id"] == ""
+
+
+def test_market_is_named_at_most_once_per_topic() -> None:
+    validator = _validator()
+    assert _offer(validator, "where to buy school shoes in India cheaply") == ""
+    assert (
+        _offer(validator, "which Indian store sells kids winter jackets")
+        == "market_mention_cap"
+    )
+    # A different topic gets its own allowance.
+    assert _offer(validator, "best Indian sites for baby clothes", topic_id="t2") == ""
+
+
+def test_short_form_of_a_multi_word_brand_is_still_the_brand() -> None:
+    """ "Best Apollo hospital for..." shipped as an ORGANIC prompt."""
+    terms = brand_terms("Apollo Hospitals", [])
+    assert "Apollo Hospitals" in terms
+    assert "apollo" in terms
+    # The provider word is not the brand and must stay usable by everyone.
+    assert "hospitals" not in terms
+    validator = _validator(brand_terms=terms)
+    assert (
+        _offer(validator, "Best Apollo hospital for kidney stone treatment")
+        == "tracked_name"
+    )
+
+
+def test_identity_rules_per_cohort() -> None:
+    assert _offer(_validator(), "is Acme good for kids shoes") == "tracked_name"
+    assert (
+        _offer(_validator(), "best shop for kids shoes", cohort="brand_diagnostic")
+        == "missing_brand_name"
+    )
+    assert (
+        _offer(
+            _validator(),
+            "how does Acme compare for kids shoes",
+            cohort="comparison",
+            intent="comparison",
+        )
+        == "missing_competitor_name"
+    )
+    assert (
+        _offer(
+            _validator(),
+            "Acme or Rival for kids school shoes",
+            cohort="comparison",
+            intent="comparison",
+        )
+        == ""
+    )
+
+
+def test_length_bounds_reject_prose_and_fragments() -> None:
+    long_text = " ".join(["shoes"] * (VISIBILITY_PROMPT_MAX_WORDS + 1))
+    assert _offer(_validator(), long_text) == "length"
+    assert _offer(_validator(), "cheap shoes") == "length"
+
+
+def test_portfolio_is_ordered_round_robin_so_activation_covers_every_topic() -> None:
+    prompts = [
+        {"topic_id": "t1", "text": "a", "intent": "discovery", "cohort": "core"},
+        {"topic_id": "t1", "text": "b", "intent": "discovery", "cohort": "core"},
+        {"topic_id": "t2", "text": "c", "intent": "discovery", "cohort": "core"},
+        {
+            "topic_id": "x",
+            "text": "d",
+            "intent": "discovery",
+            "cohort": "brand_diagnostic",
+        },
+    ]
+    ordered = ordered_portfolio(prompts, topic_ids=["t1", "t2"])
+    assert [item["text"] for item in ordered] == ["a", "c", "b", "d"]
+
+
+def _page(links: list[tuple[str, str]]) -> BrandEvidencePage:
+    return BrandEvidencePage(
+        url="https://acme.com/",
+        title="",
+        meta_description="",
+        text="text",
+        navigation_links=tuple(
+            BrandEvidenceLink(url=f"https://acme.com{path}", label=label)
+            for label, path in links
+        ),
+    )
+
+
+def _harvest(links: list[tuple[str, str]]) -> list[str]:
+    harvest = harvest_offerings((_page(links),), brand_terms=["Acme"])
+    return [node.label for node in harvest.nodes]
+
+
+def test_harvest_keeps_offerings_and_drops_chrome() -> None:
+    assert _harvest(
+        [
+            ("Login", "/account/login"),
+            ("Cart", "/viewcart"),
+            ("Investor Relations", "/investors"),
+            ("Dr. Jane Roe", "/team/jane-roe"),
+            ("Kids Clothing", "/kids-clothing"),
+            ("Air Conditioners", "/air-conditioners"),
+            ("Shop now", "/new-arrivals"),
+            ("Deutsch", "/de"),
+            ("Acme Originals", "/originals"),
+        ]
+    ) == ["Kids Clothing", "Air Conditioners"]
+
+
+def test_harvest_caps_a_city_index_so_it_cannot_flood_the_budget() -> None:
+    labels = _harvest(
+        [("Plumbing", "/plumbing"), ("Carpentry", "/carpentry")]
+        + [(f"Plumber in City{index}", f"/city{index}") for index in range(30)]
+    )
+    assert labels[:2] == ["Plumbing", "Carpentry"]
+    assert sum(1 for label in labels if label.startswith("Plumber in")) <= 3
+
+
+def test_harvest_keeps_possessive_departments_apart() -> None:
+    """ "Men's Shoes" and "Women's Shoes" both carry a bare "s" token."""
+    labels = _harvest(
+        [
+            ("Men's Shoes", "/mens-shoes"),
+            ("Women's Shoes", "/womens-shoes"),
+            ("Kids' Shoes", "/kids-shoes"),
+            ("Men's Shirts", "/mens-shirts"),
         ]
     )
-    return prompts
+    assert len(labels) == 4
 
 
-def test_pass_two_selects_eight_organic_and_two_brand_context() -> None:
-    topic_ids = [str(uuid.uuid4()) for _ in range(3)]
-    result = select_portfolio(
-        _portfolio_candidates(topic_ids),
-        topic_ids=topic_ids,
-        brand_terms=["Acme"],
-        competitor_terms=[],
-    )
-
-    assert not result.errors
-    assert len(result.accepted) == 10
-    assert sum(row["cohort"] == "core" for row in result.accepted) == 8
-    assert sum(row["cohort"] == "brand_diagnostic" for row in result.accepted) == 2
-    assert {row["topic_id"] for row in result.accepted} == set(topic_ids)
-
-
-def test_pass_two_rejects_wrong_identity_rules() -> None:
-    topic_ids = [str(uuid.uuid4()) for _ in range(3)]
-    candidates = _portfolio_candidates(topic_ids)
-    candidates[0]["text"] = "is Acme good for this"
-    candidates[-1]["text"] = "is this brand good for me"
-
-    result = select_portfolio(
-        candidates,
-        topic_ids=topic_ids,
-        brand_terms=["Acme"],
-        competitor_terms=[],
-    )
-
-    assert not result.accepted
-    assert "prompt[0].tracked_name" in result.errors
-    assert "prompt[11].missing_brand_name" in result.errors
-
-
-def test_pass_two_rejects_profile_prose_that_exceeds_buyer_query_length() -> None:
-    topic_ids = [str(uuid.uuid4()) for _ in range(3)]
-    candidates = _portfolio_candidates(topic_ids)
-    candidates[0]["text"] = " ".join(["which"] * (DISCOVERY_PROMPT_MAX_WORDS + 1))
-
-    result = select_portfolio(
-        candidates,
-        topic_ids=topic_ids,
-        brand_terms=["Acme"],
-        competitor_terms=[],
-    )
-
-    assert result.accepted
-    assert all(
-        len(prompt["text"].split()) <= DISCOVERY_PROMPT_MAX_WORDS
-        for prompt in result.accepted
-    )
+def test_harvest_reports_empty_when_no_readable_list_is_published() -> None:
+    page = _page([("Login", "/account/login")])
+    assert not harvest_offerings((page,), brand_terms=["Acme"]).is_ready
 
 
 def test_catalog_exposes_only_stored_visibility_cohorts() -> None:
-    assert discovery_catalog()["prompt_cohorts"] == ["core", "brand_diagnostic"]
+    assert discovery_catalog()["prompt_cohorts"] == [
+        "core",
+        "brand_diagnostic",
+        "comparison",
+    ]
 
 
 def test_customer_warnings_only_report_material_gaps() -> None:

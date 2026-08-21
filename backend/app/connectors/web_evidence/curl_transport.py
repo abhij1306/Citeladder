@@ -29,7 +29,6 @@ from app.core.config.site_health_acquisition import (
     ERROR_RESPONSE_TOO_LARGE,
     ERROR_TIMEOUT,
     ERROR_UNSUPPORTED_CONTENT_TYPE,
-    SITE_HEALTH_USER_AGENT,
 )
 from app.core.config.site_health_rules import (
     PERSISTED_RESPONSE_HEADERS,
@@ -61,10 +60,23 @@ def _header_value(headers: object, name: str) -> str:
 
 
 def _singleton_header_value(headers: object, name: str) -> str:
+    """One header value, tolerating a repeated-but-identical duplicate.
+
+    Rejecting every repeat is too strict for the real web: CDN and WAF error
+    pages routinely emit the same ``content-type`` twice (www.adidas.com's 403
+    sends it alongside duplicate cache-control/pragma/expires). Treating that
+    as a malformed response aborted the fetch before the status was ever
+    classified, and onboarding reported the site as NOT EXISTING when it had
+    simply blocked us.
+
+    Genuinely CONFLICTING values still raise: disagreeing headers are the
+    response-splitting signature this check exists to catch, and collapsing
+    them would be picking one attacker-chosen answer over another.
+    """
     values = _header_values(headers, name)
-    if len(values) > 1:
+    if len({value.strip().casefold() for value in values}) > 1:
         raise FetchError(
-            f"curl response contained repeated {name.lower()} headers",
+            f"curl response contained conflicting {name.lower()} headers",
             error_code=ERROR_MALFORMED_RESPONSE,
         )
     return values[0] if values else ""
@@ -103,10 +115,24 @@ def _curl_resolve_entry(target: ResolvedTarget) -> str:
     return f"{target.host}:{target.port}:{address}"
 
 
-def _request_headers(request: FetchRequest, default_user_agent: str) -> dict[str, str]:
-    headers = {name.lower(): value for name, value in request.headers.items()}
-    headers.setdefault("user-agent", default_user_agent)
-    return headers
+def _request_headers(request: FetchRequest) -> dict[str, str]:
+    """Headers for an impersonating request, with the UA owned by the profile.
+
+    The impersonation profile MUST own the User-Agent, because the TLS/HTTP-2
+    fingerprint and the UA string have to describe the same client. Sending our
+    own crawler UA over a Chrome fingerprint is a self-contradiction and edge
+    bot-mitigation acts on it: Akamai resets the HTTP/2 stream outright (curl
+    error 92). That surfaced as ``connection_failed`` and read as "the site is
+    blocking automated traffic" when in fact our own request was inconsistent --
+    so the rung that exists to defeat fingerprinting failed on precisely the
+    hosts that fingerprint. A caller-supplied user-agent is dropped for the same
+    reason; it cannot be honoured without breaking the impersonation.
+    """
+    return {
+        name.lower(): value
+        for name, value in request.headers.items()
+        if name.lower() != "user-agent"
+    }
 
 
 def _transport_error_code(exc: RequestException) -> int | None:
@@ -116,25 +142,29 @@ def _transport_error_code(exc: RequestException) -> int | None:
         return None
 
 
+# libcurl aborts the transfer itself when MAXFILESIZE_LARGE is exceeded, which
+# arrives as an ordinary transport failure. Reporting that as "connection
+# failed" loses the one fact the caller acts on: the site is REACHABLE and
+# merely too big. Onboarding treats response-too-large as a resolved site with
+# degraded research (burrow.com is an ordinary storefront with a 5MB homepage),
+# so the misclassification turned a readable site back into "does not exist".
+_CURLE_FILESIZE_EXCEEDED = 63
+
+
+def _connection_error_code(transport_error_code: int | None) -> str:
+    if transport_error_code == _CURLE_FILESIZE_EXCEEDED:
+        return ERROR_RESPONSE_TOO_LARGE
+    return ERROR_CONNECTION_FAILED
+
+
 class CurlCffiTransport:
     """One-hop curl request pinned to a previously validated address."""
 
-    def __init__(
-        self,
-        *,
-        impersonation_profile: str,
-        user_agent: str = SITE_HEALTH_USER_AGENT,
-    ) -> None:
+    def __init__(self, *, impersonation_profile: str) -> None:
         self._impersonation_profile = impersonation_profile
-        self._user_agent = user_agent
 
     async def aclose(self) -> None:
-        """No-op: this rung holds only per-request state.
-
-        Required by ``AcquisitionTransport`` because a rung that DOES own
-        long-lived resources (the browser rung owns OS processes) must be
-        closable through the same interface.
-        """
+        """No-op: this transport holds only per-request state."""
 
     async def fetch(
         self,
@@ -149,7 +179,7 @@ class CurlCffiTransport:
 
         _validate_resolved_target(target)
         started = time.monotonic()
-        headers = _request_headers(request, self._user_agent)
+        headers = _request_headers(request)
         options = {
             CurlOpt.RESOLVE: [_curl_resolve_entry(target)],
             CurlOpt.MAXFILESIZE_LARGE: max_wire_bytes,
@@ -180,11 +210,13 @@ class CurlCffiTransport:
                 retryable=True,
             ) from exc
         except RequestException as exc:
+            transport_error_code = _transport_error_code(exc)
+            error_code = _connection_error_code(transport_error_code)
             raise FetchError(
                 "curl acquisition connection failed",
-                error_code=ERROR_CONNECTION_FAILED,
-                retryable=True,
-                transport_error_code=_transport_error_code(exc),
+                error_code=error_code,
+                retryable=error_code == ERROR_CONNECTION_FAILED,
+                transport_error_code=transport_error_code,
             ) from exc
 
         if response.primary_ip != target.connect_ip:

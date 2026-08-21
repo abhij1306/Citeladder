@@ -209,3 +209,52 @@ def test_generation_settings_keep_bounded_batches() -> None:
 def test_negative_existing_context_limit_is_rejected() -> None:
     with pytest.raises(ValidationError):
         PromptGenerationSettings(generation_existing_prompt_context_limit=-1)
+
+
+def test_manual_generation_applies_the_same_buyer_style_gate() -> None:
+    """The "Generate prompts" button must not reintroduce the survey register."""
+    from app.domain.prompts.generation_contract import SuggestedPrompt, SuggestedTopic
+    from app.domain.prompts.generation_filtering import _drop_invalid_core_prompts
+
+    topic_id = uuid.uuid4()
+    brand_context = {
+        "brand_name": "Acme",
+        "brand_aliases": [],
+        "competitors": [],
+        "knowledge_base": {
+            "positioning": "Acme serves families seeking affordable everyday footwear"
+        },
+        "business_context": {"business_model": "retail"},
+    }
+    candidates = [
+        "What are my best options for kids shoes?",
+        "which retailer serves families seeking affordable everyday footwear",
+        "cheap shoes",
+        "I need school shoes for a 6 year old before term starts",
+        "best running shoes for flat feet",
+        "best running shoes for wide toes",
+        "best running shoes for high arches",
+    ]
+    result = _drop_invalid_core_prompts(
+        [
+            SuggestedTopic(
+                topic_id=topic_id,
+                name="Kids Shoes",
+                prompts=[
+                    SuggestedPrompt(text=text, intent="discovery")
+                    for text in candidates
+                ],
+            )
+        ],
+        brand_context,
+    )
+    kept = [prompt.text for topic in result for prompt in topic.prompts]
+    assert "What are my best options for kids shoes?" not in kept  # template frame
+    # Unbranded, so it clears the tracked-name gate and is dropped by the
+    # positioning-paste rule it exists to cover.
+    assert not any("families seeking affordable" in text for text in kept)
+    assert "cheap shoes" not in kept  # too short to carry a real need
+    assert "I need school shoes for a 6 year old before term starts" in kept
+    # At most two prompts may share an opening, so the third "best running
+    # shoes" variant is dropped.
+    assert sum(text.startswith("best running shoes") for text in kept) == 2

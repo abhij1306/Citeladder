@@ -120,25 +120,9 @@ ROBOTS_FETCH_STATUS_NOT_FOUND: Final = "not_found"
 
 ROBOTS_FETCH_STATUS_FETCH_FAILED: Final = "fetch_failed"
 
-ACQUISITION_TRANSPORT_HTTPX: Final = "httpx"
-
 ACQUISITION_TRANSPORT_CURL_CFFI: Final = "curl_cffi"
 
-ACQUISITION_TRANSPORT_BROWSER: Final = "patchright"
-
 ACQUISITION_TRIGGER_INITIAL: Final = "initial"
-
-ACQUISITION_TRIGGER_CHALLENGE: Final = "challenge"
-
-ACQUISITION_TRIGGER_BLOCK_STATUS: Final = "block_status"
-
-ACQUISITION_TRIGGER_LOW_CONTENT: Final = "low_content"
-
-ACQUISITION_TRIGGER_JS_SHELL: Final = "js_shell"
-
-ACQUISITION_TRIGGER_CURL_UNAVAILABLE: Final = "curl_unavailable"
-
-ACQUISITION_TRIGGER_CURL_UNUSABLE: Final = "curl_unusable"
 
 BOT_BLOCK_BODY_MARKERS: Final[tuple[str, ...]] = (
     "cf-chl",

@@ -31,17 +31,9 @@ PromptStatus = Literal["active", "archived"]
 # and ``PROMPT_ORIGIN_GENERATED`` in ``config/projects.py``. ``imported`` is not
 # offered here — CSV import sets its own origin server-side.
 PromptOrigin = Literal["manual", "generated"]
-PromptCohort = Literal[
-    "market_visibility",
-    "brand_relevant",
-    "brand_diagnostic",
-    "core",
-    "comparison",
-]
+PromptCohort = Literal["core", "brand_diagnostic", "comparison"]
 assert set(get_args(PromptStatus)) == PROMPT_STATUSES
-# The same lock-step guard for cohorts. Without it `PROMPT_COHORTS` drifted to
-# {core, comparison} while onboarding wrote market_visibility/brand_relevant,
-# and every read filtering on the config value returned nothing.
+# Keep the API literal and persisted cohort catalog in lock-step.
 assert set(get_args(PromptCohort)) == PROMPT_COHORTS
 
 

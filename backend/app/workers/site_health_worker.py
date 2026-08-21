@@ -29,15 +29,13 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 
-import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.connectors.web_evidence.browser_transport import PatchrightTransport
 from app.connectors.web_evidence.contracts import (
+    AcquisitionTransport,
     DnsResolver,
     FetchResult,
-    ResolvedTarget,
 )
 from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.resolver import SystemDnsResolver
@@ -125,7 +123,7 @@ class SiteHealthWorker(
         session_factory: async_sessionmaker[AsyncSession] | None = None,
         owner: str | None = None,
         resolver: DnsResolver | None = None,
-        transport=None,
+        transport: AcquisitionTransport | None = None,
     ) -> None:
         self._session_factory = session_factory or SessionLocal
         self._queue: PostgresTaskQueue[SiteCrawlTask] = PostgresTaskQueue(
@@ -133,8 +131,8 @@ class SiteHealthWorker(
         )
         self.owner = owner or f"site-worker-{uuid.uuid4().hex[:12]}"
         self._resolver = resolver or SystemDnsResolver()
-        # An injected httpx transport (tests pass ``httpx.MockTransport``);
-        # None in production so the fetcher pins the validated connection IP.
+        # Tests inject the same bounded transport contract used by curl-cffi.
+        # Production leaves this empty so ``SecureFetcher`` constructs curl.
         self._transport = transport
         # Per-host politeness (concurrency cap + start pacing + eviction). The
         # robots-declared crawl-delay is injected as a lookup so the gate never
@@ -153,112 +151,23 @@ class SiteHealthWorker(
         self._robots_cache: dict[str, tuple[RobotsPolicy, str | None, int | None]] = {}
         self._robots_cache_ts: dict[str, float] = {}
         self._robots_locks: dict[str, asyncio.Lock] = {}
-        # One browser process per WORKER, not per task (see ``_new_fetcher``).
-        self._browser_transport: PatchrightTransport | None = None
-        # Reuse secure httpx sessions by original origin. Requests dial a
-        # validated IP literal, so pooling only by that rewritten URL could
-        # reuse one hostname's TLS connection for another hostname on the same
-        # IP without a fresh SNI/certificate check.
-        self._http_clients: dict[tuple[str, str, int], httpx.AsyncClient] = {}
 
     def _new_fetcher(self) -> SecureFetcher:
-        """Build a fetcher with the worker's injected transport seams.
-
-        The resolver and httpx transport are injected together so offline
-        tests never touch the network.
-
-        The browser rung and secure httpx client are created ONCE per worker
-        and injected, never left to the fetcher. ``_new_fetcher`` runs per
-        task, and a fetcher-owned transport would launch and tear down a
-        Chromium PROCESS for every page —
-        seconds of startup per URL, and a leaked process for any fetcher whose
-        close path did not run. Injected transports are not closed by the
-        fetcher (see ``SecureFetcher.aclose``), so ``aclose`` below owns it.
-        """
+        """Build the sole curl fetcher (or the injected offline test transport)."""
         return SecureFetcher(
             resolver=self._resolver,
             transport=self._transport,
-            client_provider=self._shared_http_client,
-            browser_transport=self._shared_browser_transport(),
         )
-
-    def _shared_http_client(self, target: ResolvedTarget) -> httpx.AsyncClient:
-        """Return the worker's secure pool for one original URL origin."""
-        origin = (target.scheme, target.host, target.port)
-        client = self._http_clients.get(origin)
-        if client is None or client.is_closed:
-            client = SecureFetcher.build_client(transport=self._transport)
-            self._http_clients[origin] = client
-        return client
-
-    def _shared_browser_transport(self) -> PatchrightTransport | None:
-        """The worker's one browser transport, created on first use."""
-        if not site_health_settings.browser_enabled:
-            return None
-        if self._browser_transport is None:
-            self._browser_transport = PatchrightTransport(settings=site_health_settings)
-        return self._browser_transport
-
-    async def _close_resource(self, resource, *, name: str) -> None:
-        """Close a shared worker resource without masking worker shutdown."""
-        try:
-            await resource.aclose()
-        except Exception:  # noqa: BLE001
-            logger.warning("%s teardown failed", name, exc_info=True)
 
     async def aclose(self) -> None:
-        """Release the worker's shared OS-level resources.
-
-        Teardown NEVER raises one of its OWN. This runs on the shutdown path,
-        where the caller is usually already unwinding ``run_forever``'s own
-        exception or a ``CancelledError`` — letting a dying browser process
-        raise here would replace the reason the worker is shutting down with a
-        footnote about cleanup, and the transport is dropped either way.
-        """
-        resources = [
-            *((client, "http client") for client in self._http_clients.values()),
-            (self._browser_transport, "browser transport"),
-        ]
-        self._http_clients = {}
-        self._browser_transport = None
-        resources = [
-            (resource, name) for resource, name in resources if resource is not None
-        ]
-        if not resources:
-            return
-        # ``CancelledError`` derives from ``BaseException``, so the guard in
-        # ``_close_resource`` cannot see it: a cancel landing while the close
-        # is in flight would abandon a live Chromium process for the
-        # container's lifetime — exactly what ``run_forever``'s ``finally``
-        # exists to prevent. Shield the close from that cancel, then wait it
-        # out so the process is actually gone before the cancellation resumes
-        # unwinding; the cancellation itself is re-raised, never swallowed.
-        closing = asyncio.gather(
-            *(self._close_resource(resource, name=name) for resource, name in resources)
-        )
-        try:
-            await asyncio.shield(closing)
-        except asyncio.CancelledError:
-            await closing
-            raise
+        """The production curl transport owns no long-lived worker resource."""
 
     async def run_once(self) -> int:
         """Sweep expired leases, claim a batch of all task kinds, execute it.
 
         Claims discovery, analysis, and post-crawl change tasks.
         """
-        sweep = await self._queue.release_expired_detailed(
-            batch_size=site_health_settings.lease_reclaim_batch_size
-        )
-        # A task the sweeper failed at max attempts never runs ``_execute_task``,
-        # so its ``finally`` reconcile never fires. If that was a crawl's last
-        # outstanding task the crawl would stay non-terminal forever; reconcile
-        # the affected crawls here. Idempotent — reconcile no-ops on a crawl
-        # that is already terminal.
-        for crawl_id in sweep.failed_parent_ids:
-            await self._reconcile_crawl_status(crawl_id)
-        await self._reconcile_stalled_crawls()
-        self._host_gate.evict_idle()
+        await self._maintenance()
         claim_limit = min(
             site_health_settings.worker_concurrency,
             site_health_settings.global_concurrency,
@@ -284,6 +193,83 @@ class SiteHealthWorker(
                 if isinstance(result, BaseException):
                     raise result
         return len(tasks)
+
+    async def _maintenance(self) -> None:
+        """Lease sweep, stalled-crawl reconcile, and host-gate eviction."""
+        sweep = await self._queue.release_expired_detailed(
+            batch_size=site_health_settings.lease_reclaim_batch_size
+        )
+        for crawl_id in sweep.failed_parent_ids:
+            await self._reconcile_crawl_status(crawl_id)
+        await self._reconcile_stalled_crawls()
+        self._host_gate.evict_idle()
+
+    async def _claim_one(self) -> SiteCrawlTask | None:
+        """Claim a single task for one pipeline slot, or ``None`` if idle."""
+        try:
+            claimed = await self._queue.claim(
+                owner=self.owner,
+                limit=1,
+                kinds=[
+                    TASK_KIND_DISCOVER,
+                    TASK_KIND_ANALYZE,
+                    TASK_KIND_CHANGE_INTEL,
+                ],
+            )
+        except Exception:  # a DB blip must not kill the slot
+            logger.exception("site health claim failed")
+            return None
+        return claimed[0] if claimed else None
+
+    async def run_pipelined(self, *, drain: bool) -> int:
+        """Keep ``worker_concurrency`` tasks in flight, refilling as each lands.
+
+        ``run_once`` claims N tasks, gathers ALL of them, then claims the next
+        N, so a batch costs its SLOWEST member while finished slots idle. Crawl
+        latency is wildly uneven -- one measured 150-page crawl spent 91.7s of
+        network time inside a 46.2s window, an effective concurrency of 2.0
+        against a configured 6 -- so the spread within a batch is the common
+        case, not the exception. A refilling pool turns the run's cost from
+        ``sum(slowest per batch)`` into ``sum(all) / concurrency``.
+
+        This is the same convoy fix the audit worker already carries; see
+        ``AuditWorker.run_pipelined``. Each slot claims exactly one task, so
+        in-flight work never exceeds the configured concurrency, and the
+        per-host politeness gate still bounds what any single host sees.
+        """
+        concurrency = max(
+            1,
+            min(
+                site_health_settings.worker_concurrency,
+                site_health_settings.global_concurrency,
+            ),
+        )
+        completed = 0
+
+        async def slot() -> None:
+            # Each slot decides for ITSELF when to stop: one slot seeing an
+            # empty queue must not make its siblings skip their next claim.
+            nonlocal completed
+            while True:
+                task = await self._claim_one()
+                if task is None:
+                    if drain:
+                        return
+                    await asyncio.sleep(
+                        max(0.05, site_health_settings.poll_interval_seconds)
+                    )
+                    continue
+                try:
+                    await self._execute_claimed(task)
+                except Exception:  # keep siblings running
+                    logger.exception(
+                        "site health task failed",
+                        extra={"task_id": str(task.id)},
+                    )
+                completed += 1
+
+        await asyncio.gather(*(slot() for _ in range(concurrency)))
+        return completed
 
     async def _execute_claimed(self, task: SiteCrawlTask) -> None:
         """Heartbeat a claimed lease while it waits for its polite host slot.
@@ -317,22 +303,30 @@ class SiteHealthWorker(
         cached = self._robots_cache.get(_authority_key(url))
         return cached[0].crawl_delay() if cached is not None else 0.0
 
+    async def _maintenance_forever(self) -> None:  # pragma: no cover
+        """Run lease/reconcile maintenance on its own cadence.
+
+        The pipelined pool never returns, so maintenance can no longer ride on
+        the top of each batch the way it did in ``run_once``.
+        """
+        while True:
+            try:
+                await self._maintenance()
+            except Exception:  # maintenance must not kill the worker
+                logger.exception("site health maintenance failed")
+            await asyncio.sleep(max(0.05, site_health_settings.poll_interval_seconds))
+
     async def run_forever(self) -> None:  # pragma: no cover - long-running loop
         logger.info("site health worker started", extra={"owner": self.owner})
         try:
-            while True:
-                try:
-                    ran = await self.run_once()
-                except Exception:  # defensive: a bad task must not kill the loop
-                    logger.exception("site health worker loop iteration failed")
-                    ran = 0
-                if ran == 0:
-                    await asyncio.sleep(
-                        max(0.05, site_health_settings.poll_interval_seconds)
-                    )
+            maintenance = asyncio.create_task(self._maintenance_forever())
+            try:
+                await self.run_pipelined(drain=False)
+            finally:
+                maintenance.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await maintenance
         finally:
-            # A cancelled worker still owns a browser process; leaving it to the
-            # interpreter strands it for the container's lifetime.
             await self.aclose()
 
     async def _prepare_claimed_task(
@@ -643,6 +637,16 @@ class SiteHealthWorker(
         parsed ``facts``) so this stays agnostic to the outcome payload shape.
         """
         attempt_number = task.attempt_count + 1
+        # A 429 is a host-level signal, so back the whole host off here rather
+        # than letting each task rediscover the limit through its own retries.
+        if getattr(outcome, "status_code", None) == 429:
+            try:
+                host, _port = split_host_port(requested_url)
+            except Exception:
+                host = requested_url
+            self._host_gate.note_rate_limited(
+                host, getattr(outcome, "retry_after_seconds", None)
+            )
         trace = outcome.attempts
         if not trace:
             session.add(

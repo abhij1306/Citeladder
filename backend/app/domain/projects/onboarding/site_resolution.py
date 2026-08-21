@@ -19,7 +19,6 @@ from app.core.config.brand_evidence import (
     BRAND_EVIDENCE_MAX_HTML_BYTES,
     BRAND_EVIDENCE_MAX_REDIRECTS,
     BRAND_EVIDENCE_REQUEST_TIMEOUT_SECONDS,
-    BRAND_EVIDENCE_USER_AGENT,
 )
 from app.core.config.site_health_acquisition import (
     ERROR_RESPONSE_TOO_LARGE,
@@ -54,7 +53,6 @@ async def resolve_site(entered_url: str, normalized_url: str) -> ResolvedSite:
     async with SecureFetcher(
         resolver=SystemDnsResolver(),
         settings=ONBOARDING_DIRECT_FETCH_SETTINGS,
-        user_agent=BRAND_EVIDENCE_USER_AGENT,
     ) as fetcher:
         for request_url in request_urls:
             try:

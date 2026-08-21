@@ -45,12 +45,7 @@ must expose API port 8000 only to those subnet CIDRs.
 
 ### Resource and tenant allocation bounds
 
-- Patchright acquisition tracks cumulative Chromium network bytes separately
-  from the rendered-document byte limit. Over-budget events are rechecked
-  after acquisition cleanup.
-- The acquisition and budget-watcher tasks are cancelled and awaited on every
-  exit, including caller cancellation, so stalled browser work cannot outlive
-  its fetch.
+- Website acquisition enforces independent wire and decoded-document limits.
 - Workspace creation is serialized per account with the shared
   `workspace.create` PostgreSQL advisory-lock namespace. Explicit creation is
   capped by config-owned policy, and personal-workspace ensure uses the same
@@ -73,7 +68,7 @@ change must use an additive migration with an explicit backfill and downgrade.
 
 ## Verification record
 
-- Focused backend security/auth/workspace/browser/export/provisioning tests:
+- Focused backend security/auth/workspace/export/provisioning tests:
   `78 passed`; the shared component-auth fixture refactor then passed all `151`
   affected component tests.
 - Frontend registration/login tests: `8 passed`.

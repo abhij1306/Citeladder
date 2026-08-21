@@ -300,17 +300,12 @@ class AnalyzePhaseMixin(PhaseSupport):
             allowed_content_types=HTML_CONTENT_TYPES,
         )
         started = time.monotonic()
-        acquisition_plan = await self._acquisition_plan(
-            crawl_id=crawl_id, url=requested_url
-        )
         try:
             async with self._new_fetcher() as fetcher:
                 result = await fetcher.fetch(
                     request,
                     root_registrable_domain=root_registrable_domain or None,
                     enforce_scope=False,
-                    preferred_rung=acquisition_plan.preferred_rung,
-                    initial_trigger=acquisition_plan.trigger,
                 )
         except FetchError as exc:
             latency = int((time.monotonic() - started) * 1000)
@@ -488,7 +483,7 @@ class AnalyzePhaseMixin(PhaseSupport):
     ) -> uuid.UUID:
         """Create the page analysis + rule evaluations + issues + scores.
 
-        One ``SitePageAnalysis`` (unique ``artifact_id``), one
+        One UUID-identified ``SitePageAnalysis`` (``artifact_id`` is provenance), one
         ``SiteRuleEvaluation`` per rule (unique ``(analysis_id, rule_id)``), a
         ``SiteIssue`` snapshot per FAIL (unique ``evaluation_id``), and the
         deterministic Technical/AEO/overall scores stamped with the versions.
@@ -673,10 +668,6 @@ class AnalyzePhaseMixin(PhaseSupport):
         # ``build_crawl_knowledge`` then folded into one model, manufacturing
         # exactly the contradictions-out-of-a-rerun its docstring warns about.
         #
-        # The partial unique index stays keyed on ``artifact_id``: the snapshot
-        # deliberately tolerates several current analyses per page and resolves
-        # the latest itself, so tightening the constraint is a separate
-        # decision from making this supersede actually fire.
         await session.execute(
             update(SitePageAnalysis)
             .where(

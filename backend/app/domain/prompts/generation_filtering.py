@@ -1,0 +1,158 @@
+"""Deterministic cohort and style filters for generated prompt suggestions."""
+
+from __future__ import annotations
+
+from difflib import SequenceMatcher
+from typing import Any
+
+from app.core.config.prompts import PROMPT_NEAR_DUPLICATE_SIMILARITY
+from app.core.config.visibility_prompts import (
+    VISIBILITY_MAX_SHARED_OPENINGS,
+    VISIBILITY_PROMPT_MAX_WORDS,
+    VISIBILITY_PROMPT_MIN_WORDS,
+)
+from app.domain.prompts.generation_contract import SuggestedPrompt, SuggestedTopic
+from app.domain.prompts.portfolio import contains_tracked_name, prompt_identity_is_valid
+from app.domain.prompts.style import (
+    opening_key,
+    positioning_shingles,
+    repeats_positioning,
+    starts_with_template,
+    words,
+)
+
+
+def _tracked_names(brand_context: dict[str, Any]) -> list[str]:
+    names = [
+        brand_context.get("brand_name", ""),
+        *brand_context.get("brand_aliases", []),
+    ]
+    for competitor in brand_context.get("competitors", []):
+        names.extend([competitor.get("name", ""), *competitor.get("aliases", [])])
+    return [str(name) for name in names]
+
+
+def _is_branded(text: str, brand_context: dict[str, Any]) -> bool:
+    return contains_tracked_name(text, _tracked_names(brand_context))
+
+
+def _positioning_shingles(brand_context: dict[str, Any]) -> frozenset[str]:
+    knowledge = brand_context.get("knowledge_base") or {}
+    return positioning_shingles(
+        [
+            str(knowledge.get(field) or "")
+            for field in ("description", "positioning", "target_audience")
+        ]
+    )
+
+
+def _core_prompt_is_valid(
+    prompt: SuggestedPrompt,
+    normalized: str,
+    brand_context: dict[str, Any],
+    accepted: list[str],
+    *,
+    positioning: frozenset[str],
+    openings: dict[str, int],
+) -> bool:
+    if not prompt.intent or _is_branded(prompt.text, brand_context):
+        return False
+    if not (
+        VISIBILITY_PROMPT_MIN_WORDS
+        <= len(words(prompt.text))
+        <= VISIBILITY_PROMPT_MAX_WORDS
+    ):
+        return False
+    if starts_with_template(prompt.text) or repeats_positioning(
+        prompt.text, positioning
+    ):
+        return False
+    if any(
+        SequenceMatcher(None, normalized, previous).ratio()
+        >= PROMPT_NEAR_DUPLICATE_SIMILARITY
+        for previous in accepted
+    ):
+        return False
+    opening = opening_key(prompt.text)
+    if openings.get(opening, 0) >= VISIBILITY_MAX_SHARED_OPENINGS:
+        return False
+    openings[opening] = openings.get(opening, 0) + 1
+    return True
+
+
+def _drop_invalid_core_prompts(
+    suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
+) -> list[SuggestedTopic]:
+    """Reject tracked names, template frames, pasted copy, and duplicates."""
+    accepted: list[str] = []
+    openings: dict[str, int] = {}
+    positioning = _positioning_shingles(brand_context)
+    topics: list[SuggestedTopic] = []
+    for topic in suggestions:
+        rows: list[SuggestedPrompt] = []
+        for prompt in topic.prompts:
+            normalized = " ".join(prompt.text.casefold().split())
+            if not _core_prompt_is_valid(
+                prompt,
+                normalized,
+                brand_context,
+                accepted,
+                positioning=positioning,
+                openings=openings,
+            ):
+                continue
+            accepted.append(normalized)
+            rows.append(prompt)
+        if rows:
+            topics.append(
+                SuggestedTopic(topic_id=topic.topic_id, name=topic.name, prompts=rows)
+            )
+    return topics
+
+
+def _drop_invalid_comparison_prompts(
+    suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
+) -> list[SuggestedTopic]:
+    """Keep named comparisons only when brand and competitor are both named."""
+    brand_names = [
+        brand_context.get("brand_name", ""),
+        *brand_context.get("brand_aliases", []),
+    ]
+    competitor_names = [
+        name
+        for competitor in brand_context.get("competitors", [])
+        for name in [competitor.get("name", ""), *competitor.get("aliases", [])]
+    ]
+    retained: list[SuggestedTopic] = []
+    for topic in suggestions:
+        prompts = [
+            prompt
+            for prompt in topic.prompts
+            if prompt_identity_is_valid(
+                text=prompt.text,
+                cohort="comparison",
+                intent=prompt.intent,
+                brand_terms=(str(name) for name in brand_names),
+                competitor_terms=(str(name) for name in competitor_names),
+            )
+        ]
+        if prompts:
+            retained.append(
+                SuggestedTopic(
+                    topic_id=topic.topic_id, name=topic.name, prompts=prompts
+                )
+            )
+    return retained
+
+
+def filter_for_cohort(
+    suggestions: list[SuggestedTopic], cohort: str, brand_context: dict[str, Any]
+) -> list[SuggestedTopic]:
+    if cohort == "comparison":
+        return _drop_invalid_comparison_prompts(suggestions, brand_context)
+    return _drop_invalid_core_prompts(suggestions, brand_context)
+
+
+def business_model(brand_context: dict[str, Any]) -> str:
+    context = brand_context.get("business_context") or {}
+    return str(context.get("business_model") or "")

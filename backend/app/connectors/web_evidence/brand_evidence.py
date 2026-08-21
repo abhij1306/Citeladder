@@ -115,15 +115,21 @@ def _meta_description(root) -> str:
 
 
 def _navigation_anchors(root: _Element) -> list[_Element]:
+    """Every same-origin anchor in the body, in document order.
+
+    This used to query ``nav``/``header``/``role=navigation`` and fall back to
+    body links only when that returned NOTHING. On real sites the scoped query
+    returns the account header -- Login, Orders, Wishlist, Cart -- so it was
+    never empty, the fallback never fired, and the offering rail was never
+    seen: a marketplace homepage yielded thirteen account links while four
+    hundred category anchors sat in the body untouched.
+
+    Selection is not this function's job. ``domain/projects/offering_harvest``
+    ranks and filters what comes back; returning a narrow slice here only
+    hides candidates from the code that can actually judge them.
+    """
     try:
-        anchors = root.xpath(
-            "//nav//a[@href] | //header//a[@href] | //*[@role='navigation']//a[@href]"
-        )
-        if not anchors:
-            # Older retail homepages often implement the category rail with
-            # generic divs. Fall back to body links; the domain owner still
-            # applies the same commercial/editorial/utility classifier.
-            anchors = root.xpath("//body//a[@href]")
+        anchors = root.xpath("//body//a[@href]")
     except Exception:
         return []
     return cast(list[_Element], anchors)

@@ -25,12 +25,14 @@ from sqlalchemy.orm import selectinload
 from app.connectors.agent.gateway import ModelGateway
 from app.core.config.projects import PROMPT_ORIGIN_GENERATED
 from app.core.config.prompts import (
-    GENERATION_COMPARISON_SYSTEM_PROMPT,
-    GENERATION_SYSTEM_PROMPT,
     GENERATOR_VERSION,
     PROMPT_NEAR_DUPLICATE_SIMILARITY,
     PROMPT_STATUS_ACTIVE,
     prompt_generation_settings,
+)
+from app.core.config.visibility_prompts import (
+    brand_cohort_system_prompt,
+    prompt_system_prompt,
 )
 from app.domain.projects.knowledge_base import build_brand_knowledge_data
 from app.domain.projects.shim import project_scoring_identity
@@ -45,12 +47,12 @@ from app.domain.prompts.generation_errors import (
     GenerationValidationError,
     reraise_scoped_integrity_error,
 )
+from app.domain.prompts.generation_filtering import (
+    business_model,
+    filter_for_cohort,
+)
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
 from app.domain.prompts.normalization import prompt_text_hash
-from app.domain.prompts.portfolio import (
-    contains_tracked_name,
-    prompt_identity_is_valid,
-)
 from app.domain.prompts.service import PromptSetNotFoundError, prepare_prompt_inserts
 from app.domain.prompts.topical_binding import (
     BindingVocabulary,
@@ -119,92 +121,6 @@ async def _load_prompt_set_with_project(
     return prompt_set
 
 
-def _is_branded(text: str, brand_context: dict[str, Any]) -> bool:
-    """Boundary-safe tracked-name detection."""
-    names = [brand_context.get("brand_name", "")]
-    names += brand_context.get("brand_aliases", [])
-    for competitor in brand_context.get("competitors", []):
-        names.append(competitor.get("name", ""))
-        names += competitor.get("aliases", [])
-    return contains_tracked_name(text, (str(name) for name in names))
-
-
-def _core_prompt_is_valid(
-    prompt: SuggestedPrompt,
-    normalized: str,
-    brand_context: dict[str, Any],
-    accepted: list[str],
-) -> bool:
-    return (
-        bool(prompt.intent)
-        and not _is_branded(prompt.text, brand_context)
-        and not any(
-            SequenceMatcher(None, normalized, previous).ratio()
-            >= PROMPT_NEAR_DUPLICATE_SIMILARITY
-            for previous in accepted
-        )
-    )
-
-
-def _drop_invalid_core_prompts(
-    suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
-) -> list[SuggestedTopic]:
-    """Reject tracked names, missing intents, and near duplicates."""
-    accepted: list[str] = []
-    topics: list[SuggestedTopic] = []
-    for topic in suggestions:
-        rows: list[SuggestedPrompt] = []
-        for prompt in topic.prompts:
-            normalized = " ".join(prompt.text.casefold().split())
-            if not _core_prompt_is_valid(prompt, normalized, brand_context, accepted):
-                continue
-            accepted.append(normalized)
-            rows.append(prompt)
-        if rows:
-            topics.append(
-                SuggestedTopic(topic_id=topic.topic_id, name=topic.name, prompts=rows)
-            )
-    return topics
-
-
-def _drop_invalid_comparison_prompts(
-    suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
-) -> list[SuggestedTopic]:
-    """Keep named comparisons only when brand and competitor are both named."""
-    brand_names = [
-        brand_context.get("brand_name", ""),
-        *brand_context.get("brand_aliases", []),
-    ]
-    competitor_names = [
-        name
-        for competitor in brand_context.get("competitors", [])
-        for name in [competitor.get("name", ""), *competitor.get("aliases", [])]
-    ]
-
-    retained_topics: list[SuggestedTopic] = []
-    for topic in suggestions:
-        retained_prompts = [
-            prompt
-            for prompt in topic.prompts
-            if prompt_identity_is_valid(
-                text=prompt.text,
-                cohort="comparison",
-                intent=prompt.intent,
-                brand_terms=(str(name) for name in brand_names),
-                competitor_terms=(str(name) for name in competitor_names),
-            )
-        ]
-        if retained_prompts:
-            retained_topics.append(
-                SuggestedTopic(
-                    topic_id=topic.topic_id,
-                    name=topic.name,
-                    prompts=retained_prompts,
-                )
-            )
-    return retained_topics
-
-
 def _prompt_count(suggestions: list[SuggestedTopic]) -> int:
     return sum(len(topic.prompts) for topic in suggestions)
 
@@ -240,14 +156,6 @@ def _drop_cross_batch_duplicates(
                 )
             )
     return retained, dropped
-
-
-def _filter_for_cohort(
-    suggestions: list[SuggestedTopic], cohort: str, brand_context: dict[str, Any]
-) -> list[SuggestedTopic]:
-    if cohort == "comparison":
-        return _drop_invalid_comparison_prompts(suggestions, brand_context)
-    return _drop_invalid_core_prompts(suggestions, brand_context)
 
 
 def _resolve_target_topic(prompt_set: PromptSet, payload: Any) -> Topic | None:
@@ -484,11 +392,23 @@ async def _load_demand_grounding(
     return snapshot, signals
 
 
+def _project_business_context(project: Project) -> dict[str, Any]:
+    """The confirmed business facets, which live on the brand profile.
+
+    `project_scoring_identity` is the scorer's projection and deliberately does
+    not carry them; prompt generation needs `business_model` to pick the buyer
+    register its exemplars demonstrate.
+    """
+    profile = project.brand.profile if project.brand is not None else None
+    return dict(getattr(profile, "business_context", None) or {})
+
+
 def _generation_brand_context(
     project: Project, demand_signals: list[DemandSignal]
 ) -> dict[str, Any]:
     context = project_scoring_identity(project)
     context["knowledge_base"] = build_brand_knowledge_data(project)
+    context["business_context"] = _project_business_context(project)
     context["demand_signals"] = [
         {
             "id": str(signal.id),
@@ -582,10 +502,11 @@ async def _generate_suggestions(
     context_limit = prompt_generation_settings.existing_prompt_context_limit
     allowed_topics = _allowed_generation_topics(prompt_set.project, target_topic)
     await session.commit()
+    business_model_name = business_model(brand_context)
     system_prompt = (
-        GENERATION_COMPARISON_SYSTEM_PROMPT
+        brand_cohort_system_prompt(business_model_name, "comparison")
         if payload.cohort == "comparison"
-        else GENERATION_SYSTEM_PROMPT
+        else prompt_system_prompt(business_model_name)
     )
     suggestions: list[SuggestedTopic] = []
     intra_duplicates = 0
@@ -610,7 +531,7 @@ async def _generate_suggestions(
             raw, allowed_topics=allowed_topics
         )
         intra_duplicates += batch_duplicates
-        batch = _filter_for_cohort(batch, payload.cohort, brand_context)
+        batch = filter_for_cohort(batch, payload.cohort, brand_context)
         batch, cross_batch_duplicates = _drop_cross_batch_duplicates(suggestions, batch)
         intra_duplicates += cross_batch_duplicates
         suggestions.extend(batch)

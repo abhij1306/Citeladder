@@ -37,21 +37,3 @@ def industry_context(industry: str) -> tuple[str, dict[str, Any]]:
 
 def library_version() -> str:
     return str(load_industry_library()["version"])
-
-
-@lru_cache(maxsize=1)
-def archetype_templates() -> tuple[str, ...]:
-    """Every slot template the deterministic fallback can emit.
-
-    Used to *reject* model output that merely reproduces one of these skeletons.
-    Template phrasing is the one form of synthetic language detectable with
-    certainty, so a model reply matching a skeleton is not model-authored in any
-    meaningful sense.
-    """
-    library = load_industry_library()
-    templates = [
-        str(item["text"]) for item in library.get("brand_relevant_archetypes", [])
-    ]
-    for context in library["industries"].values():
-        templates += [str(item["text"]) for item in context.get("archetypes", [])]
-    return tuple(dict.fromkeys(templates))

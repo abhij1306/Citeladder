@@ -131,13 +131,16 @@ const discoveryPromptSuggestionSchema = responseObject({
   topic_id: uuid(),
   text: z.string(),
   intent: z.enum(['discovery', 'comparison', 'purchase', 'service', 'local']),
-  cohort: z.enum(['core', 'brand_diagnostic']),
+  cohort: promptCohortSchema,
 });
 
 const discoveryTopicSchema = responseObject({
   topic_id: uuid(),
   name: z.string(),
-  evidence_refs: z.array(z.string()),
+  description: z.string(),
+  // `source_refs` on the wire: the offering entries or fetched pages that
+  // supported this topic. Renamed from `evidence_refs` alongside the backend.
+  source_refs: z.array(z.string()),
 });
 
 const discoveryEvidenceSchema = responseObject({

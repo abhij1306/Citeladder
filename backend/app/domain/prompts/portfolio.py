@@ -28,7 +28,7 @@ def prompt_identity_is_valid(
     """Enforce neutral measurement prompts and explicit diagnostic identity."""
     names_brand = contains_tracked_name(text, brand_terms)
     names_competitor = contains_tracked_name(text, competitor_terms)
-    if cohort in {"core", "market_visibility"}:
+    if cohort == "core":
         return not names_brand and not names_competitor
     if cohort == "brand_diagnostic":
         return names_brand

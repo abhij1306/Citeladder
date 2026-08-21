@@ -781,8 +781,11 @@ async def test_create_recrawl_does_not_conflict_with_parked_paused_crawl(
     session_factory: async_sessionmaker[AsyncSession],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The standard crawl freezes the public 500-page discovery bound while its
-    # automatic analysis allowance remains entitlement-safe.
+    # The standard crawl freezes the configured automatic discovery bound while
+    # its automatic analysis allowance remains entitlement-safe. The bound is
+    # read from settings rather than hardcoded: the repo's own .env lowers
+    # ``automatic_page_limit`` below the code default, so a literal here passes
+    # in CI and fails on any developer machine that loads .env.
     monkeypatch.setattr(site_health_settings, "advanced_controls_enabled", False)
     async with session_factory() as session:
         seed = await _seed_workspace(session, projects=[{"name": "a", "url_count": 1}])
@@ -809,7 +812,9 @@ async def test_create_recrawl_does_not_conflict_with_parked_paused_crawl(
     assert recrawl.id != paused_id
     assert recrawl.status in CRAWL_ACTIVE_STATUSES
     assert recrawl.configuration is not None
-    assert recrawl.discovery_requested_count == 500
+    assert (
+        recrawl.discovery_requested_count == site_health_settings.automatic_page_limit
+    )
     assert recrawl.configuration[AUTOMATIC_MONITOR_LIMIT_KEY] == 50
     async with session_factory() as session:
         root_analysis = await session.scalar(

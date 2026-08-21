@@ -11,9 +11,11 @@ import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.analysis.site_health.parser import extract_page_facts
 from app.core.config.site_health_acquisition import (
     AI_CRAWLER_BOTS,
     ERROR_ROBOTS_DENIED,
+    FETCH_PURPOSE_DISCOVER,
 )
 from app.core.config.site_health_contracts import (
     ANALYSIS_STATUS_CANCELLED,
@@ -47,6 +49,7 @@ from app.core.config.task_queue import (
     TASK_STATUS_SUCCEEDED,
 )
 from app.domain.site_health.normalization import canonical_identity
+from app.domain.site_health.rerun import rerun_page
 from app.models.site_health.acquisition import SiteFetchArtifact
 from app.models.site_health.analysis import (
     SiteIssue,
@@ -66,6 +69,7 @@ from tests.component.site_health_worker_helpers import (
     _ByteStream,
     _FakeResolver,
     _html,
+    _HttpxHandlerTransport,
     _rich_html,
     _rich_page,
     _seed_analyze_phase_crawl,
@@ -74,6 +78,102 @@ from tests.component.site_health_worker_helpers import (
     _thin_html,
     _worker,
 )
+
+
+@pytest.mark.asyncio
+async def test_same_crawl_rerun_gets_a_new_analysis_for_reused_artifact(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = "https://example.com/rich"
+    seed, site_url_id, _analyze_task_id = await _seed_analyze_ready(
+        session_factory,
+        root=root,
+    )
+    _canonical, url_hash = canonical_identity(root)
+    body = _rich_html()
+    facts = extract_page_facts(
+        body,
+        final_url=root,
+        content_type="text/html",
+        status_code=200,
+        wire_bytes=len(body),
+        decoded_bytes=len(body),
+    )
+    async with session_factory() as session:
+        discover_task = SiteCrawlTask(
+            crawl_id=seed.crawl_id,
+            workspace_id=seed.workspace_id,
+            site_url_id=site_url_id,
+            task_kind=TASK_KIND_DISCOVER,
+            requested_url=root,
+            url_hash=url_hash,
+            generation=0,
+            idempotency_key=f"{seed.crawl_id}:discover:{url_hash}:0",
+            status=TASK_STATUS_SUCCEEDED,
+        )
+        session.add(discover_task)
+        await session.flush()
+        artifact = SiteFetchArtifact(
+            task_id=discover_task.id,
+            crawl_id=seed.crawl_id,
+            workspace_id=seed.workspace_id,
+            fetch_purpose=FETCH_PURPOSE_DISCOVER,
+            requested_url=root,
+            final_url=root,
+            status_code=200,
+            content_type="text/html",
+            extractor_version=EXTRACTOR_VERSION,
+            normalized_facts=facts,
+        )
+        session.add(artifact)
+        await session.flush()
+        discover_task.result_artifact_id = artifact.id
+        await session.commit()
+    worker = _worker(
+        session_factory,
+        {"/rich": _rich_html()},
+        owner="same-crawl-rerun",
+    )
+
+    async def keep_crawl_active(_crawl_id) -> None:
+        return None
+
+    monkeypatch.setattr(worker, "_reconcile_crawl_status", keep_crawl_active)
+    assert await worker.run_until_idle() == 1
+
+    async with session_factory() as session:
+        first = (
+            await session.scalars(
+                select(SitePageAnalysis).where(
+                    SitePageAnalysis.crawl_id == seed.crawl_id
+                )
+            )
+        ).one()
+        result = await rerun_page(
+            session,
+            workspace_id=seed.workspace_id,
+            project_id=seed.project_id,
+            site_url_id=first.site_url_id,
+        )
+        await session.commit()
+        assert result.created_new_crawl is False
+
+    assert await worker.run_until_idle() == 1
+
+    async with session_factory() as session:
+        analyses = list(
+            await session.scalars(
+                select(SitePageAnalysis)
+                .where(SitePageAnalysis.crawl_id == seed.crawl_id)
+                .order_by(SitePageAnalysis.created_at, SitePageAnalysis.id)
+            )
+        )
+
+    assert len(analyses) == 2
+    assert analyses[0].id != analyses[1].id
+    assert analyses[0].artifact_id == analyses[1].artifact_id
+    assert [analysis.is_current for analysis in analyses] == [False, True]
 
 
 @pytest.mark.asyncio
@@ -95,7 +195,7 @@ async def test_analyze_guard_blocks_live_entitlement_downgrade_before_io(
         session_factory=session_factory,
         owner="downgraded",
         resolver=_FakeResolver(),
-        transport=httpx.MockTransport(handler),
+        transport=_HttpxHandlerTransport(handler),
     )
     await worker.run_until_idle()
 
@@ -293,7 +393,7 @@ async def test_reclaimed_analyze_acknowledges_already_persisted_analysis(
         session_factory=session_factory,
         owner="reclaimed",
         resolver=_FakeResolver(),
-        transport=httpx.MockTransport(should_not_refetch),
+        transport=_HttpxHandlerTransport(should_not_refetch),
     )
     await reclaimed.run_until_idle()
 
@@ -688,7 +788,7 @@ async def test_rerun_from_completed_crawl_worker_analyzes_only_reran_url(
         session_factory=session_factory,
         owner="rerun-worker",
         resolver=_FakeResolver(),
-        transport=httpx.MockTransport(handler),
+        transport=_HttpxHandlerTransport(handler),
     )
     await worker.run_until_idle()
 

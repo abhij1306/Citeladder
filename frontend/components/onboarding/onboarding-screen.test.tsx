@@ -100,17 +100,20 @@ function discovery(status: BrandDiscovery['status'], phase: BrandDiscovery['prog
       {
         topic_id: '11111111-1111-4111-8111-111111111111',
         name: 'Product feeds',
-        evidence_refs: ['page-1'],
+        description: '',
+        source_refs: ['page-1'],
       },
       {
         topic_id: '22222222-2222-4222-8222-222222222222',
         name: 'Catalog management',
-        evidence_refs: ['page-1'],
+        description: '',
+        source_refs: ['page-1'],
       },
       {
         topic_id: '33333333-3333-4333-8333-333333333333',
         name: 'Marketplace syndication',
-        evidence_refs: ['page-1'],
+        description: '',
+        source_refs: ['page-1'],
       },
     ],
     prompt_suggestions: [],

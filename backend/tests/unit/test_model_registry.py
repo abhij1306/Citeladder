@@ -73,7 +73,7 @@ def test_site_health_critical_metadata_contracts() -> None:
     } <= {constraint.name for constraint in observation.constraints}
 
     analysis = models.SitePageAnalysis.__table__
-    assert "uq_site_page_analysis_version" in {
+    assert "uq_site_page_analysis_version" not in {
         constraint.name for constraint in analysis.constraints
     }
     assert "uq_site_page_analysis_current" in {index.name for index in analysis.indexes}

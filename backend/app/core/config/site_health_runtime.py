@@ -8,9 +8,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.core.config.site_health_acquisition import (
     _BASE_DIR,
     _PROJECT_ROOT,
-    ERROR_ACQUISITION_UNAVAILABLE,
-    ERROR_CONNECTION_FAILED,
-    ERROR_TIMEOUT,
 )
 from app.core.config.site_health_crawl_policy import (
     SAMPLE_DISCOVERY_URL_CAP as SAMPLE_DISCOVERY_URL_CAP,
@@ -29,12 +26,6 @@ def _require_non_empty(settings: object, names: tuple[str, ...]) -> None:
     for name in names:
         if not str(getattr(settings, name)).strip():
             raise ValueError(f"{name} must not be empty")
-
-
-def _require_non_negative(settings: object, names: tuple[str, ...]) -> None:
-    for name in names:
-        if getattr(settings, name) < 0:
-            raise ValueError(f"{name} must not be negative")
 
 
 def _require_positive(settings: object, names: tuple[str, ...]) -> None:
@@ -107,6 +98,9 @@ class SiteHealthSettings(BaseSettings):
     # into a promise; fetch latency, retries, parsing, and declared crawl-delay
     # still determine observed throughput.
     per_host_delay_seconds: float = 0.15
+    # How long to stop starting requests to a host that answered 429 when it
+    # sent no Retry-After. Clamped by ``max_crawl_delay_seconds``.
+    rate_limit_cooldown_seconds: float = 5.0
     # Default crawl delay applied when robots does not specify one.
     default_crawl_delay_seconds: float = 0.0
     # Cap on any robots-declared crawl delay we will honor.
@@ -124,68 +118,12 @@ class SiteHealthSettings(BaseSettings):
     # HTML size cap fed to the parser.
     max_html_bytes: int = 5_000_000
 
-    # --- Server-owned acquisition ladder ---
+    # --- Server-owned curl-cffi acquisition ---
     # Each crawl freezes these values in its configuration. They are kept here
     # (not in a connector) because acquisition behavior is an operational
     # policy, not application logic.
-    acquisition_policy_version: str = "sh-acquisition-1"
-    curl_cffi_enabled: bool = False
+    acquisition_policy_version: str = "sh-acquisition-2"
     curl_cffi_impersonation_profile: str = "chrome"
-    # A successful but unusually small HTML document is commonly a challenge
-    # shell. Zero disables this signal for installations that prefer only
-    # explicit challenge/status evidence.
-    curl_cffi_low_content_bytes: int = 512
-    curl_cffi_trigger_statuses: tuple[int, ...] = (403, 429, 503)
-    # Client-rendered-shell detection. ``curl_cffi_low_content_bytes`` measures
-    # the whole RESPONSE, which is the wrong ruler for the case the browser rung
-    # exists to fix: a real JS shell ships a full nav, footer, and bundle
-    # reference, so its byte count is ample while its readable text is nearly
-    # empty. Measured live against a public JS-shell page, the served document
-    # was well over the low-content floor and never escalated — rung 3 was
-    # unreachable for exactly the input it was built for.
-    #
-    # A response escalates as a shell only when ALL THREE hold, so an ordinary
-    # short page (a brief contact page) never pays for a render:
-    #   - readable text below ``js_shell_min_text_chars``;
-    #   - total decoded bytes at/above ``curl_cffi_low_content_bytes`` (below
-    #     that it is plain ``low_content``, a different fact);
-    #   - the document actually loads script (``<script src>`` or a substantial
-    #     inline script), i.e. content plausibly arrives client-side.
-    # 0 disables the signal.
-    js_shell_min_text_chars: int = 600
-    js_shell_min_inline_script_chars: int = 1024
-    # Bounded prefix of the decoded body the detector scans. Text-bearing markup
-    # is front-loaded; scanning a whole multi-megabyte document to answer "is
-    # this empty?" would be per-response work for no added signal.
-    js_shell_scan_bytes: int = 262_144
-    # Only these curl-rung failure tokens may advance to the browser rung.
-    # Policy/cap/redirect failures must never be bypassed.
-    browser_continue_error_codes: tuple[str, ...] = (
-        ERROR_CONNECTION_FAILED,
-        ERROR_TIMEOUT,
-        ERROR_ACQUISITION_UNAVAILABLE,
-    )
-    # --- Rung 3: bundled headless browser (patchright) ---
-    # The last rung of the frozen ladder. It renders a JS shell locally; there
-    # is deliberately no paid acquisition vendor and no real-Chrome escalation.
-    browser_enabled: bool = False
-    browser_navigation_timeout_seconds: float = 20.0
-    # How long readiness may wait for the DOM to settle after navigation.
-    browser_readiness_timeout_seconds: float = 8.0
-    # A rendered document below this size is still treated as a challenge/JS
-    # shell rather than usable evidence.
-    browser_low_content_bytes: int = 512
-    # NOTE: the same-site JSON/XHR capture knobs that used to live here are
-    # gone with the capture itself. Keeping tunables for a feature the transport
-    # no longer has advertises a capability that does nothing.
-    # Each pooled entry is a live browser process pinned to one resolved
-    # address, so the pool is bounded and evicts least-recently-used. Contexts
-    # are deliberately NOT pooled — one fresh context per fetch is what keeps
-    # cookies and storage from leaking between crawled pages.
-    browser_pool_max_browsers: int = 4
-    # Chromium's sandbox contains code fetched from crawled sites. Disable it
-    # ONLY on a platform that cannot grant the required kernel capability.
-    browser_disable_sandbox: bool = False
 
     # --- Sitemap limits ---
     max_sitemap_index_depth: int = 3
@@ -308,39 +246,13 @@ class SiteHealthSettings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def _validate_acquisition_ladder(self) -> SiteHealthSettings:
-        """Keep fallback behavior bounded, server-owned, and reproducible."""
+    def _validate_acquisition(self) -> SiteHealthSettings:
+        """Keep curl acquisition policy reproducible."""
         _require_non_empty(
             self,
             ("acquisition_policy_version", "curl_cffi_impersonation_profile"),
         )
-        # Negative bounds invert the signals; zero intentionally disables the
-        # two JS-shell gates.
-        _require_non_negative(
-            self,
-            (
-                "curl_cffi_low_content_bytes",
-                "browser_low_content_bytes",
-                "js_shell_min_text_chars",
-                "js_shell_scan_bytes",
-            ),
-        )
-        # Zero inline-script length would make an empty script look like
-        # application code and escalate ordinary static pages.
-        _require_positive(
-            self,
-            (
-                "browser_navigation_timeout_seconds",
-                "browser_readiness_timeout_seconds",
-                "js_shell_min_inline_script_chars",
-            ),
-        )
-        if any(
-            status < 100 or status > 599 for status in self.curl_cffi_trigger_statuses
-        ):
-            raise ValueError("curl_cffi_trigger_statuses must be HTTP status codes")
-        if self.browser_pool_max_browsers < 1:
-            raise ValueError("browser_pool_max_browsers must be at least 1")
+        _require_positive(self, ("rate_limit_cooldown_seconds",))
         return self
 
     @model_validator(mode="after")

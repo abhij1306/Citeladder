@@ -54,7 +54,31 @@ class HostGate:
         # drops to zero AND the polite start-delay window has elapsed, so
         # cleanup can never race active crawling of the host.
         self._refcounts: dict[str, int] = {}
+        # Monotonic deadline before which no new start may be made to a host
+        # that answered 429. Distinct from the polite spacing above: that
+        # paces a HEALTHY host, this backs off one that has told us to stop.
+        self._cooldown_until: dict[str, float] = {}
         self._delay_for = delay_for or (lambda _url: 0.0)
+
+    def note_rate_limited(self, host: str, retry_after_seconds: float | None) -> None:
+        """Pause new starts for a host that answered 429.
+
+        Without this, a rate-limited host is a stampede: every queued task for
+        it retries independently up to ``max_attempts``, and those retries are
+        exactly what keeps the host rate-limiting. One measured 150-page crawl
+        of a 429-ing host spent 1176 attempts (294 tasks x 4) to acquire 3
+        pages. The cooldown is per HOST, so one 429 slows every task bound for
+        it rather than each task discovering the limit for itself.
+        """
+        wait = (
+            retry_after_seconds
+            if retry_after_seconds and retry_after_seconds > 0
+            else site_health_settings.rate_limit_cooldown_seconds
+        )
+        wait = min(float(wait), site_health_settings.max_crawl_delay_seconds)
+        self._cooldown_until[host] = max(
+            self._cooldown_until.get(host, 0.0), time.monotonic() + wait
+        )
 
     def _base_delay(self) -> float:
         return max(0.0, site_health_settings.per_host_delay_seconds)
@@ -102,6 +126,12 @@ class HostGate:
                     await waiting.enter_async_context(on_wait())
                 async with semaphore:
                     async with start_lock:
+                        # Serve the rate-limit backoff first: it is a stop
+                        # signal from the host, not a politeness preference.
+                        cooldown = self._cooldown_until.get(host, 0.0)
+                        remaining = cooldown - time.monotonic()
+                        if remaining > 0:
+                            await asyncio.sleep(remaining)
                         delay = self._delay(url)
                         # Remember the window this start commits to, so neither
                         # `release` nor `evict_idle` can drop the host's state
@@ -128,7 +158,10 @@ class HostGate:
             self._refcounts[host] = remaining
             return
         self._refcounts.pop(host, None)
-        if time.monotonic() - self._last_started.get(host, 0.0) < self._window(host):
+        now = time.monotonic()
+        if now < self._cooldown_until.get(host, 0.0):
+            return
+        if now - self._last_started.get(host, 0.0) < self._window(host):
             return
         self._evict(host)
 
@@ -145,6 +178,8 @@ class HostGate:
         for host in hosts:
             if self._refcounts.get(host, 0) != 0:
                 continue
+            if now < self._cooldown_until.get(host, 0.0):
+                continue
             if now - self._last_started.get(host, 0.0) >= self._window(host):
                 self._evict(host)
 
@@ -155,6 +190,7 @@ class HostGate:
         # Dropped with `_last_started`: keeping a stale window for a host with
         # no start timestamp would make the next `release` hold state forever.
         self._applied_delays.pop(host, None)
+        self._cooldown_until.pop(host, None)
 
     def tracked_hosts(self) -> set[str]:
         """Hosts with live per-host state (diagnostics + tests)."""

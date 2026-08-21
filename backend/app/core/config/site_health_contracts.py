@@ -314,16 +314,6 @@ LINK_REWRITE_VERSION: Final = "sh-link-rewrite-1"
 
 LINK_REWRITE_ENCODED_TRACKING_QUERY: Final = "encoded_tracking_query_delimiter"
 
-HOST_RUNG_BLOCK_THRESHOLD: Final = 2
-
-HOST_RUNG_PREFERENCE_WINDOW: Final = 20
-
-HOST_RUNG_OBSERVATION_LIMIT: Final = 64
-
-ACQUISITION_TRIGGER_HOST_PREFERENCE: Final = "host_block_preference"
-
-ACQUISITION_TRIGGER_HOST_PROBE: Final = "host_recovery_probe"
-
 ANALYZER_VERSION: Final = "sh-analyzer-4"
 
 RULE_CATALOG_VERSION: Final = "sh-rules-4"

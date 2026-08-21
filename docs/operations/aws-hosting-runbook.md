@@ -257,7 +257,7 @@ wildcard.
 | `integration-data` | `www.googleapis.com:443`, `analyticsdata.googleapis.com:443`, `analyticsadmin.googleapis.com:443`, `ssl.bing.com:443`, and each exact validated `<shop>.myshopify.com:443` |
 | `razorpay` | `api.razorpay.com:443`; checkout hosts are browser destinations and do not grant task egress |
 
-The current Site Health ladder is `secure_httpx -> curl_cffi -> patchright`.
+Site Health uses one SSRF-pinned `curl_cffi` acquisition transport.
 ScraperAPI and Firecrawl are not runtime dependencies: do not provision their
 credentials, endpoint catalogs, task permissions, or cost controls.
 
