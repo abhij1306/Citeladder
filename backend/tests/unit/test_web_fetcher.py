@@ -132,9 +132,10 @@ async def test_redirect_to_private_address_is_blocked_before_second_call() -> No
         resolver=_FakeResolver({"internal.example": ["10.0.0.5"]}),
         transport=transport,
     )
+    request = _request()
 
     with pytest.raises(FetchError, match="private|blocked") as excinfo:
-        await fetcher.fetch(_request())
+        await fetcher.fetch(request)
 
     assert excinfo.value.error_code == "ssrf_blocked"
     assert len(transport.targets) == 1
@@ -146,10 +147,11 @@ async def test_redirect_scope_is_revalidated() -> None:
         [_result(status=302, location="https://other.example/final")]
     )
     fetcher = SecureFetcher(resolver=_FakeResolver(), transport=transport)
+    request = _request()
 
     with pytest.raises(FetchError) as excinfo:
         await fetcher.fetch(
-            _request(),
+            request,
             root_registrable_domain="example.com",
             enforce_scope=True,
         )
@@ -167,15 +169,14 @@ async def test_redirect_limit_keeps_the_last_call_in_failure_trace() -> None:
         ]
     )
     fetcher = SecureFetcher(resolver=_FakeResolver(), transport=transport)
+    request = FetchRequest(
+        url="https://example.com/",
+        purpose=FETCH_PURPOSE_ANALYZE,
+        max_redirects=1,
+    )
 
     with pytest.raises(FetchError) as excinfo:
-        await fetcher.fetch(
-            FetchRequest(
-                url="https://example.com/",
-                purpose=FETCH_PURPOSE_ANALYZE,
-                max_redirects=1,
-            )
-        )
+        await fetcher.fetch(request)
 
     assert excinfo.value.error_code == "redirect_limit"
     assert [attempt.error_code for attempt in excinfo.value.attempts] == [
@@ -188,9 +189,10 @@ async def test_redirect_limit_keeps_the_last_call_in_failure_trace() -> None:
 async def test_hard_excluded_url_never_reaches_transport() -> None:
     transport = _SequenceTransport([])
     fetcher = SecureFetcher(resolver=_FakeResolver(), transport=transport)
+    request = _request("https://example.com/image.png")
 
     with pytest.raises(FetchError) as excinfo:
-        await fetcher.fetch(_request("https://example.com/image.png"))
+        await fetcher.fetch(request)
 
     assert excinfo.value.error_code == "url_admission_rejected"
     assert transport.targets == []
@@ -202,9 +204,10 @@ async def test_transport_failure_carries_curl_trace() -> None:
         [FetchError("timed out", error_code="timeout", retryable=True)]
     )
     fetcher = SecureFetcher(resolver=_FakeResolver(), transport=transport)
+    request = _request()
 
     with pytest.raises(FetchError) as excinfo:
-        await fetcher.fetch(_request())
+        await fetcher.fetch(request)
 
     assert excinfo.value.retryable is True
     assert len(excinfo.value.attempts) == 1

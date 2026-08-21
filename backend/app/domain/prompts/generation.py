@@ -504,9 +504,9 @@ async def _generate_suggestions(
     await session.commit()
     business_model_name = business_model(brand_context)
     system_prompt = (
-        brand_cohort_system_prompt(business_model_name, "comparison")
-        if payload.cohort == "comparison"
-        else prompt_system_prompt(business_model_name)
+        prompt_system_prompt(business_model_name)
+        if payload.cohort == "core"
+        else brand_cohort_system_prompt(business_model_name, payload.cohort)
     )
     suggestions: list[SuggestedTopic] = []
     intra_duplicates = 0

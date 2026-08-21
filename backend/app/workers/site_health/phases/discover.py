@@ -109,7 +109,6 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
         # task that was still writing.
         async with self._leased(task_id):
             outcome = await self._fetch_discover(
-                crawl_id=crawl_id,
                 requested_url=requested_url,
                 root_registrable_domain=root_registrable_domain,
                 include_globs=include_globs,
@@ -128,7 +127,6 @@ class DiscoverPhaseMixin(DiscoverPersistenceMixin):
     async def _fetch_discover(
         self,
         *,
-        crawl_id: uuid.UUID,
         requested_url: str,
         root_registrable_domain: str,
         include_globs: list[str] | None,

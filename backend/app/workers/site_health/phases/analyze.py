@@ -133,7 +133,6 @@ class AnalyzePhaseMixin(PhaseSupport):
                 outcome = _AnalyzeOutcome(facts=facts, reused_artifact_id=artifact_id)
             else:
                 outcome = await self._fetch_analyze(
-                    crawl_id=crawl_id,
                     requested_url=requested_url,
                     root_registrable_domain=root_registrable_domain,
                 )
@@ -267,7 +266,6 @@ class AnalyzePhaseMixin(PhaseSupport):
     async def _fetch_analyze(
         self,
         *,
-        crawl_id: uuid.UUID,
         requested_url: str,
         root_registrable_domain: str,
     ) -> _AnalyzeOutcome:

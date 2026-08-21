@@ -120,3 +120,30 @@ async def test_rate_limit_cooldown_uses_fallback_and_clamps_retry_after(
         pass
 
     assert sleeps == [expected]
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_recorded_during_polite_wait_extends_the_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = 100.0
+    sleeps: list[float] = []
+    gate = HostGate()
+
+    async def advance(delay: float) -> None:
+        nonlocal now
+        sleeps.append(delay)
+        if len(sleeps) == 1:
+            gate.note_rate_limited("example.com", 3.0)
+        now += delay
+
+    monkeypatch.setattr("app.workers.site_health.host_gate.time.monotonic", lambda: now)
+    monkeypatch.setattr("app.workers.site_health.host_gate.asyncio.sleep", advance)
+    monkeypatch.setattr(site_health_settings, "per_host_delay_seconds", 1.0)
+    monkeypatch.setattr(site_health_settings, "max_crawl_delay_seconds", 10.0)
+    gate._last_started["example.com"] = now
+
+    async with gate.slot("example.com", "https://example.com/"):
+        pass
+
+    assert sleeps == [1.0, 2.0]

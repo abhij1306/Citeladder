@@ -429,6 +429,28 @@ def test_market_is_named_at_most_once_per_topic() -> None:
     assert _offer(validator, "best Indian sites for baby clothes", topic_id="t2") == ""
 
 
+def test_unbound_brand_diagnostics_do_not_share_a_topic_market_cap() -> None:
+    validator = _validator()
+    assert (
+        _offer(
+            validator,
+            "is Acme reliable for buyers in India",
+            topic_id="",
+            cohort="brand_diagnostic",
+        )
+        == ""
+    )
+    assert (
+        _offer(
+            validator,
+            "does Acme support customers across India",
+            topic_id="",
+            cohort="brand_diagnostic",
+        )
+        == ""
+    )
+
+
 def test_short_form_of_a_multi_word_brand_is_still_the_brand() -> None:
     """ "Best Apollo hospital for..." shipped as an ORGANIC prompt."""
     terms = brand_terms("Apollo Hospitals", [])
@@ -504,8 +526,10 @@ def _page(links: list[tuple[str, str]]) -> BrandEvidencePage:
     )
 
 
-def _harvest(links: list[tuple[str, str]]) -> list[str]:
-    harvest = harvest_offerings((_page(links),), brand_terms=["Acme"])
+def _harvest(
+    links: list[tuple[str, str]], *, brand_terms: list[str] | None = None
+) -> list[str]:
+    harvest = harvest_offerings((_page(links),), brand_terms=brand_terms or ["Acme"])
     return [node.label for node in harvest.nodes]
 
 
@@ -550,6 +574,29 @@ def test_harvest_keeps_possessive_departments_apart() -> None:
 def test_harvest_reports_empty_when_no_readable_list_is_published() -> None:
     page = _page([("Login", "/account/login")])
     assert not harvest_offerings((page,), brand_terms=["Acme"]).is_ready
+
+
+def test_harvest_rejects_query_identified_detail_pages() -> None:
+    assert _harvest(
+        [
+            ("Kids Clothing", "/kids-clothing"),
+            ("Air Conditioners", "/air-conditioners"),
+            ("Mobile Phones", "/mobile-phones"),
+            ("One Phone", "/product?pid=123"),
+        ]
+    ) == ["Kids Clothing", "Air Conditioners", "Mobile Phones"]
+
+
+def test_harvest_matches_brand_names_as_complete_phrases() -> None:
+    assert _harvest(
+        [
+            ("Party Supplies", "/party-supplies"),
+            ("Art Originals", "/art-originals"),
+            ("Home Decor", "/home-decor"),
+            ("Gifts", "/gifts"),
+        ],
+        brand_terms=["Art"],
+    ) == ["Party Supplies", "Home Decor", "Gifts"]
 
 
 def test_catalog_exposes_only_stored_visibility_cohorts() -> None:

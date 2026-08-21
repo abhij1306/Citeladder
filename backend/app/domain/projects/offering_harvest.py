@@ -109,7 +109,8 @@ class _Candidate:
 
 def _path_of(url: str) -> str:
     parts = urlsplit(url)
-    return parts.path or "/"
+    path = parts.path or "/"
+    return f"{path}?{parts.query}" if parts.query else path
 
 
 def _segments(path: str) -> list[str]:
@@ -140,7 +141,11 @@ def _is_shapely(label: str, path: str) -> bool:
 
 
 def _brand_key(brand_terms: list[str]) -> list[str]:
-    return [" ".join(term.casefold().split()) for term in brand_terms if term.strip()]
+    return [
+        " ".join(_TOKEN.findall(term.casefold()))
+        for term in brand_terms
+        if term.strip()
+    ]
 
 
 def _collect(pages: tuple[BrandEvidencePage, ...]) -> list[tuple[int, int, str, str]]:
@@ -165,8 +170,8 @@ def _candidates(
         key = f"{label.casefold()}|{path.casefold()}"
         if key in seen:
             continue
-        low = label.casefold()
-        if any(brand and brand in low for brand in brand_keys):
+        normalized_label = f" {' '.join(_TOKEN.findall(label.casefold()))} "
+        if any(brand and f" {brand} " in normalized_label for brand in brand_keys):
             continue
         if _DETAIL_PATH.search(path):
             continue

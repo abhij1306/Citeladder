@@ -175,7 +175,11 @@ class PortfolioValidator:
             return "duplicate"
         if self._openings.get(opening_key(text), 0) >= VISIBILITY_MAX_SHARED_OPENINGS:
             return "repeated_opening"
-        if self._names_market(text) and self._market_by_topic.get(topic_id, 0) >= 1:
+        if (
+            topic_id
+            and self._names_market(text)
+            and self._market_by_topic.get(topic_id, 0) >= 1
+        ):
             return "market_mention_cap"
         return ""
 
@@ -197,7 +201,7 @@ class PortfolioValidator:
         self._normalized.append(normalize_alias(text))
         opening = opening_key(text)
         self._openings[opening] = self._openings.get(opening, 0) + 1
-        if self._names_market(text):
+        if topic_id and self._names_market(text):
             self._market_by_topic[topic_id] = self._market_by_topic.get(topic_id, 0) + 1
         self._accepted.append(
             {

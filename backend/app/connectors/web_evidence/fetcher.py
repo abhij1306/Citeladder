@@ -198,13 +198,14 @@ class SecureFetcher:
                 error_code=error_code,
             )
             if not is_redirect:
-                return replace(
+                completed: FetchResult = replace(
                     result,
                     requested_url=request.url,
                     redirect_chain=tuple(redirects),
                     attempts=tuple(attempts),
                     acquisition=acquisition,
                 )
+                return completed
             if hop >= max_redirects:
                 raise FetchError(
                     "curl acquisition redirect limit",
@@ -269,18 +270,19 @@ class SecureFetcher:
         error: FetchError | None = None,
         error_code: str | None = None,
     ) -> None:
+        status_code = (
+            result.status_code
+            if result is not None
+            else error.status_code
+            if error
+            else None
+        )
         attempts.append(
             FetchCallTrace(
                 request_ordinal=len(attempts),
                 url=result.final_url if result is not None else target.url,
                 method=request.method,
-                status_code=(
-                    result.status_code
-                    if result is not None
-                    else error.status_code
-                    if error
-                    else None
-                ),
+                status_code=status_code,
                 error_code=error_code or (error.error_code if error else None),
                 wire_bytes=result.wire_bytes if result is not None else None,
                 decoded_bytes=result.decoded_bytes if result is not None else None,

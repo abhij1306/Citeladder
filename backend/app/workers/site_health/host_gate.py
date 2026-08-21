@@ -126,13 +126,19 @@ class HostGate:
                     await waiting.enter_async_context(on_wait())
                 async with semaphore:
                     async with start_lock:
-                        # Serve the rate-limit backoff first: it is a stop
-                        # signal from the host, not a politeness preference.
-                        cooldown = self._cooldown_until.get(host, 0.0)
-                        remaining = cooldown - time.monotonic()
-                        if remaining > 0:
+                        # Recompute after every sleep. A sibling may record a
+                        # new 429 cooldown while this task is waiting out the
+                        # ordinary politeness window.
+                        while True:
+                            delay = self._delay(url)
+                            next_start = max(
+                                self._cooldown_until.get(host, 0.0),
+                                self._last_started.get(host, 0.0) + delay,
+                            )
+                            remaining = next_start - time.monotonic()
+                            if remaining <= 0:
+                                break
                             await asyncio.sleep(remaining)
-                        delay = self._delay(url)
                         # Remember the window this start commits to, so neither
                         # `release` nor `evict_idle` can drop the host's state
                         # before a robots-widened delay has elapsed.

@@ -258,3 +258,53 @@ def test_manual_generation_applies_the_same_buyer_style_gate() -> None:
     # At most two prompts may share an opening, so the third "best running
     # shoes" variant is dropped.
     assert sum(text.startswith("best running shoes") for text in kept) == 2
+
+
+def test_named_manual_generation_keeps_identity_and_style_rules() -> None:
+    from app.domain.prompts.generation_contract import SuggestedPrompt, SuggestedTopic
+    from app.domain.prompts.generation_filtering import filter_for_cohort
+
+    topic_id = uuid.uuid4()
+    brand_context = {
+        "brand_name": "Acme",
+        "brand_aliases": [],
+        "competitors": [{"name": "Rival", "aliases": []}],
+        "knowledge_base": {},
+    }
+
+    def filtered(cohort: str, prompts: list[SuggestedPrompt]) -> list[str]:
+        result = filter_for_cohort(
+            [SuggestedTopic(topic_id=topic_id, name="Shoes", prompts=prompts)],
+            cohort,
+            brand_context,
+        )
+        return [prompt.text for topic in result for prompt in topic.prompts]
+
+    comparisons = filtered(
+        "comparison",
+        [
+            SuggestedPrompt(
+                text="What are my best options for Acme versus Rival?",
+                intent="comparison",
+            ),
+            SuggestedPrompt(
+                text="Acme or Rival for school shoes this year", intent="comparison"
+            ),
+            SuggestedPrompt(
+                text=" ".join(["Acme", "Rival", *(["shoes"] * 16)]),
+                intent="comparison",
+            ),
+        ],
+    )
+    assert comparisons == ["Acme or Rival for school shoes this year"]
+
+    diagnostics = filtered(
+        "brand_diagnostic",
+        [
+            SuggestedPrompt(
+                text="Is Acme reliable for school shoes in India",
+                intent="discovery",
+            )
+        ],
+    )
+    assert diagnostics == ["Is Acme reliable for school shoes in India"]

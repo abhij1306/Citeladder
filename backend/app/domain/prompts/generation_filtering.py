@@ -12,7 +12,7 @@ from app.core.config.visibility_prompts import (
     VISIBILITY_PROMPT_MIN_WORDS,
 )
 from app.domain.prompts.generation_contract import SuggestedPrompt, SuggestedTopic
-from app.domain.prompts.portfolio import contains_tracked_name, prompt_identity_is_valid
+from app.domain.prompts.portfolio import prompt_identity_is_valid
 from app.domain.prompts.style import (
     opening_key,
     positioning_shingles,
@@ -22,18 +22,20 @@ from app.domain.prompts.style import (
 )
 
 
-def _tracked_names(brand_context: dict[str, Any]) -> list[str]:
-    names = [
+def _identity_terms(brand_context: dict[str, Any]) -> tuple[list[str], list[str]]:
+    brand_names = [
         brand_context.get("brand_name", ""),
         *brand_context.get("brand_aliases", []),
     ]
-    for competitor in brand_context.get("competitors", []):
-        names.extend([competitor.get("name", ""), *competitor.get("aliases", [])])
-    return [str(name) for name in names]
-
-
-def _is_branded(text: str, brand_context: dict[str, Any]) -> bool:
-    return contains_tracked_name(text, _tracked_names(brand_context))
+    competitor_names = [
+        name
+        for competitor in brand_context.get("competitors", [])
+        for name in [competitor.get("name", ""), *competitor.get("aliases", [])]
+    ]
+    return (
+        [str(name) for name in brand_names],
+        [str(name) for name in competitor_names],
+    )
 
 
 def _positioning_shingles(brand_context: dict[str, Any]) -> frozenset[str]:
@@ -46,17 +48,14 @@ def _positioning_shingles(brand_context: dict[str, Any]) -> frozenset[str]:
     )
 
 
-def _core_prompt_is_valid(
+def _style_is_valid(
     prompt: SuggestedPrompt,
     normalized: str,
-    brand_context: dict[str, Any],
     accepted: list[str],
     *,
     positioning: frozenset[str],
     openings: dict[str, int],
 ) -> bool:
-    if not prompt.intent or _is_branded(prompt.text, brand_context):
-        return False
     if not (
         VISIBILITY_PROMPT_MIN_WORDS
         <= len(words(prompt.text))
@@ -80,22 +79,46 @@ def _core_prompt_is_valid(
     return True
 
 
-def _drop_invalid_core_prompts(
-    suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
+def _identity_is_valid(
+    prompt: SuggestedPrompt,
+    *,
+    cohort: str,
+    brand_terms: list[str],
+    competitor_terms: list[str],
+) -> bool:
+    return bool(prompt.intent) and prompt_identity_is_valid(
+        text=prompt.text,
+        cohort=cohort,
+        intent=prompt.intent,
+        brand_terms=brand_terms,
+        competitor_terms=competitor_terms,
+    )
+
+
+def _drop_invalid_prompts(
+    suggestions: list[SuggestedTopic],
+    brand_context: dict[str, Any],
+    *,
+    cohort: str,
 ) -> list[SuggestedTopic]:
-    """Reject tracked names, template frames, pasted copy, and duplicates."""
+    """Apply identity, buyer-style, opening, and duplicate rules."""
     accepted: list[str] = []
     openings: dict[str, int] = {}
     positioning = _positioning_shingles(brand_context)
+    brand_terms, competitor_terms = _identity_terms(brand_context)
     topics: list[SuggestedTopic] = []
     for topic in suggestions:
         rows: list[SuggestedPrompt] = []
         for prompt in topic.prompts:
             normalized = " ".join(prompt.text.casefold().split())
-            if not _core_prompt_is_valid(
+            if not _identity_is_valid(
+                prompt,
+                cohort=cohort,
+                brand_terms=brand_terms,
+                competitor_terms=competitor_terms,
+            ) or not _style_is_valid(
                 prompt,
                 normalized,
-                brand_context,
                 accepted,
                 positioning=positioning,
                 openings=openings,
@@ -110,47 +133,16 @@ def _drop_invalid_core_prompts(
     return topics
 
 
-def _drop_invalid_comparison_prompts(
+def _drop_invalid_core_prompts(
     suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
 ) -> list[SuggestedTopic]:
-    """Keep named comparisons only when brand and competitor are both named."""
-    brand_names = [
-        brand_context.get("brand_name", ""),
-        *brand_context.get("brand_aliases", []),
-    ]
-    competitor_names = [
-        name
-        for competitor in brand_context.get("competitors", [])
-        for name in [competitor.get("name", ""), *competitor.get("aliases", [])]
-    ]
-    retained: list[SuggestedTopic] = []
-    for topic in suggestions:
-        prompts = [
-            prompt
-            for prompt in topic.prompts
-            if prompt_identity_is_valid(
-                text=prompt.text,
-                cohort="comparison",
-                intent=prompt.intent,
-                brand_terms=(str(name) for name in brand_names),
-                competitor_terms=(str(name) for name in competitor_names),
-            )
-        ]
-        if prompts:
-            retained.append(
-                SuggestedTopic(
-                    topic_id=topic.topic_id, name=topic.name, prompts=prompts
-                )
-            )
-    return retained
+    return _drop_invalid_prompts(suggestions, brand_context, cohort="core")
 
 
 def filter_for_cohort(
     suggestions: list[SuggestedTopic], cohort: str, brand_context: dict[str, Any]
 ) -> list[SuggestedTopic]:
-    if cohort == "comparison":
-        return _drop_invalid_comparison_prompts(suggestions, brand_context)
-    return _drop_invalid_core_prompts(suggestions, brand_context)
+    return _drop_invalid_prompts(suggestions, brand_context, cohort=cohort)
 
 
 def business_model(brand_context: dict[str, Any]) -> str:
