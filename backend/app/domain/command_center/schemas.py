@@ -63,7 +63,6 @@ class CommandCenterNextAction(BaseModel):
 class CommandCenterMeasurement(BaseModel):
     audit_id: uuid.UUID
     completed_at: datetime
-    measurement_mode: str
     benchmark_mode: str
     logical_engines: list[str] = Field(default_factory=list)
     comparable_audit_id: uuid.UUID | None = None

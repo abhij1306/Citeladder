@@ -104,7 +104,6 @@ class CapabilityValueResponse(_StrictResponse):
 
 class CatalogProviderRouteResponse(_StrictResponse):
     logical_engine: str
-    measurement_mode: Literal["pulse", "benchmark"]
     transport_provider: str
     model: str
 
@@ -164,7 +163,7 @@ class CatalogTopupResponse(_StrictResponse):
     quantity_max: int
     availability: CatalogAvailability
     unavailable_reason: str | None
-    grant_key: Literal["benchmark_credits", "pulse_credits"]
+    grant_key: Literal["audit_credits"]
     credits_per_unit: int | None
     expiry_days: int
 

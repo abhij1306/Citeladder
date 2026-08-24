@@ -24,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.audits import (
     AUDIT_STATUS_COMPLETED,
-    MEASUREMENT_MODE_PULSE,
 )
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
@@ -51,7 +50,7 @@ from tests.component.audit_helpers import seed_audit_fixtures
 # than pinned as a literal: these assertions are about provenance travelling
 # intact from the frozen route to the projection, not about which Gemini build
 # is current, and a literal here goes stale on every model-version bump.
-GEMINI_MODEL = measurement_route(ENGINE_GEMINI, "pulse").transport_model
+GEMINI_MODEL = measurement_route(ENGINE_GEMINI).transport_model
 
 
 async def test_evidence_projects_mentions_citations_and_queries(
@@ -122,7 +121,6 @@ async def test_evidence_projects_mentions_citations_and_queries(
     # Frozen measurement provenance (inv. 4/7): the frozen mode column, and
     # retrieval unrecorded when nothing froze it — never inferred from live
     # config. Vocabulary lock: no ``mode`` alias.
-    assert item.measurement_mode == MEASUREMENT_MODE_PULSE
     assert item.logical_engine == ENGINE_GEMINI
     assert item.transport_model == GEMINI_MODEL
     assert item.retrieval_enabled is None

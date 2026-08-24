@@ -18,8 +18,6 @@ from app.connectors.answer_engines.contracts import (
 from app.core.config.audits import (
     AUDIT_STATUS_COMPLETED,
     AUDIT_TRIGGER_MANUAL,
-    MEASUREMENT_MODE_BENCHMARK,
-    MEASUREMENT_MODE_PULSE,
     MEASUREMENT_POLICY_KEY,
     audit_settings,
 )
@@ -52,15 +50,14 @@ from tests.component.audit_helpers import seed_audit_fixtures
 # than pinned as a literal: these assertions are about provenance travelling
 # intact from the frozen route to the projection, not about which Gemini build
 # is current, and a literal here goes stale on every model-version bump.
-GEMINI_MODEL = measurement_route(ENGINE_GEMINI, "pulse").transport_model
+GEMINI_MODEL = measurement_route(ENGINE_GEMINI).transport_model
 
 _BRAND = "Acme Corp"
 _COMPETITOR = "Globex"
 _PARTITION_IDENTITIES = [
-    (MEASUREMENT_MODE_PULSE, "model-a", False, (20.0, 40.0)),
-    (MEASUREMENT_MODE_BENCHMARK, "model-a", True, (60.0, 80.0)),
-    (MEASUREMENT_MODE_BENCHMARK, "model-b", True, (100.0, 0.0)),
-    (MEASUREMENT_MODE_BENCHMARK, "model-a", False, (10.0, 30.0)),
+    ("model-a", True, (60.0, 80.0)),
+    ("model-b", True, (100.0, 0.0)),
+    ("model-a", False, (10.0, 30.0)),
 ]
 
 
@@ -130,8 +127,6 @@ def _stub_adapter(monkeypatch: pytest.MonkeyPatch):
 
 async def _run_completed_audit(
     session_factory: async_sessionmaker[AsyncSession],
-    *,
-    measurement_mode: str = MEASUREMENT_MODE_PULSE,
 ):
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=2)
@@ -145,7 +140,6 @@ async def _run_completed_audit(
             prompt_set_id=seed.prompt_set_id,
             repetitions=2,
             random_seed="1",
-            measurement_mode=measurement_mode,
         )
     worker = AuditWorker(session_factory=session_factory, owner="w-b6")
     await worker.run_until_idle()
@@ -269,7 +263,6 @@ async def _seed_snapshot(
     analyzer_version: str = "b6-analysis-1",
     scoring_rule_version: str = "scoring-v1",
     status: str = AUDIT_STATUS_COMPLETED,
-    measurement_mode: str | None = None,
     transport_model: str | None = None,
     retrieval_enabled: bool | None = None,
 ):
@@ -287,8 +280,6 @@ async def _seed_snapshot(
         completed_count=total_completed,
         configuration=configuration,
     )
-    if measurement_mode is not None:
-        audit.measurement_mode = measurement_mode
     session.add(audit)
     await session.flush()
     if transport_model is not None:
@@ -322,7 +313,7 @@ async def _seed_snapshot(
 async def _seed_partition_audits(session, *, workspace_id, project_id) -> dict:
     """Seed two runs per identity, all inside one 2026 week/month."""
     snapshots: dict[tuple, list] = {}
-    for mode, model, retrieval, scores in _PARTITION_IDENTITIES:
+    for model, retrieval, scores in _PARTITION_IDENTITIES:
         for run, score in enumerate(scores):
             _, snapshot = await _seed_snapshot(
                 session,
@@ -339,16 +330,15 @@ async def _seed_partition_audits(session, *, workspace_id, project_id) -> dict:
                 ),
                 visibility_score=score,
                 total_completed=1,
-                measurement_mode=mode,
                 transport_model=model,
                 retrieval_enabled=retrieval,
             )
-            snapshots.setdefault((mode, model, retrieval), []).append(snapshot)
+            snapshots.setdefault((model, retrieval), []).append(snapshot)
     return snapshots
 
 
 def _identity_of(point) -> tuple:
-    return (point.measurement_mode, point.transport_model, point.retrieval_enabled)
+    return (point.transport_model, point.retrieval_enabled)
 
 
 async def _seed_evidence_execution(

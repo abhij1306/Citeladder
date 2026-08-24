@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { citationSchema, measurementModeSchema } from './audits';
+import { citationSchema } from './audits';
 
 const responseObject = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape);
 const uuid = () => z.uuid();
@@ -58,7 +58,6 @@ export const visibilityExecutionEvidenceSchema = responseObject({
   transport_provider: z.string(),
   transport_model: z.string(),
   // Execution-level surface (singular model).
-  measurement_mode: measurementModeSchema.default(''),
   retrieval_enabled: z.boolean().nullable().default(null),
   search_used: z.boolean(),
   search_query_count: z.number().int(),

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Final
 
 from app.core.config.entitlements import (
-    KEY_BENCHMARK_CREDITS,
+    KEY_AUDIT_CREDITS,
     KEY_PROVIDER_COPILOT,
     KEY_PROVIDER_GROK,
     KEY_PROVIDER_PERPLEXITY,
@@ -162,7 +162,7 @@ ADDON_EXTRA_PROJECT: Final = "addon_extra_project"
 
 ADDON_EXTRA_PROMPTS: Final = "addon_extra_prompts"
 
-TOPUP_BENCHMARK_CREDITS: Final = "topup_benchmark_credits"
+TOPUP_AUDIT_CREDITS: Final = "topup_audit_credits"
 
 ADDON_EXTRA_PROJECT_SLOTS_PER_UNIT: Final = 1
 
@@ -176,9 +176,7 @@ TOPUP_QUANTITY_MIN: Final = 1
 
 TOPUP_QUANTITY_MAX: Final = 20
 
-TOPUP_CREDIT_KEYS: Final[dict[str, str]] = {
-    TOPUP_BENCHMARK_CREDITS: KEY_BENCHMARK_CREDITS
-}
+TOPUP_CREDIT_KEYS: Final[dict[str, str]] = {TOPUP_AUDIT_CREDITS: KEY_AUDIT_CREDITS}
 
 COMING_SOON_PLAN_CAPABILITY_KEYS: Final[tuple[str, ...]] = (
     KEY_PROVIDER_GROK,

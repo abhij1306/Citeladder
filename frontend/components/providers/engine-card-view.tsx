@@ -62,12 +62,8 @@ function RouteDetails({ state }: Readonly<{ state: ConnectionState }>) {
       </div>
       <div className="text-muted text-2xs grid gap-1 font-mono">
         <div className="flex items-center justify-between">
-          <span>Pulse</span>
-          <span className="text-secondary">{state.route.pulse_model}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span>Benchmark</span>
-          <span className="text-secondary">{state.route.benchmark_model}</span>
+          <span>Model</span>
+          <span className="text-secondary">{state.route.model}</span>
         </div>
       </div>
     </div>

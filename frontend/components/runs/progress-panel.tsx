@@ -60,7 +60,7 @@ export function ProgressPanel({
       <CardContent className="grid gap-5">
         {/* An aggregate over the whole run: it may span several models, so it
             passes `provenance` and never a single representative model. */}
-        <MeasurementContext mode={audit.measurement_mode} provenance={audit.model_provenance} />
+        <MeasurementContext provenance={audit.model_provenance} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Badge variant="run-status" value={auditBadgeValue(audit.status)}>

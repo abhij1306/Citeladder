@@ -18,10 +18,10 @@ class BillingSettings(BaseSettings):
         extra="ignore",
     )
 
-    # The v8 commercial catalog revision. Stamped on every quote, activation,
+    # The v9 commercial catalog revision. Stamped on every quote, activation,
     # and grant bundle; bump it whenever a price, key, or grant template
     # changes so old rows keep their frozen terms.
-    catalog_version: str = "commercial-v8"
+    catalog_version: str = "commercial-v9"
     checkout_enabled: bool = False
     razorpay_live_ready: bool = False
     razorpay_international_ready: bool = False
@@ -56,12 +56,12 @@ class BillingSettings(BaseSettings):
 
     # Top-up pack price + pack size. Both UNSET: the pack size is NULLABLE and
     # a top-up without a configured size issues no grant and stays
-    # unavailable. Included benchmark credits and benchmark repetitions are
+    # unavailable. Included audit credits and audit repetitions are
     # likewise unset and carry no default.
-    topup_benchmark_credits_usd_minor: int = 0
-    topup_benchmark_credits_per_pack: int | None = None
-    included_benchmark_credits: int | None = None
-    benchmark_repetitions: int | None = None
+    topup_audit_credits_usd_minor: int = 0
+    topup_audit_credits_per_pack: int | None = None
+    included_audit_credits: int | None = None
+    audit_repetitions: int | None = None
     # Fixed validity of a purchased top-up grant, in days.
     topup_credit_valid_days: int = 30
 

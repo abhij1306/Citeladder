@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.abuse import abuse_settings
 from app.core.config.audits import (
     AUDIT_ACTIVE_STATUSES,
+    AUDIT_SCOPE_BRAND,
+    AUDIT_SCOPES,
     AUDIT_STATUS_DRAFT,
     AUDIT_STATUS_QUEUED,
     AUDIT_STATUS_VALIDATING,
@@ -24,7 +26,6 @@ from app.domain.audits.frozen_plan import (
     _evaluate_prompt_count_admission,
     _freeze_plan,
     _frozen_configuration,
-    _resolve_measurement_policy,
 )
 from app.domain.audits.funded_admission import (
     _admit_funded_run,
@@ -63,7 +64,7 @@ async def create_audit(
     prompt_ids: list[uuid.UUID] | None = None,
     repetitions: int | None = None,
     benchmark_mode: str | None = None,
-    measurement_mode: str | None = None,
+    audit_scope: str = AUDIT_SCOPE_BRAND,
     random_seed: str | None = None,
     schedule_id: uuid.UUID | None = None,
     scheduled_for: datetime | None = None,
@@ -72,8 +73,8 @@ async def create_audit(
 
     Commits with all tasks ``queued`` so the worker can claim them.
 
-    An orchestration SHELL: every policy decision (both mode axes, the frozen
-    measurement policy, repetitions, the composed system instruction, the route
+    An orchestration SHELL: every policy decision (the frozen execution policy,
+    repetitions, the composed system instruction, the route
     policies) is precomputed by ``_freeze_plan`` and assembled by
     ``_frozen_configuration``; the rolling manual-run rate is EVALUATED by
     ``evaluate_manual_run_admission`` and only applied here; funded admission
@@ -81,6 +82,8 @@ async def create_audit(
     reservations before claimability) is owned by ``_admit_funded_run`` and
     ``_create_audit_tasks``. This shell adds no branching of its own.
     """
+    if audit_scope not in AUDIT_SCOPES:
+        raise AuditValidationError(f"Unsupported audit_scope: {audit_scope}")
     project = await _load_project(
         session, workspace_id=workspace_id, project_id=project_id
     )
@@ -94,13 +97,11 @@ async def create_audit(
     # ONE admission instant shared by the rate evaluation, the entitlement
     # resolution, the budget period, and every reservation timestamp.
     admission_at = datetime.now(UTC)
-    normalized_measurement_mode, _ = _resolve_measurement_policy(measurement_mode)
     routes = await _resolve_run_routes(
         session,
         workspace_id=workspace_id,
         engines=engines,
         credential_mode=credential_mode,
-        measurement_mode=normalized_measurement_mode,
     )
 
     plan = _freeze_plan(
@@ -109,8 +110,8 @@ async def create_audit(
         routes=routes,
         trigger=trigger,
         benchmark_mode=benchmark_mode,
-        measurement_mode=measurement_mode,
         repetitions=repetitions,
+        audit_scope=audit_scope,
     )
     # Per-engine expected costs from the sole cost owner: consumed by the
     # funded budget gate and re-proven by per-task credential resolution.
@@ -187,7 +188,7 @@ async def create_audit(
         status=AUDIT_STATUS_DRAFT,
         trigger=plan.trigger,
         benchmark_mode=plan.benchmark_mode,
-        measurement_mode=plan.measurement_mode,
+        audit_scope=audit_scope,
         system_instruction=plan.system_instruction,
         repetitions=reps,
         random_seed=seed,

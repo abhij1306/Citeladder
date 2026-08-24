@@ -329,8 +329,8 @@ async def _previous_prompt_metrics(
                     PromptMetricSnapshot.audit_id != audit.id,
                     PromptMetricSnapshot.analyzer_version == ANALYZER_VERSION,
                     PromptMetricSnapshot.scoring_rule_version == SCORING_RULE_VERSION,
-                    Audit.measurement_mode == audit.measurement_mode,
                     Audit.benchmark_mode == audit.benchmark_mode,
+                    Audit.audit_scope == audit.audit_scope,
                     Audit.completed_at.is_not(None),
                     or_(
                         *(

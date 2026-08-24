@@ -1,8 +1,8 @@
 import { Badge } from '@/components/ui/badge';
-import type { MeasurementMode, ModelProvenance } from '@/lib/api/types';
+import type { ModelProvenance } from '@/lib/api/types';
 
 /**
- * The measurement conditions behind a figure: mode, model, retrieval.
+ * The measurement conditions behind a figure: model and retrieval.
  *
  * Two shapes, deliberately distinct:
  *
@@ -17,13 +17,11 @@ import type { MeasurementMode, ModelProvenance } from '@/lib/api/types';
  * "unrecorded", not "off", so it renders as neither.
  */
 export function MeasurementContext({
-  mode,
   retrieval,
   model,
   provenance,
   className,
 }: Readonly<{
-  mode: MeasurementMode;
   retrieval?: boolean | null;
   /** The exact model, for a singular-model surface. */
   model?: string | null;
@@ -37,12 +35,6 @@ export function MeasurementContext({
   return (
     <div className={className} data-measurement-context>
       <span className="flex flex-wrap items-center gap-2">
-        {mode ? (
-          <Badge variant="neutral">{mode === 'pulse' ? 'Pulse' : 'Benchmark'}</Badge>
-        ) : (
-          <Badge variant="neutral">Mode not recorded</Badge>
-        )}
-
         {aggregate ? (
           <Badge variant="neutral" title={models.join(', ')}>
             Multiple models ({models.length})

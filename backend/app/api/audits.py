@@ -161,7 +161,7 @@ async def create_audit_endpoint(
             prompt_ids=payload.prompt_ids,
             repetitions=payload.repetitions,
             benchmark_mode=payload.benchmark_mode,
-            measurement_mode=payload.measurement_mode,
+            audit_scope=payload.audit_scope,
             random_seed=payload.random_seed,
         )
     return AuditResponse.model_validate(audit)

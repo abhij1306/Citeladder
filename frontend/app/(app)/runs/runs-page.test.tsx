@@ -172,7 +172,6 @@ describe('RunsPage', () => {
       ),
       http.post('/api/v1/audits/estimate', () =>
         HttpResponse.json({
-          measurement_mode: 'pulse',
           retrieval_enabled: false,
           prompt_count: 1,
           engine_count: 1,
@@ -227,7 +226,7 @@ describe('RunsPage', () => {
       prompt_set_id: SET_ID,
       engines: ['gemini'],
       repetitions: 1,
-      measurement_mode: 'pulse',
+      audit_scope: 'brand',
     });
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/runs/${AUDIT_ID}`));
     expect(queryClient.getQueryData(queryKeys.runs.detail(AUDIT_ID))).toMatchObject(

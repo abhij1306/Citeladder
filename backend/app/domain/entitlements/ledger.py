@@ -1,7 +1,7 @@
 # Consumable reservation + attempt accounting (slice23 Task 4 Part B).
 #
 # This module owns the ONLY write path into ``ConsumableLedger`` for funded
-# ``pulse_credits``/``benchmark_credits`` spend. A reservation is PER TASK
+# ``audit_credits`` spend. A reservation is PER TASK
 # (never per audit): ``reserve_funded_task`` locks the account's active grant
 # rows ``FOR UPDATE`` in resolver draw order, computes immutable ledger
 # balances (``grant.value - SUM(reservation) + SUM(release) - SUM(debit)``),

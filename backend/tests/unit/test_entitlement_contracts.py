@@ -12,7 +12,7 @@ import pytest
 
 from app.core.config.entitlements import (
     ACTOR_KINDS,
-    BENCHMARK_CADENCE_VALUES,
+    AUDIT_CADENCE_VALUES,
     CAPABILITY_REGISTRY,
     CAPABILITY_REGISTRY_REVISION,
     COMING_SOON_PROVIDER_KEYS,
@@ -28,7 +28,6 @@ from app.core.config.entitlements import (
     MANUAL_RUNS_ROLLING_WINDOW_SECONDS,
     OPERATOR_GRANTABLE_PROVIDER_KEYS,
     PENDING_ACTIVATION_STATUSES,
-    PULSE_CADENCE_VALUES,
     SUPPORT_TIER_VALUES,
     CapabilityDefinition,
     CapabilityRegistry,
@@ -44,12 +43,10 @@ from app.domain.entitlements.types import (
 )
 
 ALL_CAPABILITY_KEYS = (
-    "pulse_cadence",
-    "benchmark_cadence",
+    "audit_cadence",
     "history_window",
     "support_tier",
-    "benchmark_credits",
-    "pulse_credits",
+    "audit_credits",
     "project_slots",
     "prompt_slots",
     "monitored_urls",
@@ -95,14 +92,14 @@ class TestCapabilityRegistry:
             assert entry.resolution_rule is expected[entry.capability_type]
 
     def test_level_orderings_start_at_least_privilege(self) -> None:
-        assert PULSE_CADENCE_VALUES[0] == "unset"
-        assert BENCHMARK_CADENCE_VALUES[0] == "unset"
+        assert AUDIT_CADENCE_VALUES[0] == "unset"
+        assert AUDIT_CADENCE_VALUES[0] == "unset"
         assert HISTORY_WINDOW_VALUES[0] == "unset"
         assert SUPPORT_TIER_VALUES[0] == "standard"
         # Strictly increasing privilege, no duplicates.
         for values in (
-            PULSE_CADENCE_VALUES,
-            BENCHMARK_CADENCE_VALUES,
+            AUDIT_CADENCE_VALUES,
+            AUDIT_CADENCE_VALUES,
             HISTORY_WINDOW_VALUES,
             SUPPORT_TIER_VALUES,
         ):

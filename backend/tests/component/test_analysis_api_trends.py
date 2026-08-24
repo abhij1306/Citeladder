@@ -23,8 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.audits import (
     AUDIT_STATUS_PARTIALLY_COMPLETED,
-    MEASUREMENT_MODE_BENCHMARK,
-    MEASUREMENT_MODE_PULSE,
 )
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
@@ -50,7 +48,7 @@ from tests.component.audit_helpers import Seed, seed_audit_fixtures
 # than pinned as a literal: these assertions are about provenance travelling
 # intact from the frozen route to the projection, not about which Gemini build
 # is current, and a literal here goes stale on every model-version bump.
-GEMINI_MODEL = measurement_route(ENGINE_GEMINI, "pulse").transport_model
+GEMINI_MODEL = measurement_route(ENGINE_GEMINI).transport_model
 
 
 async def _seed_reference_snapshot(session: AsyncSession) -> Seed:
@@ -509,7 +507,6 @@ async def test_trends_invalid_query_raises(
                 session,
                 workspace_id=seed.workspace_id,
                 project_id=seed.project_id,
-                measurement_mode="deep_dive",
             )
         with pytest.raises(TrendQueryError):
             await get_visibility_trends(
@@ -604,7 +601,6 @@ async def test_trends_identity_slice_filters_before_folding(
             workspace_id=seed.workspace_id,
             project_id=seed.project_id,
             granularity="week",
-            measurement_mode=MEASUREMENT_MODE_BENCHMARK,
             transport_model="model-a",
             retrieval_enabled=True,
         )
@@ -617,14 +613,12 @@ async def test_trends_identity_slice_filters_before_folding(
         }
 
         # A mode-only slice keeps both retrieval states as separate series.
-        pulse_only = await get_visibility_trends(
+        audit_only = await get_visibility_trends(
             session,
             workspace_id=seed.workspace_id,
             project_id=seed.project_id,
-            measurement_mode=MEASUREMENT_MODE_PULSE,
         )
-        assert len(pulse_only) == 2
-        assert all(p.measurement_mode == MEASUREMENT_MODE_PULSE for p in pulse_only)
+        assert len(audit_only) == 2
 
         # A retrieval slice at run granularity selects exactly the matching
         # runs (benchmark retrieval-on across both models).

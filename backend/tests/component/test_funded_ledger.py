@@ -25,7 +25,7 @@ from app.core.config.billing_contracts import (
     TELEMETRY_CONSUMABLE_CREDITS_EXHAUSTED,
 )
 from app.core.config.entitlements import (
-    KEY_PULSE_CREDITS,
+    KEY_AUDIT_CREDITS,
     LEDGER_ENTRY_DEBIT,
     LEDGER_ENTRY_RELEASE,
     LEDGER_ENTRY_RESERVATION,
@@ -65,7 +65,7 @@ async def _seed(
     *,
     credits: tuple[int, ...] = (10,),
 ) -> tuple[BillingAccount, uuid.UUID, uuid.UUID, uuid.UUID]:
-    """Workspace+project+prompt+route, an account with pulse-credit grant
+    """Workspace+project+prompt+route, an account with audit-credit grant
     bundles (one bundle per value), and one BYOK audit + task to reserve
     against. Returns (account, workspace_id, audit_id, task_id)."""
     seed = await seed_audit_fixtures(session, prompt_count=1, engines=[ENGINE_CLAUDE])
@@ -74,7 +74,7 @@ async def _seed(
         account = await seed_occupancy_grants(
             session,
             workspace_id=seed.workspace_id,
-            grants=(GrantSpec(key=KEY_PULSE_CREDITS, value=value),),
+            grants=(GrantSpec(key=KEY_AUDIT_CREDITS, value=value),),
         )
     assert account is not None
     await session.commit()
@@ -97,7 +97,7 @@ async def _seed(
 
 async def _usage(session: AsyncSession, account_id: uuid.UUID) -> UsageSnapshot:
     return await consumable_usage(
-        session, account_id=account_id, capability_key=KEY_PULSE_CREDITS, at=_NOW
+        session, account_id=account_id, capability_key=KEY_AUDIT_CREDITS, at=_NOW
     )
 
 
@@ -125,7 +125,7 @@ async def test_reserve_allocates_units_and_usage_snapshot(
         reservation = await reserve_funded_task(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             audit_id=audit_id,
             task_id=task_id,
             units=5,
@@ -154,14 +154,14 @@ async def test_reserve_spans_grants_in_resolver_draw_order(
         entitlement = await resolve_account_entitlement(
             session, account_id=account.id, at=_NOW
         )
-        capability = entitlement.capability(KEY_PULSE_CREDITS)
+        capability = entitlement.capability(KEY_AUDIT_CREDITS)
         assert capability is not None
         expected_order = capability.ordered_draw_grant_ids
         assert len(expected_order) == 2
         reservation = await reserve_funded_task(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             audit_id=audit_id,
             task_id=task_id,
             units=5,
@@ -201,7 +201,7 @@ async def test_reserve_idempotent_replay_returns_same_reservation(
         first = await reserve_funded_task(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             audit_id=audit_id,
             task_id=task_id,
             units=4,
@@ -212,7 +212,7 @@ async def test_reserve_idempotent_replay_returns_same_reservation(
         second = await reserve_funded_task(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             audit_id=audit_id,
             task_id=task_id,
             units=4,
@@ -237,7 +237,7 @@ async def test_billable_attempt_rows_idempotency_and_timeout_billing(
         reservation = await reserve_funded_task(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             audit_id=audit_id,
             task_id=task_id,
             units=3,
@@ -309,7 +309,7 @@ async def test_terminal_release_restores_unused_availability(
         reservation = await reserve_funded_task(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             audit_id=audit_id,
             task_id=task_id,
             units=5,
@@ -364,7 +364,7 @@ async def test_concurrent_reserves_never_overallocate(
                 await reserve_funded_task(
                     session,
                     account_id=account_id,
-                    capability_key=KEY_PULSE_CREDITS,
+                    capability_key=KEY_AUDIT_CREDITS,
                     audit_id=audit_id,
                     task_id=task_id,
                     units=4,
@@ -397,7 +397,7 @@ async def test_ledger_fks_restrict_audit_and_task_deletion(
         await reserve_funded_task(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             audit_id=audit_id,
             task_id=task_id,
             units=2,
@@ -440,7 +440,7 @@ async def test_insufficient_balance_is_graceful_and_emits_telemetry(
                 await reserve_funded_task(
                     session,
                     account_id=account.id,
-                    capability_key=KEY_PULSE_CREDITS,
+                    capability_key=KEY_AUDIT_CREDITS,
                     audit_id=audit_id,
                     task_id=task_id,
                     units=5,
@@ -466,7 +466,7 @@ async def test_reservation_vocabulary_entries_only(
         reservation = await reserve_funded_task(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             audit_id=audit_id,
             task_id=task_id,
             units=2,

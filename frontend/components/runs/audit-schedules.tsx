@@ -44,7 +44,6 @@ export function AuditSchedules({
         interval_minutes: cadence === 'every_n_minutes' ? Number(intervalMinutes) : undefined,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
         engines,
-        measurement_mode: 'pulse',
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.runs.schedules(projectId) });

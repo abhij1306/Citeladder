@@ -172,13 +172,12 @@ catalog_router = APIRouter(prefix="/provider-catalog", tags=["providers"])
 
 @catalog_router.get("", response_model=ProviderCatalogResponse)
 async def get_provider_catalog() -> ProviderCatalogResponse:
-    """Exact Pulse and Benchmark routes; no aliases or model fallback."""
+    """Exact approved audit routes; no aliases or model fallback."""
     engines = [
         ProviderCatalogEngine(
             logical_engine=engine,
             routes=[
                 ProviderCatalogRoute(
-                    measurement_mode=route.measurement_mode,
                     transport_provider=route.transport_provider,
                     transport_model=route.transport_model,
                     retrieval_enabled=route.retrieval_enabled,

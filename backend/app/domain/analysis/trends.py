@@ -14,7 +14,7 @@ from app.core.config.analysis import (
     VISIBILITY_TREND_GRANULARITIES,
     VISIBILITY_TREND_MAX_POINTS,
 )
-from app.core.config.audits import MEASUREMENT_MODES
+from app.core.config.audits import AUDIT_SCOPE_BRAND
 from app.core.config.prompts import REQUESTABLE_PROMPT_COHORTS
 from app.core.config.provider_catalog import LOGICAL_ENGINES
 from app.domain.analysis.errors import TrendQueryError
@@ -49,7 +49,6 @@ async def get_visibility_trends(
     from_at: datetime | None = None,
     to_at: datetime | None = None,
     granularity: str = VISIBILITY_TREND_DEFAULT_GRANULARITY,
-    measurement_mode: str | None = None,
     transport_model: str | None = None,
     retrieval_enabled: bool | None = None,
     cohort: str = "core",
@@ -64,12 +63,11 @@ async def get_visibility_trends(
     the whole range fall back to raw per-run points. Returns ``[]`` (never an
     error) for a valid project with no matching history.
 
-    Folding identity is ``(measurement_mode, transport_model,
-    retrieval_enabled)`` on top of the project/engine/time filters: a bucket
+    Folding identity is ``(transport_model, retrieval_enabled)`` on top of the
+    project/engine/time filters: a bucket
     may combine points ONLY inside one identity partition, and the response
-    carries separate ordered points for unlike identities (a point never mixes
-    pulse with benchmark, different models, or retrieval on with off). The
-    explicit ``measurement_mode``/``transport_model``/``retrieval_enabled``
+    carries separate ordered points for unlike identities. The explicit
+    ``transport_model``/``retrieval_enabled``
     slice arguments filter sources BEFORE any folding.
     """
     granularity = granularity or VISIBILITY_TREND_DEFAULT_GRANULARITY
@@ -78,7 +76,6 @@ async def get_visibility_trends(
         from_at=from_at,
         to_at=to_at,
         granularity=granularity,
-        measurement_mode=measurement_mode,
         transport_model=transport_model,
     )
     from_at = _to_utc(from_at)
@@ -102,7 +99,6 @@ async def get_visibility_trends(
     # An explicitly requested identity slice filters BEFORE any folding.
     sources = _slice_sources(
         sources,
-        measurement_mode=measurement_mode,
         transport_model=transport_model,
         retrieval_enabled=retrieval_enabled,
     )
@@ -152,12 +148,8 @@ def validate_engine_and_range(
             raise TrendQueryError("'from' must not be after 'to'")
 
 
-def _validate_identity_slice(
-    *, measurement_mode: str | None, transport_model: str | None
-) -> None:
+def _validate_identity_slice(*, transport_model: str | None) -> None:
     """Validate an explicitly requested identity slice (HTTP 422 on misuse)."""
-    if measurement_mode is not None and measurement_mode not in MEASUREMENT_MODES:
-        raise TrendQueryError(f"Unsupported measurement_mode: {measurement_mode!r}")
     if transport_model is not None and not transport_model.strip():
         raise TrendQueryError("'transport_model' must be a non-empty model id")
 
@@ -168,14 +160,11 @@ def _validate_trend_query(
     from_at: datetime | None,
     to_at: datetime | None,
     granularity: str,
-    measurement_mode: str | None,
     transport_model: str | None,
 ) -> None:
     if granularity not in VISIBILITY_TREND_GRANULARITIES:
         raise TrendQueryError(f"Unsupported granularity: {granularity!r}")
-    _validate_identity_slice(
-        measurement_mode=measurement_mode, transport_model=transport_model
-    )
+    _validate_identity_slice(transport_model=transport_model)
     validate_engine_and_range(
         logical_engine=logical_engine, from_at=from_at, to_at=to_at
     )
@@ -209,6 +198,7 @@ async def _load_trend_rows(
             MetricSnapshot.project_id == project_id,
             Audit.workspace_id == workspace_id,
             Audit.project_id == project_id,
+            Audit.audit_scope == AUDIT_SCOPE_BRAND,
             Audit.status.in_(_DASHBOARD_STATUSES),
             Audit.completed_at.is_not(None),
         )
@@ -233,8 +223,8 @@ def _trend_source(
     An engine-filtered request reads the same snapshot's
     ``metrics.per_engine[engine]``; a snapshot that did not measure that engine
     emits no point (invariant 10). The folding identity derives ONLY from
-    frozen audit fields: the mode column, the frozen policy block (retrieval),
-    and the frozen engine snapshots (models) — never from live config.
+    frozen audit fields: the frozen policy block (retrieval) and frozen engine
+    snapshots (models) — never from live config.
     """
     stored_metrics = snapshot.metrics or {}
     metrics = (
@@ -260,15 +250,12 @@ def _trend_source(
             return None
         rate = engine_metrics.get("brand_mention_rate")
         visibility_score = round(float(rate) * 100, 2) if rate is not None else None
-    mode, transport_model, retrieval, provenance = _source_identity(
-        audit, logical_engine
-    )
+    transport_model, retrieval, provenance = _source_identity(audit, logical_engine)
     return _TrendSource(
         snapshot_id=snapshot.id,
         audit_id=snapshot.audit_id,
         completed_at=_to_utc(completed_at),
         logical_engine=logical_engine,
-        measurement_mode=mode,
         transport_model=transport_model,
         retrieval_enabled=retrieval,
         model_provenance=provenance,
@@ -282,16 +269,15 @@ def _trend_source(
 
 def _source_identity(
     audit: Audit, logical_engine: str | None
-) -> tuple[str, str | None, bool | None, list[ModelProvenance]]:
+) -> tuple[str | None, bool | None, list[ModelProvenance]]:
     """Frozen folding identity + provenance list for one trend source.
 
-    Derives ONLY from frozen audit fields: the mode column, the frozen policy
-    block (retrieval), and the frozen engine snapshots (models) — never from
+    Derives ONLY from frozen audit fields: the frozen policy block (retrieval)
+    and the frozen engine snapshots (models) — never from
     live config (invariants 4/7).
     """
     provenance = model_provenance_for(audit.engine_snapshots, audit.configuration)
     return (
-        audit.measurement_mode or "",
         _source_transport_model(provenance, logical_engine),
         audit_frozen_retrieval_enabled(audit.configuration),
         provenance,
@@ -324,7 +310,6 @@ def _source_transport_model(
 def _identity_slice_match(
     source: _TrendSource,
     *,
-    measurement_mode: str | None,
     transport_model: str | None,
     retrieval_enabled: bool | None,
 ) -> bool:
@@ -334,8 +319,6 @@ def _identity_slice_match(
     excludes aggregates whose identity does not equal it (never a fuzzy
     contains-match that would let a multi-model point into a model slice).
     """
-    if measurement_mode is not None and source.measurement_mode != measurement_mode:
-        return False
     if transport_model is not None and source.transport_model != transport_model:
         return False
     return retrieval_enabled is None or source.retrieval_enabled == retrieval_enabled
@@ -344,7 +327,6 @@ def _identity_slice_match(
 def _slice_sources(
     sources: list[_TrendSource],
     *,
-    measurement_mode: str | None,
     transport_model: str | None,
     retrieval_enabled: bool | None,
 ) -> list[_TrendSource]:
@@ -354,7 +336,6 @@ def _slice_sources(
         for source in sources
         if _identity_slice_match(
             source,
-            measurement_mode=measurement_mode,
             transport_model=transport_model,
             retrieval_enabled=retrieval_enabled,
         )

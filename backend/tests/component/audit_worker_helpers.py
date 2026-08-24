@@ -96,12 +96,11 @@ def _stub_adapter(monkeypatch: pytest.MonkeyPatch):
 def _pin_attempt_budget(monkeypatch: pytest.MonkeyPatch, attempts: int) -> None:
     """Pin the frozen attempt ceiling whichever mode the audit is planned in.
 
-    The budget is per-mode policy (pulse retries fewer times than benchmark),
-    so pinning only ``max_attempts`` pins the branch these pulse-mode audits
+    The budget is per-mode policy (the frozen audit attempt budget),
+    so pinning only ``max_attempts`` pins the branch these audit-policy runs
     do not take.
     """
     monkeypatch.setattr(audit_settings, "max_attempts", attempts)
-    monkeypatch.setattr(audit_settings, "pulse_max_attempts", attempts)
 
 
 async def _make_audit(
@@ -109,7 +108,6 @@ async def _make_audit(
     *,
     prompts: int,
     reps: int,
-    measurement_mode: str | None = None,
 ):
     async with session_factory() as session:
         seed = await seed_audit_fixtures(session, prompt_count=prompts)
@@ -123,7 +121,6 @@ async def _make_audit(
             prompt_set_id=seed.prompt_set_id,
             repetitions=reps,
             random_seed="1",
-            measurement_mode=measurement_mode,
         )
         return seed, audit
 

@@ -7,8 +7,8 @@ rather than defining a duplicate catalogue.
 
 This module owns (a) the versioned unit-rate ``RoutePricing`` catalogue
   consumed by the append-only execution-cost projection, and (b) the
-  route/mode-keyed ``ExpectedExecutionCost`` catalogue consumed by funded
-  admission ("what do we expect ONE execution of this route+mode to cost").
+  route-keyed ``ExpectedExecutionCost`` catalogue consumed by funded
+  admission ("what do we expect ONE execution of this route to cost").
   Both audit estimates and persisted execution projections read this one catalog.
 
 Catalogue rate fields stay null until externally verified (frozen v8 plan): no
@@ -24,10 +24,6 @@ from dataclasses import dataclass
 from math import ceil
 from typing import Final
 
-from app.core.config.audits import (
-    MEASUREMENT_MODE_BENCHMARK,
-    MEASUREMENT_MODE_PULSE,
-)
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
     ENGINE_CLAUDE,
@@ -104,7 +100,7 @@ class RoutePricing:
 
 @dataclass(frozen=True)
 class ExpectedExecutionCost:
-    """Route/mode/retrieval-aware expected cost of ONE execution.
+    """Route/retrieval-aware expected cost of ONE execution.
 
     ``complete`` is the funded-admission gate: admission fails closed on an
     incomplete estimate. With retrieval disabled the search fields are not
@@ -120,17 +116,17 @@ class ExpectedExecutionCost:
 
 @dataclass(frozen=True)
 class _ExpectedCostEstimate:
-    """Catalogue entry: frozen aggregate observations for one route + mode."""
+    """Catalogue entry: frozen aggregate observations for one route."""
 
     token_cost_microusd: int | None
     search_fee_microusd: int | None
     expected_searches: int | None
 
 
-def _approved_route(logical_engine: str, measurement_mode: str) -> RouteIdentity:
+def _approved_route(logical_engine: str) -> RouteIdentity:
     """Rebuild the immutable identity of an approved catalogue route."""
 
-    route = measurement_route(logical_engine, measurement_mode)
+    route = measurement_route(logical_engine)
     return RouteIdentity(
         logical_engine=logical_engine,
         transport_provider=route.transport_provider,
@@ -138,10 +134,7 @@ def _approved_route(logical_engine: str, measurement_mode: str) -> RouteIdentity
     )
 
 
-ROUTE_CHATGPT_PULSE: Final = _approved_route(ENGINE_CHATGPT, MEASUREMENT_MODE_PULSE)
-ROUTE_CHATGPT_BENCHMARK: Final = _approved_route(
-    ENGINE_CHATGPT, MEASUREMENT_MODE_BENCHMARK
-)
+ROUTE_CHATGPT: Final = _approved_route(ENGINE_CHATGPT)
 
 # Conservative, provider-free audit preview assumptions. They are estimate
 # inputs, not runtime tuning knobs and never affect provider requests.
@@ -151,22 +144,13 @@ ESTIMATE_SEARCH_CALLS: Final[dict[str, int]] = {
     ENGINE_CLAUDE: 3,
     ENGINE_GEMINI: 1,
 }
-ROUTE_CLAUDE_PULSE: Final = _approved_route(ENGINE_CLAUDE, MEASUREMENT_MODE_PULSE)
-ROUTE_CLAUDE_BENCHMARK: Final = _approved_route(
-    ENGINE_CLAUDE, MEASUREMENT_MODE_BENCHMARK
-)
-ROUTE_GEMINI_PULSE: Final = _approved_route(ENGINE_GEMINI, MEASUREMENT_MODE_PULSE)
-ROUTE_GEMINI_BENCHMARK: Final = _approved_route(
-    ENGINE_GEMINI, MEASUREMENT_MODE_BENCHMARK
-)
+ROUTE_CLAUDE: Final = _approved_route(ENGINE_CLAUDE)
+ROUTE_GEMINI: Final = _approved_route(ENGINE_GEMINI)
 APPROVED_ROUTE_IDENTITIES: Final[frozenset[RouteIdentity]] = frozenset(
     {
-        ROUTE_CHATGPT_PULSE,
-        ROUTE_CHATGPT_BENCHMARK,
-        ROUTE_CLAUDE_PULSE,
-        ROUTE_CLAUDE_BENCHMARK,
-        ROUTE_GEMINI_PULSE,
-        ROUTE_GEMINI_BENCHMARK,
+        ROUTE_CHATGPT,
+        ROUTE_CLAUDE,
+        ROUTE_GEMINI,
     }
 )
 
@@ -205,26 +189,20 @@ def _pricing(
     )
 
 
-# PR1 ships one unit-rate catalogue with concrete rates for five approved routes.
-# Only ROUTE_CHATGPT_BENCHMARK retains an unverified card with null rate lines.
+# One unit-rate catalogue for the three approved citation-capable routes.
 _ROUTE_PRICING_CATALOGS: Final[dict[str, dict[RouteIdentity, RoutePricing]]] = {
     PRICING_CATALOG_VERSION: {
-        ROUTE_CHATGPT_PULSE: _pricing(200_000, 1_250_000, cached_input_rate=20_000),
         # GPT-5.6-sol pricing/search lines are intentionally unknown until the
         # complete official card is available.
-        ROUTE_CHATGPT_BENCHMARK: _unverified_pricing(PRICING_CATALOG_VERSION),
-        ROUTE_CLAUDE_PULSE: _pricing(1_000_000, 5_000_000),
-        ROUTE_CLAUDE_BENCHMARK: _pricing(3_000_000, 15_000_000, search_fee=10_000),
-        ROUTE_GEMINI_PULSE: _pricing(300_000, 2_500_000),
-        ROUTE_GEMINI_BENCHMARK: _pricing(1_500_000, 7_500_000, search_fee=14_000),
+        ROUTE_CHATGPT: _unverified_pricing(PRICING_CATALOG_VERSION),
+        ROUTE_CLAUDE: _pricing(3_000_000, 15_000_000, search_fee=10_000),
+        ROUTE_GEMINI: _pricing(1_500_000, 7_500_000, search_fee=14_000),
     }
 }
 
 # Expected per-execution costs stay empty until staging measurements exist.
 # Published unit prices are not substituted for observed execution envelopes.
-_EXPECTED_COST_CATALOG: Final[
-    dict[tuple[RouteIdentity, str], _ExpectedCostEstimate]
-] = {}
+_EXPECTED_COST_CATALOG: Final[dict[RouteIdentity, _ExpectedCostEstimate]] = {}
 
 
 def pricing_version_known(pricing_version: str) -> bool:
@@ -259,7 +237,6 @@ def estimate_token_count(text: str) -> int:
 
 def expected_execution_cost(
     route_identity: RouteIdentity,
-    measurement_mode: str,
     retrieval_enabled: bool,
 ) -> ExpectedExecutionCost:
     """Expected cost of one execution for admission control.
@@ -271,7 +248,7 @@ def expected_execution_cost(
       and neither become zero nor affect completeness.
     """
 
-    estimate = _EXPECTED_COST_CATALOG.get((route_identity, measurement_mode))
+    estimate = _EXPECTED_COST_CATALOG.get(route_identity)
     token_cost = estimate.token_cost_microusd if estimate is not None else None
     if not retrieval_enabled:
         return ExpectedExecutionCost(

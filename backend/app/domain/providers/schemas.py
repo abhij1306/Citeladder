@@ -124,7 +124,6 @@ class ProviderConnectionTestResponse(BaseModel):
 
 
 class ProviderCatalogRoute(BaseModel):
-    measurement_mode: Literal["pulse", "benchmark"]
     transport_provider: str
     transport_model: str
     retrieval_enabled: bool

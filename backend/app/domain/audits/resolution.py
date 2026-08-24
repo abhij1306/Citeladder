@@ -22,7 +22,6 @@ from app.core.config.provider_catalog import (
 )
 from app.domain.audits.errors import AuditValidationError
 from app.models.brand import Brand
-from app.models.product import CompetitorProduct
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet
 from app.models.provider import ProviderConnection, ProviderRoute
@@ -91,9 +90,6 @@ async def _load_project(
             selectinload(Project.owned_domains),
             selectinload(Project.unintended_domains),
             selectinload(Project.products),
-            selectinload(Project.competitor_products).selectinload(
-                CompetitorProduct.competitor
-            ),
         )
         .where(
             Project.id == project_id,
@@ -173,7 +169,6 @@ async def _resolve_routes(
     *,
     workspace_id: uuid.UUID,
     engines: list[str],
-    measurement_mode: str,
 ) -> dict[str, _ResolvedRoute]:
     """Pick one active BYOK route + connection per requested logical engine.
 
@@ -213,9 +208,7 @@ async def _resolve_routes(
             _ResolvedRoute(
                 logical_engine=route.logical_engine,
                 transport_provider=route.transport_provider,
-                transport_model=measurement_route(
-                    route.logical_engine, measurement_mode
-                ).transport_model,
+                transport_model=measurement_route(route.logical_engine).transport_model,
                 connection_id=connection.id,
                 base_url=connection.base_url or "",
             ),
@@ -235,9 +228,7 @@ async def _resolve_routes(
     return resolved
 
 
-def _resolve_funded_routes(
-    engines: list[str], measurement_mode: str
-) -> dict[str, _ResolvedRoute]:
+def _resolve_funded_routes(engines: list[str]) -> dict[str, _ResolvedRoute]:
     """Resolve the catalog-approved funded route per requested engine.
 
     Exactly one approved transport per engine exists (invariant 10), so a
@@ -248,7 +239,7 @@ def _resolve_funded_routes(
     resolved: dict[str, _ResolvedRoute] = {}
     for engine in _normalize_engines(engines):
         try:
-            catalog_route = measurement_route(engine, measurement_mode)
+            catalog_route = measurement_route(engine)
         except ValueError as exc:
             raise AuditValidationError(
                 f"No approved funded route for engine: {engine}"
@@ -269,16 +260,14 @@ async def _resolve_run_routes(
     workspace_id: uuid.UUID,
     engines: list[str],
     credential_mode: str,
-    measurement_mode: str,
 ) -> dict[str, _ResolvedRoute]:
     """Route resolution for one run: BYOK workspace routes or funded catalog."""
     if credential_mode == CREDENTIAL_MODE_FUNDED:
-        return _resolve_funded_routes(engines, measurement_mode)
+        return _resolve_funded_routes(engines)
     if credential_mode != CREDENTIAL_MODE_BYOK:
         raise AuditValidationError(f"Unsupported credential_mode: {credential_mode}")
     return await _resolve_routes(
         session,
         workspace_id=workspace_id,
         engines=engines,
-        measurement_mode=measurement_mode,
     )

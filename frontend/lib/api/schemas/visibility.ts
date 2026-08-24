@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { auditStatusSchema, measurementModeSchema, modelProvenanceSchema } from './audits';
+import { auditStatusSchema, modelProvenanceSchema } from './audits';
 import { promptCohortSchema } from './project';
 
 const responseObject = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape);
@@ -52,7 +52,6 @@ export const visibilitySchema = responseObject({
   total_failed: z.number().int(),
   visibility_score: z.number(),
   // Aggregate surface: never a forced singular model across engines.
-  measurement_mode: measurementModeSchema.default(''),
   model_provenance: z.array(modelProvenanceSchema).default([]),
   rankings: z.array(rankingRowSchema),
   per_engine: z.array(visibilityEngineSchema),

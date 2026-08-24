@@ -139,7 +139,7 @@ def _build_routes(
             raise InvalidRouteError(
                 f"Route not approved: {logical_engine} via {transport_provider}"
             )
-        model = measurement_route(logical_engine, "pulse").transport_model
+        model = measurement_route(logical_engine).transport_model
         routes.append(
             ProviderRoute(
                 workspace_id=workspace_id,
@@ -324,12 +324,12 @@ async def run_connection_test(
             "read-only; create a new direct connection instead."
         )
     _require_approved_endpoint(transport, connection.base_url)
-    # Connectivity probes always use the exact cheap Pulse route.
+    # Connectivity probes use the exact approved route.
     logical_engine = default_probe_engine(transport)
-    model = measurement_route(logical_engine, "pulse").transport_model
+    model = measurement_route(logical_engine).transport_model
     for route in connection.routes:
         logical_engine = route.logical_engine
-        model = measurement_route(logical_engine, "pulse").transport_model
+        model = measurement_route(logical_engine).transport_model
         break
 
     status = TEST_STATUS_OK
@@ -361,9 +361,7 @@ async def run_connection_test(
                 # measurement policy, so it must not invent one.
                 retrieval_enabled=provider_catalog_settings.test_retrieval_enabled,
                 max_output_tokens=provider_catalog_settings.test_max_output_tokens,
-                reasoning_effort=measurement_route(
-                    logical_engine, "pulse"
-                ).reasoning_effort,
+                reasoning_effort=measurement_route(logical_engine).reasoning_effort,
             )
         )
         latency_ms = response.latency_ms

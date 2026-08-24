@@ -187,7 +187,7 @@ FORBIDDEN_PROMPT_PATTERNS: Final[tuple[str, ...]] = (
 OUTPUT_LENGTH_QUANTILES: Final[tuple[float, ...]] = (0.5, 0.9, 0.95)
 
 # --- Candidate gate thresholds -------------------------------------------
-# REQUIREMENTS, not observations. A pulse/concise candidate is only promoted
+# REQUIREMENTS, not observations. A candidate is only promoted
 # once a LIVE run clears these. No value here is derived from, or evidence for,
 # any figure quoted in the planning documents; those figures are UNVERIFIED.
 GATE_MIN_COST_REDUCTION_PERCENT: Final = 25.0

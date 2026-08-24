@@ -28,13 +28,12 @@ from app.core.config.audits import (
     AUDIT_TRIGGER_TRIAL,
     CODE_PROMPT_COUNT_EXCEEDED,
     CODE_PROMPT_COUNT_POLICY_UNCONFIGURED,
-    MEASUREMENT_MODE_PULSE,
     audit_settings,
 )
 from app.core.config.entitlements import (
     CREDENTIAL_MODE_BYOK,
     CREDENTIAL_MODE_FUNDED,
-    KEY_PULSE_CREDITS,
+    KEY_AUDIT_CREDITS,
 )
 from app.core.config.projects import PROMPT_ORIGIN_GENERATED
 from app.core.config.prompts import (
@@ -601,7 +600,7 @@ async def _seed_funded_workspace(
     await seed_occupancy_grants(
         session,
         workspace_id=seed.workspace_id,
-        grants=(GrantSpec(key=KEY_PULSE_CREDITS, value=100_000),),
+        grants=(GrantSpec(key=KEY_AUDIT_CREDITS, value=100_000),),
     )
     await session.commit()
     return seed.workspace_id, seed.project_id, seed.prompt_set_id, seed.engines
@@ -633,7 +632,6 @@ async def test_unset_prompt_count_policy_blocks_funded_and_trial(
                     credential_mode=credential_mode,
                     prompt_set_id=prompt_set_id,
                     repetitions=1,
-                    measurement_mode=MEASUREMENT_MODE_PULSE,
                 )
             assert exc_info.value.code == CODE_PROMPT_COUNT_POLICY_UNCONFIGURED
             await session.rollback()
@@ -690,7 +688,6 @@ async def test_configured_prompt_count_is_enforced(
                     credential_mode=credential_mode,
                     prompt_set_id=prompt_set_id,
                     repetitions=1,
-                    measurement_mode=MEASUREMENT_MODE_PULSE,
                 )
             assert exc_info.value.code == CODE_PROMPT_COUNT_EXCEEDED
             assert exc_info.value.details == {"selected": 2, "limit": 1}
@@ -708,6 +705,5 @@ async def test_configured_prompt_count_is_enforced(
             credential_mode=CREDENTIAL_MODE_FUNDED,
             prompt_set_id=prompt_set_id,
             repetitions=1,
-            measurement_mode=MEASUREMENT_MODE_PULSE,
         )
         assert audit.id is not None

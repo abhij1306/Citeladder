@@ -24,9 +24,8 @@ from app.connectors.answer_engines.contracts import (
 from app.connectors.answer_engines.errors import ProviderError
 from app.core.config import settings
 from app.core.config.audits import (
-    MEASUREMENT_MODE_PULSE,
+    audit_execution_policy,
     audit_settings,
-    measurement_policy_for_mode,
 )
 from app.core.config.provider_catalog import (
     ENGINE_GEMINI,
@@ -43,7 +42,7 @@ def _request() -> AnswerEngineRequest:
     return AnswerEngineRequest(
         prompt="cheap baby clothes",
         system_instruction="Answer for Australia.",
-        model=measurement_route("claude", "pulse").transport_model,
+        model=measurement_route("claude").transport_model,
         timeout_seconds=30,
         retrieval_enabled=False,
         max_output_tokens=600,
@@ -178,24 +177,21 @@ def test_build_request_passes_every_frozen_policy_field_explicitly() -> None:
 
     Each field is mandatory and asserted against the planned policy value.
     """
-    policy = measurement_policy_for_mode(MEASUREMENT_MODE_PULSE)
+    policy = audit_execution_policy()
     request = audit_support.build_request(
         prompt_text="cheap baby clothes",
         system_instruction="Answer for Australia.",
         transport_model="gemini-3-pro",
         logical_engine=ENGINE_GEMINI,
-        measurement_mode=MEASUREMENT_MODE_PULSE,
         policy=policy,
     )
 
     assert request.timeout_seconds == policy.timeout_seconds
     assert request.retrieval_enabled == policy.retrieval_enabled
     assert request.max_output_tokens == policy.max_output_tokens
-    assert request.reasoning_effort == (
-        route_policy(ENGINE_GEMINI, "pulse").reasoning_effort
-    )
-    # A pulse run freezes retrieval OFF, so the request never buys a search.
-    assert request.retrieval_enabled is False
+    assert request.reasoning_effort == (route_policy(ENGINE_GEMINI).reasoning_effort)
+    # Every audit freezes retrieval on for citation-capable execution.
+    assert request.retrieval_enabled is True
 
 
 def test_build_request_snapshot_records_policy_and_omits_the_brand_list() -> None:
@@ -204,13 +200,12 @@ def test_build_request_snapshot_records_policy_and_omits_the_brand_list() -> Non
     Invariant 6: the API key and the brand/competitor list are excluded from
     every snapshot.
     """
-    policy = measurement_policy_for_mode(MEASUREMENT_MODE_PULSE)
+    policy = audit_execution_policy()
     request = audit_support.build_request(
         prompt_text="cheap baby clothes",
         system_instruction="Answer for Australia. " + policy.answer_instruction,
         transport_model="gemini-3-pro",
         logical_engine=ENGINE_GEMINI,
-        measurement_mode=MEASUREMENT_MODE_PULSE,
         policy=policy,
     )
     snapshot = audit_support.build_request_snapshot(
@@ -219,7 +214,6 @@ def test_build_request_snapshot_records_policy_and_omits_the_brand_list() -> Non
         transport_model="gemini-3-pro",
         request=request,
         configuration={
-            "measurement_mode": MEASUREMENT_MODE_PULSE,
             "benchmark_mode": "solo_brand",
             "country_code": "AU",
             "language_code": "en",
@@ -230,13 +224,12 @@ def test_build_request_snapshot_records_policy_and_omits_the_brand_list() -> Non
         answer_instruction=policy.answer_instruction,
     )
 
-    assert snapshot["measurement_mode"] == MEASUREMENT_MODE_PULSE
     assert snapshot["retrieval_enabled"] == policy.retrieval_enabled
     assert snapshot["max_output_tokens"] == policy.max_output_tokens
     assert snapshot["timeout_seconds"] == policy.timeout_seconds
     assert snapshot["answer_instruction"] == policy.answer_instruction
     assert snapshot["reasoning_effort"] == (
-        route_policy(ENGINE_GEMINI, "pulse").reasoning_effort
+        route_policy(ENGINE_GEMINI).reasoning_effort
     )
     assert snapshot["stateless"] is True
     assert "brand_names" not in snapshot

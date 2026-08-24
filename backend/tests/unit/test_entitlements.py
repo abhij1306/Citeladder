@@ -25,7 +25,7 @@ from app.core.config.entitlements import (
     GRANT_SOURCE_PLAN,
     GRANT_SOURCE_TOPUP,
     GRANT_SOURCE_TRIAL,
-    KEY_BENCHMARK_CREDITS,
+    KEY_AUDIT_CREDITS,
     KEY_EXPORTS,
     KEY_HISTORY_WINDOW,
     KEY_MONITORED_URLS,
@@ -230,36 +230,36 @@ def test_draw_order_is_expiry_then_source_order_then_uuid() -> None:
     expiry = _AT + timedelta(days=30)
     subscription_end = _AT + timedelta(days=60)
     trial = _grant(
-        KEY_BENCHMARK_CREDITS, 1, source_kind=GRANT_SOURCE_TRIAL, valid_until=expiry
+        KEY_AUDIT_CREDITS, 1, source_kind=GRANT_SOURCE_TRIAL, valid_until=expiry
     )
     plan = _grant(
-        KEY_BENCHMARK_CREDITS,
+        KEY_AUDIT_CREDITS,
         2,
         source_kind=GRANT_SOURCE_PLAN,
         valid_until=expiry,
         grant_id=uuid.UUID("88888888-8888-4888-8888-888888888888"),
     )
     addon = _grant(
-        KEY_BENCHMARK_CREDITS, 3, source_kind=GRANT_SOURCE_ADDON, valid_until=expiry
+        KEY_AUDIT_CREDITS, 3, source_kind=GRANT_SOURCE_ADDON, valid_until=expiry
     )
     override = _grant(
-        KEY_BENCHMARK_CREDITS, 4, source_kind=GRANT_SOURCE_OVERRIDE, valid_until=expiry
+        KEY_AUDIT_CREDITS, 4, source_kind=GRANT_SOURCE_OVERRIDE, valid_until=expiry
     )
     topup = _grant(
-        KEY_BENCHMARK_CREDITS, 5, source_kind=GRANT_SOURCE_TOPUP, valid_until=expiry
+        KEY_AUDIT_CREDITS, 5, source_kind=GRANT_SOURCE_TOPUP, valid_until=expiry
     )
     # A non-expiring grant draws after every expiring grant.
-    eternal = _grant(KEY_BENCHMARK_CREDITS, 6, source_kind=GRANT_SOURCE_PLAN)
+    eternal = _grant(KEY_AUDIT_CREDITS, 6, source_kind=GRANT_SOURCE_PLAN)
     # Same source + same expiry: the UUID bytes break the tie.
     tie_high = _grant(
-        KEY_BENCHMARK_CREDITS,
+        KEY_AUDIT_CREDITS,
         7,
         source_kind=GRANT_SOURCE_PLAN,
         valid_until=expiry,
         grant_id=uuid.UUID("ffffffff-ffff-4fff-bfff-ffffffffffff"),
     )
     tie_low = _grant(
-        KEY_BENCHMARK_CREDITS,
+        KEY_AUDIT_CREDITS,
         8,
         source_kind=GRANT_SOURCE_PLAN,
         valid_until=expiry,
@@ -283,13 +283,13 @@ def test_consumable_resolution_carries_the_draw_order() -> None:
     expiry = _AT + timedelta(days=30)
     subscription_end = _AT + timedelta(days=60)
     plan = _grant(
-        KEY_BENCHMARK_CREDITS, 5, source_kind=GRANT_SOURCE_PLAN, valid_until=expiry
+        KEY_AUDIT_CREDITS, 5, source_kind=GRANT_SOURCE_PLAN, valid_until=expiry
     )
     topup = _grant(
-        KEY_BENCHMARK_CREDITS, 5, source_kind=GRANT_SOURCE_TOPUP, valid_until=expiry
+        KEY_AUDIT_CREDITS, 5, source_kind=GRANT_SOURCE_TOPUP, valid_until=expiry
     )
     resolved = _fold((topup, plan), subscription_end=subscription_end).capability(
-        KEY_BENCHMARK_CREDITS
+        KEY_AUDIT_CREDITS
     )
     assert resolved is not None
     assert resolved.value == 10
@@ -300,17 +300,16 @@ def test_consumable_resolution_carries_the_draw_order() -> None:
 # Top-up expiry is coupled to the readable base subscription end
 # =========================================================================
 def test_topup_without_a_subscription_end_is_never_active() -> None:
-    topup = _grant(KEY_BENCHMARK_CREDITS, 100, source_kind=GRANT_SOURCE_TOPUP)
+    topup = _grant(KEY_AUDIT_CREDITS, 100, source_kind=GRANT_SOURCE_TOPUP)
     assert effective_grant_expiry(topup, None) == datetime.min.replace(tzinfo=UTC)
     assert (
-        _fold((topup,), subscription_end=None).capability_value(KEY_BENCHMARK_CREDITS)
-        == 0
+        _fold((topup,), subscription_end=None).capability_value(KEY_AUDIT_CREDITS) == 0
     )
 
 
 def test_topup_expiry_is_the_min_of_valid_until_and_subscription_end() -> None:
     topup = _grant(
-        KEY_BENCHMARK_CREDITS,
+        KEY_AUDIT_CREDITS,
         100,
         source_kind=GRANT_SOURCE_TOPUP,
         valid_until=_AT + timedelta(days=30),
@@ -323,7 +322,7 @@ def test_topup_expiry_is_the_min_of_valid_until_and_subscription_end() -> None:
 
 def test_topup_expiry_moves_with_renewal_and_cancellation() -> None:
     topup = _grant(
-        KEY_BENCHMARK_CREDITS,
+        KEY_AUDIT_CREDITS,
         100,
         source_kind=GRANT_SOURCE_TOPUP,
         valid_until=_AT + timedelta(days=30),
@@ -331,20 +330,17 @@ def test_topup_expiry_moves_with_renewal_and_cancellation() -> None:
     # Active while the base subscription runs past ``at``.
     renewed = _AT + timedelta(days=15)
     assert (
-        _fold((topup,), subscription_end=renewed).capability_value(
-            KEY_BENCHMARK_CREDITS
-        )
+        _fold((topup,), subscription_end=renewed).capability_value(KEY_AUDIT_CREDITS)
         == 100
     )
     # A cancellation removes the readable end: the top-up resolves unavailable.
     assert (
-        _fold((topup,), subscription_end=None).capability_value(KEY_BENCHMARK_CREDITS)
-        == 0
+        _fold((topup,), subscription_end=None).capability_value(KEY_AUDIT_CREDITS) == 0
     )
     # A base end BEFORE ``at`` likewise leaves the top-up expired.
     lapsed = _AT - timedelta(days=1)
     assert (
-        _fold((topup,), subscription_end=lapsed).capability_value(KEY_BENCHMARK_CREDITS)
+        _fold((topup,), subscription_end=lapsed).capability_value(KEY_AUDIT_CREDITS)
         == 0
     )
 

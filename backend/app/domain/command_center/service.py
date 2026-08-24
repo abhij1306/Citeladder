@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.config.audits import AUDIT_STATUS_COMPLETED
+from app.core.config.audits import AUDIT_SCOPE_BRAND, AUDIT_STATUS_COMPLETED
 from app.domain.analysis.schemas import RankingRow, VisibilityResponse
 from app.domain.analysis.visibility import get_visibility
 from app.domain.command_center.schemas import (
@@ -49,14 +49,14 @@ class ComparableAudits:
     previous: Audit | None
 
 
-def _audit_identity(audit: Audit) -> tuple[str, str, frozenset[str], frozenset[str]]:
+def _audit_identity(audit: Audit) -> tuple[str, frozenset[str], frozenset[str]]:
     prompts = frozenset(
         str(row.prompt_id) if row.prompt_id is not None else f"text:{row.text}"
         for row in audit.prompt_snapshots
         if row.cohort == "core"
     )
     engines = frozenset(row.logical_engine for row in audit.engine_snapshots)
-    return audit.measurement_mode, audit.benchmark_mode, engines, prompts
+    return audit.benchmark_mode, engines, prompts
 
 
 def _is_prior_comparable(
@@ -87,6 +87,7 @@ async def _resolve_audits(
             Audit.workspace_id == workspace_id,
             Audit.project_id == project_id,
             Audit.status == AUDIT_STATUS_COMPLETED,
+            Audit.audit_scope == AUDIT_SCOPE_BRAND,
         )
         .order_by(Audit.completed_at.desc(), Audit.id.desc())
     )
@@ -609,7 +610,6 @@ def _measurement(audits: ComparableAudits) -> CommandCenterMeasurement:
     return CommandCenterMeasurement(
         audit_id=audits.selected.id,
         completed_at=audits.selected.completed_at or audits.selected.created_at,
-        measurement_mode=audits.selected.measurement_mode,
         benchmark_mode=audits.selected.benchmark_mode,
         logical_engines=sorted(
             row.logical_engine for row in audits.selected.engine_snapshots

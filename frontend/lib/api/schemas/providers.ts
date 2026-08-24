@@ -45,7 +45,6 @@ export const providerConnectionSchema = responseObject({
 });
 
 const providerCatalogRouteSchema = responseObject({
-  measurement_mode: z.enum(['pulse', 'benchmark']),
   transport_provider: transportProviderSchema,
   transport_model: z.string(),
   retrieval_enabled: z.boolean(),

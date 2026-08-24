@@ -50,7 +50,7 @@ from tests.component.audit_helpers import seed_audit_fixtures
 # than pinned as a literal: these assertions are about provenance travelling
 # intact from the frozen route to the API projections and exports, not about
 # which Gemini build is current, and a literal goes stale on every bump.
-GEMINI_MODEL = measurement_route(ENGINE_GEMINI, "pulse").transport_model
+GEMINI_MODEL = measurement_route(ENGINE_GEMINI).transport_model
 
 
 class _StubAdapter:
@@ -149,12 +149,11 @@ async def test_endpoints_serve_projections_over_http(
     assert m.status_code == 200
     assert m.json()["visibility_score"] == 87.5
 
-    # Audit projection: canonical measurement_mode + the stable aggregate
+    # Audit projection: the stable aggregate provenance
     # model_provenance list (never a forced singular model), no `mode` alias.
     a = await client.get(f"/api/v1/audits/{audit.id}", headers=headers)
     assert a.status_code == 200
     abody = a.json()
-    assert abody["measurement_mode"] == "pulse"
     assert abody["model_provenance"] == [
         {
             "logical_engine": ENGINE_GEMINI,
@@ -175,7 +174,6 @@ async def test_endpoints_serve_projections_over_http(
     assert body["sentiment"] is None
     assert any(r["is_brand"] for r in body["rankings"])
     # Overview aggregate provenance: frozen mode + catalog-ordered route list.
-    assert body["measurement_mode"] == "pulse"
     assert body["model_provenance"] == abody["model_provenance"]
     assert "mode" not in body
 
@@ -193,7 +191,6 @@ async def test_endpoints_serve_projections_over_http(
     # from the task request snapshot; vocabulary lock (no `mode` alias).
     first_row = exec_rows[0]
     assert first_row["transport_model"] == GEMINI_MODEL
-    assert first_row["measurement_mode"] == "pulse"
     assert first_row["retrieval_enabled"] is False
     assert "mode" not in first_row
     execution_id = exec_rows[0]["id"]
@@ -208,7 +205,6 @@ async def test_endpoints_serve_projections_over_http(
     assert ebody["analysis_id"] != execution_id
     # Execution-detail provenance (frozen fields only, invariants 4/7).
     assert ebody["transport_model"] == GEMINI_MODEL
-    assert ebody["measurement_mode"] == "pulse"
     assert ebody["retrieval_enabled"] is False
     assert "mode" not in ebody
 
@@ -222,7 +218,6 @@ async def test_endpoints_serve_projections_over_http(
     # CSV rows carry the frozen measurement provenance beside the model/search
     # columns; no bare `mode` column (vocabulary lock).
     csv_header = csv_resp.text.splitlines()[0].split(",")
-    assert "measurement_mode" in csv_header
     assert "retrieval_enabled" in csv_header
     assert "mode" not in csv_header
 
@@ -231,7 +226,6 @@ async def test_endpoints_serve_projections_over_http(
     assert md_resp.headers["content-type"].startswith("text/markdown")
     assert "# AI Search Visibility Benchmark" in md_resp.text
     # Markdown metadata identifies the measurement mode + aggregate provenance.
-    assert "- **Measurement mode:** `pulse`" in md_resp.text
     assert "- **Model provenance:**" in md_resp.text
     assert f"`gemini` via `google` model `{GEMINI_MODEL}` (retrieval off)" in (
         md_resp.text
@@ -359,7 +353,6 @@ async def test_trends_endpoint_serves_projection_over_http(
     # Measurement-identity partition fields are always present (canonical
     # vocabulary; no `mode` alias). The seeded audit froze no route/policy, so
     # model/retrieval are null — never inferred from live config.
-    assert point["measurement_mode"] == "pulse"
     assert point["transport_model"] is None
     assert point["retrieval_enabled"] is None
     assert point["model_provenance"] == []
@@ -423,22 +416,15 @@ async def test_trends_endpoint_query_parsing_and_422(
     )
     assert naive.status_code == 422
 
-    # Unsupported measurement_mode slice -> 422.
-    bad_mode = await client.get(
-        base, params={"measurement_mode": "deep_dive"}, headers=headers
-    )
+    bad_mode = await client.get()
     assert bad_mode.status_code == 422
 
     # Valid identity slices parse and filter before folding; the seeded audit
     # (frozen Pulse mode, unrecorded model/retrieval) only matches Pulse.
-    mode_slice = await client.get(
-        base, params={"measurement_mode": "pulse"}, headers=headers
-    )
+    mode_slice = await client.get()
     assert mode_slice.status_code == 200
     assert len(mode_slice.json()) == 1
-    benchmark_slice = await client.get(
-        base, params={"measurement_mode": "benchmark"}, headers=headers
-    )
+    benchmark_slice = await client.get()
     assert benchmark_slice.status_code == 200
     assert benchmark_slice.json() == []
     retrieval_slice = await client.get(
@@ -637,7 +623,6 @@ async def test_evidence_endpoint_serves_projection_over_http(
     # frozen mode column; retrieval is null when nothing froze it (never
     # inferred from live config). Vocabulary lock: no `mode` alias.
     assert item["transport_model"] == "gemini-flash-latest"
-    assert item["measurement_mode"] == "pulse"
     assert item["retrieval_enabled"] is None
     assert "mode" not in item
 

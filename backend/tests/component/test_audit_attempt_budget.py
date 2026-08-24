@@ -7,7 +7,7 @@ at planning (invariant 9) — the per-mode attempt budget, the per-mode timeout,
 and ``task.max_attempts`` itself — so a live settings change can never extend
 or shorten a run already in flight.
 
-Every audit here is planned in the default measurement mode (pulse), which
+Every audit here is planned in the single audit policy, which
 carries a SMALLER attempt budget than benchmark; ``_pin_attempt_budget`` pins
 both knobs so a test that wants three attempts gets three regardless of which
 branch the planner takes.
@@ -25,7 +25,6 @@ from app.core.config.audits import (
     ATTEMPT_STATUS_SUCCEEDED,
     EVENT_TASK_RETRY,
     EVENT_TASK_SUCCEEDED,
-    MEASUREMENT_MODE_PULSE,
     audit_settings,
 )
 from app.core.config.provider_catalog import ERROR_RATE_LIMIT, ERROR_TIMEOUT
@@ -51,7 +50,7 @@ async def test_worker_records_one_attempt_per_provider_call(
 ) -> None:
     # Two retryable failures then a success -> three append-only ProviderAttempt
     # rows (invariant 3: one row per attempt), not a single collapsed row.
-    # Needs a budget of three; the default (pulse) mode allows two.
+    # Needs a budget of three; the single audit policy allows two.
     _pin_attempt_budget(monkeypatch, 3)
     _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
 
@@ -209,14 +208,12 @@ async def test_frozen_mode_timeout_drives_the_call_ceiling(
 
     The stalled adapter would hang this test for an hour if the worker read
     the live settings bumped after planning (invariant 9); the frozen 0.05s
-    pulse timeout cuts the call off instead.
+    audit timeout cuts the call off instead.
     """
-    monkeypatch.setattr(audit_settings, "pulse_timeout_seconds", 0.05)
+    monkeypatch.setattr(audit_settings, "audit_timeout_seconds", 0.05)
     _pin_attempt_budget(monkeypatch, 1)
-    _seed, audit = await _make_audit(
-        session_factory, prompts=1, reps=1, measurement_mode=MEASUREMENT_MODE_PULSE
-    )
-    monkeypatch.setattr(audit_settings, "pulse_timeout_seconds", 3600.0)  # no effect
+    _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
+    monkeypatch.setattr(audit_settings, "audit_timeout_seconds", 3600.0)  # no effect
     adapter = _StallingAdapter()
     monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)

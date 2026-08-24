@@ -173,12 +173,7 @@ function ConnectEngineForm({
             </div>
           </div>
           <div className="text-muted text-2xs grid gap-0.5 text-right font-mono">
-            <span>
-              Pulse: <span className="text-secondary">{route.pulse_model}</span>
-            </span>
-            <span>
-              Benchmark: <span className="text-secondary">{route.benchmark_model}</span>
-            </span>
+            <span className="text-secondary">{route.model}</span>
           </div>
         </div>
       ) : (

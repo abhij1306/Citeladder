@@ -32,9 +32,7 @@ _CSV_COLUMNS = [
     "randomized_position",
     "logical_engine",
     "transport_model",
-    # Frozen measurement provenance (invariant 7): the mode + retrieval state
-    # the execution ran under, projected from frozen fields only.
-    "measurement_mode",
+    # Frozen retrieval state the execution ran under.
     "retrieval_enabled",
     "status",
     "search_used",
@@ -64,17 +62,16 @@ def _join(values: Any) -> str:
     return json.dumps(values, ensure_ascii=False)
 
 
-def _row_provenance(audit: Audit, task: AuditTask) -> tuple[str, bool | None]:
-    """Frozen ``(measurement_mode, retrieval_enabled)`` for one CSV row.
+def _row_provenance(audit: Audit, task: AuditTask) -> bool | None:
+    """Frozen retrieval state for one CSV row.
 
     The frozen task request/route snapshots win (what the call executed
-    under), then the audit's frozen mode column + policy block — live config
+    under), then the audit's frozen policy block — live config
     is never consulted (invariants 4/7).
     """
     return execution_frozen_provenance(
         request_snapshot=task.request_snapshot,
         route_snapshot=task.provider_route_snapshot,
-        audit_measurement_mode=audit.measurement_mode,
         audit_configuration=audit.configuration,
     )
 
@@ -94,7 +91,7 @@ def audit_to_csv(audit: Audit, tasks: list[AuditTask]) -> str:
         citation_domains = [
             c.get("domain") for c in (task.citations or []) if c.get("domain")
         ]
-        measurement_mode, retrieval_enabled = _row_provenance(audit, task)
+        retrieval_enabled = _row_provenance(audit, task)
         row = {
             "audit_id": str(audit.id),
             "prompt_index": task.prompt_index,
@@ -103,7 +100,6 @@ def audit_to_csv(audit: Audit, tasks: list[AuditTask]) -> str:
             "randomized_position": task.randomized_position,
             "logical_engine": task.logical_engine,
             "transport_model": task.transport_model,
-            "measurement_mode": measurement_mode,
             "retrieval_enabled": _csv_bool(retrieval_enabled),
             "status": task.status,
             "search_used": task.search_used,
@@ -149,7 +145,7 @@ def audit_to_markdown(audit: Audit, tasks: list[AuditTask]) -> str:
     config = audit.configuration or {}
     summary = audit.summary or {}
     brand = config.get("brand_name", "Brand")
-    lines = [f"# AI Search Visibility Benchmark — {brand}", ""]
+    lines = [f"# AI Search Visibility Audit — {brand}", ""]
     lines.extend(_methodology_lines(audit, config, summary))
     lines.extend(_headline_lines(summary))
     lines.extend(_competitor_lines(config, summary, brand))
@@ -175,18 +171,14 @@ def _provenance_label(item: ModelProvenance) -> str:
 
 
 def _measurement_provenance_lines(audit) -> list[str]:
-    """Methodology metadata: the audit's measurement mode + route provenance.
+    """Methodology metadata: the audit's frozen route provenance.
 
-    Both derive only from the frozen mode column, frozen policy block, and
-    frozen engine snapshots (inv. 4/7); the aggregate list is in stable
+    It derives only from the frozen policy block and engine snapshots
+    (inv. 4/7); the aggregate list is in stable
     catalog order and never forces a singular model when the audit spans
     models.
     """
-    lines = [
-        f"- **Measurement mode:** `{audit.measurement_mode or '—'}` — the frozen "
-        "route/output policy (retrieval, output cap, timeout, repetitions) this "
-        "run measured under."
-    ]
+    lines: list[str] = []
     provenance = model_provenance_for(audit.engine_snapshots or [], audit.configuration)
     if provenance:
         lines.append(

@@ -296,7 +296,7 @@ async def get_execution_evidence(
     # from live config (invariants 4/7).
     task = await session.scalar(select(AuditTask).where(AuditTask.id == task_id))
     audit = await session.scalar(select(Audit).where(Audit.id == analysis.audit_id))
-    measurement_mode, retrieval_enabled = _execution_provenance(task, audit)
+    retrieval_enabled = _execution_provenance(task, audit)
     score = analysis.score or {}
     return ExecutionEvidenceResponse(
         id=analysis.task_id,
@@ -309,7 +309,6 @@ async def get_execution_evidence(
         logical_engine=analysis.logical_engine,
         transport_provider=analysis.transport_provider,
         transport_model=analysis.transport_model,
-        measurement_mode=measurement_mode,
         retrieval_enabled=retrieval_enabled,
         prompt_index=analysis.prompt_index,
         repetition=analysis.repetition,
@@ -513,19 +512,16 @@ def _fanout_state(
     return False, VisibilityFanoutState.NO_SEARCH
 
 
-def _execution_provenance(
-    task: AuditTask | None, audit: Audit | None
-) -> tuple[str, bool | None]:
-    """Frozen ``(measurement_mode, retrieval_enabled)`` for one execution.
+def _execution_provenance(task: AuditTask | None, audit: Audit | None) -> bool | None:
+    """Frozen retrieval state for one execution.
 
     Task request/route snapshots win (what the call executed under), then the
-    audit's frozen mode column + policy block. Live config is never consulted
+    audit's frozen policy block. Live config is never consulted
     (invariants 4/7 — read paths are projections of frozen fields only).
     """
     return execution_frozen_provenance(
         request_snapshot=task.request_snapshot if task is not None else None,
         route_snapshot=task.provider_route_snapshot if task is not None else None,
-        audit_measurement_mode=audit.measurement_mode if audit is not None else None,
         audit_configuration=audit.configuration if audit is not None else None,
     )
 
@@ -546,7 +542,7 @@ def _evidence_item(
         search_used=bool(analysis.search_used),
         search_query_count=int(analysis.search_query_count or 0),
     )
-    measurement_mode, retrieval_enabled = _execution_provenance(task, audit)
+    retrieval_enabled = _execution_provenance(task, audit)
     return VisibilityExecutionEvidence(
         audit_id=analysis.audit_id,
         task_id=analysis.task_id,
@@ -561,7 +557,6 @@ def _evidence_item(
         logical_engine=analysis.logical_engine,
         transport_provider=analysis.transport_provider,
         transport_model=analysis.transport_model,
-        measurement_mode=measurement_mode,
         retrieval_enabled=retrieval_enabled,
         search_used=bool(analysis.search_used),
         search_query_count=int(analysis.search_query_count or 0),

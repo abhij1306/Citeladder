@@ -604,7 +604,7 @@ async def test_public_catalog_reports_unset_addons_and_topups_as_unavailable(
     topup = body["topups"][0]
     assert topup["availability"] == "unavailable"
     assert topup["unavailable_reason"] == "checkout_unavailable"
-    assert topup["grant_key"] == "benchmark_credits"
+    assert topup["grant_key"] == "audit_credits"
     # Pack size unset: credits_per_unit is null, expiry copy is still present.
     assert topup["credits_per_unit"] is None
     assert topup["expiry_days"] == billing_settings.topup_credit_valid_days
@@ -630,13 +630,11 @@ async def test_public_provider_rows_mark_coming_soon_engines_unavailable(
     assert providers["chatgpt"]["routes"] == [
         {
             "logical_engine": "chatgpt",
-            "measurement_mode": "pulse",
             "transport_provider": "openai",
             "model": "gpt-5.4-nano-2026-03-17",
         },
         {
             "logical_engine": "chatgpt",
-            "measurement_mode": "benchmark",
             "transport_provider": "openai",
             "model": "gpt-5.6-sol",
         },

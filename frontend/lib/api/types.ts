@@ -18,7 +18,6 @@ import type {
   registrationResponseSchema,
   connectionTestResultSchema,
   competitorSchema,
-  measurementModeSchema,
   modelProvenanceSchema,
   providerConnectionStateEntrySchema,
   providerConnectionStateSchema,
@@ -198,7 +197,6 @@ export type ProviderConnectionState = z.infer<typeof providerConnectionStateSche
 export type ProviderConnectionStateEntry = z.infer<typeof providerConnectionStateEntrySchema>;
 export type ProviderConnectionStates = z.infer<typeof providerConnectionStatesSchema>;
 export type ProviderProbe = z.infer<typeof providerProbeSchema>;
-export type MeasurementMode = z.infer<typeof measurementModeSchema>;
 export type ModelProvenance = z.infer<typeof modelProvenanceSchema>;
 export type AuditEvent = z.infer<typeof auditEventSchema>;
 export type AuditStatus = z.infer<typeof auditStatusSchema>;

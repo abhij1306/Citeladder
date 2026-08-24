@@ -35,7 +35,7 @@ function plan(overrides: Partial<CatalogPlan> = {}): CatalogPlan {
 
 function catalog(overrides: Partial<BillingCatalog> = {}): BillingCatalog {
   return {
-    catalog_revision: 'commercial-v8',
+    catalog_revision: 'commercial-v9',
     country_code: 'US',
     region: 'international',
     currency: 'USD',
@@ -139,16 +139,16 @@ describe('isPurchasable', () => {
     expect(
       isPurchasable({
         key: 'topup_bench',
-        name: 'Benchmark credits',
+        name: 'Audit credits',
         description: '',
+        cadence: 'monthly',
         unit_price: null,
         quantity_min: 1,
         quantity_max: 10,
         availability: 'available',
         unavailable_reason: null,
-        grant_key: 'benchmark_credits',
-        credits_per_unit: null,
-        expiry_days: 90,
+        grant_key: 'audit_credits',
+        grant_value_per_unit: 1,
       }),
     ).toBe(false);
   });
@@ -170,7 +170,6 @@ describe('providerMarketingState', () => {
             routes: [
               {
                 logical_engine: 'chatgpt',
-                measurement_mode: 'pulse',
                 transport_provider: 'openai',
                 model: 'gpt-5',
               },

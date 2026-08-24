@@ -38,12 +38,11 @@ from app.core.config.audits import (
     AUDIT_QUEUE_SPEC,
     AUDIT_STATUS_CANCELLED,
     AUDIT_TRIGGER_MANUAL,
-    MEASUREMENT_MODE_PULSE,
     audit_settings,
 )
 from app.core.config.entitlements import (
     CREDENTIAL_MODE_FUNDED,
-    KEY_PULSE_CREDITS,
+    KEY_AUDIT_CREDITS,
     LEDGER_ENTRY_DEBIT,
     LEDGER_ENTRY_RELEASE,
     LEDGER_ENTRY_RESERVATION,
@@ -100,7 +99,7 @@ async def _seed_funded(
     session: AsyncSession, *, prompt_count: int = 2, credits: int = 100
 ) -> tuple[BillingAccount, Seed]:
     """Funded-capable workspace: unprobed tenant BYOK (no precedence), the
-    platform credential funded resolution binds, and a pulse-credit account."""
+    platform credential funded resolution binds, and a audit-credit account."""
     seed = await seed_audit_fixtures(
         session, prompt_count=prompt_count, engines=[ENGINE_CLAUDE], probed=False
     )
@@ -108,7 +107,7 @@ async def _seed_funded(
     account = await seed_occupancy_grants(
         session,
         workspace_id=seed.workspace_id,
-        grants=(GrantSpec(key=KEY_PULSE_CREDITS, value=credits),),
+        grants=(GrantSpec(key=KEY_AUDIT_CREDITS, value=credits),),
     )
     await session.commit()
     return account, seed
@@ -124,7 +123,6 @@ async def _create_funded(session: AsyncSession, seed: Seed):
         credential_mode=CREDENTIAL_MODE_FUNDED,
         prompt_set_id=seed.prompt_set_id,
         repetitions=1,
-        measurement_mode=MEASUREMENT_MODE_PULSE,
         random_seed="1",
     )
 
@@ -148,7 +146,7 @@ async def _usage(session: AsyncSession, account_id: uuid.UUID):
     return await consumable_usage(
         session,
         account_id=account_id,
-        capability_key=KEY_PULSE_CREDITS,
+        capability_key=KEY_AUDIT_CREDITS,
         at=datetime.now(UTC),
     )
 
@@ -176,7 +174,7 @@ async def test_cancel_releases_every_unclaimed_funded_reservation(
         assert len(tasks) == 2
         usage = await _usage(session, account.id)
         # The reservation is keyed to the budget the PLANNER FROZE onto each
-        # task, which is the measurement mode's (pulse retries fewer times
+        # task, which is the frozen policy's attempt budget
         # than benchmark) — never the generic live ``max_attempts``.
         assert usage.reserved == sum(t.max_attempts for t in tasks)
 
@@ -473,9 +471,9 @@ async def test_crash_after_billed_attempt_bills_once_and_releases_remainder(
     (will_retry=True) and ``queue.retry`` then raised, so crash handling
     terminalizes — releasing only the still-reserved unit."""
     # Pin BOTH: the frozen budget comes from the mode policy, and these
-    # audits are planned in the default (pulse) mode.
+    # audits are planned in the single audit policy.
     monkeypatch.setattr(audit_settings, "max_attempts", 2)
-    monkeypatch.setattr(audit_settings, "pulse_max_attempts", 2)
+    monkeypatch.setattr(audit_settings, "max_attempts", 2)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
     monkeypatch.setattr(audit_settings, "heartbeat_interval_seconds", 3600.0)
     monkeypatch.setitem(

@@ -93,7 +93,7 @@ def _reservation(account_id: uuid.UUID = _ACCOUNT_ID) -> Reservation:
     return Reservation(
         reservation_id=uuid.uuid4(),
         billing_account_id=account_id,
-        capability_key="pulse_credits",
+        capability_key="audit_credits",
         audit_id=uuid.uuid4(),
         task_id=uuid.uuid4(),
         units=3,

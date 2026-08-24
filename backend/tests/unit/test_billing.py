@@ -36,11 +36,11 @@ from app.core.config.billing_settings import (
     billing_settings,
 )
 from app.core.config.entitlements import (
-    BENCHMARK_CADENCE_VALUES,
+    AUDIT_CADENCE_VALUES,
     COMING_SOON_PROVIDER_KEYS,
     HISTORY_WINDOW_VALUES,
-    KEY_BENCHMARK_CADENCE,
-    KEY_BENCHMARK_CREDITS,
+    KEY_AUDIT_CADENCE,
+    KEY_AUDIT_CREDITS,
     KEY_EXPORTS,
     KEY_FANOUT,
     KEY_HISTORY_WINDOW,
@@ -49,8 +49,6 @@ from app.core.config.entitlements import (
     KEY_PROJECT_SLOTS,
     KEY_PROMPT_SLOTS,
     KEY_PROVIDER_COPILOT,
-    KEY_PULSE_CADENCE,
-    PULSE_CADENCE_VALUES,
 )
 from app.core.config.provider_catalog import (
     ACTIVE_TRANSPORTS,
@@ -132,7 +130,7 @@ async def test_login_skips_billing_repair_when_bootstrap_is_complete(
 
 def _metadata() -> ProviderMetadata:
     return ProviderMetadata(
-        intent_id="intent-1", account_ref="account-1", catalog_revision="commercial-v8"
+        intent_id="intent-1", account_ref="account-1", catalog_revision="commercial-v9"
     )
 
 
@@ -423,8 +421,7 @@ def test_plan_grant_templates_match_the_registry_and_omit_coming_soon() -> None:
         for plan in catalog.plans
     }
     assert grants["tier_1"] == {
-        KEY_PULSE_CADENCE: PULSE_CADENCE_VALUES.index("daily"),
-        KEY_BENCHMARK_CADENCE: BENCHMARK_CADENCE_VALUES.index("weekly"),
+        KEY_AUDIT_CADENCE: AUDIT_CADENCE_VALUES.index("weekly"),
         KEY_PROJECT_SLOTS: 1,
         KEY_PROMPT_SLOTS: 10,
         KEY_MONITORED_URLS: 50,
@@ -447,7 +444,7 @@ def test_plan_grant_templates_match_the_registry_and_omit_coming_soon() -> None:
     # a benchmark-credit grant (included counts are unconfigured).
     for bundle in grants.values():
         assert not COMING_SOON_PROVIDER_KEYS & set(bundle)
-        assert KEY_BENCHMARK_CREDITS not in bundle
+        assert KEY_AUDIT_CREDITS not in bundle
 
 
 def test_grant_template_rejects_non_issuable_and_unknown_keys() -> None:
@@ -570,16 +567,9 @@ def test_plan_period_grant_specs_reads_the_catalog_and_rejects_stale_revisions(
 
 def test_active_write_enums_stay_openai_anthropic_google_only() -> None:
     assert ACTIVE_TRANSPORTS == frozenset({"openai", "anthropic", "google"})
-    assert set(MEASUREMENT_ROUTES) == {
-        ("chatgpt", "pulse"),
-        ("chatgpt", "benchmark"),
-        ("claude", "pulse"),
-        ("claude", "benchmark"),
-        ("gemini", "pulse"),
-        ("gemini", "benchmark"),
-    }
+    assert set(MEASUREMENT_ROUTES) == {"chatgpt", "claude", "gemini"}
     coming_soon = {"grok", "perplexity", "copilot"}
-    assert not coming_soon & {engine for engine, _ in MEASUREMENT_ROUTES}
+    assert not coming_soon & set(MEASUREMENT_ROUTES)
     assert not coming_soon & ACTIVE_TRANSPORTS
     for key in coming_soon:
         assert public_provider_routes(key) == ()
@@ -618,7 +608,7 @@ def test_response_models_forbid_extra_fields() -> None:
 
 def test_usage_item_limit_state_nullability_is_explicit() -> None:
     base = {
-        "key": KEY_BENCHMARK_CREDITS,
+        "key": KEY_AUDIT_CREDITS,
         "capability_type": "counter.consumable",
         "unit": "credits",
         "window_started_at": None,
@@ -725,7 +715,7 @@ def test_request_fingerprint_is_canonical_and_sensitive_to_the_body() -> None:
     base = {
         "operation": "subscription.create",
         "account_id": account_id,
-        "catalog_revision": "commercial-v8",
+        "catalog_revision": "commercial-v9",
         "catalog_key": "tier_1",
         "quantity": 1,
         "credential_mode": "byok",

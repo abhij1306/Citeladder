@@ -19,7 +19,7 @@ from app.core.config.costs import (
     PRICING_CATALOG_VERSION,
     PROJECTION_STATUS_COMPLETE,
     PROJECTION_STATUS_PARTIAL,
-    ROUTE_CLAUDE_PULSE,
+    ROUTE_CLAUDE,
     RoutePricing,
 )
 from app.core.config.provider_catalog import (
@@ -55,7 +55,7 @@ _PRICED_V2 = RoutePricing(
     pricing_version="test-priced-v2",
 )
 
-_MODEL = measurement_route(ENGINE_CLAUDE, "pulse").transport_model
+_MODEL = measurement_route(ENGINE_CLAUDE).transport_model
 
 
 @pytest.fixture
@@ -171,7 +171,7 @@ async def test_two_pricing_versions_coexist_for_one_artifact(
     monkeypatch.setitem(
         costs_config._ROUTE_PRICING_CATALOGS,
         "test-priced-v2",
-        {ROUTE_CLAUDE_PULSE: _PRICED_V2},
+        {ROUTE_CLAUDE: _PRICED_V2},
     )
     _, _, artifact_id = seeded_artifact
     async with session_factory() as session:

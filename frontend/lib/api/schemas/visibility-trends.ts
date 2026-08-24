@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { measurementModeSchema, modelProvenanceSchema } from './audits';
+import { modelProvenanceSchema } from './audits';
 import { rankingRowSchema } from './visibility';
 
 const responseObject = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape);
@@ -43,10 +43,9 @@ export const visibilityTrendPointSchema = responseObject({
   sentiment: z.string().nullable(),
   avg_position: z.number().nullable(),
   // Measurement identity partition (invariant 7): a point folds only inside
-  // one (measurement_mode, transport_model, retrieval_enabled) identity, so
+  // one (transport_model, retrieval_enabled) identity, so
   // the client must never recombine points across these. `transport_model` is
   // null when the point spans several models — see `model_provenance`.
-  measurement_mode: measurementModeSchema.default(''),
   transport_model: z.string().nullable().default(null),
   retrieval_enabled: z.boolean().nullable().default(null),
   model_provenance: z.array(modelProvenanceSchema).default([]),

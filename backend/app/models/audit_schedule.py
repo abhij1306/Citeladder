@@ -19,7 +19,6 @@ from app.core.config.audit_schedules import (
     CADENCE_ONE_TIME,
     DEFAULT_AUDIT_SCHEDULE_TIMEZONE,
 )
-from app.core.config.audits import MEASUREMENT_MODE_PULSE
 from app.core.database import Base
 
 
@@ -62,9 +61,6 @@ class AuditSchedule(Base):
     engines: Mapped[list] = mapped_column(JSONB, default=list)
     repetitions: Mapped[int | None] = mapped_column(Integer, nullable=True)
     benchmark_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    measurement_mode: Mapped[str] = mapped_column(
-        String(16), default=MEASUREMENT_MODE_PULSE
-    )
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     next_run_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True

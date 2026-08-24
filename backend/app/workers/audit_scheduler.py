@@ -174,7 +174,6 @@ class AuditScheduler:
                     prompt_set_id=schedule.prompt_set_id,
                     repetitions=schedule.repetitions,
                     benchmark_mode=schedule.benchmark_mode,
-                    measurement_mode=schedule.measurement_mode,
                     schedule_id=schedule.id,
                     scheduled_for=scheduled_for,
                 )

@@ -80,15 +80,14 @@ class _TrendSource:
     A raw point folds exactly one of these; a bucket folds many. ``metrics`` is
     the persisted per-run metrics dict, or the engine slice
     (``metrics.per_engine[engine]``) when the request is engine-filtered.
-    ``(measurement_mode, transport_model, retrieval_enabled)`` is the frozen
-    folding identity: sources may be folded together ONLY when all three match.
+    ``(transport_model, retrieval_enabled)`` is the frozen folding identity:
+    sources may be folded together only when both match.
     """
 
     snapshot_id: uuid.UUID
     audit_id: uuid.UUID
     completed_at: datetime
     logical_engine: str | None
-    measurement_mode: str
     transport_model: str | None
     retrieval_enabled: bool | None
     model_provenance: list[ModelProvenance]
@@ -206,7 +205,6 @@ def _raw_point(source: _TrendSource) -> VisibilityTrendPoint:
         rankings=_trend_rankings(metrics),
         sentiment=None,
         avg_position=None,
-        measurement_mode=source.measurement_mode,
         transport_model=source.transport_model,
         retrieval_enabled=source.retrieval_enabled,
         model_provenance=source.model_provenance,
@@ -227,25 +225,24 @@ def _bucket_key(completed_at: datetime, granularity: str) -> datetime:
     return day - timedelta(days=at.weekday())
 
 
-# Folding identity: ``(measurement_mode, transport_model, retrieval_enabled)``.
+# Folding identity: ``(transport_model, retrieval_enabled)``.
 # Raw, weekly, and monthly folding may combine sources ONLY inside one
-# identity partition (invariant 7): no point or bucket ever mixes pulse with
-# benchmark, different models, or retrieval on with off.
-_TrendIdentity = tuple[str, str | None, bool | None]
+# identity partition (invariant 7): no point or bucket ever mixes different
+# models or retrieval states.
+_TrendIdentity = tuple[str | None, bool | None]
 
 
 def _identity_of(source: _TrendSource) -> _TrendIdentity:
     return (
-        source.measurement_mode,
         source.transport_model,
         source.retrieval_enabled,
     )
 
 
-def _identity_sort_key(identity: _TrendIdentity) -> tuple[str, str, str]:
+def _identity_sort_key(identity: _TrendIdentity) -> tuple[str, str]:
     """Deterministic order for partitions sharing one bucket boundary."""
-    mode, model, retrieval = identity
-    return (mode, model or "", "" if retrieval is None else str(retrieval))
+    model, retrieval = identity
+    return (model or "", "" if retrieval is None else str(retrieval))
 
 
 def _bucket_points(
@@ -374,7 +371,7 @@ def _fold_bucket(key: datetime, bucket: list[_TrendSource]) -> VisibilityTrendPo
     brand_keys = accumulators.brand_names or {"Brand"}
 
     # Every source in the bucket shares one folding identity by construction.
-    measurement_mode, transport_model, retrieval_enabled = _identity_of(bucket[0])
+    transport_model, retrieval_enabled = _identity_of(bucket[0])
     return VisibilityTrendPoint(
         audit_id=None,
         completed_at=key,
@@ -389,7 +386,6 @@ def _fold_bucket(key: datetime, bucket: list[_TrendSource]) -> VisibilityTrendPo
         rankings=ranking_rows,
         sentiment=None,
         avg_position=None,
-        measurement_mode=measurement_mode,
         transport_model=transport_model,
         retrieval_enabled=retrieval_enabled,
         model_provenance=_bucket_provenance(bucket),

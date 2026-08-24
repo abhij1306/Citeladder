@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.audits import (
+    AUDIT_SCOPE_BRAND,
     AUDIT_STATUS_COMPLETED,
     AUDIT_STATUS_PARTIALLY_COMPLETED,
 )
@@ -20,12 +21,9 @@ _DASHBOARD_STATUSES = (AUDIT_STATUS_COMPLETED, AUDIT_STATUS_PARTIALLY_COMPLETED)
 _AUDIT_NOT_FOUND = "Audit not found"
 
 
-def aggregate_provenance(audit: Audit) -> tuple[str, list[ModelProvenance]]:
-    """Frozen mode + stable route-provenance list for an aggregate surface."""
-    return (
-        audit.measurement_mode or "",
-        model_provenance_for(audit.engine_snapshots, audit.configuration),
-    )
+def aggregate_provenance(audit: Audit) -> list[ModelProvenance]:
+    """Stable frozen route-provenance list for an aggregate surface."""
+    return model_provenance_for(audit.engine_snapshots, audit.configuration)
 
 
 async def load_snapshot(
@@ -50,6 +48,7 @@ async def latest_dashboard_audit_id(
         .where(
             Audit.workspace_id == workspace_id,
             Audit.project_id == project_id,
+            Audit.audit_scope == AUDIT_SCOPE_BRAND,
             Audit.status.in_(_DASHBOARD_STATUSES),
         )
         .order_by(Audit.completed_at.desc().nullslast(), Audit.created_at.desc())

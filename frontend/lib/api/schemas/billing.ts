@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { measurementModeSchema } from './audits';
 
 const responseObject = <Shape extends z.ZodRawShape>(shape: Shape) => z.object(shape);
 const uuid = () => z.uuid();
@@ -71,7 +70,6 @@ export const capabilityValueSchema = responseObject({
 
 export const catalogProviderRouteSchema = responseObject({
   logical_engine: z.string(),
-  measurement_mode: measurementModeSchema,
   transport_provider: z.string(),
   model: z.string(),
 });
@@ -136,7 +134,7 @@ export const catalogTopupSchema = responseObject({
   quantity_max: z.number().int(),
   availability: catalogAvailabilitySchema,
   unavailable_reason: z.string().nullable(),
-  grant_key: z.enum(['benchmark_credits', 'pulse_credits']),
+  grant_key: z.literal('audit_credits'),
   credits_per_unit: z.number().int().nullable(),
   expiry_days: z.number().int(),
 });

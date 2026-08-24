@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.analysis.normalization import normalize_domain
+from app.core.config.audits import AUDIT_SCOPE_BRAND
 from app.core.config.prompts import REQUESTABLE_PROMPT_COHORTS
 from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
 from app.domain.analysis.projection_common import (
@@ -57,7 +58,7 @@ async def get_visibility(
     logo_urls, logo_identity_ids, website_urls = await _project_logo_context(
         session, workspace_id=workspace_id, project_id=project_id
     )
-    provenance_mode, model_provenance = aggregate_provenance(audit)
+    model_provenance = aggregate_provenance(audit)
     return VisibilityResponse(
         project_id=project_id,
         audit_id=audit_id,
@@ -73,7 +74,6 @@ async def get_visibility(
             - int(metrics.get("total_completed") or 0),
         ),
         visibility_score=_selected_visibility_score(snapshot, metrics, cohort),
-        measurement_mode=provenance_mode,
         model_provenance=model_provenance,
         rankings=_rankings(
             metrics,
@@ -107,6 +107,7 @@ async def _selected_audit(
             Audit.id == selected_id,
             Audit.workspace_id == workspace_id,
             Audit.project_id == project_id,
+            Audit.audit_scope == AUDIT_SCOPE_BRAND,
         )
     )
     if audit is None:

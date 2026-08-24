@@ -183,7 +183,7 @@ def _new_repair_audit(parent, workspace_id, repair_key, tasks):
         status=AUDIT_STATUS_DRAFT,
         trigger=AUDIT_TRIGGER_REPAIR,
         benchmark_mode=parent.benchmark_mode,
-        measurement_mode=parent.measurement_mode,
+        audit_scope=parent.audit_scope,
         system_instruction=parent.system_instruction,
         repetitions=parent.repetitions,
         random_seed=str(uuid.uuid4().int & ((1 << 64) - 1)),

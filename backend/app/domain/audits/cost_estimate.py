@@ -9,9 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.audits import (
-    MeasurementModePolicy,
+    AuditExecutionPolicy,
+    audit_execution_policy,
     audit_settings,
-    measurement_policy_for_mode,
 )
 from app.core.config.costs import (
     ESTIMATE_SEARCH_CALLS,
@@ -76,14 +76,13 @@ def _overall_cost_status(rows: list[AuditEngineEstimate]) -> str:
 def _estimate_engine(
     engine: str,
     *,
-    measurement_mode: str,
-    policy: MeasurementModePolicy,
+    policy: AuditExecutionPolicy,
     prompt_count: int,
     repetitions: int,
     per_execution_input: int,
 ) -> AuditEngineEstimate:
     try:
-        route = measurement_route(engine, measurement_mode)
+        route = measurement_route(engine)
     except ValueError as exc:
         raise AuditEstimateError(str(exc)) from exc
     executions = prompt_count * repetitions
@@ -184,17 +183,13 @@ async def estimate_audit(
     prompts = await _estimate_prompts(
         session, workspace_id=workspace_id, payload=payload
     )
-    try:
-        policy = measurement_policy_for_mode(payload.measurement_mode)
-    except ValueError as exc:
-        raise AuditEstimateError(str(exc)) from exc
+    policy = audit_execution_policy()
     repetitions = payload.repetitions or policy.repetitions
     prompt_count = len(prompts)
     per_execution_input = sum(estimate_token_count(prompt.text) for prompt in prompts)
     engine_rows = [
         _estimate_engine(
             engine,
-            measurement_mode=payload.measurement_mode,
             policy=policy,
             prompt_count=prompt_count,
             repetitions=repetitions,
@@ -206,7 +201,6 @@ async def estimate_audit(
     attempts = sum(row.maximum_attempt_count for row in engine_rows)
     totals = [row.estimated_total_cost_microusd for row in engine_rows]
     return AuditEstimateResponse(
-        measurement_mode=payload.measurement_mode,
         retrieval_enabled=policy.retrieval_enabled,
         prompt_count=prompt_count,
         engine_count=len(engine_rows),

@@ -36,15 +36,15 @@ from app.core.config.billing_contracts import (
     TIER_1_BASE_USD_MINOR,
     TIER_2_BASE_USD_MINOR,
     TIER_3_BASE_USD_MINOR,
-    TOPUP_BENCHMARK_CREDITS,
+    TOPUP_AUDIT_CREDITS,
     TOPUP_QUANTITY_MAX,
     TOPUP_QUANTITY_MIN,
 )
 from app.core.config.billing_settings import billing_settings
 from app.core.config.entitlements import (
     CAPABILITY_REGISTRY,
-    KEY_BENCHMARK_CADENCE,
-    KEY_BENCHMARK_CREDITS,
+    KEY_AUDIT_CADENCE,
+    KEY_AUDIT_CREDITS,
     KEY_EXPORTS,
     KEY_FANOUT,
     KEY_HISTORY_WINDOW,
@@ -52,7 +52,6 @@ from app.core.config.entitlements import (
     KEY_MONITORED_URLS,
     KEY_PROJECT_SLOTS,
     KEY_PROMPT_SLOTS,
-    KEY_PULSE_CADENCE,
 )
 from app.core.config.provider_catalog import (
     AVAILABILITY_AVAILABLE,
@@ -360,10 +359,7 @@ def _plan_entry(
 
 def _tier_1_grants() -> tuple[GrantTemplate, ...]:
     return (
-        GrantTemplate(KEY_PULSE_CADENCE, _level_ordinal(KEY_PULSE_CADENCE, "daily")),
-        GrantTemplate(
-            KEY_BENCHMARK_CADENCE, _level_ordinal(KEY_BENCHMARK_CADENCE, "weekly")
-        ),
+        GrantTemplate(KEY_AUDIT_CADENCE, _level_ordinal(KEY_AUDIT_CADENCE, "weekly")),
         GrantTemplate(KEY_PROJECT_SLOTS, 1),
         GrantTemplate(KEY_PROMPT_SLOTS, 10),
         GrantTemplate(KEY_MONITORED_URLS, 50),
@@ -386,10 +382,7 @@ def _upper_tier_grants(
     a runnable provider grant for an unshipped adapter.
     """
     return (
-        GrantTemplate(KEY_PULSE_CADENCE, _level_ordinal(KEY_PULSE_CADENCE, "daily")),
-        GrantTemplate(
-            KEY_BENCHMARK_CADENCE, _level_ordinal(KEY_BENCHMARK_CADENCE, "daily")
-        ),
+        GrantTemplate(KEY_AUDIT_CADENCE, _level_ordinal(KEY_AUDIT_CADENCE, "daily")),
         GrantTemplate(KEY_PROJECT_SLOTS, project_slots),
         GrantTemplate(KEY_PROMPT_SLOTS, prompt_slots),
         GrantTemplate(KEY_MONITORED_URLS, monitored_urls),
@@ -407,14 +400,14 @@ def _build_plans() -> tuple[PlanCatalogEntry, ...]:
         _plan_entry(
             key=PLAN_TIER_1,
             name="Tier 1",
-            description="Daily pulse and weekly benchmarks for one project.",
+            description="Weekly citation-capable audits for one project.",
             base_usd_minor=TIER_1_BASE_USD_MINOR,
             grant_bundle=_tier_1_grants(),
         ),
         _plan_entry(
             key=PLAN_TIER_2,
             name="Tier 2",
-            description="Daily benchmarks, prompt fan-out, and a year of history.",
+            description="Daily audits, prompt fan-out, and a year of history.",
             base_usd_minor=TIER_2_BASE_USD_MINOR,
             grant_bundle=_upper_tier_grants(
                 project_slots=3,
@@ -498,27 +491,27 @@ def _build_addons() -> tuple[AddonCatalogEntry, ...]:
 
 
 def _build_topups() -> tuple[TopupCatalogEntry, ...]:
-    """Benchmark-credit packs. The pack size is UNSET, so the pack has no
+    """Audit-credit packs. The pack size is UNSET, so the pack has no
     grant template and stays unavailable until product configures it.
     """
-    credits_per_unit = billing_settings.topup_benchmark_credits_per_pack
+    credits_per_unit = billing_settings.topup_audit_credits_per_pack
     prices = _regional_prices(
-        billing_settings.topup_benchmark_credits_usd_minor,
-        TOPUP_BENCHMARK_CREDITS,
+        billing_settings.topup_audit_credits_usd_minor,
+        TOPUP_AUDIT_CREDITS,
         PRICE_PURPOSE_BASE,
     )
     priced = any(price.purchasable for price in prices.values())
     grants = (
-        (GrantTemplate(KEY_BENCHMARK_CREDITS, credits_per_unit),)
+        (GrantTemplate(KEY_AUDIT_CREDITS, credits_per_unit),)
         if credits_per_unit
         else ()
     )
     available = priced and bool(grants)
     return (
         TopupCatalogEntry(
-            key=TOPUP_BENCHMARK_CREDITS,
-            name="Benchmark credits",
-            description="One-time benchmark credits for extra deep runs.",
+            key=TOPUP_AUDIT_CREDITS,
+            name="Audit credits",
+            description="One-time credits for additional citation-capable audits.",
             quantity_bounds=QuantityBounds(TOPUP_QUANTITY_MIN, TOPUP_QUANTITY_MAX),
             prices=prices,
             grant_bundle_per_unit=grants,

@@ -30,14 +30,6 @@ export const auditEngineSnapshotSchema = responseObject({
 });
 
 /**
- * Canonical measurement mode. This is an axis INDEPENDENT of `benchmark_mode`
- * (prompt framing): it selects the frozen route/output policy. `''` means the
- * run predates the frozen policy block — render it as unknown, never as a
- * default mode.
- */
-export const measurementModeSchema = z.enum(['pulse', 'benchmark', '']);
-
-/**
  * One measured route on an AGGREGATE surface. Aggregates carry a LIST of these
  * in stable catalog order and must never be collapsed into a single model:
  * `retrieval_enabled: null` means the audit predates the frozen policy, not
@@ -59,8 +51,7 @@ export const auditSchema = responseObject({
   project_id: uuid(),
   status: auditStatusSchema,
   benchmark_mode: z.string(),
-  // Aggregate surface: the frozen mode column plus every measured route.
-  measurement_mode: measurementModeSchema.default(''),
+  audit_scope: z.enum(['brand', 'commerce']).default('brand'),
   model_provenance: z.array(modelProvenanceSchema).default([]),
   repetitions: z.number().int(),
   random_seed: z.string(),
@@ -94,7 +85,6 @@ export const auditScheduleSchema = responseObject({
   engines: z.array(logicalEngineSchema),
   repetitions: z.number().int().nullable(),
   benchmark_mode: benchmarkModeSchema.nullable(),
-  measurement_mode: z.enum(['pulse', 'benchmark']),
   enabled: z.boolean(),
   next_run_at: z.string().nullable(),
   last_run_at: z.string().nullable(),
@@ -125,7 +115,6 @@ export const auditEngineEstimateSchema = responseObject({
 });
 
 export const auditEstimateSchema = responseObject({
-  measurement_mode: measurementModeSchema,
   retrieval_enabled: z.boolean(),
   prompt_count: z.number().int(),
   engine_count: z.number().int(),
@@ -192,7 +181,6 @@ export const executionSchema = responseObject({
   transport_model: z.string(),
   // Execution surface: the provenance triple is SINGULAR (one execution = one
   // exact model), projected from the frozen task snapshots only.
-  measurement_mode: measurementModeSchema.default(''),
   retrieval_enabled: z.boolean().nullable().default(null),
   status: executionStatusSchema,
   attempt_count: z.number().int(),
@@ -224,7 +212,6 @@ export const executionEvidenceSchema = responseObject({
   transport_provider: z.string(),
   transport_model: z.string(),
   // Execution-level surface: singular model, frozen snapshots only.
-  measurement_mode: measurementModeSchema.default(''),
   retrieval_enabled: z.boolean().nullable().default(null),
   prompt_index: z.number().int(),
   repetition: z.number().int(),

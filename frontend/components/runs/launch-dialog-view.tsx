@@ -36,14 +36,13 @@ export function LaunchDialogView({
   setEngines,
   repetitions,
   setRepetitions,
-  measurementMode,
-  setMeasurementMode,
   estimate,
   launchPending,
   launchNotice,
   onLaunch,
   connectOpen,
   setConnectOpen,
+  promptSetLocked,
 }: Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -57,14 +56,13 @@ export function LaunchDialogView({
   setEngines: React.Dispatch<React.SetStateAction<LogicalEngine[]>>;
   repetitions: number;
   setRepetitions: React.Dispatch<React.SetStateAction<number>>;
-  measurementMode: 'pulse' | 'benchmark';
-  setMeasurementMode: (mode: 'pulse' | 'benchmark') => void;
   estimate?: Estimate;
   launchPending: boolean;
   launchNotice: MutationNoticeData | null;
   onLaunch: () => void;
   connectOpen: boolean;
   setConnectOpen: (open: boolean) => void;
+  promptSetLocked?: boolean;
 }>) {
   const noPromptSets = !promptSetsLoading && !promptSets.length;
   const noEngines = !configuredEngines.length;
@@ -94,6 +92,11 @@ export function LaunchDialogView({
                 <p className="text-muted text-sm">
                   No prompt set yet. Add prompts on the Prompts screen first.
                 </p>
+              ) : promptSetLocked ? (
+                <p className="text-foreground text-sm font-medium">
+                  {promptSets.find((set) => set.id === promptSetId)?.name ??
+                    'Commerce Product Visibility'}
+                </p>
               ) : (
                 <select
                   {...props}
@@ -111,25 +114,6 @@ export function LaunchDialogView({
               )
             }
           </Field>
-          <fieldset className="grid gap-2">
-            <legend className="text-secondary text-xs font-medium">Measurement mode</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {(['pulse', 'benchmark'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  aria-pressed={measurementMode === mode}
-                  onClick={() => {
-                    setMeasurementMode(mode);
-                    setRepetitions(mode === 'pulse' ? 1 : 3);
-                  }}
-                  className={filterChipClasses(measurementMode === mode)}
-                >
-                  {mode === 'pulse' ? 'Pulse · fast and inexpensive' : 'Benchmark · web grounded'}
-                </button>
-              ))}
-            </div>
-          </fieldset>
           <fieldset className="grid gap-2">
             <legend className="text-secondary text-xs font-medium">
               Engines <span className="text-danger">*</span>

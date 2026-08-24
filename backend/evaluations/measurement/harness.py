@@ -72,7 +72,7 @@ from app.core.config.measurement import (
     route_fixture_path,
     route_reasoning_efforts,
 )
-from app.core.config.provider_catalog import MEASUREMENT_MODE_PULSE, measurement_route
+from app.core.config.provider_catalog import measurement_route
 
 _FORBIDDEN_PATTERNS = tuple(
     re.compile(pattern, re.IGNORECASE) for pattern in FORBIDDEN_PROMPT_PATTERNS
@@ -308,7 +308,7 @@ def _sweep_reasoning_efforts(route_keys: Sequence[str]) -> tuple[str, ...]:
 def route_identity(route_key: str) -> tuple[str, str]:
     """Resolve the approved ``(transport_provider, transport_model)`` pair."""
     try:
-        route = measurement_route(route_key, MEASUREMENT_MODE_PULSE)
+        route = measurement_route(route_key)
     except ValueError as exc:
         raise MeasurementConfigurationError(
             f"route {route_key!r} is not approved"

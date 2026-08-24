@@ -29,7 +29,7 @@ from app.core.config.audits import (
     CREDENTIAL_KIND_BYOK,
     CREDENTIAL_KIND_FUNDED,
     ERROR_NO_CONNECTION,
-    MeasurementModePolicy,
+    AuditExecutionPolicy,
     audit_settings,
 )
 from app.core.config.provider_catalog import (
@@ -160,7 +160,7 @@ class ExecutionContext:
     prompt_text: str
     system_instruction: str
     configuration: dict
-    policy: MeasurementModePolicy
+    policy: AuditExecutionPolicy
     base_url: str
     attempt_number: int
     connection_id: uuid.UUID | None
@@ -192,7 +192,6 @@ def build_call_request(
         system_instruction=context.system_instruction,
         transport_model=context.transport_model,
         logical_engine=context.logical_engine,
-        measurement_mode=str(context.configuration.get("measurement_mode") or ""),
         policy=context.policy,
     )
     snapshot = build_request_snapshot(
@@ -277,7 +276,6 @@ def build_request_snapshot(
         "system_instruction": request.system_instruction,
         "stateless": True,
         "benchmark_mode": configuration.get("benchmark_mode", ""),
-        "measurement_mode": configuration.get("measurement_mode", ""),
         "country_code": configuration.get("country_code", ""),
         "language_code": configuration.get("language_code", ""),
         "retrieval_enabled": request.retrieval_enabled,
@@ -294,8 +292,7 @@ def build_request(
     system_instruction: str,
     transport_model: str,
     logical_engine: str,
-    measurement_mode: str,
-    policy: MeasurementModePolicy,
+    policy: AuditExecutionPolicy,
 ) -> AnswerEngineRequest:
     """Build an adapter request from the frozen measurement policy only."""
     return AnswerEngineRequest(
@@ -305,9 +302,7 @@ def build_request(
         timeout_seconds=policy.timeout_seconds,
         retrieval_enabled=policy.retrieval_enabled,
         max_output_tokens=policy.max_output_tokens,
-        reasoning_effort=route_policy(
-            logical_engine, measurement_mode
-        ).reasoning_effort,
+        reasoning_effort=route_policy(logical_engine).reasoning_effort,
     )
 
 

@@ -36,11 +36,15 @@ export function LaunchDialog({
   onOpenChange,
   projectId,
   onLaunched,
+  fixedPromptSetId,
+  auditScope = 'brand',
 }: Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
   onLaunched?: (audit: Audit) => void;
+  fixedPromptSetId?: string;
+  auditScope?: 'brand' | 'commerce';
 }>) {
   const queryClient = useQueryClient();
   const promptSetsQuery = useQuery({
@@ -60,15 +64,15 @@ export function LaunchDialog({
   const [promptSetId, setPromptSetId] = useState<string | null>(null);
   const [engines, setEngines] = useState<LogicalEngine[]>([]);
   const [repetitions, setRepetitions] = useState(DEFAULT_REPETITIONS);
-  const [measurementMode, setMeasurementMode] = useState<'pulse' | 'benchmark'>('pulse');
   const [connectOpen, setConnectOpen] = useState(false);
-  const effectivePromptSetId = promptSetId ?? promptSetsQuery.data?.[0]?.id ?? null;
+  const effectivePromptSetId =
+    fixedPromptSetId ?? promptSetId ?? promptSetsQuery.data?.[0]?.id ?? null;
   const selection = {
     projectId,
     promptSetId: effectivePromptSetId,
     engines,
     repetitions,
-    measurementMode,
+    auditScope,
   };
   const ready = canLaunch(selection);
   const estimateQuery = useQuery({
@@ -80,7 +84,6 @@ export function LaunchDialog({
     setEngines([]);
     setPromptSetId(null);
     setRepetitions(DEFAULT_REPETITIONS);
-    setMeasurementMode('pulse');
   };
   const launchMutation = useMutation({
     mutationFn: () => runsApi.launchAudit(buildLaunchPayload(selection)),
@@ -110,14 +113,13 @@ export function LaunchDialog({
       setEngines={setEngines}
       repetitions={repetitions}
       setRepetitions={setRepetitions}
-      measurementMode={measurementMode}
-      setMeasurementMode={setMeasurementMode}
       estimate={estimateQuery.data}
       launchPending={launchMutation.isPending}
       launchNotice={launchNotice}
       onLaunch={() => launchMutation.mutate()}
       connectOpen={connectOpen}
       setConnectOpen={setConnectOpen}
+      promptSetLocked={Boolean(fixedPromptSetId)}
     />
   );
 }

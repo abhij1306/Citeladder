@@ -158,7 +158,6 @@ def _provider_response(provider: ProviderCatalogEntry) -> CatalogProviderRespons
         routes=[
             CatalogProviderRouteResponse(
                 logical_engine=route.logical_engine,
-                measurement_mode=route.measurement_mode,
                 transport_provider=route.transport_provider,
                 model=route.transport_model,
             )

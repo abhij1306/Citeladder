@@ -15,12 +15,12 @@ from app.core.config.billing_contracts import (
     ADDON_EXTRA_PROJECT,
     REGION_INDIA,
     REGION_INTERNATIONAL,
-    TOPUP_BENCHMARK_CREDITS,
+    TOPUP_AUDIT_CREDITS,
 )
 from app.core.config.billing_settings import (
     billing_settings,
 )
-from app.core.config.entitlements import KEY_BENCHMARK_CREDITS
+from app.core.config.entitlements import KEY_AUDIT_CREDITS
 from app.domain.billing.service import (
     BillingConflictError,
     resolve_addon_intent,
@@ -147,15 +147,15 @@ def test_addon_quote_bounds_quantity_and_availability(monkeypatch) -> None:
 
 def test_topup_specs_and_provisioning_refs(monkeypatch) -> None:
     version = billing_settings.catalog_version
-    assert topup_grant_specs(TOPUP_BENCHMARK_CREDITS, version) is None
-    monkeypatch.setattr(billing_settings, "topup_benchmark_credits_per_pack", 25)
-    specs = topup_grant_specs(TOPUP_BENCHMARK_CREDITS, version)
-    assert specs == ((KEY_BENCHMARK_CREDITS, 25),)
-    assert scale_grant_specs(specs, 3) == ((KEY_BENCHMARK_CREDITS, 75),)
+    assert topup_grant_specs(TOPUP_AUDIT_CREDITS, version) is None
+    monkeypatch.setattr(billing_settings, "topup_audit_credits_per_pack", 25)
+    specs = topup_grant_specs(TOPUP_AUDIT_CREDITS, version)
+    assert specs == ((KEY_AUDIT_CREDITS, 25),)
+    assert scale_grant_specs(specs, 3) == ((KEY_AUDIT_CREDITS, 75),)
     with pytest.raises(ValueError, match=">= 1"):
         scale_grant_specs(specs, 0)
     assert (
-        topup_grant_specs(TOPUP_BENCHMARK_CREDITS, "billing-v1")
+        topup_grant_specs(TOPUP_AUDIT_CREDITS, "billing-v1")
         is topup_grant_specs("nope", version)
         is None
     )

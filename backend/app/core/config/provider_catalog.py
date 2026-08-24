@@ -1,14 +1,14 @@
 # BYOK provider catalog + answer-engine guardrails (invariant 1: config lives
 # in core/config, never inline in service/adapter code).
 #
-# Owns the approved (logical-engine, measurement-mode) route catalog, the
+# Owns the approved logical-engine route catalog, the
 # transport/engine enumerations, and the provider-agnostic guardrail knobs
 # (token caps, timeouts, endpoint URLs, retry classification tokens). Adapters,
 # services, and routers READ these values; they never hard-code them.
 #
 # ChatGPT is executable through the direct OpenAI Responses API (transport
 # ``openai``). Active transports are exactly ``openai | anthropic | google`` and
-# each logical engine has one Pulse route and one Benchmark route.
+# each logical engine has one retrieval-enabled route.
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -43,12 +43,6 @@ ACTIVE_TRANSPORTS: Final[frozenset[str]] = frozenset(
 )
 
 # --- Measurement routes ---------------------------------------------------
-MEASUREMENT_MODE_PULSE: Final = "pulse"
-MEASUREMENT_MODE_BENCHMARK: Final = "benchmark"
-MEASUREMENT_MODES: Final[tuple[str, str]] = (
-    MEASUREMENT_MODE_PULSE,
-    MEASUREMENT_MODE_BENCHMARK,
-)
 
 REASONING_EFFORT_OFF: Final = "off"
 REASONING_EFFORT_MINIMAL: Final = "minimal"
@@ -64,7 +58,6 @@ REPRESENTATIVE_STATUS_VERIFIED: Final = "verified"
 @dataclass(frozen=True, slots=True, kw_only=True)
 class MeasurementRoute:
     logical_engine: str
-    measurement_mode: str
     transport_provider: str
     transport_model: str
     retrieval_enabled: bool
@@ -75,20 +68,9 @@ class MeasurementRoute:
 
 # Exact model identity is frozen here. There is intentionally no provider
 # alias, default-model fallback, or single-route compatibility view.
-MEASUREMENT_ROUTES: Final[dict[tuple[str, str], MeasurementRoute]] = {
-    (ENGINE_CHATGPT, MEASUREMENT_MODE_PULSE): MeasurementRoute(
+MEASUREMENT_ROUTES: Final[dict[str, MeasurementRoute]] = {
+    ENGINE_CHATGPT: MeasurementRoute(
         logical_engine=ENGINE_CHATGPT,
-        measurement_mode=MEASUREMENT_MODE_PULSE,
-        transport_provider=TRANSPORT_OPENAI,
-        transport_model="gpt-5.4-nano-2026-03-17",
-        retrieval_enabled=False,
-        reasoning_effort=REASONING_EFFORT_OFF,
-        reasoning_pinnable=True,
-        representative_status=REPRESENTATIVE_STATUS_UNVERIFIED,
-    ),
-    (ENGINE_CHATGPT, MEASUREMENT_MODE_BENCHMARK): MeasurementRoute(
-        logical_engine=ENGINE_CHATGPT,
-        measurement_mode=MEASUREMENT_MODE_BENCHMARK,
         transport_provider=TRANSPORT_OPENAI,
         transport_model="gpt-5.6-sol",
         retrieval_enabled=True,
@@ -96,19 +78,8 @@ MEASUREMENT_ROUTES: Final[dict[tuple[str, str], MeasurementRoute]] = {
         reasoning_pinnable=True,
         representative_status=REPRESENTATIVE_STATUS_UNVERIFIED,
     ),
-    (ENGINE_CLAUDE, MEASUREMENT_MODE_PULSE): MeasurementRoute(
+    ENGINE_CLAUDE: MeasurementRoute(
         logical_engine=ENGINE_CLAUDE,
-        measurement_mode=MEASUREMENT_MODE_PULSE,
-        transport_provider=TRANSPORT_ANTHROPIC,
-        transport_model="claude-haiku-4-5-20251001",
-        retrieval_enabled=False,
-        reasoning_effort=REASONING_EFFORT_OFF,
-        reasoning_pinnable=True,
-        representative_status=REPRESENTATIVE_STATUS_UNVERIFIED,
-    ),
-    (ENGINE_CLAUDE, MEASUREMENT_MODE_BENCHMARK): MeasurementRoute(
-        logical_engine=ENGINE_CLAUDE,
-        measurement_mode=MEASUREMENT_MODE_BENCHMARK,
         transport_provider=TRANSPORT_ANTHROPIC,
         transport_model="claude-sonnet-5",
         retrieval_enabled=True,
@@ -116,19 +87,8 @@ MEASUREMENT_ROUTES: Final[dict[tuple[str, str], MeasurementRoute]] = {
         reasoning_pinnable=True,
         representative_status=REPRESENTATIVE_STATUS_UNVERIFIED,
     ),
-    (ENGINE_GEMINI, MEASUREMENT_MODE_PULSE): MeasurementRoute(
+    ENGINE_GEMINI: MeasurementRoute(
         logical_engine=ENGINE_GEMINI,
-        measurement_mode=MEASUREMENT_MODE_PULSE,
-        transport_provider=TRANSPORT_GOOGLE,
-        transport_model="gemini-3.5-flash-lite",
-        retrieval_enabled=False,
-        reasoning_effort=REASONING_EFFORT_MINIMAL,
-        reasoning_pinnable=True,
-        representative_status=REPRESENTATIVE_STATUS_UNVERIFIED,
-    ),
-    (ENGINE_GEMINI, MEASUREMENT_MODE_BENCHMARK): MeasurementRoute(
-        logical_engine=ENGINE_GEMINI,
-        measurement_mode=MEASUREMENT_MODE_BENCHMARK,
         transport_provider=TRANSPORT_GOOGLE,
         transport_model="gemini-3.6-flash",
         retrieval_enabled=True,
@@ -139,27 +99,22 @@ MEASUREMENT_ROUTES: Final[dict[tuple[str, str], MeasurementRoute]] = {
 }
 
 
-def measurement_route(logical_engine: str, measurement_mode: str) -> MeasurementRoute:
+def measurement_route(logical_engine: str) -> MeasurementRoute:
     """Return one exact executable route; unknown identities fail closed."""
-    route = MEASUREMENT_ROUTES.get((logical_engine, measurement_mode))
+    route = MEASUREMENT_ROUTES.get(logical_engine)
     if route is None:
-        raise ValueError(
-            f"no measurement route for ({logical_engine!r}, {measurement_mode!r})"
-        )
+        raise ValueError(f"no measurement route for {logical_engine!r}")
     return route
 
 
 def measurement_routes_for_engine(logical_engine: str) -> tuple[MeasurementRoute, ...]:
-    return tuple(
-        measurement_route(logical_engine, mode)
-        for mode in MEASUREMENT_MODES
-        if (logical_engine, mode) in MEASUREMENT_ROUTES
-    )
+    route = MEASUREMENT_ROUTES.get(logical_engine)
+    return (route,) if route is not None else ()
 
 
 # --- Execution-time route policy -----------------------------------------
 # The approved route catalogue above is the sole owner of executable identity.
-# This policy view is keyed by that same (engine, mode) identity; it is not a
+# This policy view is keyed by the same logical-engine identity; it is not a
 # second catalogue, and no model id is repeated here. ``config/measurement.py``
 # separately owns the offline SWEEP vocabulary; the values above are the
 # execution-time pin states consumed by adapters.
@@ -188,7 +143,7 @@ class RoutePolicy:
     batch_enabled: bool
 
 
-ROUTE_POLICIES: Final[dict[tuple[str, str], RoutePolicy]] = {
+ROUTE_POLICIES: Final[dict[str, RoutePolicy]] = {
     key: RoutePolicy(
         reasoning_effort=route.reasoning_effort,
         reasoning_pinnable=route.reasoning_pinnable,
@@ -199,18 +154,17 @@ ROUTE_POLICIES: Final[dict[tuple[str, str], RoutePolicy]] = {
 }
 
 
-def route_policy(logical_engine: str, measurement_mode: str) -> RoutePolicy:
+def route_policy(logical_engine: str) -> RoutePolicy:
     """Execution-time policy for an approved route (fails closed).
 
     Raises ``ValueError`` for a route with no policy entry rather than assuming
     a permissive default: an unknown route must never silently execute with
     reasoning treated as off or batch treated as allowed.
     """
-    policy = ROUTE_POLICIES.get((logical_engine, measurement_mode))
+    policy = ROUTE_POLICIES.get(logical_engine)
     if policy is None:
         raise ValueError(
-            f"no route policy for ({logical_engine!r}, {measurement_mode!r}); "
-            "approved routes must declare one"
+            f"no route policy for {logical_engine!r}; approved routes must declare one"
         )
     return policy
 
@@ -242,8 +196,8 @@ class RouteCapacityPolicy:
     max_cooldown_seconds: float
 
 
-# Capacity remains transport-scoped because both measurement modes share a
-# provider quota bucket. Rates stay unset until staging measurements exist.
+# Capacity remains transport-scoped because calls share a provider quota
+# bucket. Rates stay unset until staging measurements exist.
 ROUTE_CAPACITY_POLICIES: Final[dict[tuple[str, str], RouteCapacityPolicy]] = {
     (ENGINE_CLAUDE, TRANSPORT_ANTHROPIC): RouteCapacityPolicy(
         capacity=None,
@@ -281,9 +235,9 @@ def route_capacity_policy(
     return policy
 
 
-def is_reasoning_pinned_off(logical_engine: str, measurement_mode: str) -> bool:
+def is_reasoning_pinned_off(logical_engine: str) -> bool:
     """True only when the route pins reasoning explicitly OFF."""
-    policy = route_policy(logical_engine, measurement_mode)
+    policy = route_policy(logical_engine)
     return policy.reasoning_pinnable and policy.reasoning_effort == REASONING_EFFORT_OFF
 
 

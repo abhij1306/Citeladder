@@ -23,8 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.audits import (
     AUDIT_TRIGGER_MANUAL,
-    MEASUREMENT_MODE_BENCHMARK,
-    MEASUREMENT_MODE_PULSE,
     audit_settings,
 )
 from app.core.config.billing_contracts import (
@@ -42,8 +40,7 @@ from app.core.config.entitlements import (
     CODE_FUNDED_CREDITS_EXHAUSTED,
     CREDENTIAL_MODE_BYOK,
     CREDENTIAL_MODE_FUNDED,
-    KEY_BENCHMARK_CREDITS,
-    KEY_PULSE_CREDITS,
+    KEY_AUDIT_CREDITS,
 )
 from app.core.config.provider_catalog import (
     ENGINE_CLAUDE,
@@ -69,15 +66,15 @@ from tests.component.occupancy_helpers import seed_occupancy_grants
 # Pulse + claude is the only COMPLETE catalog estimate today (2_890 microusd,
 # retrieval OFF — search fields not applicable). Benchmark claude exercises
 # the retrieval-ON incompleteness (search fee absent).
-_PULSE_CLAUDE_MICROUSD = 2_890
+_AUDIT_CLAUDE_MICROUSD = 2_890
 
-# What ONE funded pulse audit here reserves: two tasks (2 prompts x 1 engine x
+# What one funded audit here reserves: two tasks (2 prompts x 1 engine x
 # 1 repetition), each reserving the mode's frozen attempt budget. DERIVED, not
-# spelled: the pulse attempt budget is a cost knob, and a test that hard-codes
+# spelled: the audit attempt budget is a cost knob, and a test that hard-codes
 # the product silently stops testing the ceiling the moment it moves.
 _FUNDED_TASK_COUNT = 2
 _AUDIT_RESERVED_MICROUSD = (
-    _PULSE_CLAUDE_MICROUSD * audit_settings.pulse_max_attempts * _FUNDED_TASK_COUNT
+    _AUDIT_CLAUDE_MICROUSD * audit_settings.max_attempts * _FUNDED_TASK_COUNT
 )
 _MICROUSD_PER_MINOR = MICRO_USD_PER_USD // 100
 # Budgets expressed against that reservation, so both cases keep their meaning:
@@ -104,7 +101,7 @@ async def _seed_funded(
     *,
     prompt_count: int = 2,
     credits: int = 1_000,
-    credit_key: str = KEY_PULSE_CREDITS,
+    credit_key: str = KEY_AUDIT_CREDITS,
 ) -> tuple[BillingAccount, uuid.UUID, uuid.UUID, uuid.UUID]:
     """Seed workspace/project/prompts plus a linked funded account with
     credits. Returns (account, workspace_id, project_id, prompt_set_id).
@@ -132,7 +129,6 @@ async def _create_funded(
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     prompt_set_id: uuid.UUID,
-    measurement_mode: str = MEASUREMENT_MODE_PULSE,
     engines: list[str] | None = None,
 ) -> Audit:
     return await create_audit(
@@ -144,7 +140,6 @@ async def _create_funded(
         credential_mode=CREDENTIAL_MODE_FUNDED,
         prompt_set_id=prompt_set_id,
         repetitions=1,
-        measurement_mode=measurement_mode,
         random_seed="1",
     )
 
@@ -178,7 +173,7 @@ async def test_funded_run_reserves_each_task_before_claimable_and_freezes_proven
         # The budget the PLANNER FROZE onto each task — the measurement
         # mode's, not the generic live ``audit_settings.max_attempts``.
         max_attempts = tasks[0].max_attempts
-        expected_cost = _PULSE_CLAUDE_MICROUSD * max_attempts * len(tasks)
+        expected_cost = _AUDIT_CLAUDE_MICROUSD * max_attempts * len(tasks)
         # Audit-level funded provenance persisted in the same transaction.
         assert audit.funding_account_id == account.id
         assert audit.funded_reserved_cost_microusd == expected_cost
@@ -208,7 +203,7 @@ async def test_funded_run_reserves_each_task_before_claimable_and_freezes_proven
             funding = (task.provider_route_snapshot or {}).get("funding")
             assert funding is not None
             assert funding["credential_mode"] == CREDENTIAL_MODE_FUNDED
-            assert funding["capability_key"] == KEY_PULSE_CREDITS
+            assert funding["capability_key"] == KEY_AUDIT_CREDITS
             assert funding["reserved_units"] == max_attempts
             assert funding["funding_account_id"] == str(account.id)
             assert funding["entitlement"]["registry_revision"]
@@ -218,7 +213,7 @@ async def test_funded_run_reserves_each_task_before_claimable_and_freezes_proven
             assert str(row.reservation_id) == reservation_id
             assert row.units == max_attempts
         funding_block = configuration.get("funding") or {}
-        assert funding_block.get("capability_key") == KEY_PULSE_CREDITS
+        assert funding_block.get("capability_key") == KEY_AUDIT_CREDITS
         assert funding_block.get("reserved_cost_microusd") == expected_cost
 
 
@@ -300,7 +295,7 @@ async def test_incomplete_expected_cost_fails_closed(
         # Benchmark claude: retrieval ON and the catalog search fee is absent
         # -> incomplete -> funded_cost_unresolved (never coerced to zero).
         _account, workspace_id, project_id, prompt_set_id = await _seed_funded(
-            session, credit_key=KEY_BENCHMARK_CREDITS
+            session, credit_key=KEY_AUDIT_CREDITS
         )
         with pytest.raises(FundedAdmissionError) as exc_info:
             await _create_funded(
@@ -308,12 +303,11 @@ async def test_incomplete_expected_cost_fails_closed(
                 workspace_id=workspace_id,
                 project_id=project_id,
                 prompt_set_id=prompt_set_id,
-                measurement_mode=MEASUREMENT_MODE_BENCHMARK,
             )
         await session.rollback()
         assert exc_info.value.code == CODE_FUNDED_COST_UNRESOLVED
 
-        # Gemini pulse: the route has NO catalog estimate at all -> token
+        # Gemini audit: the route has NO catalog estimate at all -> token
         # estimate absent -> incomplete even with retrieval OFF.
         seed = await seed_audit_fixtures(
             session, prompt_count=1, engines=[ENGINE_GEMINI]
@@ -321,7 +315,7 @@ async def test_incomplete_expected_cost_fails_closed(
         await seed_occupancy_grants(
             session,
             workspace_id=seed.workspace_id,
-            grants=(GrantSpec(key=KEY_PULSE_CREDITS, value=100),),
+            grants=(GrantSpec(key=KEY_AUDIT_CREDITS, value=100),),
         )
         await session.commit()
         with pytest.raises(FundedAdmissionError) as exc_info:
@@ -364,7 +358,6 @@ async def test_byok_run_writes_no_funded_rows(
             credential_mode=CREDENTIAL_MODE_BYOK,
             prompt_set_id=prompt_set_id,
             repetitions=1,
-            measurement_mode=MEASUREMENT_MODE_PULSE,
             random_seed="1",
         )
         assert audit.funding_account_id is None

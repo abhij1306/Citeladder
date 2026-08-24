@@ -84,5 +84,4 @@ def _attach_transient_audit_provenance(
     """
     for task in tasks:
         row = cast(Any, task)  # widen so ruff+SIM prefer the direct form
-        row.audit_measurement_mode = audit.measurement_mode
         row.audit_configuration = audit.configuration

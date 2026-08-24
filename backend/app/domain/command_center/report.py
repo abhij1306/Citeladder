@@ -79,9 +79,7 @@ def render_executive_pdf(command_center: CommandCenterResponse) -> bytes:
             title,
         ),
         Paragraph(
-            f"Completed {measurement.completed_at:%d %b %Y} · "
-            f"{_paragraph_text(measurement.measurement_mode)} "
-            "measurement",
+            f"Completed {measurement.completed_at:%d %b %Y} · citation-capable audit",
             body,
         ),
         Spacer(1, 8 * mm),
@@ -191,9 +189,9 @@ def render_executive_pdf(command_center: CommandCenterResponse) -> bytes:
     story.append(
         Paragraph(
             "Visibility, share of voice, and rank are deterministic projections "
-            "of persisted audit artifacts. Deltas appear only when measurement "
-            "mode, benchmark mode, logical engine set, and frozen prompt identity "
-            "set match. A dash means no valid comparison.",
+            "of persisted audit artifacts. Deltas appear only when benchmark "
+            "mode, logical engine set, and the frozen core-prompt identity set "
+            "match. A dash means no valid comparison.",
             body,
         )
     )

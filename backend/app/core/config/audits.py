@@ -2,7 +2,7 @@
 #
 # Owns every tunable knob for the B5 audit-execution subsystem: the audit
 # lifecycle statuses + the queue/task statuses, the deterministic system
-# instructions per benchmark mode, and the provider-agnostic execution
+# prompt-framing instructions, and the provider-agnostic execution
 # guardrails (pacing, per-call ceiling, retry budget, run deadline, lease TTL,
 # heartbeat interval). Orchestration, the planner, and the worker READ these;
 # they never hard-code the literals inline. Adapted from the reference
@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import TYPE_CHECKING, Any, Final, TypeGuard
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 if TYPE_CHECKING:
@@ -92,61 +91,28 @@ AUDIT_TRIGGERS: Final[frozenset[str]] = frozenset(
 # ``TASK_CLAIMABLE_STATUSES``.
 TASK_STATUS_PENDING_RESERVATION: Final = "pending_reservation"
 
-# --- Measurement modes ----------------------------------------------------
-# Pulse vs benchmark measurement vocabulary. Keyed on by the expected-cost
-# catalogue (``config/costs.py``); route/output policy, planner freezing, and
-# ``Audit.measurement_mode`` use these same constants (invariant 2).
-MEASUREMENT_MODE_PULSE: Final = "pulse"
-MEASUREMENT_MODE_BENCHMARK: Final = "benchmark"
-MEASUREMENT_MODES: Final[frozenset[str]] = frozenset(
-    {MEASUREMENT_MODE_PULSE, MEASUREMENT_MODE_BENCHMARK}
+# Audit ownership scope. Brand and Commerce share the execution machinery but
+# never share visibility projections.
+AUDIT_SCOPE_BRAND: Final = "brand"
+AUDIT_SCOPE_COMMERCE: Final = "commerce"
+AUDIT_SCOPES: Final[frozenset[str]] = frozenset(
+    {AUDIT_SCOPE_BRAND, AUDIT_SCOPE_COMMERCE}
 )
 
-# UNMEASURED CANDIDATE — this wording has never been executed against a live
-# provider key. It is a hypothesis about output length, nothing more. The cost
-# and latency reduction figures quoted in the frozen v8 plan (the −56% / −49%
-# pair) were NOT produced with this string and DO NOT apply to it: no number
-# anywhere in this repository may be attributed to this instruction until a
-# live-key T1 measurement run measures it and clears the gate thresholds in
-# ``config/measurement.py``. Until then it is an unvalidated candidate that
-# happens to be the wording pulse mode sends.
-PULSE_ANSWER_INSTRUCTION: Final = (
-    "Answer directly and concisely. "
-    "Include only the details needed to answer the question."
-)
-"""UNMEASURED CANDIDATE answer-shaping instruction used by pulse mode.
-
-Pulse mode IS enabled and sends this wording, but the wording itself carries no
-measurement: the frozen plan's −56% cost / −49% latency figures were obtained
-with different wording and DO NOT apply here until a live-key T1 measurement
-run validates this exact string. Treat any claim otherwise as a bug.
-"""
-# SHA-256 of ``PULSE_ANSWER_INSTRUCTION`` — pinned by a unit test so the
-# candidate wording can never drift silently (a drifted wording is a different,
-# equally unmeasured candidate).
-PULSE_ANSWER_INSTRUCTION_SHA256: Final = (
-    "a7d86db3b284d8d7397125046327ac013107240255cd6ba3ee6544feaebfb69a"
-)
-
-# Grounded benchmark answers still need enough room for useful citations, but
+# Grounded answers need enough room for useful citations, but
 # visibility measurement does not benefit from essay-length responses. This
 # neutral instruction applies to every active transport through the frozen
 # request policy and never includes tracked brand or competitor identity.
-BENCHMARK_ANSWER_INSTRUCTION: Final = (
+AUDIT_ANSWER_INSTRUCTION: Final = (
     "Answer the question directly in 150 to 250 words. "
-    "Use concise paragraphs or bullets, avoid repetition, and cite the most "
-    "relevant sources when web search is available."
+    "Use concise paragraphs or bullets, avoid repetition, and include citations "
+    "to the most relevant sources when web search is available."
 )
 
 
 @dataclass(frozen=True, slots=True)
-class MeasurementModePolicy:
-    """Frozen route/output policy for one measurement mode.
-
-    Resolved from live settings by ``measurement_policy_for_mode`` and then
-    FROZEN by the caller onto the audit (invariant 9 — never re-read live
-    config once a run is planned).
-    """
+class AuditExecutionPolicy:
+    """Frozen retrieval-enabled route/output policy for an audit."""
 
     retrieval_enabled: bool
     max_output_tokens: int
@@ -382,23 +348,10 @@ class AuditSettings(BaseSettings):
     # HTTP client timeout for a single provider call (passed to the adapter).
     request_timeout_seconds: float = 60.0
 
-    # --- Measurement-mode route/output policy (invariant 1) --------------
-    # Both modes bound output. Benchmark keeps retrieval for citation evidence
-    # while avoiding essay-length generations that add cost and latency without
-    # improving deterministic visibility scoring.
-    pulse_max_output_tokens: int = 600
-    benchmark_max_output_tokens: int = 800
-    pulse_timeout_seconds: float = 30.0
-    benchmark_timeout_seconds: float = 60.0
-    pulse_repetitions: int = 1
-    benchmark_repetitions: int = 3
-    # Retry budget PER MODE. Pulse is the cheap, frequent shape: it runs
-    # without retrieval, on one repetition, and a provider that failed twice
-    # in a row is not going to be talked round by three more paid calls. The
-    # worst case for a 3-engine x 30-prompt pulse run drops from 450 provider
-    # calls to 180. Benchmark keeps the full ``max_attempts`` budget because
-    # its citation evidence is what a report is built on.
-    pulse_max_attempts: int = Field(default=2, gt=0)
+    # --- Retrieval-enabled route/output policy (invariant 1) -------------
+    audit_max_output_tokens: int = 800
+    audit_timeout_seconds: float = 60.0
+    audit_repetitions: int = 3
     # Days of history folded into a trend series by the reporting projection.
     trend_smoothing_days: int = 7
     # Hard ceiling on a single frozen prompt's length (validated by the planner).
@@ -442,38 +395,15 @@ class AuditSettings(BaseSettings):
 audit_settings = AuditSettings()
 
 
-def measurement_policy_for_mode(mode: str) -> MeasurementModePolicy:
-    """Resolve the route/output policy for a measurement mode.
-
-    Reads the LIVE settings; the caller freezes the returned policy onto the
-    audit and never re-reads it (invariant 9). Fails CLOSED: an unknown mode
-    raises rather than silently defaulting to a cheaper or costlier shape.
-
-    The pulse ``answer_instruction`` is an UNMEASURED CANDIDATE (see
-    ``PULSE_ANSWER_INSTRUCTION``): no cost/latency figure from the frozen plan
-    is attributable to it until a live-key T1 run validates the wording.
-    """
-    if mode == MEASUREMENT_MODE_PULSE:
-        return MeasurementModePolicy(
-            retrieval_enabled=False,
-            max_output_tokens=audit_settings.pulse_max_output_tokens,
-            timeout_seconds=audit_settings.pulse_timeout_seconds,
-            repetitions=audit_settings.pulse_repetitions,
-            answer_instruction=PULSE_ANSWER_INSTRUCTION,
-            max_attempts=audit_settings.pulse_max_attempts,
-        )
-    if mode == MEASUREMENT_MODE_BENCHMARK:
-        return MeasurementModePolicy(
-            retrieval_enabled=True,
-            max_output_tokens=audit_settings.benchmark_max_output_tokens,
-            timeout_seconds=audit_settings.benchmark_timeout_seconds,
-            repetitions=audit_settings.benchmark_repetitions,
-            answer_instruction=BENCHMARK_ANSWER_INSTRUCTION,
-            max_attempts=audit_settings.max_attempts,
-        )
-    raise ValueError(
-        f"unknown measurement mode {mode!r}; expected one of "
-        f"{sorted(MEASUREMENT_MODES)}"
+def audit_execution_policy() -> AuditExecutionPolicy:
+    """Resolve the live audit policy before the planner freezes it."""
+    return AuditExecutionPolicy(
+        retrieval_enabled=True,
+        max_output_tokens=audit_settings.audit_max_output_tokens,
+        timeout_seconds=audit_settings.audit_timeout_seconds,
+        repetitions=audit_settings.audit_repetitions,
+        answer_instruction=AUDIT_ANSWER_INSTRUCTION,
+        max_attempts=audit_settings.max_attempts,
     )
 
 
@@ -484,7 +414,7 @@ def measurement_policy_for_mode(mode: str) -> MeasurementModePolicy:
 MEASUREMENT_POLICY_KEY: Final = "measurement_policy"
 
 
-def frozen_policy_configuration(policy: MeasurementModePolicy) -> dict:
+def frozen_policy_configuration(policy: AuditExecutionPolicy) -> dict:
     """Serialize a resolved policy for ``Audit.configuration`` (invariant 9).
 
     This is the FROZEN copy the worker executes from; nothing re-reads the live
@@ -566,20 +496,18 @@ def _is_finite_positive_number(value: object) -> bool:
 
 def measurement_policy_from_configuration(
     configuration: dict,
-) -> MeasurementModePolicy:
+) -> AuditExecutionPolicy:
     """Read the frozen policy back out of an audit's ``configuration``.
 
-    Pre-T3 audits carry no frozen block at all; for those (and only those) the
-    mode defaults are the closest available approximation, resolved from the
-    frozen ``measurement_mode`` (``benchmark`` when even that is absent). Every
-    audit planned from T3 onward returns exactly what the planner froze.
+    Audits planned before policy freezing use the current citation-capable
+    policy. New audits always execute exactly what the planner froze.
     """
     if MEASUREMENT_POLICY_KEY not in configuration:
-        return _mode_fallback_policy(configuration)
+        return audit_execution_policy()
     frozen = configuration[MEASUREMENT_POLICY_KEY]
     if not _is_frozen_policy(frozen):
         raise ValueError("invalid frozen measurement policy")
-    return MeasurementModePolicy(
+    return AuditExecutionPolicy(
         retrieval_enabled=bool(frozen["retrieval_enabled"]),
         max_output_tokens=int(frozen["max_output_tokens"]),
         timeout_seconds=float(frozen["timeout_seconds"]),
@@ -587,14 +515,6 @@ def measurement_policy_from_configuration(
         answer_instruction=str(frozen["answer_instruction"]),
         max_attempts=int(frozen["max_attempts"]),
     )
-
-
-def _mode_fallback_policy(configuration: dict) -> MeasurementModePolicy:
-    """Return the benchmark-mode default, resolved through the frozen mode."""
-    mode = str(configuration.get("measurement_mode") or MEASUREMENT_MODE_BENCHMARK)
-    if mode not in MEASUREMENT_MODES:
-        mode = MEASUREMENT_MODE_BENCHMARK
-    return measurement_policy_for_mode(mode)
 
 
 def _audit_model() -> type[AuditTask]:

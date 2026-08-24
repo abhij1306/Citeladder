@@ -158,19 +158,18 @@ def _seed_test_funded_cost_observation(monkeypatch: pytest.MonkeyPatch) -> None:
 
     Production intentionally ships no current-route execution observation and
     therefore fails funded admission closed. Component tests that exercise
-    reservations, settlement, and concurrency need one explicit test-only Pulse
-    observation; Benchmark and every other route remain unresolved.
+    reservations, settlement, and concurrency need one explicit test-only audit
+    observation; every other route remains unresolved.
     """
-    from app.core.config.audits import MEASUREMENT_MODE_PULSE
     from app.core.config.costs import (
         _EXPECTED_COST_CATALOG,
-        ROUTE_CLAUDE_PULSE,
+        ROUTE_CLAUDE,
         _ExpectedCostEstimate,
     )
 
     monkeypatch.setitem(
         _EXPECTED_COST_CATALOG,
-        (ROUTE_CLAUDE_PULSE, MEASUREMENT_MODE_PULSE),
+        ROUTE_CLAUDE,
         _ExpectedCostEstimate(
             token_cost_microusd=2_890,
             search_fee_microusd=None,

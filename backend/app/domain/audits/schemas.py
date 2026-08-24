@@ -40,10 +40,10 @@ BenchmarkModeStr = str
 # --- Measurement provenance (read-path projections, invariants 4/7) --------
 #
 # Every helper below derives provenance ONLY from frozen audit/task/artifact
-# fields (``Audit.measurement_mode``/``configuration``, the frozen task
+# fields (``Audit.configuration`` and the frozen task
 # request/route snapshots). Live config is NEVER consulted to infer retrieval
-# state or a measurement mode: when the frozen fields do not record a value
-# the projection reports ``None``/``""`` rather than guessing (reports are
+# state: when the frozen fields do not record a value the projection reports
+# ``None`` rather than guessing (reports are
 # projections — if it is not persisted, it does not appear).
 
 
@@ -109,16 +109,6 @@ def frozen_retrieval_enabled(*snapshots: dict | None) -> bool | None:
     return None
 
 
-def frozen_measurement_mode(*snapshots: dict | None) -> str:
-    """First non-empty frozen ``measurement_mode`` across snapshots ("" if none)."""
-    for snapshot in snapshots:
-        if isinstance(snapshot, dict):
-            mode = snapshot.get("measurement_mode")
-            if isinstance(mode, str) and mode:
-                return mode
-    return ""
-
-
 def audit_frozen_retrieval_enabled(configuration: dict | None) -> bool | None:
     """Retrieval state from the audit's frozen measurement-policy block."""
     frozen = (configuration or {}).get(MEASUREMENT_POLICY_KEY)
@@ -151,22 +141,18 @@ def execution_frozen_provenance(
     *,
     request_snapshot: dict | None,
     route_snapshot: dict | None,
-    audit_measurement_mode: str | None = None,
     audit_configuration: dict | None = None,
-) -> tuple[str, bool | None]:
-    """Frozen ``(measurement_mode, retrieval_enabled)`` for one execution.
+) -> bool | None:
+    """Frozen retrieval state for one execution.
 
     The frozen task request snapshot (what the call executed under) wins,
-    then the planner's frozen route snapshot, then the audit's frozen mode
-    column + policy block. Live config is never consulted (invariants 4/7).
+    then the planner's frozen route snapshot, then the audit's frozen policy
+    block. Live config is never consulted (invariants 4/7).
     """
-    mode = frozen_measurement_mode(request_snapshot, route_snapshot)
-    if not mode:
-        mode = audit_measurement_mode or ""
     retrieval = frozen_retrieval_enabled(request_snapshot, route_snapshot)
     if retrieval is None:
         retrieval = audit_frozen_retrieval_enabled(audit_configuration)
-    return mode, retrieval
+    return retrieval
 
 
 class AuditCreate(BaseModel):
@@ -183,18 +169,7 @@ class AuditCreate(BaseModel):
         default=None, ge=MIN_REPETITIONS, le=MAX_REPETITIONS
     )
     benchmark_mode: BenchmarkModeStr | None = None
-    # Measurement mode — an axis INDEPENDENT of ``benchmark_mode`` (prompt
-    # framing): it selects the frozen route/output policy (retrieval, output
-    # cap, timeout, repetitions, answer instruction). Defaults to ``pulse``:
-    # the cheap shape (no retrieval, one repetition, a short attempt budget) is
-    # what an unqualified manual run should cost. A caller that wants the
-    # full-run citation evidence asks for ``benchmark`` explicitly.
-    # The literal spellings are written out rather than interpolated from the
-    # config constants: a type checker cannot see through a name inside
-    # ``Literal[...]``. The constants remain the DEFAULT and the value the rest
-    # of the code compares against, so a drift between the two sides shows up
-    # here as a type error instead of passing silently.
-    measurement_mode: Literal["pulse", "benchmark"] = "pulse"
+    audit_scope: Literal["brand", "commerce"] = "brand"
     # Optional explicit 64-bit seed (decimal string). Generated + stored when
     # omitted so the slot shuffle is reproducible (invariant 9).
     random_seed: str | None = None
@@ -215,7 +190,6 @@ class AuditEstimateRequest(BaseModel):
     repetitions: int | None = Field(
         default=None, ge=MIN_REPETITIONS, le=MAX_REPETITIONS
     )
-    measurement_mode: Literal["pulse", "benchmark"] = "pulse"
 
 
 class AuditEngineEstimate(BaseModel):
@@ -238,7 +212,6 @@ class AuditEngineEstimate(BaseModel):
 
 
 class AuditEstimateResponse(BaseModel):
-    measurement_mode: Literal["pulse", "benchmark"]
     retrieval_enabled: bool
     prompt_count: int
     engine_count: int
@@ -288,7 +261,7 @@ class AuditTaskResponse(BaseModel):
     """A single execution/queue row projection (never contains secrets).
 
     Execution-level surface: the provenance triple is singular (one execution
-    = one exact model). ``measurement_mode``/``retrieval_enabled`` project the
+    = one exact model). ``retrieval_enabled`` projects the
     frozen task request/route snapshots only — never live config (inv. 4/7).
     """
 
@@ -302,7 +275,6 @@ class AuditTaskResponse(BaseModel):
     logical_engine: str
     transport_provider: str
     transport_model: str
-    measurement_mode: str = ""
     retrieval_enabled: bool | None = None
     status: str
     attempt_count: int
@@ -327,13 +299,10 @@ class AuditTaskResponse(BaseModel):
             for name in cls.model_fields
             if hasattr(data, name)
         }
-        values["measurement_mode"], values["retrieval_enabled"] = (
-            execution_frozen_provenance(
-                request_snapshot=getattr(data, "request_snapshot", None),
-                route_snapshot=getattr(data, "provider_route_snapshot", None),
-                audit_measurement_mode=getattr(data, "audit_measurement_mode", None),
-                audit_configuration=getattr(data, "audit_configuration", None),
-            )
+        values["retrieval_enabled"] = execution_frozen_provenance(
+            request_snapshot=getattr(data, "request_snapshot", None),
+            route_snapshot=getattr(data, "provider_route_snapshot", None),
+            audit_configuration=getattr(data, "audit_configuration", None),
         )
         return values
 
@@ -349,7 +318,6 @@ class AuditEngineSnapshotResponse(BaseModel):
 class AuditResponse(BaseModel):
     """Audit projection. Includes engine provenance but never the key.
 
-    Aggregate surface: ``measurement_mode`` is the frozen column and
     ``model_provenance`` is the stable catalog-ordered list of every measured
     route (never a forced singular model when the audit spans models).
     """
@@ -362,7 +330,7 @@ class AuditResponse(BaseModel):
     parent_audit_id: uuid.UUID | None = None
     status: str
     benchmark_mode: str = ""
-    measurement_mode: str = ""
+    audit_scope: Literal["brand", "commerce"] = "brand"
     repetitions: int
     random_seed: str = ""
     requested_count: int

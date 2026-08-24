@@ -27,7 +27,6 @@ from app.core.config.audits import (
     AUDIT_STATUS_FAILED,
     AUDIT_TRIGGER_MANUAL,
     EVENT_TASK_CAPACITY_WAIT,
-    MEASUREMENT_MODE_PULSE,
     POOL_KIND_CONNECTION,
     POOL_KIND_TRANSPORT,
     TASK_STATUS_PENDING_RESERVATION,
@@ -35,7 +34,7 @@ from app.core.config.audits import (
 )
 from app.core.config.entitlements import (
     CREDENTIAL_MODE_FUNDED,
-    KEY_PULSE_CREDITS,
+    KEY_AUDIT_CREDITS,
     LEDGER_ENTRY_DEBIT,
 )
 from app.core.config.provider_catalog import (
@@ -94,7 +93,7 @@ async def _make_funded_audit(
     credits: int = 100,
     freeze: dict[str, object] | None = None,
 ):
-    """A FUNDED pulse/claude audit whose task can execute under the worker.
+    """A FUNDED audit/claude audit whose task can execute under the worker.
 
     ``freeze`` knobs are monkeypatched BEFORE planning so they freeze onto
     the task. Funded capacity acquisition fails CLOSED while the route's
@@ -124,7 +123,7 @@ async def _make_funded_audit(
         account = await seed_occupancy_grants(
             session,
             workspace_id=seed.workspace_id,
-            grants=(GrantSpec(key=KEY_PULSE_CREDITS, value=credits),),
+            grants=(GrantSpec(key=KEY_AUDIT_CREDITS, value=credits),),
         )
         await session.commit()
         audit = await create_audit(
@@ -136,7 +135,6 @@ async def _make_funded_audit(
             credential_mode=CREDENTIAL_MODE_FUNDED,
             prompt_set_id=seed.prompt_set_id,
             repetitions=1,
-            measurement_mode=MEASUREMENT_MODE_PULSE,
             random_seed="1",
         )
         # T11: the funded task's frozen credential IS the platform connection
@@ -202,7 +200,7 @@ async def test_funded_task_bills_one_unit_per_actual_call_and_releases_unused(
         usage = await consumable_usage(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             at=datetime.now(UTC),
         )
         assert usage.debited == 1
@@ -220,7 +218,7 @@ async def test_funded_task_bills_one_unit_per_actual_call_and_releases_unused(
         usage = await consumable_usage(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             at=datetime.now(UTC),
         )
         assert usage.debited == 1
@@ -243,9 +241,9 @@ async def test_funded_timeout_call_is_billed(
     _seed, account, audit = await _make_funded_audit(
         session_factory,
         monkeypatch,
-        freeze={"pulse_timeout_seconds": 0.05, "max_attempts": 2},
+        freeze={"audit_timeout_seconds": 0.05, "max_attempts": 2},
     )
-    monkeypatch.setattr(audit_settings, "pulse_timeout_seconds", 3600.0)  # no effect
+    monkeypatch.setattr(audit_settings, "audit_timeout_seconds", 3600.0)  # no effect
     adapter = _StallingAdapter()
     monkeypatch.setattr(audit_execution, "build_adapter", lambda **_: adapter)
     monkeypatch.setattr(audit_settings, "min_request_interval_seconds", 0.0)
@@ -282,7 +280,7 @@ async def test_funded_timeout_call_is_billed(
         usage = await consumable_usage(
             session,
             account_id=account.id,
-            capability_key=KEY_PULSE_CREDITS,
+            capability_key=KEY_AUDIT_CREDITS,
             at=datetime.now(UTC),
         )
         assert usage.debited == 2

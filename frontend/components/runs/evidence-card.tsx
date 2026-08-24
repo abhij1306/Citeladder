@@ -52,7 +52,6 @@ export function EvidenceCard({
             {engineLabel(evidence.logical_engine)} · {transportLabel(evidence.transport_provider)}
           </Badge>
           <MeasurementContext
-            mode={evidence.measurement_mode}
             retrieval={evidence.retrieval_enabled}
             model={evidence.transport_model}
           />

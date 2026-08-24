@@ -9,12 +9,11 @@ from app.core.config.audits import (
     AUDIT_TRIGGERS,
     CODE_PROMPT_COUNT_EXCEEDED,
     CODE_PROMPT_COUNT_POLICY_UNCONFIGURED,
-    MEASUREMENT_MODE_PULSE,
     MEASUREMENT_POLICY_KEY,
-    MeasurementModePolicy,
+    AuditExecutionPolicy,
+    audit_execution_policy,
     audit_settings,
     frozen_policy_configuration,
-    measurement_policy_for_mode,
     system_instruction_for_mode,
 )
 from app.core.config.entitlements import CREDENTIAL_MODE_FUNDED
@@ -54,48 +53,20 @@ class _FrozenPlan:
 
     trigger: str
     benchmark_mode: str
-    measurement_mode: str
-    policy: MeasurementModePolicy
+    policy: AuditExecutionPolicy
     repetitions: int
     system_instruction: str
     route_policies: dict[str, dict]
+    audit_scope: str
 
 
-def _resolve_measurement_policy(value: str | None) -> tuple[str, MeasurementModePolicy]:
-    """Resolve + FREEZE the measurement-mode policy exactly once.
-
-    Reads live settings here and nowhere else; the returned policy is what the
-    audit stores and the worker executes. Fails closed on an unknown mode —
-    ``measurement_policy_for_mode`` raises rather than defaulting to a cheaper
-    or costlier shape.
-    """
-    mode = str(value or MEASUREMENT_MODE_PULSE).strip().lower()
-    try:
-        return mode, measurement_policy_for_mode(mode)
-    except ValueError as exc:
-        raise AuditValidationError(f"Unsupported measurement_mode: {mode}") from exc
-
-
-def _compose_system_instruction(*, framing: str, policy: MeasurementModePolicy) -> str:
-    """Compose the neutral prompt-framing instruction with the mode's addendum.
-
-    The two axes are INDEPENDENT: ``framing`` comes from ``benchmark_mode``
-    (consumer_like | controlled_localized | forced_grounded) and the addendum
-    from ``measurement_mode``. Neither constrains the other, so any of the six
-    combinations composes. The pulse addendum is an UNMEASURED CANDIDATE (see
-    ``config/audits.PULSE_ANSWER_INSTRUCTION``); benchmark contributes "".
-    Never carries brand/competitor identity (invariant 6).
-    """
+def _compose_system_instruction(*, framing: str, policy: AuditExecutionPolicy) -> str:
+    """Compose neutral prompt framing with the citation answer instruction."""
     return " ".join(part for part in (framing, policy.answer_instruction) if part)
 
 
-def _resolve_repetitions(requested: int | None, policy: MeasurementModePolicy) -> int:
-    """Repetitions for the run: an explicit request, else the mode default.
-
-    The mode policy owns the default (pulse 1, benchmark 3) — the project's
-    ``default_repetitions`` is a project-level preference that an explicit
-    request still overrides, and neither may exceed the configured bounds.
-    """
+def _resolve_repetitions(requested: int | None, policy: AuditExecutionPolicy) -> int:
+    """Repetitions for the run: an explicit request, else the audit default."""
     reps = int(requested or policy.repetitions)
     if reps < MIN_REPETITIONS or reps > MAX_REPETITIONS:
         raise AuditValidationError(
@@ -154,9 +125,9 @@ def _evaluate_prompt_count_admission(
     )
 
 
-def _route_policy_snapshot(logical_engine: str, measurement_mode: str) -> dict:
+def _route_policy_snapshot(logical_engine: str) -> dict:
     """The frozen execution-time route policy for one approved route."""
-    policy = route_policy(logical_engine, measurement_mode)
+    policy = route_policy(logical_engine)
     return {
         "reasoning_effort": policy.reasoning_effort,
         "reasoning_pinnable": policy.reasoning_pinnable,
@@ -180,17 +151,17 @@ def _freeze_plan(
     routes: dict[str, _ResolvedRoute],
     trigger: str,
     benchmark_mode: str | None,
-    measurement_mode: str | None,
     repetitions: int | None,
+    audit_scope: str,
 ) -> _FrozenPlan:
     """Precompute every policy decision for a run, before any row is written.
 
-    Resolves both mode axes, validates prompt length, resolves repetitions from
-    the frozen mode policy, composes the system instruction, and snapshots the
+    Resolves prompt framing, validates prompt length, resolves repetitions from
+    the frozen audit policy, composes the system instruction, and snapshots the
     per-route execution policy.
     """
     framing_mode = _resolve_benchmark_mode(benchmark_mode, project)
-    mode, policy = _resolve_measurement_policy(measurement_mode)
+    policy = audit_execution_policy()
     _validate_prompt_lengths(prompts)
     framing = system_instruction_for_mode(
         mode=framing_mode,
@@ -200,14 +171,13 @@ def _freeze_plan(
     return _FrozenPlan(
         trigger=_validate_trigger(trigger),
         benchmark_mode=framing_mode,
-        measurement_mode=mode,
         policy=policy,
         repetitions=_resolve_repetitions(repetitions, policy),
         system_instruction=_compose_system_instruction(framing=framing, policy=policy),
         route_policies={
-            engine: _route_policy_snapshot(engine, mode)
-            for engine, route in routes.items()
+            engine: _route_policy_snapshot(engine) for engine, route in routes.items()
         },
+        audit_scope=audit_scope,
     )
 
 
@@ -229,17 +199,21 @@ def _frozen_configuration(
         # Frozen product catalog (Agentic Commerce): the deterministic
         # product analyzer scores against this copy, so later catalog edits
         # never alter the audit (invariant 9).
-        **project_product_identity(project),
+        **(
+            project_product_identity(project)
+            if plan.audit_scope == "commerce"
+            else {"products": []}
+        ),
+        "audit_scope": plan.audit_scope,
         "trigger": plan.trigger,
         "benchmark_mode": plan.benchmark_mode,
-        "measurement_mode": plan.measurement_mode,
         MEASUREMENT_POLICY_KEY: frozen_policy_configuration(plan.policy),
         "system_instruction": plan.system_instruction,
         "engines": list(routes.keys()),
         "repetitions": plan.repetitions,
         "max_attempts": plan.policy.max_attempts,
         "max_run_seconds": audit_settings.max_run_seconds,
-        # The frozen per-call timeout is the MODE's, not the generic live
+        # The frozen per-call timeout is the audit policy's, not the generic live
         # ``request_timeout_seconds``: an env change mid-run must never alter an
         # in-flight audit (invariant 9).
         "request_timeout_seconds": plan.policy.timeout_seconds,
@@ -286,7 +260,6 @@ def _task_route_snapshot(
             else None
         ),
         "base_url": route.base_url,
-        "measurement_mode": plan.measurement_mode,
         **plan.route_policies[engine],
         **frozen_policy_configuration(plan.policy),
     }

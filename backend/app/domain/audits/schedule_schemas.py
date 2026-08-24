@@ -44,7 +44,6 @@ class AuditScheduleCreate(BaseModel):
         default=None, ge=MIN_REPETITIONS, le=MAX_REPETITIONS
     )
     benchmark_mode: BenchmarkMode | None = None
-    measurement_mode: Literal["pulse", "benchmark"] = "pulse"
     enabled: bool = True
     next_run_at: datetime | None = None
 
@@ -97,7 +96,6 @@ class AuditScheduleUpdate(BaseModel):
         default=None, ge=MIN_REPETITIONS, le=MAX_REPETITIONS
     )
     benchmark_mode: BenchmarkMode | None = None
-    measurement_mode: Literal["pulse", "benchmark"] | None = None
     enabled: bool | None = None
     next_run_at: datetime | None = None
 
@@ -144,7 +142,6 @@ class AuditScheduleResponse(BaseModel):
     engines: list[str]
     repetitions: int | None
     benchmark_mode: BenchmarkMode | None
-    measurement_mode: Literal["pulse", "benchmark"]
     enabled: bool
     next_run_at: datetime | None
     last_run_at: datetime | None

@@ -42,7 +42,7 @@ export type LaunchAuditInput = {
   engines: LogicalEngine[];
   repetitions?: number;
   benchmark_mode?: string;
-  measurement_mode: 'pulse' | 'benchmark';
+  audit_scope?: 'brand' | 'commerce';
   /** Optional 64-bit seed as a decimal string; generated + stored when omitted. */
   random_seed?: string;
 };
@@ -62,7 +62,6 @@ export type CreateAuditScheduleInput = {
   engines: LogicalEngine[];
   repetitions?: number;
   benchmark_mode?: string;
-  measurement_mode?: 'pulse' | 'benchmark';
   enabled?: boolean;
   next_run_at?: string;
 };

@@ -38,7 +38,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 # canonical finish-reason enum can be reused here without a layering cycle
 # (invariant 2 — one owner for the closed vocabulary, never re-literalled).
 from app.connectors.answer_engines.contracts import FinishReason
-from app.core.config.audits import AUDIT_STATUS_DRAFT, MEASUREMENT_MODE_PULSE
+from app.core.config.audits import AUDIT_SCOPE_BRAND, AUDIT_STATUS_DRAFT
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.database import Base
 from app.models.constants import (
@@ -103,14 +103,8 @@ class Audit(Base):
     # mode/route/credential detail stays frozen in ``configuration``.
     trigger: Mapped[str] = mapped_column(String(16), default="manual", index=True)
     benchmark_mode: Mapped[str] = mapped_column(String(32), default="")
-    # Measurement mode (pulse | benchmark) — an axis INDEPENDENT of
-    # ``benchmark_mode`` (prompt framing). Defaults to ``benchmark`` so an
-    # new run starts with the fast, low-cost monitoring contract.
-    measurement_mode: Mapped[str] = mapped_column(
-        String(16),
-        default=MEASUREMENT_MODE_PULSE,
-        server_default=MEASUREMENT_MODE_PULSE,
-        nullable=False,
+    audit_scope: Mapped[str] = mapped_column(
+        String(16), default=AUDIT_SCOPE_BRAND, server_default=AUDIT_SCOPE_BRAND
     )
     # Funded-execution provenance. Null for BYOK runs. The billing account that
     # funds this run (SET NULL so account removal never erases audit history),

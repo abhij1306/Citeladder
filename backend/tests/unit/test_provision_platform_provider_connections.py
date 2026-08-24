@@ -102,9 +102,7 @@ async def test_provision_creates_system_workspace_connections_and_routes(
 
         # One catalog-default route per engine on the matching transport.
         routes = (await session.execute(select(ProviderRoute))).scalars().all()
-        for (engine, mode), approved in MEASUREMENT_ROUTES.items():
-            if mode != "pulse":
-                continue
+        for engine, approved in MEASUREMENT_ROUTES.items():
             route = next(r for r in routes if r.logical_engine == engine)
             assert route.transport_provider == approved.transport_provider
             assert route.transport_model == approved.transport_model

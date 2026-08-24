@@ -53,12 +53,10 @@ TYPE_RESOLUTION_RULES: Final[dict[CapabilityType, ResolutionRule]] = {
 }
 
 # Capability keys (stable machine keys; never a plan display name).
-KEY_PULSE_CADENCE: Final = "pulse_cadence"
-KEY_BENCHMARK_CADENCE: Final = "benchmark_cadence"
+KEY_AUDIT_CADENCE: Final = "audit_cadence"
 KEY_HISTORY_WINDOW: Final = "history_window"
 KEY_SUPPORT_TIER: Final = "support_tier"
-KEY_BENCHMARK_CREDITS: Final = "benchmark_credits"
-KEY_PULSE_CREDITS: Final = "pulse_credits"
+KEY_AUDIT_CREDITS: Final = "audit_credits"
 KEY_PROJECT_SLOTS: Final = "project_slots"
 KEY_PROMPT_SLOTS: Final = "prompt_slots"
 KEY_MONITORED_URLS: Final = "monitored_urls"
@@ -68,6 +66,7 @@ KEY_PROVIDER_PERPLEXITY: Final = "provider.perplexity"
 KEY_PROVIDER_COPILOT: Final = "provider.copilot"
 KEY_EXPORTS: Final = "exports"
 KEY_MANUAL_RUNS_PER_DAY: Final = "manual_runs_per_day"
+
 
 # The default rolling window (seconds) for rate capabilities. 86_400 = 1 day.
 MANUAL_RUNS_ROLLING_WINDOW_SECONDS: Final = 86_400
@@ -169,8 +168,7 @@ class CapabilityRegistry:
 # Ordered public values for the level capabilities. The integer ordinal stored
 # in a grant indexes into these tuples; index 0 is always the least privilege.
 _LEVEL_UNSET: Final = "unset"
-PULSE_CADENCE_VALUES: Final[tuple[str, ...]] = (_LEVEL_UNSET, "daily")
-BENCHMARK_CADENCE_VALUES: Final[tuple[str, ...]] = (_LEVEL_UNSET, "weekly", "daily")
+AUDIT_CADENCE_VALUES: Final[tuple[str, ...]] = (_LEVEL_UNSET, "weekly", "daily")
 HISTORY_WINDOW_VALUES: Final[tuple[str, ...]] = (
     _LEVEL_UNSET,
     "90d",
@@ -187,16 +185,10 @@ def _build_registry() -> CapabilityRegistry:
         revision=CAPABILITY_REGISTRY_REVISION,
         entries=(
             CapabilityDefinition(
-                key=KEY_PULSE_CADENCE,
+                key=KEY_AUDIT_CADENCE,
                 capability_type=CapabilityType.LEVEL,
                 resolution_rule=ResolutionRule.MAX,
-                ordered_values=PULSE_CADENCE_VALUES,
-            ),
-            CapabilityDefinition(
-                key=KEY_BENCHMARK_CADENCE,
-                capability_type=CapabilityType.LEVEL,
-                resolution_rule=ResolutionRule.MAX,
-                ordered_values=BENCHMARK_CADENCE_VALUES,
+                ordered_values=AUDIT_CADENCE_VALUES,
             ),
             CapabilityDefinition(
                 key=KEY_HISTORY_WINDOW,
@@ -211,12 +203,7 @@ def _build_registry() -> CapabilityRegistry:
                 ordered_values=SUPPORT_TIER_VALUES,
             ),
             CapabilityDefinition(
-                key=KEY_BENCHMARK_CREDITS,
-                capability_type=CapabilityType.COUNTER_CONSUMABLE,
-                resolution_rule=ResolutionRule.SUM,
-            ),
-            CapabilityDefinition(
-                key=KEY_PULSE_CREDITS,
+                key=KEY_AUDIT_CREDITS,
                 capability_type=CapabilityType.COUNTER_CONSUMABLE,
                 resolution_rule=ResolutionRule.SUM,
             ),

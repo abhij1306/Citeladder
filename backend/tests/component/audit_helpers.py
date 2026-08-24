@@ -142,7 +142,7 @@ async def seed_audit_fixtures(
                 connection_id=connection.id,
                 logical_engine=engine,
                 transport_provider=transport,
-                transport_model=measurement_route(engine, "pulse").transport_model,
+                transport_model=measurement_route(engine).transport_model,
                 is_default=True,
             )
         )
@@ -181,7 +181,7 @@ def _mark_connection_probed(
             latency_ms=12,
             logical_engine=engine,
             transport_provider=connection.transport_provider,
-            transport_model=measurement_route(engine, "pulse").transport_model,
+            transport_model=measurement_route(engine).transport_model,
             created_at=tested_at,
         )
     )
@@ -229,7 +229,7 @@ async def seed_platform_connection(
                 connection_id=connection.id,
                 logical_engine=engine,
                 transport_provider=transport,
-                transport_model=measurement_route(engine, "pulse").transport_model,
+                transport_model=measurement_route(engine).transport_model,
                 is_default=True,
             )
         )

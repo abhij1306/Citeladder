@@ -11,7 +11,6 @@ from typing import Any, Final
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.audits import MEASUREMENT_MODE_PULSE
 from app.core.config.billing_contracts import TELEMETRY_FUNDED_BUDGET_EXHAUSTED
 from app.core.config.billing_settings import billing_settings
 from app.core.config.costs import (
@@ -24,8 +23,7 @@ from app.core.config.entitlements import (
     CODE_FUNDED_BUDGET_EXHAUSTED,
     CODE_FUNDED_COST_UNRESOLVED,
     CREDENTIAL_MODE_FUNDED,
-    KEY_BENCHMARK_CREDITS,
-    KEY_PULSE_CREDITS,
+    KEY_AUDIT_CREDITS,
 )
 from app.core.config.provider_catalog import (
     CREDENTIAL_SOURCE_BYOK,
@@ -159,7 +157,6 @@ def _expected_costs_by_engine(
                 transport_provider=route.transport_provider,
                 transport_model=route.transport_model,
             ),
-            plan.measurement_mode,
             plan.policy.retrieval_enabled,
         )
         for engine, route in routes.items()
@@ -226,11 +223,7 @@ async def _admit_funded_run(
             code=STATUS_ENTITLEMENT_UNRESOLVED,
             account_id=entitlement.account_id,
         )
-    capability_key = (
-        KEY_PULSE_CREDITS
-        if plan.measurement_mode == MEASUREMENT_MODE_PULSE
-        else KEY_BENCHMARK_CREDITS
-    )
+    capability_key = KEY_AUDIT_CREDITS
     account_id = entitlement.account_id
     # The account-capacity lock is the LAST lock this path acquires (the
     # abuse workspace lock was taken earlier); it serializes every funded

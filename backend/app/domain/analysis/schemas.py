@@ -107,9 +107,8 @@ class VisibilityResponse(BaseModel):
     total_failed: int
     visibility_score: float
     # Frozen measurement provenance of the selected run (invariants 4/7): the
-    # audit's frozen mode column plus the stable catalog-ordered route list
+    # stable catalog-ordered route list
     # (aggregate surface — never a forced singular model across engines).
-    measurement_mode: str = ""
     model_provenance: list[ModelProvenance] = Field(default_factory=list)
     rankings: list[RankingRow] = Field(default_factory=list)
     per_engine: list[EngineComparisonRow] = Field(default_factory=list)
@@ -176,11 +175,10 @@ class VisibilityTrendPoint(BaseModel):
     sentiment: str | None = None
     avg_position: float | None = None
     # Measurement identity partition (invariant 7): folding may combine points
-    # ONLY inside one ``(measurement_mode, transport_model, retrieval_enabled)``
-    # identity, so a point never mixes modes, models, or retrieval on/off.
+    # ONLY inside one ``(transport_model, retrieval_enabled)`` identity, so a
+    # point never mixes models or retrieval states.
     # ``transport_model`` is singular only when the point spans exactly one
     # model; it is null for a multi-model aggregate (see ``model_provenance``).
-    measurement_mode: str = ""
     transport_model: str | None = None
     retrieval_enabled: bool | None = None
     model_provenance: list[ModelProvenance] = Field(default_factory=list)
@@ -227,7 +225,6 @@ class ExecutionEvidenceResponse(BaseModel):
     transport_model: str = ""
     # Frozen measurement provenance (execution-level: singular model, frozen
     # task request/route snapshots — never live config, invariants 4/7).
-    measurement_mode: str = ""
     retrieval_enabled: bool | None = None
     prompt_index: int
     repetition: int
@@ -330,7 +327,6 @@ class VisibilityExecutionEvidence(BaseModel):
     transport_provider: str = ""
     transport_model: str = ""
     # Frozen measurement provenance (execution-level surface, invariants 4/7).
-    measurement_mode: str = ""
     retrieval_enabled: bool | None = None
 
     # Query-fanout signals + derived availability state.
