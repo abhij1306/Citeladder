@@ -37,7 +37,7 @@ function connection(overrides: Record<string, unknown> = {}) {
         id: '33333333-3333-4333-8333-333333333333',
         logical_engine: 'chatgpt',
         transport_provider: 'openai',
-        transport_model: 'gpt-5.4-nano-2026-03-17',
+        transport_model: 'gpt-5.6-sol',
         is_default: false,
         active: true,
       },
@@ -73,7 +73,7 @@ function testHandler(status: 'ok' | 'failed', detail = 'Connection succeeded') {
       latency_ms: 42,
       logical_engine: 'chatgpt',
       transport_provider: 'openai',
-      transport_model: 'gpt-5.4-nano-2026-03-17',
+      transport_model: 'gpt-5.6-sol',
       tested_at: '2026-07-15T00:00:00Z',
     }),
   );
@@ -102,7 +102,7 @@ describe('ConnectProviderDialog', () => {
           latency_ms: 42,
           logical_engine: 'claude',
           transport_provider: 'anthropic',
-          transport_model: 'claude-haiku-4-5-20251001',
+          transport_model: 'claude-sonnet-5',
           tested_at: '2026-07-15T00:00:00Z',
         });
       }),
@@ -116,7 +116,7 @@ describe('ConnectProviderDialog', () => {
                 id: '44444444-4444-4444-8444-444444444444',
                 logical_engine: 'claude',
                 transport_provider: 'anthropic',
-                transport_model: 'claude-haiku-4-5-20251001',
+                transport_model: 'claude-sonnet-5',
                 is_default: false,
                 active: true,
               },
@@ -140,7 +140,7 @@ describe('ConnectProviderDialog', () => {
 
     await user.selectOptions(picker, 'claude');
     // The picked engine's direct route is shown before connecting.
-    expect(await within(dialog).findByText(/claude-haiku-4-5-20251001/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(/claude-sonnet-5/)).toBeInTheDocument();
 
     await user.type(within(dialog).getByLabelText(/api key/i), 'sk-ant-key');
     await user.click(within(dialog).getByRole('button', { name: /save key/i }));
@@ -216,7 +216,7 @@ describe('ConnectProviderDialog', () => {
 
     await user.click(within(dialog).getByRole('button', { name: /test connection/i }));
     expect(
-      await within(dialog).findByText(/connection succeeded \(gpt-5\.4-nano-2026-03-17\)\./i),
+      await within(dialog).findByText(/connection succeeded \(gpt-5\.6-sol\)\./i),
     ).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: /update key/i }));

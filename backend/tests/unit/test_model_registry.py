@@ -12,6 +12,7 @@ def test_models_are_exported_and_registered_once() -> None:
         "OpportunityGuidance": "opportunity_guidance",
         "OrderFact": "order_facts",
         "FeedIssue": "feed_issues",
+        "CompetitorComparisonSnapshot": "competitor_comparison_snapshots",
         "WorkspaceSiteHealthRuntime": "workspace_site_health_runtime",
         "SiteHealthProfile": "site_health_profiles",
         "SiteCrawl": "site_crawls",

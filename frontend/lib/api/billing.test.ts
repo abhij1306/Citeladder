@@ -4,7 +4,7 @@ import { billingApi } from './billing';
 
 const QUOTE = {
   quote_id: 'q_opaque',
-  catalog_revision: 'commercial-v9',
+  catalog_revision: 'commercial-v8',
   catalog_key: 'tier_2',
   credential_mode: 'byok',
   country_code: 'IN',
@@ -109,7 +109,7 @@ describe('billing API contract', () => {
 
   it('rejects a retired tier key rather than rendering it as an unknown plan', async () => {
     stubFetch({
-      catalog_revision: 'commercial-v9',
+      catalog_revision: 'commercial-v8',
       country_code: 'IN',
       region: 'india',
       currency: 'INR',
@@ -125,7 +125,7 @@ describe('billing API contract', () => {
 
   it('strips leaked provider fields from the catalog (tolerant-on-unknown)', async () => {
     stubFetch({
-      catalog_revision: 'commercial-v9',
+      catalog_revision: 'commercial-v8',
       country_code: 'IN',
       region: 'india',
       currency: 'INR',
