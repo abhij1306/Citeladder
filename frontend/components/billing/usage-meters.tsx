@@ -13,7 +13,13 @@ import { queryKeys } from '@/lib/api/query-keys';
  * still render, after these — the list is an ordering hint, not a filter, so a
  * new backend counter appears without a frontend change.
  */
-const PREFERRED_ORDER = ['prompt_slots', 'project_slots', 'manual_runs_per_day', 'audit_credits'];
+const PREFERRED_ORDER = [
+  'prompt_slots',
+  'project_slots',
+  'manual_runs_per_day',
+  'benchmark_credits',
+  'pulse_credits',
+];
 
 function ordered(items: readonly UsageItem[]): UsageItem[] {
   return [...items].sort((a, b) => {

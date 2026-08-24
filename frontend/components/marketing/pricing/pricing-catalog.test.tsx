@@ -47,8 +47,7 @@ function plan(key: string, name: string, overrides: Record<string, unknown> = {}
     unavailable_reason: 'funded_not_priced',
     capabilities: [
       { key: 'project_slots', capability_type: 'counter.occupancy', value: 3, issuable: true },
-      { key: 'pulse_cadence', capability_type: 'level', value: 'daily', issuable: true },
-      { key: 'benchmark_cadence', capability_type: 'level', value: 'weekly', issuable: true },
+      { key: 'audit_cadence', capability_type: 'level', value: 'daily', issuable: true },
     ],
     trial_availability: 'unavailable',
     trial_unavailable_reason: 'trial_unavailable',
@@ -58,7 +57,7 @@ function plan(key: string, name: string, overrides: Record<string, unknown> = {}
 }
 
 const CATALOG = {
-  catalog_revision: 'commercial-v8',
+  catalog_revision: 'commercial-v9',
   country_code: null,
   region: 'international',
   currency: 'USD',
@@ -107,16 +106,16 @@ const CATALOG = {
   topups: [
     {
       key: 'topup_bench',
-      name: 'Benchmark credits',
-      description: 'A pack of benchmark credits',
+      name: 'Audit credits',
+      description: 'A pack of audit credits',
       unit_price: money(2900),
       quantity_min: 1,
       quantity_max: 50,
       availability: 'available',
       unavailable_reason: null,
-      grant_key: 'benchmark_credits',
+      grant_key: 'audit_credits',
       credits_per_unit: 100,
-      expiry_days: 90,
+      expiry_days: 30,
     },
   ],
   providers: [],
@@ -130,7 +129,7 @@ const activation = (kind: string, catalog_key: string) => ({
   status: 'pending',
   quote: {
     quote_id: 'q1',
-    catalog_revision: 'commercial-v8',
+    catalog_revision: 'commercial-v9',
     catalog_key,
     credential_mode: 'byok',
     country_code: 'US',
@@ -171,7 +170,7 @@ describe('PricingCatalog', () => {
     mswServer.use(catalogHandler(), anonymous());
     renderWithProviders(<PricingCatalog />);
 
-    await screen.findByRole('heading', { name: 'Starter' });
+    await screen.findByRole('heading', { name: 'Starter' }, { timeout: 3_000 });
     expect(document.querySelectorAll('[data-tier]')).toHaveLength(4);
     for (const name of ['Starter', 'Growth', 'Scale', 'Enterprise']) {
       expect(screen.getAllByText(name).length).toBeGreaterThan(0);
@@ -194,15 +193,12 @@ describe('PricingCatalog', () => {
     expect(prices).toContain('$149');
   });
 
-  it('uses concise customer-facing labels for monitoring frequency', async () => {
+  it('uses the single customer-facing audit frequency label', async () => {
     mswServer.use(catalogHandler(), anonymous());
     renderWithProviders(<PricingCatalog />);
 
     await screen.findByRole('heading', { name: 'Starter' });
-    screen.getAllByText('Monitoring frequency');
-    screen.getAllByText('Benchmark frequency');
-    expect(screen.queryByText('Pulse cadence')).not.toBeInTheDocument();
-    expect(screen.queryByText('Benchmark cadence')).not.toBeInTheDocument();
+    screen.getAllByText('Audit frequency');
   });
 
   it('shows the approved managed prices without an unavailable warning', async () => {

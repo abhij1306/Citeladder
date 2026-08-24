@@ -21,8 +21,8 @@ All notable changes to CiteLadder are documented in this file. The project follo
   documented exception set and logged, so a parser bug is no longer scored as "this page has no
   title / no CTAs". Extraction still fails open on hostile HTML. `EXTRACTOR_VERSION` is
   `sh-extractor-8`; the first crawl after deploy re-fetches rather than reusing a v7 artifact.
-- **Audits carry one citation-capable retry budget** (`AUDIT_MAX_ATTEMPTS`, default 5). The budget
-  is frozen onto each task at planning, so a
+- **Pulse audits carry their own retry budget** (`AUDIT_PULSE_MAX_ATTEMPTS`, default 2). Benchmark
+  keeps the full `AUDIT_MAX_ATTEMPTS` (5). The budget is frozen onto each task at planning, so a
   live change never alters an in-flight run.
 - **Sample crawls no longer fetch `llms.txt`.** It sat outside the `sample_mode` guard, so the free
   automatic crawl paid for a probe it never acted on.

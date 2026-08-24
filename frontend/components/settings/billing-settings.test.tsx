@@ -38,7 +38,7 @@ function resolvedEntitlement(subscription: unknown = null) {
 }
 
 const CATALOG = {
-  catalog_revision: 'commercial-v9',
+  catalog_revision: 'commercial-v8',
   country_code: 'US',
   region: 'international',
   currency: 'USD',
@@ -107,7 +107,7 @@ const USAGE = {
       grants: [],
     },
     {
-      key: 'audit_credits',
+      key: 'benchmark_credits',
       capability_type: 'counter.consumable',
       unit: 'credits',
       limit_state: 'unknown',
@@ -192,7 +192,7 @@ describe('BillingSettings', () => {
           status: 'pending',
           quote: {
             quote_id: 'q1',
-            catalog_revision: 'commercial-v9',
+            catalog_revision: 'commercial-v8',
             catalog_key: 'tier_1',
             credential_mode: 'byok',
             country_code: 'US',
