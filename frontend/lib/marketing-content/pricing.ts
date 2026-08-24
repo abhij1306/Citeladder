@@ -64,10 +64,8 @@ export const CAPABILITY_LABELS: Readonly<Record<string, string>> = {
   prompt_slots: 'Prompts',
   monitored_urls: 'Monitored URLs',
   manual_runs_per_day: 'Manual runs per day',
-  benchmark_credits: 'Benchmark credits',
-  pulse_credits: 'Pulse credits',
-  pulse_cadence: 'Monitoring frequency',
-  benchmark_cadence: 'Benchmark frequency',
+  audit_credits: 'Audit credits',
+  audit_cadence: 'Audit frequency',
   audit_web_search: 'Web-search-grounded audits',
   authenticated_exports: 'Authenticated exports',
 };

@@ -93,7 +93,7 @@ async def test_create_connection_redacts_secret_in_response(
     # Provenance recorded on routes (invariant 10).
     engines = {r["logical_engine"]: r for r in body["routes"]}
     assert engines["chatgpt"]["transport_provider"] == "openai"
-    assert engines["chatgpt"]["transport_model"] == "gpt-5.4-nano-2026-03-17"
+    assert engines["chatgpt"]["transport_model"] == "gpt-5.6-sol"
     assert engines["chatgpt"]["is_default"] is True
     # New routes are active.
     assert engines["chatgpt"]["active"] is True

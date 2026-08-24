@@ -145,7 +145,7 @@ async def _upsert_routes(
 ) -> None:
     """Converge the catalog-default route per engine for this transport."""
     for engine in engines_for_transport(transport):
-        model = measurement_route(engine, "pulse").transport_model
+        model = measurement_route(engine).transport_model
         route = await session.scalar(
             select(ProviderRoute).where(
                 ProviderRoute.connection_id == connection.id,

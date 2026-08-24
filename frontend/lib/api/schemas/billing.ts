@@ -70,6 +70,7 @@ export const capabilityValueSchema = responseObject({
 
 export const catalogProviderRouteSchema = responseObject({
   logical_engine: z.string(),
+  measurement_mode: z.enum(['pulse', 'benchmark']).optional(),
   transport_provider: z.string(),
   model: z.string(),
 });
@@ -134,7 +135,7 @@ export const catalogTopupSchema = responseObject({
   quantity_max: z.number().int(),
   availability: catalogAvailabilitySchema,
   unavailable_reason: z.string().nullable(),
-  grant_key: z.literal('audit_credits'),
+  grant_key: z.enum(['audit_credits', 'benchmark_credits', 'pulse_credits']),
   credits_per_unit: z.number().int().nullable(),
   expiry_days: z.number().int(),
 });

@@ -19,6 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 import app.domain.audits.creation as creation_module
 import app.domain.audits.funded_admission as funded_admission_module
 from app.core.config.audits import (
+    AUDIT_SCOPE_BRAND,
+    AUDIT_SCOPE_COMMERCE,
     AUDIT_STATUS_CANCELLED,
     AUDIT_STATUS_QUEUED,
     AUDIT_TRIGGER_MANUAL,
@@ -50,7 +52,12 @@ from tests.component.occupancy_helpers import seed_occupancy_grants
 
 
 async def _create(
-    session: AsyncSession, seed, *, seed_value: str | None = None, reps: int = 2
+    session: AsyncSession,
+    seed,
+    *,
+    seed_value: str | None = None,
+    reps: int = 2,
+    audit_scope: str = AUDIT_SCOPE_BRAND,
 ):
     return await create_audit(
         session,
@@ -61,6 +68,7 @@ async def _create(
         prompt_set_id=seed.prompt_set_id,
         repetitions=reps,
         random_seed=seed_value,
+        audit_scope=audit_scope,
     )
 
 
@@ -343,7 +351,13 @@ async def test_create_audit_freezes_product_catalog(
         )
         await session.commit()
     async with session_factory() as session:
-        audit = await _create(session, seed, seed_value="catalog", reps=1)
+        audit = await _create(
+            session,
+            seed,
+            seed_value="7",
+            reps=1,
+            audit_scope=AUDIT_SCOPE_COMMERCE,
+        )
         products = audit.configuration["products"]
         assert len(products) == 1
         assert products[0]["sku"] == "AC-500"

@@ -19,7 +19,6 @@ function selection(overrides: Partial<LaunchSelection> = {}): LaunchSelection {
     promptSetId: SET_ID,
     engines: ['gemini'],
     repetitions: 3,
-    measurementMode: 'pulse',
     ...overrides,
   };
 }
@@ -54,7 +53,7 @@ describe('buildLaunchPayload', () => {
       prompt_set_id: SET_ID,
       engines: ['gemini', 'claude'],
       repetitions: 5,
-      measurement_mode: 'pulse',
+      audit_scope: 'brand',
     });
   });
 

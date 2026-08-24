@@ -13,41 +13,34 @@ from app.core.config.costs import (
     ROUTE_CHATGPT,
     ROUTE_CLAUDE,
     ROUTE_GEMINI,
+    RouteIdentity,
     route_pricing_for,
 )
 from app.domain.audits.cost_projection import build_execution_cost_projection
 from app.models.audit import RawResponseArtifact
 
 
-def _artifact(usage: dict) -> RawResponseArtifact:
+def _artifact(
+    usage: dict, route: RouteIdentity = ROUTE_CHATGPT
+) -> RawResponseArtifact:
     return RawResponseArtifact(
         id=uuid.uuid4(),
         audit_id=uuid.uuid4(),
         task_id=uuid.uuid4(),
-        logical_engine="chatgpt",
-        transport_provider="openai",
-        transport_model=ROUTE_CHATGPT.transport_model,
+        logical_engine=route.logical_engine,
+        transport_provider=route.transport_provider,
+        transport_model=route.transport_model,
         answer_text="answer",
         usage=usage,
     )
 
 
-def test_catalog_contains_only_six_exact_measurement_routes() -> None:
+def test_catalog_contains_only_three_exact_audit_routes() -> None:
     assert APPROVED_ROUTE_IDENTITIES == frozenset(
-        {
-            ROUTE_CHATGPT,
-            ROUTE_CHATGPT,
-            ROUTE_CLAUDE,
-            ROUTE_CLAUDE,
-            ROUTE_GEMINI,
-            ROUTE_GEMINI,
-        }
+        {ROUTE_CHATGPT, ROUTE_CLAUDE, ROUTE_GEMINI}
     )
-    assert ROUTE_CHATGPT.transport_model == "gpt-5.4-nano-2026-03-17"
     assert ROUTE_CHATGPT.transport_model == "gpt-5.6-sol"
-    assert ROUTE_CLAUDE.transport_model == "claude-haiku-4-5-20251001"
     assert ROUTE_CLAUDE.transport_model == "claude-sonnet-5"
-    assert ROUTE_GEMINI.transport_model == "gemini-3.5-flash-lite"
     assert ROUTE_GEMINI.transport_model == "gemini-3.6-flash"
 
 
@@ -60,10 +53,13 @@ def test_unknown_official_price_lines_remain_null() -> None:
 
 
 def test_projection_accepts_only_canonical_usage_keys() -> None:
-    pricing = route_pricing_for(ROUTE_CHATGPT, PRICING_CATALOG_VERSION)
+    pricing = route_pricing_for(ROUTE_CLAUDE, PRICING_CATALOG_VERSION)
     assert pricing is not None
     canonical = build_execution_cost_projection(
-        _artifact({"uncached_input_tokens": 1_000, "output_tokens": 500}),
+        _artifact(
+            {"uncached_input_tokens": 1_000, "output_tokens": 500, "search_calls": 0},
+            ROUTE_CLAUDE,
+        ),
         pricing=pricing,
         formula_version=EXECUTION_COST_FORMULA_VERSION,
         attempt_count=1,
@@ -72,7 +68,10 @@ def test_projection_accepts_only_canonical_usage_keys() -> None:
     assert canonical.projected_total_cost_microusd is not None
 
     retired_spellings = build_execution_cost_projection(
-        _artifact({"total_input_tokens": 1_000, "provider_cost_usd": 1.0}),
+        _artifact(
+            {"total_input_tokens": 1_000, "provider_cost_usd": 1.0},
+            ROUTE_CLAUDE,
+        ),
         pricing=pricing,
         formula_version=EXECUTION_COST_FORMULA_VERSION,
         attempt_count=1,

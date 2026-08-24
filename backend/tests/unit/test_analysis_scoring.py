@@ -486,12 +486,12 @@ def test_aggregate_run_token_usage_defaults_to_zero() -> None:
     }
 
 
-def test_aggregate_run_prices_cached_input_at_the_cached_route_rate() -> None:
+def test_aggregate_run_keeps_usage_when_current_route_pricing_is_unverified() -> None:
     config = ScoringConfig.from_project(
         {
             **BEST_AND_LESS_PROJECT,
             "provider": "chatgpt",
-            "model": "gpt-5.4-nano-2026-03-17",
+            "model": "gpt-5.6-sol",
         }
     )
     execution = _completed_with_usage(
@@ -506,7 +506,7 @@ def test_aggregate_run_prices_cached_input_at_the_cached_route_rate() -> None:
     summary = aggregate_run([execution], config)
 
     assert summary["token_usage"]["cached_input_tokens"] == 1_000_000
-    assert summary["cost"]["paid_list_token_estimate_usd"] == pytest.approx(1.47)
+    assert summary["cost"]["paid_list_token_estimate_usd"] is None
 
 
 def test_provider_reported_cost_publishes_partial_and_missing_coverage() -> None:

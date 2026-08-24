@@ -33,7 +33,12 @@ from app.core.config.billing_contracts import (
 from app.core.config.billing_settings import (
     billing_settings,
 )
-from app.core.config.costs import MICRO_USD_PER_USD
+from app.core.config.costs import (
+    _EXPECTED_COST_CATALOG,
+    MICRO_USD_PER_USD,
+    ROUTE_CLAUDE,
+    _ExpectedCostEstimate,
+)
 from app.core.config.entitlements import (
     CODE_FUNDED_BUDGET_EXHAUSTED,
     CODE_FUNDED_COST_UNRESOLVED,
@@ -63,13 +68,12 @@ from tests.component.audit_helpers import (
 from tests.component.log_capture import capture_log_messages
 from tests.component.occupancy_helpers import seed_occupancy_grants
 
-# Pulse + claude is the only COMPLETE catalog estimate today (2_890 microusd,
-# retrieval OFF — search fields not applicable). Benchmark claude exercises
-# the retrieval-ON incompleteness (search fee absent).
-_AUDIT_CLAUDE_MICROUSD = 2_890
+# The test catalog freezes Claude at 2,890 token micro-USD plus three searches
+# at 10,000 micro-USD each.
+_AUDIT_CLAUDE_MICROUSD = 32_890
 
 # What one funded audit here reserves: two tasks (2 prompts x 1 engine x
-# 1 repetition), each reserving the mode's frozen attempt budget. DERIVED, not
+# 1 repetition), each reserving the frozen audit attempt budget. DERIVED, not
 # spelled: the audit attempt budget is a cost knob, and a test that hard-codes
 # the product silently stops testing the ceiling the moment it moves.
 _FUNDED_TASK_COUNT = 2
@@ -290,10 +294,20 @@ async def test_concurrent_funded_admissions_never_exceed_ceiling(
 @pytest.mark.asyncio
 async def test_incomplete_expected_cost_fails_closed(
     session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async with session_factory() as session:
-        # Benchmark claude: retrieval ON and the catalog search fee is absent
+        # Claude with retrieval ON and an incomplete observed search envelope
         # -> incomplete -> funded_cost_unresolved (never coerced to zero).
+        monkeypatch.setitem(
+            _EXPECTED_COST_CATALOG,
+            ROUTE_CLAUDE,
+            _ExpectedCostEstimate(
+                token_cost_microusd=2_890,
+                search_fee_microusd=None,
+                expected_searches=None,
+            ),
+        )
         _account, workspace_id, project_id, prompt_set_id = await _seed_funded(
             session, credit_key=KEY_AUDIT_CREDITS
         )
@@ -308,7 +322,7 @@ async def test_incomplete_expected_cost_fails_closed(
         assert exc_info.value.code == CODE_FUNDED_COST_UNRESOLVED
 
         # Gemini audit: the route has NO catalog estimate at all -> token
-        # estimate absent -> incomplete even with retrieval OFF.
+        # estimate absent -> incomplete with citation-capable retrieval.
         seed = await seed_audit_fixtures(
             session, prompt_count=1, engines=[ENGINE_GEMINI]
         )

@@ -414,27 +414,6 @@ async def test_opportunities_enqueue_failure_never_blocks_terminalization(
 
 
 @pytest.mark.asyncio
-async def test_comparison_projection_failure_never_blocks_terminalization(
-    session_factory: async_sessionmaker[AsyncSession],
-    _stub_adapter,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _seed, audit = await _make_audit(session_factory, prompts=1, reps=1)
-
-    async def _boom(session, *, audit):
-        raise RuntimeError("comparison exploded")
-
-    monkeypatch.setattr(audit_terminalization, "persist_comparison_snapshot", _boom)
-    worker = AuditWorker(session_factory=session_factory, owner="w-comparison-boom")
-    await worker.run_until_idle()
-
-    async with session_factory() as session:
-        refreshed = await session.get(Audit, audit.id)
-        assert refreshed is not None
-        assert refreshed.status == AUDIT_STATUS_COMPLETED
-
-
-@pytest.mark.asyncio
 async def test_worker_persists_canonical_and_raw_finish_reasons(
     session_factory: async_sessionmaker[AsyncSession],
     _stub_adapter,

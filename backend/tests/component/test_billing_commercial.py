@@ -985,7 +985,7 @@ async def test_subscription_webhook_activates_once_and_a_duplicate_grants_nothin
     assert subscription.external_subscription_id == "sub_activate"
     # The REAL tier_1 catalog bundle: 8 grants, one version bump for the event
     # plus one for the bundle.
-    assert await db_session.scalar(select(func.count(AccountGrant.id))) == 8
+    assert await db_session.scalar(select(func.count(AccountGrant.id))) == 7
     assert await _account_version(db_session) == 2
 
     # The account read now reports the subscription and the issued grants.
@@ -995,7 +995,7 @@ async def test_subscription_webhook_activates_once_and_a_duplicate_grants_nothin
     assert view["status"] == "resolved"
     assert view["subscription"]["catalog_key"] == "tier_1"
     assert view["subscription"]["cancel_at_period_end"] is False
-    assert len(view["grants"]) == 8
+    assert len(view["grants"]) == 7
     assert "funded_execution_allowed" not in view
 
     # A redelivery under a NEW event id never duplicates the subscription or
@@ -1003,7 +1003,7 @@ async def test_subscription_webhook_activates_once_and_a_duplicate_grants_nothin
     duplicate = await _post_webhook(client, raw, event_id="evt_act_2")
     assert duplicate.status_code == 204
     db_session.expire_all()
-    assert await db_session.scalar(select(func.count(AccountGrant.id))) == 8
+    assert await db_session.scalar(select(func.count(AccountGrant.id))) == 7
     assert await db_session.scalar(select(func.count(BillingSubscription.id))) == 1
     assert await db_session.scalar(select(func.count(BillingWebhookEvent.id))) == 2
 
@@ -1069,7 +1069,7 @@ async def test_webhook_reconciliation_race_settles_exactly_once(
     assert sweep_result.already_settled is True
     db_session.expire_all()
     assert await db_session.scalar(select(func.count(BillingSubscription.id))) == 1
-    assert await db_session.scalar(select(func.count(AccountGrant.id))) == 8
+    assert await db_session.scalar(select(func.count(AccountGrant.id))) == 7
     assert await _account_version(db_session) == version_after_first
 
 

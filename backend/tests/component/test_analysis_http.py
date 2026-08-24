@@ -159,7 +159,7 @@ async def test_endpoints_serve_projections_over_http(
             "logical_engine": ENGINE_GEMINI,
             "transport_provider": TRANSPORT_GOOGLE,
             "transport_model": GEMINI_MODEL,
-            "retrieval_enabled": False,
+                "retrieval_enabled": True,
         }
     ]
     assert "mode" not in abody
@@ -191,7 +191,7 @@ async def test_endpoints_serve_projections_over_http(
     # from the task request snapshot; vocabulary lock (no `mode` alias).
     first_row = exec_rows[0]
     assert first_row["transport_model"] == GEMINI_MODEL
-    assert first_row["retrieval_enabled"] is False
+    assert first_row["retrieval_enabled"] is True
     assert "mode" not in first_row
     execution_id = exec_rows[0]["id"]
     e = await client.get(f"/api/v1/executions/{execution_id}", headers=headers)
@@ -205,7 +205,7 @@ async def test_endpoints_serve_projections_over_http(
     assert ebody["analysis_id"] != execution_id
     # Execution-detail provenance (frozen fields only, invariants 4/7).
     assert ebody["transport_model"] == GEMINI_MODEL
-    assert ebody["retrieval_enabled"] is False
+    assert ebody["retrieval_enabled"] is True
     assert "mode" not in ebody
 
     # Exports with correct media types.
@@ -224,10 +224,10 @@ async def test_endpoints_serve_projections_over_http(
     md_resp = await client.get(f"/api/v1/audits/{audit.id}/export.md", headers=headers)
     assert md_resp.status_code == 200
     assert md_resp.headers["content-type"].startswith("text/markdown")
-    assert "# AI Search Visibility Benchmark" in md_resp.text
+    assert "# AI Search Visibility Audit" in md_resp.text
     # Markdown metadata identifies the measurement mode + aggregate provenance.
     assert "- **Model provenance:**" in md_resp.text
-    assert f"`gemini` via `google` model `{GEMINI_MODEL}` (retrieval off)" in (
+    assert f"`gemini` via `google` model `{GEMINI_MODEL}` (retrieval on)" in (
         md_resp.text
     )
 
@@ -416,17 +416,7 @@ async def test_trends_endpoint_query_parsing_and_422(
     )
     assert naive.status_code == 422
 
-    bad_mode = await client.get()
-    assert bad_mode.status_code == 422
-
-    # Valid identity slices parse and filter before folding; the seeded audit
-    # (frozen Pulse mode, unrecorded model/retrieval) only matches Pulse.
-    mode_slice = await client.get()
-    assert mode_slice.status_code == 200
-    assert len(mode_slice.json()) == 1
-    benchmark_slice = await client.get()
-    assert benchmark_slice.status_code == 200
-    assert benchmark_slice.json() == []
+    # Valid identity slices parse and filter before folding.
     retrieval_slice = await client.get(
         base, params={"retrieval_enabled": "true"}, headers=headers
     )

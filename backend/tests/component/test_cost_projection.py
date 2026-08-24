@@ -18,7 +18,6 @@ from app.core.config.costs import (
     EXECUTION_COST_FORMULA_VERSION,
     PRICING_CATALOG_VERSION,
     PROJECTION_STATUS_COMPLETE,
-    PROJECTION_STATUS_PARTIAL,
     ROUTE_CLAUDE,
     RoutePricing,
 )
@@ -154,11 +153,12 @@ async def test_append_repricing_inserts_once_by_composite_identity(
     assert first.search_requests == 2
     assert first.cached_input_tokens is None
     assert first.reasoning_tokens is None
-    assert first.uncached_input_cost_microusd == 1_000
-    assert first.output_cost_microusd == 2_500
-    assert first.projected_total_cost_microusd is None
+    assert first.uncached_input_cost_microusd == 3_000
+    assert first.output_cost_microusd == 7_500
+    assert first.search_cost_microusd == 20_000
+    assert first.projected_total_cost_microusd == 30_500
     assert first.provider_reported_cost_microusd is None
-    assert first.projection_status == PROJECTION_STATUS_PARTIAL
+    assert first.projection_status == PROJECTION_STATUS_COMPLETE
     # Provenance: the actual persisted ProviderAttempt rows, not a budget.
     assert first.attempt_count == 1
 
@@ -199,8 +199,8 @@ async def test_two_pricing_versions_coexist_for_one_artifact(
     assert v2.search_cost_microusd == 70_000
     assert v2.projected_total_cost_microusd == 73_000
     # The prior version's row is untouched (append-only).
-    assert v1.projection_status == PROJECTION_STATUS_PARTIAL
-    assert v1.projected_total_cost_microusd is None
+    assert v1.projection_status == PROJECTION_STATUS_COMPLETE
+    assert v1.projected_total_cost_microusd == 30_500
 
 
 async def test_append_repricing_returns_none_for_unknown_version_or_artifact(

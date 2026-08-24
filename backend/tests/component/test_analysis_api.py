@@ -181,7 +181,7 @@ async def test_metrics_and_visibility_are_projections(
                 "logical_engine": ENGINE_GEMINI,
                 "transport_provider": TRANSPORT_GOOGLE,
                 "transport_model": GEMINI_MODEL,
-                "retrieval_enabled": False,
+                    "retrieval_enabled": True,
             }
         ]
         # Vocabulary lock: no ``mode`` alias is ever emitted.
@@ -274,7 +274,7 @@ async def test_execution_evidence_projection(
         # Execution-level provenance: the exact singular model plus the frozen
         # mode/retrieval state the call executed under (inv. 4/7, 10).
         assert evidence.transport_model == GEMINI_MODEL
-        assert evidence.retrieval_enabled is False
+        assert evidence.retrieval_enabled is True
         assert "mode" not in evidence.model_dump()
         # Roadmap fields present but null.
         assert evidence.sentiment is None
@@ -310,7 +310,7 @@ async def test_exports_render_from_persisted_rows(
         assert len(csv_body.strip().splitlines()) == 1 + 4
 
         md_body = audit_to_markdown(loaded_audit, tasks)
-        assert "# AI Search Visibility Benchmark" in md_body
+        assert "# AI Search Visibility Audit" in md_body
         assert "## Headline Metrics" in md_body
         assert "## Methodology" in md_body
 

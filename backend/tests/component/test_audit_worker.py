@@ -20,7 +20,7 @@ from app.core.config.audits import (
 from app.core.config.costs import (
     EXECUTION_COST_FORMULA_VERSION,
     PRICING_CATALOG_VERSION,
-    PROJECTION_STATUS_PARTIAL,
+    PROJECTION_STATUS_COMPLETE,
 )
 from app.core.config.provider_catalog import (
     ENGINE_CHATGPT,
@@ -96,19 +96,20 @@ async def test_worker_runs_all_tasks_and_finalizes(
         )
         assert cost_projection is not None
         # Legacy total keys map to uncached-input/output; cache/reasoning
-        # splits and provider cost are unknown — null, never zero. The Gemini
-        # Pulse token rates are verified, but its search-fee line is not, so
-        # the complete projection remains partial.
+        # splits and provider cost are unknown — null, never zero. The exact
+        # Gemini audit route has verified token and search rates.
         assert cost_projection.uncached_input_tokens == 10
         assert cost_projection.output_tokens == 20
         assert cost_projection.total_tokens == 30
         assert cost_projection.search_requests == 1
         assert cost_projection.cached_input_tokens is None
         assert cost_projection.reasoning_tokens is None
-        assert cost_projection.uncached_input_cost_microusd == 3
-        assert cost_projection.projected_total_cost_microusd is None
+        assert cost_projection.uncached_input_cost_microusd == 15
+        assert cost_projection.output_cost_microusd == 150
+        assert cost_projection.search_cost_microusd == 14_000
+        assert cost_projection.projected_total_cost_microusd == 14_165
         assert cost_projection.provider_reported_cost_microusd is None
-        assert cost_projection.projection_status == PROJECTION_STATUS_PARTIAL
+        assert cost_projection.projection_status == PROJECTION_STATUS_COMPLETE
         assert cost_projection.formula_version == EXECUTION_COST_FORMULA_VERSION
         assert cost_projection.pricing_version == PRICING_CATALOG_VERSION
         # Provenance: one actual persisted ProviderAttempt for this task, and
@@ -323,7 +324,7 @@ async def test_worker_persists_openai_provenance(
         assert task.status == "succeeded"
         assert task.logical_engine == ENGINE_CHATGPT
         assert task.transport_provider == TRANSPORT_OPENAI
-        assert task.transport_model == "gpt-5.4-nano-2026-03-17"
+        assert task.transport_model == "gpt-5.6-sol"
         assert task.result_artifact_id is not None
 
 

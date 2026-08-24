@@ -35,9 +35,9 @@ from app.connectors.answer_engines.openai_parser import parse_openai_response
 from app.core.config.provider_catalog import measurement_route
 
 _FIXTURE_DIR = Path(__file__).resolve().parent.parent / "fixtures"
-_CHATGPT_BENCHMARK_MODEL = measurement_route("chatgpt").transport_model
-_CLAUDE_BENCHMARK_MODEL = measurement_route("claude").transport_model
-_GEMINI_BENCHMARK_MODEL = measurement_route("gemini").transport_model
+_CHATGPT_BENCHMARK_MODEL = measurement_route("chatgpt", "benchmark").transport_model
+_CLAUDE_BENCHMARK_MODEL = measurement_route("claude", "benchmark").transport_model
+_GEMINI_BENCHMARK_MODEL = measurement_route("gemini", "benchmark").transport_model
 
 
 def _load_fixture(name: str) -> dict:
@@ -218,7 +218,7 @@ async def test_gemini_adapter_maps_http_error() -> None:
             AnswerEngineRequest(
                 prompt="x",
                 system_instruction="",
-                model=measurement_route("gemini").transport_model,
+                model=measurement_route("gemini", "pulse").transport_model,
                 timeout_seconds=5,
                 retrieval_enabled=False,
                 max_output_tokens=600,
@@ -239,7 +239,7 @@ async def test_gemini_adapter_handles_malformed_error_payload() -> None:
             AnswerEngineRequest(
                 prompt="x",
                 system_instruction="",
-                model=measurement_route("gemini").transport_model,
+                model=measurement_route("gemini", "pulse").transport_model,
                 timeout_seconds=5,
                 retrieval_enabled=False,
                 max_output_tokens=600,

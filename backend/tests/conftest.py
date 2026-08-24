@@ -172,8 +172,8 @@ def _seed_test_funded_cost_observation(monkeypatch: pytest.MonkeyPatch) -> None:
         ROUTE_CLAUDE,
         _ExpectedCostEstimate(
             token_cost_microusd=2_890,
-            search_fee_microusd=None,
-            expected_searches=None,
+            search_fee_microusd=10_000,
+            expected_searches=3,
         ),
     )
 
