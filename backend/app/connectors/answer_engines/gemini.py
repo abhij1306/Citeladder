@@ -90,7 +90,7 @@ def _build_payload(request: AnswerEngineRequest) -> dict[str, Any]:
     """Build the Interactions body from the FROZEN request policy only.
 
     ``retrieval_enabled`` decides whether the ``google_search`` grounding tool
-    is attached at all (a non-retrieval call omits it entirely, which is what makes it
+    is attached at all (a pulse call omits it entirely, which is what makes it
     cheap); ``max_output_tokens`` is the output cap, falling back to the
     configured catalog cap when unsupplied (invariant 1). Nothing is re-read
     from live settings that the request already froze (invariant 9).
@@ -118,7 +118,7 @@ def _build_payload(request: AnswerEngineRequest) -> dict[str, Any]:
 def _grounding_fields(request: AnswerEngineRequest) -> dict[str, Any]:
     """The grounding-tool field, or no field at all when retrieval is off.
 
-    A non-retrieval call must OMIT the tool key entirely rather than send an empty
+    A pulse call must OMIT the tool key entirely rather than send an empty
     list — that omission is what keeps it cheap.
     """
     if not request.retrieval_enabled:

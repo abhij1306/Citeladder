@@ -18,7 +18,7 @@ export type LaunchSelection = {
   promptSetId: string | null;
   engines: LogicalEngine[];
   repetitions: number;
-  measurementMode: 'pulse' | 'benchmark';
+  auditScope?: 'brand' | 'commerce';
 };
 
 /** Clamp a repetition count into the backend-accepted range. */
@@ -49,7 +49,7 @@ export function buildLaunchPayload(selection: LaunchSelection): LaunchAuditInput
     prompt_set_id: selection.promptSetId,
     engines: [...selection.engines],
     repetitions: clampRepetitions(selection.repetitions),
-    measurement_mode: selection.measurementMode,
+    audit_scope: selection.auditScope ?? 'brand',
   };
 }
 

@@ -66,8 +66,7 @@ export function transportLabel(key: string): string {
 /** The single fixed direct route on an engine card. */
 export type EngineRouteOption = {
   transport_provider: TransportProvider;
-  pulse_model: string;
-  benchmark_model: string;
+  model: string;
   /** Toggle-free label, e.g. "Direct (OpenAI)". */
   label: string;
 };
@@ -133,17 +132,14 @@ export function buildEngineCards(
 
   const shipped = ENGINE_ORDER.map((engine) => {
     const approved = byEngine.get(engine)?.routes ?? [];
-    const pulse = approved.find((entry) => entry.measurement_mode === 'pulse');
-    const benchmark = approved.find((entry) => entry.measurement_mode === 'benchmark');
-    const route: EngineRouteOption | null =
-      pulse && benchmark
-        ? {
-            transport_provider: pulse.transport_provider,
-            pulse_model: pulse.transport_model,
-            benchmark_model: benchmark.transport_model,
-            label: directLabel(pulse.transport_provider),
-          }
-        : null;
+    const approvedRoute = approved[0];
+    const route: EngineRouteOption | null = approvedRoute
+      ? {
+          transport_provider: approvedRoute.transport_provider,
+          model: approvedRoute.transport_model,
+          label: directLabel(approvedRoute.transport_provider),
+        }
+      : null;
     const entry = byKey.get(engine) ?? byKey.get(`provider.${engine}`);
     return {
       logical_engine: engine,
@@ -244,7 +240,7 @@ export function discoveryModelOptions(
       logical_engine: engine.logical_engine,
       transport_provider: route.transport_provider,
       transport_model: route.transport_model,
-      label: `${ENGINE_LABELS[engine.logical_engine]} · ${route.measurement_mode} · ${TRANSPORT_LABELS[route.transport_provider]} · ${route.transport_model}`,
+      label: `${ENGINE_LABELS[engine.logical_engine]} · ${TRANSPORT_LABELS[route.transport_provider]} · ${route.transport_model}`,
     })),
   );
 }
