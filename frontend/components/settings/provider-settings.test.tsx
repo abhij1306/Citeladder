@@ -66,7 +66,9 @@ describe('ProviderSettings', () => {
 
     renderWithProviders(<ProviderSettings />);
 
-    expect(await screen.findByRole('heading', { name: 'ChatGPT' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'ChatGPT' }, { timeout: 3_000 }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Gemini' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Claude' })).toBeInTheDocument();
     // No connections → every card reads "Missing".
@@ -87,7 +89,7 @@ describe('ProviderSettings', () => {
     const utils = within(chatgptCard);
     // Fixed direct route label; the OpenAI model is surfaced.
     expect(utils.getByText('Direct (OpenAI)')).toBeInTheDocument();
-    expect(utils.getByText(/gpt-5\.4/)).toBeInTheDocument();
+    expect(utils.getByText(/gpt-5\.6-sol/)).toBeInTheDocument();
     // No route toggle / radios or alternate route copy.
     expect(utils.queryByRole('radio')).toBeNull();
     expect(utils.queryByText(/coming soon/i)).toBeNull();

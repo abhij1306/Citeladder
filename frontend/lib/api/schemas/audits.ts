@@ -51,7 +51,6 @@ export const auditSchema = responseObject({
   project_id: uuid(),
   status: auditStatusSchema,
   benchmark_mode: z.string(),
-  measurement_mode: z.enum(['pulse', 'benchmark']).default('benchmark'),
   audit_scope: z.enum(['brand', 'commerce']).default('brand'),
   model_provenance: z.array(modelProvenanceSchema).default([]),
   repetitions: z.number().int(),

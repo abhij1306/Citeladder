@@ -99,9 +99,7 @@ MEASUREMENT_ROUTES: Final[dict[str, MeasurementRoute]] = {
 }
 
 
-def measurement_route(
-    logical_engine: str, _shipping_mode: str | None = None
-) -> MeasurementRoute:
+def measurement_route(logical_engine: str) -> MeasurementRoute:
     """Return one exact executable route; unknown identities fail closed."""
     route = MEASUREMENT_ROUTES.get(logical_engine)
     if route is None:

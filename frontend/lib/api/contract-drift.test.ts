@@ -48,14 +48,12 @@ describe('componentProperties', () => {
 
 describe('declaredKeysFor', () => {
   it('splits declared keys into required vs absent-tolerant', () => {
-    // auditSchema: required ids/counts; measurement_mode has a default so it
-    // tolerates an absent key from audits created before mode freezing.
     const keys = declaredKeysFor('auditSchema');
     expect(keys).not.toBeNull();
     expect(keys?.declared).toContain('id');
-    expect(keys?.declared).toContain('measurement_mode');
+    expect(keys?.declared).toContain('audit_scope');
     expect(keys?.required).toContain('id');
-    expect(keys?.required).not.toContain('measurement_mode');
+    expect(keys?.required).not.toContain('audit_scope');
   });
 
   it('resolves page wrappers and arrays to their object shape', () => {
@@ -114,10 +112,10 @@ describe('diffContract', () => {
     expect(drift?.additive).toEqual(['A_field', 'z_field', 'ä_field']);
   });
 
-  it('does NOT fail when an absent-tolerant (defaulted) field is missing', () => {
+  it('does NOT fail when an absent-tolerant scope field is missing', () => {
     const auditKeys = declaredKeysFor('auditSchema');
     const properties = Object.fromEntries(
-      (auditKeys?.declared ?? []).filter((k) => k !== 'measurement_mode').map((k) => [k, {}]),
+      (auditKeys?.declared ?? []).filter((k) => k !== 'audit_scope').map((k) => [k, {}]),
     );
     const result = diffContract(
       specWith({ ...realComponentsExcept(['AuditResponse']), AuditResponse: { properties } }),
