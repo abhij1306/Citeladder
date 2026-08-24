@@ -88,7 +88,9 @@ function PromptSetup({ queries }: Readonly<{ queries: OverviewQueries }>) {
           <Button
             onClick={() => queries.generatePromptsMutation.mutate({})}
             disabled={
-              queries.generatePromptsMutation.isPending || queries.missingCategorySkus.length > 0
+              !queries.setupReady ||
+              queries.generatePromptsMutation.isPending ||
+              queries.missingCategorySkus.length > 0
             }
           >
             {queries.generatePromptsMutation.isPending
@@ -253,7 +255,9 @@ function CommercePrompts({ queries }: Readonly<{ queries: OverviewQueries }>) {
       </CardHeader>
       <CardContent className="grid gap-4">
         {queries.categories.map((category) => {
-          const topic = queries.topicsQuery.data?.find((item) => item.name === category);
+          const topic = queries.topicsQuery.data?.find(
+            (item) => categoryIdentity(item.name) === categoryIdentity(category),
+          );
           const rows = prompts.filter((prompt) => prompt.topic_id === topic?.id);
           return (
             <div key={category} className="grid gap-1">
@@ -275,6 +279,13 @@ function CommercePrompts({ queries }: Readonly<{ queries: OverviewQueries }>) {
             Regenerate
           </Button>
         </div>
+        {queries.generatePromptsMutation.isError ? (
+          <Alert tone="danger">
+            {queries.generatePromptsMutation.error instanceof Error
+              ? queries.generatePromptsMutation.error.message
+              : 'Prompt regeneration failed.'}
+          </Alert>
+        ) : null}
       </CardContent>
     </Card>
   );

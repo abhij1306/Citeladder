@@ -27,6 +27,7 @@ function queriesWith(prompts: Array<{ topic_id: string; intent: string }>): Over
         status: 'active',
       })),
     },
+    setupReady: true,
     generatePromptsMutation: {
       mutate: vi.fn(),
       isPending: false,

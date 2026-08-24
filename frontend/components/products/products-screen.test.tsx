@@ -104,7 +104,7 @@ describe('ProductsScreen tabs', () => {
     urlTab = 'opportunities';
     render(<ProductsScreen />);
     expect(enabledCalls.opportunities).toHaveBeenLastCalledWith(true);
-    expect(enabledCalls.overview).toHaveBeenLastCalledWith(true);
+    expect(enabledCalls.overview).toHaveBeenLastCalledWith(false);
     expect(enabledCalls.catalog).toHaveBeenLastCalledWith(false);
     expect(enabledCalls.visibility).toHaveBeenLastCalledWith(false);
   });

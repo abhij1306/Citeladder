@@ -100,7 +100,7 @@ export function ProductImportDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title="Import products from CSV"
-      description="Columns: name, sku, brand, category, price, currency, url, gtin, mpn, availability, condition, description, aliases (header row required)."
+      description="Columns: name, sku, variant, brand, category, price, currency, url, gtin, mpn, availability, condition, description, aliases (header row required)."
       className="w-215"
       footer={
         <>

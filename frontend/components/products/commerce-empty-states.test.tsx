@@ -36,7 +36,7 @@ describe('Commerce first-run states', () => {
     expect(
       screen.getByRole('heading', { name: 'Add products before measuring Commerce visibility' }),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Add products' }));
+    await user.click(screen.getByRole('button', { name: 'Import CSV' }));
     expect(onSelectTab).toHaveBeenCalledWith('catalog');
   });
 
@@ -70,12 +70,38 @@ describe('Commerce first-run states', () => {
       <CommerceOverviewPanel
         queries={
           {
-            productsQuery: { isLoading: false, isError: false, data: [{ id: 'product-1' }] },
+            productsQuery: {
+              isLoading: false,
+              isError: false,
+              data: [{ id: 'product-1', attributes: { category: 'Books' } }],
+            },
             visibilityQuery: {
               ...missingVisibility,
               error: new ApiError('Server error', 500, '{}'),
             },
             opportunitiesQuery: { data: undefined },
+            missingCategorySkus: [],
+            categories: ['Books'],
+            topicsQuery: { data: [{ id: 'topic-books', name: 'Books' }] },
+            commercePromptSet: {
+              prompts: [
+                {
+                  id: 'prompt-discovery',
+                  topic_id: 'topic-books',
+                  cohort: 'commerce',
+                  status: 'active',
+                  intent: 'discovery',
+                },
+                {
+                  id: 'prompt-comparison',
+                  topic_id: 'topic-books',
+                  cohort: 'commerce',
+                  status: 'active',
+                  intent: 'comparison',
+                },
+              ],
+            },
+            commerceAudits: [],
           } as never
         }
         onSelectTab={vi.fn()}

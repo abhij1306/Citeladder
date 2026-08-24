@@ -50,16 +50,16 @@ export function normalizeProductsTab(value: string | null | undefined): Products
 
 /** Stable case-insensitive identity for uploaded catalog categories and topics. */
 export function categoryIdentity(value: unknown): string {
-  return String(value ?? '')
-    .trim()
-    .toLocaleLowerCase();
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 /** One display category per identity, preserving the first uploaded spelling. */
 export function catalogCategories(products: readonly { attributes: Record<string, unknown> }[]) {
   const categories = new Map<string, string>();
   for (const product of products) {
-    const category = String(product.attributes.category ?? '').trim();
+    const rawCategory = product.attributes.category;
+    if (typeof rawCategory !== 'string') continue;
+    const category = rawCategory.trim();
     const identity = categoryIdentity(category);
     if (category && !categories.has(identity)) categories.set(identity, category);
   }

@@ -111,8 +111,10 @@ function requireCommerceGenerationInputs(
   projectId: string | null,
   missingCategorySkus: string[],
   categories: string[],
+  setupReady: boolean,
 ): asserts projectId is string {
   if (!projectId) throw new Error('Select a project first.');
+  if (!setupReady) throw new Error('Wait for Commerce setup data to finish loading.');
   if (missingCategorySkus.length) {
     throw new Error(`Add a category for these SKUs: ${missingCategorySkus.join(', ')}`);
   }
@@ -148,13 +150,13 @@ async function ensureCategoryTopic(
   return created;
 }
 
-async function removeCategoryPrompts(promptSetId: string, topicId: string) {
-  const current = await promptsApi.getPromptSet(promptSetId);
-  await Promise.all(
-    current.prompts
+function topicPromptsAreComplete(prompts: PromptSet['prompts'], topicId: string) {
+  const intents = new Set(
+    prompts
       .filter((prompt) => prompt.cohort === 'commerce' && prompt.topic_id === topicId)
-      .map((prompt) => promptsApi.deletePrompt(prompt.id)),
+      .map((prompt) => prompt.intent),
   );
+  return intents.has('discovery') && intents.has('comparison');
 }
 
 async function generateCommercePortfolio({
@@ -164,6 +166,7 @@ async function generateCommercePortfolio({
   commercePromptSet,
   availableTopics,
   regenerate,
+  setupReady,
 }: {
   projectId: string | null;
   missingCategorySkus: string[];
@@ -171,20 +174,29 @@ async function generateCommercePortfolio({
   commercePromptSet: PromptSet | undefined;
   availableTopics: Topic[];
   regenerate: boolean;
+  setupReady: boolean;
 }) {
-  requireCommerceGenerationInputs(projectId, missingCategorySkus, categories);
+  requireCommerceGenerationInputs(projectId, missingCategorySkus, categories, setupReady);
   const promptSet = await ensureCommercePromptSet(projectId, commercePromptSet);
   const topics = [...availableTopics];
+  const currentPrompts = (await promptsApi.getPromptSet(promptSet.id)).prompts;
+  const replacedPromptIds: string[] = [];
   for (const category of categories) {
     const topic = await ensureCategoryTopic(projectId, topics, category);
-    if (regenerate) await removeCategoryPrompts(promptSet.id, topic.id);
+    if (!regenerate && topicPromptsAreComplete(currentPrompts, topic.id)) continue;
     await promptsApi.generate(promptSet.id, {
       count: 2,
       topic_id: topic.id,
       intents: ['discovery', 'comparison'],
       cohort: 'commerce',
     });
+    replacedPromptIds.push(
+      ...currentPrompts
+        .filter((prompt) => prompt.cohort === 'commerce' && prompt.topic_id === topic.id)
+        .map((prompt) => prompt.id),
+    );
   }
+  await Promise.all(replacedPromptIds.map((promptId) => promptsApi.deletePrompt(promptId)));
   return promptsApi.getPromptSet(promptSet.id);
 }
 
@@ -231,7 +243,7 @@ function useCommerceSetupQueries(projectId: string | null, enabled: boolean) {
 
 function uncategorizedSkus(products: Awaited<ReturnType<typeof productsApi.list>>) {
   return products
-    .filter((product) => !String(product.attributes.category ?? '').trim())
+    .filter((product) => !categoryIdentity(product.attributes.category))
     .map((product) => product.sku);
 }
 
@@ -253,6 +265,7 @@ export function useCommerceOverview(projectId: string | null, enabled = true) {
   const commercePromptSet = (promptSetsQuery.data ?? []).find(
     (set) => set.name === 'Commerce Product Visibility',
   );
+  const setupReady = promptSetsQuery.isSuccess && topicsQuery.isSuccess;
   const generatePromptsMutation = useMutation({
     mutationFn: ({ regenerate = false }: { regenerate?: boolean } = {}) =>
       generateCommercePortfolio({
@@ -262,6 +275,7 @@ export function useCommerceOverview(projectId: string | null, enabled = true) {
         commercePromptSet,
         availableTopics: topicsQuery.data ?? [],
         regenerate,
+        setupReady,
       }),
     onSuccess: async () => {
       await Promise.all([
@@ -283,6 +297,7 @@ export function useCommerceOverview(projectId: string | null, enabled = true) {
     categories,
     missingCategorySkus,
     commercePromptSet,
+    setupReady,
     commerceAudits,
     generatePromptsMutation,
   };

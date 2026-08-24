@@ -42,6 +42,8 @@ describe('catalog category identity', () => {
 
     expect(catalogCategories(products)).toEqual(['Books', 'Games']);
     expect(categoryIdentity(' BOOKS ')).toBe(categoryIdentity('books'));
+    expect(categoryIdentity({ category: 'Books' })).toBe('');
+    expect(catalogCategories([{ attributes: { category: { name: 'Books' } } }])).toEqual([]);
   });
 });
 

@@ -42,7 +42,7 @@ export function ProductsScreen() {
   const { activeTab, selectTab } = useProductsTab();
   const router = useRouter();
   const [launchOpen, setLaunchOpen] = useState(false);
-  const overviewQueries = useCommerceOverview(projectId, true);
+  const overviewQueries = useCommerceOverview(projectId, activeTab === 'overview');
   const catalogQueries = useCatalogQueries(projectId, activeTab === 'catalog');
   const visibilityQueries = useProductVisibilityQueries(projectId, activeTab === 'visibility');
   const opportunityQueries = useCommerceOpportunities(projectId, activeTab === 'opportunities');
@@ -59,9 +59,7 @@ export function ProductsScreen() {
         projectId={projectId}
         queries={visibilityQueries}
         onAddProducts={() => selectTab('catalog')}
-        onLaunchAudit={() =>
-          overviewQueries.commercePromptSet ? setLaunchOpen(true) : selectTab('overview')
-        }
+        onLaunchAudit={() => setLaunchOpen(true)}
       />
     ) : activeTab === 'opportunities' ? (
       <CommerceOpportunitiesPanel queries={opportunityQueries} />
