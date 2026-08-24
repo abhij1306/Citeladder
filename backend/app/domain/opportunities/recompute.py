@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import replace
-from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.opportunities.detectors import (
     AnalysisEvidence,
-    CategoryCitationEvidence,
     CommerceEvidence,
     DetectorHit,
     ProductEntryEvidence,
@@ -56,6 +54,9 @@ from app.core.config.site_health_contracts import (
 )
 from app.core.config.site_health_rules import (
     FINDING_CLASS_DEFECT,
+)
+from app.domain.opportunities.category_citations import (
+    load_category_citation_evidence,
 )
 from app.domain.opportunities.change_hits import load_change_hits
 from app.domain.opportunities.common import (
@@ -432,82 +433,6 @@ def _project_commerce_entries(config, by_entry) -> list[ProductEntryEvidence]:
     return own
 
 
-async def _category_citation_evidence(
-    session: AsyncSession, *, audit: Audit, config
-) -> tuple[CategoryCitationEvidence, ...]:
-    prompts = {
-        row.prompt_index: row.theme
-        for row in (
-            await session.scalars(
-                select(AuditPromptSnapshot).where(
-                    AuditPromptSnapshot.audit_id == audit.id
-                )
-            )
-        ).all()
-    }
-    analyses = list(
-        (
-            await session.scalars(
-                select(ResponseAnalysis).where(
-                    ResponseAnalysis.audit_id == audit.id,
-                    ResponseAnalysis.cohort == "commerce",
-                )
-            )
-        ).all()
-    )
-    analysis_by_id = {row.id: row for row in analyses}
-    citations = (
-        list(
-            (
-                await session.scalars(
-                    select(Citation).where(Citation.analysis_id.in_(analysis_by_id))
-                )
-            ).all()
-        )
-        if analysis_by_id
-        else []
-    )
-    uploaded_domains = {
-        (urlparse(product.url).hostname or "").casefold().removeprefix("www.")
-        for product in config.products
-        if product.url
-    }
-    categories = sorted(
-        {product.category for product in config.products if product.category}
-    )
-    evidence = []
-    for category in categories:
-        category_ids = {
-            row.id
-            for row in analyses
-            if prompts.get(row.prompt_index, "").casefold() == category.casefold()
-        }
-        rows = [
-            citation for citation in citations if citation.analysis_id in category_ids
-        ]
-        owned = sum(
-            1
-            for citation in rows
-            if _citation_domain(citation) in uploaded_domains
-        )
-        evidence.append(
-            CategoryCitationEvidence(
-                category=category,
-                third_party_citation_count=len(rows) - owned,
-                uploaded_destination_citation_count=owned,
-                source_analysis_ids=tuple(sorted(str(value) for value in category_ids)),
-            )
-        )
-    return tuple(evidence)
-
-
-def _citation_domain(citation: Citation) -> str:
-    """Prefer persisted citation identity, falling back to its URL host."""
-    return (
-        citation.domain or (urlparse(citation.url).hostname or "")
-    ).casefold().removeprefix("www.")
-
-
 async def _load_commerce_evidence(
     session: AsyncSession, *, workspace_id: uuid.UUID, audit: Audit
 ) -> CommerceEvidence:
@@ -545,7 +470,7 @@ async def _load_commerce_evidence(
     return CommerceEvidence(
         audit_id=audit.id,
         entries=tuple(entries),
-        category_citations=await _category_citation_evidence(
+        category_citations=await load_category_citation_evidence(
             session, audit=audit, config=config
         ),
     )

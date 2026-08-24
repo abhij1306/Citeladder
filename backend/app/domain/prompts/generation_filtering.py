@@ -95,6 +95,57 @@ def _identity_is_valid(
     )
 
 
+def _commerce_prompt_is_valid(
+    prompt: SuggestedPrompt,
+    *,
+    category_names: list[str],
+    all_names: list[str],
+) -> bool:
+    if prompt.intent == "discovery":
+        return not contains_tracked_name(prompt.text, all_names)
+    if prompt.intent == "comparison":
+        return contains_tracked_name(prompt.text, category_names)
+    return True
+
+
+def _prompt_is_valid(
+    prompt: SuggestedPrompt,
+    *,
+    cohort: str,
+    normalized: str,
+    accepted: list[str],
+    positioning: frozenset[str],
+    openings: dict[str, int],
+    brand_terms: list[str],
+    competitor_terms: list[str],
+) -> bool:
+    return _identity_is_valid(
+        prompt,
+        cohort=cohort,
+        brand_terms=brand_terms,
+        competitor_terms=competitor_terms,
+    ) and _style_is_valid(
+        prompt,
+        normalized,
+        accepted,
+        positioning=positioning,
+        openings=openings,
+    )
+
+
+def _commerce_product_names(
+    brand_context: dict[str, Any], category: str | None = None
+) -> list[str]:
+    products = brand_context.get("commerce_products", [])
+    if category is not None:
+        products = [
+            product
+            for product in products
+            if str(product.get("category") or "").casefold() == category.casefold()
+        ]
+    return [str(product.get("name") or "") for product in products]
+
+
 def _drop_invalid_prompts(
     suggestions: list[SuggestedTopic],
     brand_context: dict[str, Any],
@@ -107,41 +158,27 @@ def _drop_invalid_prompts(
     positioning = _positioning_shingles(brand_context)
     brand_terms, competitor_terms = _identity_terms(brand_context)
     topics: list[SuggestedTopic] = []
-    all_commerce_names = [
-        str(product.get("name") or "")
-        for product in brand_context.get("commerce_products", [])
-    ]
+    all_commerce_names = _commerce_product_names(brand_context)
     for topic in suggestions:
-        commerce_names = [
-            str(product.get("name") or "")
-            for product in brand_context.get("commerce_products", [])
-            if str(product.get("category") or "").casefold() == topic.name.casefold()
-        ]
+        commerce_names = _commerce_product_names(brand_context, topic.name)
         rows: list[SuggestedPrompt] = []
         for prompt in topic.prompts:
-            if cohort == "commerce":
-                names_category_product = contains_tracked_name(
-                    prompt.text, commerce_names
-                )
-                names_any_product = contains_tracked_name(
-                    prompt.text, all_commerce_names
-                )
-                if (prompt.intent == "discovery" and names_any_product) or (
-                    prompt.intent == "comparison" and not names_category_product
-                ):
-                    continue
+            if cohort == "commerce" and not _commerce_prompt_is_valid(
+                prompt,
+                category_names=commerce_names,
+                all_names=all_commerce_names,
+            ):
+                continue
             normalized = " ".join(prompt.text.casefold().split())
-            if not _identity_is_valid(
+            if not _prompt_is_valid(
                 prompt,
                 cohort=cohort,
-                brand_terms=brand_terms,
-                competitor_terms=competitor_terms,
-            ) or not _style_is_valid(
-                prompt,
-                normalized,
-                accepted,
+                normalized=normalized,
+                accepted=accepted,
                 positioning=positioning,
                 openings=openings,
+                brand_terms=brand_terms,
+                competitor_terms=competitor_terms,
             ):
                 continue
             accepted.append(normalized)

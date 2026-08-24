@@ -16,7 +16,6 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from typing import Any, cast
-from urllib.parse import urlparse
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,10 +37,8 @@ from app.core.config.products import (
 )
 from app.core.config.provider_catalog import LOGICAL_ENGINES
 from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
+from app.domain.products.commerce_citations import commerce_citation_comparison
 from app.domain.products.schemas import (
-    CommerceCategoryCitations,
-    CommerceCitationComparison,
-    CommerceCitedSource,
     FrozenPromptContext,
     ProductVisibilityEntry,
     ProductVisibilityResponse,
@@ -49,7 +46,6 @@ from app.domain.products.schemas import (
     ProductVisibilityTrendPoint,
     ProductVisibilityTrendResponse,
 )
-from app.models.analysis import Citation, ResponseAnalysis
 from app.models.audit import Audit, AuditPromptSnapshot, AuditTask
 from app.models.product import (
     Product,
@@ -288,135 +284,6 @@ def _engine_coverage(snapshot: ProductMetricSnapshot, engine: str | None) -> int
     )
 
 
-def _url_domain(value: str) -> str:
-    try:
-        return (urlparse(value).hostname or "").casefold().removeprefix("www.")
-    except ValueError:
-        return ""
-
-
-async def _commerce_citation_comparison(
-    session: AsyncSession, *, audit: Audit, config: ProductScoringConfig
-) -> CommerceCitationComparison:
-    products_by_category: dict[str, list[str]] = {}
-    owned_domains: set[str] = set()
-    for product in config.products:
-        category = str((product.attributes or {}).get("category") or "").strip()
-        if category:
-            products_by_category.setdefault(category, []).append(product.name)
-        domain = _url_domain(product.url)
-        if domain:
-            owned_domains.add(domain)
-    analyses = list(
-        (
-            await session.execute(
-                select(ResponseAnalysis, AuditPromptSnapshot)
-                .join(AuditTask, AuditTask.id == ResponseAnalysis.task_id)
-                .join(
-                    AuditPromptSnapshot,
-                    AuditPromptSnapshot.id == AuditTask.prompt_snapshot_id,
-                )
-                .where(
-                    ResponseAnalysis.audit_id == audit.id,
-                    ResponseAnalysis.cohort == "commerce",
-                )
-            )
-        ).all()
-    )
-    analysis_context = {
-        analysis.id: (prompt.theme, analysis.logical_engine, analysis.prompt_index)
-        for analysis, prompt in analyses
-    }
-    citations = (
-        list(
-            (
-                await session.scalars(
-                    select(Citation).where(
-                        Citation.audit_id == audit.id,
-                        Citation.analysis_id.in_(analysis_context),
-                    )
-                )
-            ).all()
-        )
-        if analysis_context
-        else []
-    )
-    rows: list[CommerceCategoryCitations] = []
-    for category in sorted(products_by_category):
-        category_analyses = {
-            analysis_id
-            for analysis_id, context in analysis_context.items()
-            if context[0].casefold() == category.casefold()
-        }
-        category_citations = [
-            c for c in citations if c.analysis_id in category_analyses
-        ]
-        grouped: dict[tuple[str, str], list[Citation]] = {}
-        for citation in category_citations:
-            domain = (
-                (citation.domain or _url_domain(citation.url))
-                .casefold()
-                .removeprefix("www.")
-            )
-            grouped.setdefault((domain, citation.title or domain), []).append(citation)
-        sources = []
-        for (domain, title), source_rows in grouped.items():
-            sources.append(
-                CommerceCitedSource(
-                    domain=domain,
-                    title=title,
-                    representative_url=source_rows[0].url,
-                    citation_count=len(source_rows),
-                    distinct_prompts=len(
-                        {analysis_context[row.analysis_id][2] for row in source_rows}
-                    ),
-                    distinct_engines=len(
-                        {analysis_context[row.analysis_id][1] for row in source_rows}
-                    ),
-                    citation_ids=[row.id for row in source_rows],
-                    analysis_ids=sorted(
-                        {row.analysis_id for row in source_rows}, key=str
-                    ),
-                    artifact_ids=sorted(
-                        {row.artifact_id for row in source_rows}, key=str
-                    ),
-                )
-            )
-        sources.sort(
-            key=lambda source: (-source.citation_count, source.domain, source.title)
-        )
-        owned_count = sum(
-            1
-            for citation in category_citations
-            if (citation.domain or _url_domain(citation.url))
-            .casefold()
-            .removeprefix("www.")
-            in owned_domains
-        )
-        rows.append(
-            CommerceCategoryCitations(
-                category=category,
-                response_count=len(category_analyses),
-                uploaded_products=sorted(products_by_category[category]),
-                uploaded_commerce_citation_count=owned_count,
-                third_party_citation_count=len(category_citations) - owned_count,
-                cited_sources=sources,
-            )
-        )
-    has_citations = any(row.cited_sources for row in rows)
-    return CommerceCitationComparison(
-        status="available" if has_citations else "no_citations",
-        limitation=(
-            "Cited sources are alternatives observed in provider responses; "
-            "they are not matched competitor SKUs."
-            if has_citations
-            else "No citations were returned for this audit. Retrieval-enabled "
-            "providers can still return uncited answers."
-        ),
-        categories=rows,
-    )
-
-
 def _own_visibility_entries(
     config: ProductScoringConfig,
     by_entry: dict[str, ProductMetricSnapshot],
@@ -550,7 +417,7 @@ async def get_product_visibility(
         total_analyses=total_analyses,
         summary=_visibility_summary(products, total_analyses),
         products=products,
-        citation_comparison=await _commerce_citation_comparison(
+        citation_comparison=await commerce_citation_comparison(
             session, audit=audit, config=config
         ),
         created_at=max(s.created_at for s in selected),

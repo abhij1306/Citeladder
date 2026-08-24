@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from app.domain.opportunities.recompute import _citation_domain
+from app.domain.opportunities.category_citations import _citation_domain
 
 
 def test_citation_domain_falls_back_to_url_host_and_normalizes_www() -> None:
