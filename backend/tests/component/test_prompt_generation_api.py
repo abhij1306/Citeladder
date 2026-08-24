@@ -252,7 +252,7 @@ async def test_generate_persists_provenance_evidence(
     for prompt in prompts:
         evidence = prompt.generation_evidence
         assert evidence is not None
-        assert evidence["generator_version"] == "prompt-gen-v10"
+        assert evidence["generator_version"] == "prompt-gen-v11"
         assert evidence["model_identity"] == {
             "transport_host": "agent.test",
             "transport_model": "fake-model",
