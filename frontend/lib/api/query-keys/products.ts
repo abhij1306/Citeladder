@@ -5,8 +5,6 @@ export const productKeys = {
   all: ['products'] as const,
   list: (projectId: string) => ['products', 'list', projectId] as const,
   detail: (productId: string) => ['products', 'detail', productId] as const,
-  competitorProducts: (projectId: string) =>
-    ['products', 'competitor-products', projectId] as const,
   // `auditId ?? 'latest'` mirrors the backend default-to-latest resolution so
   // the unfiltered view and an explicit selection cache separately; the engine
   // slice participates so switching the control re-derives the view.

@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ProductVisibility } from '@/lib/api/types';
-
 import {
   aggregateAttributeFrequency,
   aggregateBuyerDestinationMix,
-  buildCoPlacementMatrix,
+  catalogCategories,
+  categoryIdentity,
   completenessHoverDetail,
   feedAttributeLabel,
   feedHealthDisplay,
@@ -17,7 +16,6 @@ import {
   isV1ProductAnalyzer,
   normalizeProductsTab,
   priceRelationDisplay,
-  summarizeProductVisibility,
 } from './catalog';
 import { parseProductCsv, validProductRows } from './csv';
 import { emptyProductForm, formValuesToProductUpdate } from './forms';
@@ -28,9 +26,22 @@ describe('normalizeProductsTab', () => {
     expect(normalizeProductsTab('bogus')).toBe('overview');
     expect(normalizeProductsTab('overview')).toBe('overview');
     expect(normalizeProductsTab('visibility')).toBe('visibility');
-    expect(normalizeProductsTab('competitors')).toBe('competitors');
+    expect(normalizeProductsTab('competitors')).toBe('overview');
     expect(normalizeProductsTab('opportunities')).toBe('opportunities');
     expect(normalizeProductsTab('catalog')).toBe('catalog');
+  });
+});
+
+describe('catalog category identity', () => {
+  it('deduplicates category spellings that differ only by case', () => {
+    const products = [
+      { attributes: { category: 'Books' } },
+      { attributes: { category: ' books ' } },
+      { attributes: { category: 'Games' } },
+    ];
+
+    expect(catalogCategories(products)).toEqual(['Books', 'Games']);
+    expect(categoryIdentity(' BOOKS ')).toBe(categoryIdentity('books'));
   });
 });
 
@@ -47,93 +58,6 @@ describe('formatters', () => {
     expect(formatPercent(null)).toBe('—');
     expect(formatAvgRank(1.6)).toBe('1.6');
     expect(formatAvgRank(null)).toBe('—');
-  });
-});
-
-describe('summarizeProductVisibility', () => {
-  const entryV2 = {
-    product_analyzer_version: 'product-analysis-2',
-    win_rate: null,
-    price_mismatch_rate: null,
-    price_relation_counts: {},
-    attribute_dimension_frequency: {},
-    buyer_destination_mix: { total: 0, by_kind: [], by_domain: [] },
-    competitor_co_placement: { items: [], truncated: false },
-    prompt_coverage: null,
-    frozen_prompt_context: [],
-    conversation_themes: [],
-    visibility_rate: 0.5,
-    top_three_rate: 0.25,
-    engine_coverage: 1,
-    visibility_delta: null,
-  };
-  const base: ProductVisibility = {
-    project_id: '11111111-1111-4111-8111-111111111111',
-    audit_id: '22222222-2222-4222-8222-222222222222',
-    audit_status: 'completed',
-    product_analyzer_version: 'product-analysis-2',
-    product_scoring_rule_version: 'r1',
-    total_mentions: 10,
-    total_analyses: 4,
-    summary: {
-      products_tracked: 2,
-      products_visible: 2,
-      visibility_rate: 0.75,
-      top_three_rate: 0.5,
-      average_rank: 2,
-      competitor_wins: 1,
-    },
-    products: [
-      {
-        product_id: '33333333-3333-4333-8333-333333333333',
-        sku: 'A',
-        name: 'Product A',
-        mention_count: 4,
-        sov_share: 0.4,
-        avg_rank: 1.5,
-        rank_distribution: { top_1: 2, top_2_3: 2, top_4_5: 0, rank_6_plus: 0, unranked: 0 },
-        price_mention_count: 3,
-        price_accuracy_rate: 1.0,
-        ...entryV2,
-      },
-      {
-        product_id: '44444444-4444-4444-8444-444444444444',
-        sku: 'B',
-        name: 'Product B',
-        mention_count: 2,
-        sov_share: 0.2,
-        avg_rank: 4.0,
-        // One mention unranked: only one ranked mention feeds the mean.
-        rank_distribution: { top_1: 0, top_2_3: 0, top_4_5: 1, rank_6_plus: 0, unranked: 1 },
-        price_mention_count: 1,
-        price_accuracy_rate: 0.0,
-        ...entryV2,
-      },
-    ],
-    competitor_products: [],
-    created_at: '2026-07-15T00:00:00Z',
-  };
-
-  it('computes SOV, rank-weighted avg rank, and price accuracy', () => {
-    const summary = summarizeProductVisibility(base);
-    expect(summary.ownMentions).toBe(6);
-    expect(summary.totalMentions).toBe(10);
-    expect(summary.sov).toBeCloseTo(0.6);
-    // (1.5*4 + 4.0*1) / 5 ranked mentions = 2.0
-    expect(summary.avgRank).toBeCloseTo(2.0);
-    // (1.0*3 + 0.0*1) / 4 price mentions = 0.75
-    expect(summary.priceAccuracy).toBeCloseTo(0.75);
-  });
-
-  it('returns nulls when nothing was mentioned', () => {
-    const summary = summarizeProductVisibility({
-      ...base,
-      total_mentions: 0,
-      products: [],
-    });
-    expect(summary.sov).toBeNull();
-    expect(summary.avgRank).toBeNull();
-    expect(summary.priceAccuracy).toBeNull();
   });
 });
 
@@ -250,76 +174,6 @@ describe('aggregateBuyerDestinationMix', () => {
       ['acme.com', 3],
       ['marketplace.example', 2],
     ]);
-  });
-});
-
-describe('buildCoPlacementMatrix', () => {
-  const row = (
-    product_id: string,
-    sku: string,
-    name: string,
-    items: {
-      competitor_product_id: string | null;
-      competitor_name: string;
-      product_name: string;
-      count: number;
-    }[],
-    truncated = false,
-  ) => ({
-    product_id,
-    sku,
-    name,
-    competitor_co_placement: { items, truncated },
-  });
-
-  it('builds a row/column matrix with null cells and preserves truncation', () => {
-    const matrix = buildCoPlacementMatrix([
-      row('p1', 'SKU-1', 'Product A', [
-        {
-          competitor_product_id: 'c1',
-          competitor_name: 'Globex',
-          product_name: 'Globex Bike',
-          count: 5,
-        },
-      ]),
-      row(
-        'p2',
-        'SKU-2',
-        'Product B',
-        [
-          {
-            competitor_product_id: 'c2',
-            competitor_name: 'Initech',
-            product_name: 'Initech Trike',
-            count: 7,
-          },
-        ],
-        true,
-      ),
-    ]);
-    // Most-placed competitor first.
-    expect(matrix.columns.map((column) => column.productName)).toEqual([
-      'Initech Trike',
-      'Globex Bike',
-    ]);
-    expect(matrix.rows[0]?.cells).toEqual([null, 5]);
-    expect(matrix.rows[1]?.cells).toEqual([7, null]);
-    expect(matrix.truncated).toBe(true);
-  });
-
-  it('keys columns by competitor name + product when the id is null', () => {
-    const matrix = buildCoPlacementMatrix([
-      row('p1', 'SKU-1', 'Product A', [
-        {
-          competitor_product_id: null,
-          competitor_name: 'Globex',
-          product_name: 'Globex Bike',
-          count: 2,
-        },
-      ]),
-    ]);
-    expect(matrix.columns[0]?.key).toBe('Globex Globex Bike');
-    expect(matrix.truncated).toBe(false);
   });
 });
 

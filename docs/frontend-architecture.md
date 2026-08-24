@@ -202,7 +202,7 @@ defaults by decomposition; an exception is not an intended delivery outcome.
 | `/content` | Content Intelligence; frozen grounding status and provenance summary |
 | `/demand`, `/traffic`, `/ai-referrals` | Demand Intelligence |
 | `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
-| `/products` | Commerce Suite: Overview (default), Catalog, AI Visibility, Competitors, Opportunities |
+| `/products` | Commerce: Overview (default), Catalog, AI Visibility, Opportunities |
 | `/settings` | Shared workspace/project configuration, including Integrations and Providers |
 
 ## Authentication flow

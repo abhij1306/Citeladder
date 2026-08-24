@@ -48,6 +48,7 @@ export type PromptGenerateInput = {
   // Scope generation to one existing topic; omitted = model proposes topics.
   topic_id?: string;
   intents?: Prompt['intent'][];
+  cohort?: Prompt['cohort'];
 };
 
 export const promptsApi = {

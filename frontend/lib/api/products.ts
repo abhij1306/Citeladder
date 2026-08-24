@@ -1,6 +1,6 @@
 /**
  * Products domain endpoints (agentic commerce): catalog CRUD, CSV/JSON import,
- * competitor products, and the product visibility projections — the
+ * and the product visibility projections — the
  * selected-audit dashboard, per-product mention evidence, and the CSV export
  * URL. Projections read persisted rows only (backend invariant 7) and default
  * to the project's latest completed audit when `audit_id` is omitted. Every
@@ -10,7 +10,6 @@ import { z } from 'zod';
 
 import { API_BASE_URL, apiClient, type ApiRequestOptions } from './client';
 import {
-  competitorProductSchema,
   productAuditReferencesSchema,
   productEvidenceResponseSchema,
   productImportResponseSchema,
@@ -21,7 +20,6 @@ import {
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
 import type {
-  CompetitorProduct,
   Product,
   ProductAuditReferences,
   ProductEvidenceResponse,
@@ -31,7 +29,6 @@ import type {
 } from './types';
 
 const productListSchema = z.array(productSchema);
-const competitorProductListSchema = z.array(competitorProductSchema);
 
 /** `POST /projects/{id}/products` body (backend `ProductInput`). */
 export type ProductInput = {
@@ -47,21 +44,6 @@ export type ProductInput = {
 };
 
 export type ProductUpdateInput = Partial<ProductInput>;
-
-/** `POST /projects/{id}/competitor-products` body (backend `CompetitorProductInput`). */
-export type CompetitorProductInput = {
-  competitor_id: string;
-  name: string;
-  aliases?: string[];
-  price?: number | null;
-  currency?: string;
-  url?: string;
-  variants?: { name: string; sku?: string; price?: number | null }[];
-  attributes?: Record<string, unknown>;
-  availability?: string;
-};
-
-export type CompetitorProductUpdateInput = Partial<Omit<CompetitorProductInput, 'competitor_id'>>;
 
 /** Filters for the product mention-evidence request (all optional). */
 export type ProductEvidenceParams = {
@@ -148,39 +130,6 @@ export const productsApi = {
     );
     return strictValidate(productAuditReferencesSchema, res, 'products.getAuditReferences');
   },
-  listCompetitorProducts: async (projectId: string, options?: ApiRequestOptions) => {
-    const res = await apiClient.get<CompetitorProduct[]>(
-      `/projects/${projectId}/competitor-products`,
-      options,
-    );
-    return strictValidate(competitorProductListSchema, res, 'products.listCompetitorProducts');
-  },
-  createCompetitorProduct: async (
-    projectId: string,
-    input: CompetitorProductInput,
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.post<CompetitorProduct>(
-      `/projects/${projectId}/competitor-products`,
-      input,
-      options,
-    );
-    return strictValidate(competitorProductSchema, res, 'products.createCompetitorProduct');
-  },
-  updateCompetitorProduct: async (
-    competitorProductId: string,
-    input: CompetitorProductUpdateInput,
-    options?: ApiRequestOptions,
-  ) => {
-    const res = await apiClient.patch<CompetitorProduct>(
-      `/competitor-products/${competitorProductId}`,
-      input,
-      options,
-    );
-    return strictValidate(competitorProductSchema, res, 'products.updateCompetitorProduct');
-  },
-  removeCompetitorProduct: (competitorProductId: string, options?: ApiRequestOptions) =>
-    apiClient.delete<void>(`/competitor-products/${competitorProductId}`, options),
   /**
    * Selected-audit product dashboard (defaults to the latest product audit).
    * `engine` slices entries to their persisted per-engine aggregate.

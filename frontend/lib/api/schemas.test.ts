@@ -7,7 +7,6 @@ import {
   auditSchema,
   authResponseSchema,
   citationSchema,
-  competitorProductSchema,
   executionEvidenceSchema,
   executionSchema,
   productEvidenceResponseSchema,
@@ -568,30 +567,8 @@ describe('products contract (agentic commerce)', () => {
     expect(() => strictValidate(productSchema, { ...product, id: 7 }, 'product')).toThrow();
   });
 
-  it('accepts a nullable price and rejects a negative-id competitor product', () => {
+  it('accepts a nullable product price', () => {
     expect(strictValidate(productSchema, { ...product, price: null }, 'product').price).toBeNull();
-    const competitorProduct = {
-      id: UUID,
-      project_id: UUID2,
-      competitor_id: UUID,
-      name: 'Globex CityBike 450',
-      aliases: [],
-      price: null,
-      currency: '',
-      url: '',
-      variants: [],
-      attributes: {},
-      availability: '',
-      extraction_fresh_at: null,
-      created_at: '2026-07-15T00:00:00Z',
-      updated_at: '2026-07-15T00:00:00Z',
-    };
-    expect(
-      strictValidate(competitorProductSchema, competitorProduct, 'competitorProduct').price,
-    ).toBeNull();
-    expect(() =>
-      strictValidate(competitorProductSchema, { ...competitorProduct, competitor_id: 3 }, 'cp'),
-    ).toThrow();
   });
 
   it('validates the visibility projection with nullable ids and rates', () => {
@@ -603,7 +580,6 @@ describe('products contract (agentic commerce)', () => {
       price_relation_counts: {},
       attribute_dimension_frequency: {},
       buyer_destination_mix: { total: 0, by_kind: [], by_domain: [] },
-      competitor_co_placement: { items: [], truncated: false },
     };
     const projection = {
       project_id: UUID2,
@@ -619,13 +595,13 @@ describe('products contract (agentic commerce)', () => {
         visibility_rate: 1,
         top_three_rate: 1,
         average_rank: 1,
-        competitor_wins: 0,
       },
       products: [
         {
           product_id: UUID,
           sku: 'AC-VB500',
           name: 'Acme VoltBike 500',
+          category: 'Bikes',
           mention_count: 2,
           sov_share: 0.5,
           avg_rank: 1.0,
@@ -642,32 +618,11 @@ describe('products contract (agentic commerce)', () => {
           ...entryV2,
         },
       ],
-      competitor_products: [
-        {
-          // null id: the aggregate survives the catalog row's delete.
-          competitor_product_id: null,
-          competitor_name: 'Globex',
-          name: 'Globex CityBike 450',
-          mention_count: 2,
-          sov_share: 0.5,
-          avg_rank: null,
-          rank_distribution: { top_1: 0, top_2_3: 2, top_4_5: 0, rank_6_plus: 0, unranked: 0 },
-          price_mention_count: 0,
-          price_accuracy_rate: null,
-          visibility_rate: 1,
-          top_three_rate: 1,
-          engine_coverage: 1,
-          prompt_coverage: null,
-          frozen_prompt_context: [],
-          conversation_themes: [],
-          ...entryV2,
-        },
-      ],
+      citation_comparison: { status: 'no_citations', limitation: '', categories: [] },
       created_at: '2026-07-15T00:00:00Z',
     };
     const parsed = strictValidate(productVisibilitySchema, projection, 'productVisibility');
-    expect(parsed.competitor_products[0]?.competitor_product_id).toBeNull();
-    expect(parsed.competitor_products[0]?.price_accuracy_rate).toBeNull();
+    expect(parsed.products[0]?.category).toBe('Bikes');
     // A negative frequency count is contract drift.
     expect(() =>
       strictValidate(

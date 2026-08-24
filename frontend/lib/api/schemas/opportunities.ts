@@ -100,7 +100,6 @@ export const commandCenterSchema = responseObject({
   measurement: responseObject({
     audit_id: uuid(),
     completed_at: z.string(),
-    measurement_mode: z.string(),
     benchmark_mode: z.string(),
     logical_engines: z.array(z.string()),
     comparable_audit_id: uuid().nullable(),

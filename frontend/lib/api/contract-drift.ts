@@ -123,7 +123,6 @@ export const CONTRACT_SCHEMA_MAP = {
   providerProbeSchema: 'ProviderProbeResponse',
   // Products / commerce
   productSchema: 'ProductResponse',
-  competitorProductSchema: 'CompetitorProductResponse',
   productVisibilitySchema: 'ProductVisibilityResponse',
   productEvidenceResponseSchema: 'ProductEvidenceResponse',
   commerceCatalogHealthSchema: 'CommerceCatalogHealth',

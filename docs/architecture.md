@@ -49,6 +49,16 @@ portfolios, schedules, answer-engine measurements, and AI Visibility. AI
 Visibility is the Track station: it measures observed mentions, citations,
 rankings, and share of voice under comparable conditions.
 
+Every manual, scheduled, repaired, brand, and Commerce audit uses one
+citation-capable execution policy. Users select logical engines and
+repetitions, never a measurement mode. Each engine resolves to one approved
+retrieval-enabled route, and the exact provider, transport model, retrieval
+state, reasoning policy, and request configuration are frozen as provenance.
+Trend comparability is separated by that frozen model/retrieval identity.
+
+`benchmark_mode` remains a project-owned prompt-framing choice only; it does
+not select a transport model or retrieval policy.
+
 ### Growth Agent
 
 The Growth Agent is a top-bar orchestrator over persisted Site Health, Content,

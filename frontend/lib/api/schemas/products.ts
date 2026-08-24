@@ -51,23 +51,6 @@ export const productSchema = responseObject({
   updated_at: z.string(),
 });
 
-export const competitorProductSchema = responseObject({
-  id: uuid(),
-  project_id: uuid(),
-  competitor_id: uuid(),
-  name: z.string(),
-  aliases: z.array(z.string()),
-  price: z.number().nullable(),
-  currency: z.string(),
-  url: z.string(),
-  variants: z.array(productVariantSchema),
-  attributes: z.record(z.string(), z.unknown()),
-  availability: z.string(),
-  extraction_fresh_at: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
-});
-
 // D1 import feedback: the bulk-import response carries the refreshed catalog
 // plus a per-row outcome summary (backend `ProductImportResponse`). `updated`
 // is reserved (v1 imports are insert-only, so it is always 0).
@@ -126,21 +109,6 @@ export const buyerDestinationMixSchema = responseObject({
     .array(),
 });
 
-// Persisted competitor co-placement rows for one visibility entry (answer
-// executions listing the entry beside a competitor product), with the
-// backend's truncation flag preserved verbatim.
-export const competitorCoPlacementSchema = responseObject({
-  items: z
-    .object({
-      competitor_product_id: uuid().nullable(),
-      competitor_name: z.string(),
-      product_name: z.string(),
-      count: z.number().int().nonnegative(),
-    })
-    .array(),
-  truncated: z.boolean(),
-});
-
 // Price-relation tallies (backend `price_relation` vocabulary). Strict
 // partial: v2 rows count every key, v1 rows count only `match`/`mismatch`,
 // and `{}` is valid (a v1 entry with nothing verifiable). Direction is NEVER
@@ -161,7 +129,7 @@ export const attributeDimensionFrequencySchema = z.record(
 // Fields the analyzer-v2 projection adds to every visibility entry (own and
 // competitor): row-level analyzer version (mixed-version audits label each
 // row with its ACTUAL persisted version), win rate, price relation, and the
-// attribute/destination/co-placement aggregates. Rates stay null when the
+// attribute/destination aggregates. Rates stay null when the
 // backend could not compute them (never a fabricated 0).
 const productVisibilityEntryV2Fields = {
   product_analyzer_version: z.string(),
@@ -170,7 +138,6 @@ const productVisibilityEntryV2Fields = {
   price_relation_counts: priceRelationCountsSchema,
   attribute_dimension_frequency: attributeDimensionFrequencySchema,
   buyer_destination_mix: buyerDestinationMixSchema,
-  competitor_co_placement: competitorCoPlacementSchema,
   prompt_coverage: z.number().nullable(),
   frozen_prompt_context: z.array(
     responseObject({
@@ -188,6 +155,7 @@ export const productVisibilityEntrySchema = responseObject({
   product_id: uuid().nullable(),
   sku: z.string(),
   name: z.string(),
+  category: z.string(),
   mention_count: z.number().int(),
   sov_share: z.number(),
   avg_rank: z.number().nullable(),
@@ -199,22 +167,6 @@ export const productVisibilityEntrySchema = responseObject({
   top_three_rate: z.number(),
   engine_coverage: z.number().int().nonnegative(),
   visibility_delta: z.number().nullable(),
-  ...productVisibilityEntryV2Fields,
-});
-
-export const competitorProductVisibilityEntrySchema = responseObject({
-  competitor_product_id: uuid().nullable(),
-  competitor_name: z.string(),
-  name: z.string(),
-  mention_count: z.number().int(),
-  sov_share: z.number(),
-  avg_rank: z.number().nullable(),
-  rank_distribution: z.record(z.string(), z.number().int()),
-  price_mention_count: z.number().int(),
-  price_accuracy_rate: z.number().nullable(),
-  visibility_rate: z.number(),
-  top_three_rate: z.number(),
-  engine_coverage: z.number().int().nonnegative(),
   ...productVisibilityEntryV2Fields,
 });
 
@@ -234,10 +186,34 @@ export const productVisibilitySchema = responseObject({
     visibility_rate: z.number(),
     top_three_rate: z.number(),
     average_rank: z.number().nullable(),
-    competitor_wins: z.number().int().nonnegative(),
   }),
   products: z.array(productVisibilityEntrySchema),
-  competitor_products: z.array(competitorProductVisibilityEntrySchema),
+  citation_comparison: responseObject({
+    status: z.enum(['available', 'no_citations']),
+    limitation: z.string(),
+    categories: z.array(
+      responseObject({
+        category: z.string(),
+        response_count: z.number().int().nonnegative(),
+        uploaded_products: z.array(z.string()),
+        uploaded_commerce_citation_count: z.number().int().nonnegative(),
+        third_party_citation_count: z.number().int().nonnegative(),
+        cited_sources: z.array(
+          responseObject({
+            domain: z.string(),
+            title: z.string(),
+            representative_url: z.string(),
+            citation_count: z.number().int().nonnegative(),
+            distinct_prompts: z.number().int().nonnegative(),
+            distinct_engines: z.number().int().nonnegative(),
+            citation_ids: z.array(uuid()),
+            analysis_ids: z.array(uuid()),
+            artifact_ids: z.array(uuid()),
+          }),
+        ),
+      }),
+    ),
+  }),
   created_at: z.string(),
 });
 

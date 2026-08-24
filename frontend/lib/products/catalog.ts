@@ -1,26 +1,23 @@
 /**
  * Products (agentic commerce) display helpers — pure, framework-free.
  *
- * The tab model for the `/products` Commerce workspace plus the formatters the catalog table, the visibility
- * summary strip, and the rankings tables share. Every number rendered here
+ * The tab model for the `/products` Commerce workspace plus the formatters the catalog and visibility tables
+ * share. Every number rendered here
  * is derived from persisted backend values — never invented.
  */
 import type {
   BuyerDestinationKind,
   BuyerDestinationMix,
-  CompetitorProductVisibilityEntry,
   FeedHealthStatus,
   LogicalEngine,
   PriceRelationCounts,
   ProductCompleteness,
   ProductFeedHealth,
   ProductOrigin,
-  ProductVisibility,
-  ProductVisibilityEntry,
 } from '@/lib/api/types';
 
-/** The five `/products` workspace tabs, in display order; Overview is default. */
-export type ProductsTab = 'overview' | 'catalog' | 'visibility' | 'competitors' | 'opportunities';
+/** The four `/products` workspace tabs, in display order; Overview is default. */
+export type ProductsTab = 'overview' | 'catalog' | 'visibility' | 'opportunities';
 
 /** Engine filter value for the products surfaces (`all` = cross-engine). */
 export type ProductEngineFilter = LogicalEngine | 'all';
@@ -29,20 +26,7 @@ export const PRODUCTS_TABS: readonly { id: ProductsTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'catalog', label: 'Catalog' },
   { id: 'visibility', label: 'AI Visibility' },
-  { id: 'competitors', label: 'Competitors' },
   { id: 'opportunities', label: 'Opportunities' },
-] as const;
-
-/**
- * Nested Visibility sub-tabs (local React state, NOT mirrored in `?tab=`).
- */
-export type VisibilitySubTab = 'overview' | 'attributes' | 'destinations' | 'co-placement';
-
-export const VISIBILITY_SUB_TABS: readonly { id: VisibilitySubTab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'attributes', label: 'Attributes' },
-  { id: 'destinations', label: 'Destinations' },
-  { id: 'co-placement', label: 'Co-placement' },
 ] as const;
 
 /**
@@ -62,6 +46,24 @@ const DEFAULT_TAB: ProductsTab = 'overview';
 /** Narrow an arbitrary `?tab=` value to a known tab, else the default. */
 export function normalizeProductsTab(value: string | null | undefined): ProductsTab {
   return PRODUCTS_TABS.some((tab) => tab.id === value) ? (value as ProductsTab) : DEFAULT_TAB;
+}
+
+/** Stable case-insensitive identity for uploaded catalog categories and topics. */
+export function categoryIdentity(value: unknown): string {
+  return String(value ?? '')
+    .trim()
+    .toLocaleLowerCase();
+}
+
+/** One display category per identity, preserving the first uploaded spelling. */
+export function catalogCategories(products: readonly { attributes: Record<string, unknown> }[]) {
+  const categories = new Map<string, string>();
+  for (const product of products) {
+    const category = String(product.attributes.category ?? '').trim();
+    const identity = categoryIdentity(category);
+    if (category && !categories.has(identity)) categories.set(identity, category);
+  }
+  return [...categories.values()].sort((left, right) => left.localeCompare(right));
 }
 
 /** ISO-4217 → common symbol (display only; the code stays the source). */
@@ -114,68 +116,6 @@ export const RANK_BUCKET_LABELS: Record<(typeof RANK_BUCKET_ORDER)[number], stri
   rank_6_plus: '6+',
   unranked: 'Unranked',
 };
-
-/** Mentions that landed in a rank list (total minus the unranked bucket). */
-function rankedMentionCount(
-  entry: ProductVisibilityEntry | CompetitorProductVisibilityEntry,
-): number {
-  const distribution = entry.rank_distribution ?? {};
-  const unranked = distribution.unranked ?? 0;
-  return Math.max(entry.mention_count - unranked, 0);
-}
-
-/** The catalog-wide summary strip above the visibility rankings. */
-export type ProductVisibilitySummary = {
-  /** Own-product mentions in the selected run. */
-  ownMentions: number;
-  /** All product + competitor-product mentions in the selected run. */
-  totalMentions: number;
-  /** Own share of all product mentions (0–1); null when the run has none. */
-  sov: number | null;
-  /**
-   * Rank-weighted mean over ranked mentions (per-entry `avg_rank` re-weighted
-   * by that entry's ranked-mention count); null when nothing was rank-listed.
-   */
-  avgRank: number | null;
-  /**
-   * Price-mention accuracy across own products: per-product persisted rates
-   * weighted by price-mention volume; null when no price mention was
-   * verifiable against the catalog.
-   */
-  priceAccuracy: number | null;
-};
-
-/** Derive the summary strip from the persisted visibility projection. */
-export function summarizeProductVisibility(
-  visibility: ProductVisibility,
-): ProductVisibilitySummary {
-  const ownMentions = visibility.products.reduce((sum, entry) => sum + entry.mention_count, 0);
-  const totalMentions = visibility.total_mentions;
-
-  let rankSum = 0;
-  let rankCount = 0;
-  let accuracySum = 0;
-  let accuracyWeight = 0;
-  for (const entry of visibility.products) {
-    const ranked = rankedMentionCount(entry);
-    if (entry.avg_rank !== null && ranked > 0) {
-      rankSum += entry.avg_rank * ranked;
-      rankCount += ranked;
-    }
-    if (entry.price_accuracy_rate !== null && entry.price_mention_count > 0) {
-      accuracySum += entry.price_accuracy_rate * entry.price_mention_count;
-      accuracyWeight += entry.price_mention_count;
-    }
-  }
-
-  return {
-    ownMentions,
-    totalMentions,
-    sov: totalMentions > 0 ? ownMentions / totalMentions : null,
-    avgRank: rankCount > 0 ? rankSum / rankCount : null,
-    priceAccuracy: accuracyWeight > 0 ? accuracySum / accuracyWeight : null,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Commerce v2 (analyzer v2 columns and feed health)
@@ -321,70 +261,6 @@ export function aggregateBuyerDestinationMix(
     by_domain: [...byDomain.values()].sort(
       (a, b) => b.count - a.count || a.merchant_domain.localeCompare(b.merchant_domain),
     ),
-  };
-}
-
-/** Row/column matrix model for the competitor co-placement table. */
-export type CoPlacementMatrix = {
-  /** Column labels (competitor product names), most-placed first. */
-  columns: { key: string; productName: string; competitorName: string }[];
-  rows: {
-    key: string;
-    productName: string;
-    sku: string;
-    /** One cell per column; null = never co-placed (renders `—`). */
-    cells: (number | null)[];
-  }[];
-  /** Preserved from the backend: true when ANY row's pair list was truncated. */
-  truncated: boolean;
-};
-
-/**
- * Build the co-placement matrix from own-product entries (each entry's
- * persisted `competitor_co_placement.items` are that row's cells). Display
- * only — persisted counts are added, never recomputed.
- */
-export function buildCoPlacementMatrix(
-  entries: readonly Pick<
-    ProductVisibilityEntry,
-    'product_id' | 'sku' | 'name' | 'competitor_co_placement'
-  >[],
-): CoPlacementMatrix {
-  const columnTotals = new Map<
-    string,
-    { productName: string; competitorName: string; total: number }
-  >();
-  const rowCells = entries.map((entry) => {
-    const cells = new Map<string, number>();
-    for (const item of entry.competitor_co_placement.items) {
-      const key = item.competitor_product_id ?? `${item.competitor_name} ${item.product_name}`;
-      cells.set(key, (cells.get(key) ?? 0) + item.count);
-      const column = columnTotals.get(key) ?? {
-        productName: item.product_name,
-        competitorName: item.competitor_name,
-        total: 0,
-      };
-      column.total += item.count;
-      columnTotals.set(key, column);
-    }
-    return { entry, cells };
-  });
-  const orderedColumns = [...columnTotals.entries()].sort(
-    (a, b) => b[1].total - a[1].total || a[1].productName.localeCompare(b[1].productName),
-  );
-  return {
-    columns: orderedColumns.map(([key, column]) => ({
-      key,
-      productName: column.productName,
-      competitorName: column.competitorName,
-    })),
-    rows: rowCells.map(({ entry, cells }) => ({
-      key: entry.product_id ?? entry.sku,
-      productName: entry.name,
-      sku: entry.sku,
-      cells: orderedColumns.map(([key]) => cells.get(key) ?? null),
-    })),
-    truncated: entries.some((entry) => entry.competitor_co_placement.truncated),
   };
 }
 

@@ -16,28 +16,33 @@ knowledge store, or product architecture.
 
 ## Commerce Suite
 
-`/products` ships one five-tab contract:
+`/products` ships one four-tab contract:
 
-1. **Overview** — latest persisted product visibility KPIs, largest product
-   gaps, and links to Commerce opportunities.
+1. **Overview** — guided catalog → category prompt → Commerce audit workflow,
+   followed by persisted product/category KPIs and actions.
 2. **Catalog** — product add, import, edit, delete, completeness, and feed
    health.
 3. **AI Visibility** — per-SKU visibility rate, top-three rate, average
    position, engine coverage, and prior-audit change.
-4. **Competitors** — a typed, read-only side-by-side projection created during
-   audit finalization by deterministic matching.
-5. **Opportunities** — the shared Opportunity API filtered to
+4. **Opportunities** — the shared Opportunity API filtered to
    `opportunity_type=commerce`; review confirmation is browser-only and does
    not mutate a provider or create a second recommendation store.
 
-Product detail retains persisted evidence and shows the latest three product
-visibility snapshots. Overview is the default tab. All reads use durable
-catalog, audit, metric, comparison, and opportunity rows; the UI has no mock or
-seed-data fallback.
+CSV categories are authoritative. Commerce reuses one prompt set, one topic per
+category, and exactly two generated prompts per category: generic discovery and
+uploaded-product comparison. Commerce audits are isolated by `audit_scope` and
+freeze uploaded product URL domains. Category citation projections label
+third-party results as cited alternatives/sources, never matched competitor
+SKUs. A retrieval-enabled answer can truthfully have no citations.
 
-The removed Commerce discovery queue, candidates, review workflow, manual
-comparison mutation, AI Conversations view, and generic Market Intelligence
-view are not active architecture and must not be recreated.
+Commerce emits only three deterministic action types: an uploaded product was
+absent, third-party category citations appeared while uploaded products and
+destinations were absent, or catalog fields were missing.
+
+The removed product-level competitor catalog, matching/comparison projection,
+discovery queue, candidates, review workflow, manual comparison mutation, AI
+Conversations view, and generic Market Intelligence view are not active
+architecture and must not be recreated. Brand competitors remain unchanged.
 
 The removed commerce industry pack and industry-role classifier are historical.
 Do not recreate them beside the generic page-kind pipeline.

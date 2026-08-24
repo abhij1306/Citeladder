@@ -100,7 +100,7 @@ export function ProductImportDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title="Import products from CSV"
-      description="Columns: name, sku, variant, category, price, currency, url, gtin (header row required)."
+      description="Columns: name, sku, brand, category, price, currency, url, gtin, mpn, availability, condition, description, aliases (header row required)."
       className="w-215"
       footer={
         <>
@@ -120,6 +120,13 @@ export function ProductImportDialog({
       }
     >
       <div className="grid gap-4">
+        <p className="text-secondary text-sm">
+          Need a format?{' '}
+          <a className="text-link" href="/samples/commerce-products.csv" download>
+            Download the sample CSV
+          </a>
+          .
+        </p>
         {error ? <MutationNotice notice={error} onRetry={onRetry} /> : null}
 
         <CsvImportFileInput inputRef={inputRef} onSelect={(file) => void selectFile(file)} />

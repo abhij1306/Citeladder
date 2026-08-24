@@ -27,7 +27,6 @@ listed here must prove a current operational purpose or move to the archive.
 
 | Document | Role |
 |---|---|
-| [`plans/commerce-suite-demo-implementation.md`](plans/commerce-suite-demo-implementation.md) | Focused Commerce Suite cutover and debt-removal plan |
 
 ## Current-runtime references
 

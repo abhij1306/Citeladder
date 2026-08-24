@@ -36,7 +36,7 @@ const product = {
   updated_at: '2026-07-15T00:00:00Z',
 };
 
-// The analyzer-v2 fields every visibility entry carries (own + competitor).
+// The analyzer-v2 fields every product visibility entry carries.
 const entryV2 = {
   product_analyzer_version: 'product-analysis-2',
   win_rate: 0.4,
@@ -55,7 +55,6 @@ const entryV2 = {
       },
     ],
   },
-  competitor_co_placement: { items: [], truncated: false },
   prompt_coverage: 0.5,
   frozen_prompt_context: [],
   conversation_themes: [],
@@ -78,13 +77,13 @@ const visibility = {
     visibility_rate: 1,
     top_three_rate: 1,
     average_rank: 1,
-    competitor_wins: 1,
   },
   products: [
     {
       product_id: UUID,
       sku: 'AC-VB500',
       name: 'Acme VoltBike 500',
+      category: 'E-Bikes',
       mention_count: 2,
       sov_share: 0.5,
       avg_rank: 1.0,
@@ -95,20 +94,7 @@ const visibility = {
       ...entryV2,
     },
   ],
-  competitor_products: [
-    {
-      competitor_product_id: UUID3,
-      competitor_name: 'Globex',
-      name: 'Globex CityBike 450',
-      mention_count: 2,
-      sov_share: 0.5,
-      avg_rank: 2.0,
-      rank_distribution: { top_1: 0, top_2_3: 2, top_4_5: 0, rank_6_plus: 0, unranked: 0 },
-      price_mention_count: 2,
-      price_accuracy_rate: null,
-      ...entryV2,
-    },
-  ],
+  citation_comparison: { status: 'no_citations', limitation: '', categories: [] },
   created_at: '2026-07-15T00:00:00Z',
 };
 
@@ -248,49 +234,6 @@ describe('productsApi', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(`/api/v1/products/${UUID}/audit-references`);
     expect(references.referenced).toBe(true);
     expect(references.audit_count).toBe(2);
-  });
-
-  it('scopes competitor-product CRUD to the project / flat paths', async () => {
-    const competitorProduct = {
-      id: UUID3,
-      project_id: UUID2,
-      competitor_id: UUID,
-      name: 'Globex CityBike 450',
-      aliases: [],
-      price: 2399.0,
-      currency: 'USD',
-      url: '',
-      variants: [],
-      attributes: {},
-      availability: '',
-      extraction_fresh_at: null,
-      created_at: '2026-07-15T00:00:00Z',
-      updated_at: '2026-07-15T00:00:00Z',
-    };
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse([competitorProduct]))
-      .mockResolvedValueOnce(jsonResponse(competitorProduct, 201))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { productsApi } = await import('./products');
-    const listed = await productsApi.listCompetitorProducts(UUID2);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      `/api/v1/projects/${UUID2}/competitor-products`,
-    );
-    expect(listed[0]?.competitor_id).toBe(UUID);
-
-    await productsApi.createCompetitorProduct(UUID2, {
-      competitor_id: UUID,
-      name: 'Globex CityBike 450',
-    });
-    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
-      `/api/v1/projects/${UUID2}/competitor-products`,
-    );
-
-    await productsApi.removeCompetitorProduct(UUID3);
-    expect(String(fetchMock.mock.calls[2]?.[0])).toBe(`/api/v1/competitor-products/${UUID3}`);
   });
 
   it('builds the visibility path with an optional audit_id query', async () => {

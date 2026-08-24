@@ -31,7 +31,7 @@ function CatalogEmptyState({
           <h2 className={displayHeadingLgClasses}>No products yet</h2>
           <p className="text-secondary max-w-md text-sm">
             Add the products you sell — manually or via CSV — so audits can measure how AI answer
-            engines rank and price them against competitor products.
+            engines mention, rank, price, and cite them by catalog category.
           </p>
         </div>
         <div className="flex items-center gap-2">

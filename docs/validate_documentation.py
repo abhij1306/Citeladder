@@ -53,7 +53,6 @@ ACTIVE_EXACT = {
     "docs/plans/demand-intelligence.md",
     "docs/plans/growth-agent.md",
     "docs/plans/backend-test-corpus-rework.md",
-    "docs/plans/commerce-suite-demo-implementation.md",
     "docs/debt/backend-debt-report.md",
     "docs/debt/backend-waste-report.md",
 }

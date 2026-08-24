@@ -76,7 +76,6 @@ describe('PromptsPage (Your Prompts)', () => {
       ),
       http.post('/api/v1/audits/estimate', () =>
         HttpResponse.json({
-          measurement_mode: 'pulse',
           retrieval_enabled: false,
           prompt_count: 1,
           engine_count: 1,

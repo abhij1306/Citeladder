@@ -26,7 +26,6 @@ const enabledCalls = {
   overview: vi.fn(),
   catalog: vi.fn(),
   visibility: vi.fn(),
-  competitors: vi.fn(),
   opportunities: vi.fn(),
 };
 vi.mock('@/lib/products/use-products-screen', async (importOriginal) => {
@@ -45,10 +44,6 @@ vi.mock('@/lib/products/use-products-screen', async (importOriginal) => {
       enabledCalls.visibility(enabled);
       return {};
     },
-    useCommerceComparison: (_id: string, enabled: boolean) => {
-      enabledCalls.competitors(enabled);
-      return {};
-    },
     useCommerceOpportunities: (_id: string, enabled: boolean) => {
       enabledCalls.opportunities(enabled);
       return {};
@@ -62,9 +57,6 @@ vi.mock('./commerce-overview-panel', () => ({
 vi.mock('./catalog-panel', () => ({ CatalogPanel: () => <div data-testid="catalog-panel" /> }));
 vi.mock('./ai-visibility-panel', () => ({
   AiVisibilityPanel: () => <div data-testid="visibility-panel" />,
-}));
-vi.mock('./competitors-panel', () => ({
-  CompetitorsPanel: () => <div data-testid="competitors-panel" />,
 }));
 vi.mock('./commerce-opportunities-panel', () => ({
   CommerceOpportunitiesPanel: () => <div data-testid="opportunities-panel" />,
@@ -80,12 +72,11 @@ describe('ProductsScreen tabs', () => {
     urlTab = null;
   });
 
-  it('defaults to Overview and renders the five-tab contract', () => {
+  it('defaults to Overview and renders the four-tab contract', () => {
     render(<ProductsScreen />);
-    expect(screen.getAllByRole('tab')).toHaveLength(5);
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'AI Visibility' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Competitors' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Opportunities' })).toBeInTheDocument();
     expect(screen.getByTestId('overview-panel')).toBeInTheDocument();
     expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
@@ -102,7 +93,7 @@ describe('ProductsScreen tabs', () => {
   it('reads an initial tab and falls back to Overview for removed values', () => {
     urlTab = 'competitors';
     const { unmount } = render(<ProductsScreen />);
-    expect(screen.getByTestId('competitors-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('overview-panel')).toBeInTheDocument();
     unmount();
     urlTab = 'discover';
     render(<ProductsScreen />);
@@ -113,9 +104,8 @@ describe('ProductsScreen tabs', () => {
     urlTab = 'opportunities';
     render(<ProductsScreen />);
     expect(enabledCalls.opportunities).toHaveBeenLastCalledWith(true);
-    expect(enabledCalls.overview).toHaveBeenLastCalledWith(false);
+    expect(enabledCalls.overview).toHaveBeenLastCalledWith(true);
     expect(enabledCalls.catalog).toHaveBeenLastCalledWith(false);
     expect(enabledCalls.visibility).toHaveBeenLastCalledWith(false);
-    expect(enabledCalls.competitors).toHaveBeenLastCalledWith(false);
   });
 });

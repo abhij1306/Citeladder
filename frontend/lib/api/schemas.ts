@@ -14,7 +14,6 @@ export * from './schemas/products';
 export * from './schemas/commerce-health';
 export * from './schemas/attribution';
 export * from './schemas/opportunities';
-export * from './schemas/commerce-comparison';
 export * from './schemas/billing';
 export * from './schemas/audit-events';
 export * from './schemas/validation';

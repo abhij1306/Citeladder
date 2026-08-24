@@ -125,7 +125,7 @@ export function SummarySections({ data }: Readonly<{ data: CommandCenter }>) {
       <section aria-labelledby="project-state" className="grid gap-3">
         <div className="flex items-center justify-between gap-3">
           <SectionTitle id="project-state">Project state</SectionTitle>
-          <Badge>{data.measurement?.measurement_mode ?? 'not run'}</Badge>
+          <Badge>{data.measurement ? 'Citation-capable audit' : 'Not run'}</Badge>
         </div>
         <div className="bg-panel shadow-card border-border-subtle divide-border-subtle grid divide-y overflow-hidden rounded-sm border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <StateMetric label="Visibility" {...data.state.visibility} />

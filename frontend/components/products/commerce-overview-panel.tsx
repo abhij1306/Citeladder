@@ -1,18 +1,124 @@
 'use client';
 
 import Link from 'next/link';
-import { PackageSearch, Play } from 'lucide-react';
+import { PackageSearch, Play, Sparkles } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { httpErrorStatus } from '@/lib/api/errors';
-import { formatAvgRank, formatPercent } from '@/lib/products/catalog';
+import { categoryIdentity, formatAvgRank, formatPercent } from '@/lib/products/catalog';
 import type { ProductsTab } from '@/lib/products/catalog';
 import type { useCommerceOverview } from '@/lib/products/use-products-screen';
 
 type OverviewQueries = ReturnType<typeof useCommerceOverview>;
+
+function catalogGate(queries: OverviewQueries, onSelectTab: (tab: ProductsTab) => void) {
+  if (queries.visibilityQuery.isLoading || queries.productsQuery.isLoading) {
+    return <p className="text-secondary text-sm">Loading Commerce overview…</p>;
+  }
+  if (queries.productsQuery.isError) {
+    return <Alert tone="danger">Could not load the Commerce overview.</Alert>;
+  }
+  if (queries.productsQuery.data?.length) return null;
+  return (
+    <EmptyState
+      icon={PackageSearch}
+      heading="Add products before measuring Commerce visibility"
+      description="Import the sample catalog or add the products you want CiteLadder to track."
+      action={
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => onSelectTab('catalog')}>Import CSV</Button>
+          <Button variant="secondary" asChild>
+            <a href="/samples/commerce-products.csv" download>
+              Download sample CSV
+            </a>
+          </Button>
+        </div>
+      }
+    />
+  );
+}
+
+function activeCommercePrompts(queries: OverviewQueries) {
+  return (
+    queries.commercePromptSet?.prompts.filter(
+      (prompt) => prompt.cohort === 'commerce' && prompt.status === 'active',
+    ) ?? []
+  );
+}
+
+function categoryPromptsAreComplete(
+  category: string,
+  queries: OverviewQueries,
+  prompts: ReturnType<typeof activeCommercePrompts>,
+) {
+  const topic = (queries.topicsQuery.data ?? []).find(
+    (item) => categoryIdentity(item.name) === categoryIdentity(category),
+  );
+  if (!topic) return false;
+  const intents = new Set(
+    prompts.filter((prompt) => prompt.topic_id === topic.id).map((prompt) => prompt.intent),
+  );
+  return intents.has('discovery') && intents.has('comparison');
+}
+
+function promptsAreComplete(queries: OverviewQueries) {
+  const prompts = activeCommercePrompts(queries);
+  return queries.categories.every((category) =>
+    categoryPromptsAreComplete(category, queries, prompts),
+  );
+}
+
+function PromptSetup({ queries }: Readonly<{ queries: OverviewQueries }>) {
+  return (
+    <div className="grid gap-4">
+      {queries.missingCategorySkus.length ? (
+        <Alert tone="warning">
+          Add a category for these SKUs before generating prompts:{' '}
+          {queries.missingCategorySkus.join(', ')}.
+        </Alert>
+      ) : null}
+      <EmptyState
+        icon={Sparkles}
+        heading="Generate product visibility prompts"
+        description={`Create one buyer-discovery and one product comparison prompt for each of ${queries.categories.length} catalog categories.`}
+        action={
+          <Button
+            onClick={() => queries.generatePromptsMutation.mutate({})}
+            disabled={
+              queries.generatePromptsMutation.isPending || queries.missingCategorySkus.length > 0
+            }
+          >
+            {queries.generatePromptsMutation.isPending
+              ? 'Generating by category…'
+              : 'Generate prompts'}
+          </Button>
+        }
+      />
+      {queries.generatePromptsMutation.isError ? (
+        <Alert tone="danger">
+          {queries.generatePromptsMutation.error instanceof Error
+            ? queries.generatePromptsMutation.error.message
+            : 'Prompt generation failed.'}
+        </Alert>
+      ) : null}
+    </div>
+  );
+}
+
+function activeCommerceAudit(queries: OverviewQueries) {
+  const activeStatuses = new Set([
+    'draft',
+    'validating',
+    'queued',
+    'running',
+    'analyzing',
+    'reporting',
+  ]);
+  return queries.commerceAudits.find((audit) => activeStatuses.has(audit.status));
+}
 
 export function CommerceOverviewPanel({
   queries,
@@ -23,19 +129,23 @@ export function CommerceOverviewPanel({
   onSelectTab: (tab: ProductsTab) => void;
   onLaunchAudit: () => void;
 }>) {
-  if (queries.visibilityQuery.isLoading || queries.productsQuery.isLoading) {
-    return <p className="text-secondary text-sm">Loading Commerce overview…</p>;
+  const initialState = catalogGate(queries, onSelectTab);
+  if (initialState) return initialState;
+  if (queries.missingCategorySkus.length || !promptsAreComplete(queries)) {
+    return <PromptSetup queries={queries} />;
   }
-  if (queries.productsQuery.isError) {
-    return <Alert tone="danger">Could not load the Commerce overview.</Alert>;
-  }
-  if (!queries.productsQuery.data?.length) {
+  const activeAudit = activeCommerceAudit(queries);
+  if (activeAudit) {
     return (
       <EmptyState
-        icon={PackageSearch}
-        heading="Add products before measuring Commerce visibility"
-        description="Import or add the products you want CiteLadder to track, then launch an AI visibility audit."
-        action={<Button onClick={() => onSelectTab('catalog')}>Add products</Button>}
+        icon={Play}
+        heading="Commerce audit in progress"
+        description="The audit is measuring the catalog prompts across the selected engines."
+        action={
+          <Button asChild>
+            <Link href={`/runs/${activeAudit.id}`}>View run</Link>
+          </Button>
+        }
       />
     );
   }
@@ -50,8 +160,8 @@ export function CommerceOverviewPanel({
       <EmptyState
         icon={Play}
         heading="Run your first Commerce visibility audit"
-        description="The audit freezes the current catalog and measures which products AI engines mention."
-        action={<Button onClick={onLaunchAudit}>Launch audit</Button>}
+        description="Review the generated category prompts, then launch the citation-capable Commerce audit."
+        action={<Button onClick={onLaunchAudit}>Launch Commerce audit</Button>}
       />
     );
   }
@@ -64,6 +174,7 @@ export function CommerceOverviewPanel({
 
   return (
     <div className="grid gap-4" data-testid="commerce-overview-panel">
+      <CommercePrompts queries={queries} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
           label="Products visible"
@@ -82,7 +193,7 @@ export function CommerceOverviewPanel({
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
             <p>{visibility.total_analyses} responses analyzed</p>
-            <p>{summary.competitor_wins} observed competitor wins</p>
+            <p>{summary.products_visible} uploaded products observed</p>
             <button
               className="text-link w-fit"
               type="button"
@@ -126,6 +237,46 @@ export function CommerceOverviewPanel({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function CommercePrompts({ queries }: Readonly<{ queries: OverviewQueries }>) {
+  const prompts =
+    queries.commercePromptSet?.prompts.filter((prompt) => prompt.cohort === 'commerce') ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Commerce Product Visibility prompts</CardTitle>
+        <CardDescription>
+          Read-only prompts generated from authoritative catalog categories.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {queries.categories.map((category) => {
+          const topic = queries.topicsQuery.data?.find((item) => item.name === category);
+          const rows = prompts.filter((prompt) => prompt.topic_id === topic?.id);
+          return (
+            <div key={category} className="grid gap-1">
+              <strong className="text-sm">{category}</strong>
+              {rows.map((prompt) => (
+                <p key={prompt.id} className="text-secondary text-sm">
+                  {prompt.text}
+                </p>
+              ))}
+            </div>
+          );
+        })}
+        <div>
+          <Button
+            variant="secondary"
+            onClick={() => queries.generatePromptsMutation.mutate({ regenerate: true })}
+            disabled={queries.generatePromptsMutation.isPending}
+          >
+            Regenerate
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
