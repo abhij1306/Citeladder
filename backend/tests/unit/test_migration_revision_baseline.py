@@ -35,7 +35,7 @@ def test_0001_initial_is_the_only_migration_revision() -> None:
     source = _BASELINE.read_text(encoding="utf-8")
     assert 'revision = "0001_initial"' in source
     assert "down_revision = None" in source
-    assert len(_created_tables(source)) == 111
+    assert len(_created_tables(source)) == 109
     assert "industry_pack_id" not in source
     assert "from app.models" not in source
 
@@ -44,10 +44,7 @@ def test_baseline_contains_site_health_guidance_and_commerce_schema() -> None:
     source = _BASELINE.read_text(encoding="utf-8")
     tables = _created_tables(source)
 
-    assert {
-        "opportunity_guidance",
-        "competitor_comparison_snapshots",
-    } <= tables
+    assert "opportunity_guidance" in tables
     assert (
         not {
             "commerce_discovery_runs",
@@ -58,16 +55,6 @@ def test_baseline_contains_site_health_guidance_and_commerce_schema() -> None:
         }
         & tables
     )
-    redundant_constraint = (
-        'sa.UniqueConstraint("audit_id", name="uq_competitor_comparison_audit")'
-    )
-    assert redundant_constraint not in source
-    assert (
-        'op.f("ix_competitor_comparison_snapshots_audit_id"),\n'
-        '        "competitor_comparison_snapshots",\n'
-        '        ["audit_id"],\n'
-        "        unique=True,"
-    ) in source
 
     assert {
         "workspace_site_health_runtime",
@@ -96,6 +83,5 @@ def test_baseline_contains_site_health_guidance_and_commerce_schema() -> None:
         "acquisition_options",
         "acquisition_policy_version",
         "source_artifact_id",
-        "extraction_fresh_at",
     ):
         assert f'"{column}"' in source

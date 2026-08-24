@@ -64,7 +64,7 @@ export function makeAudit(id: string, completedAt: string): Audit {
     project_id: PROJECT_ID,
     status: 'completed',
     benchmark_mode: 'consumer_like',
-    measurement_mode: '',
+    audit_scope: 'brand',
     model_provenance: [],
     repetitions: 2,
     random_seed: '1',
@@ -92,7 +92,6 @@ export function makeVisibility(auditId: string, score: number): Visibility {
     total_completed: 6,
     total_failed: 0,
     visibility_score: score,
-    measurement_mode: '',
     model_provenance: [],
     rankings: [
       {
@@ -168,7 +167,6 @@ export function makeTrendPoint(
     ],
     sentiment: null,
     avg_position: null,
-    measurement_mode: '',
     transport_model: null,
     retrieval_enabled: null,
     model_provenance: [],
@@ -209,7 +207,6 @@ export function makeEvidenceItem(
     logical_engine: 'chatgpt',
     transport_provider: 'openai',
     transport_model: 'gpt-5.4',
-    measurement_mode: '',
     retrieval_enabled: null,
     search_used: true,
     search_query_count: 2,

@@ -76,7 +76,6 @@ export function makeEvidenceItem(
     logical_engine: 'chatgpt',
     transport_provider: 'openai',
     transport_model: 'gpt-test',
-    measurement_mode: '',
     retrieval_enabled: null,
     search_used: false,
     search_query_count: 0,

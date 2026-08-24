@@ -12,56 +12,6 @@ import uuid
 from dataclasses import dataclass
 from typing import Final
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# --- Deterministic comparison policy -----------------------------------------
-COMMERCE_MATCHER_VERSION: Final = "commerce-matcher-1"
-COMMERCE_COMPARISON_VERSION: Final = "commerce-comparison-1"
-COMMERCE_RECOMMENDATION_ATTRIBUTE_KEYS: Final[tuple[str, ...]] = (
-    "terrain",
-    "fit",
-    "support",
-    "waterproof",
-    "material",
-    "weight",
-    "availability",
-)
-COMMERCE_MATCH_GTIN: Final = "gtin"
-COMMERCE_MATCH_BRAND_MODEL: Final = "brand_model"
-COMMERCE_MATCH_FAMILY_VARIANT: Final = "family_variant"
-COMMERCE_MATCH_SIMILARITY: Final = "title_attribute_similarity"
-COMMERCE_MATCH_REASONS: Final[tuple[str, ...]] = (
-    COMMERCE_MATCH_GTIN,
-    COMMERCE_MATCH_BRAND_MODEL,
-    COMMERCE_MATCH_FAMILY_VARIANT,
-    COMMERCE_MATCH_SIMILARITY,
-)
-COMMERCE_GTIN_KEYS: Final[tuple[str, ...]] = ("gtin", "upc", "ean")
-COMMERCE_MODEL_KEYS: Final[tuple[str, ...]] = ("mpn", "model", "model_number")
-COMMERCE_BRAND_KEY: Final = "brand"
-COMMERCE_FAMILY_KEYS: Final[tuple[str, ...]] = ("family", "product_family")
-COMMERCE_VARIANT_KEYS: Final[tuple[str, ...]] = ("variant", "variant_name")
-COMMERCE_SIMILARITY_ATTRIBUTE_KEYS: Final[tuple[str, ...]] = (
-    "brand",
-    "category",
-    "material",
-    "color",
-    "size",
-)
-
-
-class CommerceIntelligenceSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="COMMERCE_", extra="ignore")
-
-    comparison_max_entries: int = Field(default=1_000, ge=1, le=10_000)
-    title_attribute_similarity_threshold: float = Field(default=0.82, ge=0, le=1)
-    match_ambiguity_margin: float = Field(default=0.05, ge=0, le=1)
-
-
-commerce_intelligence_settings = CommerceIntelligenceSettings()
-
-
 # --- Win rate (§5.1) -------------------------------------------------------
 # When True, the win-rate denominator is only the SKU's mention rows with a
 # non-null rank_position: an execution that enumerates competitors without
@@ -81,7 +31,6 @@ PRODUCT_ATTRIBUTE_WINDOW_CHARS: Final = 200
 
 # Bound on persisted competitor co-placement pairs per entry aggregate
 # (O(mentions^2) per execution); ``truncated`` records when the cap is hit.
-CO_PLACEMENT_MAX_PAIRS: Final = 1000
 
 
 @dataclass(frozen=True)

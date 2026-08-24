@@ -40,13 +40,8 @@ from app.domain.attribution.service import (
     get_attribution_recompute,
     get_commerce_attribution,
 )
-from app.domain.commerce.comparisons import (
-    CommerceComparisonNotFoundError,
-    get_comparison_snapshot,
-)
 from app.domain.commerce.schemas import (
     CommerceCatalogHealth,
-    CommerceComparisonResponse,
 )
 from app.domain.commerce.service import get_catalog_health
 from app.domain.projects.service import ProjectNotFoundError, get_project
@@ -162,27 +157,6 @@ async def get_catalog_health_endpoint(
         workspace_id=ctx.workspace_id,
         project_id=project_id,
     )
-
-
-@router.get(
-    "/{project_id}/commerce/comparisons",
-    response_model=CommerceComparisonResponse,
-)
-async def get_competitor_comparison_endpoint(
-    project_id: uuid.UUID,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-    audit_id: Annotated[uuid.UUID | None, Query()] = None,
-) -> CommerceComparisonResponse:
-    try:
-        return await get_comparison_snapshot(
-            session,
-            workspace_id=ctx.workspace_id,
-            project_id=project_id,
-            audit_id=audit_id,
-        )
-    except CommerceComparisonNotFoundError as exc:
-        raise_not_found("Commerce comparison", cause=exc)
 
 
 @router.post(

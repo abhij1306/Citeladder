@@ -4,27 +4,16 @@ Covers the Task 1 acceptance:
   - product CRUD round-trip with the computed completeness badge;
   - CSV import via multipart file AND JSON rows (duplicates dropped, never a
     failure; headerless CSV -> 422);
-  - competitor-product CRUD, scoped to the project's own competitors;
   - cross-workspace access returns 404 (invariant 5);
   - per-project SKU uniqueness enforced as 409.
 """
 
 from __future__ import annotations
 
-import uuid
-
 import httpx
 import pytest
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.core.config.audits import AUDIT_TRIGGER_MANUAL
 from app.core.config.products import PRODUCT_COMPLETENESS_ATTRIBUTE_KEYS
-from app.core.config.provider_catalog import ENGINE_GEMINI
-from app.domain.audits.creation import create_audit
-from app.models.user import User
-from app.models.workspace import WorkspaceMember
-from tests.component.audit_helpers import seed_audit_fixtures
 
 
 async def _register(client: httpx.AsyncClient, email: str) -> None:
@@ -347,170 +336,6 @@ async def test_product_import_rejects_oversized_file_before_csv_parsing(
         files={"file": ("catalog.csv", oversized, "text/csv")},
     )
     assert response.status_code == 413
-
-
-@pytest.mark.asyncio
-async def test_product_audit_references_delete_guard(
-    client: httpx.AsyncClient, session_factory: async_sessionmaker[AsyncSession]
-) -> None:
-    """D4: the read-only check reports frozen-audit usage of a product."""
-    email = f"prod-audit-refs-{uuid.uuid4().hex[:8]}@example.com"
-    await _register(client, email)
-    async with session_factory() as session:
-        seed = await seed_audit_fixtures(session, prompt_count=1)
-        user = await session.scalar(select(User).where(User.email == email))
-        assert user is not None
-        session.add(
-            WorkspaceMember(
-                workspace_id=seed.workspace_id, user_id=user.id, role="owner"
-            )
-        )
-        await session.commit()
-    # The register-created workspace is the user's default active one, so
-    # calls into the seeded workspace carry the explicit header.
-    headers = {"X-Workspace-Id": str(seed.workspace_id)}
-    url = f"/api/v1/projects/{seed.project_id}/products"
-
-    referenced = await client.post(
-        url,
-        json=_product_payload(sku="REF-1", name="Frozen Into Audits"),
-        headers=headers,
-    )
-    assert referenced.status_code == 201
-    referenced_id = referenced.json()["id"]
-
-    # No audit yet: nothing references the product.
-    resp = await client.get(
-        f"/api/v1/products/{referenced_id}/audit-references", headers=headers
-    )
-    assert resp.status_code == 200
-    assert resp.json() == {
-        "product_id": referenced_id,
-        "referenced": False,
-        "audit_count": 0,
-    }
-
-    # The planner freezes the WHOLE catalog into the audit configuration.
-    async with session_factory() as session:
-        await create_audit(
-            session,
-            trigger=AUDIT_TRIGGER_MANUAL,
-            workspace_id=seed.workspace_id,
-            project_id=seed.project_id,
-            engines=[ENGINE_GEMINI],
-            prompt_set_id=seed.prompt_set_id,
-            repetitions=1,
-            random_seed="7",
-        )
-
-    resp = await client.get(
-        f"/api/v1/products/{referenced_id}/audit-references", headers=headers
-    )
-    assert resp.status_code == 200
-    assert resp.json() == {
-        "product_id": referenced_id,
-        "referenced": True,
-        "audit_count": 1,
-    }
-
-    # A product created AFTER the audit is not part of its frozen catalog.
-    unreferenced = await client.post(
-        url,
-        json=_product_payload(sku="REF-2", name="Added After The Audit"),
-        headers=headers,
-    )
-    assert unreferenced.status_code == 201
-    unreferenced_id = unreferenced.json()["id"]
-    resp = await client.get(
-        f"/api/v1/products/{unreferenced_id}/audit-references", headers=headers
-    )
-    assert resp.status_code == 200
-    assert resp.json()["referenced"] is False
-    assert resp.json()["audit_count"] == 0
-
-    # Cross-workspace / missing ids stay 404 (invariant 5).
-    assert (
-        await client.get(
-            f"/api/v1/products/{uuid.uuid4()}/audit-references", headers=headers
-        )
-    ).status_code == 404
-
-    # CROSS-workspace, not merely missing: a product that really exists in the
-    # register-created workspace is still a 404 when the request is scoped to
-    # the seeded workspace — the id resolves, the scope does not.
-    register_project = await _project(client)
-    foreign = await client.post(
-        f"/api/v1/projects/{register_project['id']}/products",
-        json=_product_payload(sku="FOREIGN-1", name="Other Workspace Product"),
-    )
-    assert foreign.status_code == 201
-    assert (
-        await client.get(
-            f"/api/v1/products/{foreign.json()['id']}/audit-references",
-            headers=headers,
-        )
-    ).status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_competitor_product_crud(client: httpx.AsyncClient) -> None:
-    await _register(client, "comp-prod@example.com")
-    project = await _project(client)
-    competitor_id = project["competitors"][0]["id"]
-    url = f"/api/v1/projects/{project['id']}/competitor-products"
-
-    created = await client.post(
-        url,
-        json={
-            "competitor_id": competitor_id,
-            "name": "RideCore CityCommuter 450",
-            "price": 2399.0,
-            "currency": "usd",
-        },
-    )
-    assert created.status_code == 201
-    body = created.json()
-    assert body["competitor_id"] == competitor_id
-    assert body["currency"] == "USD"
-
-    listed = await client.get(url)
-    assert listed.status_code == 200
-    assert [cp["id"] for cp in listed.json()] == [body["id"]]
-
-    patched = await client.patch(
-        f"/api/v1/competitor-products/{body['id']}", json={"price": 2299.0}
-    )
-    assert patched.status_code == 200
-    assert patched.json()["price"] == 2299.0
-
-    # Duplicate (competitor_id, name) -> 409.
-    dupe = await client.post(
-        url,
-        json={"competitor_id": competitor_id, "name": "RideCore CityCommuter 450"},
-    )
-    assert dupe.status_code == 409
-
-    deleted = await client.delete(f"/api/v1/competitor-products/{body['id']}")
-    assert deleted.status_code == 204
-    assert (await client.get(url)).json() == []
-
-
-@pytest.mark.asyncio
-async def test_competitor_product_rejects_foreign_competitor(
-    client: httpx.AsyncClient,
-) -> None:
-    await _register(client, "comp-prod-foreign@example.com")
-    project_a = await _project(client)
-    # A second project in the same workspace: its competitors are not valid
-    # targets for project A's competitor products.
-    project_b = await _project(client)
-    foreign_competitor_id = project_b["competitors"][0]["id"]
-
-    resp = await client.post(
-        f"/api/v1/projects/{project_a['id']}/competitor-products",
-        json={"competitor_id": foreign_competitor_id, "name": "Sneaky"},
-    )
-    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio

@@ -26,7 +26,6 @@ dataset covering every major surface of the app:
     a mocked HTTP transport) with pages ranging from rich/healthy to thin/
     unhealthy, producing page analyses, rule evaluations, issues, and a
     crawl-level snapshot.
-  - Products + a competitor product for the Agentic Commerce surface.
 
 Idempotent: re-running deletes any previously-seeded demo workspaces (by a
 well-known name prefix) before recreating them, so it is safe to run
@@ -98,7 +97,6 @@ from app.models.integrations import (
     IntegrationOAuthGrant,
     IntegrationPropertyMapping,
 )
-from app.models.product import CompetitorProduct, Product
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet
 from app.models.provider import ProviderConnection, ProviderRoute
@@ -111,8 +109,6 @@ from app.workers.audit_worker import AuditWorker
 from app.workers.integration_worker import IntegrationWorker
 from app.workers.site_health_worker import SiteHealthWorker
 from scripts.seed_dev_support import (
-    DEMO_COMPETITOR_PRODUCT_SPEC,
-    DEMO_PRODUCT_SPECS,
     PROMPT_SPECS,
     SEED_MONITORED_URL_ALLOWANCE,
     _build_seed_adapter,
@@ -125,8 +121,6 @@ from scripts.seed_dev_support import (
 )
 
 __all__ = [
-    "DEMO_COMPETITOR_PRODUCT_SPEC",
-    "DEMO_PRODUCT_SPECS",
     "PROMPT_SPECS",
     "_prompt_bucket",
     "_SeedStubAdapter",
@@ -351,7 +345,7 @@ async def seed() -> None:
                     connection_id=connection.id,
                     logical_engine=engine,
                     transport_provider=transport,
-                    transport_model=measurement_route(engine, "pulse").transport_model,
+                    transport_model=measurement_route(engine).transport_model,
                     is_default=True,
                 )
             )
@@ -447,32 +441,6 @@ async def seed() -> None:
             session.add(prompt)
             await session.flush()
             prompt_ids.append(prompt.id)
-
-        # Products (Agentic Commerce surface): the catalog the fixture
-        # answers name (module-level specs; see the adapter comment).
-        for spec in DEMO_PRODUCT_SPECS:
-            session.add(
-                Product(
-                    project_id=project.id,
-                    name=spec.name,
-                    sku=spec.sku,
-                    url=spec.url,
-                    price=spec.price,
-                    currency=spec.currency,
-                    attributes=spec.attributes,
-                )
-            )
-        session.add(
-            CompetitorProduct(
-                project_id=project.id,
-                competitor_id=trailblaze.id,
-                name=DEMO_COMPETITOR_PRODUCT_SPEC.name,
-                url=DEMO_COMPETITOR_PRODUCT_SPEC.url,
-                price=DEMO_COMPETITOR_PRODUCT_SPEC.price,
-                currency=DEMO_COMPETITOR_PRODUCT_SPEC.currency,
-                attributes=DEMO_COMPETITOR_PRODUCT_SPEC.attributes,
-            )
-        )
 
         await session.commit()
         project_id = project.id
@@ -642,9 +610,7 @@ async def seed() -> None:
                 connection_id=connection2.id,
                 logical_engine=ENGINE_GEMINI,
                 transport_provider=TRANSPORT_GOOGLE,
-                transport_model=measurement_route(
-                    ENGINE_GEMINI, "pulse"
-                ).transport_model,
+                transport_model=measurement_route(ENGINE_GEMINI).transport_model,
                 is_default=True,
             )
         )
@@ -671,7 +637,6 @@ async def seed() -> None:
                 prompt_ids=active_prompt_ids,
                 repetitions=2,
                 random_seed="42",
-                measurement_mode="pulse",
             )
             audit1_id = audit1.id
         worker1 = AuditWorker(session_factory=SessionLocal, owner="seed-worker-1")
@@ -688,7 +653,6 @@ async def seed() -> None:
                 prompt_set_id=prompt_set2_id,
                 repetitions=1,
                 random_seed="7",
-                measurement_mode="pulse",
             )
             audit2_id = audit2.id
         worker2 = AuditWorker(session_factory=SessionLocal, owner="seed-worker-2")
@@ -797,7 +761,6 @@ async def seed() -> None:
                     prompt_ids=active_prompt_ids,
                     repetitions=2,
                     random_seed=random_seed,
-                    measurement_mode="pulse",
                 )
                 comparison_audit_id = comparison_audit.id
             comparison_worker = AuditWorker(

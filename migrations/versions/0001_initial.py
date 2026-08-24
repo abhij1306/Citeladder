@@ -1271,43 +1271,6 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
-        "competitor_products",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("project_id", sa.UUID(), nullable=False),
-        sa.Column("competitor_id", sa.UUID(), nullable=False),
-        sa.Column("name", sa.String(length=255), nullable=False),
-        sa.Column("aliases", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("price", sa.Numeric(precision=12, scale=2), nullable=True),
-        sa.Column("currency", sa.String(length=3), nullable=False),
-        sa.Column("url", sa.Text(), nullable=False),
-        sa.Column("variants", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("attributes", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("availability", sa.String(length=64), nullable=False),
-        sa.Column("extraction_fresh_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["competitor_id"], ["competitors.id"], ondelete="CASCADE"
-        ),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "competitor_id", "name", name="uq_competitor_product_competitor_name"
-        ),
-    )
-    op.create_index(
-        op.f("ix_competitor_products_competitor_id"),
-        "competitor_products",
-        ["competitor_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_competitor_products_project_id"),
-        "competitor_products",
-        ["project_id"],
-        unique=False,
-    )
-    op.create_table(
         "content_generation_attempts",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("content_generation_id", sa.UUID(), nullable=False),
@@ -2932,7 +2895,6 @@ def upgrade() -> None:
         sa.Column("audit_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("product_id", sa.UUID(), nullable=True),
-        sa.Column("competitor_product_id", sa.UUID(), nullable=True),
         sa.Column("product_analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("product_scoring_rule_version", sa.String(length=32), nullable=False),
         sa.Column("mention_count", sa.Integer(), nullable=False),
@@ -2954,9 +2916,6 @@ def upgrade() -> None:
         ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["competitor_product_id"], ["competitor_products.id"], ondelete="SET NULL"
-        ),
         sa.ForeignKeyConstraint(["product_id"], ["products.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
@@ -2981,18 +2940,6 @@ def upgrade() -> None:
         "product_metric_snapshots",
         ["workspace_id"],
         unique=False,
-    )
-    op.create_index(
-        "uq_product_metric_snapshot_competitor_product",
-        "product_metric_snapshots",
-        [
-            "audit_id",
-            "competitor_product_id",
-            "product_analyzer_version",
-            "product_scoring_rule_version",
-        ],
-        unique=True,
-        postgresql_where=sa.text("competitor_product_id IS NOT NULL"),
     )
     op.create_index(
         "uq_product_metric_snapshot_product",
@@ -3446,7 +3393,6 @@ def upgrade() -> None:
         sa.Column("prompt_index", sa.Integer(), nullable=False),
         sa.Column("repetition", sa.Integer(), nullable=False),
         sa.Column("own_product_mention_count", sa.Integer(), nullable=False),
-        sa.Column("competitor_product_mention_count", sa.Integer(), nullable=False),
         sa.Column("products_with_price_match", sa.Integer(), nullable=False),
         sa.Column("score", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -3955,7 +3901,6 @@ def upgrade() -> None:
         sa.Column("analysis_id", sa.UUID(), nullable=False),
         sa.Column("artifact_id", sa.UUID(), nullable=True),
         sa.Column("product_id", sa.UUID(), nullable=True),
-        sa.Column("competitor_product_id", sa.UUID(), nullable=True),
         sa.Column("merchant_name", sa.String(length=255), nullable=False),
         sa.Column("merchant_domain", sa.String(length=255), nullable=False),
         sa.Column("merchant_kind", sa.String(length=16), nullable=False),
@@ -3972,9 +3917,6 @@ def upgrade() -> None:
             ["artifact_id"], ["raw_response_artifacts.id"], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["competitor_product_id"], ["competitor_products.id"], ondelete="SET NULL"
-        ),
         sa.ForeignKeyConstraint(["product_id"], ["products.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
@@ -4008,7 +3950,6 @@ def upgrade() -> None:
         sa.Column("artifact_id", sa.UUID(), nullable=True),
         sa.Column("product_analyzer_version", sa.String(length=32), nullable=False),
         sa.Column("product_id", sa.UUID(), nullable=True),
-        sa.Column("competitor_product_id", sa.UUID(), nullable=True),
         sa.Column("matched_name", sa.String(length=255), nullable=False),
         sa.Column("matched_sku", sa.String(length=128), nullable=False),
         sa.Column("first_offset", sa.Integer(), nullable=True),
@@ -4029,9 +3970,6 @@ def upgrade() -> None:
             ["artifact_id"], ["raw_response_artifacts.id"], ondelete="SET NULL"
         ),
         sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["competitor_product_id"], ["competitor_products.id"], ondelete="SET NULL"
-        ),
         sa.ForeignKeyConstraint(["product_id"], ["products.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
@@ -4566,64 +4504,6 @@ def upgrade() -> None:
         op.f("ix_grant_revocations_grant_id"),
         "grant_revocations",
         ["grant_id"],
-        unique=False,
-    )
-    op.create_table(
-        "competitor_comparison_snapshots",
-        sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("workspace_id", sa.UUID(), nullable=False),
-        sa.Column("project_id", sa.UUID(), nullable=False),
-        sa.Column("audit_id", sa.UUID(), nullable=False),
-        sa.Column("competitor_id", sa.UUID(), nullable=True),
-        sa.Column(
-            "source_catalog_ids", postgresql.JSONB(astext_type=Text()), nullable=False
-        ),
-        sa.Column(
-            "source_artifact_ids", postgresql.JSONB(astext_type=Text()), nullable=False
-        ),
-        sa.Column("matcher_version", sa.String(length=64), nullable=False),
-        sa.Column("comparison_version", sa.String(length=64), nullable=False),
-        sa.Column("comparison", postgresql.JSONB(astext_type=Text()), nullable=False),
-        sa.Column("truncated", sa.Boolean(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["audit_id"], ["audits.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["competitor_id"], ["competitors.id"], ondelete="SET NULL"
-        ),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_competitor_comparison_snapshots_audit_id"),
-        "competitor_comparison_snapshots",
-        ["audit_id"],
-        unique=True,
-    )
-    op.create_index(
-        op.f("ix_competitor_comparison_snapshots_competitor_id"),
-        "competitor_comparison_snapshots",
-        ["competitor_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_competitor_comparison_snapshots_project_id"),
-        "competitor_comparison_snapshots",
-        ["project_id"],
-        unique=False,
-    )
-    op.create_index(
-        "ix_competitor_comparison_project",
-        "competitor_comparison_snapshots",
-        ["project_id", "created_at"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_competitor_comparison_snapshots_workspace_id"),
-        "competitor_comparison_snapshots",
-        ["workspace_id"],
         unique=False,
     )
     op.create_foreign_key(
@@ -5240,27 +5120,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_audits_schedule_id"), table_name="audits")
     op.drop_index(op.f("ix_audits_parent_audit_id"), table_name="audits")
     op.drop_table("audit_schedules")
-    op.drop_index(
-        op.f("ix_competitor_comparison_snapshots_workspace_id"),
-        table_name="competitor_comparison_snapshots",
-    )
-    op.drop_index(
-        op.f("ix_competitor_comparison_snapshots_audit_id"),
-        table_name="competitor_comparison_snapshots",
-    )
-    op.drop_index(
-        "ix_competitor_comparison_project",
-        table_name="competitor_comparison_snapshots",
-    )
-    op.drop_index(
-        op.f("ix_competitor_comparison_snapshots_project_id"),
-        table_name="competitor_comparison_snapshots",
-    )
-    op.drop_index(
-        op.f("ix_competitor_comparison_snapshots_competitor_id"),
-        table_name="competitor_comparison_snapshots",
-    )
-    op.drop_table("competitor_comparison_snapshots")
     op.drop_table("brand_discovery_tasks")
     op.drop_table("brand_discoveries")
     op.drop_constraint(
@@ -5535,11 +5394,6 @@ def downgrade() -> None:
         "uq_product_metric_snapshot_product",
         table_name="product_metric_snapshots",
         postgresql_where=sa.text("product_id IS NOT NULL"),
-    )
-    op.drop_index(
-        "uq_product_metric_snapshot_competitor_product",
-        table_name="product_metric_snapshots",
-        postgresql_where=sa.text("competitor_product_id IS NOT NULL"),
     )
     op.drop_index(
         op.f("ix_product_metric_snapshots_workspace_id"),
@@ -5870,13 +5724,6 @@ def downgrade() -> None:
         table_name="content_generation_attempts",
     )
     op.drop_table("content_generation_attempts")
-    op.drop_index(
-        op.f("ix_competitor_products_project_id"), table_name="competitor_products"
-    )
-    op.drop_index(
-        op.f("ix_competitor_products_competitor_id"), table_name="competitor_products"
-    )
-    op.drop_table("competitor_products")
     op.drop_index(op.f("ix_brand_profiles_workspace_id"), table_name="brand_profiles")
     op.drop_index(op.f("ix_brand_profiles_project_id"), table_name="brand_profiles")
     op.drop_table("brand_profiles")

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -61,42 +60,3 @@ class CommerceCatalogHealth(_StrictModel):
     connections: list[CommerceConnectionSummary]
     products: list[ProductFeedHealth]
     generated_at: str | None
-
-
-class CommerceComparisonProduct(_StrictModel):
-    id: uuid.UUID
-    name: str
-    sku: str
-    competitor_name: str
-    price: float | None
-    currency: str
-    attributes: dict[str, Any]
-    visibility_rate: float
-    average_rank: float | None
-    win_rate: float | None
-
-
-class CommerceAttributeGap(_StrictModel):
-    field: str
-    own_value: Any | None
-    competitor_value: Any
-
-
-class CommerceComparisonItem(_StrictModel):
-    own_product: CommerceComparisonProduct
-    competitor_product: CommerceComparisonProduct
-    match_confidence: float
-    match_reasons: list[str]
-    attribute_gaps: list[CommerceAttributeGap]
-
-
-class CommerceComparisonResponse(_StrictModel):
-    id: uuid.UUID
-    project_id: uuid.UUID
-    audit_id: uuid.UUID
-    matcher_version: str
-    comparison_version: str
-    source_metric_ids: list[uuid.UUID]
-    source_artifact_ids: list[uuid.UUID]
-    items: list[CommerceComparisonItem]
-    created_at: datetime

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Sequence
 from typing import Any, cast
 
 from app.analysis.normalization import normalize_alias
 from app.analysis.product_scoring import (
-    CompetitorProductEntry,
     ProductEntry,
     ProductScoringConfig,
     _first_offset,
@@ -23,7 +21,6 @@ from app.analysis.product_scoring import (
 )
 from app.core.config.commerce import (
     ATTRIBUTE_DIMENSIONS,
-    CO_PLACEMENT_MAX_PAIRS,
     PRICE_RELATION_HIGHER,
     PRICE_RELATION_LOWER,
     PRICE_RELATION_MATCH,
@@ -39,7 +36,7 @@ from app.core.config.products import (
 # Per-execution scoring + run aggregation
 def _entry_signals(
     *,
-    entry: ProductEntry | CompetitorProductEntry,
+    entry: ProductEntry,
     answer_text: str,
     normalized_answer: str,
     config: ProductScoringConfig,
@@ -84,9 +81,7 @@ def _entry_signals(
             tolerance_pct=config.price_tolerance_pct,
             tolerance_abs=config.price_tolerance_abs,
         )
-    # Attribute dimensions: DEFAULT always, plus the frozen category's tuple
-    # (unknown/empty category -> DEFAULT only). Competitor entries carry no
-    # attribute bag, so they evaluate DEFAULT dimensions too.
+    # Attribute dimensions: DEFAULT always, plus the frozen category's tuple.
     dimensions = ATTRIBUTE_DIMENSIONS["DEFAULT"] + ATTRIBUTE_DIMENSIONS.get(
         entry.category, ()
     )
@@ -115,7 +110,7 @@ def _entry_signals(
 
 def _scored_entries(
     *,
-    entries: Sequence[ProductEntry | CompetitorProductEntry],
+    entries: Sequence[ProductEntry],
     id_key: str,
     answer_text: str,
     normalized_answer: str,
@@ -135,29 +130,15 @@ def _scored_entries(
     ]
 
 
-def _execution_summary(
-    products: list[dict[str, Any]], competitor_products: list[dict[str, Any]]
-) -> dict[str, Any]:
-    all_signals = products + competitor_products
+def _execution_summary(products: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "own_product_mention_count": sum(1 for p in products if p["mentioned"]),
-        "competitor_product_mention_count": sum(
-            1 for p in competitor_products if p["mentioned"]
-        ),
-        # Entries (own + competitor) whose extracted price matched the catalog.
+        # Uploaded products whose extracted price matched the catalog.
         "products_with_price_match": sum(
-            1 for p in all_signals if p["price_matches_catalog"] is True
+            1 for p in products if p["price_matches_catalog"] is True
         ),
-        # Deterministic co-placement input: mentioned entry ids in catalog
-        # order (own ids first, then competitor ids).
-        "mentioned_entry_ids": [
-            *[p["product_id"] for p in products if p["mentioned"]],
-            *[
-                c["competitor_product_id"]
-                for c in competitor_products
-                if c["mentioned"]
-            ],
-        ],
+        # Mentioned uploaded product ids in catalog order.
+        "mentioned_entry_ids": [p["product_id"] for p in products if p["mentioned"]],
     }
 
 
@@ -173,17 +154,9 @@ def score_product_execution(
         normalized_answer=normalized_answer,
         config=config,
     )
-    competitor_products = _scored_entries(
-        entries=config.competitor_products,
-        id_key="competitor_product_id",
-        answer_text=answer_text,
-        normalized_answer=normalized_answer,
-        config=config,
-    )
     return {
         "products": products,
-        "competitor_products": competitor_products,
-        **_execution_summary(products, competitor_products),
+        **_execution_summary(products),
     }
 
 
@@ -196,30 +169,6 @@ def _rank_bucket(rank: int) -> str:
 
 def _rate(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 4) if denominator else 0.0
-
-
-def _mentioned_id_sets(scores: list[dict[str, Any]]) -> list[set[str]]:
-    """Per-execution mentioned entry-id sets (co-placement input).
-
-    v2 score dicts carry ``mentioned_entry_ids``; legacy v1 dicts fall back
-    to the mentioned flags in their own/competitor sections (mixed-version
-    aggregation).
-    """
-    id_sets: list[set[str]] = []
-    for score in scores:
-        ids = score.get("mentioned_entry_ids")
-        if ids is None:
-            ids = [
-                str(signals.get("product_id") or "")
-                for signals in score.get("products") or []
-                if signals.get("mentioned")
-            ] + [
-                str(signals.get("competitor_product_id") or "")
-                for signals in score.get("competitor_products") or []
-                if signals.get("mentioned")
-            ]
-        id_sets.append({str(value) for value in ids})
-    return id_sets
 
 
 def _price_relation_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
@@ -316,70 +265,16 @@ def _buyer_destination_mix(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _competitor_co_placement(
-    entry_id: str,
-    mentioned_sets: list[set[str]],
-    competitor_identity: dict[str, tuple[str, str]],
-) -> dict[str, Any]:
-    """Competitor products co-mentioned with ``entry_id`` (self excluded).
-
-    Sorted by (-count, casefolded competitor name, casefolded product name,
-    str(competitor_product_id or "")); capped at ``CO_PLACEMENT_MAX_PAIRS``
-    with ``truncated`` recording whether pairs were omitted (always
-    present, including false).
-    """
-    pair_counts: dict[str, int] = {}
-    for id_set in mentioned_sets:
-        if entry_id not in id_set:
-            continue
-        for other_id in id_set:
-            if other_id == entry_id or other_id not in competitor_identity:
-                continue
-            pair_counts[other_id] = pair_counts.get(other_id, 0) + 1
-    items: list[dict[str, Any]] = []
-    for other_id, count in pair_counts.items():
-        competitor_name, product_name = competitor_identity[other_id]
-        try:
-            competitor_product_id: str | None = str(uuid.UUID(other_id))
-        except ValueError:
-            competitor_product_id = None
-        items.append(
-            {
-                "competitor_product_id": competitor_product_id,
-                "competitor_name": competitor_name,
-                "product_name": product_name,
-                "count": count,
-            }
-        )
-    items.sort(
-        key=lambda item: (
-            -item["count"],
-            item["competitor_name"].casefold(),
-            item["product_name"].casefold(),
-            item["competitor_product_id"] or "",
-        )
-    )
-    return {
-        "items": items[:CO_PLACEMENT_MAX_PAIRS],
-        "truncated": len(items) > CO_PLACEMENT_MAX_PAIRS,
-    }
-
-
 def _product_entries(config: ProductScoringConfig) -> list[tuple[str, str]]:
     """Return every configured entry with the score section that owns it."""
-    return [(entry.id, "products") for entry in config.products] + [
-        (entry.id, "competitor_products") for entry in config.competitor_products
-    ]
+    return [(entry.id, "products") for entry in config.products]
 
 
 def _product_mentions(
     scores: list[dict[str, Any]], entries: list[tuple[str, str]]
 ) -> dict[str, list[dict[str, Any]]]:
     """Collect only positive mention signals for each configured entry."""
-    id_key = {
-        "products": "product_id",
-        "competitor_products": "competitor_product_id",
-    }
+    id_key = {"products": "product_id"}
     mentions: dict[str, list[dict[str, Any]]] = {
         entry_id: [] for entry_id, _ in entries
     }
@@ -455,13 +350,11 @@ def _product_aggregate(
     section: str,
     rows: list[dict[str, Any]],
     total_mentions: int,
-    mentioned_sets: list[set[str]],
-    competitor_identity: dict[str, tuple[str, str]],
 ) -> dict[str, Any]:
     """Build one catalog entry's aggregate while preserving every null distinction."""
     ranks, distribution = _rank_metrics(rows)
     aggregate = {
-        "kind": "product" if section == "products" else "competitor_product",
+        "kind": "product",
         "mention_count": len(rows),
         "sov_share": _rate(len(rows), total_mentions),
         "avg_rank": round(sum(ranks) / len(ranks), 2) if ranks else None,
@@ -469,9 +362,6 @@ def _product_aggregate(
         "win_rate": _win_rate(rows),
         "attribute_dimension_frequency": _attribute_dimension_frequency(rows),
         "buyer_destination_mix": _buyer_destination_mix(rows),
-        "competitor_co_placement": _competitor_co_placement(
-            entry_id, mentioned_sets, competitor_identity
-        ),
     }
     aggregate.update(_price_metrics(rows))
     return aggregate
@@ -492,18 +382,12 @@ def aggregate_product_run(
     entries = _product_entries(config)
     mentions = _product_mentions(scores, entries)
     total_mentions = sum(len(rows) for rows in mentions.values())
-    mentioned_sets = _mentioned_id_sets(scores)
-    competitor_identity = {
-        entry.id: (entry.competitor, entry.name) for entry in config.competitor_products
-    }
     return {
         entry_id: _product_aggregate(
             entry_id=entry_id,
             section=section,
             rows=mentions[entry_id],
             total_mentions=total_mentions,
-            mentioned_sets=mentioned_sets,
-            competitor_identity=competitor_identity,
         )
         for entry_id, section in entries
     }

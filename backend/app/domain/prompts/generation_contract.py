@@ -111,6 +111,13 @@ def build_generation_user_message(
     ]
     if intents:
         lines.append("Restrict prompt intents to: " + ", ".join(intents))
+    commerce_products = list(brand_context.get("commerce_products") or [])
+    if commerce_products:
+        lines.append(
+            "Uploaded catalog products (use only products whose category matches the "
+            "target topic): "
+            + json.dumps(commerce_products, ensure_ascii=False, separators=(",", ":"))
+        )
     lines.append(f"Generate exactly {count} prompts in total.")
     if existing_prompts:
         lines.append(

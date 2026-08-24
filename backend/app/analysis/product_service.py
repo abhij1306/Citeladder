@@ -10,7 +10,7 @@
 #     rows with raw-artifact provenance + product analyzer versions.
 #     Idempotent per task; a no-op when the frozen catalog is empty.
 #   - ``finalize_audit_product_analysis`` upserts one ``ProductMetricSnapshot``
-#     per (audit, product) / (audit, competitor_product) from the persisted
+#     per (audit, uploaded product) from the persisted
 #     analyses only (invariant 7), stamping the exact evidence set.
 from __future__ import annotations
 
@@ -31,7 +31,6 @@ from app.core.config.products import (
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
 from app.models.audit import Audit, AuditTask, RawResponseArtifact
 from app.models.product import (
-    CompetitorProduct,
     MerchantMention,
     Product,
     ProductMention,
@@ -42,7 +41,7 @@ from app.models.product import (
 
 async def _live_entry_ids(
     session: AsyncSession, config: ProductScoringConfig
-) -> tuple[set[str], set[str]]:
+) -> set[str]:
     """Frozen catalog ids that STILL exist as live rows.
 
     The frozen catalog in ``Audit.configuration`` is immutable (invariant 9),
@@ -63,9 +62,7 @@ async def _live_entry_ids(
         return parsed
 
     product_ids = _as_uuids([entry.id for entry in config.products])
-    competitor_ids = _as_uuids([entry.id for entry in config.competitor_products])
     live_products: set[str] = set()
-    live_competitors: set[str] = set()
     if product_ids:
         live_products = {
             str(row)
@@ -75,18 +72,7 @@ async def _live_entry_ids(
                 )
             ).all()
         }
-    if competitor_ids:
-        live_competitors = {
-            str(row)
-            for row in (
-                await session.scalars(
-                    select(CompetitorProduct.id).where(
-                        CompetitorProduct.id.in_(competitor_ids)
-                    )
-                )
-            ).all()
-        }
-    return live_products, live_competitors
+    return live_products
 
 
 async def _persist_product_signals(
@@ -97,7 +83,7 @@ async def _persist_product_signals(
     config: ProductScoringConfig,
     score: dict,
 ) -> None:
-    live_products, live_competitors = await _live_entry_ids(session, config)
+    live_products = await _live_entry_ids(session, config)
     _persist_signal_rows(
         session,
         task=task,
@@ -106,17 +92,6 @@ async def _persist_product_signals(
         names={entry.id: entry.name for entry in config.products},
         skus={entry.id: entry.sku for entry in config.products},
         live_ids=live_products,
-        is_product=True,
-    )
-    _persist_signal_rows(
-        session,
-        task=task,
-        analysis=analysis,
-        signals=score["competitor_products"],
-        names={entry.id: entry.name for entry in config.competitor_products},
-        skus={},
-        live_ids=live_competitors,
-        is_product=False,
     )
 
 
@@ -129,21 +104,18 @@ def _persist_signal_rows(
     names: dict[str, str],
     skus: dict[str, str],
     live_ids: set[str],
-    is_product: bool,
 ) -> None:
-    key = "product_id" if is_product else "competitor_product_id"
     for item in signals:
         if not item.get("mentioned"):
             continue
-        entry_id = str(item[key])
+        entry_id = str(item["product_id"])
         live_id = uuid.UUID(entry_id) if entry_id in live_ids else None
         session.add(
             _mention_row(
                 task=task,
                 analysis=analysis,
                 signals=item,
-                product_id=live_id if is_product else None,
-                competitor_product_id=live_id if not is_product else None,
+                product_id=live_id,
                 matched_name=names.get(entry_id, ""),
                 matched_sku=skus.get(entry_id, ""),
             )
@@ -152,8 +124,7 @@ def _persist_signal_rows(
             task=task,
             analysis=analysis,
             signals=item,
-            product_id=live_id if is_product else None,
-            competitor_product_id=live_id if not is_product else None,
+            product_id=live_id,
         ):
             session.add(row)
 
@@ -194,7 +165,7 @@ async def analyze_task_products(
     )
     if existing is not None:
         return existing
-    if not config.products and not config.competitor_products:
+    if not config.products:
         return None
 
     # Score the PERSISTED artifact text (invariant 7); ``task.answer_text``
@@ -219,7 +190,6 @@ async def analyze_task_products(
         prompt_index=task.prompt_index,
         repetition=task.repetition,
         own_product_mention_count=score["own_product_mention_count"],
-        competitor_product_mention_count=score["competitor_product_mention_count"],
         products_with_price_match=score["products_with_price_match"],
         score=score,
     )
@@ -238,7 +208,6 @@ def _mention_row(
     analysis: ProductResponseAnalysis,
     signals: dict,
     product_id: uuid.UUID | None,
-    competitor_product_id: uuid.UUID | None,
     matched_name: str,
     matched_sku: str,
 ) -> ProductMention:
@@ -249,7 +218,6 @@ def _mention_row(
         artifact_id=task.result_artifact_id,
         product_analyzer_version=PRODUCT_ANALYZER_VERSION,
         product_id=product_id,
-        competitor_product_id=competitor_product_id,
         matched_name=matched_name,
         matched_sku=matched_sku,
         first_offset=signals.get("first_offset"),
@@ -278,7 +246,6 @@ def _merchant_rows(
     analysis: ProductResponseAnalysis,
     signals: dict,
     product_id: uuid.UUID | None,
-    competitor_product_id: uuid.UUID | None,
 ) -> list[MerchantMention]:
     """One ``MerchantMention`` per sanitized destination in the signal.
 
@@ -294,7 +261,6 @@ def _merchant_rows(
                 analysis_id=analysis.id,
                 artifact_id=task.result_artifact_id,
                 product_id=product_id,
-                competitor_product_id=competitor_product_id,
                 merchant_name=str(destination.get("merchant_name") or "")[:255],
                 merchant_domain=str(destination.get("merchant_domain") or "")[:255],
                 merchant_kind=str(destination.get("merchant_kind") or "")[:16],
@@ -413,16 +379,12 @@ async def _persist_product_snapshots(
     config: ProductScoringConfig,
 ) -> list[ProductMetricSnapshot]:
     by_entry = {
-        str(
-            (snapshot.metrics or {}).get("entry_id")
-            or snapshot.product_id
-            or snapshot.competitor_product_id
-        ): snapshot
+        str((snapshot.metrics or {}).get("entry_id") or snapshot.product_id): snapshot
         for snapshot in existing_snapshots
         if snapshot.product_analyzer_version == PRODUCT_ANALYZER_VERSION
         and snapshot.product_scoring_rule_version == PRODUCT_SCORING_RULE_VERSION
     }
-    live_products, live_competitors = await _live_entry_ids(session, config)
+    live_products = await _live_entry_ids(session, config)
     snapshots: list[ProductMetricSnapshot] = []
     for entry_id, aggregate in aggregates.items():
         snapshots.append(
@@ -433,11 +395,7 @@ async def _persist_product_snapshots(
                 aggregate=aggregate,
                 analyses=analyses,
                 existing=by_entry.get(entry_id),
-                live_ids=(
-                    live_products
-                    if aggregate["kind"] == "product"
-                    else live_competitors
-                ),
+                live_ids=live_products,
                 per_engine=per_engine,
             )
         )
@@ -455,11 +413,10 @@ def _upsert_product_snapshot(
     live_ids: set[str],
     per_engine: dict[str, dict[str, dict]],
 ) -> ProductMetricSnapshot:
-    is_product = aggregate["kind"] == "product"
     evidence = [
         analysis
         for analysis in analyses
-        if _mentions_entry(analysis.score or {}, entry_id, is_product)
+        if _mentions_entry(analysis.score or {}, entry_id)
     ]
     if existing is None:
         snapshot = ProductMetricSnapshot(
@@ -474,7 +431,6 @@ def _upsert_product_snapshot(
         snapshot,
         entry_id=entry_id,
         aggregate=aggregate,
-        is_product=is_product,
         is_live=entry_id in live_ids,
         evidence=evidence,
         per_engine=per_engine,
@@ -498,7 +454,7 @@ async def finalize_audit_product_analysis(
     analysis disabled for the audit).
     """
     config = build_product_scoring_config(audit.configuration)
-    if not config.products and not config.competitor_products:
+    if not config.products:
         return []
 
     analyses, aggregates, per_engine = await _product_finalize_inputs(
@@ -529,7 +485,6 @@ def _apply_snapshot_fields(
     *,
     entry_id: str,
     aggregate: dict,
-    is_product: bool,
     is_live: bool,
     evidence: list[ProductResponseAnalysis],
     per_engine: dict[str, dict[str, dict]],
@@ -538,8 +493,7 @@ def _apply_snapshot_fields(
     # Same live-row guard as the mention rows: never write a FK pointing at a
     # catalog entry deleted after the audit was created.
     live_id = uuid.UUID(entry_id) if is_live else None
-    snapshot.product_id = live_id if is_product else None
-    snapshot.competitor_product_id = None if is_product else live_id
+    snapshot.product_id = live_id
     snapshot.product_analyzer_version = PRODUCT_ANALYZER_VERSION
     snapshot.product_scoring_rule_version = PRODUCT_SCORING_RULE_VERSION
     snapshot.mention_count = int(aggregate["mention_count"])
@@ -566,10 +520,8 @@ def _apply_snapshot_fields(
     ]
 
 
-def _mentions_entry(score: dict, entry_id: str, is_product: bool) -> bool:
-    section = "products" if is_product else "competitor_products"
-    key = "product_id" if is_product else "competitor_product_id"
+def _mentions_entry(score: dict, entry_id: str) -> bool:
     return any(
-        str(signals.get(key) or "") == entry_id and signals.get("mentioned")
-        for signals in score.get(section) or []
+        str(signals.get("product_id") or "") == entry_id and signals.get("mentioned")
+        for signals in score.get("products") or []
     )

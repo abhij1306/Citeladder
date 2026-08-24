@@ -28,15 +28,17 @@ DEFAULT_PROMPT_STATUS: Final = PROMPT_STATUS_ACTIVE
 PROMPT_COHORT_CORE: Final = "core"
 PROMPT_COHORT_COMPARISON: Final = "comparison"
 PROMPT_COHORT_BRAND_DIAGNOSTIC: Final = "brand_diagnostic"
+PROMPT_COHORT_COMMERCE: Final = "commerce"
 ORGANIC_PROMPT_COHORTS: Final[frozenset[str]] = frozenset({PROMPT_COHORT_CORE})
 PROMPT_COHORTS: Final[frozenset[str]] = ORGANIC_PROMPT_COHORTS | {
     PROMPT_COHORT_COMPARISON,
     PROMPT_COHORT_BRAND_DIAGNOSTIC,
+    PROMPT_COHORT_COMMERCE,
 }
 # The cohort VIEW a caller may request on the read APIs. `core` selects the
 # whole organic set above; it is not the same thing as the stored `core` value.
 REQUESTABLE_PROMPT_COHORTS: Final[frozenset[str]] = frozenset(
-    {PROMPT_COHORT_CORE, PROMPT_COHORT_COMPARISON}
+    {PROMPT_COHORT_CORE, PROMPT_COHORT_COMPARISON, PROMPT_COHORT_COMMERCE}
 )
 PROMPT_NEAR_DUPLICATE_SIMILARITY: Final = 0.9
 ONBOARDING_PROMPT_SET_NAME: Final = "AI Visibility"
@@ -49,7 +51,8 @@ TOPIC_ORIGINS: Final[frozenset[str]] = frozenset(
 )
 
 # --- Generation pipeline version (stamped into generation_evidence) --------
-GENERATOR_VERSION: Final = "prompt-gen-v10"
+GENERATOR_VERSION: Final = "prompt-gen-v11"
+COMMERCE_VALIDATION_SKU_PREVIEW_LIMIT: Final = 10
 
 # Open-vocabulary confirmed onboarding fields that can ground generated prompt
 # text. Topic creation has a separate Pass 1 owner.

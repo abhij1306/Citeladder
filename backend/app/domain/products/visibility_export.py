@@ -18,7 +18,6 @@ from app.core.config.commerce import (
     PRICE_RELATION_MISMATCH,
 )
 from app.domain.products.visibility import (
-    _EMPTY_CO_PLACEMENT,
     _EMPTY_DESTINATION_MIX,
     _entry_metrics,
     _load_audit_and_snapshots,
@@ -46,7 +45,6 @@ _CSV_COLUMNS = [
     "price_relation_mismatch_count",
     "attribute_dimension_frequency",
     "buyer_destination_mix",
-    "competitor_co_placement",
 ]
 
 
@@ -81,9 +79,6 @@ def _json_csv_values(aggregate: dict) -> dict[str, str]:
         ),
         "buyer_destination_mix": encode(
             aggregate.get("buyer_destination_mix"), _EMPTY_DESTINATION_MIX
-        ),
-        "competitor_co_placement": encode(
-            aggregate.get("competitor_co_placement"), _EMPTY_CO_PLACEMENT
         ),
     }
 
@@ -146,7 +141,6 @@ def product_visibility_csv(
     config = build_product_scoring_config(audit.configuration)
     by_entry = select_current_snapshots(snapshots)
     ordered = [(entry.id, entry.name, entry.sku) for entry in config.products]
-    ordered += [(entry.id, entry.name, "") for entry in config.competitor_products]
 
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=_CSV_COLUMNS)

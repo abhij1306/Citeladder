@@ -32,6 +32,8 @@ def prompt_identity_is_valid(
         return not names_brand and not names_competitor
     if cohort == "brand_diagnostic":
         return names_brand
+    if cohort == "commerce":
+        return intent in {"discovery", "comparison"}
     return _is_named_comparison(intent, names_brand, names_competitor)
 
 

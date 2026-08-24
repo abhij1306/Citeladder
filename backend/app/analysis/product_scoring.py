@@ -69,18 +69,7 @@ class ProductEntry:
     attributes: dict[str, Any]
     # Casefolded ``attributes["category"]``; selects the dimension tuple.
     category: str
-
-
-@dataclass(frozen=True)
-class CompetitorProductEntry:
-    id: str
-    competitor: str
-    name: str
-    aliases: tuple[str, ...]
-    price: float | None
-    currency: str
-    # Competitor products have no attribute bag (M1 model) -> DEFAULT dims.
-    category: str = ""
+    url: str = ""
 
 
 def _as_price(value: Any) -> float | None:
@@ -131,27 +120,13 @@ def _owned_product_entry(item: dict[str, Any]) -> ProductEntry:
         currency=str(item.get("currency") or "").strip().upper(),
         attributes=attributes,
         category=str(attributes.get("category") or "").strip().casefold(),
-    )
-
-
-def _competitor_product_entry(item: dict[str, Any]) -> CompetitorProductEntry:
-    """Build one competitor-product matcher from the frozen audit catalog."""
-    return CompetitorProductEntry(
-        id=str(item.get("id") or ""),
-        competitor=str(item.get("competitor_name") or ""),
-        name=str(item.get("name") or ""),
-        aliases=_match_aliases(item.get("name"), item.get("aliases") or []),
-        price=_as_price(item.get("price")),
-        currency=str(item.get("currency") or "").strip().upper(),
+        url=str(item.get("url") or ""),
     )
 
 
 @dataclass(frozen=True)
 class ProductScoringConfig:
     products: tuple[ProductEntry, ...] = field(default_factory=tuple)
-    competitor_products: tuple[CompetitorProductEntry, ...] = field(
-        default_factory=tuple
-    )
     # Frozen owned domains (from the planner's ``project_scoring_identity``):
     # merchant classification reads this audit-frozen copy, never live
     # ``OwnedDomain`` rows (invariant 9).
@@ -163,7 +138,7 @@ class ProductScoringConfig:
     def from_project(cls, config: dict[str, Any]) -> ProductScoringConfig:
         """Build from the audit's FROZEN catalog dict (never live config).
 
-        Reads the ``products`` / ``competitor_products`` keys the planner
+        Reads the ``products`` key the planner
         froze via ``project_product_identity`` plus the ``owned_domains``
         key frozen via ``project_scoring_identity`` (mirrors
         ``ScoringConfig.from_project``).
@@ -171,10 +146,6 @@ class ProductScoringConfig:
         return cls(
             products=tuple(
                 _owned_product_entry(item) for item in config.get("products") or []
-            ),
-            competitor_products=tuple(
-                _competitor_product_entry(item)
-                for item in config.get("competitor_products") or []
             ),
             owned_domains=tuple(
                 str(domain) for domain in (config.get("owned_domains") or [])
@@ -325,7 +296,7 @@ def extract_price_mentions(
 def price_matches_catalog(
     mentioned_value: float,
     mentioned_currency: str,
-    entry: ProductEntry | CompetitorProductEntry,
+    entry: ProductEntry,
     *,
     tolerance_pct: float = PRODUCT_PRICE_TOLERANCE_PCT,
     tolerance_abs: float = PRODUCT_PRICE_TOLERANCE_ABS,
@@ -351,7 +322,7 @@ def price_matches_catalog(
 def price_relation(
     mentioned_value: float,
     mentioned_currency: str,
-    entry: ProductEntry | CompetitorProductEntry,
+    entry: ProductEntry,
     *,
     tolerance_pct: float = PRODUCT_PRICE_TOLERANCE_PCT,
     tolerance_abs: float = PRODUCT_PRICE_TOLERANCE_ABS,

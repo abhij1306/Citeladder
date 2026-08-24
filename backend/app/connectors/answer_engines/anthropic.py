@@ -62,7 +62,7 @@ def _payload(request: AnswerEngineRequest, *, country_code: str) -> dict[str, An
     """Build the Messages API body from the FROZEN request policy only.
 
     ``retrieval_enabled`` decides whether the native ``web_search`` server tool
-    is attached at all (a pulse call omits it entirely, which is what makes it
+    is attached at all (a non-retrieval call omits it entirely, which is what makes it
     cheap); ``max_output_tokens`` is the output cap. Nothing is re-read from
     live settings that the request already froze (invariant 9); the tool's
     ``max_uses`` and the cap fallback stay config-owned (invariant 1).
@@ -88,7 +88,7 @@ def _policy_fields(
     """The body fields the FROZEN request policy decides, or none of them.
 
     A key is OMITTED rather than sent empty when the policy does not ask for
-    it: no ``tools`` key at all when retrieval is disabled (a pulse call must
+    it: no ``tools`` key at all when retrieval is disabled (a non-retrieval call must
     not attach a search tool), and no ``thinking`` key unless the route pins
     reasoning explicitly off.
     """

@@ -57,11 +57,7 @@ from app.models.brand import (
     OwnedDomain,
     UnintendedDomain,
 )
-from app.models.commerce import (
-    CompetitorComparisonSnapshot,
-    FeedIssue,
-    OrderFact,
-)
+from app.models.commerce import FeedIssue, OrderFact
 from app.models.content import (
     ContentGeneration,
     ContentGenerationAttempt,
@@ -94,7 +90,6 @@ from app.models.opportunity import (
     OpportunityVerificationEvent,
 )
 from app.models.product import (
-    CompetitorProduct,
     MerchantMention,
     Product,
     ProductMention,
@@ -159,9 +154,7 @@ __all__ = [
     "BillingWebhookEvent",
     "Citation",
     "Competitor",
-    "CompetitorComparisonSnapshot",
     "CompetitorMention",
-    "CompetitorProduct",
     "ContentGeneration",
     "ContentGenerationAttempt",
     "ConsumableLedger",

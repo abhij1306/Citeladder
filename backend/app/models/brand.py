@@ -240,14 +240,6 @@ class Competitor(Base):
 
     project: Mapped[Project] = relationship("Project", back_populates="competitors")
     logo_asset: Mapped[BrandLogoAsset | None] = relationship("BrandLogoAsset")
-    # Competitor product catalog (Agentic Commerce surface).
-    products: Mapped[list[CompetitorProduct]] = relationship(
-        "CompetitorProduct",
-        back_populates="competitor",
-        cascade=CASCADE_ALL_DELETE_ORPHAN,
-        passive_deletes=True,
-        order_by="CompetitorProduct.created_at",
-    )
 
 
 class OwnedDomain(Base):
@@ -331,5 +323,4 @@ class ObservedEntityCandidate(Base):
     )
 
 
-from app.models.product import CompetitorProduct  # noqa: E402
 from app.models.project import Project  # noqa: E402

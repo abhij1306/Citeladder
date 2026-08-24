@@ -29,7 +29,6 @@ function makeVisibility(overrides: Partial<Visibility> = {}): Visibility {
     total_completed: 6,
     total_failed: 0,
     visibility_score: 66.7,
-    measurement_mode: 'benchmark',
     model_provenance: [],
     rankings: [],
     per_engine: [],

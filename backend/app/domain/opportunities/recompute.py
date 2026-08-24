@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import replace
+from urllib.parse import urlparse
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.opportunities.detectors import (
     AnalysisEvidence,
+    CategoryCitationEvidence,
     CommerceEvidence,
     DetectorHit,
-    ProductAttributeGapEvidence,
     ProductEntryEvidence,
     PromptSnapshotEvidence,
     SiteEvidence,
@@ -18,10 +19,9 @@ from app.analysis.opportunities.detectors import (
     SiteUrlEvidence,
     VisibilityEvidence,
     detect_brand_absent_high_value_prompt,
-    detect_competitor_product_dominates,
+    detect_catalog_fields_missing,
+    detect_cited_alternatives_without_uploaded_presence,
     detect_owned_page_not_cited,
-    detect_price_mention_mismatch,
-    detect_product_attribute_gap,
     detect_product_not_mentioned,
     detect_site_issue_opportunities,
 )
@@ -44,6 +44,10 @@ from app.core.config.opportunities import (
     RECOMPUTE_MAX_PRODUCT_SNAPSHOTS,
     RULE_VERSION,
     STATUS_OPEN,
+)
+from app.core.config.products import (
+    PRODUCT_COMPLETENESS_ATTRIBUTE_KEYS,
+    PRODUCT_REQUIRED_ATTRIBUTES,
 )
 from app.core.config.site_health_contracts import (
     CRAWL_STATUS_CANCELLED,
@@ -78,7 +82,6 @@ from app.models.analysis import (
 )
 from app.models.audit import Audit, AuditPromptSnapshot
 from app.models.brand import OwnedDomain
-from app.models.commerce import CompetitorComparisonSnapshot
 from app.models.demand import DemandSnapshot
 from app.models.opportunity import (
     Opportunity,
@@ -374,6 +377,8 @@ def _project_commerce_entry(
     name: str,
     sku: str,
     competitor_name: str,
+    category: str = "",
+    missing_fields: tuple[str, ...] = (),
 ) -> ProductEntryEvidence:
     return ProductEntryEvidence(
         entry_id=entry_id,
@@ -394,6 +399,8 @@ def _project_commerce_entry(
             if snapshot is not None
             else ()
         ),
+        category=category,
+        missing_fields=missing_fields,
     )
 
 
@@ -406,45 +413,99 @@ def _project_commerce_entries(config, by_entry) -> list[ProductEntryEvidence]:
             name=entry.name,
             sku=entry.sku,
             competitor_name="",
+            category=entry.category,
+            missing_fields=tuple(
+                key
+                for key in (
+                    *PRODUCT_REQUIRED_ATTRIBUTES,
+                    *PRODUCT_COMPLETENESS_ATTRIBUTE_KEYS,
+                )
+                if not (
+                    getattr(entry, key, None)
+                    if key in PRODUCT_REQUIRED_ATTRIBUTES
+                    else entry.attributes.get(key)
+                )
+            ),
         )
         for entry in config.products
     ]
-    competitors = [
-        _project_commerce_entry(
-            snapshot=by_entry.get(entry.id),
-            entry_id=entry.id,
-            kind="competitor_product",
-            name=entry.name,
-            sku="",
-            competitor_name=entry.competitor,
-        )
-        for entry in config.competitor_products
-    ]
-    return own + competitors
+    return own
 
 
-def _comparison_attribute_gaps(
-    comparison: CompetitorComparisonSnapshot | None,
-) -> tuple[ProductAttributeGapEvidence, ...]:
-    if comparison is None:
-        return ()
-    payload = comparison.comparison or {}
-    source_metric_ids = tuple(
-        str(value) for value in (payload.get("source_metric_ids") or [])
+async def _category_citation_evidence(
+    session: AsyncSession, *, audit: Audit, config
+) -> tuple[CategoryCitationEvidence, ...]:
+    prompts = {
+        row.prompt_index: row.theme
+        for row in (
+            await session.scalars(
+                select(AuditPromptSnapshot).where(
+                    AuditPromptSnapshot.audit_id == audit.id
+                )
+            )
+        ).all()
+    }
+    analyses = list(
+        (
+            await session.scalars(
+                select(ResponseAnalysis).where(
+                    ResponseAnalysis.audit_id == audit.id,
+                    ResponseAnalysis.cohort == "commerce",
+                )
+            )
+        ).all()
     )
-    return tuple(
-        ProductAttributeGapEvidence(
-            product_id=str(item.get("own_product", {}).get("id") or ""),
-            product_name=str(item.get("own_product", {}).get("name") or ""),
-            product_sku=str(item.get("own_product", {}).get("sku") or ""),
-            competitor_name=str(
-                item.get("competitor_product", {}).get("competitor_name") or ""
-            ),
-            gaps=tuple(item.get("attribute_gaps") or []),
-            source_metric_ids=source_metric_ids,
+    analysis_by_id = {row.id: row for row in analyses}
+    citations = (
+        list(
+            (
+                await session.scalars(
+                    select(Citation).where(Citation.analysis_id.in_(analysis_by_id))
+                )
+            ).all()
         )
-        for item in (payload.get("items") or [])
+        if analysis_by_id
+        else []
     )
+    uploaded_domains = {
+        (urlparse(product.url).hostname or "").casefold().removeprefix("www.")
+        for product in config.products
+        if product.url
+    }
+    categories = sorted(
+        {product.category for product in config.products if product.category}
+    )
+    evidence = []
+    for category in categories:
+        category_ids = {
+            row.id
+            for row in analyses
+            if prompts.get(row.prompt_index, "").casefold() == category.casefold()
+        }
+        rows = [
+            citation for citation in citations if citation.analysis_id in category_ids
+        ]
+        owned = sum(
+            1
+            for citation in rows
+            if _citation_domain(citation) in uploaded_domains
+        )
+        evidence.append(
+            CategoryCitationEvidence(
+                category=category,
+                third_party_citation_count=len(rows) - owned,
+                uploaded_destination_citation_count=owned,
+                source_analysis_ids=tuple(sorted(str(value) for value in category_ids)),
+            )
+        )
+    return tuple(evidence)
+
+
+def _citation_domain(citation: Citation) -> str:
+    """Prefer persisted citation identity, falling back to its URL host."""
+    return (
+        citation.domain or (urlparse(citation.url).hostname or "")
+    ).casefold().removeprefix("www.")
 
 
 async def _load_commerce_evidence(
@@ -460,7 +521,7 @@ async def _load_commerce_evidence(
     to empty evidence without a query.
     """
     config = build_product_scoring_config(audit.configuration or {})
-    if not config.products and not config.competitor_products:
+    if not config.products:
         return CommerceEvidence(audit_id=audit.id, entries=())
     snapshots = list(
         (
@@ -481,16 +542,12 @@ async def _load_commerce_evidence(
     by_entry = select_current_snapshots(snapshots)
 
     entries = _project_commerce_entries(config, by_entry)
-    comparison = await session.scalar(
-        select(CompetitorComparisonSnapshot).where(
-            CompetitorComparisonSnapshot.workspace_id == workspace_id,
-            CompetitorComparisonSnapshot.audit_id == audit.id,
-        )
-    )
     return CommerceEvidence(
         audit_id=audit.id,
         entries=tuple(entries),
-        attribute_gaps=_comparison_attribute_gaps(comparison),
+        category_citations=await _category_citation_evidence(
+            session, audit=audit, config=config
+        ),
     )
 
 
@@ -585,9 +642,8 @@ async def _collect_recompute_hits(
                 session, workspace_id=workspace_id, audit=audit
             )
             hits.extend(detect_product_not_mentioned(commerce))
-            hits.extend(detect_competitor_product_dominates(commerce))
-            hits.extend(detect_price_mention_mismatch(commerce))
-            hits.extend(detect_product_attribute_gap(commerce))
+            hits.extend(detect_cited_alternatives_without_uploaded_presence(commerce))
+            hits.extend(detect_catalog_fields_missing(commerce))
             hits.extend(
                 await _confirmed_decline_hits(
                     session, workspace_id=workspace_id, audit=audit

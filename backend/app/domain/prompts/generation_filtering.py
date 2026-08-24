@@ -12,7 +12,7 @@ from app.core.config.visibility_prompts import (
     VISIBILITY_PROMPT_MIN_WORDS,
 )
 from app.domain.prompts.generation_contract import SuggestedPrompt, SuggestedTopic
-from app.domain.prompts.portfolio import prompt_identity_is_valid
+from app.domain.prompts.portfolio import contains_tracked_name, prompt_identity_is_valid
 from app.domain.prompts.style import (
     opening_key,
     positioning_shingles,
@@ -107,9 +107,29 @@ def _drop_invalid_prompts(
     positioning = _positioning_shingles(brand_context)
     brand_terms, competitor_terms = _identity_terms(brand_context)
     topics: list[SuggestedTopic] = []
+    all_commerce_names = [
+        str(product.get("name") or "")
+        for product in brand_context.get("commerce_products", [])
+    ]
     for topic in suggestions:
+        commerce_names = [
+            str(product.get("name") or "")
+            for product in brand_context.get("commerce_products", [])
+            if str(product.get("category") or "").casefold() == topic.name.casefold()
+        ]
         rows: list[SuggestedPrompt] = []
         for prompt in topic.prompts:
+            if cohort == "commerce":
+                names_category_product = contains_tracked_name(
+                    prompt.text, commerce_names
+                )
+                names_any_product = contains_tracked_name(
+                    prompt.text, all_commerce_names
+                )
+                if (prompt.intent == "discovery" and names_any_product) or (
+                    prompt.intent == "comparison" and not names_category_product
+                ):
+                    continue
             normalized = " ".join(prompt.text.casefold().split())
             if not _identity_is_valid(
                 prompt,

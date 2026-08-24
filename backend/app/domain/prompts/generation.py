@@ -25,6 +25,7 @@ from sqlalchemy.orm import selectinload
 from app.connectors.agent.gateway import ModelGateway
 from app.core.config.projects import PROMPT_ORIGIN_GENERATED
 from app.core.config.prompts import (
+    COMMERCE_VALIDATION_SKU_PREVIEW_LIMIT,
     GENERATOR_VERSION,
     PROMPT_NEAR_DUPLICATE_SIMILARITY,
     PROMPT_STATUS_ACTIVE,
@@ -106,6 +107,7 @@ async def _load_prompt_set_with_project(
             selectinload(PromptSet.project).selectinload(Project.owned_domains),
             selectinload(PromptSet.project).selectinload(Project.unintended_domains),
             selectinload(PromptSet.project).selectinload(Project.topics),
+            selectinload(PromptSet.project).selectinload(Project.products),
         )
         .where(PromptSet.id == prompt_set_id, Project.workspace_id == workspace_id)
     )
@@ -188,6 +190,41 @@ def _validate_generation_payload(prompt_set: PromptSet, payload: Any) -> Topic |
             f"count must be at most {max_count} (requested {payload.count})"
         )
     target_topic = _resolve_target_topic(prompt_set, payload)
+    if payload.cohort == "commerce":
+        if payload.count != 2 or set(payload.intents) != {"discovery", "comparison"}:
+            raise GenerationValidationError(
+                "Commerce generation requires exactly two prompts: "
+                "discovery and comparison"
+            )
+        if target_topic is None:
+            raise GenerationValidationError(
+                "Commerce generation must target one catalog category topic"
+            )
+        target_category = target_topic.name.strip().casefold()
+        category_products = [
+            product
+            for product in prompt_set.project.products
+            if str((product.attributes or {}).get("category") or "").strip().casefold()
+            == target_category
+        ]
+        if not category_products:
+            missing = sorted(
+                product.sku
+                for product in prompt_set.project.products
+                if not str((product.attributes or {}).get("category") or "").strip()
+            )
+            shown = missing[:COMMERCE_VALIDATION_SKU_PREVIEW_LIMIT]
+            remaining = len(missing) - len(shown)
+            suffix = f" (+{remaining} more)" if remaining else ""
+            raise GenerationValidationError(
+                "No uploaded products belong to target category "
+                f"{target_topic.name!r}. "
+                + (
+                    "Add a category for these SKUs: " + ", ".join(shown) + suffix
+                    if shown
+                    else "Update the catalog category or target topic."
+                )
+            )
     if not prompt_set.project.topics:
         raise GenerationValidationError(
             "Add at least one topic before generating prompts"
@@ -420,6 +457,18 @@ def _generation_brand_context(
         }
         for signal in demand_signals
     ]
+    context["commerce_products"] = [
+        {
+            "id": str(product.id),
+            "sku": product.sku,
+            "name": product.name,
+            "aliases": list(product.aliases or []),
+            "brand": str((product.attributes or {}).get("brand") or ""),
+            "category": str((product.attributes or {}).get("category") or ""),
+            "url": product.url,
+        }
+        for product in project.products
+    ]
     return context
 
 
@@ -532,11 +581,41 @@ async def _generate_suggestions(
         )
         intra_duplicates += batch_duplicates
         batch = filter_for_cohort(batch, payload.cohort, brand_context)
+        if payload.cohort == "commerce":
+            existing_intents = {
+                prompt.intent for topic in suggestions for prompt in topic.prompts
+            }
+            batch = [
+                SuggestedTopic(
+                    topic_id=topic.topic_id,
+                    name=topic.name,
+                    prompts=[
+                        prompt
+                        for prompt in topic.prompts
+                        if prompt.intent not in existing_intents
+                    ],
+                )
+                for topic in batch
+            ]
+            batch = [topic for topic in batch if topic.prompts]
         batch, cross_batch_duplicates = _drop_cross_batch_duplicates(suggestions, batch)
         intra_duplicates += cross_batch_duplicates
         suggestions.extend(batch)
+    capped = _cap_suggestions_to_count(suggestions, payload.count)
+    if payload.cohort == "commerce":
+        generated_intents = {
+            prompt.intent for topic in capped for prompt in topic.prompts
+        }
+        if _prompt_count(capped) != 2 or generated_intents != {
+            "discovery",
+            "comparison",
+        }:
+            raise GenerationOutputError(
+                "The generation model did not return one discovery and one "
+                "product comparison prompt for this category"
+            )
     return (
-        _cap_suggestions_to_count(suggestions, payload.count),
+        capped,
         intra_duplicates,
         brand_context,
         demand_snapshot,

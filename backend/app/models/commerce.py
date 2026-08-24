@@ -28,7 +28,6 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
-    Index,
     Integer,
     Numeric,
     String,
@@ -39,9 +38,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.config.commerce import (
-    COMMERCE_COMPARISON_VERSION,
     COMMERCE_IMPORTER_VERSION,
-    COMMERCE_MATCHER_VERSION,
     ORDER_SANITIZE_VERSION,
 )
 from app.core.database import Base
@@ -213,57 +210,6 @@ class FeedIssue(Base):
     importer_version: Mapped[str] = mapped_column(
         String(64), default=COMMERCE_IMPORTER_VERSION
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow
-    )
-
-
-# ---------------------------------------------------------------------------
-# Audit-bound competitor comparison projection.
-# ---------------------------------------------------------------------------
-class CompetitorComparisonSnapshot(Base):
-    """Versioned immutable projection of two persisted catalog states."""
-
-    __tablename__ = "competitor_comparison_snapshots"
-    __table_args__ = (
-        Index("ix_competitor_comparison_project", "project_id", "created_at"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    workspace_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_WORKSPACE, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(_FK_PROJECT, ondelete=_ON_DELETE_CASCADE),
-        index=True,
-    )
-    audit_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("audits.id", ondelete=_ON_DELETE_CASCADE),
-        unique=True,
-        index=True,
-    )
-    competitor_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("competitors.id", ondelete=_ON_DELETE_SET_NULL),
-        nullable=True,
-        index=True,
-    )
-    source_catalog_ids: Mapped[dict] = mapped_column(JSONB, default=dict)
-    source_artifact_ids: Mapped[list] = mapped_column(JSONB, default=list)
-    matcher_version: Mapped[str] = mapped_column(
-        String(64), default=COMMERCE_MATCHER_VERSION
-    )
-    comparison_version: Mapped[str] = mapped_column(
-        String(64), default=COMMERCE_COMPARISON_VERSION
-    )
-    comparison: Mapped[dict] = mapped_column(JSONB, default=dict)
-    truncated: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow
     )

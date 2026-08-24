@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.config.products import PRODUCT_IMPORT_MAX_ROWS
 from app.domain.products.completeness import product_completeness
-from app.models.product import CompetitorProduct, Product
+from app.models.product import Product
 
 
 def _empty_str_to_none(value: Any) -> Any:
@@ -184,69 +184,11 @@ class ProductResponse(BaseModel):
     )
 
 
-class CompetitorProductInput(BaseModel):
-    competitor_id: uuid.UUID
-    name: str = Field(min_length=1, max_length=255)
-    aliases: list[Annotated[str, Field(max_length=255)]] = Field(
-        default_factory=list, max_length=50
-    )
-    price: float | None = Field(default=None, ge=0)
-    currency: str = Field(default="", max_length=3)
-    url: str = Field(default="", max_length=2048)
-    variants: list[ProductVariant] = Field(default_factory=list, max_length=50)
-    attributes: dict[str, Any] = Field(default_factory=dict, max_length=100)
-    availability: str = Field(default="", max_length=64)
-
-    _aliases_clean = field_validator("aliases", mode="before")(_clean_aliases)
-    _currency_upper = field_validator("currency", mode="before")(_clean_currency)
-
-
-class CompetitorProductUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=255)
-    aliases: list[Annotated[str, Field(max_length=255)]] | None = Field(
-        default=None, max_length=50
-    )
-    price: float | None = Field(default=None, ge=0)
-    currency: str | None = Field(default=None, max_length=3)
-    url: str | None = Field(default=None, max_length=2048)
-    variants: list[ProductVariant] | None = Field(default=None, max_length=50)
-    attributes: dict[str, Any] | None = Field(default=None, max_length=100)
-    availability: str | None = Field(default=None, max_length=64)
-
-    _aliases_clean = field_validator("aliases", mode="before")(_clean_optional_aliases)
-    _currency_upper = field_validator("currency", mode="before")(_clean_currency)
-
-
-class CompetitorProductResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    project_id: uuid.UUID
-    competitor_id: uuid.UUID
-    name: str
-    aliases: list[str]
-    price: float | None
-    currency: str
-    url: str
-    variants: list[ProductVariant]
-    attributes: dict[str, Any]
-    availability: str
-    extraction_fresh_at: datetime | None
-    created_at: datetime
-    updated_at: datetime
-
-
 def product_to_response(product: Product) -> ProductResponse:
     dto = ProductResponse.model_validate(product)
     return dto.model_copy(
         update={"completeness": ProductCompleteness(**product_completeness(product))}
     )
-
-
-def competitor_product_to_response(
-    competitor_product: CompetitorProduct,
-) -> CompetitorProductResponse:
-    return CompetitorProductResponse.model_validate(competitor_product)
 
 
 # --------------------------------------------------------------------------
@@ -276,22 +218,6 @@ class BuyerDestinationMix(BaseModel):
     by_domain: list[BuyerDestinationDomainCount] = Field(default_factory=list)
 
 
-class CompetitorCoPlacementItem(BaseModel):
-    """One competitor product co-mentioned with the entry (persisted shape)."""
-
-    competitor_product_id: uuid.UUID | None
-    competitor_name: str
-    product_name: str
-    count: int = Field(ge=0)
-
-
-class CompetitorCoPlacement(BaseModel):
-    """Persisted competitor co-placement (``truncated`` always present)."""
-
-    items: list[CompetitorCoPlacementItem] = Field(default_factory=list)
-    truncated: bool = False
-
-
 class FrozenPromptContext(BaseModel):
     """Frozen audit prompt context; no valence or sentiment inference."""
 
@@ -307,6 +233,7 @@ class ProductVisibilityEntry(BaseModel):
     product_id: uuid.UUID | None
     sku: str
     name: str
+    category: str
     # Row-level analyzer version (mixed-version audits label each row with
     # its ACTUAL persisted version, not snapshots[0]).
     product_analyzer_version: str
@@ -321,7 +248,6 @@ class ProductVisibilityEntry(BaseModel):
     price_relation_counts: dict[str, int]
     attribute_dimension_frequency: dict[str, dict[str, int]]
     buyer_destination_mix: BuyerDestinationMix
-    competitor_co_placement: CompetitorCoPlacement
     prompt_coverage: float | None = None
     frozen_prompt_context: list[FrozenPromptContext] = Field(default_factory=list)
     conversation_themes: list[str] = Field(default_factory=list)
@@ -331,40 +257,39 @@ class ProductVisibilityEntry(BaseModel):
     visibility_delta: float | None
 
 
-class CompetitorProductVisibilityEntry(BaseModel):
-    """One competitor product's persisted aggregate for the selected audit."""
-
-    competitor_product_id: uuid.UUID | None
-    competitor_name: str
-    name: str
-    product_analyzer_version: str
-    mention_count: int
-    sov_share: float
-    avg_rank: float | None
-    rank_distribution: dict[str, int]
-    price_mention_count: int
-    price_accuracy_rate: float | None
-    win_rate: float | None
-    price_mismatch_rate: float | None
-    price_relation_counts: dict[str, int]
-    attribute_dimension_frequency: dict[str, dict[str, int]]
-    buyer_destination_mix: BuyerDestinationMix
-    competitor_co_placement: CompetitorCoPlacement
-    prompt_coverage: float | None = None
-    frozen_prompt_context: list[FrozenPromptContext] = Field(default_factory=list)
-    conversation_themes: list[str] = Field(default_factory=list)
-    visibility_rate: float
-    top_three_rate: float
-    engine_coverage: int = Field(ge=0)
-
-
 class ProductVisibilitySummary(BaseModel):
     products_tracked: int = Field(ge=0)
     products_visible: int = Field(ge=0)
     visibility_rate: float
     top_three_rate: float
     average_rank: float | None
-    competitor_wins: int = Field(ge=0)
+
+
+class CommerceCitedSource(BaseModel):
+    domain: str
+    title: str
+    representative_url: str
+    citation_count: int = Field(ge=0)
+    distinct_prompts: int = Field(ge=0)
+    distinct_engines: int = Field(ge=0)
+    citation_ids: list[uuid.UUID] = Field(default_factory=list)
+    analysis_ids: list[uuid.UUID] = Field(default_factory=list)
+    artifact_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+class CommerceCategoryCitations(BaseModel):
+    category: str
+    response_count: int = Field(ge=0)
+    uploaded_products: list[str] = Field(default_factory=list)
+    uploaded_commerce_citation_count: int = Field(ge=0)
+    third_party_citation_count: int = Field(ge=0)
+    cited_sources: list[CommerceCitedSource] = Field(default_factory=list)
+
+
+class CommerceCitationComparison(BaseModel):
+    status: Literal["available", "no_citations"]
+    limitation: str
+    categories: list[CommerceCategoryCitations] = Field(default_factory=list)
 
 
 class ProductVisibilityResponse(BaseModel):
@@ -383,7 +308,7 @@ class ProductVisibilityResponse(BaseModel):
     total_analyses: int
     summary: ProductVisibilitySummary
     products: list[ProductVisibilityEntry]
-    competitor_products: list[CompetitorProductVisibilityEntry]
+    citation_comparison: CommerceCitationComparison
     created_at: datetime
 
 

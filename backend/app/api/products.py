@@ -1,4 +1,4 @@
-# Products router: catalog CRUD + CSV import + competitor products.
+# Products router: catalog CRUD, CSV import, and Commerce projections.
 #
 # Workspace-scoped through the parent project (invariant 5); the active
 # workspace is resolved by ``require_active_workspace`` (flat surface —
@@ -6,8 +6,6 @@
 #   - GET/POST /projects/{project_id}/products
 #   - GET/PATCH/DELETE /products/{product_id}
 #   - POST /projects/{project_id}/products/import -> CSV/JSON bulk-create
-#   - GET/POST /projects/{project_id}/competitor-products
-#   - PATCH/DELETE /competitor-products/{competitor_product_id}
 #   - (Task 4) product visibility projections + CSV export
 from __future__ import annotations
 
@@ -48,9 +46,6 @@ from app.core.http_errors import raise_not_found
 from app.domain.analysis.errors import AnalysisNotFoundError, TrendQueryError
 from app.domain.products.csv_import import ProductCsvError, parse_product_csv
 from app.domain.products.schemas import (
-    CompetitorProductInput,
-    CompetitorProductResponse,
-    CompetitorProductUpdate,
     ProductAuditReferences,
     ProductEvidenceResponse,
     ProductImport,
@@ -61,25 +56,18 @@ from app.domain.products.schemas import (
     ProductUpdate,
     ProductVisibilityResponse,
     ProductVisibilityTrendResponse,
-    competitor_product_to_response,
     product_to_response,
 )
 from app.domain.products.service import (
-    CompetitorNotFoundError,
-    CompetitorProductNotFoundError,
     DuplicateProductError,
     ProductImportError,
     ProductNotFoundError,
     count_product_audit_references,
-    create_competitor_product,
     create_product,
-    delete_competitor_product,
     delete_product,
     get_product,
     import_products,
-    list_competitor_products,
     list_products,
-    update_competitor_product,
     update_product,
 )
 from app.domain.products.visibility import (
@@ -99,7 +87,6 @@ _SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
 _RES_PROJECT = "Project"
 _RES_PRODUCT = "Product"
-_RES_COMPETITOR_PRODUCT = "Competitor product"
 
 
 def _not_found(detail: str) -> ApiException:
@@ -319,95 +306,6 @@ async def import_products_endpoint(
         items=[product_to_response(p) for p in result.catalog],
         summary=result.summary,
     )
-
-
-# --------------------------------------------------------------------------
-# Competitor products
-# --------------------------------------------------------------------------
-@router.get(
-    "/projects/{project_id}/competitor-products",
-    response_model=list[CompetitorProductResponse],
-)
-async def list_competitor_products_endpoint(
-    project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
-) -> list[CompetitorProductResponse]:
-    try:
-        competitor_products = await list_competitor_products(
-            session, workspace_id=ctx.workspace_id, project_id=project_id
-        )
-    except ProductNotFoundError as exc:
-        raise_not_found(_RES_PROJECT, cause=exc)
-    return [competitor_product_to_response(cp) for cp in competitor_products]
-
-
-@router.post(
-    "/projects/{project_id}/competitor-products",
-    response_model=CompetitorProductResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-async def create_competitor_product_endpoint(
-    project_id: uuid.UUID,
-    payload: CompetitorProductInput,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-) -> CompetitorProductResponse:
-    try:
-        competitor_product = await create_competitor_product(
-            session,
-            workspace_id=ctx.workspace_id,
-            project_id=project_id,
-            payload=payload,
-        )
-    except ProductNotFoundError as exc:
-        raise_not_found(_RES_PROJECT, cause=exc)
-    except CompetitorNotFoundError as exc:
-        # The FK'd competitor is missing/cross-project/cross-workspace: 404,
-        # never an existence oracle (invariant 5).
-        raise _not_found(str(exc)) from exc
-    except DuplicateProductError as exc:
-        raise _conflict(str(exc)) from exc
-    return competitor_product_to_response(competitor_product)
-
-
-@router.patch(
-    "/competitor-products/{competitor_product_id}",
-    response_model=CompetitorProductResponse,
-)
-async def update_competitor_product_endpoint(
-    competitor_product_id: uuid.UUID,
-    payload: CompetitorProductUpdate,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-) -> CompetitorProductResponse:
-    try:
-        competitor_product = await update_competitor_product(
-            session,
-            workspace_id=ctx.workspace_id,
-            competitor_product_id=competitor_product_id,
-            payload=payload,
-        )
-    except CompetitorProductNotFoundError as exc:
-        raise_not_found(_RES_COMPETITOR_PRODUCT, cause=exc)
-    except DuplicateProductError as exc:
-        raise _conflict(str(exc)) from exc
-    return competitor_product_to_response(competitor_product)
-
-
-@router.delete(
-    "/competitor-products/{competitor_product_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_competitor_product_endpoint(
-    competitor_product_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
-) -> None:
-    try:
-        await delete_competitor_product(
-            session,
-            workspace_id=ctx.workspace_id,
-            competitor_product_id=competitor_product_id,
-        )
-    except CompetitorProductNotFoundError as exc:
-        raise_not_found(_RES_COMPETITOR_PRODUCT, cause=exc)
 
 
 # --------------------------------------------------------------------------

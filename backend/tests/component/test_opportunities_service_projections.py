@@ -19,10 +19,6 @@ from app.core.config.opportunities import (
     FORMULA_VERSION,
     RULE_VERSION,
 )
-from app.core.config.products import (
-    PRODUCT_ANALYZER_VERSION,
-    PRODUCT_SCORING_RULE_VERSION,
-)
 from app.domain.opportunities import (
     commands,
     export,
@@ -37,8 +33,6 @@ from app.domain.opportunities.errors import (
     OpportunityNotFoundError,
     OpportunityValidationError,
 )
-from app.models.audit import Audit
-from app.models.product import ProductMetricSnapshot
 from tests.component.opportunity_helpers import (
     SCORE_BRAND_ABSENT,
     SCORE_OWNED_PAGE,
@@ -347,122 +341,6 @@ async def test_list_and_detail_carry_backend_target_label(
     )
     # The detail inherits the item projection's label (featured card source).
     assert detail["target_label"] == "best crm for small teams"
-
-
-# =========================================================================
-# C3: commerce-derived rules over persisted product evidence
-# =========================================================================
-async def test_commerce_rules_fire_from_persisted_product_evidence(
-    db_session: AsyncSession,
-) -> None:
-    scn = await _seed_scenario(db_session)
-    product_zero_id = uuid.uuid4()
-    product_mismatch_id = uuid.uuid4()
-    competitor_dom_id = uuid.uuid4()
-
-    audit = await db_session.get(Audit, scn.audit_id)
-    assert audit is not None
-    # The planner freezes the catalog identity into the audit at creation.
-    audit.configuration = {
-        "products": [
-            {"id": str(product_zero_id), "sku": "SUMMIT-40", "name": "Summit 40L"},
-            {
-                "id": str(product_mismatch_id),
-                "sku": "VOYAGER-25",
-                "name": "Voyager 25L",
-            },
-        ],
-        "competitor_products": [
-            {
-                "id": str(competitor_dom_id),
-                "competitor_name": "TrailBlaze",
-                "name": "TrailBlaze Alpine 45",
-            }
-        ],
-    }
-
-    def _product_snapshot(
-        entry_id: str,
-        *,
-        kind: str,
-        mention_count: int,
-        sov_share: float,
-        mismatch: float | None = None,
-    ) -> ProductMetricSnapshot:
-        # FK columns stay null (the deleted-catalog shape): identity keys off
-        # the frozen metrics["entry_id"], like the finalize write path.
-        return ProductMetricSnapshot(
-            workspace_id=scn.workspace_id,
-            audit_id=scn.audit_id,
-            project_id=scn.project_id,
-            product_analyzer_version=PRODUCT_ANALYZER_VERSION,
-            product_scoring_rule_version=PRODUCT_SCORING_RULE_VERSION,
-            mention_count=mention_count,
-            sov_share=sov_share,
-            price_mismatch_rate=mismatch,
-            metrics={"entry_id": entry_id, "kind": kind},
-            source_analysis_ids=[str(scn.analysis0_id)],
-        )
-
-    db_session.add_all(
-        [
-            _product_snapshot(
-                str(product_zero_id), kind="product", mention_count=0, sov_share=0.0
-            ),
-            _product_snapshot(
-                str(product_mismatch_id),
-                kind="product",
-                mention_count=4,
-                sov_share=0.2,
-                mismatch=0.5,
-            ),
-            _product_snapshot(
-                str(competitor_dom_id),
-                kind="competitor_product",
-                mention_count=9,
-                sov_share=0.8,
-            ),
-        ]
-    )
-    await db_session.flush()
-
-    result = await recompute.recompute(
-        db_session, workspace_id=scn.workspace_id, project_id=scn.project_id
-    )
-    assert result["total_count"] == 7
-
-    rows = await _live_rows(db_session, scn)
-    not_mentioned = _by_rule(rows, "product_not_mentioned")
-    assert not_mentioned.target_key == f"product:{product_zero_id}"
-    assert not_mentioned.opportunity_type == "commerce"
-    assert not_mentioned.severity == "high"
-    assert not_mentioned.priority_score == 30.0
-    assert not_mentioned.evidence is not None
-    assert not_mentioned.evidence["product_name"] == "Summit 40L"
-    assert not_mentioned.evidence["mention_count"] == 0
-    assert not_mentioned.evidence["audit_id"] == str(scn.audit_id)
-    assert len(not_mentioned.source_metric_ids) == 1
-    # The mentioned product never fires the zero-mention rule.
-    assert all(
-        row.target_key != f"product:{product_mismatch_id}"
-        or row.rule_id != "product_not_mentioned"
-        for row in rows
-    )
-
-    dominates = _by_rule(rows, "competitor_product_dominates")
-    assert dominates.target_key == f"competitor-product:{competitor_dom_id}"
-    assert dominates.priority_score == 30.0
-    assert dominates.evidence is not None
-    assert dominates.evidence["competitor_name"] == "TrailBlaze"
-    assert dominates.evidence["sov_share"] == 0.8
-
-    mismatch = _by_rule(rows, "price_mention_mismatch")
-    assert mismatch.target_key == f"product:{product_mismatch_id}"
-    assert mismatch.priority_score == 20.0
-    assert mismatch.evidence is not None
-    assert mismatch.evidence["price_mismatch_rate"] == 0.5
-    # (rule_id, target_key) dedup keeps exactly one row per rule per target —
-    # ``_by_rule`` above asserts exact singleness for each commerce rule.
 
 
 # =========================================================================

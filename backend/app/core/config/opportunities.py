@@ -296,37 +296,24 @@ OPPORTUNITY_RULES: Final[tuple[OpportunityRule, ...]] = (
         ),
     ),
     OpportunityRule(
-        rule_id="competitor_product_dominates",
+        rule_id="cited_alternatives_without_uploaded_presence",
         opportunity_type=OPPORTUNITY_TYPE_COMMERCE,
         severity=SEVERITY_HIGH,
-        title="Competitor product dominates product share of voice",
+        title="Cited alternatives appear without uploaded products",
         remediation=(
-            "A competing product takes the majority of product mentions in"
-            " the latest audit. Publish comparison content that positions"
-            " your product against it (pricing, specs, use cases) so answer"
-            " engines have owned material to cite instead."
+            "Third-party sources were cited for this category while no uploaded "
+            "product or uploaded product destination appeared. Strengthen the "
+            "uploaded product pages with clear, citable comparison evidence."
         ),
     ),
     OpportunityRule(
-        rule_id="price_mention_mismatch",
+        rule_id="catalog_fields_missing",
         opportunity_type=OPPORTUNITY_TYPE_COMMERCE,
         severity=SEVERITY_MEDIUM,
-        title="Quoted prices disagree with the catalog",
+        title="Catalog fields are missing",
         remediation=(
-            "Answer engines quote prices that do not match your catalog for"
-            " this product. Make the current price prominent and"
-            " machine-readable on the product page (visible price plus"
-            " schema.org Offer markup) so engines stop citing stale figures."
-        ),
-    ),
-    OpportunityRule(
-        rule_id="product_attribute_gap",
-        opportunity_type=OPPORTUNITY_TYPE_COMMERCE,
-        severity=SEVERITY_HIGH,
-        title="Competitor product includes stronger attribute coverage",
-        remediation=(
-            "Review the observed attribute gaps and make the applicable product "
-            "details explicit in the catalog and visible product content."
+            "Complete the named catalog fields so product identity, availability, "
+            "and destination evidence are explicit."
         ),
     ),
     OpportunityRule(
@@ -565,15 +552,9 @@ SITE_GAP_FACTOR: Final = 1.0
 
 # Commerce-derived rules (ProductMetricSnapshot/ProductMention evidence):
 # same neutral-base treatment as the site rules — the severity weight already
-# encodes importance, and the thresholds below are the firing conditions.
+# encodes importance; each detector owns its explicit evidence condition.
 COMMERCE_VALUE_FACTOR: Final = 1.0
 COMMERCE_GAP_FACTOR: Final = 1.0
-# ``competitor_product_dominates`` fires when one competitor product's
-# persisted SOV share (0-1) exceeds this threshold.
-COMMERCE_COMPETITOR_SOV_THRESHOLD: Final = 0.5
-# ``price_mention_mismatch`` fires when a product's persisted price-relation
-# mismatch rate (0-1, over verifiable price mentions) exceeds this threshold.
-COMMERCE_PRICE_MISMATCH_RATE_THRESHOLD: Final = 0.25
 
 PRIORITY_SCALE: Final = 10.0
 PRIORITY_ROUNDING_DECIMALS: Final = 1

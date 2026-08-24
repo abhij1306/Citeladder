@@ -1,11 +1,8 @@
 # Product-catalog persistence models (Agentic Commerce / Product Visibility).
 #
 # One surface's catalog + derived rows live in this module (convention:
-# ``models/site_health/``). ``Product`` mirrors ``Competitor``'s shape
-# (``models/brand.py``): a first-class row with JSONB value-object arrays
-# (``aliases``, ``variants``). ``CompetitorProduct`` is a separate table
-# FK -> ``competitors.id`` (mirrors the Brand-vs-Competitor separation;
-# competitor rows need no attribute completeness).
+# ``models/site_health/``). ``Product`` is a first-class row with JSONB
+# value-object arrays (``aliases``, ``variants``).
 #
 # Everything is scoped to a ``Project`` (itself workspace-scoped), so access is
 # enforced through the project's workspace (invariant 5). The catalog is frozen
@@ -108,61 +105,6 @@ class Product(Base):
     project: Mapped[Project] = relationship("Project", back_populates="products")
 
 
-class CompetitorProduct(Base):
-    """One competitor product tracked for product share-of-voice.
-
-    Separate from ``Product`` (mirrors Brand-vs-Competitor): competitor rows
-    carry no variants/attributes completeness — just identity + price.
-    """
-
-    __tablename__ = "competitor_products"
-    __table_args__ = (
-        UniqueConstraint(
-            "competitor_id", "name", name="uq_competitor_product_competitor_name"
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    project_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        index=True,
-    )
-    competitor_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("competitors.id", ondelete="CASCADE"),
-        index=True,
-    )
-    name: Mapped[str] = mapped_column(String(255))
-    aliases: Mapped[list] = mapped_column(JSONB, default=list)
-    price: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
-    currency: Mapped[str] = mapped_column(String(3), default="")
-    url: Mapped[str] = mapped_column(Text, default="")
-    variants: Mapped[list] = mapped_column(JSONB, default=list)
-    attributes: Mapped[dict] = mapped_column(JSONB, default=dict)
-    availability: Mapped[str] = mapped_column(String(64), default="")
-    extraction_fresh_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
-
-    project: Mapped[Project] = relationship(
-        "Project", back_populates="competitor_products"
-    )
-    competitor: Mapped[Competitor] = relationship(
-        "Competitor", back_populates="products"
-    )
-
-
 class ProductResponseAnalysis(Base):
     """Deterministic per-execution PRODUCT analysis of one raw response.
 
@@ -223,7 +165,6 @@ class ProductResponseAnalysis(Base):
 
     # Flat headline signals (per-execution).
     own_product_mention_count: Mapped[int] = mapped_column(Integer, default=0)
-    competitor_product_mention_count: Mapped[int] = mapped_column(Integer, default=0)
     products_with_price_match: Mapped[int] = mapped_column(Integer, default=0)
 
     # Full deterministic product score dict (source of truth for aggregation).
@@ -249,12 +190,10 @@ class ProductResponseAnalysis(Base):
 class ProductMention(Base):
     """One recorded product mention in a response (invariant 4).
 
-    Exactly one of ``product_id`` / ``competitor_product_id`` is set at write
-    time (single deterministic writer). Both FKs are SET NULL and the matched
+    ``product_id`` is SET NULL on catalog deletion and the matched
     identity is snapshotted onto the row (``matched_name``/``matched_sku``) so
     evidence survives catalog deletes — mirrors nullable
-    ``AuditPromptSnapshot.prompt_id``. No exactly-one-target CHECK constraint:
-    it would reject the SET NULL a catalog delete legitimately triggers.
+    ``AuditPromptSnapshot.prompt_id``.
     """
 
     __tablename__ = "product_mentions"
@@ -286,11 +225,6 @@ class ProductMention(Base):
     product_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("products.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
-    )
-    competitor_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("competitor_products.id", ondelete=ON_DELETE_SET_NULL),
         nullable=True,
     )
     # Snapshotted identity (survives catalog deletes).
@@ -360,11 +294,6 @@ class MerchantMention(Base):
         ForeignKey("products.id", ondelete=ON_DELETE_SET_NULL),
         nullable=True,
     )
-    competitor_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("competitor_products.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
-    )
     merchant_name: Mapped[str] = mapped_column(String(255))
     merchant_domain: Mapped[str] = mapped_column(String(255))
     merchant_kind: Mapped[str] = mapped_column(String(16))
@@ -386,9 +315,8 @@ class MerchantMention(Base):
 class ProductMetricSnapshot(Base):
     """Per-(audit, product) aggregate product-visibility projection.
 
-    One row per (audit, product) and per (audit, competitor_product) —
-    enforced by two partial unique indexes (functional/unique ``Index``
-    convention exists on ``Topic``). Computed once at finalize from persisted
+    One row per (audit, product), enforced by a partial unique index. Computed
+    once at finalize from persisted
     ``ProductResponseAnalysis`` rows only (invariant 7), stamped with the
     analyzer/rule versions + the exact evidence set (invariant 4).
     """
@@ -405,15 +333,6 @@ class ProductMetricSnapshot(Base):
             "product_scoring_rule_version",
             unique=True,
             postgresql_where=text("product_id IS NOT NULL"),
-        ),
-        Index(
-            "uq_product_metric_snapshot_competitor_product",
-            "audit_id",
-            "competitor_product_id",
-            "product_analyzer_version",
-            "product_scoring_rule_version",
-            unique=True,
-            postgresql_where=text("competitor_product_id IS NOT NULL"),
         ),
     )
 
@@ -442,11 +361,6 @@ class ProductMetricSnapshot(Base):
         ForeignKey("products.id", ondelete=ON_DELETE_SET_NULL),
         nullable=True,
     )
-    competitor_product_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey("competitor_products.id", ondelete=ON_DELETE_SET_NULL),
-        nullable=True,
-    )
     product_analyzer_version: Mapped[str] = mapped_column(String(32), default="")
     product_scoring_rule_version: Mapped[str] = mapped_column(String(32), default="")
     mention_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -469,5 +383,4 @@ class ProductMetricSnapshot(Base):
     )
 
 
-from app.models.brand import Competitor  # noqa: E402
 from app.models.project import Project  # noqa: E402

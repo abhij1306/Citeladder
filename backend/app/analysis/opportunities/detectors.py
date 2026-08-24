@@ -25,9 +25,7 @@ from app.analysis.opportunities.source_patterns import (
     summarize_source_pattern,
 )
 from app.core.config.opportunities import (
-    COMMERCE_COMPETITOR_SOV_THRESHOLD,
     COMMERCE_GAP_FACTOR,
-    COMMERCE_PRICE_MISMATCH_RATE_THRESHOLD,
     COMMERCE_VALUE_FACTOR,
     OPPORTUNITY_RULES_BY_ID,
     SITE_GAP_FACTOR,
@@ -40,9 +38,8 @@ from app.core.config.opportunities import (
 RULE_BRAND_ABSENT = "brand_absent_high_value_prompt"
 RULE_OWNED_PAGE_NOT_CITED = "owned_page_not_cited"
 RULE_PRODUCT_NOT_MENTIONED = "product_not_mentioned"
-RULE_COMPETITOR_PRODUCT_DOMINATES = "competitor_product_dominates"
-RULE_PRICE_MENTION_MISMATCH = "price_mention_mismatch"
-RULE_PRODUCT_ATTRIBUTE_GAP = "product_attribute_gap"
+RULE_CITED_ALTERNATIVES = "cited_alternatives_without_uploaded_presence"
+RULE_CATALOG_FIELDS_MISSING = "catalog_fields_missing"
 
 
 # =========================================================================
@@ -132,7 +129,7 @@ class ProductEntryEvidence:
     """
 
     entry_id: str
-    kind: str  # "product" | "competitor_product"
+    kind: str  # "product"
     name: str
     sku: str
     competitor_name: str
@@ -141,6 +138,8 @@ class ProductEntryEvidence:
     price_mismatch_rate: float | None
     snapshot_id: uuid.UUID | None
     source_analysis_ids: tuple[str, ...]
+    category: str = ""
+    missing_fields: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -149,17 +148,15 @@ class CommerceEvidence:
 
     audit_id: uuid.UUID
     entries: tuple[ProductEntryEvidence, ...]
-    attribute_gaps: tuple[ProductAttributeGapEvidence, ...] = ()
+    category_citations: tuple[CategoryCitationEvidence, ...] = ()
 
 
 @dataclass(frozen=True)
-class ProductAttributeGapEvidence:
-    product_id: str
-    product_name: str
-    product_sku: str
-    competitor_name: str
-    gaps: tuple[dict[str, Any], ...]
-    source_metric_ids: tuple[str, ...]
+class CategoryCitationEvidence:
+    category: str
+    third_party_citation_count: int
+    uploaded_destination_citation_count: int
+    source_analysis_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -427,9 +424,7 @@ def _commerce_hit(
     provenance: the entry's ``ProductMetricSnapshot`` (metric ids) and the
     exact product-analysis rows it aggregated (analysis ids, invariant 4).
     """
-    target_prefix = (
-        "competitor-product" if entry.kind == "competitor_product" else "product"
-    )
+    target_prefix = "product"
     return DetectorHit(
         rule_id=rule.rule_id,
         target_key=f"{target_prefix}:{entry.entry_id}",
@@ -499,12 +494,8 @@ def detect_product_not_mentioned(evidence: CommerceEvidence) -> list[DetectorHit
     )
 
 
-def detect_competitor_product_dominates(
-    evidence: CommerceEvidence,
-) -> list[DetectorHit]:
-    """Fire per competitor product whose persisted SOV share is above the
-    config threshold (``COMMERCE_COMPETITOR_SOV_THRESHOLD``)."""
-    rule = OPPORTUNITY_RULES_BY_ID[RULE_COMPETITOR_PRODUCT_DOMINATES]
+def detect_catalog_fields_missing(evidence: CommerceEvidence) -> list[DetectorHit]:
+    rule = OPPORTUNITY_RULES_BY_ID[RULE_CATALOG_FIELDS_MISSING]
     if not rule.enabled:
         return []
     return _sorted_commerce_hits(
@@ -513,74 +504,53 @@ def detect_competitor_product_dominates(
                 evidence,
                 entry,
                 rule=rule,
-                extras={
-                    "competitor_name": entry.competitor_name,
-                    "sov_threshold": COMMERCE_COMPETITOR_SOV_THRESHOLD,
-                },
-            )
-            for entry in evidence.entries
-            if entry.kind == "competitor_product"
-            and entry.sov_share > COMMERCE_COMPETITOR_SOV_THRESHOLD
-        ]
-    )
-
-
-def detect_price_mention_mismatch(evidence: CommerceEvidence) -> list[DetectorHit]:
-    """Fire per product whose persisted price-relation mismatch rate is above
-    the config threshold (``COMMERCE_PRICE_MISMATCH_RATE_THRESHOLD``).
-
-    A null rate (no verifiable price mentions) never fires: absent price
-    evidence is not evidence of a mismatch.
-    """
-    rule = OPPORTUNITY_RULES_BY_ID[RULE_PRICE_MENTION_MISMATCH]
-    if not rule.enabled:
-        return []
-    return _sorted_commerce_hits(
-        [
-            _commerce_hit(
-                evidence,
-                entry,
-                rule=rule,
-                extras={
-                    "price_mismatch_rate": entry.price_mismatch_rate,
-                    "price_mismatch_threshold": COMMERCE_PRICE_MISMATCH_RATE_THRESHOLD,
-                },
+                extras={"missing_fields": list(entry.missing_fields)},
             )
             for entry in evidence.entries
             if entry.kind == "product"
-            and entry.price_mismatch_rate is not None
-            and entry.price_mismatch_rate > COMMERCE_PRICE_MISMATCH_RATE_THRESHOLD
+            and entry.missing_fields
+            and _has_provenance(entry)
         ]
     )
 
 
-def detect_product_attribute_gap(evidence: CommerceEvidence) -> list[DetectorHit]:
-    rule = OPPORTUNITY_RULES_BY_ID[RULE_PRODUCT_ATTRIBUTE_GAP]
+def detect_cited_alternatives_without_uploaded_presence(
+    evidence: CommerceEvidence,
+) -> list[DetectorHit]:
+    rule = OPPORTUNITY_RULES_BY_ID[RULE_CITED_ALTERNATIVES]
     if not rule.enabled:
         return []
+    mentioned_categories = {
+        entry.category.casefold()
+        for entry in evidence.entries
+        if entry.kind == "product" and entry.mention_count > 0
+    }
     return _sorted_commerce_hits(
         [
             DetectorHit(
                 rule_id=rule.rule_id,
-                target_key=f"product:{gap.product_id}",
+                target_key=f"category:{row.category.casefold()}",
                 target_prompt_id=None,
                 target_url=None,
-                target_theme=None,
+                target_theme=row.category,
                 evidence={
-                    "product_name": gap.product_name,
-                    "product_sku": gap.product_sku,
-                    "product_kind": "product",
-                    "competitor_name": gap.competitor_name,
-                    "attribute_gaps": list(gap.gaps),
+                    "category": row.category,
+                    "third_party_citation_count": row.third_party_citation_count,
+                    "uploaded_destination_citation_count": (
+                        row.uploaded_destination_citation_count
+                    ),
                     "audit_id": str(evidence.audit_id),
                 },
-                source_analysis_ids=(),
+                source_analysis_ids=row.source_analysis_ids,
                 source_issue_ids=(),
-                source_metric_ids=gap.source_metric_ids,
+                source_metric_ids=(),
                 value_factor=COMMERCE_VALUE_FACTOR,
                 gap_factor=COMMERCE_GAP_FACTOR,
             )
-            for gap in evidence.attribute_gaps
-            if gap.gaps and gap.source_metric_ids
+            for row in evidence.category_citations
+            if row.third_party_citation_count > 0
+            and row.uploaded_destination_citation_count == 0
+            and row.category.casefold() not in mentioned_categories
+            and row.source_analysis_ids
         ]
     )
