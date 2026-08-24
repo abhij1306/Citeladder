@@ -105,6 +105,9 @@ import type {
   // Products (agentic commerce)
   buyerDestinationKindSchema,
   buyerDestinationMixSchema,
+  competitorCoPlacementSchema,
+  competitorProductSchema,
+  competitorProductVisibilityEntrySchema,
   priceRelationCountsSchema,
   priceRelationSchema,
   productAuditReferencesSchema,
@@ -128,6 +131,7 @@ import type {
   feedHealthStatusSchema,
   feedIssueSeveritySchema,
   productFeedHealthSchema,
+  commerceComparisonSchema,
   // Attribution (A1/A2 snapshot + recompute)
   attributionDeltaSchema,
   attributionDeltaStateSchema,
@@ -266,15 +270,20 @@ export type ProductVariant = z.infer<typeof productVariantSchema>;
 export type ProductCompleteness = z.infer<typeof productCompletenessSchema>;
 export type ProductOrigin = z.infer<typeof productOriginSchema>;
 export type Product = z.infer<typeof productSchema>;
+export type CompetitorProduct = z.infer<typeof competitorProductSchema>;
 export type ProductImportRowError = z.infer<typeof productImportRowErrorSchema>;
 export type ProductImportSummary = z.infer<typeof productImportSummarySchema>;
 export type ProductImportResponse = z.infer<typeof productImportResponseSchema>;
 export type ProductAuditReferences = z.infer<typeof productAuditReferencesSchema>;
 export type BuyerDestinationKind = z.infer<typeof buyerDestinationKindSchema>;
 export type BuyerDestinationMix = z.infer<typeof buyerDestinationMixSchema>;
+export type CompetitorCoPlacement = z.infer<typeof competitorCoPlacementSchema>;
 export type PriceRelationCounts = z.infer<typeof priceRelationCountsSchema>;
 export type PriceRelation = z.infer<typeof priceRelationSchema>;
 export type ProductVisibilityEntry = z.infer<typeof productVisibilityEntrySchema>;
+export type CompetitorProductVisibilityEntry = z.infer<
+  typeof competitorProductVisibilityEntrySchema
+>;
 export type ProductVisibility = z.infer<typeof productVisibilitySchema>;
 export type ProductVisibilityTrend = z.infer<typeof productVisibilityTrendResponseSchema>;
 export type ProductEvidenceKind = z.infer<typeof productEvidenceKindSchema>;
@@ -288,6 +297,7 @@ export type CommerceSyncSummary = z.infer<typeof commerceSyncSummarySchema>;
 export type CommerceConnectionSummary = z.infer<typeof commerceConnectionSummarySchema>;
 export type ProductFeedHealth = z.infer<typeof productFeedHealthSchema>;
 export type CommerceCatalogHealth = z.infer<typeof commerceCatalogHealthSchema>;
+export type CommerceComparison = z.infer<typeof commerceComparisonSchema>;
 
 // --- Attribution (A1/A2 snapshot + recompute) ---
 export type AttributionMethod = z.infer<typeof attributionMethodSchema>;
