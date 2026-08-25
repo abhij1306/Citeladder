@@ -77,6 +77,41 @@ def test_parse_groups_prompts_by_supplied_topic_id() -> None:
     assert topics[0].prompts[0].intent == "discovery"
 
 
+def test_parse_accepts_allowed_topic_keyed_string_lists() -> None:
+    raw = json.dumps(
+        {
+            str(TOPIC_ID): [
+                "which running shoes suit daily walking",
+                "compare Acme Road Runner and Acme Trail Pro",
+            ]
+        }
+    )
+
+    topics, dropped = parse_generation_output(
+        raw,
+        allowed_topics=ALLOWED_TOPICS,
+        fallback_intents=("discovery", "comparison"),
+    )
+
+    assert dropped == 0
+    assert topics[0].topic_id == TOPIC_ID
+    assert [prompt.intent for prompt in topics[0].prompts] == [
+        "discovery",
+        "comparison",
+    ]
+
+
+def test_parse_rejects_unknown_topic_keyed_string_lists() -> None:
+    raw = json.dumps({str(uuid.uuid4()): ["best walking shoes"]})
+
+    with pytest.raises(GenerationOutputError):
+        parse_generation_output(
+            raw,
+            allowed_topics=ALLOWED_TOPICS,
+            fallback_intents=("discovery",),
+        )
+
+
 def test_parse_drops_unknown_topic_ids_and_duplicates() -> None:
     raw = json.dumps(
         {

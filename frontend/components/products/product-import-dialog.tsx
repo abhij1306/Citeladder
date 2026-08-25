@@ -125,7 +125,8 @@ export function ProductImportDialog({
           <a className="text-link" href="/samples/commerce-products.csv" download>
             Download the sample CSV
           </a>
-          .
+          . Import one company&apos;s catalog only; competitor alternatives are derived from audit
+          citations.
         </p>
         {error ? <MutationNotice notice={error} onRetry={onRetry} /> : null}
 

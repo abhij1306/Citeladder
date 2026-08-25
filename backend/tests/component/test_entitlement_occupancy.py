@@ -353,7 +353,14 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
         def __init__(self, topic: str) -> None:
             self._response = _agent_payload(topic)
 
-        async def complete_json(self, *, system: str, user: str) -> str:
+        async def complete_structured_json(
+            self,
+            *,
+            system: str,
+            user: str,
+            schema_name: str,
+            schema: dict[str, object],
+        ) -> str:
             await barrier.wait()
             return self._response
 

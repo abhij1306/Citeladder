@@ -24,7 +24,6 @@ ARCHIVE_PREFIX = "docs/archive/"
 
 ACTIVE_EXACT = {
     "AGENTS.md",
-    "COMMANDS.md",
     "CONTRIBUTING.md",
     "CHANGELOG.md",
     "README.md",
@@ -52,9 +51,13 @@ ACTIVE_EXACT = {
     "docs/plans/content-intelligence.md",
     "docs/plans/demand-intelligence.md",
     "docs/plans/growth-agent.md",
-    "docs/plans/backend-test-corpus-rework.md",
-    "docs/debt/backend-debt-report.md",
-    "docs/debt/backend-waste-report.md",
+    "docs/plans/technical-debt-reduction.md",
+    # Written (and re-written) by `next dev`; see the notice inside them and
+    # `node_modules/next/dist/server/lib/generate-agent-files.js`. Deleting
+    # them only re-creates an uncommitted change, so they are committed and
+    # classified here rather than fought with.
+    "frontend/AGENTS.md",
+    "frontend/CLAUDE.md",
 }
 ACTIVE_PREFIXES = (
     "docs/evaluations/",

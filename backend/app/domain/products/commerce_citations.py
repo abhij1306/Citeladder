@@ -29,8 +29,8 @@ def _url_domain(value: str) -> str:
 
 def _citation_domain(citation: Citation) -> str:
     return (
-        citation.domain or _url_domain(citation.url)
-    ).casefold().removeprefix("www.")
+        (citation.domain or _url_domain(citation.url)).casefold().removeprefix("www.")
+    )
 
 
 def _catalog_context(

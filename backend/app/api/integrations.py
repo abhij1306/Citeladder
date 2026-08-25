@@ -181,7 +181,7 @@ async def integration_oauth_start(
     if provider == INTEGRATION_PROVIDER_SHOPIFY:
         if not shop.strip():
             raise_api_error(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 "A valid Shopify shop domain is required",
                 code=ERROR_OAUTH_SHOP_INVALID,
                 detail=ERROR_OAUTH_SHOP_INVALID,
@@ -190,7 +190,7 @@ async def integration_oauth_start(
             provider_account_ref = normalize_shopify_shop_domain(shop)
         except ValueError as exc:
             raise_api_error(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 "A valid Shopify shop domain is required",
                 code=ERROR_OAUTH_SHOP_INVALID,
                 detail=ERROR_OAUTH_SHOP_INVALID,
@@ -198,7 +198,7 @@ async def integration_oauth_start(
             )
     elif shop.strip():
         raise_api_error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "The shop parameter is only valid for Shopify",
             code=ERROR_OAUTH_SHOP_INVALID,
             detail=ERROR_OAUTH_SHOP_INVALID,
@@ -324,7 +324,7 @@ async def list_properties_endpoint(
         # Same canonical envelope as the 502 below: the caller reads one
         # machine-usable ``error.code`` for every failure of this endpoint.
         raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             ERROR_PROPERTY_DISCOVERY_UNSUPPORTED,
             f"{exc} exposes no discoverable property list",
             retryable=False,
@@ -392,7 +392,7 @@ async def enqueue_sync_endpoint(
         raise_not_found(_RES_CONNECTION, cause=exc)
     except SyncWindowInvalidError as exc:
         raise_api_error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "The requested sync window is invalid",
             code=ERROR_SYNC_WINDOW_INVALID,
             detail=ERROR_SYNC_WINDOW_INVALID,
@@ -516,7 +516,7 @@ async def create_mapping_endpoint(
         raise_not_found(_RES_PROJECT, cause=exc)
     except MappingProviderMismatchError as exc:
         raise_api_error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "The mapping provider does not match the connection provider",
             code=ERROR_MAPPING_PROVIDER_MISMATCH,
             detail=ERROR_MAPPING_PROVIDER_MISMATCH,
@@ -524,7 +524,7 @@ async def create_mapping_endpoint(
         )
     except MappingPropertyNotOwnedError as exc:
         raise_api_error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "The property does not belong to the selected project",
             code=ERROR_MAPPING_PROPERTY_NOT_OWNED,
             detail=ERROR_MAPPING_PROPERTY_NOT_OWNED,

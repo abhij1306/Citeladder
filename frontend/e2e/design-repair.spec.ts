@@ -119,8 +119,10 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   const initialHeadingBox = await initialHeading.boundingBox();
   expect(initialHeadingBox).not.toBeNull();
   // The short setup stage begins on the same visual line as the desktop rail
-  // title, instead of sitting vertically centred beneath it.
-  expect(Math.abs(initialHeadingBox!.y - setupBox!.y)).toBeLessThanOrEqual(12);
+  // title, instead of sitting vertically centred beneath it. Both columns share
+  // one vertical padding ramp, so this holds exactly at every width rather than
+  // within a tolerance (components/onboarding/onboarding-layout.tsx).
+  expect(Math.abs(initialHeadingBox!.y - setupBox!.y)).toBeLessThanOrEqual(2);
   const stageHeadingFontSize = await initialHeading.evaluate(
     (element) => getComputedStyle(element).fontSize,
   );
@@ -133,7 +135,7 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   const discoveryHeading = page.getByRole('heading', { name: 'Finding what to track' });
   const discoveryHeadingBox = await discoveryHeading.boundingBox();
   expect(discoveryHeadingBox).not.toBeNull();
-  expect(Math.abs(discoveryHeadingBox!.y - setupBox!.y)).toBeLessThanOrEqual(12);
+  expect(Math.abs(discoveryHeadingBox!.y - setupBox!.y)).toBeLessThanOrEqual(2);
   const discoveryStage = await page.locator('main#main').boundingBox();
   expect(discoveryStage).not.toBeNull();
 
@@ -148,11 +150,20 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   );
   const reviewStage = await page.locator('main#main').boundingBox();
   expect(reviewStage).not.toBeNull();
-  expect(reviewStage?.width).toBeCloseTo(brandStage!.width, 0);
+  // The stage never changes HEIGHT between steps: it fills the column, so the
+  // surrounding chrome cannot jump as the user advances. These assertions were
+  // previously unreachable — the alignment check above failed first — and they
+  // also asserted equal WIDTH, which contradicts the layout's explicit
+  // `flow.step === 2 ? 'max-w-6xl' : 'max-w-xl'`. Review is deliberately wider:
+  // it shows the full ICP confirmation rather than a two-field form.
   expect(reviewStage?.height).toBeCloseTo(brandStage!.height, 0);
-  expect(reviewStage?.width).toBeCloseTo(discoveryStage!.width, 0);
   expect(reviewStage?.height).toBeCloseTo(discoveryStage!.height, 0);
-  await expect(page.getByRole('heading', { name: 'Confirm your ICP' })).toBeVisible();
+  expect(brandStage?.width).toBeCloseTo(discoveryStage!.width, 0);
+  expect(reviewStage!.width).toBeGreaterThan(brandStage!.width);
+  // The review stage's heading is "Does this look right?" (asserted above). A
+  // "Confirm your ICP" heading has not existed since onboarding was rebuilt
+  // around business context; only the rail's step label still reads "Confirm
+  // ICP", and that is a <p>, not a heading.
   await expect(page.getByText('theasianschool.net')).toBeVisible();
   await expect(page.getByText('The Doon School')).toBeVisible();
   await expect(page.getByText(/Starting Prompts/i)).toHaveCount(0);
@@ -305,7 +316,10 @@ test('Growth Agent opens as a bounded task workspace with plain-language data us
   ]);
 
   await page.goto('/site');
-  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  // The trigger carries `aria-label="Open Growth Agent"`, which overrides the
+  // visible "Agent" text as the accessible name (components/layout/agent-sheet.tsx,
+  // and its colocated agent-sheet.test.tsx queries the same name).
+  await page.getByRole('button', { name: 'Open Growth Agent' }).click();
   await expect(page.getByRole('dialog', { name: 'Growth Agent' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Build an admissions roadmap' })).toBeVisible();
   await expect(page.getByText('Prioritize the admissions journey first.')).toBeVisible();

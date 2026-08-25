@@ -44,7 +44,7 @@ def _error(exc: Exception) -> ApiException:
         return ApiException(status.HTTP_404_NOT_FOUND, "agent_not_found", str(exc))
     if isinstance(exc, AgentValidationError):
         return ApiException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "agent_task_invalid", str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "agent_task_invalid", str(exc)
         )
     return ApiException(status.HTTP_409_CONFLICT, "agent_task_conflict", str(exc))
 

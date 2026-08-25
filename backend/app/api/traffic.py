@@ -79,7 +79,7 @@ async def _get_project_or_404(
 def _unprocessable(exc: TrafficQueryError) -> ApiException:
     # Query-validation contract (the trends/A9 precedent): a bad
     # granularity/window/sort is a 422, never a 404 or a 500.
-    return api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+    return api_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc))
 
 
 def _bad_cursor(exc: TrafficCursorError) -> ApiException:

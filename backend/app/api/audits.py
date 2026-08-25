@@ -102,12 +102,12 @@ _SessionDep = Annotated[AsyncSession, Depends(get_db)]
 _ADMISSION_STATUS: dict[str, int] = {
     CODE_MANUAL_RUN_RATE_EXCEEDED: status.HTTP_429_TOO_MANY_REQUESTS,
     STATUS_ENTITLEMENT_UNRESOLVED: status.HTTP_403_FORBIDDEN,
-    CODE_FUNDED_COST_UNRESOLVED: status.HTTP_422_UNPROCESSABLE_ENTITY,
+    CODE_FUNDED_COST_UNRESOLVED: status.HTTP_422_UNPROCESSABLE_CONTENT,
     CODE_FUNDED_BUDGET_EXHAUSTED: status.HTTP_403_FORBIDDEN,
     CODE_FUNDED_CREDITS_EXHAUSTED: status.HTTP_403_FORBIDDEN,
-    CODE_PROMPT_OFF_TOPIC: status.HTTP_422_UNPROCESSABLE_ENTITY,
-    CODE_BINDING_VOCABULARY_EMPTY: status.HTTP_422_UNPROCESSABLE_ENTITY,
-    CODE_PROMPT_COUNT_POLICY_UNCONFIGURED: status.HTTP_422_UNPROCESSABLE_ENTITY,
+    CODE_PROMPT_OFF_TOPIC: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    CODE_BINDING_VOCABULARY_EMPTY: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    CODE_PROMPT_COUNT_POLICY_UNCONFIGURED: status.HTTP_422_UNPROCESSABLE_CONTENT,
     CODE_PROMPT_COUNT_EXCEEDED: status.HTTP_403_FORBIDDEN,
 }
 
@@ -123,7 +123,7 @@ def _translate_create_audit_errors() -> Iterator[None]:
     try:
         yield
     except AuditValidationError as exc:
-        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc), cause=exc)
     except UsageLimitExceededError as exc:
         raise_api_error(
             status.HTTP_429_TOO_MANY_REQUESTS,
@@ -177,7 +177,7 @@ async def estimate_audit_endpoint(
             session, workspace_id=ctx.workspace_id, payload=payload
         )
     except AuditEstimateError as exc:
-        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc), cause=exc)
 
 
 @router.get("", response_model=list[AuditResponse])

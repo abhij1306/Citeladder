@@ -103,7 +103,7 @@ def _selection_error_response(exc: Exception) -> ApiException:
         return ApiException.coded(status.HTTP_403_FORBIDDEN, exc.code, str(exc))
     # SelectionValidationError (and any other coded selection error) -> 422.
     code = getattr(exc, "code", "invalid_selection")
-    return ApiException.coded(status.HTTP_422_UNPROCESSABLE_ENTITY, code, str(exc))
+    return ApiException.coded(status.HTTP_422_UNPROCESSABLE_CONTENT, code, str(exc))
 
 
 def _phase_error_response(exc: PhaseControlError) -> ApiException:
@@ -119,9 +119,9 @@ def _phase_error_response(exc: PhaseControlError) -> ApiException:
         return ApiException.coded(status.HTTP_403_FORBIDDEN, exc.code, str(exc))
     if exc.code in {CODE_DISCOVERY_LIMIT_EXCEEDED, CODE_ANALYSIS_LIMIT_EXCEEDED}:
         return ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, exc.code, str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, str(exc)
         )
-    return ApiException.coded(status.HTTP_422_UNPROCESSABLE_ENTITY, exc.code, str(exc))
+    return ApiException.coded(status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, str(exc))
 
 
 async def _phase_mutation_view(
@@ -155,7 +155,7 @@ async def _require_advanced_controls(
     entitlement = await service.get_entitlement_view(session, workspace_id=workspace_id)
     if not entitlement["advanced_controls_enabled"]:
         raise ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             CODE_ADVANCED_CONTROLS_UNAVAILABLE,
             "Advanced Site Health controls are unavailable",
         )
@@ -236,7 +236,7 @@ async def create_crawl_endpoint(
         if exc.code == "project_not_found":
             raise _not_found("Project not found") from exc
         raise ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, exc.code, str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, str(exc)
         ) from exc
     return CrawlResponse.model_validate(service.project_crawl(crawl))
 
@@ -378,7 +378,7 @@ async def preview_crawl_urls_endpoint(
         if exc.code == "project_not_found":
             raise _not_found("Project not found") from exc
         raise ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, exc.code, str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, str(exc)
         ) from exc
     return UrlPreviewResponse.model_validate(preview)
 

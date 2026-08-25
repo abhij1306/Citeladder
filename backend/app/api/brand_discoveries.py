@@ -62,7 +62,7 @@ async def create_brand_discovery(
             idempotency_key=idempotency_key,
         )
     except BrandDiscoveryError as exc:
-        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc), cause=exc)
     return BrandDiscoveryResponse.model_validate(row)
 
 

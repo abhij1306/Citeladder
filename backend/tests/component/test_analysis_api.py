@@ -181,7 +181,7 @@ async def test_metrics_and_visibility_are_projections(
                 "logical_engine": ENGINE_GEMINI,
                 "transport_provider": TRANSPORT_GOOGLE,
                 "transport_model": GEMINI_MODEL,
-                    "retrieval_enabled": True,
+                "retrieval_enabled": True,
             }
         ]
         # Vocabulary lock: no ``mode`` alias is ever emitted.

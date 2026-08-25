@@ -43,15 +43,63 @@ class GenerationOutput(BaseModel):
     prompts: list[GeneratedPrompt] = Field(default_factory=list)
 
 
+def _normalize_topic_keyed_output(
+    value: object,
+    *,
+    allowed_topic_ids: set[str],
+    fallback_intents: tuple[str, ...],
+) -> object:
+    """Normalize the bounded topic-map shape returned by some JSON-only hosts."""
+    if not isinstance(value, dict):
+        return value
+    topic_keys = [key for key in value if key != "prompts"]
+    if not topic_keys:
+        return value
+    prompts = value.get("prompts", [])
+    if not isinstance(prompts, list):
+        return value
+
+    normalized = list(prompts)
+    for key in topic_keys:
+        try:
+            topic_id = str(uuid.UUID(str(key)))
+        except ValueError:
+            return value
+        rows = value[key]
+        if topic_id not in allowed_topic_ids or not isinstance(rows, list):
+            return value
+        if len(rows) != len(fallback_intents) or not all(
+            isinstance(text, str) and text.strip() for text in rows
+        ):
+            return value
+        normalized.extend(
+            {
+                "topic_id": topic_id,
+                "text": text,
+                "intent": fallback_intents[index],
+            }
+            for index, text in enumerate(rows)
+        )
+    return {"prompts": normalized}
+
+
 def parse_generation_output(
-    raw: str, *, allowed_topics: list[dict[str, str]]
+    raw: str,
+    *,
+    allowed_topics: list[dict[str, str]],
+    fallback_intents: tuple[str, ...] = (),
 ) -> tuple[list[SuggestedTopic], int]:
+    topics = {str(topic["id"]): topic["name"] for topic in allowed_topics}
     try:
-        output = GenerationOutput.model_validate(json.loads(raw))
+        payload = _normalize_topic_keyed_output(
+            json.loads(raw),
+            allowed_topic_ids=set(topics),
+            fallback_intents=fallback_intents,
+        )
+        output = GenerationOutput.model_validate(payload)
     except (json.JSONDecodeError, ValidationError) as exc:
         raise GenerationOutputError(f"Unparseable agent output: {exc}") from exc
 
-    topics = {str(topic["id"]): topic["name"] for topic in allowed_topics}
     grouped: dict[str, list[SuggestedPrompt]] = {}
     seen_hashes: set[str] = set()
     duplicate_count = 0

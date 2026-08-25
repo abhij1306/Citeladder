@@ -32,6 +32,9 @@ describe('ProductImportDialog file flow', () => {
 
     // The picker renders before any result; import stays disabled with 0 rows.
     expect(screen.getByText('Import products from CSV')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Import one company's catalog only; competitor alternatives/),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Import 0 products' })).toBeDisabled();
 
     const file = new File(

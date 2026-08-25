@@ -80,12 +80,13 @@ test.describe('marketing routes', () => {
 
   test('marketing subpages render the unified light canvas', async ({ page }) => {
     await page.goto('/pricing');
-    // design.md §Colour: `background` is white. The neutral gray is the
-    // grouped-region well (`background-alt` / `well`), not the canvas, and the
-    // pre-rebuild off-white canvas no longer exists.
+    // docs/design.md §Colour: the canvas is the luminous pearl-paper
+    // `background` token. Crisp white is `panel` / `elevated`, and the deeper
+    // neutral gray is the grouped-region well (`background-alt` / `well`) —
+    // neither of those is the canvas.
     await expect(page.locator('.bg-background').first()).toHaveCSS(
       'background-color',
-      'rgb(255, 255, 255)',
+      'rgb(244, 245, 247)',
     );
   });
 

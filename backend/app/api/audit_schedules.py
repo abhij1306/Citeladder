@@ -49,7 +49,7 @@ async def create_audit_schedule_endpoint(
             payload=payload,
         )
     except AuditScheduleValidationError as exc:
-        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc), cause=exc)
     return AuditScheduleResponse.model_validate(schedule)
 
 
@@ -105,7 +105,7 @@ async def update_audit_schedule_endpoint(
     except AuditScheduleNotFoundError as exc:
         raise_not_found("Audit schedule", cause=exc)
     except AuditScheduleValidationError as exc:
-        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc), cause=exc)
     return AuditScheduleResponse.model_validate(schedule)
 
 

@@ -6,6 +6,8 @@ from pathlib import Path
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.config.dotenv import dotenv_sources
+
 
 class BillingSettings(BaseSettings):
     """Environment-owned billing catalog and Razorpay integration settings."""
@@ -13,7 +15,7 @@ class BillingSettings(BaseSettings):
     _backend_dir = Path(__file__).resolve().parents[3]
     model_config = SettingsConfigDict(
         env_prefix="BILLING_",
-        env_file=(str(_backend_dir.parent / ".env"), str(_backend_dir / ".env")),
+        env_file=dotenv_sources(),
         env_file_encoding="utf-8",
         extra="ignore",
     )

@@ -254,7 +254,7 @@ async def get_visibility_trends_endpoint(
             cohort=cohort,
         )
     except TrendQueryError as exc:
-        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc), cause=exc)
 
 
 @router.get(
@@ -307,7 +307,7 @@ async def get_visibility_evidence_endpoint(
     except AnalysisNotFoundError as exc:
         raise_not_found("Audit", cause=exc)
     except TrendQueryError as exc:
-        raise_api_error(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc), cause=exc)
+        raise_api_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc), cause=exc)
 
 
 def _logo_response(

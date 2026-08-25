@@ -5,8 +5,8 @@
 #   - GET/POST /prompt-sets, GET/PATCH/DELETE /prompt-sets/{id}
 #   - GET/POST /prompt-sets/{id}/prompts, PATCH/DELETE /prompts/{id}
 #   - POST /prompt-sets/{id}/import  -> CSV bulk-create
-#   - POST /prompt-sets/{id}/generate -> AI topic/prompt generation
-#     (default agent, config/agent.py; validated suggestions become active)
+#   - POST /prompt-sets/{id}/generate -> topic/prompt generation
+#     (Commerce is catalog-derived; other cohorts use the default agent)
 #   - POST /prompt-sets/{id}/prompts/bulk-status -> review transitions
 #   - GET/POST /projects/{id}/topics, PATCH/DELETE /topics/{id}
 from __future__ import annotations
@@ -31,6 +31,7 @@ from app.api.request_bodies import read_limited_body, read_limited_upload
 from app.api.usage_limits import enforce_workspace_request
 from app.connectors.agent.client import AgentNotConfiguredError
 from app.connectors.agent.factory import create_model_gateway
+from app.connectors.agent.gateway import ModelGateway
 from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.abuse import abuse_settings
 from app.core.config.errors import (
@@ -161,7 +162,7 @@ async def _map_prompt_mutation[T](call: Callable[[], Awaitable[T]]) -> T:
         ) from exc
     except TopicalBindingError as exc:
         raise ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             exc.code,
             str(exc),
             details=exc.details,
@@ -376,7 +377,7 @@ async def import_prompts_endpoint(
         rows = await _resolve_import_rows(request, file)
     except (ValueError, ValidationError) as exc:
         raise_api_error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "Invalid prompt import payload",
             cause=exc,
         )
@@ -405,10 +406,10 @@ async def generate_prompts_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
 ) -> PromptGenerateResponse:
-    """AI topic/prompt generation via the app-level default agent.
+    """Generate prompts via the catalog script or app-level default agent.
 
     Guard order: workspace scope (foreign set -> 404) before anything runs,
-    then bounds/topic ownership (422), then agent configuration
+    then bounds/topic ownership (422), then agent configuration when required
     (503) — an invalid payload is rejected as invalid even when no agent is
     configured. Validated suggestions become active library resources, but
     generation never runs or schedules an audit.
@@ -424,28 +425,30 @@ async def generate_prompts_endpoint(
         raise_not_found(_RES_PROMPT_SET, cause=exc)
     except GenerationValidationError as exc:
         raise_coded_error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             ERROR_GENERATION_INVALID,
             str(exc),
             cause=exc,
         )
-    try:
-        agent = create_model_gateway()
-    except AgentNotConfiguredError as exc:
-        raise_coded_error(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            ERROR_AGENT_NOT_CONFIGURED,
-            "No default agent is configured. Set the configured provider's "
-            "API key in the backend environment.",
-            cause=exc,
+    agent: ModelGateway | None = None
+    if payload.cohort != "commerce":
+        try:
+            agent = create_model_gateway()
+        except AgentNotConfiguredError as exc:
+            raise_coded_error(
+                status.HTTP_503_SERVICE_UNAVAILABLE,
+                ERROR_AGENT_NOT_CONFIGURED,
+                "No default agent is configured. Set the configured provider's "
+                "API key in the backend environment.",
+                cause=exc,
+            )
+        await enforce_workspace_request(
+            session,
+            workspace_id=ctx.workspace_id,
+            operation="agent.provider_call",
+            limit=abuse_settings.agent_call_limit,
+            window_seconds=abuse_settings.agent_call_window_seconds,
         )
-    await enforce_workspace_request(
-        session,
-        workspace_id=ctx.workspace_id,
-        operation="agent.provider_call",
-        limit=abuse_settings.agent_call_limit,
-        window_seconds=abuse_settings.agent_call_window_seconds,
-    )
     try:
         generated, topics, dropped = await _map_prompt_mutation(
             lambda: generate_prompts(
@@ -461,7 +464,7 @@ async def generate_prompts_endpoint(
         raise_not_found(_RES_PROMPT_SET, cause=exc)
     except GenerationValidationError as exc:
         raise_coded_error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             ERROR_GENERATION_INVALID,
             str(exc),
             cause=exc,

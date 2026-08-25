@@ -30,10 +30,13 @@ knowledge store, or product architecture.
 
 CSV categories are authoritative. Commerce reuses one prompt set, one topic per
 category, and exactly two generated prompts per category: generic discovery and
-uploaded-product comparison. Commerce audits are isolated by `audit_scope` and
-freeze uploaded product URL domains. Category citation projections label
-third-party results as cited alternatives/sources, never matched competitor
-SKUs. A retrieval-enabled answer can truthfully have no citations.
+uploaded-product comparison. That fixed prompt pair is derived deterministically
+from the category and uploaded product names; the Commerce generation action
+does not configure or call the application model. Commerce audits are isolated
+by `audit_scope` and freeze uploaded product URL domains. Category citation
+projections label third-party results as cited alternatives/sources, never
+matched competitor SKUs. A retrieval-enabled answer can truthfully have no
+citations.
 
 Commerce emits only three deterministic action types: an uploaded product was
 absent, third-party category citations appeared while uploaded products and

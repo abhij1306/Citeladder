@@ -79,9 +79,25 @@ class FakeAgent:
     def __init__(self, response: str = VALID_AGENT_RESPONSE) -> None:
         self.response = response
         self.calls: list[dict[str, str]] = []
+        self.schemas: list[tuple[str, dict[str, object]]] = []
 
     async def complete_json(self, *, system: str, user: str) -> str:
         self.calls.append({"system": system, "user": user})
+        return self._response_for(user)
+
+    async def complete_structured_json(
+        self,
+        *,
+        system: str,
+        user: str,
+        schema_name: str,
+        schema: dict[str, object],
+    ) -> str:
+        self.calls.append({"system": system, "user": user})
+        self.schemas.append((schema_name, schema))
+        return self._response_for(user)
+
+    def _response_for(self, user: str) -> str:
         try:
             payload = json.loads(self.response)
         except json.JSONDecodeError:
@@ -204,6 +220,8 @@ async def test_generate_creates_prompts_under_existing_topic(
     # The brand evidence went to the agent (confirmed above), and the
     # request embedded identity + count instructions.
     assert len(fake_agent.calls) == 1
+    assert fake_agent.schemas[0][0] == "prompt_generation"
+    assert fake_agent.schemas[0][1]["additionalProperties"] is False
     sent = fake_agent.calls[0]["user"]
     assert "Acme Corp" in sent
     assert "Globex" in sent
@@ -252,7 +270,8 @@ async def test_generate_persists_provenance_evidence(
     for prompt in prompts:
         evidence = prompt.generation_evidence
         assert evidence is not None
-        assert evidence["generator_version"] == "prompt-gen-v11"
+        assert evidence["generator_version"] == "prompt-gen-v15"
+        assert evidence["generation_mode"] == "model"
         assert evidence["model_identity"] == {
             "transport_host": "agent.test",
             "transport_model": "fake-model",
@@ -260,6 +279,93 @@ async def test_generate_persists_provenance_evidence(
         assert evidence["requested_count"] == 3
         run_ids.add(evidence["generation_run_id"])
     assert len(run_ids) == 1  # one run id for the whole batch
+
+
+@pytest.mark.asyncio
+async def test_commerce_generation_is_catalog_derived_without_an_agent(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    project, prompt_set_id = await _make_project_and_set(
+        client, "gen-commerce-script@example.com", create_default_topic=False
+    )
+    topic_response = await client.post(
+        f"/api/v1/projects/{project['id']}/topics",
+        json={"name": "Headphones"},
+    )
+    assert topic_response.status_code == 201
+    topic_id = topic_response.json()["id"]
+    for sku, name in (
+        ("BOSE-QCU", "Bose QuietComfort Ultra"),
+        ("SONY-XM6", "Sony WH-1000XM6"),
+    ):
+        product_response = await client.post(
+            f"/api/v1/projects/{project['id']}/products",
+            json={
+                "sku": sku,
+                "name": name,
+                "price": 299.0,
+                "currency": "USD",
+                "url": f"https://shop.example/products/{sku.casefold()}",
+                "attributes": {"category": "Headphones"},
+            },
+        )
+        assert product_response.status_code == 201
+
+    def _unexpected_agent() -> DefaultAgentClient:
+        raise AssertionError("Commerce generation must not configure an agent")
+
+    async def _unexpected_rate_limit(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("Commerce generation must not consume provider quota")
+
+    monkeypatch.setattr(prompts_api, "create_model_gateway", _unexpected_agent)
+    monkeypatch.setattr(
+        prompts_api, "enforce_workspace_request", _unexpected_rate_limit
+    )
+
+    response = await client.post(
+        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
+        json={
+            "count": 2,
+            "topic_id": topic_id,
+            "intents": ["discovery", "comparison"],
+            "cohort": "commerce",
+        },
+    )
+
+    assert response.status_code == 201
+    generated = response.json()["generated"]
+    assert [(row["text"], row["intent"]) for row in generated] == [
+        (
+            "Which headphones should I buy for the best overall value?",
+            "discovery",
+        ),
+        (
+            "Which headphones should I buy: Bose QuietComfort Ultra or "
+            "Sony WH-1000XM6?",
+            "comparison",
+        ),
+    ]
+
+    async with session_factory() as session:
+        prompts = (
+            (
+                await session.execute(
+                    select(Prompt).where(
+                        Prompt.prompt_set_id == uuid.UUID(prompt_set_id)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert {prompt.generation_evidence["generation_mode"] for prompt in prompts} == {
+        "deterministic"
+    }
+    assert all(
+        prompt.generation_evidence["model_identity"] is None for prompt in prompts
+    )
 
 
 @pytest.mark.asyncio
@@ -342,7 +448,14 @@ async def test_generate_reports_upstream_rate_limits_as_retryable(
         model = "fake-model"
         base_url_host = "agent.test"
 
-        async def complete_json(self, *, system: str, user: str) -> str:
+        async def complete_structured_json(
+            self,
+            *,
+            system: str,
+            user: str,
+            schema_name: str,
+            schema: dict[str, object],
+        ) -> str:
             raise ProviderError(
                 "Default agent returned HTTP 429",
                 error_code="rate_limit",
@@ -780,7 +893,14 @@ async def test_concurrent_generation_keeps_all_validated_rows_active(
                 n, discriminator=discriminator
             )
 
-        async def complete_json(self, *, system: str, user: str) -> str:
+        async def complete_structured_json(
+            self,
+            *,
+            system: str,
+            user: str,
+            schema_name: str,
+            schema: dict[str, object],
+        ) -> str:
             # Yield so both coroutines interleave before either persists.
             await asyncio.sleep(0)
             return await FakeAgent(response=self._response).complete_json(
@@ -844,7 +964,14 @@ async def test_generation_racing_prompt_set_delete_is_scoped_not_found(
         model = "fake-model"
         base_url_host = "agent.test"
 
-        async def complete_json(self, *, system: str, user: str) -> str:
+        async def complete_structured_json(
+            self,
+            *,
+            system: str,
+            user: str,
+            schema_name: str,
+            schema: dict[str, object],
+        ) -> str:
             # Signal that the read txn is committed, then wait until the set
             # has been deleted before returning (so generation re-resolves a
             # set that no longer exists).
@@ -918,7 +1045,14 @@ async def test_generation_racing_topic_delete_is_scoped_validation_error(
         model = "fake-model"
         base_url_host = "agent.test"
 
-        async def complete_json(self, *, system: str, user: str) -> str:
+        async def complete_structured_json(
+            self,
+            *,
+            system: str,
+            user: str,
+            schema_name: str,
+            schema: dict[str, object],
+        ) -> str:
             provider_entered.set()
             await delete_done.wait()
             return await FakeAgent(

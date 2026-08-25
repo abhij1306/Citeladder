@@ -5,9 +5,9 @@ on:
     branches: [main]
   pull_request:
 
-# Least privilege for GITHUB_TOKEN across every job below: all three only ever
-# check out the repo and run tests/linters, so read access to contents is the
-# whole requirement. Declared at workflow level so a new job cannot silently
+# Least privilege for GITHUB_TOKEN across every job below: each one only ever
+# checks out the repo and runs tests/linters, so read access to contents is
+# the whole requirement. Declared at workflow level so a new job cannot silently
 # inherit the permissive repository default; a job needing more (e.g. posting a
 # comment) must opt in with its own narrower block.
 permissions:
@@ -43,14 +43,10 @@ jobs:
           # branch cannot make its own complexity budget larger.
           fetch-depth: 0
       # Pinned to backend/.python-version (3.12), which is also the floor in
-      # `requires-python`. Unpinned, uv resolved the newest interpreter it
-      # could find, so the gate and the declared floor disagreed about which
-      # Python the code has to work on.
-      #
-      # DRIFT: the runtime image (./Dockerfile) is currently python:3.14.7
-      # after a Dependabot base-image bump, so CI validates 3.12 while the
-      # container ships 3.14. Close this by moving both to one version — do
-      # not silently widen the pin here.
+      # `requires-python` and the interpreter ./Dockerfile ships. Unpinned, uv
+      # resolved the newest interpreter it could find, so the gate and the
+      # declared floor disagreed about which Python the code has to work on.
+      # All four move together; do not silently widen the pin here.
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -60,6 +56,11 @@ jobs:
         run: uv sync --frozen --extra dev
       - name: Ruff
         run: uv run ruff check .
+      # Formatting was fixable but never gated, so drift landed silently in
+      # seven files and then showed up as noise in unrelated diffs. Gated here
+      # to match `scripts/check.ps1`, which applies the same formatter locally.
+      - name: Ruff format
+        run: uv run ruff format --check .
       # Type check. Not previously gated, so 35 real errors had accumulated
       # unnoticed (a Literal[] the checker could not read, two shadowed
       # variables that silently widened a type, an optional the caller
@@ -89,7 +90,7 @@ jobs:
       # cannot drift from what the suite actually executes. The floor lives in
       # ``[tool.coverage.report] fail_under`` and is the MEASURED number
       # rounded down — raising it is a deliberate step in
-      # docs/plans/backend-test-corpus-rework.md, never a guess.
+      # docs/plans/technical-debt-reduction.md, never a guess.
       - name: Pytest
         # Verbose node ids make an anomalous runner/database stall attributable;
         # faulthandler prints thread stacks if one test exceeds two minutes.
@@ -150,6 +151,47 @@ jobs:
           # deployments must provide the backend service origin themselves.
           BACKEND_ORIGIN: https://backend.ci.invalid
         run: pnpm build
+
+  e2e:
+    name: E2E (playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      # Chromium only: playwright.config.ts declares no projects, so the run
+      # uses the default chromium browser. Installing the other two engines
+      # would cost download time for browsers nothing here launches.
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+      # `scripts/validation.json` maps production paths to E2E specs, so those
+      # mappings were previously a local-only gate: nothing re-ran them on a
+      # pull request. The specs in `playwright.config.ts` stub every
+      # `/api/v1/` route (e2e/helpers/app-fixture.ts) and need no backend, so
+      # this job runs the whole mapped suite rather than a subset. The
+      # real-stack spec and the visual suite own separate configs and stay out
+      # (testIgnore), because both need a vertical or committed screenshots
+      # that this job does not provision.
+      - name: Playwright
+        run: pnpm test:e2e
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
 
   security:
     name: Security (pip-audit, detect-secrets)

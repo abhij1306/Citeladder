@@ -3,16 +3,18 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-from pathlib import Path
 from typing import Literal
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
-# backend/app/core/config/__init__.py -> parents[3] == backend/
-BASE_DIR = Path(__file__).resolve().parents[3]
-PROJECT_ROOT = BASE_DIR.parent
+# `BASE_DIR` / `PROJECT_ROOT` are re-exported explicitly: they were defined
+# here before `config/dotenv.py` took ownership of the .env decision, and other
+# modules still import them from this package.
+from app.core.config.dotenv import BASE_DIR as BASE_DIR
+from app.core.config.dotenv import PROJECT_ROOT as PROJECT_ROOT
+from app.core.config.dotenv import dotenv_sources
 
 _INSECURE_DEFAULTS = {
     "change-me",
@@ -31,8 +33,9 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        # Support both repo-root and backend-local .env files.
-        env_file=(str(PROJECT_ROOT / ".env"), str(BASE_DIR / ".env")),
+        # Repo-root and backend-local .env, unless a test run disabled them.
+        # `config/dotenv.py` owns that decision for every settings class here.
+        env_file=dotenv_sources(),
         env_file_encoding="utf-8",
         extra="ignore",
     )

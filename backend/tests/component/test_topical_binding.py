@@ -287,7 +287,14 @@ async def test_generation_drops_off_domain_model_output(
         model = "fake-model"
         base_url_host = "agent.test"
 
-        async def complete_json(self, *, system: str, user: str) -> str:
+        async def complete_structured_json(
+            self,
+            *,
+            system: str,
+            user: str,
+            schema_name: str,
+            schema: dict[str, object],
+        ) -> str:
             return (
                 '{"prompts": ['
                 f'{{"topic_id": "{topic["id"]}", '

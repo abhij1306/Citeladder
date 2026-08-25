@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.config import BASE_DIR, PROJECT_ROOT
+from app.core.config.dotenv import dotenv_sources
 
 STRUCTURED_OUTPUT_PROMPT_JSON = "prompt_json"
 STRUCTURED_OUTPUT_JSON_SCHEMA = "json_schema"
@@ -117,8 +117,10 @@ class DefaultAgentSettings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        # Same .env chain as the main ``Settings`` so a repo-root key is found.
-        env_file=(str(PROJECT_ROOT / ".env"), str(BASE_DIR / ".env")),
+        # Same .env chain as the main ``Settings`` so a repo-root key is found
+        # — and the same test-run opt-out, so a developer's real provider key
+        # can never make ``configured`` true inside the suite.
+        env_file=dotenv_sources(),
         env_file_encoding="utf-8",
         extra="ignore",
     )

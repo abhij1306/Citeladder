@@ -30,12 +30,23 @@ export function OnboardingScreen() {
   return (
     <div className="website-type bg-panel text-foreground selection:bg-accent selection:text-accent-fg relative h-screen max-h-screen w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
       <OnboardingSidebar step={flow.step} />
-      <div className="bg-panel relative col-span-12 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 min-[900px]:col-span-7 sm:px-8 sm:py-6 lg:col-span-8 lg:px-10 lg:py-8 xl:py-10">
+      {/* Vertical padding deliberately matches OnboardingSidebar (`p-6 xl:p-10`).
+          The two columns share one ramp so the stage heading and the rail title
+          sit on the same baseline by construction, at every width, rather than
+          by a per-breakpoint constant. Horizontal padding is free to differ;
+          only the vertical ramp is load-bearing. */}
+      <div className="bg-panel relative col-span-12 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 min-[900px]:col-span-7 sm:px-8 lg:col-span-8 lg:px-10 xl:py-10">
         <OnboardingMobileHeader step={flow.step} />
         <main
           id="main"
           className={cn(
-            'mx-auto flex min-h-0 w-full flex-1 flex-col overflow-y-auto py-2 text-sm sm:py-3 lg:py-4',
+            // Top padding is scoped BELOW the 900px split so that above it the
+            // only `padding-top` in play is the step alignment. Tailwind orders
+            // arbitrary `min-[...]` variants ahead of the named breakpoints, so
+            // a plain `py-*`/`pt-*` here outranks `min-[900px]:pt-*` no matter
+            // which is written first — which is why the step alignment silently
+            // never rendered at all before. Bottom padding keeps its ramp.
+            'mx-auto flex min-h-0 w-full flex-1 flex-col overflow-y-auto pb-2 text-sm max-[899px]:pt-3 sm:pb-3 lg:pb-4',
             flow.step === 2 ? 'max-w-6xl' : 'max-w-xl',
             STEP_MAIN_ALIGNMENT[flow.step],
           )}

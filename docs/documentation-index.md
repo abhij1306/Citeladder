@@ -27,6 +27,7 @@ listed here must prove a current operational purpose or move to the archive.
 
 | Document | Role |
 |---|---|
+| [`plans/technical-debt-reduction.md`](plans/technical-debt-reduction.md) | Measured complexity, coverage, and harness-gap reduction sequence |
 
 ## Current-runtime references
 
@@ -43,7 +44,6 @@ listed here must prove a current operational purpose or move to the archive.
 | [`integrations-traffic-analytics.md`](integrations-traffic-analytics.md) | Integration and traffic evidence contracts |
 | [`commerce-intelligence.md`](commerce-intelligence.md) | Commerce specialization boundary |
 | [`DEVELOPMENT.md`](DEVELOPMENT.md) | Local development runbook |
-| [`../COMMANDS.md`](../COMMANDS.md) | Command reference |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Contribution workflow |
 | [`release-checklist.md`](release-checklist.md) | Pre-release and clean-clone verification gates |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | Unreleased and published release notes |

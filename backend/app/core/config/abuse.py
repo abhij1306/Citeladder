@@ -9,13 +9,13 @@ from __future__ import annotations
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.config import BASE_DIR, PROJECT_ROOT
+from app.core.config.dotenv import dotenv_sources
 
 
 class AbuseSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="ABUSE_",
-        env_file=(str(PROJECT_ROOT / ".env"), str(BASE_DIR / ".env")),
+        env_file=dotenv_sources(),
         env_file_encoding="utf-8",
         extra="ignore",
     )

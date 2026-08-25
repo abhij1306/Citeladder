@@ -99,7 +99,7 @@ def _conflict(detail: str) -> ApiException:
 
 def _unprocessable(detail: str) -> ApiException:
     return ApiException(
-        status.HTTP_422_UNPROCESSABLE_ENTITY, CODE_VALIDATION_ERROR, detail
+        status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, detail
     )
 
 
@@ -245,7 +245,7 @@ async def _resolve_import_rows(
             # into the response — sanitized field-level messages only.
             errors = sanitize_validation_errors(exc.errors())
             raise ApiException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
                 CODE_VALIDATION_ERROR,
                 "Invalid product import payload: " + validation_error_summary(errors),
                 details={"errors": errors},

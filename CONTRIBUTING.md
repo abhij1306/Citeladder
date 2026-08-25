@@ -76,7 +76,20 @@ origin.
 
 ## Verification
 
-Run focused checks while working and the full relevant suite before review:
+Before review, the repository harness decides scope. From the repository root:
+
+```powershell
+.\scripts\check.ps1
+.\scripts\test.ps1
+```
+
+`check.ps1` runs and fixes every static gate; `test.ps1` selects the affected
+backend, frontend, and mapped E2E tests from your diff against `origin/main`.
+A change is not ready for review until both pass. See
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the variants and
+[`AGENTS.md`](AGENTS.md) for the rules on not weakening a gate to pass it.
+
+The commands below stay available for debugging one known failure while working:
 
 ```bash
 # Backend, from backend/

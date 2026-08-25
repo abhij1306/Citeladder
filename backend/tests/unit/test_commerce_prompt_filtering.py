@@ -1,12 +1,67 @@
+import json
 import uuid
 from types import SimpleNamespace
 
 import pytest
 
-from app.domain.prompts.generation import _validate_generation_payload
-from app.domain.prompts.generation_contract import SuggestedPrompt, SuggestedTopic
+from app.domain.prompts.generation import (
+    _deterministic_commerce_suggestions,
+    _validate_generation_payload,
+)
+from app.domain.prompts.generation_contract import (
+    SuggestedPrompt,
+    SuggestedTopic,
+    parse_generation_output,
+)
 from app.domain.prompts.generation_errors import GenerationValidationError
 from app.domain.prompts.generation_filtering import filter_for_cohort
+
+
+def test_deterministic_commerce_generation_uses_catalog_product_names() -> None:
+    topic_id = uuid.uuid4()
+    suggestions = _deterministic_commerce_suggestions(
+        [{"id": str(topic_id), "name": "Headphones", "description": ""}],
+        {
+            "commerce_products": [
+                {"name": "Sony WH-1000XM6", "category": "Headphones"},
+                {"name": "Bose QuietComfort Ultra", "category": "Headphones"},
+                {"name": "Unrelated Phone", "category": "Smartphones"},
+            ]
+        },
+    )
+
+    assert suggestions == [
+        SuggestedTopic(
+            topic_id=topic_id,
+            name="Headphones",
+            prompts=[
+                SuggestedPrompt(
+                    text="Which headphones should I buy for the best overall value?",
+                    intent="discovery",
+                ),
+                SuggestedPrompt(
+                    text=(
+                        "Which headphones should I buy: Bose QuietComfort Ultra or "
+                        "Sony WH-1000XM6?"
+                    ),
+                    intent="comparison",
+                ),
+            ],
+        )
+    ]
+
+
+def test_deterministic_commerce_generation_handles_one_product() -> None:
+    topic_id = uuid.uuid4()
+    suggestions = _deterministic_commerce_suggestions(
+        [{"id": str(topic_id), "name": "Laptops", "description": ""}],
+        {"commerce_products": [{"name": "Laptop One", "category": "Laptops"}]},
+    )
+
+    assert suggestions[0].prompts[1] == SuggestedPrompt(
+        text="How does Laptop One compare with other laptops?",
+        intent="comparison",
+    )
 
 
 def test_commerce_prompt_filter_keeps_generic_discovery_and_product_comparison() -> (
@@ -18,11 +73,11 @@ def test_commerce_prompt_filter_keeps_generic_discovery_and_product_comparison()
         prompts=[
             SuggestedPrompt(
                 text="Which smartphones have the best cameras this year",
-                intent="discovery",
+                intent="comparison",
             ),
             SuggestedPrompt(
                 text="Should I buy Apple iPhone 16 or Samsung Galaxy S25",
-                intent="comparison",
+                intent="discovery",
             ),
             SuggestedPrompt(
                 text="Is Apple iPhone 16 the best smartphone this year",
@@ -38,6 +93,39 @@ def test_commerce_prompt_filter_keeps_generic_discovery_and_product_comparison()
     }
 
     filtered = filter_for_cohort([category], "commerce", context)
+
+    assert [prompt.intent for prompt in filtered[0].prompts] == [
+        "discovery",
+        "comparison",
+    ]
+
+
+def test_commerce_topic_keyed_output_reaches_the_existing_content_filter() -> None:
+    topic_id = uuid.uuid4()
+    raw = json.dumps(
+        {
+            str(topic_id): [
+                (
+                    "Which wireless headphones offer the best noise cancellation "
+                    "for flights"
+                ),
+                "Should I buy Sony WH-1000XM6 or Bose QuietComfort Ultra headphones",
+            ]
+        }
+    )
+    suggestions, _ = parse_generation_output(
+        raw,
+        allowed_topics=[{"id": str(topic_id), "name": "Headphones"}],
+        fallback_intents=("discovery", "comparison"),
+    )
+    context = {
+        "commerce_products": [
+            {"name": "Sony WH-1000XM6", "category": "Headphones"},
+            {"name": "Bose QuietComfort Ultra", "category": "Headphones"},
+        ]
+    }
+
+    filtered = filter_for_cohort(suggestions, "commerce", context)
 
     assert [prompt.intent for prompt in filtered[0].prompts] == [
         "discovery",
@@ -93,8 +181,7 @@ def test_commerce_generation_ignores_uncategorized_products_outside_target() -> 
 def test_commerce_generation_caps_missing_skus_for_empty_target_category() -> None:
     prompt_set, payload = _generation_fixture(
         products=[
-            SimpleNamespace(sku=f"SKU-{index:02}", attributes={})
-            for index in range(12)
+            SimpleNamespace(sku=f"SKU-{index:02}", attributes={}) for index in range(12)
         ]
     )
 

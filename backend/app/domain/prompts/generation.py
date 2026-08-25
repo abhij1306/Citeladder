@@ -1,8 +1,8 @@
 # AI prompt/topic generation service (flips the /generate 501 stub).
 #
-# Uses the app-level default agent (``connectors/agent``) — never a measurement
-# engine and never a BYOK measurement key. Brand context is sent to the agent
-# through the configured application-model gateway. Suggestions persist with full
+# Core and brand cohorts use the app-level default agent (``connectors/agent``)
+# while Commerce derives its fixed two-prompt demo portfolio from the uploaded
+# catalog without provider I/O. Suggestions persist with full
 # ``generation_evidence`` provenance (invariant 4) via a conflict-safe upsert
 # on the per-set normalized-text hash, so concurrent generations can never
 # double-insert a concept. Validated rows enter the active portfolio directly;
@@ -25,6 +25,9 @@ from sqlalchemy.orm import selectinload
 from app.connectors.agent.gateway import ModelGateway
 from app.core.config.projects import PROMPT_ORIGIN_GENERATED
 from app.core.config.prompts import (
+    COMMERCE_COMPARISON_PAIR_PROMPT_TEMPLATE,
+    COMMERCE_COMPARISON_SINGLE_PROMPT_TEMPLATE,
+    COMMERCE_DISCOVERY_PROMPT_TEMPLATE,
     GENERATOR_VERSION,
     PROMPT_NEAR_DUPLICATE_SIMILARITY,
     PROMPT_STATUS_ACTIVE,
@@ -37,6 +40,7 @@ from app.core.config.visibility_prompts import (
 from app.domain.projects.knowledge_base import build_brand_knowledge_data
 from app.domain.projects.shim import project_scoring_identity
 from app.domain.prompts.generation_contract import (
+    GenerationOutput,
     GenerationOutputError,
     SuggestedPrompt,
     SuggestedTopic,
@@ -441,17 +445,22 @@ def _generation_brand_context(
 
 def _generation_evidence(
     *,
-    agent: ModelGateway,
+    agent: ModelGateway | None,
     payload: Any,
     brand_context: dict[str, Any],
     demand_snapshot: DemandSnapshot | None,
     demand_signals: list[DemandSignal],
 ) -> dict[str, Any]:
     return {
-        "model_identity": {
-            "transport_host": agent.base_url_host,
-            "transport_model": agent.model,
-        },
+        "generation_mode": "deterministic" if agent is None else "model",
+        "model_identity": (
+            {
+                "transport_host": agent.base_url_host,
+                "transport_model": agent.model,
+            }
+            if agent is not None
+            else None
+        ),
         "generation_run_id": str(uuid.uuid4()),
         "generator_version": GENERATOR_VERSION,
         "brand_context_hash": _brand_context_hash(brand_context),
@@ -500,40 +509,45 @@ def _generation_system_prompt(cohort: str, brand_context: dict[str, Any]) -> str
     return brand_cohort_system_prompt(model, cohort)
 
 
-def _filter_new_commerce_intents(
-    existing: list[SuggestedTopic], batch: list[SuggestedTopic]
+def _deterministic_commerce_suggestions(
+    allowed_topics: list[dict[str, str]], brand_context: dict[str, Any]
 ) -> list[SuggestedTopic]:
-    existing_intents = {
-        prompt.intent for topic in existing for prompt in topic.prompts
+    """Build the fixed Commerce demo pair from one validated catalog category."""
+    topic = allowed_topics[0]
+    category = topic["name"].strip()
+    products = brand_context.get("commerce_products", [])
+    matching_names = {
+        str(product.get("name") or "").strip()
+        for product in products
+        if str(product.get("category") or "").strip().casefold() == category.casefold()
+        and str(product.get("name") or "").strip()
     }
-    filtered = [
+    names = sorted(matching_names, key=str.casefold)
+    if len(names) >= 2:
+        comparison = COMMERCE_COMPARISON_PAIR_PROMPT_TEMPLATE.format(
+            category=category.casefold(),
+            first_product=names[0],
+            second_product=names[1],
+        )
+    else:
+        comparison = COMMERCE_COMPARISON_SINGLE_PROMPT_TEMPLATE.format(
+            product=names[0], category=category.casefold()
+        )
+    return [
         SuggestedTopic(
-            topic_id=topic.topic_id,
-            name=topic.name,
+            topic_id=uuid.UUID(topic["id"]),
+            name=category,
             prompts=[
-                prompt
-                for prompt in topic.prompts
-                if prompt.intent not in existing_intents
+                SuggestedPrompt(
+                    text=COMMERCE_DISCOVERY_PROMPT_TEMPLATE.format(
+                        category=category.casefold()
+                    ),
+                    intent="discovery",
+                ),
+                SuggestedPrompt(text=comparison, intent="comparison"),
             ],
         )
-        for topic in batch
     ]
-    return [topic for topic in filtered if topic.prompts]
-
-
-def _validate_commerce_output(suggestions: list[SuggestedTopic]) -> None:
-    generated_intents = {
-        prompt.intent for topic in suggestions for prompt in topic.prompts
-    }
-    if _prompt_count(suggestions) == 2 and generated_intents == {
-        "discovery",
-        "comparison",
-    }:
-        return
-    raise GenerationOutputError(
-        "The generation model did not return one discovery and one "
-        "product comparison prompt for this category"
-    )
 
 
 async def _generate_suggestions(
@@ -541,7 +555,7 @@ async def _generate_suggestions(
     *,
     prompt_set: PromptSet,
     payload: Any,
-    agent: ModelGateway,
+    agent: ModelGateway | None,
     workspace_id: uuid.UUID,
 ) -> tuple[
     list[SuggestedTopic],
@@ -561,6 +575,16 @@ async def _generate_suggestions(
     context_limit = prompt_generation_settings.existing_prompt_context_limit
     allowed_topics = _allowed_generation_topics(prompt_set.project, target_topic)
     await session.commit()
+    if payload.cohort == "commerce":
+        return (
+            _deterministic_commerce_suggestions(allowed_topics, brand_context),
+            0,
+            brand_context,
+            demand_snapshot,
+            demand_signals,
+        )
+    if agent is None:
+        raise GenerationOutputError("Model gateway is required for this cohort")
     system_prompt = _generation_system_prompt(payload.cohort, brand_context)
     suggestions: list[SuggestedTopic] = []
     intra_duplicates = 0
@@ -580,20 +604,23 @@ async def _generate_suggestions(
             count=requested,
             intents=[i for i in payload.intents if i],
         )
-        raw = await agent.complete_json(system=system_prompt, user=user_message)
+        raw = await agent.complete_structured_json(
+            system=system_prompt,
+            user=user_message,
+            schema_name="prompt_generation",
+            schema=GenerationOutput.model_json_schema(),
+        )
         batch, batch_duplicates = parse_generation_output(
-            raw, allowed_topics=allowed_topics
+            raw,
+            allowed_topics=allowed_topics,
+            fallback_intents=tuple(i for i in payload.intents if i),
         )
         intra_duplicates += batch_duplicates
         batch = filter_for_cohort(batch, payload.cohort, brand_context)
-        if payload.cohort == "commerce":
-            batch = _filter_new_commerce_intents(suggestions, batch)
         batch, cross_batch_duplicates = _drop_cross_batch_duplicates(suggestions, batch)
         intra_duplicates += cross_batch_duplicates
         suggestions.extend(batch)
     capped = _cap_suggestions_to_count(suggestions, payload.count)
-    if payload.cohort == "commerce":
-        _validate_commerce_output(capped)
     return (
         capped,
         intra_duplicates,
@@ -609,14 +636,14 @@ async def generate_prompts(
     workspace_id: uuid.UUID,
     prompt_set_id: uuid.UUID,
     payload: Any,
-    agent: ModelGateway,
+    agent: ModelGateway | None,
     prompt_set: PromptSet | None = None,
 ) -> tuple[list[Prompt], list[Topic], int]:
     """Generate topic-organized prompt suggestions into the set.
 
     Returns ``(inserted_prompts, touched_topics, dropped_duplicate_count)``.
-    Caller (the API layer) resolves the agent client so configuration errors
-    surface before any DB work, and monkeypatching in tests stays trivial.
+    Caller (the API layer) resolves the agent client for model-backed cohorts;
+    Commerce passes ``None`` because its prompts are derived from the catalog.
     ``prompt_set`` may be passed pre-loaded (from
     ``validate_generation_request``) to avoid a second scope query; the
     payload checks always re-run here so direct service calls stay guarded.

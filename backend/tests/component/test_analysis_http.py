@@ -159,7 +159,7 @@ async def test_endpoints_serve_projections_over_http(
             "logical_engine": ENGINE_GEMINI,
             "transport_provider": TRANSPORT_GOOGLE,
             "transport_model": GEMINI_MODEL,
-                "retrieval_enabled": True,
+            "retrieval_enabled": True,
         }
     ]
     assert "mode" not in abody

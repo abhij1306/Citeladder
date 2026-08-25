@@ -2,7 +2,7 @@
 
 This is the reproducible starting point for the six-PR production-debt program. It is
 an evaluation artifact, not permission to relax the checked-in policies. Commands and
-versions are owned by `COMMANDS.md` and the frozen package locks.
+versions are owned by `docs/DEVELOPMENT.md` and the frozen package locks.
 
 ## Tooling and measured debt
 

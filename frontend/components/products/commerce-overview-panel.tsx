@@ -26,7 +26,7 @@ function catalogGate(queries: OverviewQueries, onSelectTab: (tab: ProductsTab) =
     <EmptyState
       icon={PackageSearch}
       heading="Add products before measuring Commerce visibility"
-      description="Import the sample catalog or add the products you want CiteLadder to track."
+      description="Import one company catalog or add its products manually. Competitor alternatives come from audit citations, not catalog rows."
       action={
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => onSelectTab('catalog')}>Import CSV</Button>
@@ -159,12 +159,15 @@ export function CommerceOverviewPanel({
     !queries.visibilityQuery.data
   ) {
     return (
-      <EmptyState
-        icon={Play}
-        heading="Run your first Commerce visibility audit"
-        description="Review the generated category prompts, then launch the citation-capable Commerce audit."
-        action={<Button onClick={onLaunchAudit}>Launch Commerce audit</Button>}
-      />
+      <div className="grid gap-4" data-testid="commerce-overview-panel">
+        <CommercePrompts queries={queries} />
+        <EmptyState
+          icon={Play}
+          heading="Run your first Commerce visibility audit"
+          description="Review the generated category prompts, then launch the citation-capable Commerce audit."
+          action={<Button onClick={onLaunchAudit}>Launch Commerce audit</Button>}
+        />
+      </div>
     );
   }
   const visibility = queries.visibilityQuery.data;

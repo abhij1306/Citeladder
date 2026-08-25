@@ -36,6 +36,7 @@ Read only the documents required by the task.
 | AEO rebuild delivery sequence | `docs/plans/citeladder-aeo-product-rebuild.md` |
 | Complete active-document map | `docs/documentation-index.md` |
 | Program sequence | `docs/plans/growth-intelligence-platform.md` |
+| Complexity, coverage, and harness debt | `docs/plans/technical-debt-reduction.md` |
 | Site crawl, classification, rules, and runtime | `docs/site-health.md` |
 | Content workflows | `docs/plans/content-intelligence.md` |
 | Demand, prompts, and visibility | `docs/plans/demand-intelligence.md` |
@@ -101,6 +102,10 @@ version bump so append-only analyses are replayable.
   becomes raw truth or changes a deterministic metric.
 - Unknown, unavailable, zero, historical, conflicting, not-applicable, and
   excluded are distinct states.
+- Tests never read `.env`. The backend suite disables it and declares its own
+  configuration (`backend/app/core/config/dotenv.py`,
+  `backend/tests/conftest.py`); a real provider key must never reach a test
+  run. Point the suite at a database with `TEST_DATABASE_URL`.
 - No autonomous publishing, prompt activation, external mutation, or
   unbounded agent loop.
 
@@ -114,7 +119,8 @@ version bump so append-only analyses are replayable.
 5. Update active documentation when shipped authority changes.
 6. Move superseded material to `docs/archive/`; never leave contradictory
    guidance beside active plans.
-7. Run focused verification and report exactly what was and was not verified.
+7. Run the change-validation harness below and report exactly what was and was
+   not verified.
 
 ## Package and migration rules
 
@@ -125,22 +131,93 @@ version bump so append-only analyses are replayable.
   disposable database, migrate from scratch, and check ORM drift. Do not add a
   `0002+` migration unless this policy changes explicitly.
 
+## Change validation
+
+Apply this to every implementation or code change. Repository scripts decide
+test scope; agents never hand-pick a test set at completion.
+
+Do not run repository gates after each implementation step. Finish the planned
+implementation first. Before declaring implementation complete or pushing, run
+these once, in this order, from the repository root:
+
+```powershell
+.\scripts\check.ps1
+.\scripts\test.ps1
+```
+
+`check.ps1` is the canonical static/fix gate. It applies Ruff fixes and
+formatting, runs mypy, the backend complexity policy, and the dead-code policy;
+then Prettier fixes, ESLint, `tsc --noEmit`, the frontend complexity,
+duplication, design-system, architecture, and API-contract policies; then the
+documentation-index check. `test.ps1` separately selects and runs the affected
+backend, frontend, and mapped E2E tests from the working diff against
+`origin/main`. Fix every failure. Review and include any formatter changes.
+
+Narrow scopes exist for iteration only: `.\scripts\check.ps1 -Scope Backend`,
+`-Scope Frontend`, `-Scope Docs`. The full run is what completion means.
+
+If `test.ps1` fails, note every file edited while fixing that failure. Rerun the
+selector with only that retry delta:
+
+```powershell
+.\scripts\test.ps1 -ChangedFiles backend/app/example.py,backend/tests/unit/test_example.py
+```
+
+Use `-ChangedFiles` only after an earlier `test.ps1` run in the same task, and
+include every file edited since that run. The first run always uses the full
+working diff. Agents choose changed files, never test files or test scope.
+Missing production mappings must be added to `scripts/validation.json`. Never
+replace a missing mapping with a broad or full-suite fallback.
+
+When debugging one known failure, running that exact test directly is allowed.
+Return to the repository script before considering the change complete.
+
+`.\scripts\check.ps1 -CheckOnly` never mutates files; use it for a pre-push or
+verification-only pass. GitHub CI remains authoritative and runs full static,
+unit, component, frontend, build, and security validation. Do not run the full
+backend suite locally.
+
+A coding task is complete only when `.\scripts\check.ps1` and `.\scripts\test.ps1`
+pass.
+
+### Do not game gates
+
+Never make validation pass by raising the CC/LOC ceilings in
+`backend/scripts/complexity_policy.json` or
+`frontend/scripts/frontend_complexity_policy.json`; adding complexity or
+duplication exceptions; weakening lint, type, format, or coverage
+configuration; lowering `fail_under`; editing `scripts/validation.json` to avoid
+relevant tests; deleting, skipping, xfail-ing, disabling, trivializing, or
+over-mocking tests; mechanically splitting or hiding complexity; swallowing
+failures; using `--no-verify`; or substituting a smaller hand-picked test set at
+completion.
+
+If a gate exposes a design problem, refactor the implementation. If a repository
+rule is obsolete, report it separately and change it only when the user asks or
+the task requires that policy change.
+
+### Test scope
+
+- Focused change: affected tests.
+- User-facing feature flow: affected tests plus mapped feature E2E.
+- Core, shared, or config change: the broader mapped set the rules select.
+- Pull request and main: GitHub CI full suite.
+
+Frontend tooling is **pnpm only**. Never use npm or yarn wrappers.
+
 ## Focused verification
+
+For debugging a single known failure, or for gates the scripts do not own:
 
 ```bash
 # Backend, from backend/
 uv run pytest tests/unit/test_<area>.py tests/component/test_<area>.py -q
-uv run ruff check <changed paths>
 uv run alembic upgrade head
 uv run alembic check
 
 # Frontend, from frontend/
-pnpm test -- <file>
-pnpm lint
+pnpm exec vitest run <file>
 pnpm build
-
-# Documentation, from repository root
-python docs/validate_documentation.py
 ```
 
 Preserve unrelated user-owned work. Do not use failures from another dirty

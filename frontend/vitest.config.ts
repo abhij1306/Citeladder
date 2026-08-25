@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': resolve(__dirname, '.'),
+      '@': resolve(import.meta.dirname, '.'),
     },
   },
   test: {

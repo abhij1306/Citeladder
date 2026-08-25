@@ -100,7 +100,7 @@ async def get_commerce_attribution_endpoint(
         )
     except AttributionQueryError as exc:
         raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, CODE_VALIDATION_ERROR, str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
         ) from exc
 
 
@@ -137,7 +137,7 @@ async def get_attribution_orders_endpoint(
         ) from exc
     except AttributionQueryError as exc:
         raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, CODE_VALIDATION_ERROR, str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
         ) from exc
 
 
@@ -183,7 +183,7 @@ async def enqueue_attribution_recompute_endpoint(
         )
     except AttributionQueryError as exc:
         raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, CODE_VALIDATION_ERROR, str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
         ) from exc
 
 

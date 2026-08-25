@@ -94,10 +94,33 @@ The one-shot `migrate` service must have completed successfully. See
 
 ### Backend
 
-Backend tests use a real Postgres (each test runs against an isolated schema). No
-configuration is needed: the suite derives server credentials from the repo `.env`
-`DATABASE_URL`, creates a throwaway `citeladder_tests_<runid>` database for the run, and
-drops it on teardown — nothing persists and the dev database is never touched.
+Backend tests use a real Postgres (each test runs against an isolated schema). The
+suite creates a throwaway `citeladder_tests_<runid>` database for the run and drops it
+on teardown — nothing persists and the dev database is never touched.
+
+**Tests never read `.env`.** A developer `.env` carries real provider keys, OAuth client
+secrets, and the encryption key; loading them into a test run turns "is this provider
+configured?" branches ON, which is how a component test once posted evidence to a live
+provider endpoint. `backend/tests/conftest.py` therefore sets
+`CITELADDER_DISABLE_DOTENV`, supplies its own deterministic secrets, and clears inherited
+`*_API_KEY` / `*_CLIENT_SECRET` / `*_CLIENT_ID` variables before importing the app.
+`backend/tests/unit/test_dotenv_isolation.py` enforces it, and
+`backend/app/core/config/dotenv.py` is the single owner of the opt-out.
+
+The one thing the suite cannot invent is a Postgres server, so tell it where one is.
+Export this once per shell (or in your profile); CI already sets `DATABASE_URL`:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql+asyncpg://postgres:<password>@127.0.0.1:55432/citeladder"
+```
+
+```bash
+export TEST_DATABASE_URL="postgresql+asyncpg://postgres:<password>@127.0.0.1:55432/citeladder"
+```
+
+`TEST_DATABASE_URL` is preferred; a `DATABASE_URL` already exported in the shell is used
+as a fallback, and without either the localhost default is tried. Only the server
+(host/port/credentials) is reused — never that server's own database.
 
 ```bash
 cd backend
@@ -114,6 +137,84 @@ pnpm check:policy     # architecture + design-token guards
 pnpm exec tsc --noEmit # type check
 pnpm build            # next build
 pnpm test:e2e         # Playwright (needs a browser + a running stack)
+```
+
+### Repository validation harness
+
+Two scripts own completion. Run them from the repository root, in this order,
+once the planned implementation is finished — not after every step.
+
+```powershell
+.\scripts\check.ps1     # static + fix gate: ruff, mypy, complexity, vulture,
+                        # prettier, eslint, tsc, frontend policies, docs index
+.\scripts	est.ps1      # affected backend, frontend, and mapped E2E tests
+```
+
+Useful variants:
+
+```powershell
+.\scripts\check.ps1 -CheckOnly              # never mutates files
+.\scripts\check.ps1 -Scope Backend          # or Frontend, Docs
+.\scripts	est.ps1 -ChangedFiles a.py,b.py  # retry delta after a failed run
+```
+
+`test.ps1` compares the working tree against `origin/main`, maps every changed
+production file through `scripts/validation.json`, and fails if a changed file
+under `backend/app` or `frontend/{app,components,lib}` has no mapping. Add the
+missing mapping; never substitute a broad or full-suite fallback.
+
+Static-analysis commands, pinned by the frozen locks:
+
+```powershell
+# From backend/. Vulture is a CI gate; Radon is an advisory report.
+uv run vulture app --min-confidence 80
+uv run radon cc app -s -n C
+uv run radon mi app -s -n B
+
+# From frontend/. Both production checks are CI ratchets; the test scan is advisory.
+pnpm check:complexity
+pnpm check:duplicates
+pnpm report:duplicates:tests
+```
+
+The complexity policy enforces CC 15 per function and 900 LOC per module on both
+sides. The exception lists are empty and should stay that way, and there is no
+rebaseline command: CI compares the policy with the PR base and rejects higher or
+newly added exceptions.
+
+## Project utility scripts
+
+Run these from `backend/`. Use `--help` before any operator script whose
+arguments are not shown here.
+
+Seed local demo data (**development or disposable database only**):
+
+```bash
+APP_ENV=development uv run python -m scripts.seed_dev_data
+```
+
+Provision a local development login, or grant a Site Health allowance:
+
+```bash
+uv run python -m scripts.provision_dev_login --help
+uv run python -m scripts.set_site_health_entitlement <workspace_uuid> <monitored_urls>
+```
+
+Measurement and billing/operator utilities:
+
+```bash
+uv run python -m scripts.measure_answer_engine_matrix --help
+uv run python -m scripts.reprice_execution_costs --help
+uv run python -m scripts.reconcile_billing --help
+uv run python -m scripts.provision_platform_provider_connections --help
+uv run python -m scripts.provision_razorpay_plans --help
+```
+
+From the repository root, reset and recreate the database named by
+`DATABASE_URL` (**never against shared, staging, or production data**):
+
+```bash
+uv run --project backend python reset-db.py
 ```
 
 ## Migrations (single greenfield baseline)

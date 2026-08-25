@@ -5,10 +5,7 @@ from typing import TYPE_CHECKING, Final
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.core.config.site_health_acquisition import (
-    _BASE_DIR,
-    _PROJECT_ROOT,
-)
+from app.core.config.dotenv import dotenv_sources
 from app.core.config.site_health_crawl_policy import (
     SAMPLE_DISCOVERY_URL_CAP as SAMPLE_DISCOVERY_URL_CAP,
 )
@@ -49,7 +46,7 @@ class SiteHealthSettings(BaseSettings):
         extra="ignore",
         # Same .env sources as the root Settings so SITE_HEALTH_* overrides in
         # the repo-root / backend-local .env work without exporting them.
-        env_file=(str(_PROJECT_ROOT / ".env"), str(_BASE_DIR / ".env")),
+        env_file=dotenv_sources(),
         env_file_encoding="utf-8",
     )
 

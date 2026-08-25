@@ -23,6 +23,7 @@ function queriesWith(prompts: Array<{ topic_id: string; intent: string }>): Over
       prompts: prompts.map((prompt, index) => ({
         ...prompt,
         id: `prompt-${index}`,
+        text: `${prompt.intent} prompt for ${prompt.topic_id}`,
         cohort: 'commerce',
         status: 'active',
       })),
@@ -73,5 +74,10 @@ describe('CommerceOverviewPanel prompt gating', () => {
     expect(
       screen.getByRole('heading', { name: 'Run your first Commerce visibility audit' }),
     ).toBeTruthy();
+    expect(screen.getByText('discovery prompt for topic-books')).toBeTruthy();
+    expect(screen.getByText('comparison prompt for topic-books')).toBeTruthy();
+    expect(screen.getByText('discovery prompt for topic-games')).toBeTruthy();
+    expect(screen.getByText('comparison prompt for topic-games')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Launch Commerce audit' })).toBeTruthy();
   });
 });

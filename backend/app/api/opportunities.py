@@ -143,7 +143,7 @@ def _not_found(exc: OpportunityNotFoundError) -> ApiException:
 
 def _validation(exc: OpportunityValidationError) -> ApiException:
     return ApiException(
-        status.HTTP_422_UNPROCESSABLE_ENTITY, CODE_VALIDATION_ERROR, str(exc)
+        status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
     )
 
 
@@ -290,7 +290,7 @@ async def create_implementation_event_endpoint(
     key = (idempotency_key or "").strip()
     if not key:
         raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             CODE_VALIDATION_ERROR,
             "Idempotency-Key is required",
         )

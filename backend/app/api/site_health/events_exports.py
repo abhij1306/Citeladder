@@ -227,7 +227,7 @@ async def _export_items(
 def _validate_view(view: str) -> str:
     if view not in EXPORT_VIEWS:
         raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             CODE_VALIDATION_ERROR,
             f"unknown export view: {view}",
         )

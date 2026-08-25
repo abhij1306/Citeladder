@@ -95,17 +95,46 @@ def _identity_is_valid(
     )
 
 
-def _commerce_prompt_is_valid(
-    prompt: SuggestedPrompt,
+def _commerce_intent(
+    text: str,
     *,
     category_names: list[str],
     all_names: list[str],
-) -> bool:
-    if prompt.intent == "discovery":
-        return not contains_tracked_name(prompt.text, all_names)
-    if prompt.intent == "comparison":
-        return contains_tracked_name(prompt.text, category_names)
-    return True
+) -> str:
+    if contains_tracked_name(text, category_names):
+        return "comparison"
+    if not contains_tracked_name(text, all_names):
+        return "discovery"
+    return ""
+
+
+def _filter_commerce_prompts(
+    suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
+) -> list[SuggestedTopic]:
+    """Keep one generic and one uploaded-product question per category."""
+    all_names = _commerce_product_names(brand_context)
+    filtered: list[SuggestedTopic] = []
+    for topic in suggestions:
+        category_names = _commerce_product_names(brand_context, topic.name)
+        chosen: dict[str, SuggestedPrompt] = {}
+        for prompt in topic.prompts:
+            intent = _commerce_intent(
+                prompt.text,
+                category_names=category_names,
+                all_names=all_names,
+            )
+            if intent and intent not in chosen:
+                chosen[intent] = SuggestedPrompt(text=prompt.text, intent=intent)
+        prompts = [
+            chosen[intent] for intent in ("discovery", "comparison") if intent in chosen
+        ]
+        if prompts:
+            filtered.append(
+                SuggestedTopic(
+                    topic_id=topic.topic_id, name=topic.name, prompts=prompts
+                )
+            )
+    return filtered
 
 
 def _prompt_is_valid(
@@ -158,17 +187,9 @@ def _drop_invalid_prompts(
     positioning = _positioning_shingles(brand_context)
     brand_terms, competitor_terms = _identity_terms(brand_context)
     topics: list[SuggestedTopic] = []
-    all_commerce_names = _commerce_product_names(brand_context)
     for topic in suggestions:
-        commerce_names = _commerce_product_names(brand_context, topic.name)
         rows: list[SuggestedPrompt] = []
         for prompt in topic.prompts:
-            if cohort == "commerce" and not _commerce_prompt_is_valid(
-                prompt,
-                category_names=commerce_names,
-                all_names=all_commerce_names,
-            ):
-                continue
             normalized = " ".join(prompt.text.casefold().split())
             if not _prompt_is_valid(
                 prompt,
@@ -199,6 +220,8 @@ def _drop_invalid_core_prompts(
 def filter_for_cohort(
     suggestions: list[SuggestedTopic], cohort: str, brand_context: dict[str, Any]
 ) -> list[SuggestedTopic]:
+    if cohort == "commerce":
+        return _filter_commerce_prompts(suggestions, brand_context)
     return _drop_invalid_prompts(suggestions, brand_context, cohort=cohort)
 
 

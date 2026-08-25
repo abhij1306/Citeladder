@@ -20,9 +20,7 @@ from app.domain.audits.cost_projection import build_execution_cost_projection
 from app.models.audit import RawResponseArtifact
 
 
-def _artifact(
-    usage: dict, route: RouteIdentity = ROUTE_CHATGPT
-) -> RawResponseArtifact:
+def _artifact(usage: dict, route: RouteIdentity = ROUTE_CHATGPT) -> RawResponseArtifact:
     return RawResponseArtifact(
         id=uuid.uuid4(),
         audit_id=uuid.uuid4(),

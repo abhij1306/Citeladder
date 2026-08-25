@@ -139,7 +139,7 @@ async def rerun_page_endpoint(
     except SelectionValidationError as exc:
         await session.rollback()
         raise ApiException.coded(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, exc.code, str(exc)
+            status.HTTP_422_UNPROCESSABLE_CONTENT, exc.code, str(exc)
         ) from exc
 
     return RerunPageResponse(

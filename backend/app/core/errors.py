@@ -315,7 +315,7 @@ async def request_validation_error_handler(
     errors = sanitize_validation_errors(exc.errors())
     message = validation_error_summary(errors)
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content=error_envelope(
             code=CODE_VALIDATION_ERROR,
             message=message,

@@ -1,15 +1,28 @@
 """Shared test fixtures for the CiteLadder backend.
 
 Uses an async Postgres database with a fresh, isolated schema per test (no
-SQLite: the models use Postgres UUID columns). No configuration is needed:
-the suite derives server credentials from the app settings (repo ``.env``
-``DATABASE_URL``), creates a throwaway ``citeladder_tests_<runid>`` database
-for the session, and drops it on teardown — nothing persists between runs.
+SQLite: the models use Postgres UUID columns). A throwaway
+``citeladder_tests_<runid>`` database is created for the session and dropped on
+teardown — nothing persists between runs and the dev database is never touched.
+
+**The suite never reads ``.env``.** A developer ``.env`` carries real provider
+keys, OAuth client secrets, and the Fernet encryption key; loading them turns
+"is this provider configured?" branches ON inside tests, which is how a
+component test once posted evidence to a live provider endpoint. So this module
+sets ``CITELADDER_DISABLE_DOTENV`` and its own deterministic values in the
+process environment BEFORE anything from ``app`` is imported (see
+``app/core/config/dotenv.py``). Test configuration is declared here, in the
+repository — identical on a laptop, in CI, and in review.
+
+The one thing the suite cannot invent is a Postgres server. Export
+``TEST_DATABASE_URL`` (preferred) or ``DATABASE_URL`` to point at one; without
+either, the localhost default is tried and a clear error names both variables.
 """
 
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import sys
 import uuid
@@ -34,6 +47,49 @@ from sqlalchemy.ext.asyncio import (
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
+
+# --- Test configuration, before the first `app` import ---------------------
+# Order matters: pydantic-settings reads env_file and environment at class
+# definition time, so every one of these has to be set before `app.core.config`
+# is imported below.
+
+# The server the suite may create its throwaway database on. `.env` is NOT a
+# source: the runner supplies this explicitly, or accepts the local default.
+_DEFAULT_TEST_DATABASE_URL = (
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/citeladder"
+)
+_RESOLVED_DATABASE_URL = (
+    os.environ.get("TEST_DATABASE_URL")
+    or os.environ.get("DATABASE_URL")
+    or _DEFAULT_TEST_DATABASE_URL
+)
+
+# Deterministic, non-secret stand-ins. These are published test values, not
+# credentials: they exist so crypto-dependent code paths (Fernet encryption,
+# JWT signing, referral hashing) run identically everywhere. They must not be
+# any of the shipped placeholders, which `encryption_key_configured` treats as
+# MISSING so a real deployment fails closed.
+_TEST_ENVIRONMENT = {
+    "CITELADDER_DISABLE_DOTENV": "1",
+    "DATABASE_URL": _RESOLVED_DATABASE_URL,
+    "APP_ENV": "development",
+    "JWT_SECRET_KEY": "citeladder-test-jwt-secret-key-not-a-real-secret",
+    "ENCRYPTION_KEY": "citeladder-test-encryption-key-not-a-real-secret",
+    "REFERRAL_HASH_SALT": "citeladder-test-referral-salt-not-a-real-secret",
+    "ORDER_HASH_SALT": "citeladder-test-order-salt-not-a-real-secret",
+}
+for _name, _value in _TEST_ENVIRONMENT.items():
+    os.environ[_name] = _value
+
+# Any provider credential inherited from the shell would defeat the point, so
+# they are cleared too: `.env` is disabled, but an exported key is not.
+_PROVIDER_CREDENTIAL_SUFFIXES = ("_API_KEY", "_CLIENT_SECRET", "_CLIENT_ID")
+for _name in [
+    name
+    for name in os.environ
+    if name.isupper() and name.endswith(_PROVIDER_CREDENTIAL_SUFFIXES)
+]:
+    del os.environ[_name]
 
 from app.core.config import settings  # noqa: E402
 from app.core.database import Base  # noqa: E402
@@ -180,10 +236,11 @@ def _seed_test_funded_cost_observation(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(scope="session")
 def test_database_url() -> Iterator[str]:
-    """Create a throwaway session database on the dev Postgres server.
+    """Create a throwaway session database on the configured Postgres server.
 
-    Reuses the server (host/port/credentials) from ``settings.database_url``
-    but never touches the dev database itself: a dedicated
+    Reuses the server (host/port/credentials) resolved at import time from
+    ``TEST_DATABASE_URL`` / ``DATABASE_URL`` — never from ``.env`` — but never
+    touches that server's own database: a dedicated
     ``citeladder_tests_<runid>`` database is created up front and force-dropped
     on teardown, so test state can never persist between runs.
     """
@@ -200,7 +257,21 @@ def test_database_url() -> Iterator[str]:
         finally:
             await conn.close()
 
-    asyncio.run(_admin_execute(f'CREATE DATABASE "{db_name}"'))
+    try:
+        asyncio.run(_admin_execute(f'CREATE DATABASE "{db_name}"'))
+    except (OSError, asyncpg.PostgresError) as exc:
+        # The suite deliberately does not read `.env`, so a developer whose
+        # Postgres is not on the default host/port has to say where it is. Say
+        # exactly that, rather than surfacing a bare connection refusal.
+        raise pytest.UsageError(
+            f"Cannot reach Postgres at {base.host}:{base.port} as "
+            f"{base.username!r} ({type(exc).__name__}: {exc}).\n"
+            "The test suite never reads .env. Export TEST_DATABASE_URL (or "
+            "DATABASE_URL) with the server it should create its throwaway "
+            "test database on, for example:\n"
+            "  $env:TEST_DATABASE_URL = "
+            "'postgresql+asyncpg://postgres:<password>@127.0.0.1:5432/citeladder'"
+        ) from exc
     try:
         yield base.set(database=db_name).render_as_string(hide_password=False)
     finally:

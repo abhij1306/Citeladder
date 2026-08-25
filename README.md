@@ -158,8 +158,8 @@ No host-side migration command or separate frontend dev server is needed for thi
 Register a user (a workspace is created automatically), create a project, then connect a BYOK
 provider for Visibility audits or open Site Health to discover and analyze the site.
 
-Full command reference: [`COMMANDS.md`](COMMANDS.md). Environment, entitlement, migration, and
-clean-clone runbook: [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Release gates are in
+Commands, environment, entitlement, migration, and the clean-clone runbook:
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md). Release gates are in
 [`docs/release-checklist.md`](docs/release-checklist.md).
 
 <a id="start-here"></a>
