@@ -4,9 +4,7 @@ import type { ReactNode } from 'react';
 import { LogoMark } from '@/components/ui/logo-mark';
 import { cn } from '@/lib/utils';
 
-export function AuthWordmark({
-  compact = false,
-}: Readonly<{ compact?: boolean; light?: boolean }>) {
+export function AuthWordmark({ compact = false }: Readonly<{ compact?: boolean }>) {
   return (
     <Link
       href="/"
@@ -57,7 +55,7 @@ export function AuthBrandPanel() {
   return (
     <BrandCanvas className="col-span-1 min-h-full items-center justify-center px-8 py-12">
       <div className="relative z-10 flex items-center justify-center">
-        <AuthWordmark light />
+        <AuthWordmark />
       </div>
     </BrandCanvas>
   );

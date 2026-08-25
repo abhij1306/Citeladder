@@ -24,7 +24,7 @@ deliberate, quiet motion treatments.
   use a 16px reading baseline and a content-role ladder; the authenticated app
   keeps its existing compact size scale. Size, leading, weight, tracking, and
   colour are one role contract, never independent page-level choices.
-- **Accent:** a single Reference Blue (`#2667FF`) for primary actions, explicit
+- **Accent:** a single Growth Cobalt (`#315CFF`) for primary actions, explicit
   selection, links, and focus. It is the only chromatic colour on the marketing
   surface and is always rendered as a flat semantic colour, not an atmospheric
   field.
@@ -62,14 +62,14 @@ properties.
 
 Tokens are semantic; components use the role, not a colour value.
 
-| Role                | Token family                                                                                                                        | Use                                                                                                                    |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Canvas and surfaces | `background` (`#f8fafc`), `panel` / `elevated` (`#ffffff`), `panel-tonal` (`#f8fafc`), `background-alt` / `well` (`#f1f5f9`), `active` (`#e2e8f0`) | Luminous pearl paper canvas; crisp white panels and floating cards; subtle grey wells and frosted chrome              |
-| Text                | `foreground` (`#0f172a`), `secondary` (`#334155`), `muted` (`#526173`), `subtle` (`#596777`), `inverse` (`#ffffff`)                          | Token-driven slate reading ramp; every neutral role remains AA-safe on every shared light surface                    |
-| Borders             | `border` (`#e2e8f0`), `border-subtle` (`#f1f5f9`), `border-strong` (`#cbd5e1`), `border-bold` (`#94a3b8`)                                    | Crisp ledger hairlines for structured separation                                                                       |
-| Primary action      | `accent-*`                                                                                                                          | Growth Cobalt (`#315CFF`) CTAs, active indicators, explicit selection, links, and focus rings                          |
-| Status              | `success-*` (`#31a57a`), `warning-*` (`#d9822b`), `danger-*` (`#d96b55`), `info-*`, `neutral-bg`                                   | App only; always paired with text or an icon                                                                           |
-| Evidence and scores | `citation-*`, `run-*`, `score-*`, `series-*`, `chart-*`                                                                             | Persisted evidence, audit status, score bands, and charts                                                              |
+| Role                | Token family                                                                                                                                       | Use                                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Canvas and surfaces | `background` (`#f8fafc`), `panel` / `elevated` (`#ffffff`), `panel-tonal` (`#f8fafc`), `background-alt` / `well` (`#f1f5f9`), `active` (`#e2e8f0`) | Luminous pearl paper canvas; crisp white panels and floating cards; subtle grey wells and frosted chrome |
+| Text                | `foreground` (`#0f172a`), `secondary` (`#334155`), `muted` (`#526173`), `subtle` (`#596777`), `inverse` (`#ffffff`)                                | Token-driven slate reading ramp; every neutral role remains AA-safe on every shared light surface        |
+| Borders             | `border` (`#e2e8f0`), `border-subtle` (`#f1f5f9`), `border-strong` (`#cbd5e1`), `border-bold` (`#94a3b8`)                                          | Crisp ledger hairlines for structured separation                                                         |
+| Primary action      | `accent-*`                                                                                                                                         | Growth Cobalt (`#315CFF`) CTAs, active indicators, explicit selection, links, and focus rings            |
+| Status              | `success-*` (`#31a57a`), `warning-*` (`#d9822b`), `danger-*` (`#d96b55`), `info-*`, `neutral-bg`                                                   | App only; always paired with text or an icon                                                             |
+| Evidence and scores | `citation-*`, `run-*`, `score-*`, `series-*`, `chart-*`                                                                                            | Persisted evidence, audit status, score bands, and charts                                                |
 
 The accent is Growth Cobalt: `#315CFF` at rest, `#2347D9` on hover, and `#1A38B5` on press.
 `accent-text` (`#1E40AF`) is the accessible cobalt for text on white or tinted backgrounds. Page canvas is a luminous pearl paper (`#f8fafc`), while panel, card,

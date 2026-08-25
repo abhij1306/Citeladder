@@ -10,7 +10,7 @@ import { AuthBrandPanel, AuthWordmark, BrandCanvas } from './brand-panel';
  * cannot drift apart, so what is worth pinning is the contract that makes the
  * sharing safe: the ambient glow/ribbon geometry is decoration and must stay
  * hidden from assistive technology, and the wordmark must remain a real link
- * home with an accessible name in both the light and dark treatments.
+ * home with an accessible name in both regular and compact treatments.
  */
 describe('AuthWordmark', () => {
   it('is a named link back to the public home page', () => {
@@ -22,13 +22,6 @@ describe('AuthWordmark', () => {
       'src',
       expect.stringContaining('citeladder-logo.webp'),
     );
-  });
-
-  it('keeps its accessible name on the dark canvas treatment', () => {
-    // The dark-canvas variant must not change what a screen reader hears.
-    render(<AuthWordmark light />);
-
-    expect(screen.getByRole('link', { name: 'CiteLadder home' })).toBeVisible();
   });
 
   it('keeps its accessible name in the compact treatment', () => {

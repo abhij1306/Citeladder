@@ -232,7 +232,8 @@ function selectorPattern(selector) {
 }
 
 function tokenHex(source, token) {
-  const match = source.match(new RegExp(escapeRegExp(token) + '\\s*:\\s*(#[0-9a-f]{6})\\s*;', 'i'));
+  const declaration = String.raw`${escapeRegExp(token)}\s*:\s*(#[0-9a-f]{6})\s*(?:;|(?=}))`;
+  const match = source.match(new RegExp(declaration, 'i'));
   return match?.[1];
 }
 

@@ -140,9 +140,9 @@ export function MarketingFooter() {
 
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.key} className="space-y-4">
-              <p className="website-eyebrow f-col-label text-foreground mb-4 font-semibold">
+              <h2 className="website-eyebrow f-col-label text-foreground mb-4 font-semibold">
                 {column.label}
-              </p>
+              </h2>
               <div className="grid justify-items-start gap-4">
                 {column.links.map((link) => (
                   <FooterColumnLink key={link.label} link={link} />

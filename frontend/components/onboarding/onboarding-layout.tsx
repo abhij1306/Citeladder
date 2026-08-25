@@ -47,7 +47,7 @@ export function OnboardingSidebar({ step }: Readonly<{ step: OnboardingStep }>) 
   return (
     <BrandCanvas className="col-span-5 h-screen max-h-screen justify-between p-6 lg:col-span-4 xl:p-10">
       <div className="relative z-10 flex flex-col gap-8">
-        <AuthWordmark light />
+        <AuthWordmark />
         <div className="space-y-1.5">
           <h2 className="website-feature-heading text-brand-canvas-foreground">
             Set up your project
