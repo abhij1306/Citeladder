@@ -10,6 +10,8 @@ from app.core.config.visibility_prompts import (
     VISIBILITY_MAX_SHARED_OPENINGS,
     VISIBILITY_PROMPT_MAX_WORDS,
     VISIBILITY_PROMPT_MIN_WORDS,
+    brand_cohort_system_prompt,
+    prompt_system_prompt,
 )
 from app.domain.prompts.generation_contract import SuggestedPrompt, SuggestedTopic
 from app.domain.prompts.portfolio import contains_tracked_name, prompt_identity_is_valid
@@ -228,3 +230,10 @@ def filter_for_cohort(
 def business_model(brand_context: dict[str, Any]) -> str:
     context = brand_context.get("business_context") or {}
     return str(context.get("business_model") or "")
+
+
+def generation_system_prompt(cohort: str, brand_context: dict[str, Any]) -> str:
+    model = business_model(brand_context)
+    if cohort == "core":
+        return prompt_system_prompt(model)
+    return brand_cohort_system_prompt(model, cohort)

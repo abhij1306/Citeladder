@@ -33,10 +33,6 @@ from app.core.config.prompts import (
     PROMPT_STATUS_ACTIVE,
     prompt_generation_settings,
 )
-from app.core.config.visibility_prompts import (
-    brand_cohort_system_prompt,
-    prompt_system_prompt,
-)
 from app.domain.projects.knowledge_base import build_brand_knowledge_data
 from app.domain.projects.shim import project_scoring_identity
 from app.domain.prompts.generation_contract import (
@@ -53,8 +49,8 @@ from app.domain.prompts.generation_errors import (
     reraise_scoped_integrity_error,
 )
 from app.domain.prompts.generation_filtering import (
-    business_model,
     filter_for_cohort,
+    generation_system_prompt,
 )
 from app.domain.prompts.generation_validation import validate_commerce_payload
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
@@ -503,13 +499,6 @@ def _existing_generation_context(
     return [*existing, *accumulated][-limit:]
 
 
-def _generation_system_prompt(cohort: str, brand_context: dict[str, Any]) -> str:
-    model = business_model(brand_context)
-    if cohort == "core":
-        return prompt_system_prompt(model)
-    return brand_cohort_system_prompt(model, cohort)
-
-
 def _deterministic_commerce_suggestions(
     allowed_topics: list[dict[str, str]], brand_context: dict[str, Any]
 ) -> list[SuggestedTopic]:
@@ -590,7 +579,7 @@ async def _generate_suggestions(
         )
     if agent is None:
         raise GenerationOutputError("Model gateway is required for this cohort")
-    system_prompt = _generation_system_prompt(payload.cohort, brand_context)
+    system_prompt = generation_system_prompt(payload.cohort, brand_context)
     suggestions: list[SuggestedTopic] = []
     intra_duplicates = 0
     batch_size = min(prompt_generation_settings.model_batch_size, payload.count)
