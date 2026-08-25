@@ -269,6 +269,8 @@ class CommerceCitedSource(BaseModel):
     domain: str
     title: str
     representative_url: str
+    classification: str
+    matched_competitor: str | None = None
     citation_count: int = Field(ge=0)
     distinct_prompts: int = Field(ge=0)
     distinct_engines: int = Field(ge=0)
@@ -277,12 +279,24 @@ class CommerceCitedSource(BaseModel):
     artifact_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
+class CommerceCompetitorMention(BaseModel):
+    competitor_name: str
+    response_count: int = Field(ge=0)
+    distinct_prompts: int = Field(ge=0)
+    distinct_engines: int = Field(ge=0)
+    analysis_ids: list[uuid.UUID] = Field(default_factory=list)
+    artifact_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
 class CommerceCategoryCitations(BaseModel):
     category: str
     response_count: int = Field(ge=0)
+    brand_response_count: int = Field(ge=0)
     uploaded_products: list[str] = Field(default_factory=list)
     uploaded_commerce_citation_count: int = Field(ge=0)
+    competitor_citation_count: int = Field(ge=0)
     third_party_citation_count: int = Field(ge=0)
+    competitor_mentions: list[CommerceCompetitorMention] = Field(default_factory=list)
     cited_sources: list[CommerceCitedSource] = Field(default_factory=list)
 
 

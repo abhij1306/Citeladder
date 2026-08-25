@@ -83,7 +83,7 @@ function PromptSetup({ queries }: Readonly<{ queries: OverviewQueries }>) {
       <EmptyState
         icon={Sparkles}
         heading="Generate product visibility prompts"
-        description={`Create one buyer-discovery and one product comparison prompt for each of ${queries.categories.length} catalog categories.`}
+        description={`Create one buyer-destination and one merchant comparison prompt for each of ${queries.categories.length} catalog categories.`}
         action={
           <Button
             onClick={() => queries.generatePromptsMutation.mutate({})}
@@ -172,13 +172,22 @@ export function CommerceOverviewPanel({
   }
   const visibility = queries.visibilityQuery.data;
   const summary = visibility.summary;
-  const gaps = [...visibility.products]
-    .filter((product) => product.visibility_delta !== null)
-    .sort((a, b) => a.visibility_delta! - b.visibility_delta!)
-    .slice(0, 3);
+  const competitorMentions = visibility.citation_comparison.categories
+    .flatMap((category) => category.competitor_mentions)
+    .reduce((counts, competitor) => {
+      counts.set(
+        competitor.competitor_name,
+        (counts.get(competitor.competitor_name) ?? 0) + competitor.response_count,
+      );
+      return counts;
+    }, new Map<string, number>());
+  const competitors = [...competitorMentions].sort(
+    ([leftName, leftCount], [rightName, rightCount]) =>
+      rightCount - leftCount || leftName.localeCompare(rightName),
+  );
 
   return (
-    <div className="grid gap-4" data-testid="commerce-overview-panel">
+    <div className="grid gap-5" data-testid="commerce-overview-panel">
       <CommercePrompts queries={queries} />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
@@ -186,48 +195,65 @@ export function CommerceOverviewPanel({
           value={`${summary.products_visible}/${summary.products_tracked}`}
         />
         <Kpi label="Visibility rate" value={formatPercent(summary.visibility_rate)} />
-        <Kpi label="Top-three rate" value={formatPercent(summary.top_three_rate)} />
+        <Kpi label="Competitors mentioned" value={String(competitors.length)} />
         <Kpi label="Average rank" value={formatAvgRank(summary.average_rank)} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Engine visibility</CardTitle>
-            <CardDescription>Latest completed audit across configured AI engines.</CardDescription>
+            <CardTitle>Competitor presence</CardTitle>
+            <CardDescription>
+              Brands surfaced beside your catalog in the latest audit.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2 text-sm">
-            <p>{visibility.total_analyses} responses analyzed</p>
-            <p>{summary.products_visible} uploaded products observed</p>
+          <CardContent className="grid gap-3 text-sm">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border-border-subtle bg-well/30 rounded-md border p-3">
+                <span className="text-muted block text-xs">Responses analyzed</span>
+                <strong className="text-foreground text-lg font-semibold">
+                  {visibility.total_analyses}
+                </strong>
+              </div>
+              <div className="border-border-subtle bg-well/30 rounded-md border p-3">
+                <span className="text-muted block text-xs">Products observed</span>
+                <strong className="text-foreground text-lg font-semibold">
+                  {summary.products_visible}
+                </strong>
+              </div>
+            </div>
             <button
-              className="text-link w-fit"
+              className="text-accent-text hover:text-accent-hover w-fit text-sm font-medium hover:underline"
               type="button"
               onClick={() => onSelectTab('visibility')}
             >
-              View AI Visibility
+              View AI Visibility →
             </button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Largest product gaps</CardTitle>
-            <CardDescription>Products with the weakest recent visibility movement.</CardDescription>
+            <CardTitle>Most-mentioned competitors</CardTitle>
+            <CardDescription>
+              Competitor response presence across catalog categories.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm">
-            {gaps.map((product) => (
-              <Link
-                key={product.product_id ?? product.sku}
-                className="hover:bg-surface-hover flex justify-between rounded-sm p-2"
-                href={
-                  product.product_id ? `/products/${product.product_id}` : '/products?tab=catalog'
-                }
+            {competitors.slice(0, 3).map(([name, count]) => (
+              <div
+                key={name}
+                className="border-border-subtle flex items-center justify-between rounded-md border p-2.5"
               >
-                <span>{product.name}</span>
-                <span>{formatPercent(product.visibility_delta)}</span>
-              </Link>
+                <span className="text-foreground font-medium">{name}</span>
+                <span className="bg-well text-secondary rounded px-2 py-0.5 text-xs">
+                  {count} responses
+                </span>
+              </div>
             ))}
-            {!gaps.length ? <p className="text-muted">No product gaps yet.</p> : null}
+            {!competitors.length ? (
+              <p className="text-muted text-sm">No configured competitors were mentioned.</p>
+            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -250,11 +276,21 @@ function CommercePrompts({ queries }: Readonly<{ queries: OverviewQueries }>) {
     queries.commercePromptSet?.prompts.filter((prompt) => prompt.cohort === 'commerce') ?? [];
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Commerce Product Visibility prompts</CardTitle>
-        <CardDescription>
-          Read-only prompts generated from authoritative catalog categories.
-        </CardDescription>
+      <CardHeader className="flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle>Commerce Product Visibility prompts</CardTitle>
+          <CardDescription>
+            Read-only prompts generated from authoritative catalog categories.
+          </CardDescription>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => queries.generatePromptsMutation.mutate({ regenerate: true })}
+          disabled={queries.generatePromptsMutation.isPending}
+        >
+          {queries.generatePromptsMutation.isPending ? 'Regenerating…' : 'Regenerate'}
+        </Button>
       </CardHeader>
       <CardContent className="grid gap-4">
         {queries.categories.map((category) => {
@@ -263,25 +299,30 @@ function CommercePrompts({ queries }: Readonly<{ queries: OverviewQueries }>) {
           );
           const rows = prompts.filter((prompt) => prompt.topic_id === topic?.id);
           return (
-            <div key={category} className="grid gap-1">
-              <strong className="text-sm">{category}</strong>
-              {rows.map((prompt) => (
-                <p key={prompt.id} className="text-secondary text-sm">
-                  {prompt.text}
-                </p>
-              ))}
+            <div
+              key={category}
+              className="border-border-subtle bg-well/20 grid gap-2.5 rounded-lg border p-3.5"
+            >
+              <div className="flex items-center justify-between">
+                <strong className="text-foreground text-sm font-semibold">{category}</strong>
+                <span className="text-muted text-2xs">{rows.length} prompts</span>
+              </div>
+              <div className="grid gap-1.5">
+                {rows.map((prompt) => (
+                  <div
+                    key={prompt.id}
+                    className="border-border-subtle bg-panel flex items-start gap-2 rounded border p-2.5"
+                  >
+                    <span className="bg-well text-secondary text-2xs inline-block shrink-0 rounded px-1.5 py-0.5 font-medium uppercase">
+                      {prompt.intent || 'discovery'}
+                    </span>
+                    <p className="text-foreground text-xs leading-relaxed">{prompt.text}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           );
         })}
-        <div>
-          <Button
-            variant="secondary"
-            onClick={() => queries.generatePromptsMutation.mutate({ regenerate: true })}
-            disabled={queries.generatePromptsMutation.isPending}
-          >
-            Regenerate
-          </Button>
-        </div>
         {queries.generatePromptsMutation.isError ? (
           <Alert tone="danger">
             {queries.generatePromptsMutation.error instanceof Error
@@ -310,28 +351,30 @@ function RecommendedActions({
   const opportunities = query.data.items;
   if (!opportunities.length) return <p className="text-muted">No open Commerce actions.</p>;
   return (
-    <>
+    <div className="grid gap-2">
       {opportunities.slice(0, 3).map((opportunity) => (
         <button
           key={opportunity.id}
-          className="hover:bg-surface-hover flex justify-between rounded-sm p-2 text-left"
+          className="hover:bg-panel-tonal border-border-subtle flex items-center justify-between rounded-md border p-2.5 text-left transition-colors"
           type="button"
           onClick={() => onSelectTab('opportunities')}
         >
-          <span>{opportunity.title}</span>
-          <span className="text-muted">{opportunity.target_label ?? 'Catalog'}</span>
+          <span className="text-foreground font-medium">{opportunity.title}</span>
+          <span className="bg-well text-muted rounded px-2 py-0.5 text-xs">
+            {opportunity.target_label ?? 'Catalog'}
+          </span>
         </button>
       ))}
-    </>
+    </div>
   );
 }
 
 function Kpi({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <Card>
-      <CardContent className="grid gap-1">
+      <CardContent className="grid gap-1 p-4">
         <span className="text-muted text-xs">{label}</span>
-        <strong className="text-2xl">{value}</strong>
+        <strong className="text-foreground text-2xl font-semibold tracking-tight">{value}</strong>
       </CardContent>
     </Card>
   );

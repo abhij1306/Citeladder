@@ -54,11 +54,11 @@ class SiteHealthSettings(BaseSettings):
     # Manual seed, page-kind, and oversized crawl controls are development-only.
     # The standard product path is one bounded, progressively analyzed crawl.
     advanced_controls_enabled: bool = False
-    # Standard user-initiated crawls discover at most 500 pages. Development
+    # Standard user-initiated crawls discover at most 50 pages. Development
     # advanced controls may explicitly request more, up to the separate
     # 50,000-URL internal ceilings below.
-    automatic_page_limit: int = 500
-    max_requested_page_limit: int = 500
+    automatic_page_limit: int = 50
+    max_requested_page_limit: int = 50
     max_discovery_urls: int = 50_000
     max_analysis_urls: int = 50_000
     max_preview_rows: int = 500

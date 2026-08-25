@@ -418,7 +418,7 @@ async def get_product_visibility(
         summary=_visibility_summary(products, total_analyses),
         products=products,
         citation_comparison=await commerce_citation_comparison(
-            session, audit=audit, config=config
+            session, audit=audit, config=config, engine=engine
         ),
         created_at=max(s.created_at for s in selected),
     )

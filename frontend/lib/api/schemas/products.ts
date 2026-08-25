@@ -195,14 +195,28 @@ export const productVisibilitySchema = responseObject({
       responseObject({
         category: z.string(),
         response_count: z.number().int().nonnegative(),
+        brand_response_count: z.number().int().nonnegative(),
         uploaded_products: z.array(z.string()),
         uploaded_commerce_citation_count: z.number().int().nonnegative(),
+        competitor_citation_count: z.number().int().nonnegative(),
         third_party_citation_count: z.number().int().nonnegative(),
+        competitor_mentions: z.array(
+          responseObject({
+            competitor_name: z.string(),
+            response_count: z.number().int().nonnegative(),
+            distinct_prompts: z.number().int().nonnegative(),
+            distinct_engines: z.number().int().nonnegative(),
+            analysis_ids: z.array(uuid()),
+            artifact_ids: z.array(uuid()),
+          }),
+        ),
         cited_sources: z.array(
           responseObject({
             domain: z.string(),
             title: z.string(),
             representative_url: z.string(),
+            classification: z.string(),
+            matched_competitor: z.string().nullable(),
             citation_count: z.number().int().nonnegative(),
             distinct_prompts: z.number().int().nonnegative(),
             distinct_engines: z.number().int().nonnegative(),

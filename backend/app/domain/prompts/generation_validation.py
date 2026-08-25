@@ -34,7 +34,8 @@ def validate_commerce_payload(
 ) -> None:
     if payload.count != 2 or set(payload.intents) != {"discovery", "comparison"}:
         raise GenerationValidationError(
-            "Commerce generation requires exactly two prompts: discovery and comparison"
+            "Commerce generation requires exactly two prompts: buyer destination and "
+            "merchant comparison"
         )
     if target_topic is None:
         raise GenerationValidationError(

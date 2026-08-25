@@ -238,6 +238,14 @@ function ScoredInventory({
   const pager = tab === 'monitored' ? monitoredPager : tab === 'all' ? allPager : errorsPager;
 
   const activeTab = TABS.find((t) => t.key === tab)!;
+  // A recrawl pre-seeds every monitored URL as pending. Showing that full
+  // pending window immediately makes the table appear frozen and then burst
+  // all at once. The first active view instead asks the persisted projection
+  // for completed rows, so audited pages arrive progressively. The other tabs
+  // remain available, and the terminal Monitored view returns to the complete
+  // monitored set.
+  const activeTabParams: PagesParams =
+    active && tab === 'monitored' ? { ...activeTab.params, status: 'completed' } : activeTab.params;
 
   // A filter edit restarts EVERY tab from its first page — cursors are
   // filter-bound server-side, so a stale cursor under a new page type 400s.
@@ -254,7 +262,7 @@ function ScoredInventory({
   // rows under review don't shift as more pages finish scoring.
   const pagesQuery = useQuery(
     siteHealthQueries.pages(crawl.id, {
-      ...activeTab.params,
+      ...activeTabParams,
       page_kind: pageKind || undefined,
       cursor: pager.cursor,
       limit: PAGE_LIMIT,
@@ -303,7 +311,7 @@ function ScoredInventory({
                 aria-current={t.key === tab ? 'true' : undefined}
                 className={segmentedItemClasses(t.key === tab)}
               >
-                {t.label}
+                {active && t.key === 'monitored' ? 'Audited so far' : t.label}
               </button>
             ))}
           </div>

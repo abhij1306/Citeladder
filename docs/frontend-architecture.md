@@ -107,6 +107,12 @@ wrong, an affected-page evidence chip, and persisted remediation only inside
 the expanded fix guidance. It does not generate browser-side recommendation
 copy.
 
+During an active recrawl, the first page tab is labelled **Audited so far** and
+reads only completed persisted page projections. This prevents the frozen
+monitored set from filling the first screen with pending rows before work has
+finished; **All Discovered** remains available for the full inventory. Once the
+crawl terminalizes, the first tab returns to the complete **Monitored** view.
+
 The Issues surface has separate server-backed **Defects** and **Advisories**
 views. Defects are the default and the only class with severity chips. Its
 headline explicitly counts distinct defect issue types, while supporting
@@ -203,6 +209,12 @@ defaults by decomposition; an exception is not an intended delivery outcome.
 | `/demand`, `/traffic`, `/ai-referrals` | Demand Intelligence |
 | `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
 | `/products` | Commerce: Overview (default), Catalog, AI Visibility, Opportunities |
+
+Commerce AI Visibility prioritizes the comparison the buyer-destination prompts
+actually measure: category-level tracked-brand presence, configured competitor
+mentions, and brand/competitor/other cited-source labels. Per-SKU visibility and
+average position remain supporting evidence; top-three, prior-run change, and
+engine-coverage columns are not the primary Commerce comparison surface.
 | `/settings` | Shared workspace/project configuration, including Integrations and Providers |
 
 ## Authentication flow

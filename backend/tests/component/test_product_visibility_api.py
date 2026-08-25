@@ -90,6 +90,15 @@ class _ProductStubAdapter:
                     end_index=4,
                     cited_text="Acme",
                 ),
+                CitationResult(
+                    ordinal=1,
+                    url="https://globex.com/e-bikes",
+                    title="Globex E-Bikes",
+                    domain="globex.com",
+                    start_index=46,
+                    end_index=52,
+                    cited_text="Globex",
+                ),
             ),
             provider_metadata={},
             normalized_usage=NormalizedUsage(
@@ -247,6 +256,16 @@ async def test_visibility_defaults_to_latest_and_explicit_audit(
     }
     assert entry["category"] == "E-Bikes"
     assert body["citation_comparison"]["status"] == "available"
+    category = body["citation_comparison"]["categories"][0]
+    assert category["brand_response_count"] == 2
+    assert category["competitor_citation_count"] == 2
+    assert category["third_party_citation_count"] == 0
+    assert category["competitor_mentions"][0]["competitor_name"] == "Globex"
+    assert category["competitor_mentions"][0]["response_count"] == 2
+    assert {
+        (source["classification"], source["matched_competitor"])
+        for source in category["cited_sources"]
+    } == {("owned", None), ("competitor", "Globex")}
 
     # An explicit audit_id selects that audit's projection.
     explicit = await client.get(

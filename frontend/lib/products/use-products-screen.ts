@@ -129,7 +129,7 @@ async function ensureCommercePromptSet(
   return promptsApi.createPromptSet({
     project_id: projectId,
     name: 'Commerce Product Visibility',
-    description: 'Category-level product discovery and comparison prompts.',
+    description: 'Category-level buyer destination and merchant comparison prompts.',
   });
 }
 

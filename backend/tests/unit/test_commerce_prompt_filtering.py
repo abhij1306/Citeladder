@@ -17,17 +17,10 @@ from app.domain.prompts.generation_errors import GenerationValidationError
 from app.domain.prompts.generation_filtering import filter_for_cohort
 
 
-def test_deterministic_commerce_generation_uses_catalog_product_names() -> None:
+def test_deterministic_commerce_generation_asks_about_purchase_platforms() -> None:
     topic_id = uuid.uuid4()
     suggestions = _deterministic_commerce_suggestions(
         [{"id": str(topic_id), "name": "Headphones", "description": ""}],
-        {
-            "commerce_products": [
-                {"name": "Sony WH-1000XM6", "category": "Headphones"},
-                {"name": "Bose QuietComfort Ultra", "category": "Headphones"},
-                {"name": "Unrelated Phone", "category": "Smartphones"},
-            ]
-        },
     )
 
     assert suggestions == [
@@ -36,13 +29,13 @@ def test_deterministic_commerce_generation_uses_catalog_product_names() -> None:
             name="Headphones",
             prompts=[
                 SuggestedPrompt(
-                    text="Which headphones should I buy for the best overall value?",
+                    text="Where can I buy headphones online?",
                     intent="discovery",
                 ),
                 SuggestedPrompt(
                     text=(
-                        "Which headphones should I buy: Bose QuietComfort Ultra or "
-                        "Sony WH-1000XM6?"
+                        "Which online store or marketplace is best for buying "
+                        "headphones?"
                     ),
                     intent="comparison",
                 ),
@@ -51,41 +44,30 @@ def test_deterministic_commerce_generation_uses_catalog_product_names() -> None:
     ]
 
 
-def test_deterministic_commerce_generation_handles_one_product() -> None:
+def test_deterministic_commerce_generation_does_not_need_product_names() -> None:
     topic_id = uuid.uuid4()
     suggestions = _deterministic_commerce_suggestions(
         [{"id": str(topic_id), "name": "Laptops", "description": ""}],
-        {"commerce_products": [{"name": "Laptop One", "category": "Laptops"}]},
     )
 
     assert suggestions[0].prompts[1] == SuggestedPrompt(
-        text="How does Laptop One compare with other laptops?",
+        text="Which online store or marketplace is best for buying laptops?",
         intent="comparison",
     )
 
 
-def test_deterministic_commerce_generation_rejects_unnamed_products() -> None:
-    with pytest.raises(GenerationValidationError, match="requires a catalog product"):
-        _deterministic_commerce_suggestions(
-            [{"id": str(uuid.uuid4()), "name": "Laptops", "description": ""}],
-            {"commerce_products": [{"name": "", "category": "Laptops"}]},
-        )
-
-
-def test_commerce_prompt_filter_keeps_generic_discovery_and_product_comparison() -> (
-    None
-):
+def test_commerce_prompt_filter_keeps_generic_platform_prompts() -> None:
     category = SuggestedTopic(
         topic_id=uuid.uuid4(),
         name="Smartphones",
         prompts=[
             SuggestedPrompt(
-                text="Which smartphones have the best cameras this year",
-                intent="comparison",
+                text="Where can I buy smartphones online",
+                intent="discovery",
             ),
             SuggestedPrompt(
-                text="Should I buy Apple iPhone 16 or Samsung Galaxy S25",
-                intent="discovery",
+                text="Which online marketplace is best for buying smartphones",
+                intent="comparison",
             ),
             SuggestedPrompt(
                 text="Is Apple iPhone 16 the best smartphone this year",
@@ -113,11 +95,8 @@ def test_commerce_topic_keyed_output_reaches_the_existing_content_filter() -> No
     raw = json.dumps(
         {
             str(topic_id): [
-                (
-                    "Which wireless headphones offer the best noise cancellation "
-                    "for flights"
-                ),
-                "Should I buy Sony WH-1000XM6 or Bose QuietComfort Ultra headphones",
+                ("Where can I buy wireless headphones online with reliable delivery"),
+                "Which online store is best for buying wireless headphones",
             ]
         }
     )

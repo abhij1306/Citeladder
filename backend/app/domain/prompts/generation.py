@@ -25,9 +25,8 @@ from sqlalchemy.orm import selectinload
 from app.connectors.agent.gateway import ModelGateway
 from app.core.config.projects import PROMPT_ORIGIN_GENERATED
 from app.core.config.prompts import (
-    COMMERCE_COMPARISON_PAIR_PROMPT_TEMPLATE,
-    COMMERCE_COMPARISON_SINGLE_PROMPT_TEMPLATE,
-    COMMERCE_DISCOVERY_PROMPT_TEMPLATE,
+    COMMERCE_BUYER_DESTINATION_PROMPT_TEMPLATE,
+    COMMERCE_MERCHANT_COMPARISON_PROMPT_TEMPLATE,
     GENERATOR_VERSION,
     PROMPT_NEAR_DUPLICATE_SIMILARITY,
     PROMPT_STATUS_ACTIVE,
@@ -500,45 +499,28 @@ def _existing_generation_context(
 
 
 def _deterministic_commerce_suggestions(
-    allowed_topics: list[dict[str, str]], brand_context: dict[str, Any]
+    allowed_topics: list[dict[str, str]],
 ) -> list[SuggestedTopic]:
-    """Build the fixed Commerce demo pair from one validated catalog category."""
+    """Build a category-level buyer-destination pair for Commerce measurement."""
     topic = allowed_topics[0]
     category = topic["name"].strip()
-    products = brand_context.get("commerce_products", [])
-    matching_names = {
-        str(product.get("name") or "").strip()
-        for product in products
-        if str(product.get("category") or "").strip().casefold() == category.casefold()
-        and str(product.get("name") or "").strip()
-    }
-    names = sorted(matching_names, key=str.casefold)
-    if not names:
-        raise GenerationValidationError(
-            f"Commerce topic {category!r} requires a catalog product with a name"
-        )
-    if len(names) >= 2:
-        comparison = COMMERCE_COMPARISON_PAIR_PROMPT_TEMPLATE.format(
-            category=category.casefold(),
-            first_product=names[0],
-            second_product=names[1],
-        )
-    else:
-        comparison = COMMERCE_COMPARISON_SINGLE_PROMPT_TEMPLATE.format(
-            product=names[0], category=category.casefold()
-        )
     return [
         SuggestedTopic(
             topic_id=uuid.UUID(topic["id"]),
             name=category,
             prompts=[
                 SuggestedPrompt(
-                    text=COMMERCE_DISCOVERY_PROMPT_TEMPLATE.format(
+                    text=COMMERCE_BUYER_DESTINATION_PROMPT_TEMPLATE.format(
                         category=category.casefold()
                     ),
                     intent="discovery",
                 ),
-                SuggestedPrompt(text=comparison, intent="comparison"),
+                SuggestedPrompt(
+                    text=COMMERCE_MERCHANT_COMPARISON_PROMPT_TEMPLATE.format(
+                        category=category.casefold()
+                    ),
+                    intent="comparison",
+                ),
             ],
         )
     ]
@@ -571,7 +553,7 @@ async def _generate_suggestions(
     await session.commit()
     if payload.cohort == "commerce":
         return (
-            _deterministic_commerce_suggestions(allowed_topics, brand_context),
+            _deterministic_commerce_suggestions(allowed_topics),
             0,
             brand_context,
             demand_snapshot,

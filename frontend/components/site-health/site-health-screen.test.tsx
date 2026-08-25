@@ -456,6 +456,38 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
     expect(hiddenPagesRequests).toBe(0);
   });
 
+  it('reveals completed pages progressively in the first active audit view', async () => {
+    const user = userEvent.setup();
+    const requestedStatuses: Array<string | null> = [];
+    mockRoutes(
+      {
+        status: 'running',
+        discovery_status: 'running',
+        analysis_status: 'running',
+        inventory_complete: false,
+        score_summary: null,
+      },
+      'analyzing',
+    );
+    mswServer.use(
+      http.get(`/api/v1/site-crawls/${CRAWL}/pages`, ({ request }) => {
+        requestedStatuses.push(new URL(request.url).searchParams.get('status'));
+        return HttpResponse.json({ items: [], next_cursor: null, root_errors: [] });
+      }),
+    );
+
+    renderScreen();
+
+    expect(await screen.findByRole('button', { name: 'Audited so far' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    );
+    await waitFor(() => expect(requestedStatuses).toContain('completed'));
+
+    await user.click(screen.getByRole('button', { name: 'All Discovered' }));
+    await waitFor(() => expect(requestedStatuses).toContain(null));
+  });
+
   it('keeps the dashboard + partial scores and labels the run Cancelled (with Re-crawl)', async () => {
     // Cancellation with partial data must keep the latest dashboard, partial
     // scores, and inventory visible, explicitly labelled Cancelled, and offer

@@ -6,6 +6,7 @@ in ``site_health_worker_helpers``.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 
 import pytest
@@ -69,6 +70,39 @@ async def test_claim_preparation_rejects_foreign_workspace(
     async with session_factory() as session:
         task = await session.get(SiteCrawlTask, task_id)
         assert task is not None and task.status == TASK_STATUS_CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_running_crawl_preparation_does_not_wait_for_crawl_write_lock(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A sitemap persistence lock must not terminally fail a sibling page."""
+    async with session_factory() as session:
+        seed = await seed_site_crawl(session, task_count=1)
+        task = await session.scalar(
+            select(SiteCrawlTask).where(SiteCrawlTask.crawl_id == seed.crawl_id)
+        )
+        assert task is not None
+        task_id, task_kind = task.id, task.task_kind
+
+    worker = _worker(session_factory, {}, owner="running-crawl-read-boundary")
+    async with session_factory() as blocker:
+        locked_crawl = await blocker.scalar(
+            select(SiteCrawl).where(SiteCrawl.id == seed.crawl_id).with_for_update()
+        )
+        assert locked_crawl is not None
+
+        prepared = await asyncio.wait_for(
+            worker._prepare_claimed_task(
+                task_id=task_id,
+                crawl_id=seed.crawl_id,
+                workspace_id=seed.workspace_id,
+                kind=task_kind,
+            ),
+            timeout=1.0,
+        )
+
+    assert prepared is True
 
 
 @pytest.mark.asyncio

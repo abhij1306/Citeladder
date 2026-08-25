@@ -97,36 +97,22 @@ def _identity_is_valid(
     )
 
 
-def _commerce_intent(
-    text: str,
-    *,
-    category_names: list[str],
-    all_names: list[str],
-) -> str:
-    if contains_tracked_name(text, category_names):
-        return "comparison"
-    if not contains_tracked_name(text, all_names):
-        return "discovery"
-    return ""
-
-
 def _filter_commerce_prompts(
     suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
 ) -> list[SuggestedTopic]:
-    """Keep one generic and one uploaded-product question per category."""
+    """Keep one generic buyer-destination question for each Commerce intent."""
     all_names = _commerce_product_names(brand_context)
     filtered: list[SuggestedTopic] = []
     for topic in suggestions:
-        category_names = _commerce_product_names(brand_context, topic.name)
         chosen: dict[str, SuggestedPrompt] = {}
         for prompt in topic.prompts:
-            intent = _commerce_intent(
-                prompt.text,
-                category_names=category_names,
-                all_names=all_names,
-            )
-            if intent and intent not in chosen:
-                chosen[intent] = SuggestedPrompt(text=prompt.text, intent=intent)
+            intent = prompt.intent
+            if (
+                intent in {"discovery", "comparison"}
+                and intent not in chosen
+                and not contains_tracked_name(prompt.text, all_names)
+            ):
+                chosen[intent] = prompt
         prompts = [
             chosen[intent] for intent in ("discovery", "comparison") if intent in chosen
         ]
@@ -164,16 +150,8 @@ def _prompt_is_valid(
     )
 
 
-def _commerce_product_names(
-    brand_context: dict[str, Any], category: str | None = None
-) -> list[str]:
+def _commerce_product_names(brand_context: dict[str, Any]) -> list[str]:
     products = brand_context.get("commerce_products", [])
-    if category is not None:
-        products = [
-            product
-            for product in products
-            if str(product.get("category") or "").casefold() == category.casefold()
-        ]
     return [str(product.get("name") or "") for product in products]
 
 

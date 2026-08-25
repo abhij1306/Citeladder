@@ -22,21 +22,25 @@ knowledge store, or product architecture.
    followed by persisted product/category KPIs and actions.
 2. **Catalog** — product add, import, edit, delete, completeness, and feed
    health.
-3. **AI Visibility** — per-SKU visibility rate, top-three rate, average
-   position, engine coverage, and prior-audit change.
+3. **AI Visibility** — per-SKU visibility and average position alongside
+   category-level brand presence, configured-competitor mentions, and cited
+   source classification.
 4. **Opportunities** — the shared Opportunity API filtered to
    `opportunity_type=commerce`; review confirmation is browser-only and does
    not mutate a provider or create a second recommendation store.
 
 CSV categories are authoritative. Commerce reuses one prompt set, one topic per
 category, and exactly two generated prompts per category: generic discovery and
-uploaded-product comparison. That fixed prompt pair is derived deterministically
-from the category and uploaded product names; the Commerce generation action
-does not configure or call the application model. Commerce audits are isolated
-by `audit_scope` and freeze uploaded product URL domains. Category citation
-projections label third-party results as cited alternatives/sources, never
-matched competitor SKUs. A retrieval-enabled answer can truthfully have no
-citations.
+merchant/platform comparison. The deterministic pair asks where the category
+can be bought online and which store or marketplace is best; neither question
+names an uploaded product or assumes a specific merchant. The Commerce
+generation action does not configure or call the application model. Commerce
+audits are isolated by `audit_scope` and freeze uploaded product URL domains.
+Category projections expose persisted tracked-brand response presence and
+configured-competitor mentions. Cited alternatives/sources retain the
+analyzer's brand, competitor, or third-party classification and matched
+competitor name where available; they are never matched competitor SKUs. A
+retrieval-enabled answer can truthfully have no citations.
 
 Commerce emits only three deterministic action types: an uploaded product was
 absent, third-party category citations appeared while uploaded products and

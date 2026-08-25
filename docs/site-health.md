@@ -100,7 +100,7 @@ repair lifecycle state, or call a model.
 ## Crawl controls, limits, and progressive UI
 
 The production path is one standard crawl: its frozen requested-page cap and
-default are **500**. Advanced input, seed, page-kind, and oversized limits are
+default are **50**. Advanced input, seed, page-kind, and oversized limits are
 development-only; when enabled there, the separate discovery and analysis
 ceilings are **50,000**. These are configuration-owned operational bounds, not
 throughput promises.
@@ -127,6 +127,11 @@ for its host slot is `waiting/host_gate`; a future `available_at` is
 Lease ownership/expiry and durable queue availability—not elapsed browser
 time—own those states. Terminal failures therefore count as progress and a
 robots-blocked URL is visible instead of leaving the counter apparently frozen.
+
+The first active page-table view reads completed persisted projections as
+**Audited so far**, so pre-seeded monitored URLs do not appear as one immediate
+pending burst. The full discovered inventory remains an explicit adjacent view,
+and terminal crawls restore the complete monitored page view.
 
 Terminal evidence refresh follows one transactionally idempotent DAG for
 completed, partially completed, and cancelled-after-analysis crawls. Usable

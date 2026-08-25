@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { PackageSearch, Play } from 'lucide-react';
+import { ExternalLink, PackageSearch, Play } from 'lucide-react';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,7 @@ function VisibilityResults({
         </Button>
       </div>
       <ProductVisibilityTable visibility={visibility} categories={categories} />
+      <CompetitorAnalysis visibility={visibility} />
       <CitationComparison visibility={visibility} />
     </div>
   );
@@ -70,22 +71,23 @@ function ProductVisibilityTable({
         <CardTitle>SKU visibility</CardTitle>
         <CardDescription>Observed performance in the selected persisted audit.</CardDescription>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="text-muted border-b">
+      <CardContent className="overflow-x-auto p-0">
+        <table className="w-full min-w-[560px] text-left text-sm">
+          <thead className="border-border-subtle bg-well/30 text-muted border-b text-xs uppercase">
             <tr>
-              <th className="p-2">Product</th>
-              <th className="p-2">Visibility</th>
-              <th className="p-2">Top three</th>
-              <th className="p-2">Avg position</th>
-              <th className="p-2">Engine coverage</th>
-              <th className="p-2">Change</th>
+              <th className="px-4 py-3 font-medium">Product</th>
+              <th className="px-3 py-3 font-medium">Visibility</th>
+              <th className="px-3 py-3 font-medium">Mentions</th>
+              <th className="px-3 py-3 font-medium">Avg position</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-border-subtle divide-y">
             {categories.flatMap((category) => [
-              <tr key={`category-${category}`} className="bg-well border-b">
-                <td className="p-2 font-semibold" colSpan={6}>
+              <tr key={`category-${category}`} className="bg-well/40 text-foreground font-semibold">
+                <td
+                  className="text-secondary px-4 py-2.5 text-xs font-semibold tracking-wider uppercase"
+                  colSpan={4}
+                >
                   {category || 'Uncategorized'}
                 </td>
               </tr>,
@@ -105,27 +107,83 @@ function ProductVisibilityRow({
 }: Readonly<{ product: ProductVisibility['products'][number] }>) {
   const productName = (
     <>
-      {product.name}
-      <span className="text-muted block text-xs">{product.sku}</span>
+      <span className="text-foreground font-medium">{product.name}</span>
+      <span className="text-muted text-2xs block font-mono">{product.sku}</span>
     </>
   );
   return (
-    <tr className="border-b last:border-0">
-      <td className="p-2">
+    <tr className="hover:bg-panel-tonal/50 transition-colors">
+      <td className="px-4 py-3">
         {product.product_id ? (
-          <Link className="text-link" href={`/products/${product.product_id}`}>
+          <Link
+            className="text-foreground hover:text-accent-text transition-colors hover:underline"
+            href={`/products/${product.product_id}`}
+          >
             {productName}
           </Link>
         ) : (
           <span>{productName}</span>
         )}
       </td>
-      <td className="p-2">{formatPercent(product.visibility_rate)}</td>
-      <td className="p-2">{formatPercent(product.top_three_rate)}</td>
-      <td className="p-2">{formatAvgRank(product.avg_rank)}</td>
-      <td className="p-2">{product.engine_coverage} engines</td>
-      <td className="p-2">{formatPercent(product.visibility_delta)}</td>
+      <td className="text-foreground px-3 py-3 font-medium">
+        {formatPercent(product.visibility_rate)}
+      </td>
+      <td className="text-secondary px-3 py-3">{product.mention_count}</td>
+      <td className="text-secondary px-3 py-3">{formatAvgRank(product.avg_rank)}</td>
     </tr>
+  );
+}
+
+function CompetitorAnalysis({ visibility }: Readonly<{ visibility: ProductVisibility }>) {
+  const categories = visibility.citation_comparison.categories;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Competitor analysis</CardTitle>
+        <CardDescription>
+          Persisted brand and configured-competitor mentions from the selected audit.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {categories.map((category) => (
+          <div
+            key={category.category}
+            className="border-border-subtle bg-well/20 grid gap-3 rounded-lg border p-4"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <strong className="text-foreground text-sm font-semibold">{category.category}</strong>
+              <span className="text-muted text-xs">
+                Brand in {category.brand_response_count}/{category.response_count} responses
+              </span>
+            </div>
+            {category.competitor_mentions.length ? (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {category.competitor_mentions.map((competitor) => (
+                  <div
+                    key={competitor.competitor_name}
+                    className="border-border-subtle bg-panel rounded-md border p-3"
+                  >
+                    <span className="text-foreground block text-sm font-medium">
+                      {competitor.competitor_name}
+                    </span>
+                    <span className="text-muted text-xs">
+                      {competitor.response_count} responses · {competitor.distinct_prompts} prompts
+                      {' · '}
+                      {competitor.distinct_engines} engines
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted text-sm">No configured competitors were mentioned.</p>
+            )}
+          </div>
+        ))}
+        {!categories.length ? (
+          <p className="text-muted text-sm">No category-level mention evidence is available.</p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -139,26 +197,31 @@ function CitationComparison({ visibility }: Readonly<{ visibility: ProductVisibi
           {comparison.limitation || 'Observed citations returned by the selected audit.'}
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-5">
+      <CardContent className="grid gap-6">
         {!comparison.categories.length ? (
           <p className="text-muted text-sm">
             This audit returned no citations for the tracked categories.
           </p>
         ) : null}
         {comparison.categories.map((category) => (
-          <div key={category.category} className="grid gap-2">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <strong>{category.category}</strong>
-              <span className="text-muted text-xs">
+          <div
+            key={category.category}
+            className="border-border-subtle bg-well/20 grid gap-3 rounded-lg border p-4"
+          >
+            <div className="border-border-subtle flex flex-wrap items-baseline justify-between gap-2 border-b pb-2.5">
+              <strong className="text-foreground text-sm font-semibold">{category.category}</strong>
+              <span className="text-muted text-2xs">
                 {category.response_count} responses · {category.uploaded_commerce_citation_count}{' '}
-                uploaded destination citations · {category.third_party_citation_count} third-party
-                citations
+                brand citations · {category.competitor_citation_count} competitor citations ·{' '}
+                {category.third_party_citation_count} other citations
               </span>
             </div>
             {category.cited_sources.length ? (
-              category.cited_sources.map((source) => (
-                <CitedSourceRow key={`${source.domain}-${source.title}`} source={source} />
-              ))
+              <div className="grid gap-2">
+                {category.cited_sources.map((source) => (
+                  <CitedSourceRow key={`${source.domain}-${source.title}`} source={source} />
+                ))}
+              </div>
             ) : (
               <p className="text-muted text-sm">No citations returned for this category.</p>
             )}
@@ -179,24 +242,46 @@ function safeCitationUrl(value: string): string | null {
 }
 
 function CitedSourceRow({ source }: Readonly<{ source: CitedSource }>) {
-  const className = 'border-border-subtle flex justify-between gap-3 rounded-sm border p-3 text-sm';
+  const sourceLabel =
+    source.classification === 'owned'
+      ? 'Brand source'
+      : source.matched_competitor
+        ? `${source.matched_competitor} source`
+        : source.classification === 'competitor'
+          ? 'Competitor source'
+          : 'Other source';
   const content = (
-    <>
-      <span>
-        <span className="font-medium">{source.title || source.domain}</span>
-        <span className="text-muted block text-xs">{source.domain}</span>
-      </span>
-      <span className="text-muted text-xs">
+    <div className="flex w-full flex-wrap items-center justify-between gap-2">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-foreground truncate text-sm font-medium">
+            {source.title || source.domain}
+          </span>
+          {source.representative_url ? (
+            <ExternalLink className="text-muted size-3 shrink-0" aria-hidden />
+          ) : null}
+        </div>
+        <span className="text-muted block truncate text-xs">
+          {source.domain} · {sourceLabel}
+        </span>
+      </div>
+      <span className="bg-well text-secondary shrink-0 rounded px-2 py-0.5 text-xs">
         {source.citation_count} citations · {source.distinct_prompts} prompts ·{' '}
         {source.distinct_engines} engines
       </span>
-    </>
+    </div>
   );
   const href = safeCitationUrl(source.representative_url);
-  if (!href) return <div className={className}>{content}</div>;
+  if (!href) {
+    return (
+      <div className="border-border-subtle bg-panel flex justify-between gap-3 rounded-md border p-3 text-sm">
+        {content}
+      </div>
+    );
+  }
   return (
     <a
-      className={`${className} hover:bg-surface-hover`}
+      className="border-border-subtle bg-panel hover:bg-panel-tonal flex justify-between gap-3 rounded-md border p-3 text-sm transition-colors"
       href={href}
       target="_blank"
       rel="noreferrer"
@@ -243,7 +328,7 @@ export function AiVisibilityPanel({
       <EmptyState
         icon={Play}
         heading="No Commerce visibility audit yet"
-        description="Launch an audit to measure product mentions, rankings, and engine coverage."
+        description="Launch an audit to measure product, brand, competitor, and citation presence."
         action={<Button onClick={onLaunchAudit}>Launch audit</Button>}
       />
     );

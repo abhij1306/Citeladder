@@ -47,7 +47,7 @@ causal claims.
 | Integrations/Traffic/Analytics/Demand | GSC/Traffic evidence, snapshots, signals |
 | Prompts/Audits/Visibility | Prompt portfolios and answer-engine measurement |
 | Opportunities | One persisted cross-system action store |
-| Commerce | Uploaded catalog specialization, Commerce-scoped audit analysis, product visibility, category citations, and deterministic actions |
+| Commerce | Uploaded catalog specialization, merchant-focused category prompts, Commerce-scoped audit analysis, product visibility, category brand/competitor mentions and classified citations, and deterministic actions |
 | Growth Agent | Standalone explain/roadmap runs and append-only typed-tool attempts |
 
 The command-center read projection is useful before the first visibility audit.
@@ -194,7 +194,7 @@ are progressively and automatically enqueued for analysis while discovery is
 running, subject to the entitlement/runtime allowance frozen on that crawl.
 The product control surface has no separate discovery or analysis start action.
 
-The standard production crawl freezes a 500-page requested limit. Advanced
+The standard production crawl freezes a 50-page requested limit. Advanced
 input and the 50,000 discovery/analysis ceilings are development-only config;
 they are not a production UI contract or a throughput claim. Availability of
 those development controls is separate from the frozen manual-phase lifecycle

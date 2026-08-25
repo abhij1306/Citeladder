@@ -346,12 +346,10 @@ class SiteHealthWorker(
                 )
             )
             crawl = await session.scalar(
-                select(SiteCrawl)
-                .where(
+                select(SiteCrawl).where(
                     SiteCrawl.id == crawl_id,
                     SiteCrawl.workspace_id == workspace_id,
                 )
-                .with_for_update()
             )
             if task is None or crawl is None:
                 await session.rollback()
@@ -361,13 +359,39 @@ class SiteHealthWorker(
                 kind == TASK_KIND_CHANGE_INTEL
                 and crawl.status in CRAWL_TERMINAL_STATUSES
             )
+            # Once the crawl is running, preparation is a read-only liveness
+            # check. Avoid taking its shared FOR UPDATE serialization point:
+            # root discovery can legitimately hold that row while admitting a
+            # sitemap batch, and a sibling analysis used to hit the database
+            # lock timeout here and get terminally mislabeled as a crashed page.
+            # The persist boundary still locks and re-checks crawl/task
+            # ownership, so cancellation cannot write evidence after this read.
+            if crawl.status == CRAWL_STATUS_RUNNING or terminal_refresh:
+                await session.rollback()
+                return True
             if not crawl_is_active(crawl) and not terminal_refresh:
                 await session.rollback()
                 await self._queue.cancel(task_id=task_id)
                 await self._reconcile_crawl_status(crawl_id)
                 return False
-            if not terminal_refresh:
-                self._ensure_running(crawl)
+
+            # Only the first task needs to advance the crawl to running. Lock
+            # and refresh that transition path so concurrent starters remain
+            # serialized without making every later page contend on the row.
+            crawl = await session.scalar(
+                select(SiteCrawl)
+                .where(
+                    SiteCrawl.id == crawl_id,
+                    SiteCrawl.workspace_id == workspace_id,
+                )
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if crawl is None or not crawl_is_active(crawl):
+                await session.rollback()
+                await self._queue.cancel(task_id=task_id)
+                return False
+            self._ensure_running(crawl)
             await session.commit()
         return True
 

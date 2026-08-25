@@ -294,7 +294,7 @@ async def test_generate_persists_provenance_evidence(
     for prompt in prompts:
         evidence = prompt.generation_evidence
         assert evidence is not None
-        assert evidence["generator_version"] == "prompt-gen-v15"
+        assert evidence["generator_version"] == "prompt-gen-v16"
         assert evidence["generation_mode"] == "model"
         assert evidence["model_identity"] == {
             "transport_host": "agent.test",
@@ -362,12 +362,11 @@ async def test_commerce_generation_is_catalog_derived_without_an_agent(
     generated = response.json()["generated"]
     assert [(row["text"], row["intent"]) for row in generated] == [
         (
-            "Which headphones should I buy for the best overall value?",
+            "Where can I buy headphones online?",
             "discovery",
         ),
         (
-            "Which headphones should I buy: Bose QuietComfort Ultra or "
-            "Sony WH-1000XM6?",
+            "Which online store or marketplace is best for buying headphones?",
             "comparison",
         ),
     ]

@@ -314,9 +314,10 @@ _BRAND_COHORT_RULES: Final[dict[str, str]] = {
     ),
     "commerce": (
         "Generate exactly two prompts for the supplied category. One discovery "
-        "prompt asks generically what a buyer should choose without naming an "
-        "uploaded product. One comparison prompt names the uploaded products in "
-        "that category. Use discovery and comparison intents respectively."
+        "prompt asks where a buyer can purchase the category online. One comparison "
+        "prompt asks which store or marketplace is best. Neither prompt names an "
+        "uploaded product or assumes a specific merchant. Use discovery and comparison "
+        "intents respectively."
     ),
 }
 

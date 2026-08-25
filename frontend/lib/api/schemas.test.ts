@@ -618,11 +618,53 @@ describe('products contract (agentic commerce)', () => {
           ...entryV2,
         },
       ],
-      citation_comparison: { status: 'no_citations', limitation: '', categories: [] },
+      citation_comparison: {
+        status: 'available',
+        limitation: 'Persisted evidence.',
+        categories: [
+          {
+            category: 'Bikes',
+            response_count: 2,
+            brand_response_count: 1,
+            uploaded_products: ['Acme VoltBike 500'],
+            uploaded_commerce_citation_count: 1,
+            competitor_citation_count: 1,
+            third_party_citation_count: 0,
+            competitor_mentions: [
+              {
+                competitor_name: 'Globex',
+                response_count: 1,
+                distinct_prompts: 1,
+                distinct_engines: 1,
+                analysis_ids: [UUID],
+                artifact_ids: [UUID2],
+              },
+            ],
+            cited_sources: [
+              {
+                domain: 'globex.com',
+                title: 'Globex',
+                representative_url: 'https://globex.com/bikes',
+                classification: 'competitor',
+                matched_competitor: 'Globex',
+                citation_count: 1,
+                distinct_prompts: 1,
+                distinct_engines: 1,
+                citation_ids: [UUID],
+                analysis_ids: [UUID],
+                artifact_ids: [UUID2],
+              },
+            ],
+          },
+        ],
+      },
       created_at: '2026-07-15T00:00:00Z',
     };
     const parsed = strictValidate(productVisibilitySchema, projection, 'productVisibility');
     expect(parsed.products[0]?.category).toBe('Bikes');
+    expect(parsed.citation_comparison.categories[0]?.competitor_mentions[0]?.competitor_name).toBe(
+      'Globex',
+    );
     // A negative frequency count is contract drift.
     expect(() =>
       strictValidate(

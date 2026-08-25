@@ -28,6 +28,14 @@ import {
   type SiteHealthPhase,
 } from '@/lib/site-health/status';
 
+function monitoredPagePreviewParams(active: boolean) {
+  return {
+    limit: PAGE_LIMIT,
+    monitored: true,
+    status: active ? 'completed' : undefined,
+  };
+}
+
 /**
  * Data orchestration for the Site Health screen (Slice 7).
  *
@@ -106,12 +114,12 @@ export function useSiteHealthScreen(projectId: string | null) {
   }, [monitoredQuery.data]);
 
   // The live score preview shares the exact first-page query key rendered by
-  // ScoredInventory. React Query therefore issues ONE request for both
-  // consumers. Discovery does not render or score page analyses, so keeping
-  // this disabled until analysis/dashboard avoids fetching a hidden 200-row
-  // projection on every progress event.
+  // ScoredInventory. During an active crawl that first view contains completed
+  // rows only, so results appear progressively instead of rendering the whole
+  // pre-seeded pending set at once. Once terminal, it returns to the complete
+  // monitored projection.
   const pagesQuery = useQuery({
-    ...siteHealthQueries.pages(crawl?.id ?? '', { limit: PAGE_LIMIT, monitored: true }),
+    ...siteHealthQueries.pages(crawl?.id ?? '', monitoredPagePreviewParams(active)),
     enabled: Boolean(crawl?.id) && (phase === 'analyzing' || phase === 'dashboard'),
   });
 
