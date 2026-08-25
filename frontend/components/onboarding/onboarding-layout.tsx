@@ -14,14 +14,9 @@ const STEPS = [
 /**
  * Where each step's stage sits in the right column.
  *
- * The two short steps start on the SAME visual line as the rail title rather
- * than sitting vertically centred beneath it; the long review step centres.
- *
- * The offset is derived, not tuned. Both columns share one vertical padding
- * ramp (see `onboarding-screen.tsx`), so the rail title's baseline is a
- * constant 62px below the shared padding edge: the wordmark's line box plus
- * the `gap-8` beneath it. Subtracting the stage wrapper's own 8px padding
- * leaves 54px (3.375rem), which holds at every width above the 900px split.
+ * Every step starts near the top of the working column with a compact inset.
+ * The inset grows slightly on wide screens while the stage wrapper supplies
+ * the remaining spacing; this keeps all three transitions visually stable.
  */
 export const STEP_MAIN_ALIGNMENT = [
   'justify-start min-[900px]:pt-6 xl:pt-8',

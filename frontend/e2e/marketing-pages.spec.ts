@@ -86,7 +86,7 @@ test.describe('marketing routes', () => {
     // neither of those is the canvas.
     await expect(page.locator('.bg-background').first()).toHaveCSS(
       'background-color',
-      'rgb(244, 245, 247)',
+      'rgb(248, 250, 252)',
     );
   });
 

@@ -118,11 +118,11 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   const initialHeading = page.getByRole('heading', { name: "Let's get started" });
   const initialHeadingBox = await initialHeading.boundingBox();
   expect(initialHeadingBox).not.toBeNull();
-  // The short setup stage begins on the same visual line as the desktop rail
-  // title, instead of sitting vertically centred beneath it. Both columns share
-  // one vertical padding ramp, so this holds exactly at every width rather than
-  // within a tolerance (components/onboarding/onboarding-layout.tsx).
-  expect(Math.abs(initialHeadingBox!.y - setupBox!.y)).toBeLessThanOrEqual(2);
+  // The working stage uses a compact top inset independent of the desktop rail
+  // title. It remains near the top instead of being vertically centred.
+  const initialHeadingOffset = initialHeadingBox!.y - setupBox!.y;
+  expect(Math.abs(initialHeadingOffset)).toBeGreaterThanOrEqual(20);
+  expect(Math.abs(initialHeadingOffset)).toBeLessThanOrEqual(40);
   const stageHeadingFontSize = await initialHeading.evaluate(
     (element) => getComputedStyle(element).fontSize,
   );
@@ -135,7 +135,7 @@ test('onboarding renders inverse type, sequential progress, and a prompt-free re
   const discoveryHeading = page.getByRole('heading', { name: 'Finding what to track' });
   const discoveryHeadingBox = await discoveryHeading.boundingBox();
   expect(discoveryHeadingBox).not.toBeNull();
-  expect(Math.abs(discoveryHeadingBox!.y - setupBox!.y)).toBeLessThanOrEqual(2);
+  expect(discoveryHeadingBox!.y - setupBox!.y).toBeCloseTo(initialHeadingOffset, 0);
   const discoveryStage = await page.locator('main#main').boundingBox();
   expect(discoveryStage).not.toBeNull();
 

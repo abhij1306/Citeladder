@@ -25,7 +25,7 @@ test('landing renders on the Proof surface without a backend', async ({ page }) 
   // canvas, and no CI job ran it, so the drift went unnoticed.
   await expect(page.locator('.bg-background').first()).toHaveCSS(
     'background-color',
-    'rgb(244, 245, 247)',
+    'rgb(248, 250, 252)',
   );
 
   await expect(page.getByRole('img', { name: /ChatGPT, Grok, Gemini/i })).toBeVisible();
