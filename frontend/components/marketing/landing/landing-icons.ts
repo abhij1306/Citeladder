@@ -1,13 +1,11 @@
 import {
   BarChart3,
-  Bot,
   Briefcase,
   Building2,
   Check,
   Eye,
   FileText,
   GitBranch,
-  Globe,
   GraduationCap,
   Landmark,
   Lock,
@@ -27,10 +25,6 @@ import type { IconKey } from '@/lib/marketing-content/landing';
  * content module stays pure data and the sections share one icon vocabulary.
  */
 export const LANDING_ICONS: Record<IconKey, LucideIcon> = {
-  site: Globe,
-  content: FileText,
-  demand: BarChart3,
-  agent: Bot,
   collect: Search,
   analyze: BarChart3,
   improve: Zap,

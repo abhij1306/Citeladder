@@ -41,6 +41,15 @@ describe('ContentMarkdown', () => {
     expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
+  it('supports the compact reading scale used for execution evidence', () => {
+    const { container } = render(
+      <ContentMarkdown markdown="A persisted answer." density="compact" />,
+    );
+
+    expect(container.firstElementChild).toHaveClass('text-sm');
+    expect(container.firstElementChild).not.toHaveClass('text-base');
+  });
+
   it('preserves leading indentation in the original Markdown', () => {
     const { container } = render(<ContentMarkdown markdown={'    indented code\n'} />);
 

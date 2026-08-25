@@ -3,7 +3,6 @@ import type { Metadata } from 'next';
 import { FinalCta } from '@/components/marketing/landing/final-cta';
 import { Hero } from '@/components/marketing/landing/hero';
 import { Packs } from '@/components/marketing/landing/packs';
-import { Platform } from '@/components/marketing/landing/platform';
 import { SeeIt } from '@/components/marketing/landing/see-it';
 import { Shift } from '@/components/marketing/landing/shift';
 import { Trust } from '@/components/marketing/landing/trust';
@@ -41,11 +40,10 @@ export const metadata: Metadata = {
  * forwards signed-in visitors to their dashboard (`/projects`) or to
  * first-run `/onboarding` — the contract `/` had before this page existed.
  *
- * Eight beats, in order: the hook (Hero), why growth changed (Shift), the four
- * intelligence layers (Platform), the product itself (SeeIt), how the loop runs
- * (Workflow), who it is shaped for (Packs), the data promise (Trust), and the
- * close (FinalCta). Shared chrome (nav + footer) lives in the (marketing)
- * route-group layout.
+ * Seven beats, in order: the hook (Hero), why growth changed (Shift), the
+ * product itself (SeeIt), how the loop runs (Workflow), who it is shaped for
+ * (Packs), the data promise (Trust), and the close (FinalCta). Shared chrome
+ * (nav + footer) lives in the (marketing) route-group layout.
  *
  * Section tones are owned by the section components, not here. `Section` sets
  * the rule that no two adjacent bands share a tone, so reordering these beats
@@ -60,7 +58,6 @@ export default function LandingPage() {
       <main id="main">
         <Hero />
         <Shift />
-        <Platform />
         <SeeIt />
         <Workflow />
         <Packs />

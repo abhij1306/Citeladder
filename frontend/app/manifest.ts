@@ -15,6 +15,6 @@ export default function manifest(): MetadataRoute.Manifest {
     description: SITE_TAGLINE,
     start_url: '/',
     display: 'standalone',
-    icons: [{ src: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }],
+    icons: [{ src: '/citeladder-favicon.ico', type: 'image/x-icon', sizes: '256x256' }],
   };
 }

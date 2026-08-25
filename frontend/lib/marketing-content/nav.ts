@@ -1,6 +1,6 @@
 /**
  * Navigation content for the marketing chrome (desktop dropdowns + the mobile
- * accordions, which render the same tree). Anchors are absolute (`/#platform`)
+ * accordions, which render the same tree). Anchors are absolute (`/#see-it`)
  * so every row resolves from a subpage, not just from `/`.
  */
 export type NavDropKey = 'platform' | 'solutions' | 'resources';
@@ -22,15 +22,10 @@ export const NAV_DROPS: readonly NavDrop[] = [
   {
     key: 'platform',
     label: 'Platform',
-    href: '/#platform',
+    href: '/#see-it',
     groups: [
       {
         items: [
-          {
-            title: 'The platform',
-            desc: 'Four intelligence layers, one growth system',
-            href: '/#platform',
-          },
           {
             title: 'See it',
             desc: 'The whole system in one workspace',
@@ -45,6 +40,11 @@ export const NAV_DROPS: readonly NavDrop[] = [
             title: 'Industry packs',
             desc: 'Built for how your business works',
             href: '/#use-cases',
+          },
+          {
+            title: 'Evidence and privacy',
+            desc: 'Inspectable evidence with isolated data',
+            href: '/#trust',
           },
         ],
       },

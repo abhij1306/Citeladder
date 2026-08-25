@@ -36,6 +36,8 @@ export function ExecutionEvidenceDrawer({
           ? `Prompt #${execution.prompt_index + 1} · repetition ${execution.repetition}`
           : undefined
       }
+      className="sm:max-w-220"
+      bodyClassName="sm:px-6"
       closeLabel="Close evidence drawer"
     >
       {evidenceQuery.isError ? (

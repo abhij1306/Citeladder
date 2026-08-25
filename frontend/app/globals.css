@@ -34,11 +34,11 @@
   --color-border-strong: #cbd5e1;
   --color-border-bold: #94a3b8;
 
-  /* Text — Obsidian Ink → Slate hierarchy (#0f172a Ink → #334155 Slate → #64748b Muted → #94a3b8 Subtle). */
+  /* Text — four semantic roles, each AA-safe on every shared light surface. */
   --color-foreground: #0f172a;
   --color-secondary: #334155;
-  --color-muted: #64748b;
-  --color-subtle: #94a3b8;
+  --color-muted: #526173;
+  --color-subtle: #596777;
   --color-inverse: #ffffff;
   --color-on-inverse: #ffffff;
   --color-link: #2563eb;
@@ -258,7 +258,7 @@
   --focus-ring: 0 0 0 2px var(--color-panel), 0 0 0 4px rgba(49, 92, 255, 0.3);
   --skeleton-base: #f1f5f9;
   --skeleton-highlight: #ffffff;
-  --value-placeholder: #94a3b8;
+  --value-placeholder: var(--color-subtle);
 }
 
 *,
@@ -338,21 +338,6 @@ samp {
 
 .value-placeholder {
   color: var(--value-placeholder);
-}
-
-.logo-mark {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-}
-
-.logo-mark svg {
-  width: 100%;
-  height: 100%;
-}
-
-.logo-mark path {
-  fill: currentColor;
 }
 
 @keyframes skeleton-shimmer {
@@ -592,8 +577,8 @@ samp {
   transform: translateY(0);
 }
 
-/* In-page anchors must clear the fixed marketing nav, otherwise `#platform`
-   and friends land underneath it. */
+/* In-page anchors must clear the fixed marketing nav so linked sections land
+   below the chrome. */
 [id] {
   scroll-margin-top: calc(var(--topbar-height) + 1.5rem);
 }

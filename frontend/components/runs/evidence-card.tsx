@@ -28,7 +28,7 @@ function Outcome({
 }: Readonly<{ label: string; detail: string; passed: boolean }>) {
   const Icon = passed ? CheckCircle2 : XCircle;
   return (
-    <div className="border-border-subtle bg-panel flex min-w-0 items-start gap-2.5 rounded-md border p-3">
+    <div className="border-border-subtle bg-panel flex min-w-0 items-start gap-2.5 rounded-md border p-3 shadow-xs">
       <Icon
         className={cn('mt-0.5 size-4 shrink-0', passed ? 'text-score-high' : 'text-muted')}
         aria-hidden
@@ -61,7 +61,7 @@ function EvidencePromptHeader({
   const promptBadgeNumber = promptIndex !== undefined ? promptIndex + 1 : evidence.prompt_index + 1;
 
   return (
-    <section className="border-border-subtle bg-well/30 grid gap-2.5 rounded-lg border p-4">
+    <section className="border-border-subtle bg-panel grid min-w-0 gap-2.5 rounded-md border p-3.5 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Badge variant="neutral">Prompt #{promptBadgeNumber}</Badge>
@@ -77,16 +77,14 @@ function EvidencePromptHeader({
           />
         </div>
       </div>
-      <p className="text-foreground text-sm leading-relaxed font-medium sm:text-base">
-        {displayPrompt}
-      </p>
+      <p className="text-foreground text-sm leading-snug font-medium">{displayPrompt}</p>
     </section>
   );
 }
 
 function EvidenceMetrics({ evidence }: Readonly<{ evidence: ExecutionEvidence }>) {
   return (
-    <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <section className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
       <EvidenceStat
         label="Brand"
         value={evidence.brand_mentioned ? 'Mentioned' : 'Not mentioned'}
@@ -111,12 +109,10 @@ function EvidenceAnswer({ answerText }: Readonly<{ answerText?: string | null }>
   const trimmed = answerText?.trim();
   return (
     <section className="grid gap-2">
-      <Label className="text-muted text-xs font-semibold tracking-wider uppercase">
-        Engine Response
-      </Label>
-      <div className="border-border-subtle bg-background-alt rounded-lg border p-4 sm:p-5">
+      <Label>Engine response</Label>
+      <div className="border-border-subtle bg-panel min-w-0 overflow-hidden rounded-md border p-3.5 shadow-xs sm:p-4">
         {trimmed ? (
-          <ContentMarkdown markdown={trimmed} />
+          <ContentMarkdown markdown={trimmed} density="compact" />
         ) : (
           <span className="text-muted text-sm">
             No answer text was captured for this execution.
@@ -225,7 +221,7 @@ function EvidenceCitationsList({
           No citations were captured from this response.
         </div>
       ) : (
-        <ol className="divide-border-subtle border-border-subtle bg-panel divide-y rounded-lg border">
+        <ol className="divide-border-subtle border-border-subtle bg-panel divide-y rounded-md border shadow-xs">
           {citations.map((citation) => (
             <CitationItem key={`${citation.ordinal}-${citation.url}`} citation={citation} />
           ))}
@@ -263,7 +259,7 @@ export function EvidenceCard({
   repetition?: number;
 }>) {
   return (
-    <div className="grid gap-6">
+    <div className="grid min-w-0 gap-5">
       <EvidencePromptHeader
         evidence={evidence}
         promptText={promptText}
@@ -285,11 +281,11 @@ function EvidenceStat({
   positive,
 }: Readonly<{ label: string; value: string; positive?: boolean }>) {
   return (
-    <div className="border-border-subtle bg-panel grid min-w-0 gap-1 rounded-lg border p-3">
+    <div className="border-border-subtle bg-panel grid min-w-0 gap-0.5 rounded-md border px-3 py-2.5 shadow-xs">
       <span className="text-muted text-xs">{label}</span>
       <span
         className={cn(
-          'truncate text-base font-semibold',
+          'truncate text-sm font-semibold',
           positive === true
             ? 'text-score-high'
             : positive === false

@@ -469,6 +469,7 @@ describe('OpportunitiesScreen', () => {
     // Drawer: prompt quote, competitor chip, remediation (what to do).
     expect(await screen.findByText('Opportunity detail')).toBeInTheDocument();
     const drawer = screen.getByRole('dialog', { name: 'Opportunity detail' });
+    expect(drawer).toHaveClass('sm:max-w-160');
     expect(within(drawer).getByText('“best crm for small teams”')).toBeInTheDocument();
     expect(within(drawer).getByText('Globex')).toBeInTheDocument();
     expect(within(drawer).getByText('Publish a comparison page.')).toBeInTheDocument();

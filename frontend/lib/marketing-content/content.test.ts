@@ -75,7 +75,7 @@ function stringsIn(value: unknown): string[] {
 
 describe('marketing navigation', () => {
   it('routes every internal link from the site root', () => {
-    // Anchors are absolute (`/#platform`) so a row resolves from a subpage,
+    // Anchors are absolute (`/#see-it`) so a row resolves from a subpage,
     // not only from `/`.
     for (const href of internalHrefs()) {
       expect(href, href).toMatch(/^\/(?:$|[a-z0-9#/-])/);

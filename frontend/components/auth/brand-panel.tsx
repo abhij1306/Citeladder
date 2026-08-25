@@ -6,25 +6,14 @@ import { cn } from '@/lib/utils';
 
 export function AuthWordmark({
   compact = false,
-  light = false,
 }: Readonly<{ compact?: boolean; light?: boolean }>) {
   return (
     <Link
       href="/"
       aria-label="CiteLadder home"
-      className={cn(
-        'group inline-flex items-center gap-2 no-underline transition-opacity hover:opacity-90',
-        light ? 'text-brand-canvas-foreground' : 'text-foreground',
-      )}
+      className="group inline-flex items-center no-underline transition-opacity hover:opacity-90"
     >
-      <span className="inline-flex shrink-0">
-        <LogoMark size={16} />
-      </span>
-      <span
-        className={cn('font-display font-bold tracking-tight', compact ? 'text-lg' : 'text-xl')}
-      >
-        CiteLadder
-      </span>
+      <LogoMark size={compact ? 22 : 26} />
     </Link>
   );
 }

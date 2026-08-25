@@ -16,9 +16,14 @@ describe('MarketingFooter', () => {
   it('renders five labelled columns inside the Footer landmark', () => {
     const { container } = render(<MarketingFooter />);
 
+    expect(container.querySelector('footer')).toHaveClass('bg-active/60');
     const footerNav = screen.getByRole('navigation', { name: 'Footer' });
     expect(within(footerNav).getAllByRole('link').length).toBeGreaterThan(0);
-    expect(container.querySelectorAll('.f-col-label')).toHaveLength(5);
+    const headings = container.querySelectorAll('.f-col-label');
+    expect(headings).toHaveLength(5);
+    for (const heading of headings) {
+      expect(heading).toHaveClass('text-foreground', 'font-semibold');
+    }
   });
 
   it('derives the Compare column from the content module', () => {

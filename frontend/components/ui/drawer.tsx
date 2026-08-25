@@ -82,7 +82,7 @@ export function Drawer({
           </header>
           <div
             className={cn(
-              'min-h-0 flex-1 overflow-auto overscroll-contain px-5 py-4',
+              'min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-5 py-4',
               bodyClassName,
             )}
           >

@@ -106,6 +106,9 @@ describe('manifest', () => {
     const result = manifest();
     expect(result.name).toBe('CiteLadder');
     expect(result.start_url).toBe('/');
+    expect(result.icons).toEqual([
+      { src: '/citeladder-favicon.ico', type: 'image/x-icon', sizes: '256x256' },
+    ]);
     expect(result).not.toHaveProperty('theme_color');
     expect(result).not.toHaveProperty('background_color');
   });

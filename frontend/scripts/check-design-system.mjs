@@ -3,6 +3,7 @@ import { extname, join, relative, resolve } from 'node:path';
 
 import {
   editorialTypographyViolations,
+  textContrastViolations,
   websiteContractViolations,
 } from './design-system-source-checks.mjs';
 
@@ -54,7 +55,6 @@ for (const path of files(root)) {
   }
   const ownsWebsiteEditorialCopy =
     (label.startsWith('components/marketing/') &&
-      !label.startsWith('components/marketing/landing/agent-console') &&
       !label.startsWith('components/marketing/scenes/')) ||
     label.startsWith('components/auth/') ||
     label.startsWith('components/onboarding/');
@@ -62,6 +62,7 @@ for (const path of files(root)) {
 }
 
 violations.push(...websiteContractViolations(root));
+violations.push(...textContrastViolations(root));
 
 if (violations.length) {
   console.error(violations.join('\n'));

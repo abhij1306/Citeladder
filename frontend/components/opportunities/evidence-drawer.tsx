@@ -38,8 +38,8 @@ export function EvidenceDrawer({
       open={open}
       onOpenChange={onOpenChange}
       title="Opportunity detail"
-      className="max-w-112"
-      bodyClassName="px-4"
+      className="sm:max-w-160"
+      bodyClassName="px-4 sm:px-5"
       footer={detail ? <OpportunityStatusFooter detail={detail} projectId={projectId} /> : null}
     >
       {detailQuery.isError ? (
@@ -51,9 +51,11 @@ export function EvidenceDrawer({
           <Skeleton className="h-32 w-full" />
         </div>
       ) : (
-        <div className="grid gap-5">
-          <div className="grid gap-2">
-            <h2 className="text-foreground text-lg">{detail.title}</h2>
+        <div className="grid gap-4">
+          <div className="grid gap-2.5">
+            <h2 className="font-display text-foreground text-base leading-snug font-semibold tracking-tight">
+              {detail.title}
+            </h2>
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge variant="status" value={severityBadgeValue(detail.severity)}>
                 {severityLabel(detail.severity)} impact
@@ -66,8 +68,10 @@ export function EvidenceDrawer({
           {detail.remediation ? (
             <section className="grid gap-2">
               <Label>Recommended improvements</Label>
-              <div className="border-border-subtle bg-background-alt rounded-lg border p-3">
-                <p className="text-foreground text-sm whitespace-pre-line">{detail.remediation}</p>
+              <div className="border-border-subtle bg-panel rounded-md border p-3 shadow-xs">
+                <p className="text-secondary text-sm leading-relaxed whitespace-pre-line">
+                  {detail.remediation}
+                </p>
               </div>
             </section>
           ) : null}

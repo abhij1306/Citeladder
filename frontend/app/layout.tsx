@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   description:
     'Connect site and demand evidence, act on grounded opportunities, and track observed answer-engine citation share.',
   applicationName: SITE_NAME,
-  icons: { icon: '/icon.svg' },
+  icons: { icon: '/citeladder-favicon.ico' },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

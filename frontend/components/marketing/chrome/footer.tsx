@@ -114,7 +114,7 @@ export function MarketingFooter() {
   const name = legalDisplayName();
 
   return (
-    <footer className="border-border-subtle bg-background-alt relative border-t">
+    <footer className="border-border-subtle bg-active/60 relative border-t">
       <Container className="py-12 sm:py-16">
         <nav
           aria-label="Footer"
@@ -140,7 +140,9 @@ export function MarketingFooter() {
 
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.key} className="space-y-4">
-              <p className="website-eyebrow f-col-label text-foreground mb-4">{column.label}</p>
+              <p className="website-eyebrow f-col-label text-foreground mb-4 font-semibold">
+                {column.label}
+              </p>
               <div className="grid justify-items-start gap-4">
                 {column.links.map((link) => (
                   <FooterColumnLink key={link.label} link={link} />

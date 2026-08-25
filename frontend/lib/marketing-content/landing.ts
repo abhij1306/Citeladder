@@ -3,19 +3,15 @@
  *
  * Structure and copy follow the governed product loop. Durable Site, Content,
  * Demand, and Agent capabilities sit behind user-facing loop
- * stations. Sections carry icons and the prototype's fuller detail (module feature
- * lists, a four-step loop, use-case item lists, and a security ledger). Only the
- * hero tagline, the product visual, and the type scale/weight are ours.
+ * stations. Sections carry icons and the prototype's fuller detail (a four-step
+ * loop, use-case item lists, and a security ledger). Only the hero tagline, the
+ * product visual, and the type scale/weight are ours.
  *
  * Icons are named here as string keys and resolved to lucide components in the
  * section files (keeps this a pure data module).
  */
 
 export type IconKey =
-  | 'site'
-  | 'content'
-  | 'demand'
-  | 'agent'
   | 'collect'
   | 'analyze'
   | 'improve'
@@ -70,90 +66,6 @@ export const LANDING_CONTENT = {
         label: 'See',
         title: 'You can’t fix what you can’t see.',
         body: 'Scattered tools hide the gap. One system of record makes it measurable.',
-      },
-    ],
-  },
-
-  platform: {
-    kicker: 'Product architecture',
-    title: 'One measurable loop, four durable capabilities.',
-    lead: 'Connect, Analyze, Act, Improve / Verify, and Track. Evidence stays with its owning system while the Growth Agent provides bounded help from the top bar.',
-    // The four-across summary row.
-    summary: [
-      {
-        icon: 'site' as IconKey,
-        name: 'Site Health',
-        desc: 'Crawl, classify, and evaluate every owned page.',
-      },
-      {
-        icon: 'content' as IconKey,
-        name: 'Content Intelligence',
-        desc: 'Detect gaps, draft briefs, generate and verify content.',
-      },
-      {
-        icon: 'demand' as IconKey,
-        name: 'Demand Intelligence',
-        desc: 'GSC, GA4, AI visibility, and journey signals unified.',
-      },
-      {
-        icon: 'agent' as IconKey,
-        name: 'Growth Agent',
-        desc: 'Bounded orchestration you can inspect and correct.',
-      },
-    ],
-    // The detailed module cards.
-    modules: [
-      {
-        num: '01',
-        icon: 'site' as IconKey,
-        title: 'Site Health',
-        description:
-          'Securely crawls owned pages, classifies their structural purpose, applies deterministic checks, and confirms observable changes after a recrawl.',
-        features: [
-          'Safe crawl and structural page classification',
-          'Page-kind-scoped deterministic checks',
-          'Recrawl verification after changes',
-          'Persisted issues, scores, and evidence',
-        ],
-      },
-      {
-        num: '02',
-        icon: 'content' as IconKey,
-        title: 'Content Intelligence',
-        description:
-          'Turns detected gaps into strategies, briefs, FAQs, drafts, and post-publication verification. Every claim is checked against your project facts before you save.',
-        features: [
-          'Evidence-grounded brief generation',
-          'FAQPage JSON-LD schema automation',
-          'Unsupported claims flagged against your facts',
-          'Post-publication verification pass',
-        ],
-      },
-      {
-        num: '03',
-        icon: 'demand' as IconKey,
-        title: 'Demand Intelligence',
-        description:
-          'Connects Search Console, GA4, AI visibility, and customer journeys so you always prioritize the action with the highest actual impact.',
-        features: [
-          'Search Console + GA4 integration',
-          'AI visibility across answer engines',
-          'Customer-journey mapping',
-          'Organic and AI signal unification',
-        ],
-      },
-      {
-        num: '04',
-        icon: 'agent' as IconKey,
-        title: 'Growth Agent',
-        description:
-          'An orchestrator that explains every recommendation. Bounded tasks, typed tools, selective context, and reproducible provenance throughout.',
-        features: [
-          'Two decisions: save content, and run an audit',
-          'Typed tool calls with an audit log',
-          'Typed tools across the product systems',
-          'Project-scoped facts, never shared',
-        ],
       },
     ],
   },

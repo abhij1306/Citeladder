@@ -14,15 +14,18 @@ import { AuthBrandPanel, AuthWordmark, BrandCanvas } from './brand-panel';
  */
 describe('AuthWordmark', () => {
   it('is a named link back to the public home page', () => {
-    render(<AuthWordmark />);
+    const { container } = render(<AuthWordmark />);
 
     const link = screen.getByRole('link', { name: 'CiteLadder home' });
     expect(link).toHaveAttribute('href', '/');
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('citeladder-logo.webp'),
+    );
   });
 
   it('keeps its accessible name on the dark canvas treatment', () => {
-    // The `light` variant only swaps colour tokens; it must not change what a
-    // screen reader hears.
+    // The dark-canvas variant must not change what a screen reader hears.
     render(<AuthWordmark light />);
 
     expect(screen.getByRole('link', { name: 'CiteLadder home' })).toBeVisible();

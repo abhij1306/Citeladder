@@ -64,7 +64,7 @@ export function OpportunitySourcePattern({ pattern }: Readonly<{ pattern: Source
           {pattern.topCitations.map((citation) => (
             <li
               key={citation.url || citation.domain}
-              className="bg-background-alt grid gap-0.5 rounded-lg px-3 py-2"
+              className="border-border-subtle bg-panel grid gap-0.5 rounded-md border px-3 py-2 shadow-xs"
             >
               <span className="text-foreground text-xs">{citation.title || citation.domain}</span>
               <span className="mono text-muted text-2xs break-all">{citation.domain}</span>
@@ -81,7 +81,7 @@ export function OpportunitySourcePattern({ pattern }: Readonly<{ pattern: Source
       ) : null}
 
       {action ? (
-        <div className="border-accent-border bg-accent-subtle rounded-lg border-l-2 px-3 py-2">
+        <div className="border-accent-border bg-accent-subtle rounded-md border-l px-3 py-2.5">
           <span className="text-2xs text-muted">Suggested next action</span>
           <p className="text-foreground text-sm">{action}</p>
         </div>

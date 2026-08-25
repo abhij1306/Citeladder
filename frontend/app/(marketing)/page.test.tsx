@@ -76,17 +76,17 @@ describe('Landing page (public marketing `/`)', () => {
     const { container } = renderWithProviders(<Page />);
 
     // The nav/footer (rendered by the layout) target these ids — pin them.
-    // `#platform` returned with the four-layer architecture.
     for (const hash of [
       '#why',
-      '#platform',
       '#see-it',
       '#how-it-works',
       '#use-cases',
+      '#trust',
       '#get-started',
     ]) {
       expect(container.querySelector(hash)).not.toBeNull();
     }
+    expect(container.querySelector('#platform')).toBeNull();
   });
 
   it('closes with a FinalCta section pointing at the demo funnel', () => {

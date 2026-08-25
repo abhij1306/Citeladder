@@ -12,11 +12,11 @@ generous whitespace, crisp micro-shadows over hairline borders, and a few
 deliberate, quiet motion treatments.
 
 - **Name and domain:** CiteLadder, `citeladder.com`.
-- **Logo:** a monochrome rounded inverted L with one rounded horizontal line
-  through its middle. The middle line is 10 units long, and the visible whitespace
-  above that line and between it and the bottom line is equal. Clipped inner and
-  softly offset outer shadows add depth without introducing another visible
-  contour. The mark inherits the surrounding foreground colour on every surface.
+- **Logo:** the canonical full-colour horizontal CiteLadder lockup in
+  `frontend/public/citeladder-logo.webp`; product, marketing, authentication, and
+  onboarding surfaces reuse that asset rather than reconstructing the symbol and
+  wordmark independently. `frontend/public/citeladder-favicon.ico` owns browser
+  and installable-app iconography.
 - **Voice:** direct, confident, specific. One idea per sentence. Prefer evidence
   and outcomes over generic AI language.
 - **Typography:** Plus Jakarta Sans for display headings and Inter for UI, body, and data,
@@ -64,17 +64,23 @@ Tokens are semantic; components use the role, not a colour value.
 
 | Role                | Token family                                                                                                                        | Use                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Canvas and surfaces | `background` (`#f4f5f7`), `panel` / `elevated` (`#ffffff`), `panel-tonal` / `background-alt` (`#f8f9fa`), `well` (`#eaedf2`), `sidebar` (`#f8f9fb`) | Luminous pearl paper canvas; crisp white panels and floating cards; subtle grey wells and frosted chrome              |
-| Text                | `foreground` (#18202b), `secondary` (#4f5966), `muted` (#68717d), `subtle` (#7a838e), `inverse` (#ffffff)                          | Slate ink reading ramp                                                                                                |
-| Borders             | `border` (#e2e5e9), `border-subtle` (#ebedf1), `border-strong` (#d4d8df), `border-bold` (#b8c0cc)                                    | Crisp ledger hairlines for structured separation                                                                       |
+| Canvas and surfaces | `background` (`#f8fafc`), `panel` / `elevated` (`#ffffff`), `panel-tonal` (`#f8fafc`), `background-alt` / `well` (`#f1f5f9`), `active` (`#e2e8f0`) | Luminous pearl paper canvas; crisp white panels and floating cards; subtle grey wells and frosted chrome              |
+| Text                | `foreground` (`#0f172a`), `secondary` (`#334155`), `muted` (`#526173`), `subtle` (`#596777`), `inverse` (`#ffffff`)                          | Token-driven slate reading ramp; every neutral role remains AA-safe on every shared light surface                    |
+| Borders             | `border` (`#e2e8f0`), `border-subtle` (`#f1f5f9`), `border-strong` (`#cbd5e1`), `border-bold` (`#94a3b8`)                                    | Crisp ledger hairlines for structured separation                                                                       |
 | Primary action      | `accent-*`                                                                                                                          | Growth Cobalt (`#315CFF`) CTAs, active indicators, explicit selection, links, and focus rings                          |
 | Status              | `success-*` (`#31a57a`), `warning-*` (`#d9822b`), `danger-*` (`#d96b55`), `info-*`, `neutral-bg`                                   | App only; always paired with text or an icon                                                                           |
 | Evidence and scores | `citation-*`, `run-*`, `score-*`, `series-*`, `chart-*`                                                                             | Persisted evidence, audit status, score bands, and charts                                                              |
 
-The accent is Growth Cobalt: `#315CFF` at rest, `#2548D4` on hover, and `#1D3BB8` on press.
-`accent-text` (`#2548D4`) is the accessible cobalt for text on white or tinted backgrounds. Page canvas is a luminous pearl paper (`#f4f5f7`), while panel, card,
-dialog, and drawer surfaces are crisp white (`#ffffff`). `#f8f9fa` provides tonal panels, the sidebar background, and the
-alternate surface; `#eaedf2` is the neutral well and hover treatment.
+The accent is Growth Cobalt: `#315CFF` at rest, `#2347D9` on hover, and `#1A38B5` on press.
+`accent-text` (`#1E40AF`) is the accessible cobalt for text on white or tinted backgrounds. Page canvas is a luminous pearl paper (`#f8fafc`), while panel, card,
+dialog, and drawer surfaces are crisp white (`#ffffff`). `#f1f5f9` provides alternate surfaces and neutral wells; `#e2e8f0` is the active treatment.
+
+Text hierarchy is semantic rather than route-specific: `foreground` owns headings,
+primary values, and actions; `secondary` owns body copy and row values; `muted`
+owns labels, captions, and supporting metadata; `subtle` is reserved for tertiary
+metadata, placeholders, and unavailable-value marks. The design-system policy
+requires all four neutral text roles to meet WCAG 2.1 AA normal-text contrast
+(`4.5:1`) on every shared light surface, including `active`.
 
 **Marketing is monochrome-plus-blue.** It uses only white, the ink ramp, and the
 one cobalt — no status, score, or category colour. **The authenticated app keeps
@@ -435,8 +441,6 @@ right-side transition that remains interruptible. Press feedback starts on
 pointer-down. Beyond that, a small, deliberate set of explanatory motions is
 sanctioned, each one calm and reduced-motion-safe:
 
-- the **architecture pipeline** diagram (platform section) — accent dots flowing
-  along conduit paths;
 - the rotating answer-engine wordmarks and the product-window walkthrough;
 - scroll **reveal** entrances (GSAP) that fade and rise a small distance and never
   hide server-rendered content after hydration;

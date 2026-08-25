@@ -6,6 +6,22 @@ import ts from 'typescript';
 const EDITORIAL_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p']);
 const EDITORIAL_SIZE = /\btext-(?:2xs|xs|sm|base|lg|xl|2xl|3xl|4xl|5xl)\b/;
 const WEBSITE_CSS = 'app/website-type.css';
+const TOKEN_CSS = 'app/globals.css';
+const MINIMUM_NORMAL_TEXT_CONTRAST = 4.5;
+const LIGHT_SURFACE_TOKENS = [
+  '--color-background',
+  '--color-background-alt',
+  '--color-panel',
+  '--color-panel-tonal',
+  '--color-well',
+  '--color-active',
+];
+const NEUTRAL_TEXT_TOKENS = [
+  '--color-foreground',
+  '--color-secondary',
+  '--color-muted',
+  '--color-subtle',
+];
 
 const CSS_BLOCK_CONTRACTS = new Map([
   ['.website-hero-display', ['font-size: 2.75rem', 'letter-spacing: -0.04em']],
@@ -213,6 +229,60 @@ function declarationPattern(declaration) {
 
 function selectorPattern(selector) {
   return new RegExp(escapeRegExp(selector) + '(?![\\w-])');
+}
+
+function tokenHex(source, token) {
+  const match = source.match(new RegExp(escapeRegExp(token) + '\\s*:\\s*(#[0-9a-f]{6})\\s*;', 'i'));
+  return match?.[1];
+}
+
+function relativeLuminance(hex) {
+  const channels = hex
+    .slice(1)
+    .match(/../g)
+    .map((channel) => Number.parseInt(channel, 16) / 255)
+    .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function contrastRatio(first, second) {
+  const firstLuminance = relativeLuminance(first);
+  const secondLuminance = relativeLuminance(second);
+  const lighter = Math.max(firstLuminance, secondLuminance);
+  const darker = Math.min(firstLuminance, secondLuminance);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+export function textContrastViolations(root) {
+  const cssPath = join(root, ...TOKEN_CSS.split('/'));
+  const cssLabel = relative(root, cssPath).replaceAll('\\', '/');
+  const source = readFileSync(cssPath, 'utf8');
+  const tokens = new Map(
+    [...LIGHT_SURFACE_TOKENS, ...NEUTRAL_TEXT_TOKENS].map((token) => [
+      token,
+      tokenHex(source, token),
+    ]),
+  );
+  const violations = [];
+
+  for (const [token, value] of tokens) {
+    if (!value) violations.push(`${cssLabel}: ${token} must be a six-digit hex value`);
+  }
+  if (violations.length) return violations;
+
+  for (const textToken of NEUTRAL_TEXT_TOKENS) {
+    for (const surfaceToken of LIGHT_SURFACE_TOKENS) {
+      const ratio = contrastRatio(tokens.get(textToken), tokens.get(surfaceToken));
+      if (ratio < MINIMUM_NORMAL_TEXT_CONTRAST) {
+        violations.push(
+          `${cssLabel}: ${textToken} on ${surfaceToken} has ${ratio.toFixed(2)}:1 contrast; ` +
+            `${MINIMUM_NORMAL_TEXT_CONTRAST}:1 is required`,
+        );
+      }
+    }
+  }
+
+  return violations;
 }
 
 export function websiteContractViolations(root) {
