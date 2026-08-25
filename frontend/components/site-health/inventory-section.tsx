@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
@@ -236,6 +236,14 @@ function ScoredInventory({
   const allPager = useCursorStack();
   const errorsPager = useCursorStack();
   const pager = tab === 'monitored' ? monitoredPager : tab === 'all' ? allPager : errorsPager;
+  const resetMonitoredPager = monitoredPager.reset;
+
+  // The monitored query changes from `status=completed` to the full projection
+  // when a crawl becomes terminal. Its cursor is filter-bound, so never carry a
+  // deeper active-view cursor across that boundary.
+  useEffect(() => {
+    resetMonitoredPager();
+  }, [active, resetMonitoredPager]);
 
   const activeTab = TABS.find((t) => t.key === tab)!;
   // A recrawl pre-seeds every monitored URL as pending. Showing that full

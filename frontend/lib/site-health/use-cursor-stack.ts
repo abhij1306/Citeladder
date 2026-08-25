@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 /**
  * Keyset-pagination cursor stack shared by the Site Health tables
@@ -15,12 +15,12 @@ export function useCursorStack() {
   const cursor = stack.at(-1) ?? undefined;
   const canPrev = stack.length > 0;
 
-  const push = (nextCursor: string | null) => {
+  const push = useCallback((nextCursor: string | null) => {
     if (!nextCursor) return;
     setStack((prev) => (prev.at(-1) === nextCursor ? prev : [...prev, nextCursor]));
-  };
-  const pop = () => setStack((prev) => prev.slice(0, -1));
-  const reset = () => setStack([]);
+  }, []);
+  const pop = useCallback(() => setStack((prev) => prev.slice(0, -1)), []);
+  const reset = useCallback(() => setStack([]), []);
 
   return { cursor, canPrev, push, pop, reset };
 }
