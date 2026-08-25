@@ -161,12 +161,13 @@ def _commerce_product_names(
 ) -> list[str]:
     products = brand_context.get("commerce_products", [])
     category_identity = str(category or "").strip().casefold()
-    return [
+    names = [
         str(product.get("name") or "")
         for product in products
         if not category_identity
         or str(product.get("category") or "").strip().casefold() == category_identity
     ]
+    return sorted(names, key=lambda name: len(name.casefold()), reverse=True)
 
 
 def _drop_invalid_prompts(

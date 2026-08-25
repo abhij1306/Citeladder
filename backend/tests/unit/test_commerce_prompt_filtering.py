@@ -162,6 +162,33 @@ def test_commerce_discovery_rejects_product_named_from_another_category() -> Non
     assert filter_for_cohort([category], "commerce", context) == []
 
 
+def test_commerce_prompt_filter_prefers_the_longest_matching_product_name() -> None:
+    category = SuggestedTopic(
+        topic_id=uuid.uuid4(),
+        name="Smartphones",
+        prompts=[
+            SuggestedPrompt(
+                text="Where can I buy Phone Pro online",
+                intent="discovery",
+            ),
+            SuggestedPrompt(
+                text="Where can I buy Phone online",
+                intent="discovery",
+            ),
+        ],
+    )
+    context = {
+        "commerce_products": [
+            {"name": "Phone", "category": "Smartphones"},
+            {"name": "Phone Pro", "category": "Smartphones"},
+        ]
+    }
+
+    filtered = filter_for_cohort([category], "commerce", context)
+
+    assert filtered[0].prompts == category.prompts
+
+
 def _generation_fixture(*, products, topic_name="Smartphones"):
     topic = SimpleNamespace(id=uuid.uuid4(), name=topic_name)
     project = SimpleNamespace(topics=[topic], products=products)

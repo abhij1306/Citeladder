@@ -12,6 +12,8 @@ import { runsApi } from '@/lib/api/runs';
 import {
   catalogCategories,
   categoryIdentity,
+  commercePromptIdsToReplace,
+  commercePromptProductName,
   normalizeProductsTab,
   type ProductEngineFilter,
   type ProductsTab,
@@ -151,10 +153,9 @@ function topicPromptsAreComplete(
     (prompt) => prompt.cohort === 'commerce' && prompt.topic_id === topicId,
   );
   return productNames.every((productName) => {
-    const normalizedName = productName.toLocaleLowerCase();
     const intents = new Set(
       topicPrompts
-        .filter((prompt) => prompt.text.toLocaleLowerCase().includes(normalizedName))
+        .filter((prompt) => commercePromptProductName(prompt.text, productNames) === productName)
         .map((prompt) => prompt.intent),
     );
     return intents.has('discovery') && intents.has('comparison');
@@ -199,16 +200,18 @@ async function generateCommercePortfolio({
       )
     )
       continue;
-    await promptsApi.generate(promptSet.id, {
+    const existingTopicPrompts = currentPrompts.filter(
+      (prompt) => prompt.cohort === 'commerce' && prompt.topic_id === topic.id,
+    );
+    const productNames = categoryProducts.map((product) => product.name);
+    const generated = await promptsApi.generate(promptSet.id, {
       count: categoryProducts.length * 2,
       topic_id: topic.id,
       intents: ['discovery', 'comparison'],
       cohort: 'commerce',
     });
     replacedPromptIds.push(
-      ...currentPrompts
-        .filter((prompt) => prompt.cohort === 'commerce' && prompt.topic_id === topic.id)
-        .map((prompt) => prompt.id),
+      ...commercePromptIdsToReplace(existingTopicPrompts, generated.generated, productNames),
     );
   }
   await Promise.all(replacedPromptIds.map((promptId) => promptsApi.deletePrompt(promptId)));

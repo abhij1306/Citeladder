@@ -5,6 +5,8 @@ import {
   aggregateBuyerDestinationMix,
   catalogCategories,
   categoryIdentity,
+  commercePromptIdsToReplace,
+  commercePromptProductName,
   completenessHoverDetail,
   feedAttributeLabel,
   feedHealthDisplay,
@@ -44,6 +46,32 @@ describe('catalog category identity', () => {
     expect(categoryIdentity(' BOOKS ')).toBe(categoryIdentity('books'));
     expect(categoryIdentity({ category: 'Books' })).toBe('');
     expect(catalogCategories([{ attributes: { category: { name: 'Books' } } }])).toEqual([]);
+  });
+});
+
+describe('commerce prompt product identity', () => {
+  it('prefers the longest exact product name instead of a substring match', () => {
+    expect(commercePromptProductName('Where can I buy Phone Pro?', ['Phone', 'Phone Pro'])).toBe(
+      'Phone Pro',
+    );
+    expect(commercePromptProductName('Where can I buy Smartphone cases?', ['Phone'])).toBeNull();
+  });
+
+  it('keeps duplicate existing prompts and replaces only inserted or stale rows', () => {
+    const existing = [
+      { id: 'keep', text: 'Where can I buy Phone Pro?', intent: 'discovery' },
+      { id: 'replace', text: 'Old Phone alternatives', intent: 'comparison' },
+      { id: 'stale', text: 'Where should I shop?', intent: 'discovery' },
+    ];
+    const generated = [{ text: 'What are the best alternatives to Phone?', intent: 'comparison' }];
+
+    expect(commercePromptIdsToReplace(existing, generated, ['Phone', 'Phone Pro'])).toEqual([
+      'replace',
+      'stale',
+    ]);
+    expect(commercePromptIdsToReplace(existing.slice(0, 1), [], ['Phone', 'Phone Pro'])).toEqual(
+      [],
+    );
   });
 });
 

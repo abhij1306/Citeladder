@@ -198,25 +198,12 @@ def _business_context_values(context: dict[str, object]) -> list[str]:
     return values
 
 
-def _catalog_vocabulary(project: Project) -> tuple[list[str], list[str]]:
-    names: list[str] = []
-    categories: list[str] = []
-    for product in project.products:
-        names.append(_clean(product.name))
-        names.extend(
-            _clean(alias) for alias in (product.aliases or []) if isinstance(alias, str)
-        )
-        categories.append(_clean((product.attributes or {}).get("category")))
-    return names, categories
-
-
 def build_project_vocabulary(project: Project) -> BindingVocabulary:
     """Build the binding vocabulary from a project's persisted identity rows.
 
     Sources: canonical brand name + ``BrandAlias`` rows, ``OwnedDomain`` host
-    labels, ``Topic`` name + description, catalog product names/aliases/category,
-    and ``BrandProfile`` products/services + description + positioning + target
-    audience.
+    labels, ``Topic`` name + description, and ``BrandProfile``
+    products/services + description + positioning + target audience.
     ``Competitor`` rows are deliberately never read.
     """
     names: list[str] = []
@@ -237,9 +224,6 @@ def build_project_vocabulary(project: Project) -> BindingVocabulary:
     for topic in project.topics:
         texts.append(_clean(topic.name))
         texts.append(_clean(topic.description))
-    catalog_names, catalog_categories = _catalog_vocabulary(project)
-    names.extend(catalog_names)
-    texts.extend(catalog_categories)
     return build_vocabulary(names=names, hosts=hosts, texts=texts)
 
 
@@ -327,7 +311,7 @@ async def load_project_vocabulary(
 ) -> BindingVocabulary:
     """Load the project's binding identity (workspace-scoped) + build the vocabulary.
 
-    One query with the five identity relationships eager-loaded; callers
+    One query with the four identity relationships eager-loaded; callers
     already authorized the project through their own scoped lookup, and the
     workspace filter here keeps this loader safe to call standalone
     (invariant 5).
@@ -339,7 +323,6 @@ async def load_project_vocabulary(
             selectinload(Project.brand).selectinload(Brand.profile),
             selectinload(Project.owned_domains),
             selectinload(Project.topics),
-            selectinload(Project.products),
         )
         .where(Project.id == project_id, Project.workspace_id == workspace_id)
     )

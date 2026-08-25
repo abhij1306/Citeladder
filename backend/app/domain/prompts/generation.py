@@ -707,12 +707,14 @@ async def generate_prompts(
     )
 
     try:
-        # Topical binding gate: generated text is not trusted merely because
-        # a model produced it — off-domain suggestions are dropped before any
-        # occupancy charge or insert (empty vocabulary fails closed).
-        suggestions = _drop_unbound_suggestions(
-            suggestions, build_project_vocabulary(project)
-        )
+        # Model-generated text must pass topical binding before occupancy.
+        # Commerce is catalog-derived and already constrained to the validated
+        # category and product names, so it does not widen the project-wide
+        # admission vocabulary used by manual/core prompt workflows.
+        if payload.cohort != "commerce":
+            suggestions = _drop_unbound_suggestions(
+                suggestions, build_project_vocabulary(project)
+            )
         # Occupancy gate: filter already-persisted texts and charge ONLY the
         # rows that can actually insert, under the account-capacity lock, in
         # this same transaction. Over-allowance raises before any insert.
