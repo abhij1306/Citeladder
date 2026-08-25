@@ -503,7 +503,7 @@ test('Site Health keeps its single crawl action and URLs above diagnostics', asy
   await expect(stopCrawl).toBeVisible();
   await expect(page.getByText('Start discovery')).toHaveCount(0);
   await expect(page.getByText('Start analysis')).toHaveCount(0);
-  const urlWorkspace = page.getByRole('button', { name: 'Monitored' });
+  const urlWorkspace = page.getByRole('button', { name: 'Audited so far' });
   await expect(urlWorkspace).toBeVisible();
   await expect(page.getByText('Crawler details')).toBeVisible();
   const inventoryTop = await urlWorkspace.evaluate(
