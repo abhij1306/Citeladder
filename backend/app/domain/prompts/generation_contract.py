@@ -9,8 +9,8 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.connectors.web_evidence.brand_evidence import evidence_block_lines
-from app.core.config.prompts import prompt_generation_settings
 from app.core.config.projects import PROMPT_INTENTS
+from app.core.config.prompts import prompt_generation_settings
 from app.domain.projects.knowledge_base import serialize_brand_knowledge_context
 from app.domain.prompts.normalization import prompt_text_hash
 
