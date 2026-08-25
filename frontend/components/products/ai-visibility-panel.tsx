@@ -219,7 +219,15 @@ function CitationComparison({ visibility }: Readonly<{ visibility: ProductVisibi
             {category.cited_sources.length ? (
               <div className="grid gap-2">
                 {category.cited_sources.map((source) => (
-                  <CitedSourceRow key={`${source.domain}-${source.title}`} source={source} />
+                  <CitedSourceRow
+                    key={[
+                      source.domain,
+                      source.title,
+                      source.classification,
+                      source.matched_competitor ?? '',
+                    ].join('-')}
+                    source={source}
+                  />
                 ))}
               </div>
             ) : (

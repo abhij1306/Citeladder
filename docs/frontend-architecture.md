@@ -209,13 +209,13 @@ defaults by decomposition; an exception is not an intended delivery outcome.
 | `/demand`, `/traffic`, `/ai-referrals` | Demand Intelligence |
 | `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
 | `/products` | Commerce: Overview (default), Catalog, AI Visibility, Opportunities |
+| `/settings` | Shared workspace/project configuration, including Integrations and Providers |
 
 Commerce AI Visibility prioritizes the comparison the buyer-destination prompts
 actually measure: category-level tracked-brand presence, configured competitor
 mentions, and brand/competitor/other cited-source labels. Per-SKU visibility and
 average position remain supporting evidence; top-three, prior-run change, and
 engine-coverage columns are not the primary Commerce comparison surface.
-| `/settings` | Shared workspace/project configuration, including Integrations and Providers |
 
 ## Authentication flow
 

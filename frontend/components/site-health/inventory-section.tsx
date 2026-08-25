@@ -319,7 +319,9 @@ function ScoredInventory({
                 aria-current={t.key === tab ? 'true' : undefined}
                 className={segmentedItemClasses(t.key === tab)}
               >
-                {active && t.key === 'monitored' ? 'Audited so far' : t.label}
+                {active && tab === 'monitored' && t.key === 'monitored'
+                  ? 'Audited so far'
+                  : t.label}
               </button>
             ))}
           </div>

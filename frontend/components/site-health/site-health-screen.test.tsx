@@ -486,6 +486,10 @@ describe('SiteHealthScreen — terminal states on the canonical screen', () => {
 
     await user.click(screen.getByRole('button', { name: 'All Discovered' }));
     await waitFor(() => expect(requestedStatuses).toContain(null));
+    expect(screen.getByRole('button', { name: 'Monitored' })).not.toHaveAttribute(
+      'aria-current',
+      'true',
+    );
   });
 
   it('keeps the dashboard + partial scores and labels the run Cancelled (with Re-crawl)', async () => {
