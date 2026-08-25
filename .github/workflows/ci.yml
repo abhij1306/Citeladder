@@ -55,19 +55,19 @@ jobs:
       - name: Install dependencies (frozen lock)
         run: uv sync --frozen --extra dev
       - name: Ruff
-        run: uv run ruff check .
+        run: uv run --frozen --no-sync --no-build ruff check .
       # Formatting was fixable but never gated, so drift landed silently in
       # seven files and then showed up as noise in unrelated diffs. Gated here
       # to match `scripts/check.ps1`, which applies the same formatter locally.
       - name: Ruff format
-        run: uv run ruff format --check .
+        run: uv run --frozen --no-sync --no-build ruff format --check .
       # Type check. Not previously gated, so 35 real errors had accumulated
       # unnoticed (a Literal[] the checker could not read, two shadowed
       # variables that silently widened a type, an optional the caller
       # treated as proven). Cleared to zero, and gated here so the next one
       # fails the build instead of joining a backlog.
       - name: Mypy
-        run: uv run mypy
+        run: uv run --frozen --no-sync --no-build mypy
       # Fixed CC/LOC defaults plus narrow legacy exceptions. The base-revision
       # comparison rejects higher defaults, higher exceptions, and new
       # exceptions; there is deliberately no baseline rewrite command.
@@ -108,7 +108,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v7
@@ -117,7 +117,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Vitest
         run: pnpm test
       - name: Lint
@@ -161,7 +161,7 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@f520eceda224fe1a4aed5a2a27a194379a409996 # v6
         with:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v7
@@ -170,12 +170,12 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
       # Chromium only: playwright.config.ts declares no projects, so the run
       # uses the default chromium browser. Installing the other two engines
       # would cost download time for browsers nothing here launches.
       - name: Install Playwright browser
-        run: pnpm exec playwright install --with-deps chromium
+        run: ./node_modules/.bin/playwright install --with-deps chromium
       # `scripts/validation.json` maps production paths to E2E specs, so those
       # mappings were previously a local-only gate: nothing re-ran them on a
       # pull request. The specs in `playwright.config.ts` stub every

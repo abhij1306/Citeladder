@@ -205,6 +205,9 @@ async def test_list_is_ordered_by_creation(db_session: AsyncSession) -> None:
     seed = await seed_audit_fixtures(db_session)
     first = await _seed_schedule(db_session, seed)
     second = await _seed_schedule(db_session, seed, cadence="hourly")
+    first.created_at = datetime(2026, 1, 1, tzinfo=UTC)
+    second.created_at = first.created_at + timedelta(seconds=1)
+    await db_session.commit()
 
     rows = await list_schedules(
         db_session, workspace_id=seed.workspace_id, project_id=seed.project_id
