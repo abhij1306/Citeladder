@@ -28,7 +28,7 @@ type Policy = {
 const basePolicy = (): Policy => ({
   format_version: 1,
   roots: ['app', 'components', 'lib'],
-  defaults: { max_function_cc: 15, max_production_loc: 900, max_test_loc: 900 },
+  defaults: { max_function_cc: 12, max_production_loc: 500, max_test_loc: 800 },
   exceptions: { functions: {}, modules: {} },
 });
 
@@ -59,18 +59,18 @@ describe('frontend complexity checker', () => {
   it('rejects function and module regressions while accepting ceilings', () => {
     const policy = basePolicy();
     const measurements = {
-      'fixture.ts': { loc: 901, test: false, functions: [{ name: 'run', cc: 16, line: 1 }] },
+      'fixture.ts': { loc: 501, test: false, functions: [{ name: 'run', cc: 13, line: 1 }] },
     };
     expect(failuresFor(measurements, policy)).toHaveLength(2);
-    policy.exceptions.modules['fixture.ts'] = 901;
-    policy.exceptions.functions['fixture.ts::run'] = 16;
+    policy.exceptions.modules['fixture.ts'] = 501;
+    policy.exceptions.functions['fixture.ts::run'] = 13;
     expect(failuresFor(measurements, policy)).toEqual([]);
   });
 
   it('reports stale module and function exceptions', () => {
     const policy = basePolicy();
-    policy.exceptions.modules['gone.ts'] = 901;
-    policy.exceptions.functions['fixture.ts::gone'] = 16;
+    policy.exceptions.modules['gone.ts'] = 501;
+    policy.exceptions.functions['fixture.ts::gone'] = 13;
     const measurements = {
       'fixture.ts': { loc: 20, test: false, functions: [{ name: 'run', cc: 3, line: 1 }] },
     };
@@ -83,18 +83,18 @@ describe('frontend complexity checker', () => {
   it('rejects new and increased exceptions plus root/default policy changes', () => {
     const base = basePolicy();
     const current = basePolicy();
-    base.exceptions.functions['fixture.ts::run'] = 16;
-    current.exceptions.functions['fixture.ts::run'] = 17;
-    current.exceptions.modules['new.ts'] = 902;
+    base.exceptions.functions['fixture.ts::run'] = 13;
+    current.exceptions.functions['fixture.ts::run'] = 14;
+    current.exceptions.modules['new.ts'] = 502;
     expect(policyDiffFailures(base, current)).toEqual(
       expect.arrayContaining([
         'new module exception is forbidden: new.ts',
-        'function exception fixture.ts::run increased 16 -> 17',
+        'function exception fixture.ts::run increased 13 -> 14',
       ]),
     );
     expect(() => validatePolicy({ ...basePolicy(), roots: ['app', 'lib'] })).toThrow(/roots/);
     const relaxedDefaults = basePolicy();
-    relaxedDefaults.defaults.max_function_cc = 16;
+    relaxedDefaults.defaults.max_function_cc = 13;
     expect(() => validatePolicy(relaxedDefaults)).toThrow(/defaults/);
   });
 

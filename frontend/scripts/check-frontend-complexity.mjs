@@ -125,11 +125,11 @@ function hasExactKeys(value, keys) {
 function validateDefaults(defaults) {
   if (
     !hasExactKeys(defaults, 'max_function_cc,max_production_loc,max_test_loc') ||
-    defaults.max_function_cc !== 15 ||
-    defaults.max_production_loc !== 900 ||
-    defaults.max_test_loc !== 900
+    defaults.max_function_cc !== 12 ||
+    defaults.max_production_loc !== 500 ||
+    defaults.max_test_loc !== 800
   )
-    throw new Error('frontend complexity defaults must remain CC 15, production 900, test 900 LOC');
+    throw new Error('frontend complexity defaults must remain CC 12, production 500, test 800 LOC');
 }
 
 function validateExceptions(exceptions, defaults) {

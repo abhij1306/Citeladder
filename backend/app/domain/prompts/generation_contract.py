@@ -43,6 +43,33 @@ class GenerationOutput(BaseModel):
     prompts: list[GeneratedPrompt] = Field(default_factory=list)
 
 
+def _topic_keyed_rows(
+    key: object,
+    rows: object,
+    *,
+    allowed_topic_ids: set[str],
+    fallback_intents: tuple[str, ...],
+) -> list[dict[str, str]] | None:
+    try:
+        topic_id = str(uuid.UUID(str(key)))
+    except ValueError:
+        return None
+    if topic_id not in allowed_topic_ids or not isinstance(rows, list):
+        return None
+    if not all(isinstance(text, str) and text.strip() for text in rows):
+        return None
+    if fallback_intents and len(rows) != len(fallback_intents):
+        return None
+    return [
+        {
+            "topic_id": topic_id,
+            "text": text,
+            "intent": fallback_intents[index] if fallback_intents else "",
+        }
+        for index, text in enumerate(rows)
+    ]
+
+
 def _normalize_topic_keyed_output(
     value: object,
     *,
@@ -61,25 +88,15 @@ def _normalize_topic_keyed_output(
 
     normalized = list(prompts)
     for key in topic_keys:
-        try:
-            topic_id = str(uuid.UUID(str(key)))
-        except ValueError:
-            return value
-        rows = value[key]
-        if topic_id not in allowed_topic_ids or not isinstance(rows, list):
-            return value
-        if not all(isinstance(text, str) and text.strip() for text in rows):
-            return value
-        if fallback_intents and len(rows) != len(fallback_intents):
-            return value
-        normalized.extend(
-            {
-                "topic_id": topic_id,
-                "text": text,
-                "intent": fallback_intents[index] if fallback_intents else "",
-            }
-            for index, text in enumerate(rows)
+        rows = _topic_keyed_rows(
+            key,
+            value[key],
+            allowed_topic_ids=allowed_topic_ids,
+            fallback_intents=fallback_intents,
         )
+        if rows is None:
+            return value
+        normalized.extend(rows)
     return {"prompts": normalized}
 
 
