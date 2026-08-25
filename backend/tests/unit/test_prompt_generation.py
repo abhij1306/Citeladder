@@ -101,6 +101,16 @@ def test_parse_accepts_allowed_topic_keyed_string_lists() -> None:
     ]
 
 
+def test_parse_accepts_topic_keyed_lists_without_requested_intents() -> None:
+    raw = json.dumps({str(TOPIC_ID): ["which running shoes suit daily walking"]})
+
+    topics, dropped = parse_generation_output(raw, allowed_topics=ALLOWED_TOPICS)
+
+    assert dropped == 0
+    assert topics[0].topic_id == TOPIC_ID
+    assert topics[0].prompts[0].intent == ""
+
+
 def test_parse_rejects_unknown_topic_keyed_string_lists() -> None:
     raw = json.dumps({str(uuid.uuid4()): ["best walking shoes"]})
 

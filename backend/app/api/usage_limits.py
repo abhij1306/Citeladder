@@ -18,6 +18,7 @@ async def enforce_workspace_request(
     operation: str,
     limit: int,
     window_seconds: int,
+    amount: int = 1,
 ) -> None:
     try:
         await enforce_and_commit(
@@ -27,6 +28,7 @@ async def enforce_workspace_request(
             operation=operation,
             limit=limit,
             window_seconds=window_seconds,
+            amount=amount,
         )
     except UsageLimitExceededError as exc:
         raise_api_error(

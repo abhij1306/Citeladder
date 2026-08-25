@@ -68,15 +68,15 @@ def _normalize_topic_keyed_output(
         rows = value[key]
         if topic_id not in allowed_topic_ids or not isinstance(rows, list):
             return value
-        if len(rows) != len(fallback_intents) or not all(
-            isinstance(text, str) and text.strip() for text in rows
-        ):
+        if not all(isinstance(text, str) and text.strip() for text in rows):
+            return value
+        if fallback_intents and len(rows) != len(fallback_intents):
             return value
         normalized.extend(
             {
                 "topic_id": topic_id,
                 "text": text,
-                "intent": fallback_intents[index],
+                "intent": fallback_intents[index] if fallback_intents else "",
             }
             for index, text in enumerate(rows)
         )

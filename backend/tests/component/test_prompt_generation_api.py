@@ -241,6 +241,32 @@ async def test_generate_creates_prompts_under_existing_topic(
 
 
 @pytest.mark.asyncio
+async def test_generate_reserves_the_maximum_provider_call_budget(
+    client: httpx.AsyncClient,
+    fake_agent: FakeAgent,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, prompt_set_id = await _make_project_and_set(client, "gen-budget@example.com")
+    reservation: dict[str, object] = {}
+
+    async def _capture_reservation(*_args: object, **kwargs: object) -> None:
+        reservation.update(kwargs)
+
+    monkeypatch.setattr(
+        prompts_api, "enforce_workspace_request", _capture_reservation
+    )
+
+    response = await client.post(
+        f"/api/v1/prompt-sets/{prompt_set_id}/generate",
+        json={"count": 3},
+    )
+
+    assert response.status_code == 201
+    assert reservation["operation"] == "agent.provider_call"
+    assert reservation["amount"] == 2
+
+
+@pytest.mark.asyncio
 async def test_generate_persists_provenance_evidence(
     client: httpx.AsyncClient,
     fake_agent: FakeAgent,

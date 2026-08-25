@@ -64,6 +64,14 @@ def test_deterministic_commerce_generation_handles_one_product() -> None:
     )
 
 
+def test_deterministic_commerce_generation_rejects_unnamed_products() -> None:
+    with pytest.raises(GenerationValidationError, match="requires a catalog product"):
+        _deterministic_commerce_suggestions(
+            [{"id": str(uuid.uuid4()), "name": "Laptops", "description": ""}],
+            {"commerce_products": [{"name": "", "category": "Laptops"}]},
+        )
+
+
 def test_commerce_prompt_filter_keeps_generic_discovery_and_product_comparison() -> (
     None
 ):

@@ -509,6 +509,12 @@ def _generation_system_prompt(cohort: str, brand_context: dict[str, Any]) -> str
     return brand_cohort_system_prompt(model, cohort)
 
 
+def generation_model_call_budget(count: int) -> int:
+    """Return the maximum provider calls one bounded generation may make."""
+    batch_size = min(prompt_generation_settings.model_batch_size, count)
+    return (count + batch_size - 1) // batch_size + 1
+
+
 def _deterministic_commerce_suggestions(
     allowed_topics: list[dict[str, str]], brand_context: dict[str, Any]
 ) -> list[SuggestedTopic]:
@@ -523,6 +529,10 @@ def _deterministic_commerce_suggestions(
         and str(product.get("name") or "").strip()
     }
     names = sorted(matching_names, key=str.casefold)
+    if not names:
+        raise GenerationValidationError(
+            f"Commerce topic {category!r} requires a catalog product with a name"
+        )
     if len(names) >= 2:
         comparison = COMMERCE_COMPARISON_PAIR_PROMPT_TEMPLATE.format(
             category=category.casefold(),
@@ -589,7 +599,7 @@ async def _generate_suggestions(
     suggestions: list[SuggestedTopic] = []
     intra_duplicates = 0
     batch_size = min(prompt_generation_settings.model_batch_size, payload.count)
-    maximum_calls = (payload.count + batch_size - 1) // batch_size + 1
+    maximum_calls = generation_model_call_budget(payload.count)
     for _call in range(maximum_calls):
         missing = payload.count - _prompt_count(suggestions)
         if missing <= 0:

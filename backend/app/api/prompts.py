@@ -57,6 +57,7 @@ from app.domain.prompts.csv_import import parse_prompt_csv
 from app.domain.prompts.generation import (
     GenerationOutputError,
     GenerationValidationError,
+    generation_model_call_budget,
     generate_prompts,
     validate_generation_request,
 )
@@ -448,6 +449,7 @@ async def generate_prompts_endpoint(
             operation="agent.provider_call",
             limit=abuse_settings.agent_call_limit,
             window_seconds=abuse_settings.agent_call_window_seconds,
+            amount=generation_model_call_budget(payload.count),
         )
     try:
         generated, topics, dropped = await _map_prompt_mutation(

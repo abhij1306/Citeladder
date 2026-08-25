@@ -2,6 +2,9 @@
 //
 // Pure logic: no DOM, no window, no React render. The suite-wide jsdom
 // default costs a full environment per file and buys nothing here.
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { POSTS, type BlogBlock } from './blog';
@@ -58,12 +61,25 @@ function blockText(block: BlogBlock): string {
   return block.type === 'list' ? block.items.join(' ') : block.text;
 }
 
+function marketingRouteFile(href: string): string {
+  const pathname = href.split('#', 1)[0].replace(/^\//, '');
+  return resolve(import.meta.dirname, '../../app/(marketing)', pathname, 'page.tsx');
+}
+
+function stringsIn(value: unknown): string[] {
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap(stringsIn);
+  if (value && typeof value === 'object') return Object.values(value).flatMap(stringsIn);
+  return [];
+}
+
 describe('marketing navigation', () => {
   it('routes every internal link from the site root', () => {
     // Anchors are absolute (`/#platform`) so a row resolves from a subpage,
     // not only from `/`.
     for (const href of internalHrefs()) {
       expect(href, href).toMatch(/^\/(?:$|[a-z0-9#/-])/);
+      expect(existsSync(marketingRouteFile(href)), href).toBe(true);
     }
   });
 
@@ -234,6 +250,9 @@ describe('commercial positioning', () => {
     ...POSTS.flatMap((post) => [post.title, post.excerpt, ...post.body.map(blockText)]),
     ...FAQ_GROUPS.flatMap((group) => group.items.flatMap((item) => [item.q, item.a])),
     ...Object.values(PLAN_PRESENTATION).map((plan) => plan.blurb),
+    ...stringsIn(COMPETITORS),
+    ...stringsIn(FAIRNESS_POINTS),
+    ...stringsIn(FACT_ROWS),
     ...ALL_LEGAL.flatMap((document) =>
       document.sections.flatMap((section) => [
         ...(section.paragraphs ?? []),
