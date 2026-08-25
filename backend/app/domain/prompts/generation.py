@@ -45,6 +45,7 @@ from app.domain.prompts.generation_contract import (
     SuggestedPrompt,
     SuggestedTopic,
     build_generation_user_message,
+    generation_model_call_budget,
     parse_generation_output,
 )
 from app.domain.prompts.generation_errors import (
@@ -507,12 +508,6 @@ def _generation_system_prompt(cohort: str, brand_context: dict[str, Any]) -> str
     if cohort == "core":
         return prompt_system_prompt(model)
     return brand_cohort_system_prompt(model, cohort)
-
-
-def generation_model_call_budget(count: int) -> int:
-    """Return the maximum provider calls one bounded generation may make."""
-    batch_size = min(prompt_generation_settings.model_batch_size, count)
-    return (count + batch_size - 1) // batch_size + 1
 
 
 def _deterministic_commerce_suggestions(

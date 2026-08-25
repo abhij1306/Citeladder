@@ -9,6 +9,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.connectors.web_evidence.brand_evidence import evidence_block_lines
+from app.core.config.prompts import prompt_generation_settings
 from app.core.config.projects import PROMPT_INTENTS
 from app.domain.projects.knowledge_base import serialize_brand_knowledge_context
 from app.domain.prompts.normalization import prompt_text_hash
@@ -41,6 +42,12 @@ class GenerationOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     prompts: list[GeneratedPrompt] = Field(default_factory=list)
+
+
+def generation_model_call_budget(count: int) -> int:
+    """Return the maximum provider calls one bounded generation may make."""
+    batch_size = min(prompt_generation_settings.model_batch_size, count)
+    return (count + batch_size - 1) // batch_size + 1
 
 
 def _topic_keyed_rows(

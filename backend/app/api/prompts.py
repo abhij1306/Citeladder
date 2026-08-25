@@ -58,9 +58,9 @@ from app.domain.prompts.generation import (
     GenerationOutputError,
     GenerationValidationError,
     generate_prompts,
-    generation_model_call_budget,
     validate_generation_request,
 )
+from app.domain.prompts.generation_contract import generation_model_call_budget
 from app.domain.prompts.mappers import (
     prompt_set_to_response,
     prompt_to_response,
