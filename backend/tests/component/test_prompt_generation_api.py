@@ -252,9 +252,7 @@ async def test_generate_reserves_the_maximum_provider_call_budget(
     async def _capture_reservation(*_args: object, **kwargs: object) -> None:
         reservation.update(kwargs)
 
-    monkeypatch.setattr(
-        prompts_api, "enforce_workspace_request", _capture_reservation
-    )
+    monkeypatch.setattr(prompts_api, "enforce_workspace_request", _capture_reservation)
 
     response = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
