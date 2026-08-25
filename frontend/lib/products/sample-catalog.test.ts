@@ -20,5 +20,6 @@ describe('commerce sample catalog', () => {
       new Set(['www.flipkart.com']),
     );
     expect(new Set(parsed.rows.map((row) => row.input.currency))).toEqual(new Set(['INR']));
+    expect(parsed.rows.every((row) => Number(row.input.attributes?.variant_count) >= 1)).toBe(true);
   });
 });

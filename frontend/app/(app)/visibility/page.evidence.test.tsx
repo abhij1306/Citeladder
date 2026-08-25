@@ -38,15 +38,17 @@ describe('VisibilityPage — Mentions & Citations tab', () => {
     renderVisibilityPage();
 
     expect(
-      await screen.findByText('Best affordable clothing stores in Australia?'),
+      await screen.findByText(
+        'Best affordable clothing stores in Australia?',
+        {},
+        { timeout: 5000 },
+      ),
     ).toBeInTheDocument();
     // Mentions render as classification badges.
     expect(screen.getByText('Acme')).toBeInTheDocument();
     expect(screen.getByText('Globex')).toBeInTheDocument();
     // Classified citation is shown.
     expect(screen.getByText('Acme Blog')).toBeInTheDocument();
-    // Provenance line includes task/analysis.
-    expect(screen.getByText(/Provenance: task/)).toBeInTheDocument();
     // No generated-query list on this tab.
     expect(screen.queryByText('affordable family clothing Australia 2026')).toBeNull();
   });

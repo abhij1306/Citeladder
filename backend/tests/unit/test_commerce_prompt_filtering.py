@@ -21,6 +21,11 @@ def test_deterministic_commerce_generation_asks_about_purchase_platforms() -> No
     topic_id = uuid.uuid4()
     suggestions = _deterministic_commerce_suggestions(
         [{"id": str(topic_id), "name": "Headphones", "description": ""}],
+        {
+            "commerce_products": [
+                {"name": "Sony WH-1000XM6", "sku": "XM6", "category": "Headphones"}
+            ]
+        },
     )
 
     assert suggestions == [
@@ -29,12 +34,12 @@ def test_deterministic_commerce_generation_asks_about_purchase_platforms() -> No
             name="Headphones",
             prompts=[
                 SuggestedPrompt(
-                    text="Where can I buy headphones online?",
+                    text="Where can I buy Sony WH-1000XM6 online?",
                     intent="discovery",
                 ),
                 SuggestedPrompt(
                     text=(
-                        "Which online store or marketplace is best for buying "
+                        "What are the best alternatives to Sony WH-1000XM6 in "
                         "headphones?"
                     ),
                     intent="comparison",
@@ -44,19 +49,27 @@ def test_deterministic_commerce_generation_asks_about_purchase_platforms() -> No
     ]
 
 
-def test_deterministic_commerce_generation_does_not_need_product_names() -> None:
+def test_deterministic_commerce_generation_names_every_product() -> None:
     topic_id = uuid.uuid4()
     suggestions = _deterministic_commerce_suggestions(
         [{"id": str(topic_id), "name": "Laptops", "description": ""}],
+        {
+            "commerce_products": [
+                {"name": "Acer Aspire 3", "sku": "A3", "category": "Laptops"},
+                {"name": "MacBook Air M4", "sku": "MBA", "category": "laptops"},
+            ]
+        },
     )
 
-    assert suggestions[0].prompts[1] == SuggestedPrompt(
-        text="Which online store or marketplace is best for buying laptops?",
-        intent="comparison",
-    )
+    assert len(suggestions[0].prompts) == 4
+    for product_name in ("Acer Aspire 3", "MacBook Air M4"):
+        named = [
+            prompt for prompt in suggestions[0].prompts if product_name in prompt.text
+        ]
+        assert {prompt.intent for prompt in named} == {"discovery", "comparison"}
 
 
-def test_commerce_prompt_filter_keeps_generic_platform_prompts() -> None:
+def test_commerce_prompt_filter_rejects_unnamed_category_prompts() -> None:
     category = SuggestedTopic(
         topic_id=uuid.uuid4(),
         name="Smartphones",
@@ -70,8 +83,12 @@ def test_commerce_prompt_filter_keeps_generic_platform_prompts() -> None:
                 intent="comparison",
             ),
             SuggestedPrompt(
-                text="Is Apple iPhone 16 the best smartphone this year",
+                text="Where can I buy Apple iPhone 16 online",
                 intent="discovery",
+            ),
+            SuggestedPrompt(
+                text="What are the best alternatives to Apple iPhone 16",
+                intent="comparison",
             ),
         ],
     )
@@ -84,6 +101,10 @@ def test_commerce_prompt_filter_keeps_generic_platform_prompts() -> None:
 
     filtered = filter_for_cohort([category], "commerce", context)
 
+    assert [prompt.text for prompt in filtered[0].prompts] == [
+        "Where can I buy Apple iPhone 16 online",
+        "What are the best alternatives to Apple iPhone 16",
+    ]
     assert [prompt.intent for prompt in filtered[0].prompts] == [
         "discovery",
         "comparison",
@@ -95,8 +116,8 @@ def test_commerce_topic_keyed_output_reaches_the_existing_content_filter() -> No
     raw = json.dumps(
         {
             str(topic_id): [
-                ("Where can I buy wireless headphones online with reliable delivery"),
-                "Which online store is best for buying wireless headphones",
+                ("Where can I buy Sony WH-1000XM6 online with reliable delivery"),
+                "What are the best alternatives to Sony WH-1000XM6",
             ]
         }
     )

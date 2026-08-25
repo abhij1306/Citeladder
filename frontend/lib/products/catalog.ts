@@ -16,8 +16,8 @@ import type {
   ProductOrigin,
 } from '@/lib/api/types';
 
-/** The four `/products` workspace tabs, in display order; Overview is default. */
-export type ProductsTab = 'overview' | 'catalog' | 'visibility' | 'opportunities';
+/** The three `/products` workspace tabs, in display order; Overview is default. */
+export type ProductsTab = 'overview' | 'catalog' | 'visibility';
 
 /** Engine filter value for the products surfaces (`all` = cross-engine). */
 export type ProductEngineFilter = LogicalEngine | 'all';
@@ -26,7 +26,6 @@ export const PRODUCTS_TABS: readonly { id: ProductsTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'catalog', label: 'Catalog' },
   { id: 'visibility', label: 'AI Visibility' },
-  { id: 'opportunities', label: 'Opportunities' },
 ] as const;
 
 /**
@@ -73,16 +72,17 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
   GBP: '£',
   AUD: 'A$',
   CAD: 'C$',
+  INR: '₹',
 };
 
 /** `$2,499.00` / `€2,499.00` / `2,499.00 CHF` / `—` when no price. */
 export function formatPrice(price: number | null | undefined, currency: string): string {
   if (price === null || price === undefined) return '—';
-  const amount = price.toLocaleString('en-US', {
+  const code = (currency ?? '').trim().toUpperCase();
+  const amount = price.toLocaleString(code === 'INR' ? 'en-IN' : 'en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const code = (currency ?? '').trim().toUpperCase();
   const symbol = code ? CURRENCY_SYMBOLS[code] : undefined;
   if (symbol) return `${symbol}${amount}`;
   return code ? `${amount} ${code}` : amount;

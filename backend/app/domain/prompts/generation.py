@@ -500,27 +500,45 @@ def _existing_generation_context(
 
 def _deterministic_commerce_suggestions(
     allowed_topics: list[dict[str, str]],
+    brand_context: dict[str, Any],
 ) -> list[SuggestedTopic]:
-    """Build a category-level buyer-destination pair for Commerce measurement."""
+    """Build one named buyer-destination pair per product in the category."""
     topic = allowed_topics[0]
     category = topic["name"].strip()
+    products = sorted(
+        (
+            product
+            for product in brand_context.get("commerce_products", [])
+            if str(product.get("category") or "").strip().casefold()
+            == category.casefold()
+        ),
+        key=lambda product: (
+            str(product.get("name") or "").casefold(),
+            str(product.get("sku") or "").casefold(),
+        ),
+    )
     return [
         SuggestedTopic(
             topic_id=uuid.UUID(topic["id"]),
             name=category,
             prompts=[
-                SuggestedPrompt(
-                    text=COMMERCE_BUYER_DESTINATION_PROMPT_TEMPLATE.format(
-                        category=category.casefold()
+                prompt
+                for product in products
+                for prompt in (
+                    SuggestedPrompt(
+                        text=COMMERCE_BUYER_DESTINATION_PROMPT_TEMPLATE.format(
+                            product_name=str(product["name"]).strip()
+                        ),
+                        intent="discovery",
                     ),
-                    intent="discovery",
-                ),
-                SuggestedPrompt(
-                    text=COMMERCE_MERCHANT_COMPARISON_PROMPT_TEMPLATE.format(
-                        category=category.casefold()
+                    SuggestedPrompt(
+                        text=COMMERCE_MERCHANT_COMPARISON_PROMPT_TEMPLATE.format(
+                            product_name=str(product["name"]).strip(),
+                            category=category.casefold(),
+                        ),
+                        intent="comparison",
                     ),
-                    intent="comparison",
-                ),
+                )
             ],
         )
     ]
@@ -553,7 +571,7 @@ async def _generate_suggestions(
     await session.commit()
     if payload.cohort == "commerce":
         return (
-            _deterministic_commerce_suggestions(allowed_topics),
+            _deterministic_commerce_suggestions(allowed_topics, brand_context),
             0,
             brand_context,
             demand_snapshot,

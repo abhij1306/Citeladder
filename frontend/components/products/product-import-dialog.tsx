@@ -100,7 +100,7 @@ export function ProductImportDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title="Import products from CSV"
-      description="Columns: name, sku, variant, brand, category, price, currency, url, gtin, mpn, availability, condition, description, aliases (header row required)."
+      description="Columns: name, sku, variant, variant_count, brand, category, price, currency, url, gtin, mpn, availability, condition, description, aliases (header row required)."
       className="w-215"
       footer={
         <>
@@ -161,7 +161,7 @@ function ProductCsvPreview({
             <TableHead>Row</TableHead>
             <TableHead>Name</TableHead>
             <TableHead>SKU</TableHead>
-            <TableHead>Variant</TableHead>
+            <TableHead>Variants</TableHead>
             <TableHead>Category</TableHead>
             <TableHead>Price</TableHead>
             <TableHead>Currency</TableHead>
@@ -180,6 +180,12 @@ function ProductCsvPreview({
   );
 }
 
+function variantPreview(row: ParsedProductRow): string {
+  const firstVariant = row.input.variants?.[0]?.name || '—';
+  const count = row.input.attributes?.variant_count;
+  return count ? `${String(count)} · ${firstVariant}` : firstVariant;
+}
+
 function ProductCsvPreviewRow({ row }: Readonly<{ row: ParsedProductRow }>) {
   const attributes = row.input.attributes ?? {};
   const invalid = row.errors.length > 0;
@@ -190,7 +196,7 @@ function ProductCsvPreviewRow({ row }: Readonly<{ row: ParsedProductRow }>) {
       </TableCell>
       <TableCell className="max-w-45 truncate">{row.input.name || '—'}</TableCell>
       <TableCell className="font-mono text-xs">{row.input.sku || '—'}</TableCell>
-      <TableCell className="max-w-35 truncate">{row.input.variants?.[0]?.name || '—'}</TableCell>
+      <TableCell className="max-w-45 truncate">{variantPreview(row)}</TableCell>
       <TableCell>{String(attributes.category ?? '') || '—'}</TableCell>
       <ProductPriceCell price={row.input.price} />
       <TableCell>{row.input.currency || '—'}</TableCell>

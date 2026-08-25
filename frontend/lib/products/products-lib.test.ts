@@ -27,7 +27,7 @@ describe('normalizeProductsTab', () => {
     expect(normalizeProductsTab('overview')).toBe('overview');
     expect(normalizeProductsTab('visibility')).toBe('visibility');
     expect(normalizeProductsTab('competitors')).toBe('overview');
-    expect(normalizeProductsTab('opportunities')).toBe('opportunities');
+    expect(normalizeProductsTab('opportunities')).toBe('overview');
     expect(normalizeProductsTab('catalog')).toBe('catalog');
   });
 });
@@ -51,6 +51,7 @@ describe('formatters', () => {
   it('formats prices with currency symbols and placeholders', () => {
     expect(formatPrice(2499, 'USD')).toBe('$2,499.00');
     expect(formatPrice(2499.5, 'eur')).toBe('€2,499.50');
+    expect(formatPrice(75900, 'INR')).toBe('₹75,900.00');
     expect(formatPrice(100, 'CHF')).toBe('100.00 CHF');
     expect(formatPrice(null, 'USD')).toBe('—');
   });
@@ -242,6 +243,17 @@ describe('parseProductCsv', () => {
       attributes: { category: 'E-Bikes', gtin: '0123' },
     });
     expect(validProductRows(parsed)).toHaveLength(1);
+  });
+
+  it('persists an explicit variant count as a catalog attribute', () => {
+    const parsed = parseProductCsv(
+      'name,sku,variant,variant_count,currency\n' + 'Phone One,P1,Black 128 GB,5,INR\n',
+    );
+
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.rows[0]!.errors).toEqual([]);
+    expect(parsed.rows[0]!.input.variants).toEqual([{ name: 'Black 128 GB' }]);
+    expect(parsed.rows[0]!.input.attributes?.variant_count).toBe('5');
   });
 
   it('rejects headerless files (matching the backend)', () => {

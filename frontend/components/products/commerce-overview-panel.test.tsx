@@ -10,7 +10,14 @@ type OverviewQueries = ReturnType<typeof useCommerceOverview>;
 function queriesWith(prompts: Array<{ topic_id: string; intent: string }>): OverviewQueries {
   return {
     visibilityQuery: { isLoading: false, isError: false, data: undefined },
-    productsQuery: { isLoading: false, isError: false, data: [{ sku: 'SKU-1' }] },
+    productsQuery: {
+      isLoading: false,
+      isError: false,
+      data: [
+        { sku: 'BOOK-1', name: 'Evidence Handbook', attributes: { category: 'Books' } },
+        { sku: 'GAME-1', name: 'Signal Quest', attributes: { category: 'Games' } },
+      ],
+    },
     missingCategorySkus: [],
     categories: ['Books', 'Games'],
     topicsQuery: {
@@ -23,7 +30,9 @@ function queriesWith(prompts: Array<{ topic_id: string; intent: string }>): Over
       prompts: prompts.map((prompt, index) => ({
         ...prompt,
         id: `prompt-${index}`,
-        text: `${prompt.intent} prompt for ${prompt.topic_id}`,
+        text: `${prompt.intent} prompt for ${
+          prompt.topic_id === 'topic-books' ? 'Evidence Handbook' : 'Signal Quest'
+        }`,
         cohort: 'commerce',
         status: 'active',
       })),
@@ -74,10 +83,10 @@ describe('CommerceOverviewPanel prompt gating', () => {
     expect(
       screen.getByRole('heading', { name: 'Run your first Commerce visibility audit' }),
     ).toBeTruthy();
-    expect(screen.getByText('discovery prompt for topic-books')).toBeTruthy();
-    expect(screen.getByText('comparison prompt for topic-books')).toBeTruthy();
-    expect(screen.getByText('discovery prompt for topic-games')).toBeTruthy();
-    expect(screen.getByText('comparison prompt for topic-games')).toBeTruthy();
+    expect(screen.getByText('discovery prompt for Evidence Handbook')).toBeTruthy();
+    expect(screen.getByText('comparison prompt for Evidence Handbook')).toBeTruthy();
+    expect(screen.getByText('discovery prompt for Signal Quest')).toBeTruthy();
+    expect(screen.getByText('comparison prompt for Signal Quest')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Launch Commerce audit' })).toBeTruthy();
   });
 });

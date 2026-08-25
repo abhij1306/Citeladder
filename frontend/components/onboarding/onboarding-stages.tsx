@@ -25,7 +25,7 @@ export function BrandStage({
   onSubmit: () => void;
 }>) {
   return (
-    <form noValidate onSubmit={onSubmit} className="space-y-6">
+    <form noValidate onSubmit={onSubmit} className="space-y-4 sm:space-y-5">
       <div className="space-y-1">
         <h1 className="website-feature-heading text-foreground">
           {isAdditional ? 'Add a project' : "Let's get started"}
@@ -34,10 +34,10 @@ export function BrandStage({
           We&apos;ll review your website, suggest comparable brands, and prepare balanced questions.
         </p>
       </div>
-      <div className="grid items-start gap-x-6 gap-y-5 sm:grid-cols-2">
+      <div className="grid items-start gap-x-5 gap-y-4 sm:grid-cols-2">
         <Field label="Brand name" required error={form.formState.errors.brand_name?.message}>
           {(props) => (
-            <Input {...props} {...form.register('brand_name')} placeholder="Acme" size="lg" />
+            <Input {...props} {...form.register('brand_name')} placeholder="Acme" size="md" />
           )}
         </Field>
         <Field label="Website" required error={form.formState.errors.website_url?.message}>
@@ -47,7 +47,7 @@ export function BrandStage({
               {...form.register('website_url')}
               placeholder="acme.com"
               inputMode="url"
-              size="lg"
+              size="md"
             />
           )}
         </Field>
@@ -88,12 +88,12 @@ export function BrandStage({
           )}
         </Field>
       </div>
-      <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" size="lg" className="text-sm font-medium">
+      <div className="flex items-center gap-3 pt-1">
+        <Button type="submit" size="md" className="text-sm font-medium">
           Continue
         </Button>
         {isAdditional ? (
-          <Button asChild variant="ghost" size="lg">
+          <Button asChild variant="ghost" size="md">
             <Link href="/projects">Cancel</Link>
           </Button>
         ) : null}
@@ -170,9 +170,9 @@ export function DiscoveryStage({
           </div>
         </Alert>
       ) : null}
-      <div className="flex items-center gap-3 pt-2">
+      <div className="flex items-center gap-3 pt-1">
         <Button
-          size="lg"
+          size="md"
           onClick={onReview}
           disabled={
             discovery.isRunning || !discovery.discovery || discovery.discovery.status !== 'ready'
@@ -181,7 +181,7 @@ export function DiscoveryStage({
         >
           {discovery.isRunning ? 'Searching…' : 'Review'}
         </Button>
-        <Button variant="ghost" size="lg" onClick={onEdit}>
+        <Button variant="ghost" size="md" onClick={onEdit}>
           Back
         </Button>
       </div>
@@ -206,30 +206,47 @@ export function ReviewStage({
     toggle,
   } = flow;
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <div className="space-y-3.5">
+      <div className="space-y-1">
         <h1 className="website-feature-heading text-foreground">Does this look right?</h1>
-        <p className="website-label text-muted">
+        <p className="website-body text-muted">
           Deselect anything you don&apos;t want — you can change all of it after setup.
         </p>
       </div>
-      <div className="border-border-subtle bg-panel divide-border-subtle grid divide-y rounded-sm border lg:grid-cols-2 lg:divide-x lg:divide-y-0">
-        <div className="divide-border-subtle divide-y px-4 py-3">
+      <div className="grid gap-3.5 lg:grid-cols-2">
+        <div className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-md border p-4">
+          <div className="border-border-subtle flex items-center justify-between border-b pb-2">
+            <span className="text-muted font-sans text-xs font-semibold tracking-wider uppercase">
+              Brand Positioning &amp; Market
+            </span>
+            <span className="bg-accent-soft text-accent-text border-accent-border/50 text-2xs inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-semibold">
+              <span className="bg-accent size-1.5 rounded-full" aria-hidden />
+              AI Discovered
+            </span>
+          </div>
           {profile ? <IcpConfirmation profile={profile} onChange={setProfile} /> : null}
         </div>
-        <ReviewStep
-          domains={domains}
-          competitors={competitors}
-          onToggleDomain={toggle(flow.setDomains)}
-          onToggleCompetitor={(index) =>
-            toggleCompetitor(index, setCompetitors, maximumCompetitors)
-          }
-          onEditCompetitorDomain={(index, domain) =>
-            editCompetitorDomain(index, domain, setCompetitors)
-          }
-          onAddCompetitor={() => addCompetitor(setCompetitors, maximumCompetitors)}
-          maximumCompetitors={maximumCompetitors}
-        />
+        <div className="border-border bg-panel shadow-card flex flex-col gap-2 rounded-md border p-4">
+          <div className="border-border-subtle flex items-center justify-between border-b pb-2">
+            <span className="text-muted font-sans text-xs font-semibold tracking-wider uppercase">
+              Online Footprint &amp; Peers
+            </span>
+            <span className="text-2xs text-muted font-medium">Auto-verified domains</span>
+          </div>
+          <ReviewStep
+            domains={domains}
+            competitors={competitors}
+            onToggleDomain={toggle(flow.setDomains)}
+            onToggleCompetitor={(index) =>
+              toggleCompetitor(index, setCompetitors, maximumCompetitors)
+            }
+            onEditCompetitorDomain={(index, domain) =>
+              editCompetitorDomain(index, domain, setCompetitors)
+            }
+            onAddCompetitor={() => addCompetitor(setCompetitors, maximumCompetitors)}
+            maximumCompetitors={maximumCompetitors}
+          />
+        </div>
       </div>
       {catalog.isError ? (
         <Alert tone="warning">
@@ -250,16 +267,16 @@ export function ReviewStage({
       {!hasConfirmedIcp(profile) ? (
         <Alert tone="warning">Choose or describe what you sell.</Alert>
       ) : null}
-      <div className="-mt-1 flex items-center gap-3 pt-1">
+      <div className="flex items-center gap-3 pt-1">
         <Button
-          size="lg"
+          size="md"
           onClick={() => complete.mutate()}
           disabled={complete.isPending || !hasSelectedDomain || !hasConfirmedIcp(profile)}
-          className="text-sm font-medium"
+          className="text-sm font-semibold shadow-xs"
         >
           {complete.isPending ? 'Creating…' : 'Create project'}
         </Button>
-        <Button variant="ghost" size="lg" onClick={() => setStep(1)} disabled={complete.isPending}>
+        <Button variant="ghost" size="md" onClick={() => setStep(1)} disabled={complete.isPending}>
           Back
         </Button>
       </div>

@@ -62,7 +62,7 @@ function CompetitorChip({
           }}
           placeholder="acme.com"
           aria-label={`Website for ${displayName}`}
-          className="w-44"
+          className="w-44 shadow-2xs"
         />
       </span>
     );
@@ -116,13 +116,13 @@ export function ReviewStep({
     maximumCompetitors === undefined || selectedCompetitors >= maximumCompetitors;
 
   return (
-    <div className="divide-border-subtle divide-y px-4 py-3">
+    <div className="divide-border-subtle divide-y">
       <ReviewSection
         title="Your websites"
         meta={domains.length > 0 ? `${selectedDomains} of ${domains.length}` : undefined}
       >
         {domains.length === 0 ? (
-          <p className="website-label text-subtle">No websites were found.</p>
+          <p className="website-label text-muted">No websites were found.</p>
         ) : (
           <ChipRow>
             {domains.map((entry, index) => (
@@ -146,7 +146,7 @@ export function ReviewStep({
             size="sm"
             onClick={onAddCompetitor}
             disabled={competitorLimitReached}
-            className="text-accent-text hover:bg-accent-soft h-6 gap-1 px-2 text-xs font-medium"
+            className="text-accent-text hover:bg-accent-soft border-accent-border/50 bg-accent-subtle/50 h-6.5 gap-1 rounded-full border px-2.5 text-xs font-semibold shadow-2xs"
           >
             <Plus className="size-3.5" aria-hidden />
             Add
@@ -154,7 +154,7 @@ export function ReviewStep({
         }
       >
         {competitors.length === 0 ? (
-          <p className="website-label text-subtle">
+          <p className="website-label text-muted">
             No competitors were confirmed. Add the companies you lose deals to.
           </p>
         ) : (

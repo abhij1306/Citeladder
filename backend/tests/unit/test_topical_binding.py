@@ -31,6 +31,7 @@ from app.domain.prompts.topical_binding import (
     validate_prompt_binding,
 )
 from app.models.brand import Brand, BrandAlias, BrandProfile, Competitor, OwnedDomain
+from app.models.product import Product
 from app.models.project import Project
 from app.models.prompt import Topic
 
@@ -104,6 +105,15 @@ def test_build_project_vocabulary_uses_all_identity_sources() -> None:
     project.topics.append(
         Topic(project_id=project.id, name="Sizing", description="Shoe fit help")
     )
+    project.products.append(
+        Product(
+            project_id=project.id,
+            sku="TRAIL-1",
+            name="Trail Runner Pro",
+            aliases=["TRP Shoe"],
+            attributes={"category": "Hiking Footwear"},
+        )
+    )
 
     vocabulary = build_project_vocabulary(project)
     for expected in (
@@ -119,10 +129,15 @@ def test_build_project_vocabulary_uses_all_identity_sources() -> None:
         "families",
         "sizing",
         "shoe",
+        "trail",
+        "runner",
+        "trp",
+        "hiking",
     ):
         assert expected in vocabulary.tokens, expected
     assert "acme corp" in vocabulary.phrases
     assert "running shoes" in vocabulary.phrases
+    assert "trail runner pro" in vocabulary.phrases
 
 
 def test_business_context_flattens_one_string_list_level_only() -> None:

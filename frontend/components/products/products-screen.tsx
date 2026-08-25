@@ -10,7 +10,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useProjectContext } from '@/lib/project/project-context';
 import {
   useCatalogQueries,
-  useCommerceOpportunities,
   useCommerceOverview,
   useProductsTab,
   useProductVisibilityQueries,
@@ -18,7 +17,6 @@ import {
 
 import { AiVisibilityPanel } from './ai-visibility-panel';
 import { CatalogPanel } from './catalog-panel';
-import { CommerceOpportunitiesPanel } from './commerce-opportunities-panel';
 import { CommerceOverviewPanel } from './commerce-overview-panel';
 import { ProductsTabs } from './products-tabs';
 
@@ -35,7 +33,7 @@ export function ProductsScreenSkeleton() {
   );
 }
 
-/** Four-tab Commerce workflow. Every inactive tab remains query-inert. */
+/** Three-tab Commerce workflow. Every inactive tab remains query-inert. */
 export function ProductsScreen() {
   const { activeProject, isLoading: isProjectLoading } = useProjectContext();
   const projectId = activeProject?.id ?? null;
@@ -45,7 +43,6 @@ export function ProductsScreen() {
   const overviewQueries = useCommerceOverview(projectId, activeTab === 'overview');
   const catalogQueries = useCatalogQueries(projectId, activeTab === 'catalog');
   const visibilityQueries = useProductVisibilityQueries(projectId, activeTab === 'visibility');
-  const opportunityQueries = useCommerceOpportunities(projectId, activeTab === 'opportunities');
 
   if (isProjectLoading) return <ProductsScreenSkeleton />;
   if (!projectId)
@@ -61,8 +58,6 @@ export function ProductsScreen() {
         onAddProducts={() => selectTab('catalog')}
         onLaunchAudit={() => setLaunchOpen(true)}
       />
-    ) : activeTab === 'opportunities' ? (
-      <CommerceOpportunitiesPanel queries={opportunityQueries} />
     ) : (
       <CommerceOverviewPanel
         queries={overviewQueries}

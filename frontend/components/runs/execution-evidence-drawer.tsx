@@ -47,7 +47,13 @@ export function ExecutionEvidenceDrawer({
           <Skeleton className="h-52 w-full" />
         </div>
       ) : (
-        <EvidenceCard evidence={evidenceQuery.data} answerText={execution?.answer_text} />
+        <EvidenceCard
+          evidence={evidenceQuery.data}
+          answerText={execution?.answer_text}
+          promptText={execution?.prompt_text}
+          promptIndex={execution?.prompt_index}
+          repetition={execution?.repetition}
+        />
       )}
     </Drawer>
   );

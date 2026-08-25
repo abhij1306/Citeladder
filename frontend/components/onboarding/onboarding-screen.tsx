@@ -28,14 +28,14 @@ export function OnboardingScreen() {
     );
 
   return (
-    <div className="website-type bg-panel text-foreground selection:bg-accent selection:text-accent-fg relative h-screen max-h-screen w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
+    <div className="website-type app-type-scale bg-panel text-foreground selection:bg-accent selection:text-accent-fg relative h-screen max-h-screen w-full overflow-hidden antialiased min-[900px]:grid min-[900px]:grid-cols-12">
       <OnboardingSidebar step={flow.step} />
       {/* Vertical padding deliberately matches OnboardingSidebar (`p-6 xl:p-10`).
           The two columns share one ramp so the stage heading and the rail title
           sit on the same baseline by construction, at every width, rather than
           by a per-breakpoint constant. Horizontal padding is free to differ;
           only the vertical ramp is load-bearing. */}
-      <div className="bg-panel relative col-span-12 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 min-[900px]:col-span-7 sm:px-8 lg:col-span-8 lg:px-10 xl:py-10">
+      <div className="bg-panel relative col-span-12 flex h-screen max-h-screen flex-col justify-between overflow-hidden p-6 min-[900px]:col-span-7 sm:px-8 lg:col-span-8 lg:px-10 xl:p-8">
         <OnboardingMobileHeader step={flow.step} />
         <main
           id="main"

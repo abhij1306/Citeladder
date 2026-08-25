@@ -17,7 +17,7 @@ from typing import Final
 # Stamped onto ``ProductResponseAnalysis`` / ``ProductMention`` /
 # ``ProductMetricSnapshot``. Separate from the brand-level
 # ``config/analysis.py`` versions — the product pass is a sibling analyzer.
-PRODUCT_ANALYZER_VERSION: Final = "product-analysis-2"
+PRODUCT_ANALYZER_VERSION: Final = "product-analysis-3"
 PRODUCT_SCORING_RULE_VERSION: Final = "product-scoring-v2"
 
 # --- Catalog origin vocabulary --------------------------------------------
@@ -47,6 +47,7 @@ PRICE_CURRENCY_PATTERNS: Final[dict[str, tuple[str, ...]]] = {
     "GBP": ("£", "GBP"),
     "AUD": ("A$", "AU$", "AUD"),
     "CAD": ("C$", "CA$", "CAD"),
+    "INR": ("₹", "INR"),
 }
 # Character window scanned for a price mention around a product mention's
 # first offset (the price usually sits next to the product in a list item).

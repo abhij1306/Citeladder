@@ -17,41 +17,41 @@
   --font-display: var(--font-plus-jakarta-sans), var(--font-inter), -apple-system, sans-serif;
 
   /* Surfaces — Luminous pearl paper canvas with crisp white panels and frosted tones. */
-  --color-background: #f4f5f7;
-  --color-background-alt: #f8f9fa;
+  --color-background: #f8fafc;
+  --color-background-alt: #f1f5f9;
   --color-panel: #ffffff;
-  --color-panel-tonal: #f8f9fb;
+  --color-panel-tonal: #f8fafc;
   --color-elevated: #ffffff;
-  --color-well: #eaedf2;
-  --color-active: #e2e6eb;
+  --color-well: #f1f5f9;
+  --color-active: #e2e8f0;
   --color-input: #ffffff;
-  --color-sidebar: #f8f9fb;
-  --color-surface-inverse: #18202b;
+  --color-sidebar: #ffffff;
+  --color-surface-inverse: #0f172a;
 
-  /* Borders — Graphite hairlines and precise ledger rules. */
-  --color-border: #e2e5e9;
-  --color-border-subtle: #ebedf1;
-  --color-border-strong: #d4d8df;
-  --color-border-bold: #b8c0cc;
+  /* Borders — Refined slate hairlines and precise ledger rules. */
+  --color-border: #e2e8f0;
+  --color-border-subtle: #f1f5f9;
+  --color-border-strong: #cbd5e1;
+  --color-border-bold: #94a3b8;
 
-  /* Text — Graphite slate hierarchy (#18202B Ink → #4F5966 Slate → #68717D Muted → #7A838E Subtle). */
-  --color-foreground: #18202b;
-  --color-secondary: #4f5966;
-  --color-muted: #68717d;
-  --color-subtle: #7a838e;
+  /* Text — Obsidian Ink → Slate hierarchy (#0f172a Ink → #334155 Slate → #64748b Muted → #94a3b8 Subtle). */
+  --color-foreground: #0f172a;
+  --color-secondary: #334155;
+  --color-muted: #64748b;
+  --color-subtle: #94a3b8;
   --color-inverse: #ffffff;
   --color-on-inverse: #ffffff;
-  --color-link: #2548d4;
+  --color-link: #2563eb;
 
-  /* Accent — Cube Cobalt (#315CFF) with accessible #2548D4 text/active state and #EEF1FF tint. */
+  /* Accent — Cube Cobalt (#315CFF) with accessible #1e40af text/active state and #EFF4FF tint. */
   --color-accent: #315cff;
-  --color-accent-hover: #2548d4;
-  --color-accent-active: #1d3bb8;
+  --color-accent-hover: #2347d9;
+  --color-accent-active: #1a38b5;
   --color-accent-fg: #ffffff;
-  --color-accent-subtle: #eef1ff;
-  --color-accent-soft: #f4f6ff;
-  --color-accent-border: #c8d2ff;
-  --color-accent-text: #2548d4;
+  --color-accent-subtle: #eff4ff;
+  --color-accent-soft: #f5f8ff;
+  --color-accent-border: #c3d3ff;
+  --color-accent-text: #1e40af;
 
   /* Answer-engine brand marks (functional identity, marketing engine chips). */
   --color-brand-openai: #10a37f;
@@ -78,109 +78,109 @@
   --color-brand-canvas-muted: #94a3b8;
 
   /* Status — app-only functional colour harmonized with Cube27. */
-  --color-success: #31a57a;
-  --color-success-bg: #eaf7f1;
-  --color-success-border: #a8e0cb;
-  --color-success-text: #1e7c59;
-  --color-warning: #d9822b;
-  --color-warning-bg: #fdf6ec;
-  --color-warning-border: #f5d4a4;
-  --color-warning-text: #9c5512;
-  --color-danger: #d96b55;
-  --color-danger-solid: #d96b55;
-  --color-danger-solid-hover: #b54833;
+  --color-success: #10b981;
+  --color-success-bg: #ecfdf5;
+  --color-success-border: #a7f3d0;
+  --color-success-text: #047857;
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #b45309;
+  --color-danger: #ef4444;
+  --color-danger-solid: #ef4444;
+  --color-danger-solid-hover: #dc2626;
   --color-danger-fg: #ffffff;
-  --color-danger-bg: #fdf1ee;
-  --color-danger-border: #f3c0b6;
-  --color-danger-text: #b54833;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #b91c1c;
   /* Info tracks the accent — informational == Cube Cobalt. */
   --color-info: #315cff;
-  --color-info-bg: #eef1ff;
-  --color-info-border: #c8d2ff;
-  --color-info-text: #2548d4;
-  --color-neutral-bg: #f0f2f4;
+  --color-info-bg: #eff4ff;
+  --color-info-border: #c3d3ff;
+  --color-info-text: #1e40af;
+  --color-neutral-bg: #f1f5f9;
 
-  --color-sentiment-positive: #31a57a;
-  --color-sentiment-positive-bg: #eaf7f1;
-  --color-sentiment-positive-text: #1e7c59;
-  --color-sentiment-neutral: #5c5e62;
-  --color-sentiment-neutral-bg: #f0f2f4;
-  --color-sentiment-neutral-text: #393c41;
-  --color-sentiment-negative: #d96b55;
-  --color-sentiment-negative-bg: #fdf1ee;
-  --color-sentiment-negative-text: #b54833;
+  --color-sentiment-positive: #10b981;
+  --color-sentiment-positive-bg: #ecfdf5;
+  --color-sentiment-positive-text: #047857;
+  --color-sentiment-neutral: #64748b;
+  --color-sentiment-neutral-bg: #f1f5f9;
+  --color-sentiment-neutral-text: #334155;
+  --color-sentiment-negative: #ef4444;
+  --color-sentiment-negative-bg: #fef2f2;
+  --color-sentiment-negative-text: #b91c1c;
 
   /* Owned evidence tracks the brand cobalt; competitor/third-party stay distinct. */
   --color-citation-owned: #315cff;
-  --color-citation-owned-bg: #eef1ff;
-  --color-citation-owned-border: #c8d2ff;
-  --color-citation-owned-text: #2548d4;
-  --color-citation-competitor: #7a5477;
-  --color-citation-competitor-bg: #f5eef4;
-  --color-citation-competitor-border: #d6bfd3;
-  --color-citation-competitor-text: #634360;
-  --color-citation-third-party: #5c5e62;
-  --color-citation-third-party-bg: #f0f2f4;
-  --color-citation-third-party-border: #dce0e4;
-  --color-citation-third-party-text: #393c41;
+  --color-citation-owned-bg: #eff4ff;
+  --color-citation-owned-border: #c3d3ff;
+  --color-citation-owned-text: #1e40af;
+  --color-citation-competitor: #8b5cf6;
+  --color-citation-competitor-bg: #f5f3ff;
+  --color-citation-competitor-border: #ddd6fe;
+  --color-citation-competitor-text: #6d28d9;
+  --color-citation-third-party: #64748b;
+  --color-citation-third-party-bg: #f1f5f9;
+  --color-citation-third-party-border: #e2e8f0;
+  --color-citation-third-party-text: #334155;
 
-  --color-run-draft: #5c5e62;
-  --color-run-draft-bg: #f0f2f4;
-  --color-run-queued: #5c5e62;
-  --color-run-queued-bg: #f0f2f4;
+  --color-run-draft: #64748b;
+  --color-run-draft-bg: #f1f5f9;
+  --color-run-queued: #64748b;
+  --color-run-queued-bg: #f1f5f9;
   --color-run-running: #315cff;
-  --color-run-running-bg: #eef1ff;
-  --color-run-analyzing: #67558a;
-  --color-run-analyzing-bg: #f1edf8;
-  --color-run-completed: #31a57a;
-  --color-run-completed-bg: #eaf7f1;
-  --color-run-partial: #d9822b;
-  --color-run-partial-bg: #fdf6ec;
-  --color-run-failed: #d96b55;
-  --color-run-failed-bg: #fdf1ee;
-  --color-run-cancelled: #5c5e62;
-  --color-run-cancelled-bg: #f0f2f4;
+  --color-run-running-bg: #eff4ff;
+  --color-run-analyzing: #8b5cf6;
+  --color-run-analyzing-bg: #f5f3ff;
+  --color-run-completed: #10b981;
+  --color-run-completed-bg: #ecfdf5;
+  --color-run-partial: #f59e0b;
+  --color-run-partial-bg: #fffbeb;
+  --color-run-failed: #ef4444;
+  --color-run-failed-bg: #fef2f2;
+  --color-run-cancelled: #64748b;
+  --color-run-cancelled-bg: #f1f5f9;
 
   /* Score bands — low/mid escalate coral→amber; good is Cube Cobalt; high is green. */
-  --color-score-low: #d96b55;
-  --color-score-low-bg: #fdf1ee;
-  --color-score-low-border: #f3c0b6;
-  --color-score-low-text: #b54833;
-  --color-score-low-ring: #d96b55;
-  --color-score-mid: #d9822b;
-  --color-score-mid-bg: #fdf6ec;
-  --color-score-mid-border: #f5d4a4;
-  --color-score-mid-text: #9c5512;
-  --color-score-mid-ring: #d9822b;
+  --color-score-low: #ef4444;
+  --color-score-low-bg: #fef2f2;
+  --color-score-low-border: #fecaca;
+  --color-score-low-text: #b91c1c;
+  --color-score-low-ring: #ef4444;
+  --color-score-mid: #f59e0b;
+  --color-score-mid-bg: #fffbeb;
+  --color-score-mid-border: #fde68a;
+  --color-score-mid-text: #b45309;
+  --color-score-mid-ring: #f59e0b;
   --color-score-good: #315cff;
-  --color-score-good-bg: #eef1ff;
-  --color-score-good-border: #c8d2ff;
-  --color-score-good-text: #2548d4;
+  --color-score-good-bg: #eff4ff;
+  --color-score-good-border: #c3d3ff;
+  --color-score-good-text: #1e40af;
   --color-score-good-ring: #315cff;
-  --color-score-high: #31a57a;
-  --color-score-high-bg: #eaf7f1;
-  --color-score-high-border: #a8e0cb;
-  --color-score-high-text: #1e7c59;
-  --color-score-high-ring: #31a57a;
+  --color-score-high: #10b981;
+  --color-score-high-bg: #ecfdf5;
+  --color-score-high-border: #a7f3d0;
+  --color-score-high-text: #047857;
+  --color-score-high-ring: #10b981;
 
   /* Charts — the brand cobalt is the first series; the rest stay categorical. */
   --color-chart-1: #315cff;
-  --color-chart-2: #31a57a;
-  --color-chart-3: #d9822b;
-  --color-chart-4: #d96b55;
-  --color-chart-5: #67558a;
-  --color-chart-6: #0f8a9b;
-  --color-chart-7: #9b761c;
-  --color-chart-8: #7a5477;
+  --color-chart-2: #10b981;
+  --color-chart-3: #f59e0b;
+  --color-chart-4: #ef4444;
+  --color-chart-5: #8b5cf6;
+  --color-chart-6: #06b6d4;
+  --color-chart-7: #eab308;
+  --color-chart-8: #ec4899;
   --color-series-1: #315cff;
-  --color-series-2: #31a57a;
-  --color-series-3: #d9822b;
-  --color-series-4: #d96b55;
-  --color-series-5: #67558a;
-  --color-series-other: #8e8e8e;
-  --color-chart-tooltip: #18202b;
+  --color-series-2: #10b981;
+  --color-series-3: #f59e0b;
+  --color-series-4: #ef4444;
+  --color-series-5: #8b5cf6;
+  --color-series-other: #94a3b8;
+  --color-chart-tooltip: #0f172a;
   --color-chart-tooltip-fg: #ffffff;
-  --color-overlay-scrim: rgb(24 32 43 / 40%);
+  --color-overlay-scrim: rgb(15 23 42 / 45%);
 
   /* Radius — Cube27 micro-radius scale (2px–6px); full pill retained for chips. */
   --radius-xs: 2px;
@@ -191,17 +191,17 @@
   --radius-2xl: 6px;
   --radius-full: 9999px;
 
-  /* Elevation — Apple-style specular ambient shadows with subtle 1px border highlight. */
-  --shadow-xs: 0 1px 2px rgb(24 32 43 / 0.04);
-  --shadow-sm: 0 1px 2px rgb(24 32 43 / 0.04), 0 2px 4px -1px rgb(24 32 43 / 0.06);
+  /* Elevation — Specular ambient shadows with crisp 1px hairline definition. */
+  --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 4px -1px rgb(15 23 42 / 0.06);
   --shadow-card:
-    0 0 0 1px rgb(24 32 43 / 0.035), 0 1px 3px 0 rgb(24 32 43 / 0.025), 0 8px 24px -4px rgb(18 32 48 / 0.05);
+    0 0 0 1px rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03), 0 6px 16px -4px rgb(15 23 42 / 0.05);
   --shadow-card-hover:
-    0 0 0 1px rgb(24 32 43 / 0.05), 0 3px 8px 0 rgb(24 32 43 / 0.04), 0 16px 36px -6px rgb(18 32 48 / 0.08);
+    0 0 0 1px rgb(15 23 42 / 0.08), 0 4px 12px 0 rgb(15 23 42 / 0.05), 0 16px 32px -6px rgb(15 23 42 / 0.09);
   --shadow-elevated:
-    0 0 0 1px rgb(24 32 43 / 0.045), 0 4px 14px -2px rgb(24 32 43 / 0.06), 0 20px 40px -8px rgb(18 32 48 / 0.10);
-  --shadow-lg: 0 0 0 1px rgb(24 32 43 / 0.055), 0 8px 24px -4px rgb(24 32 43 / 0.08), 0 24px 60px -12px rgb(18 32 48 / 0.14);
-  --shadow-modal-value: 0 0 0 1px rgb(24 32 43 / 0.06), 0 12px 32px rgb(24 32 43 / 0.10), 0 32px 72px -20px rgb(18 32 48 / 0.22);
+    0 0 0 1px rgb(15 23 42 / 0.06), 0 6px 18px -2px rgb(15 23 42 / 0.07), 0 20px 40px -8px rgb(15 23 42 / 0.11);
+  --shadow-lg: 0 0 0 1px rgb(15 23 42 / 0.07), 0 10px 28px -4px rgb(15 23 42 / 0.09), 0 28px 64px -12px rgb(15 23 42 / 0.15);
+  --shadow-modal-value: 0 0 0 1px rgb(15 23 42 / 0.08), 0 16px 36px rgb(15 23 42 / 0.14), 0 32px 72px -16px rgb(15 23 42 / 0.24);
 
   /* Product-app type scale. Standardized legible typography. */
   --text-2xs: 0.75rem; /* 12px — fine print / micro-label minimum */
@@ -255,10 +255,10 @@
   --section-y-tablet: 72px;
   --section-y-phone: 48px;
   /* A 2px panel gap then a solid, opaque accent ring. */
-  --focus-ring: 0 0 0 2px var(--color-panel), 0 0 0 3px rgba(49, 92, 255, 0.25);
-  --skeleton-base: #e6e6e6;
+  --focus-ring: 0 0 0 2px var(--color-panel), 0 0 0 4px rgba(49, 92, 255, 0.3);
+  --skeleton-base: #f1f5f9;
   --skeleton-highlight: #ffffff;
-  --value-placeholder: #7a838e;
+  --value-placeholder: #94a3b8;
 }
 
 *,
@@ -277,7 +277,7 @@ body {
   margin: 0;
   min-height: 100dvh;
   background: var(--color-background);
-  color: #18202b;
+  color: var(--color-foreground);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 0.875rem;
   line-height: 1.5;
@@ -295,10 +295,10 @@ body {
   h6 {
     margin: 0;
     font-family: var(--font-plus-jakarta-sans), var(--font-inter), -apple-system, sans-serif;
-    font-weight: 500;
+    font-weight: 600;
     letter-spacing: normal;
     line-height: 1.2;
-    color: #18202b;
+    color: var(--color-foreground);
   }
 
   p {
@@ -321,8 +321,8 @@ body {
 }
 
 ::selection {
-  background: #c9d5ff;
-  color: #18202b;
+  background: #dbeafe;
+  color: #0f172a;
 }
 
 .mono,

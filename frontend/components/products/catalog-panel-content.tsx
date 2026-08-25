@@ -6,10 +6,9 @@ import { Card, CardContent, CardEyebrow } from '@/components/ui/card';
 import { IconChip } from '@/components/ui/icon-chip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
-import type { IntegrationSyncRun } from '@/lib/api/integrations';
 import type { MutationNotice } from '@/lib/api/mutation-notice';
 import type { ProductInput } from '@/lib/api/products';
-import type { CommerceCatalogHealth, Product, ProductImportSummary } from '@/lib/api/types';
+import type { Product, ProductImportSummary } from '@/lib/api/types';
 
 import { CatalogTable } from './catalog-table';
 import { ProductDeleteDialog } from './product-delete-dialog';
@@ -52,9 +51,6 @@ export function CatalogPanelContent({
   loading,
   error,
   onRetry,
-  health,
-  healthPending,
-  syncOverrides,
   formOpen,
   editing,
   importOpen,
@@ -82,9 +78,6 @@ export function CatalogPanelContent({
   loading: boolean;
   error: boolean;
   onRetry: () => void;
-  health: CommerceCatalogHealth | null;
-  healthPending: boolean;
-  syncOverrides: Readonly<Record<string, IntegrationSyncRun>>;
   formOpen: boolean;
   editing: Product | undefined;
   importOpen: boolean;
@@ -145,14 +138,7 @@ export function CatalogPanelContent({
         </div>
       </div>
       {catalog.length ? (
-        <CatalogTable
-          products={catalog}
-          health={health}
-          healthPending={healthPending}
-          syncOverrides={syncOverrides}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
+        <CatalogTable products={catalog} onEdit={onEdit} onDelete={onDelete} />
       ) : (
         <CatalogEmptyState onImport={onOpenImport} onAdd={onOpenAdd} />
       )}

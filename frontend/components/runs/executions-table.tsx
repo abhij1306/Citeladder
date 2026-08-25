@@ -38,37 +38,39 @@ export function ExecutionsTable({
       <TableBody>
         {executions.map((execution) => (
           <TableRow key={execution.id}>
-            <TableCell>
-              <span
-                className="text-foreground block max-w-[42ch] truncate text-sm"
-                title={execution.prompt_text}
-              >
-                {execution.prompt_text || `Prompt #${execution.prompt_index + 1}`}
-              </span>
-              <span className="mono text-muted text-xs">rep {execution.repetition}</span>
+            <TableCell className="max-w-2xl py-3">
+              <div className="flex flex-col gap-1">
+                <span
+                  className="text-foreground text-sm leading-relaxed font-normal break-words"
+                  title={execution.prompt_text}
+                >
+                  {execution.prompt_text || `Prompt #${execution.prompt_index + 1}`}
+                </span>
+                <span className="mono text-muted text-2xs">rep {execution.repetition}</span>
+              </div>
             </TableCell>
-            <TableCell>
-              <span className="text-foreground text-sm">
+            <TableCell className="py-3">
+              <span className="text-foreground text-sm font-medium">
                 {engineLabel(execution.logical_engine)}
               </span>
               <span className="text-muted ml-1.5 text-xs">
                 {transportLabel(execution.transport_provider)}
               </span>
             </TableCell>
-            <TableCell>
+            <TableCell className="py-3">
               <Badge variant="status" value={executionBadgeValue(execution.status)}>
                 {executionStatusLabel(execution.status)}
               </Badge>
             </TableCell>
-            <TableCell numeric className="mono">
+            <TableCell numeric className="mono py-3">
               {execution.latency_ms == null ? '—' : `${execution.latency_ms} ms`}
             </TableCell>
-            <TableCell>
+            <TableCell className="py-3 text-right">
               {execution.status === 'succeeded' ? (
                 <button
                   type="button"
                   onClick={() => onSelectEvidence(execution)}
-                  className="text-accent-text text-sm font-medium hover:underline"
+                  className="text-accent-text hover:text-accent-hover inline-flex items-center gap-1 text-sm font-medium hover:underline"
                 >
                   Evidence
                 </button>

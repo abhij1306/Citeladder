@@ -40,6 +40,7 @@ _ATTRIBUTE_KEYS = {
     "availability": ("availability", "stock_status"),
     "condition": ("condition",),
     "description": ("description", "desc"),
+    "variant_count": ("variant_count", "variants_count"),
 }
 
 _ALIAS_SEPARATORS = ("|", ";")
@@ -176,8 +177,8 @@ def _parse_product_row(
         and index is not None
         and _product_cell(row, index)
     }
-    variant = _product_cell(row, columns["variant"])
     try:
+        variant = _product_cell(row, columns["variant"])
         return ProductInput(
             sku=sku,
             name=_product_cell(row, columns["name"]) or sku,

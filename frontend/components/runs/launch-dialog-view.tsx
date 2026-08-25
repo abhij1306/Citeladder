@@ -168,8 +168,8 @@ export function LaunchDialogView({
           {estimate ? (
             <div className="border-border-subtle bg-well grid gap-1 rounded-lg border p-3 text-xs">
               <span className="text-foreground font-medium">
-                {estimate.execution_count} executions · up to {estimate.maximum_attempt_count}{' '}
-                attempts
+                {estimate.execution_count}{' '}
+                {estimate.execution_count === 1 ? 'response' : 'responses'} planned
               </span>
               <span className="text-muted">
                 Maximum wall-clock budget {estimate.maximum_wall_clock_seconds}s · cost{' '}

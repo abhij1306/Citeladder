@@ -100,21 +100,27 @@ def _identity_is_valid(
 def _filter_commerce_prompts(
     suggestions: list[SuggestedTopic], brand_context: dict[str, Any]
 ) -> list[SuggestedTopic]:
-    """Keep one generic buyer-destination question for each Commerce intent."""
-    all_names = _commerce_product_names(brand_context)
+    """Keep named buyer questions; unnamed category prompts are not measurable."""
     filtered: list[SuggestedTopic] = []
     for topic in suggestions:
-        chosen: dict[str, SuggestedPrompt] = {}
+        all_names = _commerce_product_names(brand_context, category=topic.name)
+        chosen: dict[tuple[str, str], SuggestedPrompt] = {}
         for prompt in topic.prompts:
             intent = prompt.intent
-            if (
-                intent in {"discovery", "comparison"}
-                and intent not in chosen
-                and not contains_tracked_name(prompt.text, all_names)
-            ):
-                chosen[intent] = prompt
+            matched_name = next(
+                (
+                    name
+                    for name in all_names
+                    if contains_tracked_name(prompt.text, [name])
+                ),
+                None,
+            )
+            if intent in {"discovery", "comparison"} and matched_name:
+                chosen.setdefault((matched_name.casefold(), intent), prompt)
         prompts = [
-            chosen[intent] for intent in ("discovery", "comparison") if intent in chosen
+            prompt
+            for key, prompt in chosen.items()
+            if key[1] in {"discovery", "comparison"}
         ]
         if prompts:
             filtered.append(
@@ -150,9 +156,17 @@ def _prompt_is_valid(
     )
 
 
-def _commerce_product_names(brand_context: dict[str, Any]) -> list[str]:
+def _commerce_product_names(
+    brand_context: dict[str, Any], *, category: str | None = None
+) -> list[str]:
     products = brand_context.get("commerce_products", [])
-    return [str(product.get("name") or "") for product in products]
+    category_identity = str(category or "").strip().casefold()
+    return [
+        str(product.get("name") or "")
+        for product in products
+        if not category_identity
+        or str(product.get("category") or "").strip().casefold() == category_identity
+    ]
 
 
 def _drop_invalid_prompts(

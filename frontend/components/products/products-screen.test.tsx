@@ -26,7 +26,6 @@ const enabledCalls = {
   overview: vi.fn(),
   catalog: vi.fn(),
   visibility: vi.fn(),
-  opportunities: vi.fn(),
 };
 vi.mock('@/lib/products/use-products-screen', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/lib/products/use-products-screen')>();
@@ -44,10 +43,6 @@ vi.mock('@/lib/products/use-products-screen', async (importOriginal) => {
       enabledCalls.visibility(enabled);
       return {};
     },
-    useCommerceOpportunities: (_id: string, enabled: boolean) => {
-      enabledCalls.opportunities(enabled);
-      return {};
-    },
   };
 });
 
@@ -57,9 +52,6 @@ vi.mock('./commerce-overview-panel', () => ({
 vi.mock('./catalog-panel', () => ({ CatalogPanel: () => <div data-testid="catalog-panel" /> }));
 vi.mock('./ai-visibility-panel', () => ({
   AiVisibilityPanel: () => <div data-testid="visibility-panel" />,
-}));
-vi.mock('./commerce-opportunities-panel', () => ({
-  CommerceOpportunitiesPanel: () => <div data-testid="opportunities-panel" />,
 }));
 vi.mock('@/components/runs/launch-dialog', () => ({
   LaunchDialog: () => null,
@@ -72,12 +64,12 @@ describe('ProductsScreen tabs', () => {
     urlTab = null;
   });
 
-  it('defaults to Overview and renders the four-tab contract', () => {
+  it('defaults to Overview and renders the three persisted-data tabs', () => {
     render(<ProductsScreen />);
-    expect(screen.getAllByRole('tab')).toHaveLength(4);
+    expect(screen.getAllByRole('tab')).toHaveLength(3);
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'AI Visibility' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Opportunities' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Opportunities' })).not.toBeInTheDocument();
     expect(screen.getByTestId('overview-panel')).toBeInTheDocument();
     expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
   });
@@ -100,11 +92,10 @@ describe('ProductsScreen tabs', () => {
     expect(screen.getByTestId('overview-panel')).toBeInTheDocument();
   });
 
-  it('enables only the active tab query group', () => {
+  it('falls back from the removed opportunities tab and enables only overview queries', () => {
     urlTab = 'opportunities';
     render(<ProductsScreen />);
-    expect(enabledCalls.opportunities).toHaveBeenLastCalledWith(true);
-    expect(enabledCalls.overview).toHaveBeenLastCalledWith(false);
+    expect(enabledCalls.overview).toHaveBeenLastCalledWith(true);
     expect(enabledCalls.catalog).toHaveBeenLastCalledWith(false);
     expect(enabledCalls.visibility).toHaveBeenLastCalledWith(false);
   });

@@ -32,22 +32,27 @@ def _missing_category_message(prompt_set: PromptSet, target_topic: Topic) -> str
 def validate_commerce_payload(
     prompt_set: PromptSet, payload: Any, target_topic: Topic | None
 ) -> None:
-    if payload.count != 2 or set(payload.intents) != {"discovery", "comparison"}:
-        raise GenerationValidationError(
-            "Commerce generation requires exactly two prompts: buyer destination and "
-            "merchant comparison"
-        )
     if target_topic is None:
         raise GenerationValidationError(
             "Commerce generation must target one catalog category topic"
         )
     target_category = target_topic.name.strip().casefold()
-    has_category_product = any(
-        str((product.attributes or {}).get("category") or "").strip().casefold()
-        == target_category
+    category_products = [
+        product
         for product in prompt_set.project.products
-    )
-    if not has_category_product:
+        if str((product.attributes or {}).get("category") or "").strip().casefold()
+        == target_category
+    ]
+    if not category_products:
         raise GenerationValidationError(
             _missing_category_message(prompt_set, target_topic)
+        )
+    expected_count = len(category_products) * 2
+    if payload.count != expected_count or set(payload.intents) != {
+        "discovery",
+        "comparison",
+    }:
+        raise GenerationValidationError(
+            f"Commerce generation requires exactly two named prompts per product "
+            f"in the target category ({expected_count} prompts)"
         )

@@ -219,7 +219,7 @@ async def test_visibility_defaults_to_latest_and_explicit_audit(
     assert body["audit_id"] == str(second.id)
     assert body["project_id"] == str(seed.project_id)
     assert body["audit_status"] == "completed"
-    assert body["product_analyzer_version"] == "product-analysis-2"
+    assert body["product_analyzer_version"] == "product-analysis-3"
     assert body["product_scoring_rule_version"] == "product-scoring-v2"
     # The shopping-surface gate ships empty: only measurement is available.
     # 2 prompts x 1 rep -> 2 executions, each mentioning the uploaded product.
@@ -232,7 +232,7 @@ async def test_visibility_defaults_to_latest_and_explicit_audit(
     assert entry["product_id"] == str(product.id)
     assert entry["sku"] == "AC-VB500"
     assert entry["name"] == "Acme VoltBike 500"
-    assert entry["product_analyzer_version"] == "product-analysis-2"
+    assert entry["product_analyzer_version"] == "product-analysis-3"
     assert entry["mention_count"] == 2
     assert entry["sov_share"] == 1.0
     assert entry["avg_rank"] == 1.0
@@ -387,7 +387,7 @@ async def test_evidence_items_windowing_and_filters(
     assert item["artifact_id"]
     assert item["logical_engine"] == ENGINE_GEMINI
     assert item["transport_model"]
-    assert item["product_analyzer_version"] == "product-analysis-2"
+    assert item["product_analyzer_version"] == "product-analysis-3"
     assert item["prompt_text"].startswith("best option")
     assert item["matched_name"] == "Acme VoltBike 500"
     assert item["matched_sku"] == "AC-VB500"
@@ -541,7 +541,7 @@ async def test_export_csv_download(
     assert {row["engine"] for row in own_rows} == {"all", ENGINE_GEMINI}
     assert all(row["audit_id"] == str(audit.id) for row in rows)
     # v2 provenance + metrics on every row; surface stays measurement ("").
-    assert all(row["product_analyzer_version"] == "product-analysis-2" for row in rows)
+    assert all(row["product_analyzer_version"] == "product-analysis-3" for row in rows)
     own_overall = next(row for row in own_rows if row["engine"] == "all")
     assert float(own_overall["win_rate"]) == 1.0
     # Zero mismatch is an explicit 0.0 cell, not a blank.

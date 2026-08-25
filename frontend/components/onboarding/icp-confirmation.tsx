@@ -73,9 +73,9 @@ export function IcpConfirmation({
   const [isOther, setIsOther] = useState(() => !choices.includes(profile.category));
 
   return (
-    <>
+    <div className="divide-border-subtle divide-y">
       <ReviewSection title="What you sell" emphasis>
-        <p className="website-label text-subtle -mt-1">
+        <p className="website-label text-muted -mt-1 mb-1">
           Your competitors and tracked questions are built from this.
         </p>
         <ChipRow>
@@ -94,7 +94,7 @@ export function IcpConfirmation({
           {/* Separated from the suggestions: an escape hatch is not a fourth
               peer option, and reading it as one made a wrong guess look like a
               menu the right answer was simply missing from. */}
-          <span aria-hidden className="bg-border mx-1 h-5 w-px" />
+          <span aria-hidden className="bg-border-strong mx-1.5 h-4 w-px self-center" />
           <ChoiceChip
             name="category"
             label={choices.length > 0 ? 'None of these' : 'Other'}
@@ -111,13 +111,16 @@ export function IcpConfirmation({
         </ChipRow>
 
         {isOther ? (
-          <Input
-            autoFocus
-            aria-label="Describe what you sell"
-            value={choices.includes(profile.category) ? '' : profile.category}
-            onChange={(event) => update('category', event.target.value)}
-            placeholder="e.g. ecommerce implementation agency"
-          />
+          <div className="pt-1">
+            <Input
+              autoFocus
+              aria-label="Describe what you sell"
+              value={choices.includes(profile.category) ? '' : profile.category}
+              onChange={(event) => update('category', event.target.value)}
+              placeholder="e.g. ecommerce implementation agency"
+              className="max-w-md shadow-2xs"
+            />
+          </div>
         ) : null}
       </ReviewSection>
 
@@ -148,6 +151,6 @@ export function IcpConfirmation({
           ))}
         </ChipRow>
       </ReviewSection>
-    </>
+    </div>
   );
 }

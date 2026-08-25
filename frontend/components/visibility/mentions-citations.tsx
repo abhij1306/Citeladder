@@ -9,15 +9,25 @@ import {
   EvidenceFilteredEmpty,
   EvidenceSkeleton,
   ExecutionHeader,
-  ProvenanceDisclosure,
   TruncationNotice,
   type EvidenceTabProps,
 } from '@/components/visibility/evidence-states';
+import { ExternalLink } from 'lucide-react';
 import { classificationBadgeValue, classificationLabel } from '@/lib/runs/status';
 import type { VisibilityExecutionEvidence } from '@/lib/api/types';
 import { totalCitationCount, totalMentionCount } from '@/lib/visibility/evidence';
 
 const TITLE = 'Mentions & Citations';
+
+function safeUrl(value?: string): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Mentions & Citations tab — persisted brand/competitor mention rows and
@@ -78,7 +88,7 @@ export function MentionsCitations({ query, isFiltered, onClearFilters, limit }: 
         </Badge>
       </CardHeader>
       <CardContent className="grid gap-0 p-0">
-        <ul className="divide-border-subtle grid divide-y">
+        <ul className="divide-border-subtle divide-y">
           {withEvidence.map((item) => (
             <ExecutionEvidenceRow key={item.analysis_id} item={item} />
           ))}
@@ -91,9 +101,9 @@ export function MentionsCitations({ query, isFiltered, onClearFilters, limit }: 
 
 function ExecutionEvidenceRow({ item }: Readonly<{ item: VisibilityExecutionEvidence }>) {
   return (
-    <li className="grid gap-3 px-[var(--card-padding)] py-4">
-      <div className="grid gap-1">
-        <p className="text-foreground text-sm font-medium">
+    <li className="hover:bg-panel-tonal/40 grid gap-3.5 px-5 py-4 transition-colors">
+      <div className="border-border-subtle bg-well/20 grid gap-1.5 rounded-md border p-3">
+        <p className="text-foreground text-sm leading-relaxed font-medium">
           {item.prompt_text || 'Untitled prompt'}
         </p>
         <ExecutionHeader item={item} />
@@ -119,28 +129,49 @@ function ExecutionEvidenceRow({ item }: Readonly<{ item: VisibilityExecutionEvid
       {item.citations.length > 0 ? (
         <div className="grid gap-1.5">
           <p className={eyebrowClasses}>Citations</p>
-          <ul className="border-border-subtle divide-border-subtle grid divide-y border-t">
-            {item.citations.map((citation) => (
-              <li
-                key={`${item.analysis_id}-${citation.ordinal}-${citation.url}`}
-                className="flex items-center justify-between gap-3 py-1.5"
-              >
-                <span className="text-secondary min-w-0 truncate text-xs">
-                  {citation.title?.trim() || citation.domain || citation.url}
-                </span>
-                <Badge
-                  variant="classification"
-                  value={classificationBadgeValue(citation.classification)}
+          <ul className="divide-border-subtle border-border-subtle bg-panel divide-y rounded-md border">
+            {item.citations.map((citation) => {
+              const href = safeUrl(citation.url);
+              return (
+                <li
+                  key={`${item.analysis_id}-${citation.ordinal}-${citation.url}`}
+                  className="flex items-center justify-between gap-3 px-3 py-2"
                 >
-                  {classificationLabel(citation.classification)}
-                </Badge>
-              </li>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    {href ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-foreground hover:text-accent-text inline-flex max-w-full items-center gap-1.5 text-xs font-medium transition-colors hover:underline"
+                      >
+                        <span className="truncate">
+                          {citation.title?.trim() || citation.domain || citation.url}
+                        </span>
+                        <ExternalLink className="size-3 shrink-0" aria-hidden />
+                      </a>
+                    ) : (
+                      <span className="text-foreground block truncate text-xs font-medium">
+                        {citation.title?.trim() || citation.domain || citation.url}
+                      </span>
+                    )}
+                    {citation.domain && citation.title ? (
+                      <span className="text-muted text-2xs block truncate">{citation.domain}</span>
+                    ) : null}
+                  </div>
+                  <Badge
+                    className="shrink-0"
+                    variant="classification"
+                    value={classificationBadgeValue(citation.classification)}
+                  >
+                    {classificationLabel(citation.classification)}
+                  </Badge>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ) : null}
-
-      <ProvenanceDisclosure item={item} />
     </li>
   );
 }

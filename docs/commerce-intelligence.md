@@ -16,24 +16,21 @@ knowledge store, or product architecture.
 
 ## Commerce Suite
 
-`/products` ships one four-tab contract:
+`/products` ships one three-tab contract:
 
 1. **Overview** — guided catalog → category prompt → Commerce audit workflow,
-   followed by persisted product/category KPIs and actions.
-2. **Catalog** — product add, import, edit, delete, completeness, and feed
-   health.
+   followed by persisted product/category KPIs.
+2. **Catalog** — product add, import, edit, delete, completeness, INR price,
+   and variant-count facts. Integration origin, feed-health, and sync metadata
+   are not presented as catalog insight.
 3. **AI Visibility** — per-SKU visibility and average position alongside
    category-level brand presence, configured-competitor mentions, and cited
    source classification.
-4. **Opportunities** — the shared Opportunity API filtered to
-   `opportunity_type=commerce`; review confirmation is browser-only and does
-   not mutate a provider or create a second recommendation store.
-
 CSV categories are authoritative. Commerce reuses one prompt set, one topic per
-category, and exactly two generated prompts per category: generic discovery and
-merchant/platform comparison. The deterministic pair asks where the category
-can be bought online and which store or marketplace is best; neither question
-names an uploaded product or assumes a specific merchant. The Commerce
+category, and exactly two generated prompts per product: buyer destination and
+alternatives comparison. Both deterministic questions name the persisted
+product so the returned response can be measured for product, brand,
+competitor, destination, and citation presence without assuming a merchant. The Commerce
 generation action does not configure or call the application model. Commerce
 audits are isolated by `audit_scope` and freeze uploaded product URL domains.
 Category projections expose persisted tracked-brand response presence and
@@ -42,7 +39,7 @@ analyzer's brand, competitor, or third-party classification and matched
 competitor name where available; they are never matched competitor SKUs. A
 retrieval-enabled answer can truthfully have no citations.
 
-Commerce emits only three deterministic action types: an uploaded product was
+The shared Opportunity owner may emit three deterministic Commerce action types: an uploaded product was
 absent, third-party category citations appeared while uploaded products and
 destinations were absent, or catalog fields were missing.
 

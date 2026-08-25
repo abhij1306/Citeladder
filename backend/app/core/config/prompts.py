@@ -51,11 +51,13 @@ TOPIC_ORIGINS: Final[frozenset[str]] = frozenset(
 )
 
 # --- Generation pipeline version (stamped into generation_evidence) --------
-GENERATOR_VERSION: Final = "prompt-gen-v16"
+GENERATOR_VERSION: Final = "prompt-gen-v17"
 COMMERCE_VALIDATION_SKU_PREVIEW_LIMIT: Final = 10
-COMMERCE_BUYER_DESTINATION_PROMPT_TEMPLATE: Final = "Where can I buy {category} online?"
+COMMERCE_BUYER_DESTINATION_PROMPT_TEMPLATE: Final = (
+    "Where can I buy {product_name} online?"
+)
 COMMERCE_MERCHANT_COMPARISON_PROMPT_TEMPLATE: Final = (
-    "Which online store or marketplace is best for buying {category}?"
+    "What are the best alternatives to {product_name} in {category}?"
 )
 
 # Open-vocabulary confirmed onboarding fields that can ground generated prompt

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.analysis.product_scoring import extract_price_mentions
 from app.core.config.http import IMPORT_MAX_CELL_CHARS, IMPORT_MAX_COLUMNS
 from app.core.config.products import PRODUCT_IMPORT_MAX_ROWS
 from app.domain.products.csv_import import ProductCsvError, parse_product_csv
@@ -69,6 +70,30 @@ def test_parse_attribute_columns_fold_into_attributes() -> None:
         "availability": "In stock",
     }
     assert row.variants[0].name == "Graphite / Standard"
+
+
+def test_parse_variant_count_as_catalog_attribute() -> None:
+    csv_text = (
+        "name,sku,variant,variant_count,currency\nPhone One,P1,Black 128 GB,5,INR\n"
+    )
+
+    result = parse_product_csv(csv_text)
+
+    assert result.errors == []
+    _, row = result.rows[0]
+    assert [variant.name for variant in row.variants] == ["Black 128 GB"]
+    assert row.attributes["variant_count"] == "5"
+
+
+def test_product_price_extraction_supports_inr_markers() -> None:
+    answer = "Apple iPhone 16 is listed at ₹75,900 and another seller shows 75900 INR."
+
+    mentions = extract_price_mentions(answer, answer.index("Apple"))
+
+    assert [(row["value"], row["currency"]) for row in mentions] == [
+        (75900.0, "INR"),
+        (75900.0, "INR"),
+    ]
 
 
 def test_parse_aliases_and_price_tolerances() -> None:

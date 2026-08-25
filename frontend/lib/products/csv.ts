@@ -31,6 +31,7 @@ const ATTRIBUTE_KEYS: Record<string, Set<string>> = {
   availability: new Set(['availability', 'stock_status']),
   condition: new Set(['condition']),
   description: new Set(['description', 'desc']),
+  variant_count: new Set(['variant_count', 'variants_count']),
 };
 
 const ALIAS_SEPARATORS = ['|', ';'];

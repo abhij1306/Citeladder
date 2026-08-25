@@ -12,37 +12,39 @@
  */
 
 export const statusBadge = {
-  success: 'bg-success-bg text-success-text',
-  warning: 'bg-warning-bg text-warning-text',
-  danger: 'bg-danger-bg text-danger-text',
-  info: 'bg-info-bg text-info-text',
+  success: 'bg-success-bg text-success-text border border-success-border/60',
+  warning: 'bg-warning-bg text-warning-text border border-warning-border/60',
+  danger: 'bg-danger-bg text-danger-text border border-danger-border/60',
+  info: 'bg-info-bg text-info-text border border-info-border/60',
 } as const;
 
 export const sentimentBadge = {
-  positive: 'bg-sentiment-positive-bg text-sentiment-positive-text',
-  neutral: 'bg-sentiment-neutral-bg text-sentiment-neutral-text',
-  negative: 'bg-sentiment-negative-bg text-sentiment-negative-text',
+  positive: 'bg-sentiment-positive-bg text-sentiment-positive-text border border-success-border/50',
+  neutral: 'bg-sentiment-neutral-bg text-sentiment-neutral-text border border-border',
+  negative: 'bg-sentiment-negative-bg text-sentiment-negative-text border border-danger-border/50',
 } as const;
 
 export const classificationBadge = {
-  owned: 'bg-citation-owned-bg text-citation-owned-text',
-  competitor: 'bg-citation-competitor-bg text-citation-competitor-text',
-  'third-party': 'bg-citation-third-party-bg text-citation-third-party-text',
+  owned: 'bg-citation-owned-bg text-citation-owned-text border border-citation-owned-border/60',
+  competitor:
+    'bg-citation-competitor-bg text-citation-competitor-text border border-citation-competitor-border/60',
+  'third-party':
+    'bg-citation-third-party-bg text-citation-third-party-text border border-citation-third-party-border/60',
 } as const;
 
 export const runStatusBadge = {
-  draft: 'bg-run-draft-bg text-run-draft',
-  queued: 'bg-run-queued-bg text-run-queued',
-  running: 'bg-run-running-bg text-run-running',
-  paused: 'bg-run-queued-bg text-run-queued',
-  analyzing: 'bg-run-analyzing-bg text-run-analyzing',
-  completed: 'bg-run-completed-bg text-run-completed',
-  partial: 'bg-run-partial-bg text-run-partial',
-  failed: 'bg-run-failed-bg text-run-failed',
-  cancelled: 'bg-run-cancelled-bg text-run-cancelled',
+  draft: 'bg-run-draft-bg text-run-draft border border-border',
+  queued: 'bg-run-queued-bg text-run-queued border border-border',
+  running: 'bg-run-running-bg text-run-running border border-accent-border/60',
+  paused: 'bg-run-queued-bg text-run-queued border border-border',
+  analyzing: 'bg-run-analyzing-bg text-run-analyzing border border-purple-200',
+  completed: 'bg-run-completed-bg text-run-completed border border-success-border/60',
+  partial: 'bg-run-partial-bg text-run-partial border border-warning-border/60',
+  failed: 'bg-run-failed-bg text-run-failed border border-danger-border/60',
+  cancelled: 'bg-run-cancelled-bg text-run-cancelled border border-border',
 } as const;
 
-export const neutralBadge = 'bg-neutral-bg text-secondary';
+export const neutralBadge = 'bg-neutral-bg text-secondary border border-border';
 
 export type StatusValue = keyof typeof statusBadge;
 export type SentimentValue = keyof typeof sentimentBadge;

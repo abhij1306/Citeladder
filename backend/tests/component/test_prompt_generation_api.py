@@ -294,7 +294,7 @@ async def test_generate_persists_provenance_evidence(
     for prompt in prompts:
         evidence = prompt.generation_evidence
         assert evidence is not None
-        assert evidence["generator_version"] == "prompt-gen-v16"
+        assert evidence["generator_version"] == "prompt-gen-v17"
         assert evidence["generation_mode"] == "model"
         assert evidence["model_identity"] == {
             "transport_host": "agent.test",
@@ -351,7 +351,7 @@ async def test_commerce_generation_is_catalog_derived_without_an_agent(
     response = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
         json={
-            "count": 2,
+            "count": 4,
             "topic_id": topic_id,
             "intents": ["discovery", "comparison"],
             "cohort": "commerce",
@@ -362,11 +362,16 @@ async def test_commerce_generation_is_catalog_derived_without_an_agent(
     generated = response.json()["generated"]
     assert [(row["text"], row["intent"]) for row in generated] == [
         (
-            "Where can I buy headphones online?",
+            "Where can I buy Bose QuietComfort Ultra online?",
             "discovery",
         ),
         (
-            "Which online store or marketplace is best for buying headphones?",
+            "What are the best alternatives to Bose QuietComfort Ultra in headphones?",
+            "comparison",
+        ),
+        ("Where can I buy Sony WH-1000XM6 online?", "discovery"),
+        (
+            "What are the best alternatives to Sony WH-1000XM6 in headphones?",
             "comparison",
         ),
     ]

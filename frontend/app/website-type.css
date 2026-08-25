@@ -255,6 +255,28 @@
   line-height: 1.5;
 }
 
+.app-type-scale :where(.website-feature-heading) {
+  font-size: 1.25rem;
+  line-height: 1.625rem;
+  letter-spacing: -0.02em;
+}
+
+.app-type-scale :where(.website-small-heading) {
+  font-size: 1.0625rem;
+  line-height: 1.375rem;
+  letter-spacing: -0.01em;
+}
+
+.app-type-scale :where(.website-body) {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.app-type-scale :where(.website-label) {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+}
+
 @media (min-width: 768px) {
   .website-type {
     --text-2xl: 2.5rem;

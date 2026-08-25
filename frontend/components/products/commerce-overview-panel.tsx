@@ -58,10 +58,17 @@ function categoryPromptsAreComplete(
     (item) => categoryIdentity(item.name) === categoryIdentity(category),
   );
   if (!topic) return false;
-  const intents = new Set(
-    prompts.filter((prompt) => prompt.topic_id === topic.id).map((prompt) => prompt.intent),
+  const categoryProducts = (queries.productsQuery.data ?? []).filter(
+    (product) => categoryIdentity(product.attributes.category) === categoryIdentity(category),
   );
-  return intents.has('discovery') && intents.has('comparison');
+  const categoryPrompts = prompts.filter((prompt) => prompt.topic_id === topic.id);
+  return categoryProducts.every((product) => {
+    const namedPrompts = categoryPrompts.filter((prompt) =>
+      prompt.text.toLocaleLowerCase().includes(product.name.toLocaleLowerCase()),
+    );
+    const intents = new Set(namedPrompts.map((prompt) => prompt.intent));
+    return intents.has('discovery') && intents.has('comparison');
+  });
 }
 
 function promptsAreComplete(queries: OverviewQueries) {
@@ -83,7 +90,7 @@ function PromptSetup({ queries }: Readonly<{ queries: OverviewQueries }>) {
       <EmptyState
         icon={Sparkles}
         heading="Generate product visibility prompts"
-        description={`Create one buyer-destination and one merchant comparison prompt for each of ${queries.categories.length} catalog categories.`}
+        description="Create one buyer-destination and one alternatives prompt for every catalog product. Each question names the product buyers are researching."
         action={
           <Button
             onClick={() => queries.generatePromptsMutation.mutate({})}
@@ -164,7 +171,7 @@ export function CommerceOverviewPanel({
         <EmptyState
           icon={Play}
           heading="Run your first Commerce visibility audit"
-          description="Review the generated category prompts, then launch the citation-capable Commerce audit."
+          description="Review the product-named buyer prompts, then launch the citation-capable Commerce audit."
           action={<Button onClick={onLaunchAudit}>Launch Commerce audit</Button>}
         />
       </div>
@@ -257,16 +264,6 @@ export function CommerceOverviewPanel({
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recommended actions</CardTitle>
-          <CardDescription>Deterministic opportunities tied to product evidence.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2 text-sm">
-          <RecommendedActions query={queries.opportunitiesQuery} onSelectTab={onSelectTab} />
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -280,7 +277,7 @@ function CommercePrompts({ queries }: Readonly<{ queries: OverviewQueries }>) {
         <div>
           <CardTitle>Commerce Product Visibility prompts</CardTitle>
           <CardDescription>
-            Read-only prompts generated from authoritative catalog categories.
+            Read-only buyer questions generated from persisted product names and categories.
           </CardDescription>
         </div>
         <Button
@@ -332,40 +329,6 @@ function CommercePrompts({ queries }: Readonly<{ queries: OverviewQueries }>) {
         ) : null}
       </CardContent>
     </Card>
-  );
-}
-
-function RecommendedActions({
-  query,
-  onSelectTab,
-}: Readonly<{
-  query: OverviewQueries['opportunitiesQuery'];
-  onSelectTab: (tab: ProductsTab) => void;
-}>) {
-  // Loading and failure are answered before absence: an unresolved or failed
-  // request carries no items, and reporting that as "no open actions" would
-  // state a fact about the catalog that was never observed.
-  if (query.isLoading) return <p className="text-secondary">Loading Commerce actions…</p>;
-  if (query.isError) return <Alert tone="danger">Could not load Commerce actions.</Alert>;
-  if (!query.data) return <p className="text-muted">Commerce actions are unavailable.</p>;
-  const opportunities = query.data.items;
-  if (!opportunities.length) return <p className="text-muted">No open Commerce actions.</p>;
-  return (
-    <div className="grid gap-2">
-      {opportunities.slice(0, 3).map((opportunity) => (
-        <button
-          key={opportunity.id}
-          className="hover:bg-panel-tonal border-border-subtle flex items-center justify-between rounded-md border p-2.5 text-left transition-colors"
-          type="button"
-          onClick={() => onSelectTab('opportunities')}
-        >
-          <span className="text-foreground font-medium">{opportunity.title}</span>
-          <span className="bg-well text-muted rounded px-2 py-0.5 text-xs">
-            {opportunity.target_label ?? 'Catalog'}
-          </span>
-        </button>
-      ))}
-    </div>
   );
 }
 

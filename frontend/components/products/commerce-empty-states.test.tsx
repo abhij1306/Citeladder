@@ -25,7 +25,6 @@ describe('Commerce first-run states', () => {
           {
             productsQuery: { isLoading: false, isError: false, data: [] },
             visibilityQuery: missingVisibility,
-            opportunitiesQuery: { data: undefined },
           } as never
         }
         onSelectTab={onSelectTab}
@@ -73,13 +72,18 @@ describe('Commerce first-run states', () => {
             productsQuery: {
               isLoading: false,
               isError: false,
-              data: [{ id: 'product-1', attributes: { category: 'Books' } }],
+              data: [
+                {
+                  id: 'product-1',
+                  name: 'Evidence Handbook',
+                  attributes: { category: 'Books' },
+                },
+              ],
             },
             visibilityQuery: {
               ...missingVisibility,
               error: new ApiError('Server error', 500, '{}'),
             },
-            opportunitiesQuery: { data: undefined },
             missingCategorySkus: [],
             categories: ['Books'],
             topicsQuery: { data: [{ id: 'topic-books', name: 'Books' }] },
@@ -91,6 +95,7 @@ describe('Commerce first-run states', () => {
                   cohort: 'commerce',
                   status: 'active',
                   intent: 'discovery',
+                  text: 'Where can I buy Evidence Handbook online?',
                 },
                 {
                   id: 'prompt-comparison',
@@ -98,6 +103,7 @@ describe('Commerce first-run states', () => {
                   cohort: 'commerce',
                   status: 'active',
                   intent: 'comparison',
+                  text: 'What are the best alternatives to Evidence Handbook in books?',
                 },
               ],
             },

@@ -42,7 +42,7 @@ export function ReviewSection({
 }>) {
   return (
     <section className="space-y-1.5 py-2.5 first:pt-0 last:pb-0">
-      <div className="flex min-h-5 items-center justify-between gap-3">
+      <div className="flex min-h-5 items-center justify-between gap-2">
         {/* `website-label` — 14px, the screen's baseline, and the named role
             rather than a raw size. Section titles are structure, not display
             type: a heading two steps up the scale made a four-question form
@@ -57,7 +57,9 @@ export function ReviewSection({
           {title}
         </h2>
         <div className="flex shrink-0 items-center gap-2">
-          {meta ? <span className="text-subtle text-xs tabular-nums">{meta}</span> : null}
+          {meta ? (
+            <span className="text-muted text-xs font-medium tabular-nums">{meta}</span>
+          ) : null}
           {action}
         </div>
       </div>
@@ -80,10 +82,11 @@ export function ChipRow({ children }: Readonly<{ children: React.ReactNode }>) {
  * moved out from under the cursor.
  */
 const chipBase =
-  'group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm leading-5 transition-colors';
-const chipSelected = 'border-accent bg-accent-subtle text-foreground font-medium';
+  'group inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium leading-tight transition-all duration-150 select-none';
+const chipSelected =
+  'border-accent bg-accent-subtle text-accent-text font-semibold shadow-xs ring-1 ring-accent/30';
 const chipIdle =
-  'border-border-strong/70 text-muted hover:border-border-bold hover:text-foreground';
+  'border-border bg-panel text-secondary hover:border-accent/50 hover:bg-background-alt hover:text-foreground shadow-2xs';
 
 function ChipMark({ selected, idle }: Readonly<{ selected: boolean; idle?: React.ReactNode }>) {
   return (
@@ -162,7 +165,7 @@ export function ToggleChip({
       >
         <ChipMark
           selected={selected}
-          idle={<Plus className="size-3.5 opacity-50 group-hover:opacity-100" />}
+          idle={<Plus className="size-3.5 opacity-40 group-hover:opacity-90" />}
         />
         {/* The visible label IS the accessible name, and `aria-pressed` carries
             the state. An `aria-label` of "Include Peer 6" moved the state into
@@ -176,7 +179,7 @@ export function ToggleChip({
           type="button"
           onClick={onEdit}
           aria-label={editLabel ?? `Edit ${label}`}
-          className="text-subtle hover:text-foreground hover:bg-active shrink-0 cursor-pointer rounded-full p-1 transition-colors"
+          className="text-muted hover:text-foreground hover:bg-accent-soft shrink-0 cursor-pointer rounded-full p-1 transition-colors"
         >
           <Pencil className="size-3" aria-hidden />
         </button>

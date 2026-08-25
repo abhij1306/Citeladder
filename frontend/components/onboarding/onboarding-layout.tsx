@@ -24,9 +24,9 @@ const STEPS = [
  * leaves 54px (3.375rem), which holds at every width above the 900px split.
  */
 export const STEP_MAIN_ALIGNMENT = [
-  'justify-start min-[900px]:pt-[3.375rem]',
-  'justify-start min-[900px]:pt-[3.375rem]',
-  'justify-center',
+  'justify-start min-[900px]:pt-6 xl:pt-8',
+  'justify-start min-[900px]:pt-6 xl:pt-8',
+  'justify-start min-[900px]:pt-6 xl:pt-8',
 ] as const;
 
 function StepMarker({ index, step }: Readonly<{ index: number; step: OnboardingStep }>) {
