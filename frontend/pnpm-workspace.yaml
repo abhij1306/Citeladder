@@ -8,8 +8,9 @@ allowBuilds:
 # signatures) weaken between updates.
 #
 # NOTE: `minimumReleaseAge` (a 7-day quarantine on freshly published versions)
-# was removed at the maintainer's request. Newly published versions are now
-# installed immediately, with no maturity window.
+# was removed at the maintainer's request. pnpm 11 defaults this setting to one
+# day, so keep the immediate-install decision explicit.
+minimumReleaseAge: 0
 trustPolicy: no-downgrade
 # Skip the downgrade check for releases older than ~1 year — they predate
 # widespread provenance publishing and trip the check for benign reasons.
