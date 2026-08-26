@@ -158,11 +158,10 @@ def _fake_google(monkeypatch: pytest.MonkeyPatch) -> _FakeGoogle:
     monkeypatch.setattr(
         integration_oauth,
         "build_oauth_client",
-        lambda transport_kind, *, transport=None, provider_account_ref="": (
+        lambda transport_kind, *, transport=None: (
             integration_oauth.IntegrationOAuthClient(
                 transport_kind,
                 transport=fake.transport,
-                provider_account_ref=provider_account_ref,
             )
         ),
     )

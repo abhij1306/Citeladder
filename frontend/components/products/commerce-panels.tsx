@@ -6,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input, Textarea } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -24,97 +24,20 @@ type Queries = ReturnType<typeof useCommerceQueries>;
 const percentage = (value: number | null) =>
   value == null ? 'Unavailable' : `${(value * 100).toFixed(1)}%`;
 
-export function CatalogPanel({
-  projectId,
-  query,
-}: {
-  projectId: string;
-  query: Queries['catalog'];
-}) {
-  const client = useQueryClient();
-  const [result, setResult] = useState('');
-  const mutation = useMutation({
-    mutationFn: async (file: File) =>
-      commerceApi.importCatalog(projectId, await file.text(), file.name),
-    onSuccess: async (data) => {
-      setResult(
-        `${data.created} created, ${data.updated} updated, ${data.unchanged} unchanged, ${data.rejected} rejected.`,
-      );
-      await client.invalidateQueries({ queryKey: queryKeys.commerce.catalog(projectId) });
-    },
-  });
-  if (query.isLoading) return <p>Loading persisted catalog…</p>;
-  if (query.isError || !query.data)
-    return <Alert tone="danger">The catalog could not be loaded.</Alert>;
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Canonical product catalog</CardTitle>
-        <CardDescription>
-          Site Health observations project automatically. CSV and explicit edits retain field-level
-          authority.
-        </CardDescription>
-        <Input
-          aria-label="Import catalog CSV"
-          type="file"
-          accept=".csv,text/csv"
-          disabled={mutation.isPending}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) mutation.mutate(file);
-          }}
-        />
-        {result ? <p className="text-secondary text-sm">{result}</p> : null}
-        {mutation.isError ? <Alert tone="danger">The catalog import failed.</Alert> : null}
-      </CardHeader>
-      <CardContent>
-        <p className="text-secondary mb-3 text-sm">
-          {query.data.categories.length} categories · {query.data.products.length} products
-        </p>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Product</TableHead>
-              <TableHead>Brand</TableHead>
-              <TableHead>Price</TableHead>
-              <TableHead>Identity</TableHead>
-              <TableHead>Sources</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {query.data.products.map((product) => (
-              <TableRow key={product.id}>
-                <TableCell>
-                  <a className="text-link" href={product.canonical_url}>
-                    {product.name || product.canonical_url}
-                  </a>
-                </TableCell>
-                <TableCell>{product.brand || 'Unknown'}</TableCell>
-                <TableCell>
-                  {product.price == null ? 'Unknown' : `${product.currency} ${product.price}`}
-                </TableCell>
-                <TableCell>{product.gtin || product.sku || product.mpn || 'URL'}</TableCell>
-                <TableCell>{Object.keys(product.field_sources).length}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-  );
-}
-
 function TargetSelect({
+  label,
   targets,
   value,
   onChange,
 }: {
+  label: string;
   targets: Array<{ label: string; target: CommerceTarget }>;
   value: string;
   onChange: (value: string) => void;
 }) {
   return (
     <select
+      aria-label={label}
       className="bg-input h-8 rounded-sm border px-2 text-sm"
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -173,6 +96,7 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
         {current ? (
           <div className="flex gap-2">
             <TargetSelect
+              label="Competitor discovery target"
               targets={targets}
               value={`${current.target.kind}:${current.target.id}`}
               onChange={setSelected}
@@ -276,6 +200,7 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
         {current ? (
           <>
             <TargetSelect
+              label="Buyer prompt target"
               targets={targets}
               value={`${current.target.kind}:${current.target.id}`}
               onChange={setSelected}
@@ -310,36 +235,57 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
         ) : null}
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Prompt</TableHead>
-              <TableHead>Target</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Approval</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(queries.buyerPrompts.data ?? []).map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>{row.text}</TableCell>
-                <TableCell>{row.target.kind}</TableCell>
-                <TableCell>{row.enabled ? 'Approved' : 'Draft'}</TableCell>
-                <TableCell>
-                  <Button
-                    size="sm"
-                    disabled={manual.isPending || generate.isPending || decide.isPending}
-                    onClick={() => decide.mutate({ id: row.id, approved: !row.enabled })}
-                  >
-                    {row.enabled ? 'Disable' : 'Approve'}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <BuyerPromptsContent
+          query={queries.buyerPrompts}
+          actionPending={manual.isPending || generate.isPending || decide.isPending}
+          onToggle={(id, approved) => decide.mutate({ id, approved })}
+        />
       </CardContent>
     </Card>
+  );
+}
+
+function BuyerPromptsContent({
+  query,
+  actionPending,
+  onToggle,
+}: {
+  query: Queries['buyerPrompts'];
+  actionPending: boolean;
+  onToggle: (id: string, approved: boolean) => void;
+}) {
+  if (query.isError) return <Alert tone="danger">Buyer prompts could not be loaded.</Alert>;
+  if (query.isPending) return <p>Loading persisted buyer prompts…</p>;
+  if (!query.isSuccess) return null;
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Prompt</TableHead>
+          <TableHead>Target</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Approval</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {query.data.map((row) => (
+          <TableRow key={row.id}>
+            <TableCell>{row.text}</TableCell>
+            <TableCell>{row.target.kind}</TableCell>
+            <TableCell>{row.enabled ? 'Approved' : 'Draft'}</TableCell>
+            <TableCell>
+              <Button
+                size="sm"
+                disabled={actionPending}
+                onClick={() => onToggle(row.id, !row.enabled)}
+              >
+                {row.enabled ? 'Disable' : 'Approve'}
+              </Button>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 

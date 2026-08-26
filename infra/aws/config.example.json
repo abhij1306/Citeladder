@@ -24,7 +24,6 @@
   "backendOrigin": "http://api:8000",
   "integrationGoogleClientId": "",
   "integrationMicrosoftClientId": "",
-  "integrationShopifyClientId": "",
   "billingRazorpayKeyId": "",
   "defaultAgentBaseUrl": "",
   "defaultAgentModel": "",

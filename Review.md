@@ -262,7 +262,7 @@ Rendering an `<h1>` tag in shared app shells (`PageHeader`) as well as in specif
 
 ---
 
-### 5. External Integrations (Razorpay, Shopify, LLM Providers)
+### 5. External Integrations (Razorpay and LLM Providers)
 
 #### 🚨 Recurring Anti-Pattern: Narrow Webhook Exception Handling
 Catching only generic `InvalidWebhookError` in webhook endpoint handlers while domain logic raises specific exceptions like `BillingConflictError` or `WorkspaceNotFoundError`. This causes valid webhook calls to crash with uncaught HTTP 500 errors.

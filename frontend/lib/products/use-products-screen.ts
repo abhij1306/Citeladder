@@ -27,6 +27,7 @@ export function useCommerceQueries(projectId: string, tab: ProductsTab) {
     queryFn: ({ signal }) => commerceApi.catalog(projectId, { signal }),
     enabled:
       Boolean(projectId) && (tab === 'catalog' || tab === 'competitors' || tab === 'buyer-prompts'),
+    refetchInterval: tab === 'catalog' ? ACTIVE_RUN_POLL_MS : false,
   });
   const competitors = useQuery({
     queryKey: queryKeys.commerce.competitors(projectId),

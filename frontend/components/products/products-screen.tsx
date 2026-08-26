@@ -6,7 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useProjectContext } from '@/lib/project/project-context';
 import { useCommerceQueries, useProductsTab } from '@/lib/products/use-products-screen';
 
-import { BuyerPromptsPanel, CatalogPanel, CompetitorsPanel, ShelfPanel } from './commerce-panels';
+import { CatalogPanel } from './catalog-panel';
+import { BuyerPromptsPanel, CompetitorsPanel, ShelfPanel } from './commerce-panels';
 import { ProductsTabs } from './products-tabs';
 
 export function ProductsScreenSkeleton() {

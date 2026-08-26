@@ -8,7 +8,6 @@ from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_BING,
     INTEGRATION_PROVIDER_GA4,
     INTEGRATION_PROVIDER_GSC,
-    INTEGRATION_PROVIDER_SHOPIFY,
 )
 from app.core.config.task_queue import ERROR_MAX_ATTEMPTS, PostgresQueueSpec
 
@@ -59,17 +58,10 @@ def _bing_client_builder(*, transport: Any = None) -> Any:
     return build_bing_client(transport=transport)
 
 
-def _shopify_client_builder(*, transport: Any = None) -> Any:
-    from app.connectors.integrations.shopify import build_shopify_client
-
-    return build_shopify_client(transport=transport)
-
-
 INTEGRATION_CLIENT_BUILDERS: Final[dict[str, Callable[..., Any]]] = {
     INTEGRATION_PROVIDER_GSC: _gsc_client_builder,
     INTEGRATION_PROVIDER_GA4: _ga4_client_builder,
     INTEGRATION_PROVIDER_BING: _bing_client_builder,
-    INTEGRATION_PROVIDER_SHOPIFY: _shopify_client_builder,
 }
 
 INTEGRATION_PROPERTY_DISCOVERY_PROVIDERS: Final[frozenset[str]] = frozenset(

@@ -12,11 +12,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.commerce_catalog import (
+    COMMERCE_DOLLAR_CURRENCY_BY_COUNTRY,
     COMMERCE_RECOMMENDATION_MATCHER_VERSION,
     COMMERCE_RECOMMENDATION_PARSER_VERSION,
     COMMERCE_SHELF_FORMULA_VERSION,
 )
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
+from app.domain.commerce.price import normalized_price_value
 from app.domain.commerce.schemas import (
     RecommendationObservationResponse,
     ShelfMetricResponse,
@@ -39,7 +41,7 @@ _ORDERED = re.compile(r"^\s*(\d{1,2})[.)]\s+(.+)$")
 _BULLET = re.compile(r"^\s*[-*•]\s+(.+)$")
 _URL = re.compile(r"https?://[^\s)\]}>,]+", re.IGNORECASE)
 _PRICE = re.compile(
-    r"(?P<currency>[$£€₹]|AUD|USD|CAD|NZD|GBP|EUR|INR)\s*(?P<value>\d[\d,.]*(?:\.\d{1,2})?)",
+    r"(?P<currency>[$£€₹]|AUD|USD|CAD|NZD|GBP|EUR|INR)\s*(?P<value>\d[\d,.]*)",
     re.IGNORECASE,
 )
 
@@ -72,6 +74,14 @@ def _spans(answer: str) -> list[_Span]:
             spans.append(
                 _Span(text=bullet.group(1).strip(), rank=None, order_observable=False)
             )
+            continue
+        if spans:
+            previous = spans[-1]
+            spans[-1] = _Span(
+                text=f"{previous.text} {cleaned}",
+                rank=previous.rank,
+                order_observable=previous.order_observable,
+            )
     return spans or [_Span(text=answer.strip(), rank=None, order_observable=False)]
 
 
@@ -79,21 +89,35 @@ def _normalize(value: str) -> str:
     return " ".join(re.sub(r"[^\w]+", " ", value.casefold()).split())
 
 
-def _price(span: str) -> tuple[float | None, str]:
+def _price(span: str, *, locale: str = "") -> tuple[float | None, str]:
     match = _PRICE.search(span)
     if not match:
         return None, ""
     token = match.group("currency").upper()
     currency = {
-        "$": "USD",
         "£": "GBP",
         "€": "EUR",
         "₹": "INR",
     }.get(token, token)
-    try:
-        return float(match.group("value").replace(",", "")), currency
-    except ValueError:
-        return None, currency
+    if token == "$":
+        currency = _dollar_currency(locale)
+    value = _parse_price_value(match.group("value"))
+    return value, currency
+
+
+def _dollar_currency(locale: str) -> str:
+    parts = re.split(r"[-_]", locale.upper())
+    matches = {
+        COMMERCE_DOLLAR_CURRENCY_BY_COUNTRY[part]
+        for part in parts
+        if part in COMMERCE_DOLLAR_CURRENCY_BY_COUNTRY
+    }
+    return matches.pop() if len(matches) == 1 else ""
+
+
+def _parse_price_value(raw: str) -> float | None:
+    normalized = normalized_price_value(raw)
+    return float(normalized) if normalized is not None else None
 
 
 def _merchant(span: str) -> tuple[str, str]:
@@ -106,15 +130,15 @@ def _merchant(span: str) -> tuple[str, str]:
 
 async def _task_target(
     session: AsyncSession, *, task: AuditTask
-) -> CommercePromptTarget | None:
+) -> tuple[CommercePromptTarget | None, str]:
     audit = await session.get(Audit, task.audit_id)
     if audit is None or audit.audit_scope != "commerce":
-        return None
+        return None, ""
     frozen = dict((audit.configuration or {}).get("commerce_measurement") or {})
     target_ids = _frozen_target_ids(frozen)
     if not target_ids:
-        return None
-    return await session.scalar(
+        return None, ""
+    target = await session.scalar(
         select(CommercePromptTarget)
         .join(
             AuditPromptSnapshot,
@@ -128,6 +152,15 @@ async def _task_target(
             CommercePromptTarget.id.in_(target_ids),
         )
     )
+    locale = "-".join(
+        value
+        for value in (
+            str((audit.configuration or {}).get("language_code") or ""),
+            str((audit.configuration or {}).get("country_code") or ""),
+        )
+        if value
+    )
+    return target, locale
 
 
 def _frozen_target_ids(frozen: dict) -> list[uuid.UUID]:
@@ -144,6 +177,7 @@ async def _catalog(
     session: AsyncSession, *, target: CommercePromptTarget
 ) -> tuple[list[CommerceProduct], list[CommerceCompetitorCandidate]]:
     products_stmt = select(CommerceProduct).where(
+        CommerceProduct.workspace_id == target.workspace_id,
         CommerceProduct.project_id == target.project_id,
         CommerceProduct.lifecycle_state == "active",
     )
@@ -153,12 +187,17 @@ async def _catalog(
         products_stmt = products_stmt.join(
             CommerceProductCategory,
             CommerceProductCategory.product_id == CommerceProduct.id,
-        ).where(CommerceProductCategory.category_id == target.target_id)
+        ).where(
+            CommerceProductCategory.category_id == target.target_id,
+            CommerceProductCategory.workspace_id == target.workspace_id,
+            CommerceProductCategory.project_id == target.project_id,
+        )
     products = list((await session.scalars(products_stmt)).all())
     candidates = list(
         (
             await session.scalars(
                 select(CommerceCompetitorCandidate).where(
+                    CommerceCompetitorCandidate.workspace_id == target.workspace_id,
                     CommerceCompetitorCandidate.project_id == target.project_id,
                     CommerceCompetitorCandidate.target_kind == target.target_kind,
                     CommerceCompetitorCandidate.target_id == target.target_id,
@@ -190,12 +229,12 @@ def _product_identity_matches(product: CommerceProduct, normalized: str) -> bool
         product.mpn,
         product.name,
     )
-    tokens = (_normalize(identity) for identity in identities)
+    tokens = (_normalize(str(identity or "")) for identity in identities)
     return any(token and token in normalized for token in tokens)
 
 
 def _product_attributes_match(product: CommerceProduct, normalized: str) -> bool:
-    if not product.brand or _normalize(product.brand) not in normalized:
+    if not product.brand or _normalize(str(product.brand or "")) not in normalized:
         return False
     values = (
         _normalize(str(value))
@@ -215,7 +254,7 @@ def _match_candidate(
             candidate.product_name,
             candidate.brand_name,
         ):
-            token = _normalize(identity)
+            token = _normalize(str(identity or ""))
             if token and token in normalized:
                 return candidate, 1.0
     return None, 0.0
@@ -225,11 +264,13 @@ async def analyze_commerce_task(session: AsyncSession, *, task: AuditTask) -> No
     """Append deterministic observations for one successful target execution."""
     if task.result_artifact_id is None:
         return
-    target = await _task_target(session, task=task)
+    target, locale = await _task_target(session, task=task)
     if target is None:
         return
     existing = await session.scalar(
         select(CommerceRecommendationObservation.id).where(
+            CommerceRecommendationObservation.workspace_id == task.workspace_id,
+            CommerceRecommendationObservation.project_id == target.project_id,
             CommerceRecommendationObservation.task_id == task.id,
             CommerceRecommendationObservation.parser_version
             == COMMERCE_RECOMMENDATION_PARSER_VERSION,
@@ -265,6 +306,7 @@ async def analyze_commerce_task(session: AsyncSession, *, task: AuditTask) -> No
             span=span,
             products=products,
             candidates=span_candidates,
+            locale=locale,
         )
         session.add(observation)
         await session.flush()
@@ -285,6 +327,7 @@ async def _ai_observed_candidate(
         return None
     existing = await session.scalar(
         select(CommerceCompetitorCandidate).where(
+            CommerceCompetitorCandidate.workspace_id == target.workspace_id,
             CommerceCompetitorCandidate.project_id == target.project_id,
             CommerceCompetitorCandidate.target_kind == target.target_kind,
             CommerceCompetitorCandidate.target_id == target.target_id,
@@ -317,10 +360,11 @@ def _observation_for_span(
     span: _Span,
     products: list[CommerceProduct],
     candidates: list[CommerceCompetitorCandidate],
+    locale: str,
 ) -> CommerceRecommendationObservation:
     product, confidence = _match_product(span.text, products)
     candidate, competitor_confidence = _match_candidate(span.text, candidates)
-    price, currency = _price(span.text)
+    price, currency = _price(span.text, locale=locale)
     merchant_url, merchant_domain = _merchant(span.text)
     classification = "unresolved"
     if product is not None:
@@ -419,6 +463,8 @@ async def _snapshot_exists(
     return (
         await session.scalar(
             select(CommerceShelfSnapshot.id).where(
+                CommerceShelfSnapshot.workspace_id == audit.workspace_id,
+                CommerceShelfSnapshot.project_id == audit.project_id,
                 CommerceShelfSnapshot.audit_id == audit.id,
                 CommerceShelfSnapshot.target_kind == target.target_kind,
                 CommerceShelfSnapshot.target_id == target.target_id,
@@ -449,7 +495,10 @@ async def _target_tasks(
                     AuditTask.status == TASK_STATUS_SUCCEEDED,
                     CommercePromptTarget.target_kind == target.target_kind,
                     CommercePromptTarget.target_id == target.target_id,
+                    CommercePromptTarget.workspace_id == audit.workspace_id,
+                    CommercePromptTarget.project_id == audit.project_id,
                 )
+                .distinct()
             )
         ).all()
     )
@@ -462,6 +511,9 @@ async def _target_observations(
         (
             await session.scalars(
                 select(CommerceRecommendationObservation).where(
+                    CommerceRecommendationObservation.workspace_id
+                    == audit.workspace_id,
+                    CommerceRecommendationObservation.project_id == audit.project_id,
                     CommerceRecommendationObservation.audit_id == audit.id,
                     CommerceRecommendationObservation.target_kind == target.target_kind,
                     CommerceRecommendationObservation.target_id == target.target_id,
@@ -538,7 +590,9 @@ def _first_position_rate(
 ) -> float | None:
     if not rows_by_task:
         return None
-    wins = sum(rows[0].classification == "owned" for rows in rows_by_task)
+    wins = sum(
+        rows[0].rank == 1 and rows[0].classification == "owned" for rows in rows_by_task
+    )
     return wins / len(rows_by_task)
 
 
@@ -550,6 +604,19 @@ async def get_shelf(
     audit_id: uuid.UUID | None = None,
 ) -> ShelfResponse:
     await require_project(session, workspace_id=workspace_id, project_id=project_id)
+    selected_audit_id = audit_id
+    if selected_audit_id is None:
+        selected_audit_id = await session.scalar(
+            select(CommerceShelfSnapshot.audit_id)
+            .where(
+                CommerceShelfSnapshot.workspace_id == workspace_id,
+                CommerceShelfSnapshot.project_id == project_id,
+            )
+            .order_by(CommerceShelfSnapshot.created_at.desc())
+            .limit(1)
+        )
+    if selected_audit_id is None:
+        return ShelfResponse()
     snapshots_stmt = select(CommerceShelfSnapshot).where(
         CommerceShelfSnapshot.workspace_id == workspace_id,
         CommerceShelfSnapshot.project_id == project_id,
@@ -558,13 +625,12 @@ async def get_shelf(
         CommerceRecommendationObservation.workspace_id == workspace_id,
         CommerceRecommendationObservation.project_id == project_id,
     )
-    if audit_id is not None:
-        snapshots_stmt = snapshots_stmt.where(
-            CommerceShelfSnapshot.audit_id == audit_id
-        )
-        observations_stmt = observations_stmt.where(
-            CommerceRecommendationObservation.audit_id == audit_id
-        )
+    snapshots_stmt = snapshots_stmt.where(
+        CommerceShelfSnapshot.audit_id == selected_audit_id
+    )
+    observations_stmt = observations_stmt.where(
+        CommerceRecommendationObservation.audit_id == selected_audit_id
+    )
     snapshots = list(
         (
             await session.scalars(

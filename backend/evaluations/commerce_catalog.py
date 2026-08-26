@@ -1,10 +1,11 @@
-"""Reference-catalog evaluator for an exported Commerce catalog snapshot."""
+"""Non-blocking reference diagnostics for an exported Commerce catalog."""
 
 from __future__ import annotations
 
 import argparse
 import json
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -22,35 +23,220 @@ def _workspace_file(raw: Path) -> Path:
     return resolved
 
 
+def _rows(value: Any, *, label: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or any(not isinstance(row, dict) for row in value):
+        raise ValueError(f"{label} must be a list of objects")
+    return value
+
+
+def _reference_rows(reference: dict[str, Any]) -> list[dict[str, Any]]:
+    categories = _rows(reference.get("categories"), label="reference.categories")
+    rows: list[dict[str, Any]] = []
+    for category in categories:
+        products = _rows(
+            category.get("products"),
+            label=f"reference category {category.get('name', '')}.products",
+        )
+        for product in products:
+            rows.append(
+                {
+                    **product,
+                    "category_name": product.get("category_name")
+                    or category.get("name"),
+                    "category_url": product.get("category_url") or category.get("url"),
+                }
+            )
+    return rows
+
+
+def _normalized_text(value: Any) -> str:
+    return " ".join(str(value or "").casefold().split())
+
+
+def _comparison(
+    references: list[dict[str, Any]],
+    observed_by_url: dict[str, dict[str, Any]],
+    *,
+    observed_field: str,
+    reference_field: str,
+    normalize: Callable[[Any], Any],
+) -> dict[str, Any]:
+    matched: list[str] = []
+    changed: list[dict[str, Any]] = []
+    unavailable: list[str] = []
+    for reference in references:
+        url = str(reference.get("product_url") or "")
+        observed = observed_by_url.get(url)
+        value = observed.get(observed_field) if observed else None
+        if value in (None, ""):
+            unavailable.append(url)
+        elif normalize(value) == normalize(reference.get(reference_field)):
+            matched.append(url)
+        else:
+            changed.append(
+                {
+                    "canonical_url": url,
+                    "reference": reference.get(reference_field),
+                    "observed": value,
+                    "classification": "unresolved",
+                }
+            )
+    return {
+        "matched_count": len(matched),
+        "changed_count": len(changed),
+        "unavailable_count": len(unavailable),
+        "matched": matched,
+        "changed": changed,
+        "unavailable": unavailable,
+    }
+
+
+def _membership_report(
+    references: list[dict[str, Any]],
+    observed_by_url: dict[str, dict[str, Any]],
+    categories: list[dict[str, Any]],
+) -> dict[str, Any]:
+    by_url = {str(row.get("canonical_url") or ""): row for row in categories}
+    by_name = {_normalized_text(row.get("name")): row for row in categories}
+    observed: list[dict[str, str]] = []
+    missing: list[dict[str, str]] = []
+    changed: list[dict[str, Any]] = []
+    unavailable: list[dict[str, str]] = []
+    for reference in references:
+        product_url = str(reference.get("product_url") or "")
+        category_url = str(reference.get("category_url") or "")
+        category_name = str(reference.get("category_name") or "")
+        expected = {"product_url": product_url, "category_url": category_url}
+        product = observed_by_url.get(product_url)
+        category = by_url.get(category_url) or by_name.get(
+            _normalized_text(category_name)
+        )
+        if product is None or category is None:
+            unavailable.append(expected)
+            continue
+        category_ids = [str(value) for value in product.get("category_ids") or []]
+        if str(category.get("id") or "") in category_ids:
+            observed.append(expected)
+        elif category_ids:
+            changed.append({**expected, "observed_category_ids": category_ids})
+        else:
+            missing.append(expected)
+    return {
+        "reference_count": len(references),
+        "observed_count": len(observed),
+        "missing_count": len(missing),
+        "changed_count": len(changed),
+        "unavailable_count": len(unavailable),
+        "observed": observed,
+        "missing": missing,
+        "changed": changed,
+        "unavailable": unavailable,
+    }
+
+
+def _identifier_violations(
+    references: list[dict[str, Any]], observed_by_url: dict[str, dict[str, Any]]
+) -> list[dict[str, str]]:
+    violations: list[dict[str, str]] = []
+    for reference in references:
+        url = str(reference.get("product_url") or "")
+        observed = observed_by_url.get(url)
+        if observed is None:
+            continue
+        derived = {
+            str(reference.get("product_identifier") or ""),
+            str(reference.get("style_code") or ""),
+            str(reference.get("catalog_numeric_id") or ""),
+        } - {""}
+        sources = observed.get("field_sources")
+        sources = sources if isinstance(sources, dict) else {}
+        for field in ("sku", "gtin", "mpn"):
+            value = str(observed.get(field) or "")
+            source = sources.get(field)
+            source_kind = source.get("kind") if isinstance(source, dict) else ""
+            if value in derived and source_kind not in {"site_health", "csv", "edit"}:
+                violations.append(
+                    {"canonical_url": url, "field": field, "value": value}
+                )
+    return violations
+
+
 def evaluate_catalog(
     exported: dict[str, Any], reference: dict[str, Any]
 ) -> dict[str, Any]:
-    """Report false positives, false negatives, and canonical identity collisions."""
-    observed = {
-        str(row.get("canonical_url") or "")
-        for row in exported.get("products", [])
-        if isinstance(row, dict) and row.get("canonical_url")
-    }
-    expected = {
-        str(row.get("canonical_url") or "")
-        for row in reference.get("products", [])
-        if isinstance(row, dict) and row.get("canonical_url")
-    }
-    identities = [
-        str(row.get("canonical_url") or "")
-        for row in exported.get("products", [])
-        if isinstance(row, dict) and row.get("canonical_url")
+    """Compare a dated reference without turning drift into a release gate."""
+    if not isinstance(exported, dict) or not isinstance(reference, dict):
+        raise ValueError("exported catalog and reference must be objects")
+    products = _rows(exported.get("products"), label="exported.products")
+    categories = _rows(exported.get("categories"), label="exported.categories")
+    references = _reference_rows(reference)
+    expected_urls = {str(row.get("product_url") or "") for row in references} - {""}
+    observed_urls = [str(row.get("canonical_url") or "") for row in products]
+    observed_urls = [url for url in observed_urls if url]
+    observed_by_url: dict[str, dict[str, Any]] = {}
+    for row in products:
+        url = str(row.get("canonical_url") or "")
+        if url:
+            observed_by_url.setdefault(url, row)
+    counts = Counter(observed_urls)
+    title_report = _comparison(
+        references,
+        observed_by_url,
+        observed_field="name",
+        reference_field="product_title",
+        normalize=_normalized_text,
+    )
+    price_report = _comparison(
+        references,
+        observed_by_url,
+        observed_field="price",
+        reference_field="current_price_aud",
+        normalize=lambda value: round(float(value), 2),
+    )
+    memberships = _membership_report(references, observed_by_url, categories)
+    drift = [
+        *title_report["changed"],
+        *price_report["changed"],
+        *memberships["changed"],
     ]
-    counts = Counter(identities)
+    unavailable = exported.get("acquisition_unavailable")
+    acquisition_report = (
+        {"state": "reported", "items": unavailable}
+        if isinstance(unavailable, list)
+        else {"state": "unavailable_in_export", "items": []}
+    )
+    observed_url_set = set(observed_urls)
     return {
-        "expected_count": len(expected),
-        "observed_count": len(observed),
-        "false_positives": sorted(observed - expected),
-        "false_negatives": sorted(expected - observed),
-        "identity_collisions": sorted(
+        "reference_dataset_id": reference.get("dataset_id"),
+        "reference_crawl_date": reference.get("crawl_date"),
+        "reference_urls": {
+            "reference_count": len(expected_urls),
+            "observed_count": len(expected_urls & observed_url_set),
+            "missing": sorted(expected_urls - observed_url_set),
+            "non_reference_products": sorted(observed_url_set - expected_urls),
+        },
+        "category_memberships": memberships,
+        "category_urls_emitted_as_products": sorted(
+            {
+                str(row.get("category_url") or "")
+                for row in references
+                if row.get("category_url") in observed_url_set
+            }
+        ),
+        "duplicate_canonical_products": sorted(
             url for url, count in counts.items() if count > 1
         ),
-        "passed": observed == expected and all(count == 1 for count in counts.values()),
+        "titles": title_report,
+        "prices": price_report,
+        "identifier_provenance_violations": _identifier_violations(
+            references, observed_by_url
+        ),
+        "acquisition_unavailable": acquisition_report,
+        "reference_drift": {
+            "classification": "unresolved",
+            "count": len(drift),
+            "items": drift,
+        },
     }
 
 
@@ -66,7 +252,6 @@ def main() -> None:
         json.loads(reference_path.read_text(encoding="utf-8")),
     )
     print(json.dumps(report, indent=2, sort_keys=True))
-    raise SystemExit(0 if report["passed"] else 1)
 
 
 if __name__ == "__main__":

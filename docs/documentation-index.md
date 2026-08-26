@@ -18,19 +18,15 @@ listed here must prove a current operational purpose or move to the archive.
 |---|---|
 | [`architecture.md`](architecture.md) | Canonical product architecture |
 | [`plans/citeladder-aeo-product-rebuild.md`](plans/citeladder-aeo-product-rebuild.md) | Implementation-ready delivery plan for the AEO product rebuild (subordinate to `architecture.md`) |
-| [`plans/growth-intelligence-platform.md`](plans/growth-intelligence-platform.md) | Program sequence and open cross-system work |
-| [`plans/content-intelligence.md`](plans/content-intelligence.md) | Content strategy, briefs, generation, review, and verification |
-| [`plans/demand-intelligence.md`](plans/demand-intelligence.md) | GSC/GA4, journeys, prompts, and AI Visibility |
-| [`plans/growth-agent.md`](plans/growth-agent.md) | Typed tools, context, decisions, and schedules |
-| [`plans/commerce-suite-atomic-rebuild.md`](plans/commerce-suite-atomic-rebuild.md) | Implemented delivery history for the Commerce Suite replacement |
+| [`plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md`](plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md) | Demo-first Content Generation improvement proposal |
+| [`plans/citeladder-onboarding-discovery-v7.md`](plans/citeladder-onboarding-discovery-v7.md) | Implemented evidence-first onboarding discovery and GMI Cloud application-model cutover |
+| [`plans/commerce-suite-atomic-rebuild.md`](plans/commerce-suite-atomic-rebuild.md) | Active staged delivery plan and open gates for the Commerce Suite replacement |
 | [`plans/commerce-suite-retirement-manifest.md`](plans/commerce-suite-retirement-manifest.md) | Exact retired Commerce authorities and version lineage for the atomic cutover |
 
 ## Active implementation plans
 
-| Document | Role |
-|---|---|
-| [`plans/technical-debt-reduction.md`](plans/technical-debt-reduction.md) | Measured complexity, coverage, and harness-gap reduction sequence |
-| [`plans/citeladder-onboarding-discovery-v7.md`](plans/citeladder-onboarding-discovery-v7.md) | Evidence-first onboarding discovery and GMI Cloud application-model cutover |
+No separate implementation plan is currently active beyond the product plans
+listed above.
 
 ## Current-runtime references
 

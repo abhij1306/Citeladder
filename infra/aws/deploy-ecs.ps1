@@ -139,8 +139,7 @@ function Get-SecretEntries {
     "DATABASE_URL",
     "JWT_SECRET_KEY",
     "ENCRYPTION_KEY",
-    "REFERRAL_HASH_SALT",
-    "ORDER_HASH_SALT"
+    "REFERRAL_HASH_SALT"
   )
   foreach ($name in $required) {
     if (-not ($entries.name -contains $name)) {
@@ -160,8 +159,7 @@ function Get-SecretEntriesForService {
     "DATABASE_URL",
     "JWT_SECRET_KEY",
     "ENCRYPTION_KEY",
-    "REFERRAL_HASH_SALT",
-    "ORDER_HASH_SALT"
+    "REFERRAL_HASH_SALT"
   )
   $allowed = [System.Collections.Generic.HashSet[string]]::new([string[]]$core)
 
@@ -179,7 +177,6 @@ function Get-SecretEntriesForService {
   elseif ($ServiceName -in @("integration-worker", "integration-dispatcher")) {
     $allowed.Add("INTEGRATION_GOOGLE_CLIENT_SECRET") | Out-Null
     $allowed.Add("INTEGRATION_MICROSOFT_CLIENT_SECRET") | Out-Null
-    $allowed.Add("INTEGRATION_SHOPIFY_CLIENT_SECRET") | Out-Null
   }
 
   $entries = @()
@@ -747,7 +744,6 @@ $backendEnvironment = @(
 $optionalEnvironmentMap = [ordered]@{
   integrationGoogleClientId = "INTEGRATION_GOOGLE_CLIENT_ID"
   integrationMicrosoftClientId = "INTEGRATION_MICROSOFT_CLIENT_ID"
-  integrationShopifyClientId = "INTEGRATION_SHOPIFY_CLIENT_ID"
   billingRazorpayKeyId = "BILLING_RAZORPAY_KEY_ID"
   defaultAgentBaseUrl = "DEFAULT_AGENT_BASE_URL"
   defaultAgentModel = "DEFAULT_AGENT_MODEL"

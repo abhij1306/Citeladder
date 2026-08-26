@@ -64,14 +64,6 @@ class IntegrationSettings(BaseSettings):
     gsc_requests_per_minute: int = Field(default=200, gt=0)
     ga4_requests_per_minute: int = Field(default=60, gt=0)
     bing_requests_per_minute: int = Field(default=30, gt=0)
-    shopify_requests_per_minute: int = Field(default=40, gt=0)
-
-    # --- Shopify GraphQL page sizes ------------------------------------------------
-    # Outer connection page size (products/orders per request) and the nested
-    # first-page size for variants/line items. Nested continuation pages use
-    # the nested size as well; every continuation call is paced.
-    shopify_page_size: int = Field(default=50, gt=0)
-    shopify_nested_page_size: int = Field(default=100, gt=0)
 
     @model_validator(mode="after")
     def _check_operational_bounds(self) -> IntegrationSettings:

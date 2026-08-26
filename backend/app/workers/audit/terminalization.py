@@ -487,7 +487,14 @@ class AuditTerminalizationMixin:
                 if audit is not None:
                     await session.rollback()
                 return
-            await finalize_commerce_shelf(session, audit=audit)
+            try:
+                async with session.begin_nested():
+                    await finalize_commerce_shelf(session, audit=audit)
+            except Exception:
+                logger.exception(
+                    "Commerce shelf finalization failed; terminalizing audit %s",
+                    audit_id,
+                )
             await finalize_audit_analysis(session, audit=audit)
             workspace_id = audit.workspace_id
             project_id = audit.project_id

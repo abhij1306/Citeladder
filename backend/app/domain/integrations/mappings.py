@@ -50,10 +50,8 @@ from app.core.config.integrations_contracts import (
 from app.core.config.integrations_transport import (
     GSC_DOMAIN_PROPERTY_PREFIX,
     INTEGRATION_PROVIDER_GA4,
-    INTEGRATION_PROVIDER_SHOPIFY,
     is_ga4_property_ref,
     normalize_ga4_property_ref,
-    normalize_shopify_shop_domain,
 )
 from app.domain.integrations.schemas import IntegrationPropertyMappingResponse
 from app.domain.integrations.service import get_connection
@@ -156,23 +154,6 @@ def _canonical_property_ref(
                 f"GA4 property {property_ref!r} is not a numeric property id"
             )
         return normalize_ga4_property_ref(property_ref)
-    if provider == INTEGRATION_PROVIDER_SHOPIFY:
-        # A Shopify "property" is the connection's shop itself: the
-        # canonicalized property_ref must EQUAL the connection's
-        # account_ref exactly. The ``myshopify.com`` host is deliberately
-        # NOT compared against the project's custom OwnedDomain rows.
-        try:
-            canonical_ref = normalize_shopify_shop_domain(property_ref)
-        except ValueError as exc:
-            raise MappingPropertyNotOwnedError(
-                f"Shopify property {property_ref!r} is not a canonical shop host"
-            ) from exc
-        if canonical_ref != connection.account_ref:
-            raise MappingPropertyNotOwnedError(
-                f"Shopify property {property_ref!r} does not match the "
-                f"connection's shop {connection.account_ref!r}"
-            )
-        return canonical_ref
     host = property_ref_host(property_ref)
     owned_hosts = _project_owned_hosts(project)
     if not host or host not in owned_hosts:
@@ -243,9 +224,6 @@ async def create_mapping(
         # then resolves THAT ref back through this mapping, so the two must
         # agree or the run either fetches nothing (an empty ref — the
         # provider 400s) or lands rows derivation cannot attribute.
-        # Discoverable providers only: Shopify's account_ref is the shop the
-        # grant was issued for and is validated against, never overwritten.
-        #
         # Because the worker resolves exactly ONE property per connection,
         # selecting a property REPLACES the previous one: any other active
         # mapping on this connection is retired in the same transaction.

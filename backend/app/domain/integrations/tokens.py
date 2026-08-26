@@ -52,10 +52,8 @@ async def fresh_access_token(
 
     The grant row is re-read ``FOR UPDATE`` and the expiry re-checked
     inside that lock, so two concurrent requests on one grant perform at
-    most one remote refresh. A NON-refreshable transport (Shopify's
-    offline Admin API token — it never expires and carries no refresh
-    token) returns the stored token directly; a ``None`` expiry is not
-    near-expiry for those.
+    most one remote refresh. A non-refreshable transport returns its stored
+    token directly; a ``None`` expiry is not near-expiry for those.
 
     Raises ``IntegrationOAuthError`` when the grant cannot yield a usable
     token (missing row, no refresh token, or a failed exchange) — callers

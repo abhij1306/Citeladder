@@ -5,9 +5,7 @@ state JWT is verified for signature/expiry/transaction-cookie binding, then
 the persisted ``IntegrationOAuthState`` row is consumed ATOMICALLY
 (``UPDATE ... SET consumed_at ... WHERE consumed_at IS NULL``) BEFORE any
 code exchange — a replayed, cross-user, or cross-workspace state is
-rejected before any token moves. Shopify additionally requires the
-callback HMAC and an exact three-way shop match (signed claim, persisted
-value, callback ``shop`` param) before the code exchange.
+rejected before any token moves.
 
 Split out of ``service.py`` purely for module size; ``complete_connect``
 there is still the sole caller and orchestrates these in order.
@@ -16,17 +14,13 @@ there is still the sole caller and orchestrates these in order.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Mapping
 from datetime import UTC, datetime
 
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.integrations import oauth as integration_oauth
-from app.core.config.integrations_transport import (
-    INTEGRATION_PROVIDER_TRANSPORT,
-    INTEGRATION_TRANSPORT_SHOPIFY,
-)
+from app.core.config.integrations_transport import INTEGRATION_PROVIDER_TRANSPORT
 from app.core.security import TokenDecodeError, decode_oauth_state
 from app.domain.integrations.errors import (
     IntegrationNotConfiguredError,
@@ -66,11 +60,9 @@ async def consume_state(
     *,
     claims: dict[str, str | int],
     provider: str,
-) -> tuple[uuid.UUID, str]:
+) -> uuid.UUID:
     """Atomically consume the persisted state row.
 
-    Returns ``(workspace_id, provider_account_ref)`` — the latter is the
-    persisted per-account OAuth target ("" for single-tenant transports).
     The single ``UPDATE ... WHERE consumed_at IS NULL`` is the one-time
     consumption gate: exactly one concurrent callback can win it. Binding
     mismatches found after consumption are terminal (the state stays
@@ -88,7 +80,6 @@ async def consume_state(
             IntegrationOAuthState.workspace_id,
             IntegrationOAuthState.user_id,
             IntegrationOAuthState.provider,
-            IntegrationOAuthState.provider_account_ref,
             IntegrationOAuthState.expires_at,
         )
     )
@@ -109,7 +100,7 @@ async def consume_state(
         raise IntegrationStateError("OAuth state user is inactive")
     if await get_membership(session, row.workspace_id, row.user_id) is None:
         raise IntegrationStateError("OAuth state workspace membership lost")
-    return row.workspace_id, str(row.provider_account_ref or "")
+    return row.workspace_id
 
 
 def prepare_connect_callback(
@@ -117,32 +108,9 @@ def prepare_connect_callback(
     provider: str,
     state: str,
     session_nonce: str,
-    callback_params: Mapping[str, str] | None,
-) -> tuple[str, dict[str, str | int], str]:
+) -> tuple[str, dict[str, str | int]]:
     transport = INTEGRATION_PROVIDER_TRANSPORT[provider]
     claims = verify_state_claims(state, provider, session_nonce)
     if not integration_oauth.oauth_client_configured(transport):
         raise IntegrationNotConfiguredError(provider)
-    signed_account_ref = str(claims.get("provider_account_ref") or "")
-    if transport == INTEGRATION_TRANSPORT_SHOPIFY:
-        hmac_valid = callback_params is not None and (
-            integration_oauth.verify_shopify_callback_hmac(callback_params)
-        )
-        if not hmac_valid:
-            raise IntegrationStateError("Invalid Shopify callback signature")
-    return transport, claims, signed_account_ref
-
-
-def validate_shopify_state_match(
-    *,
-    signed_account_ref: str,
-    persisted_account_ref: str,
-    callback_params: Mapping[str, str] | None,
-) -> None:
-    callback_shop = str((callback_params or {}).get("shop") or "")
-    if (
-        not signed_account_ref
-        or signed_account_ref != persisted_account_ref
-        or signed_account_ref != callback_shop
-    ):
-        raise IntegrationStateError("OAuth state shop mismatch")
+    return transport, claims

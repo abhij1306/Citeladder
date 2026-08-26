@@ -35,12 +35,10 @@ Read only the documents required by the task.
 | Product loop, hierarchy, and architecture | `docs/architecture.md` |
 | AEO rebuild delivery sequence | `docs/plans/citeladder-aeo-product-rebuild.md` |
 | Complete active-document map | `docs/documentation-index.md` |
-| Program sequence | `docs/plans/growth-intelligence-platform.md` |
-| Complexity, coverage, and harness debt | `docs/plans/technical-debt-reduction.md` |
+| Program sequence | `docs/plans/citeladder-aeo-product-rebuild.md` |
 | Site crawl, classification, rules, and runtime | `docs/site-health.md` |
-| Content workflows | `docs/plans/content-intelligence.md` |
-| Demand, prompts, and visibility | `docs/plans/demand-intelligence.md` |
-| Agent, context, approvals, schedules | `docs/plans/growth-agent.md` |
+| Content workflows | `docs/plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md` |
+| Demand, prompts, visibility, and Agent | `docs/plans/citeladder-aeo-product-rebuild.md` |
 | Backend ownership and shipped runtime | `docs/backend-architecture.md` |
 | Frontend ownership and shipped runtime | `docs/frontend-architecture.md` |
 | Hard invariants | `docs/invariants.md` |

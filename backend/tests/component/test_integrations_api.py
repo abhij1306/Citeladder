@@ -24,7 +24,6 @@ from sqlalchemy import select
 
 from app.connectors.integrations import bing as bing_connector
 from app.connectors.integrations import oauth as integration_oauth
-from app.connectors.integrations import shopify as shopify_connector
 from app.core.security import decrypt_secret, encrypt_secret
 from app.models.integrations import (
     IntegrationConnection,
@@ -39,7 +38,6 @@ _BASE = "/api/v1/integrations"
 
 _FAKE_ACCESS = "fake-seed-access-token"  # pragma: allowlist secret
 _FAKE_REFRESH = "fake-seed-refresh-token"  # pragma: allowlist secret
-_SHOP = "volt-city.myshopify.com"
 
 _LIST_KEYS = {
     "id",
@@ -71,14 +69,13 @@ async def _seed_grant(
     workspace_id: uuid.UUID,
     transport: str = "google_oauth",
     providers: tuple[str, ...] = ("gsc", "ga4"),
-    offline: bool = False,
 ) -> tuple[IntegrationOAuthGrant, list[IntegrationConnection]]:
     grant = IntegrationOAuthGrant(
         workspace_id=workspace_id,
         transport=transport,
         access_token_encrypted=encrypt_secret(_FAKE_ACCESS),
-        refresh_token_encrypted=("" if offline else encrypt_secret(_FAKE_REFRESH)),
-        token_expires_at=(None if offline else datetime.now(UTC) + timedelta(hours=1)),
+        refresh_token_encrypted=encrypt_secret(_FAKE_REFRESH),
+        token_expires_at=datetime.now(UTC) + timedelta(hours=1),
         granted_scopes=["scope-a", "scope-b"],
         status="connected",
     )
@@ -90,7 +87,7 @@ async def _seed_grant(
             grant_id=grant.id,
             provider=provider,
             label=f"{provider} label",
-            account_ref=(_SHOP if provider == "shopify" else f"{provider}-account-ref"),
+            account_ref=f"{provider}-account-ref",
         )
         for provider in providers
     ]
@@ -122,10 +119,6 @@ class _FakeProvider:
             return httpx.Response(
                 self.probe_status, json=_fixture("bing_sites_response.json")
             )
-        if host == _SHOP:
-            if self.probe_status != 200:
-                return httpx.Response(self.probe_status, json={"errors": "probe boom"})
-            return httpx.Response(200, json={"data": {"shop": {"id": "gid://s/1"}}})
         if host == "oauth2.googleapis.com" and request.url.path == "/revoke":
             return httpx.Response(self.revoke_status)
         if host == "login.microsoftonline.com" and request.url.path.endswith("/token"):
@@ -138,9 +131,6 @@ class _FakeProvider:
     def bing_probe_calls(self) -> list[httpx.Request]:
         return [r for r in self.requests if r.url.host == "ssl.bing.com"]
 
-    def shopify_probe_calls(self) -> list[httpx.Request]:
-        return [r for r in self.requests if r.url.host == _SHOP]
-
     def revoke_calls(self) -> list[httpx.Request]:
         return [r for r in self.requests if r.url.path == "/revoke"]
 
@@ -152,22 +142,17 @@ class _FakeProvider:
 def _fake_provider(monkeypatch: pytest.MonkeyPatch) -> _FakeProvider:
     fake = _FakeProvider()
 
-    def _build(transport_kind: str, *, transport=None, provider_account_ref: str = ""):
+    def _build(transport_kind: str, *, transport=None):
         return integration_oauth.IntegrationOAuthClient(
             transport_kind,
             transport=fake.transport,
-            provider_account_ref=provider_account_ref,
         )
 
     def _build_bing(*, transport=None):
         return bing_connector.BingClient(transport=fake.transport)
 
-    def _build_shopify(*, transport=None):
-        return shopify_connector.ShopifyClient(transport=fake.transport)
-
     monkeypatch.setattr(integration_oauth, "build_oauth_client", _build)
     monkeypatch.setattr(bing_connector, "build_bing_client", _build_bing)
-    monkeypatch.setattr(shopify_connector, "build_shopify_client", _build_shopify)
     return fake
 
 
@@ -491,111 +476,3 @@ async def test_unauthenticated_management_rejected(client: httpx.AsyncClient) ->
     assert (await client.get(_BASE)).status_code == 401
     assert (await client.post(f"{_BASE}/{some_id}/test")).status_code == 401
     assert (await client.delete(f"{_BASE}/{some_id}")).status_code == 401
-
-
-# --- Shopify: GraphQL connection probe + local-only delete -------------------
-
-
-@pytest.mark.asyncio
-async def test_probe_ok_shopify(
-    client: httpx.AsyncClient,
-    db_session,
-    _fake_provider: _FakeProvider,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    await _register(client, "mgmt-test-shopify@example.com")
-    ws = await _workspace_id(db_session)
-    _grant, (shopify,) = await _seed_grant(
-        db_session,
-        workspace_id=ws,
-        transport="shopify_oauth",
-        providers=("shopify",),
-        offline=True,
-    )
-
-    with caplog.at_level(logging.DEBUG):
-        resp = await client.post(f"{_BASE}/{shopify.id}/test")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert set(body) == _TEST_KEYS
-    assert body["status"] == "ok"
-    assert body["error_code"] == ""
-
-    # The provider-specific probe (shop { id }) ran ONCE against the pinned
-    # per-shop GraphQL path with the X-Shopify-Access-Token header — never
-    # a Bearer token (invariant 6: the token never reaches a log either).
-    (probe,) = _fake_provider.shopify_probe_calls()
-    assert probe.url.path.endswith("/graphql.json")
-    assert probe.headers["x-shopify-access-token"] == _FAKE_ACCESS
-    assert "authorization" not in probe.headers
-    assert _FAKE_ACCESS not in resp.text
-    assert _FAKE_ACCESS not in caplog.text
-
-    events = await _events(db_session)
-    assert [e.event_type for e in events] == ["integration.tested"]
-    assert events[0].payload["status"] == "ok"
-    # The grant is untouched by the probe (no rotation persisted).
-    grant = (await db_session.execute(select(IntegrationOAuthGrant))).scalar_one()
-    assert grant.status == "connected"
-    assert grant.token_expires_at is None
-
-
-@pytest.mark.asyncio
-async def test_probe_failed_shopify_maps_grant_auth_failed(
-    client: httpx.AsyncClient, db_session, _fake_provider: _FakeProvider
-) -> None:
-    await _register(client, "mgmt-test-shopify-401@example.com")
-    ws = await _workspace_id(db_session)
-    _grant, (shopify,) = await _seed_grant(
-        db_session,
-        workspace_id=ws,
-        transport="shopify_oauth",
-        providers=("shopify",),
-        offline=True,
-    )
-    _fake_provider.probe_status = 401
-    resp = await client.post(f"{_BASE}/{shopify.id}/test")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "failed"
-    assert body["error_code"] == "grant_auth_failed"
-    events = await _events(db_session)
-    assert [e.event_type for e in events] == ["integration.tested"]
-    assert events[0].payload["error_code"] == "grant_auth_failed"
-
-
-@pytest.mark.asyncio
-async def test_delete_shopify_uses_local_only_revocation(
-    client: httpx.AsyncClient, db_session, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    await _register(client, "mgmt-del-shopify@example.com")
-    ws = await _workspace_id(db_session)
-    grant, (shopify,) = await _seed_grant(
-        db_session,
-        workspace_id=ws,
-        transport="shopify_oauth",
-        providers=("shopify",),
-        offline=True,
-    )
-
-    def _no_http(_request: httpx.Request) -> httpx.Response:
-        raise AssertionError("Shopify grants must not attempt a remote revoke")
-
-    def _build(transport_kind: str, *, transport=None, provider_account_ref: str = ""):
-        return integration_oauth.IntegrationOAuthClient(
-            transport_kind,
-            transport=httpx.MockTransport(_no_http),
-            provider_account_ref=provider_account_ref,
-        )
-
-    monkeypatch.setattr(integration_oauth, "build_oauth_client", _build)
-
-    resp = await client.delete(f"{_BASE}/{shopify.id}")
-    assert resp.status_code == 204
-    await db_session.refresh(grant)
-    assert grant.status == "revoked"
-    assert grant.access_token_encrypted == ""
-    assert grant.refresh_token_encrypted == ""
-    events = await _events(db_session)
-    assert [e.event_type for e in events] == ["integration.revoked"]
-    assert events[0].payload["remote_revoke"] is False

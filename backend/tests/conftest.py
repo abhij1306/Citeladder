@@ -76,7 +76,6 @@ _TEST_ENVIRONMENT = {
     "JWT_SECRET_KEY": "citeladder-test-jwt-secret-key-not-a-real-secret",
     "ENCRYPTION_KEY": "citeladder-test-encryption-key-not-a-real-secret",
     "REFERRAL_HASH_SALT": "citeladder-test-referral-salt-not-a-real-secret",
-    "ORDER_HASH_SALT": "citeladder-test-order-salt-not-a-real-secret",
 }
 for _name, _value in _TEST_ENVIRONMENT.items():
     os.environ[_name] = _value

@@ -50,11 +50,7 @@ ACTIVE_EXACT = {
     "docs/plans/citeladder-onboarding-discovery-v7.md",
     "docs/plans/commerce-suite-atomic-rebuild.md",
     "docs/plans/commerce-suite-retirement-manifest.md",
-    "docs/plans/growth-intelligence-platform.md",
-    "docs/plans/content-intelligence.md",
-    "docs/plans/demand-intelligence.md",
-    "docs/plans/growth-agent.md",
-    "docs/plans/technical-debt-reduction.md",
+    "docs/plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md",
     # Written (and re-written) by `next dev`; see the notice inside them and
     # `node_modules/next/dist/server/lib/generate-agent-files.js`. Deleting
     # them only re-creates an uncommitted change, so they are committed and
@@ -227,7 +223,7 @@ def validate() -> list[Issue]:
         index_text = canonical.read_text(encoding="utf-8", errors="replace")
         required_fragments = (
             "architecture.md",
-            "growth-intelligence-platform.md",
+            "citeladder-aeo-product-rebuild.md",
             "site-health.md",
         )
         for required in required_fragments:

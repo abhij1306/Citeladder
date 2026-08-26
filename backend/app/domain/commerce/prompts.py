@@ -109,10 +109,9 @@ async def _prompt_owner(
 
 def _leaks_owned_identity(text: str, context: dict) -> bool:
     normalized = " ".join(text.casefold().split())
-    protected = {
-        str(context.get("name") or "").casefold().strip(),
-        str(context.get("brand") or "").casefold().strip(),
-    }
+    protected = {str(context.get("brand") or "").casefold().strip()}
+    if context.get("target_kind") == "product":
+        protected.add(str(context.get("name") or "").casefold().strip())
     return any(value and value in normalized for value in protected)
 
 

@@ -16,9 +16,6 @@ approved-host allow-list before a request is issued (SSRF policy).
 
 from __future__ import annotations
 
-import hashlib
-import hmac
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 import httpx
@@ -43,10 +40,7 @@ from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_TOKEN_URLS,
     INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_TRANSPORT_MICROSOFT,
-    INTEGRATION_TRANSPORT_SHOPIFY,
     INTEGRATION_TRANSPORTS,
-    normalize_shopify_shop_domain,
-    shopify_oauth_token_url,
 )
 
 # Cheap, read-only, scope-minimal probe path validating a Google grant's
@@ -84,11 +78,6 @@ def oauth_client_credentials(transport: str) -> tuple[str, str]:
             settings.integration_microsoft_client_id,
             settings.integration_microsoft_client_secret,
         )
-    if transport == INTEGRATION_TRANSPORT_SHOPIFY:
-        return (
-            settings.integration_shopify_client_id,
-            settings.integration_shopify_client_secret,
-        )
     raise IntegrationOAuthError(
         f"unknown OAuth transport: {transport!r}", error_code=ERROR_PROVIDER_API
     )
@@ -108,36 +97,10 @@ def _assert_approved_url(url: str) -> None:
     assert_approved_url(url, label="OAuth", error_type=IntegrationOAuthError)
 
 
-def verify_shopify_callback_hmac(params: Mapping[str, str]) -> bool:
-    """Verify the Shopify OAuth callback's ``hmac`` query parameter.
-
-    Shopify signs the callback query string with the app client secret:
-    HMAC-SHA256 hex over the canonical parameter string (every query param
-    EXCEPT ``hmac``, sorted by key, joined as ``key=value`` with ``&``).
-    Comparison is constant-time. The client secret stays connector-owned:
-    it is resolved here, used here, and never logged or returned
-    (invariant 6). A missing secret or missing/malformed ``hmac`` fails
-    closed (``False``).
-    """
-    provided = str(params.get("hmac") or "").strip()
-    _, client_secret = oauth_client_credentials(INTEGRATION_TRANSPORT_SHOPIFY)
-    if not provided or not client_secret:
-        return False
-    canonical = "&".join(
-        f"{key}={value}" for key, value in sorted(params.items()) if key != "hmac"
-    )
-    expected = hmac.new(
-        client_secret.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256
-    ).hexdigest()
-    return hmac.compare_digest(expected, provided)
-
-
-def _split_scopes(value: object, *, transport_kind: str) -> tuple[str, ...]:
+def _split_scopes(value: object) -> tuple[str, ...]:
     if not isinstance(value, str):
         return ()
-    # Shopify joins granted scopes with commas; Google/Microsoft use spaces.
-    separator = "," if transport_kind == INTEGRATION_TRANSPORT_SHOPIFY else " "
-    return tuple(scope for scope in value.split(separator) if scope)
+    return tuple(scope for scope in value.split() if scope)
 
 
 def _coerce_expires_in(value: object) -> int | None:
@@ -164,11 +127,7 @@ class IntegrationOAuthClient:
     ``transport`` is a test seam (``httpx.MockTransport``); production passes
     nothing and the client uses the real network.
 
-    ``provider_account_ref`` carries the per-account OAuth target: for the
-    Shopify transport it is the canonical ``{shop}.myshopify.com`` host and
-    is REQUIRED (validated eagerly here — a missing or non-canonical shop
-    fails construction rather than the first request). Google/Microsoft are
-    single-tenant transports and pass the default empty ref.
+    Google and Microsoft use config-owned, single-tenant OAuth endpoints.
     """
 
     def __init__(
@@ -176,31 +135,17 @@ class IntegrationOAuthClient:
         transport_kind: str,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
-        provider_account_ref: str = "",
     ) -> None:
         if transport_kind not in INTEGRATION_TRANSPORTS:
             raise IntegrationOAuthError(
                 f"unknown OAuth transport: {transport_kind!r}",
                 error_code=ERROR_PROVIDER_API,
             )
-        if transport_kind == INTEGRATION_TRANSPORT_SHOPIFY:
-            try:
-                provider_account_ref = normalize_shopify_shop_domain(
-                    provider_account_ref
-                )
-            except ValueError as exc:
-                raise IntegrationOAuthError(
-                    "Shopify OAuth client requires a canonical shop host",
-                    error_code=ERROR_PROVIDER_API,
-                ) from exc
         self._transport_kind = transport_kind
         self._transport = transport
-        self._provider_account_ref = provider_account_ref
 
     def _token_url(self) -> str:
-        """The transport's token endpoint (per-shop for Shopify)."""
-        if self._transport_kind == INTEGRATION_TRANSPORT_SHOPIFY:
-            return shopify_oauth_token_url(self._provider_account_ref)
+        """The transport's config-owned token endpoint."""
         return INTEGRATION_OAUTH_TOKEN_URLS[self._transport_kind]
 
     def _http_client(self) -> httpx.AsyncClient:
@@ -253,29 +198,15 @@ class IntegrationOAuthClient:
         return payload
 
     async def exchange_code(self, *, code: str, redirect_uri: str) -> OAuthTokenBundle:
-        """Exchange an authorization code for tokens at the token endpoint.
-
-        Shopify's exchange form is exactly ``client_id``/``client_secret``/
-        ``code`` — NO ``grant_type`` and NO ``redirect_uri`` — and its
-        offline token response carries no ``refresh_token``/``expires_in``;
-        that token is usable as-is (the transport is non-refreshable, see
-        ``INTEGRATION_OAUTH_REFRESHABLE``).
-        """
+        """Exchange an authorization code for tokens at the token endpoint."""
         client_id, client_secret = oauth_client_credentials(self._transport_kind)
-        if self._transport_kind == INTEGRATION_TRANSPORT_SHOPIFY:
-            form = {
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-            }
-        else:
-            form = {
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "code": code,
-                "grant_type": "authorization_code",
-                "redirect_uri": redirect_uri,
-            }
+        form = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+        }
         payload = await self._post_form(self._token_url(), form, action="code exchange")
         access_token = str(payload.get("access_token") or "")
         if not access_token:
@@ -287,9 +218,7 @@ class IntegrationOAuthClient:
             access_token=access_token,
             refresh_token=str(payload.get("refresh_token") or ""),
             expires_in=_coerce_expires_in(payload.get("expires_in")),
-            granted_scopes=_split_scopes(
-                payload.get("scope"), transport_kind=self._transport_kind
-            ),
+            granted_scopes=_split_scopes(payload.get("scope")),
         )
 
     async def refresh(self, *, refresh_token: str) -> OAuthTokenBundle:
@@ -297,16 +226,7 @@ class IntegrationOAuthClient:
 
         A provider may omit ``refresh_token`` from the response (Google keeps
         the original grant); the passed token is carried over in that case.
-
-        The Shopify transport is non-refreshable (its offline token never
-        expires and carries no refresh token): calling this for Shopify is a
-        programming error and raises instead of issuing a request.
         """
-        if self._transport_kind == INTEGRATION_TRANSPORT_SHOPIFY:
-            raise IntegrationOAuthError(
-                "Shopify offline access tokens are not refreshable",
-                error_code=ERROR_PROVIDER_API,
-            )
         client_id, client_secret = oauth_client_credentials(self._transport_kind)
         payload = await self._post_form(
             self._token_url(),
@@ -328,9 +248,7 @@ class IntegrationOAuthClient:
             access_token=access_token,
             refresh_token=str(payload.get("refresh_token") or "") or refresh_token,
             expires_in=_coerce_expires_in(payload.get("expires_in")),
-            granted_scopes=_split_scopes(
-                payload.get("scope"), transport_kind=self._transport_kind
-            ),
+            granted_scopes=_split_scopes(payload.get("scope")),
         )
 
     async def revoke(self, *, token: str) -> None:
@@ -396,17 +314,10 @@ def build_oauth_client(
     transport_kind: str,
     *,
     transport: httpx.AsyncBaseTransport | None = None,
-    provider_account_ref: str = "",
 ) -> IntegrationOAuthClient:
     """Build an OAuth client for a transport (``transport`` = test seam).
 
     The domain service resolves clients through this factory so component
     tests can inject a ``httpx.MockTransport`` fake OAuth server.
-    ``provider_account_ref`` is the per-account OAuth target (Shopify: the
-    canonical shop host).
     """
-    return IntegrationOAuthClient(
-        transport_kind,
-        transport=transport,
-        provider_account_ref=provider_account_ref,
-    )
+    return IntegrationOAuthClient(transport_kind, transport=transport)

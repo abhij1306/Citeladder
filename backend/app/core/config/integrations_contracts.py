@@ -78,8 +78,6 @@ ERROR_OAUTH_EXCHANGE_FAILED: Final = "oauth_exchange_failed"
 
 ERROR_OAUTH_NOT_CONFIGURED: Final = "oauth_not_configured"
 
-ERROR_OAUTH_SHOP_INVALID: Final = "oauth_shop_invalid"
-
 ERROR_SYNC_WINDOW_INVALID: Final = "sync_window_invalid"
 
 ERROR_SYNC_ACTIVE_WINDOW_CONFLICT: Final = "sync_active_window_conflict"

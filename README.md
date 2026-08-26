@@ -171,7 +171,7 @@ Commands, environment, entitlement, migration, and the clean-clone runbook:
 | [`docs/documentation-index.md`](docs/documentation-index.md) | Complete active documentation authority map |
 | [`docs/architecture.md`](docs/architecture.md) | Canonical target product architecture |
 | [`docs/invariants.md`](docs/invariants.md) | The review-blocking rules |
-| [`docs/plans/growth-intelligence-platform.md`](docs/plans/growth-intelligence-platform.md) | Program architecture and delivery order |
+| [`docs/plans/citeladder-aeo-product-rebuild.md`](docs/plans/citeladder-aeo-product-rebuild.md) | Product architecture and delivery order |
 | [`docs/site-health.md`](docs/site-health.md) | Site crawl, page kinds, rules, issues, readiness, and crawl changes |
 | [`docs/design.md`](docs/design.md) | Design tokens, screen geometry, and the insight object |
 

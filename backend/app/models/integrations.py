@@ -565,11 +565,6 @@ class IntegrationOAuthState(Base):
         index=True,
     )
     provider: Mapped[str] = mapped_column(String(16))
-    # Per-account OAuth target bound at connect start (Shopify: the canonical
-    # ``{shop}.myshopify.com`` host). Empty for single-tenant transports
-    # (Google/Microsoft). Signed into the state JWT and matched exactly
-    # against the callback ``shop`` on completion.
-    provider_account_ref: Mapped[str] = mapped_column(String(255), default="")
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     consumed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

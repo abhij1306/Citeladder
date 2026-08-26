@@ -8,8 +8,6 @@ no token or client secret ever reaches a log line (invariant 6).
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import logging
 from pathlib import Path
@@ -23,7 +21,6 @@ from app.connectors.integrations.oauth import (
     IntegrationOAuthError,
     build_oauth_client,
     oauth_client_configured,
-    verify_shopify_callback_hmac,
 )
 from app.core.config import settings
 from app.core.config.integrations_contracts import (
@@ -36,13 +33,6 @@ from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_TOKEN_URLS,
     INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_TRANSPORT_MICROSOFT,
-    INTEGRATION_TRANSPORT_SHOPIFY,
-    SHOPIFY_ADMIN_API_VERSION,
-    is_shopify_shop_domain,
-    normalize_shopify_shop_domain,
-    shopify_admin_graphql_url,
-    shopify_oauth_authorize_url,
-    shopify_oauth_token_url,
 )
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "integrations"
@@ -305,188 +295,3 @@ def test_oauth_client_configured(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_unknown_transport_rejected() -> None:
     with pytest.raises(IntegrationOAuthError):
         IntegrationOAuthClient("netscape_oauth")
-
-
-# ---------------------------------------------------------------------------
-# Shopify transport: dynamic per-shop endpoints + non-refreshable offline
-# token + callback HMAC (commerce suite WS-B task 2).
-# ---------------------------------------------------------------------------
-
-_SHOPIFY_CLIENT_ID = "test-shopify-client-id"
-_SHOPIFY_CLIENT_SECRET = "test-shopify-client-secret"  # pragma: allowlist secret
-_SHOP = "volt-city.myshopify.com"
-
-
-@pytest.fixture
-def _shopify_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(settings, "integration_shopify_client_id", _SHOPIFY_CLIENT_ID)
-    monkeypatch.setattr(
-        settings, "integration_shopify_client_secret", _SHOPIFY_CLIENT_SECRET
-    )
-
-
-def test_shopify_shop_domain_normalization() -> None:
-    assert normalize_shopify_shop_domain("volt-city") == _SHOP
-    assert normalize_shopify_shop_domain("  Volt-City.MyShopify.com ") == _SHOP
-    assert normalize_shopify_shop_domain("https://volt-city.myshopify.com/admin") == (
-        _SHOP
-    )
-    assert is_shopify_shop_domain(_SHOP) is True
-
-
-def test_shopify_shop_domain_hostile_rejected() -> None:
-    for hostile in (
-        "",
-        "myshopify.com",
-        "shop.myshopify.com.evil.com",
-        "a.b.myshopify.com",
-        "volt_city.myshopify.com",
-        "-volt.myshopify.com",
-        "VOLT.myshopify.com.attacker.example",
-    ):
-        with pytest.raises(ValueError):
-            normalize_shopify_shop_domain(hostile)
-        assert is_shopify_shop_domain(hostile) is False
-
-
-def test_shopify_dynamic_endpoint_builders() -> None:
-    assert shopify_oauth_token_url("volt-city") == (
-        f"https://{_SHOP}/admin/oauth/access_token"
-    )
-    assert shopify_oauth_authorize_url(_SHOP) == (
-        f"https://{_SHOP}/admin/oauth/authorize"
-    )
-    assert shopify_admin_graphql_url(_SHOP) == (
-        f"https://{_SHOP}/admin/api/{SHOPIFY_ADMIN_API_VERSION}/graphql.json"
-    )
-    # The host is validated BEFORE interpolation — a hostile shop never
-    # reaches a URL (SSRF policy for the one dynamic host).
-    with pytest.raises(ValueError):
-        shopify_oauth_token_url("shop.myshopify.com.evil.com")
-
-
-def test_shopify_client_requires_canonical_shop(_shopify_credentials: None) -> None:
-    with pytest.raises(IntegrationOAuthError) as excinfo:
-        build_oauth_client(INTEGRATION_TRANSPORT_SHOPIFY, provider_account_ref="")
-    assert excinfo.value.error_code == ERROR_PROVIDER_API
-    with pytest.raises(IntegrationOAuthError):
-        build_oauth_client(
-            INTEGRATION_TRANSPORT_SHOPIFY,
-            provider_account_ref="shop.myshopify.com.evil.com",
-        )
-    # A bare shop name is accepted and canonicalized eagerly.
-    client = build_oauth_client(
-        INTEGRATION_TRANSPORT_SHOPIFY, provider_account_ref="Volt-City"
-    )
-    assert client._provider_account_ref == _SHOP
-
-
-@pytest.mark.asyncio
-async def test_shopify_exchange_form_is_exact(_shopify_credentials: None) -> None:
-    captured: list[httpx.Request] = []
-    payload = {
-        "access_token": "shpat_fake-offline-token",  # pragma: allowlist secret
-        "scope": "read_products,read_orders",
-    }
-    client = build_oauth_client(
-        INTEGRATION_TRANSPORT_SHOPIFY,
-        transport=_token_transport(payload, captured=captured),
-        provider_account_ref=_SHOP,
-    )
-    bundle = await client.exchange_code(
-        code=_AUTH_CODE, redirect_uri="http://testserver/callback"
-    )
-    assert bundle.access_token == "shpat_fake-offline-token"
-    # Offline token: no refresh token, no expiry, comma-joined scopes.
-    assert bundle.refresh_token == ""
-    assert bundle.expires_in is None
-    assert bundle.granted_scopes == ("read_products", "read_orders")
-    (request,) = captured
-    assert str(request.url) == f"https://{_SHOP}/admin/oauth/access_token"
-    form = _form(request)
-    # Shopify's exchange form is EXACTLY client_id/client_secret/code — no
-    # grant_type and no redirect_uri.
-    assert set(form) == {"client_id", "client_secret", "code"}
-    assert form["client_id"] == [_SHOPIFY_CLIENT_ID]
-    assert form["client_secret"] == [_SHOPIFY_CLIENT_SECRET]
-    assert form["code"] == [_AUTH_CODE]
-
-
-@pytest.mark.asyncio
-async def test_shopify_refresh_raises_without_any_request(
-    _shopify_credentials: None,
-) -> None:
-    def fail(_request: httpx.Request) -> httpx.Response:
-        raise AssertionError("Shopify offline tokens are never refreshed")
-
-    client = build_oauth_client(
-        INTEGRATION_TRANSPORT_SHOPIFY,
-        transport=httpx.MockTransport(fail),
-        provider_account_ref=_SHOP,
-    )
-    with pytest.raises(IntegrationOAuthError) as excinfo:
-        await client.refresh(refresh_token="")
-    assert excinfo.value.error_code == ERROR_PROVIDER_API
-
-
-@pytest.mark.asyncio
-async def test_shopify_token_url_passes_ssrf_guard(_shopify_credentials: None) -> None:
-    # The per-shop token URL is the ONE dynamic host; it must pass the
-    # allow-list via the strict canonical-domain check (not a wildcard).
-    captured: list[httpx.Request] = []
-    client = build_oauth_client(
-        INTEGRATION_TRANSPORT_SHOPIFY,
-        transport=_token_transport({"access_token": "shpat_x"}, captured=captured),
-        provider_account_ref=_SHOP,
-    )
-    await client.exchange_code(code=_AUTH_CODE, redirect_uri="http://t/cb")
-    assert len(captured) == 1
-
-
-def _shopify_callback_params(secret: str, **params: str) -> dict[str, str]:
-    canonical = "&".join(f"{key}={value}" for key, value in sorted(params.items()))
-    signature = hmac.new(
-        secret.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256
-    ).hexdigest()
-    return {**params, "hmac": signature}
-
-
-def test_shopify_callback_hmac_verified(_shopify_credentials: None) -> None:
-    params = _shopify_callback_params(
-        _SHOPIFY_CLIENT_SECRET,
-        code=_AUTH_CODE,
-        shop=_SHOP,
-        state="fake-state",
-        timestamp="1700000000",
-    )
-    assert verify_shopify_callback_hmac(params) is True
-
-
-def test_shopify_callback_hmac_tampered_param_fails(
-    _shopify_credentials: None,
-) -> None:
-    params = _shopify_callback_params(
-        _SHOPIFY_CLIENT_SECRET, code=_AUTH_CODE, shop=_SHOP, state="fake-state"
-    )
-    params["shop"] = "other-shop.myshopify.com"
-    assert verify_shopify_callback_hmac(params) is False
-
-
-def test_shopify_callback_hmac_missing_or_unsigned_fails(
-    _shopify_credentials: None,
-) -> None:
-    assert verify_shopify_callback_hmac({"code": _AUTH_CODE, "shop": _SHOP}) is False
-    assert (
-        verify_shopify_callback_hmac(
-            {"code": _AUTH_CODE, "shop": _SHOP, "hmac": "not-a-real-hmac"}
-        )
-        is False
-    )
-
-
-def test_shopify_callback_hmac_fails_closed_without_secret(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(settings, "integration_shopify_client_secret", "")
-    params = _shopify_callback_params("anything", code=_AUTH_CODE, shop=_SHOP)
-    assert verify_shopify_callback_hmac(params) is False

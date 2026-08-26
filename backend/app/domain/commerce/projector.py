@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -9,7 +10,12 @@ from typing import Any
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config.commerce_catalog import COMMERCE_PROJECTOR_VERSION
+from app.core.config.commerce_catalog import (
+    COMMERCE_PROJECTOR_VERSION,
+    COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS,
+    COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS,
+)
+from app.domain.commerce.price import normalized_price_value
 from app.domain.commerce.service import (
     CommerceNotFoundError,
     _merge_categories,
@@ -31,32 +37,111 @@ def _first(values: Any) -> str:
     return str(next((value for value in values if value), ""))
 
 
-def _crawl_values(facts: dict[str, Any], canonical_url: str) -> dict[str, Any]:
+_VISIBLE_PRICE_MARKERS = "|".join(
+    re.escape(marker) for marker, _ in COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS
+)
+_VISIBLE_PRICE = re.compile(
+    rf"(?P<prefix>{_VISIBLE_PRICE_MARKERS})\s*(?P<amount>\d[\d,.]*)"
+    rf"|(?P<suffix_amount>\d[\d,.]*)\s*(?P<suffix>{_VISIBLE_PRICE_MARKERS})",
+    re.IGNORECASE,
+)
+
+
+def _visible_price(value: Any) -> tuple[Decimal | None, str]:
+    text = value.strip() if isinstance(value, str) else ""
+    match = _single_visible_price(text)
+    if match is None:
+        return None, ""
+    observed_marker = str(match.group("prefix") or match.group("suffix") or "").upper()
+    number = normalized_price_value(
+        str(match.group("amount") or match.group("suffix_amount") or "")
+    )
+    try:
+        price = Decimal(number) if number is not None else None
+    except InvalidOperation:
+        price = None
+    currency = next(
+        (
+            currency
+            for marker, currency in COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS
+            if marker.upper() == observed_marker
+        ),
+        "",
+    )
+    return price, currency
+
+
+def _single_visible_price(text: str) -> re.Match[str] | None:
+    if any(
+        token in text.casefold() for token in COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS
+    ):
+        return None
+    matches = list(_VISIBLE_PRICE.finditer(text))
+    return matches[0] if len(matches) == 1 else None
+
+
+def _decimal(value: Any) -> Decimal | None:
+    text = _first(value)
+    try:
+        return Decimal(text) if text else None
+    except InvalidOperation:
+        return None
+
+
+def _projected_price(
+    product: dict[str, Any], commerce: dict[str, Any]
+) -> tuple[Decimal | None, str, dict[str, str]]:
+    price = _decimal(product.get("price"))
+    visible_price, visible_currency = _visible_price(commerce.get("visible_price"))
+    price_path = "structured_data.product.price"
+    if price is None and visible_price is not None:
+        price = visible_price
+        price_path = "commerce.visible_price"
+    structured_currency = _first(product.get("price_currency"))
+    currency = structured_currency or visible_currency
+    paths = {}
+    if price is not None:
+        paths["price"] = price_path
+    if currency:
+        paths["currency"] = (
+            "structured_data.product.price_currency"
+            if structured_currency
+            else "commerce.visible_price"
+        )
+    return price, currency, paths
+
+
+def _crawl_projection(
+    facts: dict[str, Any], canonical_url: str
+) -> tuple[dict[str, Any], dict[str, str]]:
     structured = _dict_value(facts.get("structured_data"))
     product = _dict_value(structured.get("product"))
+    commerce = _dict_value(facts.get("commerce"))
     headings = _dict_value(facts.get("headings"))
     names = _list_value(product.get("name"))
     if not names:
         names = _list_value(headings.get("h1_texts"))
-    price_text = _first(product.get("price"))
-    try:
-        price = Decimal(price_text) if price_text else None
-    except InvalidOperation:
-        price = None
-    return {
+    price, currency, evidence_paths = _projected_price(product, commerce)
+    availability = _list_value(product.get("availability"))
+    values = {
         "canonical_url": canonical_url,
         "name": _first(names) or str(facts.get("title") or ""),
         "description": _first(product.get("description"))
         or str(facts.get("meta_description") or ""),
         "brand": _first(product.get("brand")),
         "price": price,
-        "currency": _first(product.get("price_currency")),
+        "currency": currency,
         "sku": _first(product.get("sku")),
         "gtin": _first(product.get("gtin")),
         "mpn": _first(product.get("mpn")),
         "variants": _list_value(product.get("variants")),
-        "attributes": {"availability": _list_value(product.get("availability"))},
+        "attributes": {"availability": availability} if availability else {},
     }
+    return values, evidence_paths
+
+
+def _crawl_values(facts: dict[str, Any], canonical_url: str) -> dict[str, Any]:
+    return _crawl_projection(facts, canonical_url)[0]
 
 
 def _json_observed_fields(values: dict[str, Any]) -> dict[str, Any]:
@@ -152,7 +237,7 @@ async def _project_product_source(
     )
     if prior is not None:
         return
-    values = _crawl_values(
+    values, evidence_paths = _crawl_projection(
         _dict_value(artifact.normalized_facts), site_url.normalized_url
     )
     product = await session.scalar(
@@ -170,8 +255,14 @@ async def _project_product_source(
         session.add(product)
         await session.flush()
     _apply_projected_values(
-        product, values=values, analysis=analysis, artifact=artifact
+        product,
+        values=values,
+        evidence_paths=evidence_paths,
+        analysis=analysis,
+        artifact=artifact,
     )
+    observed_fields = _json_observed_fields(values)
+    observed_fields["_evidence_paths"] = evidence_paths
     observation = CommerceProductObservation(
         workspace_id=analysis.workspace_id,
         project_id=analysis.project_id,
@@ -179,7 +270,7 @@ async def _project_product_source(
         source_kind="site_health",
         source_analysis_id=analysis.id,
         source_artifact_id=artifact.id,
-        observed_fields=_json_observed_fields(values),
+        observed_fields=observed_fields,
         extractor_version=artifact.extractor_version,
         classifier_version=analysis.classifier_version,
         projector_version=COMMERCE_PROJECTOR_VERSION,
@@ -199,9 +290,11 @@ def _apply_projected_values(
     product: CommerceProduct,
     *,
     values: dict[str, Any],
+    evidence_paths: dict[str, str] | None = None,
     analysis: SitePageAnalysis,
     artifact: SiteFetchArtifact,
 ) -> None:
+    evidence_paths = evidence_paths or {}
     sources = dict(product.field_sources or {})
     for field, value in values.items():
         source = _dict_value(sources.get(field))
@@ -215,6 +308,8 @@ def _apply_projected_values(
                 "artifact_id": str(artifact.id),
                 "version": COMMERCE_PROJECTOR_VERSION,
             }
+            if field in evidence_paths:
+                sources[field]["evidence_path"] = evidence_paths[field]
     product.field_sources = sources
 
 
@@ -271,6 +366,19 @@ async def _category_from_analysis(
             canonical_url=canonical_url,
         )
         session.add(category)
-    category.role = role if role in {"hub", "leaf"} else "unknown"
+    sources = dict(category.field_sources or {})
+    source = {
+        "kind": "site_health",
+        "source_id": str(analysis.id),
+        "version": COMMERCE_PROJECTOR_VERSION,
+    }
+    if _dict_value(sources.get("name")).get("kind") != "edit":
+        category.name = safe_title[:255]
+        category.normalized_name = normalized[:255]
+        sources["name"] = source
+    if _dict_value(sources.get("role")).get("kind") != "edit":
+        category.role = role if role in {"hub", "leaf"} else "unknown"
+        sources["role"] = source
+    category.field_sources = sources
     category.source_analysis_id = analysis.id
     category.projector_version = COMMERCE_PROJECTOR_VERSION

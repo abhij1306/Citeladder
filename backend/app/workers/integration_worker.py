@@ -558,7 +558,7 @@ class IntegrationWorker(DrainableWorkerMixin):
     ) -> bool:
         """Page one dataset to completion. False = lost lease / cancelled.
 
-        Cursor-mode templates (Shopify) run the durable-cursor protocol:
+        Cursor-mode templates run the durable-cursor protocol:
         the resume cursor comes ONLY from the latest immutable artifact's
         ``query_snapshot`` and is injected into the client before each
         unchanged-protocol call; each returned page's outer ``pageInfo``

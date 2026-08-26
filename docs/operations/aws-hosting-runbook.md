@@ -245,16 +245,14 @@ impact of a future SSRF bypass.
 NAT and security groups do not make arbitrary HTTPS destinations safe. Hosted
 production must use the following integration-class catalogs. Every entry is
 TCP 443 only; HTTP, wildcard domain rules, and tenant-supplied hostnames are
-denied. The dynamic Shopify entry is instantiated as one exact, validated
-`<shop>.myshopify.com:443` host per approved connection, never as a suffix
-wildcard.
+denied.
 
 | Catalog | Exact hosts and ports |
 | ------- | --------------------- |
 | `ai-provider` | `api.openai.com:443`, `api.anthropic.com:443`, `generativelanguage.googleapis.com:443`, `api.gmi-serving.com:443`, `api.keenable.ai:443`, `api.mistral.ai:443`; each credential is bound to its reviewed exact hostname |
 | `identity-oauth` | `oauth2.googleapis.com:443`, `github.com:443`, `appleid.apple.com:443`; browser authorization destinations do not grant task egress |
-| `integration-oauth` | `oauth2.googleapis.com:443`, `login.microsoftonline.com:443`, and each exact validated `<shop>.myshopify.com:443` |
-| `integration-data` | `www.googleapis.com:443`, `analyticsdata.googleapis.com:443`, `analyticsadmin.googleapis.com:443`, `ssl.bing.com:443`, and each exact validated `<shop>.myshopify.com:443` |
+| `integration-oauth` | `oauth2.googleapis.com:443`, `login.microsoftonline.com:443` |
+| `integration-data` | `www.googleapis.com:443`, `analyticsdata.googleapis.com:443`, `analyticsadmin.googleapis.com:443`, `ssl.bing.com:443` |
 | `razorpay` | `api.razorpay.com:443`; checkout hosts are browser destinations and do not grant task egress |
 
 Site Health uses one SSRF-pinned `curl_cffi` acquisition transport.

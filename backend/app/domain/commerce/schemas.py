@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.core.config.commerce_catalog import (
     COMMERCE_IMPORT_MAX_BYTES,
@@ -31,8 +31,14 @@ class CategoryResponse(BaseModel):
     role: Literal["hub", "leaf", "unknown"]
     canonical_url: str
     product_count: int = 0
+    field_sources: dict = Field(default_factory=dict)
     source_analysis_id: uuid.UUID | None
     projector_version: str
+
+
+class CategoryEditRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    role: Literal["hub", "leaf", "unknown"] | None = None
 
 
 class ProductResponse(BaseModel):
@@ -45,9 +51,9 @@ class ProductResponse(BaseModel):
     brand: str
     price: float | None
     currency: str
-    sku: str
-    gtin: str
-    mpn: str
+    sku: str | None
+    gtin: str | None
+    mpn: str | None
     observed_external_id: str
     variants: list = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
@@ -67,7 +73,14 @@ class CatalogResponse(BaseModel):
 class CatalogImportRequest(BaseModel):
     filename: str = Field(default="catalog.csv", max_length=255)
     content_type: str = Field(default="text/csv", max_length=128)
-    content: str = Field(max_length=COMMERCE_IMPORT_MAX_BYTES)
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def content_fits_byte_budget(cls, value: str) -> str:
+        if len(value.encode("utf-8")) > COMMERCE_IMPORT_MAX_BYTES:
+            raise ValueError("catalog content exceeds the UTF-8 byte limit")
+        return value
 
 
 class CatalogRowOutcome(BaseModel):

@@ -202,8 +202,8 @@ about_contact, service, local, guide, comparison,
 case_study_review, trust_policy, other
 ```
 
-Classification is pure, deterministic, bounded, and versioned. Signals run in
-this priority order:
+Classification is pure, deterministic, bounded, and versioned. Signals normally
+run in this priority order:
 
 1. root/homepage path equivalence;
 2. the semantic URL path segment nearest the root;
@@ -214,6 +214,11 @@ Path/content evidence outranks schema because schema is a page's claim about
 itself. Letting that claim select the contract used to validate it would make
 schema analysis circular. Conflicts, alternatives, confidence, winning signal,
 and schema suggestion persist on `SitePageAnalysis.page_kind_evidence`.
+
+One config-owned exception handles category route families that contain deep
+PDP URLs: visible price plus a purchase CTA overrides an ancestor category-path
+signal. Product schema alone never triggers that override, so structured data
+still cannot self-certify the product contract.
 
 Nested route families such as `/resources/guides/...`,
 `/company/contact-us`, and `/legal/privacy-policy` are recognized. Exact path

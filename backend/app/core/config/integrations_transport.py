@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from typing import Final
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 
 INTEGRATION_PROVIDER_GSC: Final = "gsc"
 
@@ -10,14 +10,11 @@ INTEGRATION_PROVIDER_GA4: Final = "ga4"
 
 INTEGRATION_PROVIDER_BING: Final = "bing"
 
-INTEGRATION_PROVIDER_SHOPIFY: Final = "shopify"
-
 INTEGRATION_PROVIDERS: Final[frozenset[str]] = frozenset(
     {
         INTEGRATION_PROVIDER_GSC,
         INTEGRATION_PROVIDER_GA4,
         INTEGRATION_PROVIDER_BING,
-        INTEGRATION_PROVIDER_SHOPIFY,
     }
 )
 
@@ -25,13 +22,10 @@ INTEGRATION_TRANSPORT_GOOGLE: Final = "google_oauth"
 
 INTEGRATION_TRANSPORT_MICROSOFT: Final = "microsoft_oauth"
 
-INTEGRATION_TRANSPORT_SHOPIFY: Final = "shopify_oauth"
-
 INTEGRATION_TRANSPORTS: Final[frozenset[str]] = frozenset(
     {
         INTEGRATION_TRANSPORT_GOOGLE,
         INTEGRATION_TRANSPORT_MICROSOFT,
-        INTEGRATION_TRANSPORT_SHOPIFY,
     }
 )
 
@@ -39,13 +33,11 @@ INTEGRATION_PROVIDER_TRANSPORT: Final[dict[str, str]] = {
     INTEGRATION_PROVIDER_GSC: INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_PROVIDER_GA4: INTEGRATION_TRANSPORT_GOOGLE,
     INTEGRATION_PROVIDER_BING: INTEGRATION_TRANSPORT_MICROSOFT,
-    INTEGRATION_PROVIDER_SHOPIFY: INTEGRATION_TRANSPORT_SHOPIFY,
 }
 
 INTEGRATION_OAUTH_REFRESHABLE: Final[dict[str, bool]] = {
     INTEGRATION_TRANSPORT_GOOGLE: True,
     INTEGRATION_TRANSPORT_MICROSOFT: True,
-    INTEGRATION_TRANSPORT_SHOPIFY: False,
 }
 
 INTEGRATION_OAUTH_AUTHORIZE_URLS: Final[dict[str, str]] = {
@@ -65,7 +57,6 @@ INTEGRATION_OAUTH_TOKEN_URLS: Final[dict[str, str]] = {
 INTEGRATION_OAUTH_REVOKE_URLS: Final[dict[str, str]] = {
     INTEGRATION_TRANSPORT_GOOGLE: "https://oauth2.googleapis.com/revoke",
     INTEGRATION_TRANSPORT_MICROSOFT: "",
-    INTEGRATION_TRANSPORT_SHOPIFY: "",
 }
 
 INTEGRATION_OAUTH_SCOPES: Final[dict[str, tuple[str, ...]]] = {
@@ -76,14 +67,6 @@ INTEGRATION_OAUTH_SCOPES: Final[dict[str, tuple[str, ...]]] = {
     INTEGRATION_TRANSPORT_MICROSOFT: (
         "offline_access",
         "https://webmaster.bing.com/api/webmaster.manage",
-    ),
-    # Shopify custom-app Admin API scopes: catalog + order READS only. No
-    # write scope and no ``read_all_orders`` (the orders read scope is
-    # sufficient for the app's own orders; requesting more would fail the
-    # least-privilege rule).
-    INTEGRATION_TRANSPORT_SHOPIFY: (
-        "read_products",
-        "read_orders",
     ),
 }
 
@@ -185,76 +168,6 @@ def normalize_ga4_property_ref(property_ref: str) -> str:
     user-supplied; this helper only normalizes spelling.
     """
     return property_ref.strip().removeprefix(GA4_PROPERTY_RESOURCE_PREFIX)
-
-
-SHOPIFY_SHOP_DOMAIN_PATTERN: Final = re.compile(
-    r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.myshopify\.com$"
-)
-
-SHOPIFY_SHOP_DOMAIN_SUFFIX: Final = ".myshopify.com"
-
-SHOPIFY_OAUTH_AUTHORIZE_PATH: Final = "/admin/oauth/authorize"
-
-SHOPIFY_OAUTH_TOKEN_PATH: Final = "/admin/oauth/access_token"
-
-SHOPIFY_ADMIN_API_VERSION: Final[str] = "2026-07"
-
-SHOPIFY_ADMIN_GRAPHQL_PATH: Final[str] = "/admin/api/{version}/graphql.json"
-
-
-def normalize_shopify_shop_domain(value: str) -> str:
-    """Canonicalize a user-supplied shop domain to its strict host form.
-
-    Strips whitespace, lowercases, drops any scheme, and expands a bare
-    single-label shop name (``my-shop``) to ``my-shop.myshopify.com``.
-    Raises ``ValueError`` unless the result matches the canonical pattern
-    exactly — callers map that to a 422; they never fall back to a guessed
-    host.
-    """
-    candidate = value.strip().lower()
-    if "://" in candidate:
-        candidate = urlsplit(candidate).netloc
-    # Drop a path/query fragment a user may have pasted after the host.
-    candidate = candidate.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
-    # A bare single-label shop name expands onto the canonical suffix.
-    if candidate and "." not in candidate:
-        candidate = f"{candidate}{SHOPIFY_SHOP_DOMAIN_SUFFIX}"
-    if not SHOPIFY_SHOP_DOMAIN_PATTERN.match(candidate):
-        raise ValueError(f"invalid Shopify shop domain: {value!r}")
-    return candidate
-
-
-def is_shopify_shop_domain(host: str) -> bool:
-    """True when ``host`` is a canonical ``{shop}.myshopify.com`` host.
-
-    Used by the SSRF allow-list for the dynamic Shopify host: a dynamic
-    host passes ONLY this exact pattern — there is deliberately no
-    wildcard/suffix match.
-    """
-    return bool(SHOPIFY_SHOP_DOMAIN_PATTERN.match(host.strip().lower()))
-
-
-def _shopify_shop_url(shop: str, path: str) -> str:
-    """Absolute per-shop URL; the host is validated BEFORE interpolation."""
-    canonical = normalize_shopify_shop_domain(shop)
-    return f"https://{canonical}{path}"
-
-
-def shopify_oauth_authorize_url(shop: str) -> str:
-    """Per-shop OAuth authorize endpoint (validated canonical host only)."""
-    return _shopify_shop_url(shop, SHOPIFY_OAUTH_AUTHORIZE_PATH)
-
-
-def shopify_oauth_token_url(shop: str) -> str:
-    """Per-shop OAuth token endpoint (validated canonical host only)."""
-    return _shopify_shop_url(shop, SHOPIFY_OAUTH_TOKEN_PATH)
-
-
-def shopify_admin_graphql_url(shop: str) -> str:
-    """Per-shop Admin GraphQL endpoint at the config-owned API version."""
-    return _shopify_shop_url(
-        shop, SHOPIFY_ADMIN_GRAPHQL_PATH.format(version=SHOPIFY_ADMIN_API_VERSION)
-    )
 
 
 BING_API_BASE_URL: Final = "https://ssl.bing.com"

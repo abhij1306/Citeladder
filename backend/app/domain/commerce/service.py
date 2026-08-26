@@ -11,9 +11,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import delete, func, or_, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.commerce_catalog import (
+    COMMERCE_CATEGORY_EDIT_VERSION,
     COMMERCE_EDIT_VERSION,
     COMMERCE_IMPORT_ERROR_LIMIT,
     COMMERCE_IMPORT_MAX_BYTES,
@@ -28,13 +31,16 @@ from app.domain.commerce.schemas import (
     CatalogImportResponse,
     CatalogResponse,
     CatalogRowOutcome,
+    CategoryEditRequest,
     CategoryResponse,
     ProductResponse,
 )
+from app.domain.integrations.sync import integrity_constraint_name
 from app.domain.site_health.normalization import canonical_identity
 from app.models.analytics import AnalyticsTask
 from app.models.commerce import (
     CommerceCategory,
+    CommerceCategoryObservation,
     CommerceCsvImport,
     CommerceProduct,
     CommerceProductCategory,
@@ -49,6 +55,9 @@ class CommerceNotFoundError(LookupError):
 
 class CommerceConflictError(ValueError):
     pass
+
+
+_CATEGORY_NAME_UNIQUE_CONSTRAINT = "uq_commerce_category_name"
 
 
 class CommerceImportError(ValueError):
@@ -161,6 +170,83 @@ async def get_catalog(
         ],
         projection_tasks={status: count for status, count in queue_rows},
     )
+
+
+async def edit_category(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    category_id: uuid.UUID,
+    payload: CategoryEditRequest,
+) -> CategoryResponse:
+    await require_project(session, workspace_id=workspace_id, project_id=project_id)
+    category = await session.scalar(
+        select(CommerceCategory).where(
+            CommerceCategory.id == category_id,
+            CommerceCategory.project_id == project_id,
+            CommerceCategory.workspace_id == workspace_id,
+        )
+    )
+    if category is None:
+        raise CommerceNotFoundError("Category not found")
+    observed: dict[str, Any] = {}
+    if "name" in payload.model_fields_set:
+        name = str(payload.name or "").strip()
+        if not name:
+            raise CommerceConflictError("category name cannot be empty")
+        normalized = " ".join(name.casefold().split())
+        duplicate = await session.scalar(
+            select(CommerceCategory.id).where(
+                CommerceCategory.project_id == project_id,
+                CommerceCategory.normalized_name == normalized,
+                CommerceCategory.id != category.id,
+            )
+        )
+        if duplicate is not None:
+            raise CommerceConflictError("category name already exists")
+        category.name = name
+        category.normalized_name = normalized
+        observed["name"] = name
+    if "role" in payload.model_fields_set and payload.role is not None:
+        category.role = payload.role
+        observed["role"] = payload.role
+    if not observed:
+        raise CommerceConflictError("category edit must supply a name or role")
+    observation = CommerceCategoryObservation(
+        workspace_id=workspace_id,
+        project_id=project_id,
+        category_id=category.id,
+        observed_fields=observed,
+        edit_version=COMMERCE_CATEGORY_EDIT_VERSION,
+    )
+    session.add(observation)
+    await session.flush()
+    sources = dict(category.field_sources or {})
+    for field in observed:
+        sources[field] = {
+            "kind": "edit",
+            "source_id": str(observation.id),
+            "version": COMMERCE_CATEGORY_EDIT_VERSION,
+        }
+    category.field_sources = sources
+    await _commit_category_edit(session)
+    product_count = await session.scalar(
+        select(func.count()).where(CommerceProductCategory.category_id == category.id)
+    )
+    return CategoryResponse.model_validate(category).model_copy(
+        update={"product_count": product_count or 0}
+    )
+
+
+async def _commit_category_edit(session: AsyncSession) -> None:
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        if integrity_constraint_name(exc) != _CATEGORY_NAME_UNIQUE_CONSTRAINT:
+            raise
+        raise CommerceConflictError("category name already exists") from exc
 
 
 def _csv_reader(content: str) -> csv.DictReader:
@@ -525,7 +611,7 @@ def _import_response(row: CommerceCsvImport) -> CatalogImportResponse:
         unchanged=row.unchanged_count,
         rejected=row.rejected_count,
         row_outcomes=[
-            CatalogRowOutcome.model_validate(item) for item in row.row_outcomes
+            CatalogRowOutcome.model_validate(item) for item in (row.row_outcomes or [])
         ][:COMMERCE_IMPORT_ERROR_LIMIT],
     )
 
@@ -608,6 +694,9 @@ def _apply_edit_values(
     observed: dict[str, Any] = {}
     cleared_values: dict[str, Any] = {
         "price": None,
+        "sku": None,
+        "gtin": None,
+        "mpn": None,
         "variants": [],
         "attributes": {},
     }
@@ -668,17 +757,16 @@ async def enqueue_catalog_projection(
     source_analysis_id: uuid.UUID,
 ) -> None:
     key = f"commerce:project:{source_analysis_id}:{COMMERCE_PROJECTOR_VERSION}"
-    exists = await session.scalar(
-        select(AnalyticsTask.id).where(AnalyticsTask.idempotency_key == key)
-    )
-    if exists is None:
-        session.add(
-            AnalyticsTask(
-                workspace_id=workspace_id,
-                project_id=project_id,
-                task_kind="commerce_catalog_projection",
-                payload={"source_analysis_id": str(source_analysis_id)},
-                idempotency_key=key,
-                status=TASK_STATUS_QUEUED,
-            )
+    await session.execute(
+        insert(AnalyticsTask)
+        .values(
+            id=uuid.uuid4(),
+            workspace_id=workspace_id,
+            project_id=project_id,
+            task_kind="commerce_catalog_projection",
+            payload={"source_analysis_id": str(source_analysis_id)},
+            idempotency_key=key,
+            status=TASK_STATUS_QUEUED,
         )
+        .on_conflict_do_nothing(index_elements=[AnalyticsTask.idempotency_key])
+    )
