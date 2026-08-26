@@ -188,6 +188,9 @@ async def test_audit_context_rejects_a_target_without_frozen_product_evidence() 
         def all(self) -> list:
             return self.rows
 
+        def __iter__(self):
+            return iter(self.rows)
+
     class Session:
         def __init__(self) -> None:
             self.results = iter((Rows([target]), Rows([]), Rows([])))
