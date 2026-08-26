@@ -1,9 +1,8 @@
 # Commerce Suite atomic rebuild
 
-> **Status:** approved implementation plan; not shipped runtime
-> **Authority:** this document owns the pending Commerce replacement only.
-> Until PR 1 cuts over atomically, [`../commerce-intelligence.md`](../commerce-intelligence.md)
-> remains the shipped-runtime reference.
+> **Status:** implemented
+> **Authority:** historical delivery sequence. [`../commerce-intelligence.md`](../commerce-intelligence.md)
+> is the shipped-runtime reference.
 
 ## Outcome
 

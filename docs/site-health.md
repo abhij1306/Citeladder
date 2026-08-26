@@ -99,11 +99,13 @@ repair lifecycle state, or call a model.
 
 ## Crawl controls, limits, and progressive UI
 
-The production path is one standard crawl: its frozen requested-page cap and
-default are **50**. Advanced input, seed, page-kind, and oversized limits are
-development-only; when enabled there, the separate discovery and analysis
-ceilings are **50,000**. These are configuration-owned operational bounds, not
-throughput promises.
+The production path is one standard crawl: its default is **50** and paid-plan
+allowances remain entitlement-owned. The technical/development requested-page
+ceiling is **500**; using it requires the existing audited operator override on
+the dev/demo workspace. Advanced input, seed, and page-kind controls are
+development-only; their separate discovery and analysis safety ceilings remain
+**50,000**. These are configuration-owned operational bounds, not throughput
+promises.
 
 Before any crawl, Site Health shows one empty placeholder with **Run new
 crawl**. Once a crawl exists, the header exposes one contextual primary control:

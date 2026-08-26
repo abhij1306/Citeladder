@@ -47,7 +47,7 @@ causal claims.
 | Integrations/Traffic/Analytics/Demand | GSC/Traffic evidence, snapshots, signals |
 | Prompts/Audits/Visibility | Prompt portfolios and answer-engine measurement |
 | Opportunities | One persisted cross-system action store |
-| Commerce | Uploaded catalog specialization, product-named buyer prompts grouped by category, Commerce-scoped audit analysis, product visibility, category brand/competitor mentions and classified citations, and deterministic actions |
+| Commerce | Site Health-projected canonical catalog, append-only CSV/edit observations, approved competitor candidates, typed buyer prompts, Commerce-scoped recommendation observations, persisted AI Shelf metrics, and deterministic actions |
 | Growth Agent | Standalone explain/roadmap runs and append-only typed-tool attempts |
 
 The command-center read projection is useful before the first visibility audit.

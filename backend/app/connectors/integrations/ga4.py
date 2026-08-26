@@ -62,12 +62,13 @@ from app.connectors.integrations._http import (
     nested_error_detail,
     parse_retry_after,
 )
-from app.core.config.attribution import ATTRIBUTION_CONSUMED_DATASETS
 from app.core.config.integrations_contracts import (
     ERROR_GA4_DIMENSION_INCOMPATIBLE,
     ERROR_PROVIDER_API,
 )
 from app.core.config.integrations_datasets import (
+    DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
+    DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
     GA4_DIMENSION_INCOMPATIBLE_DETAIL_MARKERS,
     INTEGRATION_DATASET_TEMPLATES,
@@ -86,6 +87,14 @@ from app.core.config.integrations_transport import (
     GA4_RUN_REPORT_PATH,
     INTEGRATION_PROVIDER_GA4,
     normalize_ga4_property_ref,
+)
+
+_DIMENSION_COMPATIBILITY_DATASETS = frozenset(
+    {
+        DATASET_GA4_ECOMMERCE_SOURCE_MEDIUM_DAILY,
+        DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
+        DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
+    }
 )
 
 
@@ -504,7 +513,7 @@ def _report_payload(
     metadata = report.get("metadata")
     if isinstance(metadata, dict):
         payload["metadata"] = metadata
-    if template.dataset in ATTRIBUTION_CONSUMED_DATASETS:
+    if template.dataset in _DIMENSION_COMPATIBILITY_DATASETS:
         currency_code = _report_currency_code(report)
         if currency_code is not None:
             payload["currency_code"] = currency_code

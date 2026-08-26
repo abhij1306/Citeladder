@@ -16,8 +16,11 @@ from app.core.config.integrations_contracts import (
 from app.core.config.integrations_transport import INTEGRATION_PROVIDER_SHOPIFY
 from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.domain.analytics.enqueue import enqueue_post_sync_projections
-from app.domain.commerce.derive import derive_shopify_run
-from app.domain.integrations.derive import UnmappedPropertyError, derive_run
+from app.domain.integrations.derive import (
+    UnmappedPropertyError,
+    derive_run,
+    resolve_active_mapping,
+)
 from app.models.integrations import (
     IntegrationConnection,
     IntegrationEvent,
@@ -128,10 +131,13 @@ class RunFinalizer:
         artifacts: list[IntegrationImportArtifact],
     ) -> tuple[uuid.UUID, tuple[uuid.UUID, ...], int]:
         if ctx.provider == INTEGRATION_PROVIDER_SHOPIFY:
-            commerce_derived = await derive_shopify_run(
-                session, run=run, connection=connection, artifacts=artifacts
+            mapping = await resolve_active_mapping(
+                session,
+                workspace_id=run.workspace_id,
+                provider=connection.provider,
+                property_ref=connection.account_ref,
             )
-            return commerce_derived.project_id, commerce_derived.artifact_ids, 0
+            return mapping.project_id, tuple(artifact.id for artifact in artifacts), 0
         metric_derived = await derive_run(
             session, run=run, connection=connection, artifacts=artifacts
         )

@@ -26,7 +26,11 @@ DATASET_GSC_DEVICE_DAILY: Final = "gsc_device_daily"
 DATASET_GSC_COUNTRY_DAILY: Final = "gsc_country_daily"
 
 INTEGRATION_SYNC_EXCLUDED_DATASETS: Final[frozenset[str]] = frozenset(
-    {DATASET_GSC_SEARCH_APPEARANCE_DAILY}
+    {
+        DATASET_GSC_SEARCH_APPEARANCE_DAILY,
+        "shopify.products",
+        "shopify.orders",
+    }
 )
 
 DATASET_GA4_CHANNEL_DAILY: Final = "ga4_channel_daily"

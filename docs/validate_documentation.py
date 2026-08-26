@@ -48,6 +48,7 @@ ACTIVE_EXACT = {
     "docs/validate_documentation.py",
     "docs/plans/citeladder-aeo-product-rebuild.md",
     "docs/plans/commerce-suite-atomic-rebuild.md",
+    "docs/plans/commerce-suite-retirement-manifest.md",
     "docs/plans/growth-intelligence-platform.md",
     "docs/plans/content-intelligence.md",
     "docs/plans/demand-intelligence.md",

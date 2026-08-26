@@ -1,69 +1,34 @@
-# Commerce specialization
+# Commerce Intelligence
 
-> **Status:** shipped-runtime reference until the atomic replacement lands.
-> The approved future contract is
-> [`plans/commerce-suite-atomic-rebuild.md`](plans/commerce-suite-atomic-rebuild.md).
-> Its PR 1 performs the cutover and replaces this document's current boundary;
-> do not combine the two implementations before that gate.
+Commerce is the shipped four-tab `/products` workspace: **Catalog**, **Competitors**, **Buyer Prompts**, and **AI Shelf**. It reuses Site Health acquisition and the shared audit system; it does not own a crawler, response store, prompt store, or opportunity store.
 
-Commerce is a specialization over the shared Site Health, Content, Demand, and
-Opportunity owners. It is not a separate crawler, page-analysis table,
-knowledge store, or product architecture.
+## Catalog
 
-## Current boundary
+Site Health extractor `sh-extractor-9`, analyzer `sh-analyzer-5`, and classifier `sh-classifier-4` emit generic category and PDP facts. The Commerce projector `commerce-projector-1` creates the persisted catalog from those analyses. A normalized canonical PDP URL is the primary product identity; GTIN, SKU, and MPN are secondary merge evidence.
 
-- Site Health classifies product, category, pricing, comparison, FAQ, policy,
-  and other structural page kinds.
-- Product pages receive Product/Offer completeness and visible/schema parity
-  rules in addition to the generic page-type schema contract.
-- Catalog and product models remain specialized identity/evidence sources.
-- Content and Demand workflows may reference product/catalog IDs through their
-  existing typed contracts.
+CSV imports and explicit edits are append-only observations. Current product rows are read projections whose `field_sources` identify the exact observation and version controlling every field. CSV and edit authority is not silently overwritten by later crawl projection. Imports are content-hash idempotent and expose bounded, row-level outcomes.
 
-## Commerce Suite
+## Competitors
 
-`/products` ships one three-tab contract:
+Discovery runs as a queued, versioned attempt. Tavily is optional; an unavailable provider produces an explicit unavailable state. Candidate URLs pass deterministic path/domain filters and the shared safe fetcher before persistence. Candidates remain pending until approved or rejected and cannot enter measurement before approval.
 
-1. **Overview** — guided catalog → category prompt → Commerce audit workflow,
-   followed by persisted product/category KPIs.
-2. **Catalog** — product add, import, edit, delete, completeness, INR price,
-   and variant-count facts. Integration origin, feed-health, and sync metadata
-   are not presented as catalog insight.
-3. **AI Visibility** — per-SKU visibility and average position alongside
-   category-level brand presence, configured-competitor mentions, and cited
-   source classification.
-CSV categories are authoritative. Commerce reuses one prompt set, one topic per
-category, and exactly two generated prompts per product: buyer destination and
-alternatives comparison. Both deterministic questions name the persisted
-product so the returned response can be measured for product, brand,
-competitor, destination, and citation presence without assuming a merchant. The Commerce
-generation action does not configure or call the application model. Commerce
-audits are isolated by `audit_scope` and freeze uploaded product URL domains.
-Category projections expose persisted tracked-brand response presence and
-configured-competitor mentions. Cited alternatives/sources retain the
-analyzer's brand, competitor, or third-party classification and matched
-competitor name where available; they are never matched competitor SKUs. A
-retrieval-enabled answer can truthfully have no citations.
+## Buyer Prompts
 
-The shared Opportunity owner may emit three deterministic Commerce action types: an uploaded product was
-absent, third-party category citations appeared while uploaded products and
-destinations were absent, or catalog fields were missing.
+Every Commerce prompt has a typed category or product target. Structured generation is bounded and rejects owned-name leakage. Generated and manual prompts use the shared Prompt owner and remain disabled until explicit approval. Audit creation freezes approved prompts, current catalog identity, approved competitors, and all relevant parser, matcher, formula, and template versions.
 
-The removed product-level competitor catalog, matching/comparison projection,
-discovery queue, candidates, review workflow, manual comparison mutation, AI
-Conversations view, and generic Market Intelligence view are not active
-architecture and must not be recreated. Brand competitors remain unchanged.
+## AI Shelf
 
-The removed commerce industry pack and industry-role classifier are historical.
-Do not recreate them beside the generic page-kind pipeline.
+Successful Commerce audit executions create append-only recommendation observations linked to the raw response artifact and any persisted Citations. Ordered lists and provider card order carry a one-based rank; prose and bullets remain unordered with a null rank. Unknown recommendations are retained as unresolved evidence.
 
-## Product schema rules
+The persisted `commerce-shelf-formula-1` snapshot exposes:
 
-Product analysis retains bounded identity, offer, variant, rating, shipping,
-and return-policy properties from recognized JSON-LD. Missing optional claims
-remain absent rather than inferred. Visible/schema parity compares only claims
-actually populated in markup.
+- Product Visibility: successful target executions with an owned appearance divided by all successful target executions.
+- Share of Shelf: owned recognized slots divided by all recognized slots.
+- Average Shelf Position: mean owned rank across explicitly ordered observations; unavailable without ranked owned appearances.
+- First-Position Win Rate: eligible ordered executions whose first slot is owned divided by eligible ordered executions.
 
-Product-specific rules apply only when deterministic classification selected
-`page_kind=product`; an unclassified page does not receive the product
-checklist.
+Zero and unavailable are distinct. Share of Shelf uses all recognized slots while position metrics use only explicitly ordered recommendations.
+
+## Deferred
+
+Revenue attribution, order facts, feed remediation/publishing, autonomous publishing, JavaScript rendering, merchant dashboards, family aggregation UI, sentiment, and composite product scores are not part of the shipped replacement.

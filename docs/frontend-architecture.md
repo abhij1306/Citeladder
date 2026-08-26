@@ -208,10 +208,10 @@ defaults by decomposition; an exception is not an intended delivery outcome.
 | `/content` | Content Intelligence; frozen grounding status and provenance summary |
 | `/demand`, `/traffic`, `/ai-referrals` | Demand Intelligence |
 | `/prompts`, `/visibility`, `/runs` | Demand/Visibility workflows |
-| `/products` | Commerce: Overview (default), Catalog, AI Visibility |
+| `/products` | Commerce: Catalog (default), Competitors, Buyer Prompts, AI Shelf |
 | `/settings` | Shared workspace/project configuration, including Integrations and Providers |
 
-Commerce AI Visibility prioritizes the comparison the buyer-destination prompts
+Commerce AI Shelf prioritizes the comparison the buyer-destination prompts
 actually measure: category-level tracked-brand presence, configured competitor
 mentions, and brand/competitor/other cited-source labels. Per-SKU visibility and
 average position remain supporting evidence; top-three, prior-run change, and

@@ -66,7 +66,6 @@ from app.core.config.integrations_contracts import (
 from app.core.config.integrations_datasets import (
     DATASET_GA4_ITEM_CHANNEL_GROUP_DAILY,
     DATASET_GA4_ITEM_SOURCE_MEDIUM_DAILY,
-    DATASET_SHOPIFY_ORDERS,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_KEY,
     GA4_ITEM_ATTRIBUTION_CAPABILITY_VERSION,
     GA4_ITEM_SOURCE_GRANULARITY_DEFAULT_CHANNEL_GROUP,
@@ -84,8 +83,6 @@ from app.core.config.task_queue import (
 )
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging, instrument_worker
-from app.domain.analytics.sanitize import sanitize_referral_url
-from app.domain.commerce.sanitize import sanitize_order_payload
 from app.models.integrations import (
     IntegrationConnection,
     IntegrationEvent,
@@ -107,7 +104,6 @@ from app.workers.integration.paging import (
     RunContext,
     RunPreflightError,
     UnsupportedProviderError,
-    WorkerPage,
     dataset_resume_from_artifacts,
     next_dataset_page,
     provider_datasets,
@@ -599,11 +595,6 @@ class IntegrationWorker(DrainableWorkerMixin):
                 start_row=start_row,
             )
             page_info = self._validated_cursor_page_info(page) if cursor_mode else None
-            if template.dataset == DATASET_SHOPIFY_ORDERS:
-                # Sanitize BEFORE the immutable artifact write: raw order
-                # nodes (customer PII) never persist — the artifact stores
-                # only allowlisted SanitizedOrder payloads (AC7).
-                page = self._sanitize_orders_page(page)
             wrote = await self._artifacts.write(
                 ctx,
                 template=template,
@@ -657,35 +648,6 @@ class IntegrationWorker(DrainableWorkerMixin):
                 "cursor pageInfo hasNextPage without an endCursor"
             )
         return {"hasNextPage": has_next, "endCursor": end_cursor or None}
-
-    @staticmethod
-    def _sanitize_orders_page(page: DataClientPage) -> WorkerPage:
-        """Transform a raw orders page into its sanitized persistable form.
-
-        The connector returns structurally-normalized-but-RAW order nodes;
-        HERE — in the worker, before the immutable artifact write — each
-        is allowlist-sanitized (the connector never sanitizes). The
-        sanitized payload keeps the outer ``pageInfo`` for the cursor
-        protocol; ``raw_row_count`` (the outer node count) is preserved.
-        """
-        payload = page.payload if isinstance(page.payload, dict) else {}
-        orders = payload.get("orders")
-        sanitized = (
-            [
-                sanitize_order_payload(
-                    order, url_sanitizer=sanitize_referral_url
-                ).to_payload()
-                for order in orders
-                if isinstance(order, dict)
-            ]
-            if isinstance(orders, list)
-            else []
-        )
-        return WorkerPage(
-            payload={"orders": sanitized, "pageInfo": payload.get("pageInfo") or {}},
-            rows=tuple(sanitized),
-            raw_row_count=page.raw_row_count,
-        )
 
     async def _dataset_resume(
         self, run_id: uuid.UUID, template: IntegrationDatasetTemplate
