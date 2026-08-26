@@ -22,6 +22,7 @@ import type {
   CommerceCatalog,
   CommerceCategory,
   CommerceProduct,
+  CommerceProductEdit,
 } from '@/lib/api/schemas/commerce-suite';
 import { ACTIVE_RUN_POLL_MS } from '@/lib/config/operational';
 import type { useCommerceQueries } from '@/lib/products/use-products-screen';
@@ -111,6 +112,21 @@ function categoryNames(product: CommerceProduct, catalog: CommerceCatalog) {
   return names.length ? names.join(', ') : 'Uncategorized';
 }
 
+function productEdits(
+  product: CommerceProduct,
+  values: Pick<CommerceProduct, 'name' | 'brand' | 'category_ids'> & { price: number | null },
+): CommerceProductEdit {
+  const sameCategories =
+    values.category_ids.length === product.category_ids.length &&
+    values.category_ids.every((id) => product.category_ids.includes(id));
+  return {
+    ...(values.name === product.name ? {} : { name: values.name }),
+    ...(values.brand === product.brand ? {} : { brand: values.brand }),
+    ...(values.price === product.price ? {} : { price: values.price }),
+    ...(sameCategories ? {} : { category_ids: values.category_ids }),
+  };
+}
+
 function CategoryEditor({
   projectId,
   category,
@@ -178,14 +194,15 @@ function ProductEditor({
   const [categoryIds, setCategoryIds] = useState(product.category_ids);
   const parsedPrice = price.trim() ? Number(price) : null;
   const priceValid = parsedPrice == null || (Number.isFinite(parsedPrice) && parsedPrice >= 0);
+  const edits = productEdits(product, {
+    name,
+    brand,
+    price: parsedPrice,
+    category_ids: categoryIds,
+  });
+  const hasEdits = Object.keys(edits).length > 0;
   const mutation = useMutation({
-    mutationFn: () =>
-      commerceApi.editProduct(projectId, product.id, {
-        name,
-        brand,
-        price: parsedPrice,
-        category_ids: categoryIds,
-      }),
+    mutationFn: () => commerceApi.editProduct(projectId, product.id, edits),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: queryKeys.commerce.catalog(projectId) });
       onDone();
@@ -228,7 +245,10 @@ function ProductEditor({
       </fieldset>
       {mutation.isError ? <Alert tone="danger">The product correction failed.</Alert> : null}
       <div className="flex gap-2">
-        <Button disabled={!priceValid || mutation.isPending} onClick={() => mutation.mutate()}>
+        <Button
+          disabled={!priceValid || !hasEdits || mutation.isPending}
+          onClick={() => mutation.mutate()}
+        >
           Save correction
         </Button>
         <Button variant="secondary" disabled={mutation.isPending} onClick={onDone}>

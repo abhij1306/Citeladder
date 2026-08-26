@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { siteHealthApi } from '@/lib/api/site-health';
+import { commerceApi } from '@/lib/api/commerce';
 import { renderWithProviders } from '@/test/render';
 import { CatalogPanel } from './catalog-panel';
 
@@ -81,6 +82,24 @@ describe('Catalog panel', () => {
     expect(screen.getByRole('textbox', { name: 'Product name' })).toHaveValue('Trail One');
     expect(screen.getByRole('checkbox', { name: 'Running shoes' })).toBeChecked();
     expect(screen.getByRole('button', { name: 'Save correction' })).toBeInTheDocument();
+  });
+
+  it('sends only product fields changed by the user', async () => {
+    vi.spyOn(siteHealthApi, 'getDashboard').mockResolvedValue({ crawl: null } as never);
+    const edit = vi
+      .spyOn(commerceApi, 'editProduct')
+      .mockResolvedValue(query().data.products[0] as never);
+
+    renderWithProviders(<CatalogPanel projectId={PROJECT_ID} query={query() as never} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Product name' }), {
+      target: { value: 'Trail One Updated' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction' }));
+
+    await waitFor(() =>
+      expect(edit).toHaveBeenCalledWith(PROJECT_ID, PRODUCT_ID, { name: 'Trail One Updated' }),
+    );
   });
 
   it('opens category name and role correction controls', async () => {

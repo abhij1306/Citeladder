@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.commerce_catalog import (
     COMMERCE_PROJECTOR_VERSION,
+    COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS,
     COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS,
 )
 from app.domain.commerce.service import (
@@ -52,23 +53,47 @@ def _normalized_price_number(value: str) -> str:
     return number.replace(separator, "")
 
 
+_VISIBLE_PRICE_MARKERS = "|".join(
+    re.escape(marker) for marker, _ in COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS
+)
+_VISIBLE_PRICE = re.compile(
+    rf"(?P<prefix>{_VISIBLE_PRICE_MARKERS})\s*(?P<amount>\d[\d,.]*)"
+    rf"|(?P<suffix_amount>\d[\d,.]*)\s*(?P<suffix>{_VISIBLE_PRICE_MARKERS})",
+    re.IGNORECASE,
+)
+
+
 def _visible_price(value: Any) -> tuple[Decimal | None, str]:
-    text = value if isinstance(value, str) else ""
-    number = _normalized_price_number(text)
+    text = value.strip() if isinstance(value, str) else ""
+    match = _single_visible_price(text)
+    if match is None:
+        return None, ""
+    observed_marker = str(match.group("prefix") or match.group("suffix") or "").upper()
+    number = _normalized_price_number(
+        str(match.group("amount") or match.group("suffix_amount") or "")
+    )
     try:
         price = Decimal(number) if number else None
     except InvalidOperation:
         price = None
-    upper = text.upper()
     currency = next(
         (
             currency
             for marker, currency in COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS
-            if marker.upper() in upper
+            if marker.upper() == observed_marker
         ),
         "",
     )
     return price, currency
+
+
+def _single_visible_price(text: str) -> re.Match[str] | None:
+    if any(
+        token in text.casefold() for token in COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS
+    ):
+        return None
+    matches = list(_VISIBLE_PRICE.finditer(text))
+    return matches[0] if len(matches) == 1 else None
 
 
 def _decimal(value: Any) -> Decimal | None:
@@ -364,6 +389,8 @@ async def _category_from_analysis(
         "version": COMMERCE_PROJECTOR_VERSION,
     }
     if _dict_value(sources.get("name")).get("kind") != "edit":
+        category.name = safe_title[:255]
+        category.normalized_name = normalized[:255]
         sources["name"] = source
     if _dict_value(sources.get("role")).get("kind") != "edit":
         category.role = role if role in {"hub", "leaf"} else "unknown"

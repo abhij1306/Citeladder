@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.commerce_catalog import (
@@ -34,6 +35,7 @@ from app.domain.commerce.schemas import (
     CategoryResponse,
     ProductResponse,
 )
+from app.domain.integrations.sync import integrity_constraint_name
 from app.domain.site_health.normalization import canonical_identity
 from app.models.analytics import AnalyticsTask
 from app.models.commerce import (
@@ -53,6 +55,9 @@ class CommerceNotFoundError(LookupError):
 
 class CommerceConflictError(ValueError):
     pass
+
+
+_CATEGORY_NAME_UNIQUE_CONSTRAINT = "uq_commerce_category_name"
 
 
 class CommerceImportError(ValueError):
@@ -225,13 +230,23 @@ async def edit_category(
             "version": COMMERCE_CATEGORY_EDIT_VERSION,
         }
     category.field_sources = sources
-    await session.commit()
+    await _commit_category_edit(session)
     product_count = await session.scalar(
         select(func.count()).where(CommerceProductCategory.category_id == category.id)
     )
     return CategoryResponse.model_validate(category).model_copy(
         update={"product_count": product_count or 0}
     )
+
+
+async def _commit_category_edit(session: AsyncSession) -> None:
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        if integrity_constraint_name(exc) != _CATEGORY_NAME_UNIQUE_CONSTRAINT:
+            raise
+        raise CommerceConflictError("category name already exists") from exc
 
 
 def _csv_reader(content: str) -> csv.DictReader:

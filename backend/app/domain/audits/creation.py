@@ -45,7 +45,10 @@ from app.domain.audits.task_creation import (
     _shuffled_slots,
     _snapshot_objects,
 )
-from app.domain.commerce.audit_context import freeze_commerce_context
+from app.domain.commerce.audit_context import (
+    CommerceContextError,
+    freeze_commerce_context,
+)
 from app.domain.entitlements.enforcement import (
     RateAdmissionDeniedError,
     evaluate_manual_run_admission,
@@ -181,12 +184,15 @@ async def create_audit(
         project=project, plan=plan, routes=routes, prompt_rows=prompt_rows
     )
     if audit_scope == "commerce":
-        configuration["commerce_measurement"] = await freeze_commerce_context(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            prompt_ids=[prompt.id for prompt in prompts],
-        )
+        try:
+            configuration["commerce_measurement"] = await freeze_commerce_context(
+                session,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                prompt_ids=[prompt.id for prompt in prompts],
+            )
+        except CommerceContextError as exc:
+            raise AuditValidationError(str(exc)) from exc
 
     audit = Audit(
         workspace_id=workspace_id,

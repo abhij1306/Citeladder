@@ -50,6 +50,7 @@ COMMERCE_DOLLAR_CURRENCY_BY_COUNTRY: Final = {
     "US": "USD",
 }
 COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS: Final[tuple[tuple[str, str], ...]] = (
+    ("$", ""),
     ("AUD", "AUD"),
     ("USD", "USD"),
     ("CAD", "CAD"),
@@ -60,6 +61,14 @@ COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS: Final[tuple[tuple[str, str], ...]] = (
     ("£", "GBP"),
     ("€", "EUR"),
     ("₹", "INR"),
+)
+COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS: Final = (
+    "%",
+    "from ",
+    "starting at ",
+    "up to ",
+    " over ",
+    " under ",
 )
 
 

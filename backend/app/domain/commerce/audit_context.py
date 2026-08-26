@@ -23,6 +23,10 @@ from app.models.commerce import (
 )
 
 
+class CommerceContextError(ValueError):
+    """A selected Commerce target cannot yield complete frozen evidence."""
+
+
 async def freeze_commerce_context(
     session: AsyncSession,
     *,
@@ -56,6 +60,12 @@ async def freeze_commerce_context(
             if target.target_kind == "category"
             else None
         )
+        if category is None and target.target_kind == "category":
+            raise CommerceContextError("Selected Commerce category is unavailable")
+        if not products[key]:
+            raise CommerceContextError(
+                "Selected Commerce target has no active product evidence"
+            )
         target_rows.append(
             {
                 "kind": target.target_kind,

@@ -7,23 +7,28 @@ from typing import cast
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.exc import IntegrityError
 
 from app.connectors import commerce_competitors as competitor_connector
 from app.connectors.commerce_competitors import CompetitorProviderUnavailable
 from app.core.config.commerce_catalog import COMMERCE_IMPORT_MAX_BYTES
 from app.domain.commerce import competitors
-from app.domain.commerce.audit_context import freeze_commerce_context
+from app.domain.commerce.audit_context import (
+    CommerceContextError,
+    freeze_commerce_context,
+)
 from app.domain.commerce.competitors import (
     _discovery_query,
     _host,
     _precheck,
     _validated_results,
 )
-from app.domain.commerce.projector import _crawl_values
+from app.domain.commerce.projector import _category_from_analysis, _crawl_values
 from app.domain.commerce.prompts import _leaks_owned_identity
 from app.domain.commerce.schemas import (
     CatalogEditRequest,
     CatalogImportRequest,
+    CategoryEditRequest,
     CommerceTarget,
     RecommendationSpan,
 )
@@ -31,6 +36,7 @@ from app.domain.commerce.service import (
     CommerceConflictError,
     _apply_edit_values,
     _import_response,
+    edit_category,
 )
 from app.domain.commerce.shelf import (
     _first_position_rate,
@@ -167,6 +173,35 @@ async def test_audit_context_batches_target_evidence_queries() -> None:
     assert session.execute_calls == 1
     assert context["targets"][0]["products"][0]["id"] == str(product_id)
     assert context["targets"][1]["category"]["name"] == "Running shoes"
+
+
+@pytest.mark.asyncio
+async def test_audit_context_rejects_a_target_without_frozen_product_evidence() -> None:
+    target = SimpleNamespace(
+        id=uuid.uuid4(), target_kind="product", target_id=uuid.uuid4()
+    )
+
+    class Rows:
+        def __init__(self, rows: list) -> None:
+            self.rows = rows
+
+        def all(self) -> list:
+            return self.rows
+
+    class Session:
+        def __init__(self) -> None:
+            self.results = iter((Rows([target]), Rows([]), Rows([])))
+
+        async def scalars(self, *_: object) -> Rows:
+            return next(self.results)
+
+    with pytest.raises(CommerceContextError, match="no active product evidence"):
+        await freeze_commerce_context(
+            Session(),  # type: ignore[arg-type]
+            workspace_id=uuid.uuid4(),
+            project_id=uuid.uuid4(),
+            prompt_ids=[uuid.uuid4()],
+        )
 
 
 def test_recommendation_parser_preserves_order_observability() -> None:
@@ -349,6 +384,95 @@ def test_projector_falls_back_to_visible_price_without_structured_price() -> Non
 
     assert values["price"] == Decimal("1299.95")
     assert values["currency"] == "AUD"
+
+
+@pytest.mark.parametrize(
+    "visible_price",
+    ["From $19.99", "$19.99 - $29.99", "10% off orders over $50"],
+)
+def test_projector_rejects_ambiguous_visible_prices(visible_price: str) -> None:
+    values = _crawl_values(
+        {"commerce": {"visible_price": visible_price}}, "https://shop.test/p"
+    )
+
+    assert values["price"] is None
+    assert values["currency"] == ""
+
+
+@pytest.mark.asyncio
+async def test_projector_refreshes_non_edited_category_name() -> None:
+    category = SimpleNamespace(
+        name="Old name",
+        normalized_name="old name",
+        role="unknown",
+        field_sources={},
+        source_analysis_id=None,
+        projector_version="old",
+    )
+
+    class Session:
+        async def scalar(self, *_: object):
+            return category
+
+        def add(self, _: object) -> None:
+            raise AssertionError("existing category should be updated")
+
+    analysis = SimpleNamespace(
+        id=uuid.uuid4(), workspace_id=uuid.uuid4(), project_id=uuid.uuid4()
+    )
+    await _category_from_analysis(
+        Session(),  # type: ignore[arg-type]
+        analysis=analysis,
+        canonical_url="https://shop.test/category",
+        title="New Name",
+        role="leaf",
+    )
+
+    assert category.name == "New Name"
+    assert category.normalized_name == "new name"
+    assert category.field_sources["name"]["source_id"] == str(analysis.id)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_category_name_conflict_is_translated() -> None:
+    class UniqueViolation(Exception):
+        constraint_name = "uq_commerce_category_name"
+
+    category = SimpleNamespace(
+        id=uuid.uuid4(), name="Old", normalized_name="old", field_sources={}
+    )
+
+    class Session:
+        def __init__(self) -> None:
+            self.results = iter((SimpleNamespace(), category, None))
+            self.rolled_back = False
+
+        async def scalar(self, *_: object):
+            return next(self.results)
+
+        def add(self, _: object) -> None:
+            return None
+
+        async def flush(self) -> None:
+            return None
+
+        async def commit(self) -> None:
+            raise IntegrityError("update", {}, UniqueViolation())
+
+        async def rollback(self) -> None:
+            self.rolled_back = True
+
+    session = Session()
+    with pytest.raises(CommerceConflictError, match="category name already exists"):
+        await edit_category(
+            session,  # type: ignore[arg-type]
+            workspace_id=uuid.uuid4(),
+            project_id=uuid.uuid4(),
+            category_id=category.id,
+            payload=CategoryEditRequest(name="Duplicate"),
+        )
+
+    assert session.rolled_back is True
 
 
 def test_structured_price_remains_authoritative_over_visible_price() -> None:
