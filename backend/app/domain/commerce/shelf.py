@@ -18,6 +18,7 @@ from app.core.config.commerce_catalog import (
     COMMERCE_SHELF_FORMULA_VERSION,
 )
 from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
+from app.domain.commerce.price import normalized_price_value
 from app.domain.commerce.schemas import (
     RecommendationObservationResponse,
     ShelfMetricResponse,
@@ -115,38 +116,8 @@ def _dollar_currency(locale: str) -> str:
 
 
 def _parse_price_value(raw: str) -> float | None:
-    separators = {separator for separator in ",." if separator in raw}
-    if not separators:
-        return float(raw)
-    if len(separators) == 2:
-        decimal_separator = max(separators, key=raw.rfind)
-        thousands_separator = (separators - {decimal_separator}).pop()
-        integer, fractional = raw.rsplit(decimal_separator, 1)
-        if len(fractional) not in {1, 2} or not _valid_grouped_integer(
-            integer, thousands_separator
-        ):
-            return None
-        normalized = f"{integer.replace(thousands_separator, '')}.{fractional}"
-        return float(normalized)
-    separator = separators.pop()
-    parts = raw.split(separator)
-    if len(parts) == 2 and len(parts[1]) in {1, 2}:
-        return float(f"{parts[0]}.{parts[1]}")
-    if _valid_grouped_parts(parts):
-        return float("".join(parts))
-    return None
-
-
-def _valid_grouped_integer(value: str, separator: str) -> bool:
-    return separator not in value or _valid_grouped_parts(value.split(separator))
-
-
-def _valid_grouped_parts(parts: list[str]) -> bool:
-    return bool(
-        len(parts) > 1
-        and 1 <= len(parts[0]) <= 3
-        and all(len(part) == 3 for part in parts[1:])
-    )
+    normalized = normalized_price_value(raw)
+    return float(normalized) if normalized is not None else None
 
 
 def _merchant(span: str) -> tuple[str, str]:

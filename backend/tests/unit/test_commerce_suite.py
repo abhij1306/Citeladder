@@ -388,7 +388,12 @@ def test_projector_falls_back_to_visible_price_without_structured_price() -> Non
 
 @pytest.mark.parametrize(
     "visible_price",
-    ["From $19.99", "$19.99 - $29.99", "10% off orders over $50"],
+    [
+        "From $19.99",
+        "$19.99 - $29.99",
+        "10% off orders over $50",
+        "USD 12,34,56",
+    ],
 )
 def test_projector_rejects_ambiguous_visible_prices(visible_price: str) -> None:
     values = _crawl_values(

@@ -25,8 +25,6 @@ listed here must prove a current operational purpose or move to the archive.
 
 ## Active implementation plans
 
-| Document | Role |
-|---|---|
 No separate implementation plan is currently active beyond the product plans
 listed above.
 

@@ -69,4 +69,4 @@ inventory found no external caller.
 | Competitor provider/validator | absent | `tavily-commerce-1` / `commerce-competitor-validator-1` |
 | Buyer prompt template | absent | `commerce-buyer-prompts-1` |
 | Recommendation parser/matcher | absent | `commerce-recommendation-parser-1` / `commerce-recommendation-matcher-1` |
-| AI Shelf formulas | absent | `commerce-shelf-formulas-1` |
+| AI Shelf formulas | absent | `commerce-shelf-formulas-2` |

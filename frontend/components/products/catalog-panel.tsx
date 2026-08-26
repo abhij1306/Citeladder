@@ -92,6 +92,7 @@ function CatalogHeader({
           disabled={importPending}
           onChange={(event) => {
             const file = event.target.files?.[0];
+            event.currentTarget.value = '';
             if (file) onImport(file);
           }}
         />

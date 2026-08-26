@@ -15,6 +15,7 @@ from app.core.config.commerce_catalog import (
     COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS,
     COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS,
 )
+from app.domain.commerce.price import normalized_price_value
 from app.domain.commerce.service import (
     CommerceNotFoundError,
     _merge_categories,
@@ -36,23 +37,6 @@ def _first(values: Any) -> str:
     return str(next((value for value in values if value), ""))
 
 
-def _normalized_price_number(value: str) -> str:
-    number = re.sub(r"[^0-9,.]", "", value)
-    if not number:
-        return ""
-    if "," in number and "." in number:
-        decimal_separator = "," if number.rfind(",") > number.rfind(".") else "."
-        thousands_separator = "." if decimal_separator == "," else ","
-        return number.replace(thousands_separator, "").replace(decimal_separator, ".")
-    separator = "," if "," in number else "." if "." in number else ""
-    if not separator:
-        return number
-    whole, fraction = number.rsplit(separator, 1)
-    if len(fraction) in {1, 2}:
-        return f"{whole.replace(separator, '')}.{fraction}"
-    return number.replace(separator, "")
-
-
 _VISIBLE_PRICE_MARKERS = "|".join(
     re.escape(marker) for marker, _ in COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS
 )
@@ -69,11 +53,11 @@ def _visible_price(value: Any) -> tuple[Decimal | None, str]:
     if match is None:
         return None, ""
     observed_marker = str(match.group("prefix") or match.group("suffix") or "").upper()
-    number = _normalized_price_number(
+    number = normalized_price_value(
         str(match.group("amount") or match.group("suffix_amount") or "")
     )
     try:
-        price = Decimal(number) if number else None
+        price = Decimal(number) if number is not None else None
     except InvalidOperation:
         price = None
     currency = next(

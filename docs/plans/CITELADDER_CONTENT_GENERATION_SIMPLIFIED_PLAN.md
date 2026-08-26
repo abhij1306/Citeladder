@@ -548,7 +548,7 @@ api_key = ...
 
 Before hardcoding the model ID, use the provider's `/v1/models` result or configuration to confirm the exact ID available to the API key.
 
-### Configuration
+## Configuration
 
 Suggested environment variables:
 
@@ -780,7 +780,7 @@ select_content_context(
 )
 ```
 
-### Basic scoring
+## Basic scoring
 
 For every usable crawled page:
 
@@ -845,7 +845,7 @@ This will materially improve rewrite quality.
 
 The global prompt should enforce a small set of quality rules.
 
-### Required
+## Required
 
 - answer the requested subject directly
 - use specific brand/site information where relevant
@@ -856,7 +856,7 @@ The global prompt should enforce a small set of quality rules.
 - avoid unnecessary repetition
 - omit unsupported details naturally
 
-### Avoid
+## Avoid
 
 Typical filler such as:
 
