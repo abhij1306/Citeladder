@@ -186,6 +186,9 @@ def _enrichment(obj: dict) -> dict[str, Any]:
         "date_modified": date_modified[:_MAX_DATE_CHARS],
         "same_as": same_as,
         "props_present": _props_present(obj),
+        "description": _first_string(obj.get("description"))[:_MAX_NAME_CHARS],
+        "url": _first_string(obj.get("url"))[:_MAX_SAME_AS_CHARS],
+        "category": _first_string(obj.get("category"))[:_MAX_NAME_CHARS],
         "product": _product_enrichment(obj),
     }
 
@@ -405,6 +408,9 @@ def _empty_product_values() -> dict[str, list[str]]:
             "availability",
             "variants",
             "ratings",
+            "description",
+            "url",
+            "category",
         )
     }
 
@@ -414,6 +420,9 @@ def _merge_product_values(
 ) -> tuple[bool, bool]:
     product = {
         "name": [str(block.get("name") or "")],
+        "description": [str(block.get("description") or "")],
+        "url": [str(block.get("url") or "")],
+        "category": [str(block.get("category") or "")],
         **(block.get("product") or {}),
     }
     for key, target in values.items():

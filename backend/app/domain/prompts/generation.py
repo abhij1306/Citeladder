@@ -25,8 +25,6 @@ from sqlalchemy.orm import selectinload
 from app.connectors.agent.gateway import ModelGateway
 from app.core.config.projects import PROMPT_ORIGIN_GENERATED
 from app.core.config.prompts import (
-    COMMERCE_BUYER_DESTINATION_PROMPT_TEMPLATE,
-    COMMERCE_MERCHANT_COMPARISON_PROMPT_TEMPLATE,
     GENERATOR_VERSION,
     PROMPT_NEAR_DUPLICATE_SIMILARITY,
     PROMPT_STATUS_ACTIVE,
@@ -51,7 +49,6 @@ from app.domain.prompts.generation_filtering import (
     filter_for_cohort,
     generation_system_prompt,
 )
-from app.domain.prompts.generation_validation import validate_commerce_payload
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
 from app.domain.prompts.normalization import prompt_text_hash
 from app.domain.prompts.service import PromptSetNotFoundError, prepare_prompt_inserts
@@ -107,7 +104,6 @@ async def _load_prompt_set_with_project(
             selectinload(PromptSet.project).selectinload(Project.owned_domains),
             selectinload(PromptSet.project).selectinload(Project.unintended_domains),
             selectinload(PromptSet.project).selectinload(Project.topics),
-            selectinload(PromptSet.project).selectinload(Project.products),
         )
         .where(PromptSet.id == prompt_set_id, Project.workspace_id == workspace_id)
     )
@@ -191,7 +187,9 @@ def _validate_generation_payload(prompt_set: PromptSet, payload: Any) -> Topic |
         )
     target_topic = _resolve_target_topic(prompt_set, payload)
     if payload.cohort == "commerce":
-        validate_commerce_payload(prompt_set, payload, target_topic)
+        raise GenerationValidationError(
+            "Commerce buyer prompts are generated from /commerce/buyer-prompts"
+        )
     if not prompt_set.project.topics:
         raise GenerationValidationError(
             "Add at least one topic before generating prompts"
@@ -424,18 +422,6 @@ def _generation_brand_context(
         }
         for signal in demand_signals
     ]
-    context["commerce_products"] = [
-        {
-            "id": str(product.id),
-            "sku": product.sku,
-            "name": product.name,
-            "aliases": list(product.aliases or []),
-            "brand": str((product.attributes or {}).get("brand") or ""),
-            "category": str((product.attributes or {}).get("category") or ""),
-            "url": product.url,
-        }
-        for product in project.products
-    ]
     return context
 
 
@@ -498,52 +484,6 @@ def _existing_generation_context(
     return [*existing, *accumulated][-limit:]
 
 
-def _deterministic_commerce_suggestions(
-    allowed_topics: list[dict[str, str]],
-    brand_context: dict[str, Any],
-) -> list[SuggestedTopic]:
-    """Build one named buyer-destination pair per product in the category."""
-    topic = allowed_topics[0]
-    category = topic["name"].strip()
-    products = sorted(
-        (
-            product
-            for product in brand_context.get("commerce_products", [])
-            if str(product.get("category") or "").strip().casefold()
-            == category.casefold()
-        ),
-        key=lambda product: (
-            str(product.get("name") or "").casefold(),
-            str(product.get("sku") or "").casefold(),
-        ),
-    )
-    return [
-        SuggestedTopic(
-            topic_id=uuid.UUID(topic["id"]),
-            name=category,
-            prompts=[
-                prompt
-                for product in products
-                for prompt in (
-                    SuggestedPrompt(
-                        text=COMMERCE_BUYER_DESTINATION_PROMPT_TEMPLATE.format(
-                            product_name=str(product["name"]).strip()
-                        ),
-                        intent="discovery",
-                    ),
-                    SuggestedPrompt(
-                        text=COMMERCE_MERCHANT_COMPARISON_PROMPT_TEMPLATE.format(
-                            product_name=str(product["name"]).strip(),
-                            category=category.casefold(),
-                        ),
-                        intent="comparison",
-                    ),
-                )
-            ],
-        )
-    ]
-
-
 async def _generate_suggestions(
     session: AsyncSession,
     *,
@@ -569,14 +509,6 @@ async def _generate_suggestions(
     context_limit = prompt_generation_settings.existing_prompt_context_limit
     allowed_topics = _allowed_generation_topics(prompt_set.project, target_topic)
     await session.commit()
-    if payload.cohort == "commerce":
-        return (
-            _deterministic_commerce_suggestions(allowed_topics, brand_context),
-            0,
-            brand_context,
-            demand_snapshot,
-            demand_signals,
-        )
     if agent is None:
         raise GenerationOutputError("Model gateway is required for this cohort")
     system_prompt = generation_system_prompt(payload.cohort, brand_context)

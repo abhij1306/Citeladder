@@ -10,8 +10,9 @@ import app.models as models
 def test_models_are_exported_and_registered_once() -> None:
     expected = {
         "OpportunityGuidance": "opportunity_guidance",
-        "OrderFact": "order_facts",
-        "FeedIssue": "feed_issues",
+        "CommerceProduct": "commerce_products",
+        "CommerceProductObservation": "commerce_product_observations",
+        "CommerceShelfSnapshot": "commerce_shelf_snapshots",
         "WorkspaceSiteHealthRuntime": "workspace_site_health_runtime",
         "SiteHealthProfile": "site_health_profiles",
         "SiteCrawl": "site_crawls",

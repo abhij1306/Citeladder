@@ -59,6 +59,9 @@ class SiteHealthSettings(BaseSettings):
     # 50,000-URL internal ceilings below.
     automatic_page_limit: int = 50
     max_requested_page_limit: int = 50
+    # Technical/dev ceiling. Entitlement grants and paid-plan allowances remain
+    # separate; the audited workspace override is required to use all 500.
+    max_advanced_requested_page_limit: int = 500
     max_discovery_urls: int = 50_000
     max_analysis_urls: int = 50_000
     max_preview_rows: int = 500
@@ -216,6 +219,7 @@ class SiteHealthSettings(BaseSettings):
         for name in (
             "automatic_page_limit",
             "max_requested_page_limit",
+            "max_advanced_requested_page_limit",
             "max_discovery_urls",
             "max_analysis_urls",
             "max_preview_rows",
@@ -239,6 +243,10 @@ class SiteHealthSettings(BaseSettings):
         if self.max_requested_page_limit > self.max_discovery_urls:
             raise ValueError(
                 "max_requested_page_limit must not exceed max_discovery_urls"
+            )
+        if self.max_advanced_requested_page_limit > self.max_discovery_urls:
+            raise ValueError(
+                "max_advanced_requested_page_limit must not exceed max_discovery_urls"
             )
         return self
 

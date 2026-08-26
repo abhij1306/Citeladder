@@ -20,7 +20,6 @@ import app.domain.audits.creation as creation_module
 import app.domain.audits.funded_admission as funded_admission_module
 from app.core.config.audits import (
     AUDIT_SCOPE_BRAND,
-    AUDIT_SCOPE_COMMERCE,
     AUDIT_STATUS_CANCELLED,
     AUDIT_STATUS_QUEUED,
     AUDIT_TRIGGER_MANUAL,
@@ -327,52 +326,6 @@ async def test_create_audit_rejects_unknown_or_disabled_prompt_ids(
         )
         assert audit.requested_count == 2
         assert len(enabled) == 2
-
-
-@pytest.mark.asyncio
-async def test_create_audit_freezes_product_catalog(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    from app.models.product import Product
-
-    async with session_factory() as session:
-        seed = await seed_audit_fixtures(session, prompt_count=1)
-        session.add(
-            Product(
-                project_id=seed.project_id,
-                sku="AC-500",
-                name="Acme VoltBike 500",
-                aliases=["VoltBike"],
-                price=2499,
-                currency="USD",
-                url="https://acme.test/products/500",
-                attributes={"category": "E-Bikes"},
-            )
-        )
-        await session.commit()
-    async with session_factory() as session:
-        audit = await _create(
-            session,
-            seed,
-            seed_value="7",
-            reps=1,
-            audit_scope=AUDIT_SCOPE_COMMERCE,
-        )
-        products = audit.configuration["products"]
-        assert len(products) == 1
-        assert products[0]["sku"] == "AC-500"
-        assert products[0]["attributes"]["category"] == "E-Bikes"
-
-
-@pytest.mark.asyncio
-async def test_create_audit_empty_catalog_freezes_empty_lists(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    async with session_factory() as session:
-        seed = await seed_audit_fixtures(session, prompt_count=1)
-    async with session_factory() as session:
-        audit = await _create(session, seed, seed_value="7", reps=1)
-        assert audit.configuration["products"] == []
 
 
 # ---------------------------------------------------------------------------

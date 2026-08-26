@@ -308,16 +308,16 @@ EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 # logged instead of silently emptying the fact bucket, so an extraction bug is
 # no longer replayed as "this page had no title / no CTAs / no forms". Facts
 # extracted under v7 stay replayable at v7 (invariant 5).
-EXTRACTOR_VERSION: Final = "sh-extractor-8"
+EXTRACTOR_VERSION: Final = "sh-extractor-9"
 
 LINK_REWRITE_VERSION: Final = "sh-link-rewrite-1"
 
 LINK_REWRITE_ENCODED_TRACKING_QUERY: Final = "encoded_tracking_query_delimiter"
 
-ANALYZER_VERSION: Final = "sh-analyzer-4"
+ANALYZER_VERSION: Final = "sh-analyzer-5"
 
 RULE_CATALOG_VERSION: Final = "sh-rules-4"
 
 SCORING_VERSION: Final = "sh-scoring-2"
 
-CLASSIFIER_VERSION: Final = "sh-classifier-3"
+CLASSIFIER_VERSION: Final = "sh-classifier-4"

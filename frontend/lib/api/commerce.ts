@@ -1,14 +1,92 @@
-/** Persisted, read-only Commerce projections. */
+/** Typed Commerce catalog, discovery, prompt, and AI Shelf client. */
+import { z } from 'zod';
+
 import { apiClient, type ApiRequestOptions } from './client';
-import { commerceCatalogHealthSchema, strictValidate } from './schemas';
-import type { CommerceCatalogHealth } from './types';
+import { strictValidate } from './schemas';
+import {
+  buyerPromptSchema,
+  catalogImportSchema,
+  commerceCatalogSchema,
+  commerceProductSchema,
+  competitorCandidateSchema,
+  shelfSchema,
+  type CommerceTarget,
+} from './schemas/commerce-suite';
+
+const path = (projectId: string, suffix: string) => `/projects/${projectId}/commerce/${suffix}`;
 
 export const commerceApi = {
-  getCatalogHealth: async (projectId: string, options?: ApiRequestOptions) => {
-    const res = await apiClient.get<CommerceCatalogHealth>(
-      `/projects/${projectId}/commerce/catalog-health`,
-      options,
-    );
-    return strictValidate(commerceCatalogHealthSchema, res, 'commerce.getCatalogHealth');
-  },
+  catalog: async (projectId: string, options?: ApiRequestOptions) =>
+    strictValidate(
+      commerceCatalogSchema,
+      await apiClient.get(path(projectId, 'catalog'), options),
+      'commerce.catalog',
+    ),
+  importCatalog: async (projectId: string, content: string, filename = 'catalog.csv') =>
+    strictValidate(
+      catalogImportSchema,
+      await apiClient.post(path(projectId, 'catalog/import'), {
+        filename,
+        content_type: 'text/csv',
+        content,
+      }),
+      'commerce.importCatalog',
+    ),
+  editProduct: async (projectId: string, productId: string, body: Record<string, unknown>) =>
+    strictValidate(
+      commerceProductSchema,
+      await apiClient.patch(path(projectId, `catalog/products/${productId}`), body),
+      'commerce.editProduct',
+    ),
+  competitors: async (projectId: string, options?: ApiRequestOptions) =>
+    strictValidate(
+      z.array(competitorCandidateSchema),
+      await apiClient.get(path(projectId, 'competitors'), options),
+      'commerce.competitors',
+    ),
+  discoverCompetitors: (projectId: string, targets: CommerceTarget[]) =>
+    apiClient.post<{ task_ids: string[] }>(path(projectId, 'competitors/discover'), { targets }),
+  decideCompetitor: async (
+    projectId: string,
+    candidateId: string,
+    decision: 'approved' | 'rejected',
+  ) =>
+    strictValidate(
+      competitorCandidateSchema,
+      await apiClient.patch(path(projectId, `competitors/${candidateId}`), { decision }),
+      'commerce.decideCompetitor',
+    ),
+  buyerPrompts: async (projectId: string, options?: ApiRequestOptions) =>
+    strictValidate(
+      z.array(buyerPromptSchema),
+      await apiClient.get(path(projectId, 'buyer-prompts'), options),
+      'commerce.buyerPrompts',
+    ),
+  generateBuyerPrompts: async (projectId: string, targets: CommerceTarget[], count: number) =>
+    strictValidate(
+      z.array(buyerPromptSchema),
+      await apiClient.post(path(projectId, 'buyer-prompts/generate'), { targets, count }),
+      'commerce.generateBuyerPrompts',
+    ),
+  addBuyerPrompt: async (projectId: string, target: CommerceTarget, text: string) =>
+    strictValidate(
+      buyerPromptSchema,
+      await apiClient.post(path(projectId, 'buyer-prompts/manual'), { target, text }),
+      'commerce.addBuyerPrompt',
+    ),
+  decideBuyerPrompt: async (projectId: string, promptId: string, approved: boolean) =>
+    strictValidate(
+      buyerPromptSchema,
+      await apiClient.patch(path(projectId, `buyer-prompts/${promptId}`), { approved }),
+      'commerce.decideBuyerPrompt',
+    ),
+  shelf: async (projectId: string, auditId?: string, options?: ApiRequestOptions) =>
+    strictValidate(
+      shelfSchema,
+      await apiClient.get(
+        `${path(projectId, 'ai-shelf')}${auditId ? `?audit_id=${encodeURIComponent(auditId)}` : ''}`,
+        options,
+      ),
+      'commerce.shelf',
+    ),
 };

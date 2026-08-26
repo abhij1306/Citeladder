@@ -21,6 +21,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 from lxml import etree
 from lxml import html as lxml_html
 
+from app.analysis.site_health.commerce_facts import extract_commerce_facts
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
 from app.analysis.site_health.fact_links import links_and_assets
@@ -632,6 +633,13 @@ def _empty_facts() -> dict[str, Any]:
         "inline_script_chars": 0,
         # v2 S2 (sh-extractor-4) knowledge evidence.
         "contact_points": [],
+        "commerce": {
+            "breadcrumbs": [],
+            "product_cards": [],
+            "category_links": [],
+            "category_role": "unknown",
+            "visible_price": "",
+        },
     }
 
 
@@ -712,6 +720,12 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
         "total": blocking_scripts + blocking_styles,
     }
     facts["body"] = _body_text(root, max_chars=settings.max_text_chars)
+    try:
+        facts["commerce"] = extract_commerce_facts(
+            root, final_url=final_url, text_of=_text
+        )
+    except DOM_ERRORS as exc:
+        dom_failure("extract_commerce_facts", exc)
     body_words = int(facts["body"].get("word_count", 0) or 0)
     gated_words = _expand_gated_words(root)
     facts["expand_gated_ratio"] = (

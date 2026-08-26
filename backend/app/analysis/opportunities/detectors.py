@@ -25,8 +25,6 @@ from app.analysis.opportunities.source_patterns import (
     summarize_source_pattern,
 )
 from app.core.config.opportunities import (
-    COMMERCE_GAP_FACTOR,
-    COMMERCE_VALUE_FACTOR,
     OPPORTUNITY_RULES_BY_ID,
     SITE_GAP_FACTOR,
     SITE_ISSUE_TO_OPPORTUNITY_RULE_ID,
@@ -37,9 +35,6 @@ from app.core.config.opportunities import (
 # Catalog rule ids this module emits (validated by the catalog lookup itself).
 RULE_BRAND_ABSENT = "brand_absent_high_value_prompt"
 RULE_OWNED_PAGE_NOT_CITED = "owned_page_not_cited"
-RULE_PRODUCT_NOT_MENTIONED = "product_not_mentioned"
-RULE_CITED_ALTERNATIVES = "cited_alternatives_without_uploaded_presence"
-RULE_CATALOG_FIELDS_MISSING = "catalog_fields_missing"
 
 
 # =========================================================================
@@ -114,49 +109,6 @@ class SiteEvidence:
     urls: tuple[SiteUrlEvidence, ...]
     coverage: dict[str, Any]
     limitations: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class ProductEntryEvidence:
-    """One frozen catalog entry + its persisted aggregate for the audit.
-
-    Identity (``name``/``sku``/``competitor_name``) comes from the audit's
-    FROZEN catalog (``Audit.configuration``) so evidence survives later
-    catalog edits (invariant 9); the metrics come from the persisted
-    ``ProductMetricSnapshot`` rows (invariant 7). ``snapshot_id`` /
-    ``source_analysis_ids`` are empty when no snapshot exists for the entry
-    (never measured).
-    """
-
-    entry_id: str
-    kind: str  # "product"
-    name: str
-    sku: str
-    competitor_name: str
-    mention_count: int
-    sov_share: float
-    price_mismatch_rate: float | None
-    snapshot_id: uuid.UUID | None
-    source_analysis_ids: tuple[str, ...]
-    category: str = ""
-    missing_fields: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class CommerceEvidence:
-    """The commerce slice one audit offers the detectors."""
-
-    audit_id: uuid.UUID
-    entries: tuple[ProductEntryEvidence, ...]
-    category_citations: tuple[CategoryCitationEvidence, ...] = ()
-
-
-@dataclass(frozen=True)
-class CategoryCitationEvidence:
-    category: str
-    third_party_citation_count: int
-    uploaded_destination_citation_count: int
-    source_analysis_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -405,152 +357,3 @@ def detect_site_issue_opportunities(evidence: SiteEvidence) -> list[DetectorHit]
         )
     hits.sort(key=lambda hit: (hit.rule_id, hit.target_key, hit.source_issue_ids))
     return hits
-
-
-# =========================================================================
-# Commerce detectors (persisted ProductMetricSnapshot/ProductMention rows)
-# =========================================================================
-def _commerce_hit(
-    evidence: CommerceEvidence,
-    entry: ProductEntryEvidence,
-    *,
-    rule: OpportunityRule,
-    extras: dict[str, Any],
-) -> DetectorHit:
-    """One commerce-rule firing on one frozen catalog entry.
-
-    Shared target identity (``product:{entry_id}`` /
-    ``competitor-product:{entry_id}``), frozen-identity evidence payload, and
-    provenance: the entry's ``ProductMetricSnapshot`` (metric ids) and the
-    exact product-analysis rows it aggregated (analysis ids, invariant 4).
-    """
-    target_prefix = "product"
-    return DetectorHit(
-        rule_id=rule.rule_id,
-        target_key=f"{target_prefix}:{entry.entry_id}",
-        target_prompt_id=None,
-        target_url=None,
-        target_theme=None,
-        evidence={
-            # Frozen at detection (mirrors evidence.prompt_text): the drawer's
-            # target label reads this without a catalog join.
-            "product_name": entry.name,
-            "product_sku": entry.sku,
-            "product_kind": entry.kind,
-            "mention_count": entry.mention_count,
-            "sov_share": entry.sov_share,
-            "audit_id": str(evidence.audit_id),
-            **extras,
-        },
-        source_analysis_ids=entry.source_analysis_ids,
-        source_issue_ids=(),
-        source_metric_ids=(
-            (str(entry.snapshot_id),) if entry.snapshot_id is not None else ()
-        ),
-        value_factor=COMMERCE_VALUE_FACTOR,
-        gap_factor=COMMERCE_GAP_FACTOR,
-    )
-
-
-def _sorted_commerce_hits(hits: list[DetectorHit]) -> list[DetectorHit]:
-    hits.sort(key=lambda hit: (hit.rule_id, hit.target_key))
-    return hits
-
-
-def _has_provenance(entry: ProductEntryEvidence) -> bool:
-    """True when the entry can back a hit's provenance (invariant 4).
-
-    A ``ProductMetricSnapshot`` (metric id) or the analyses it aggregated —
-    without either, a ``DetectorHit`` built from this entry would carry three
-    empty provenance lists.
-    """
-    return entry.snapshot_id is not None or bool(entry.source_analysis_ids)
-
-
-def _is_unmentioned_product(entry: ProductEntryEvidence) -> bool:
-    """An own-catalog product MEASURED at zero mentions.
-
-    "Never measured" (no snapshot, no analyses) is not evidence of "never
-    mentioned", and would also breach the provenance contract — so it is
-    excluded. Unmentioned entries DO get a zero-filled snapshot (invariant 7),
-    so a genuinely unmentioned product still qualifies.
-    """
-    return (
-        entry.kind == "product" and entry.mention_count == 0 and _has_provenance(entry)
-    )
-
-
-def detect_product_not_mentioned(evidence: CommerceEvidence) -> list[DetectorHit]:
-    """Fire per frozen catalog product measured with zero mentions."""
-    rule = OPPORTUNITY_RULES_BY_ID[RULE_PRODUCT_NOT_MENTIONED]
-    if not rule.enabled:
-        return []
-    return _sorted_commerce_hits(
-        [
-            _commerce_hit(evidence, entry, rule=rule, extras={})
-            for entry in evidence.entries
-            if _is_unmentioned_product(entry)
-        ]
-    )
-
-
-def detect_catalog_fields_missing(evidence: CommerceEvidence) -> list[DetectorHit]:
-    rule = OPPORTUNITY_RULES_BY_ID[RULE_CATALOG_FIELDS_MISSING]
-    if not rule.enabled:
-        return []
-    return _sorted_commerce_hits(
-        [
-            _commerce_hit(
-                evidence,
-                entry,
-                rule=rule,
-                extras={"missing_fields": list(entry.missing_fields)},
-            )
-            for entry in evidence.entries
-            if entry.kind == "product"
-            and entry.missing_fields
-            and _has_provenance(entry)
-        ]
-    )
-
-
-def detect_cited_alternatives_without_uploaded_presence(
-    evidence: CommerceEvidence,
-) -> list[DetectorHit]:
-    rule = OPPORTUNITY_RULES_BY_ID[RULE_CITED_ALTERNATIVES]
-    if not rule.enabled:
-        return []
-    mentioned_categories = {
-        entry.category.casefold()
-        for entry in evidence.entries
-        if entry.kind == "product" and entry.mention_count > 0
-    }
-    return _sorted_commerce_hits(
-        [
-            DetectorHit(
-                rule_id=rule.rule_id,
-                target_key=f"category:{row.category.casefold()}",
-                target_prompt_id=None,
-                target_url=None,
-                target_theme=row.category,
-                evidence={
-                    "category": row.category,
-                    "third_party_citation_count": row.third_party_citation_count,
-                    "uploaded_destination_citation_count": (
-                        row.uploaded_destination_citation_count
-                    ),
-                    "audit_id": str(evidence.audit_id),
-                },
-                source_analysis_ids=row.source_analysis_ids,
-                source_issue_ids=(),
-                source_metric_ids=(),
-                value_factor=COMMERCE_VALUE_FACTOR,
-                gap_factor=COMMERCE_GAP_FACTOR,
-            )
-            for row in evidence.category_citations
-            if row.third_party_citation_count > 0
-            and row.uploaded_destination_citation_count == 0
-            and row.category.casefold() not in mentioned_categories
-            and row.source_analysis_ids
-        ]
-    )

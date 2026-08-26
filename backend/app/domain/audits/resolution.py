@@ -89,7 +89,6 @@ async def _load_project(
             selectinload(Project.competitors),
             selectinload(Project.owned_domains),
             selectinload(Project.unintended_domains),
-            selectinload(Project.products),
         )
         .where(
             Project.id == project_id,

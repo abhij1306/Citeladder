@@ -23,7 +23,6 @@ from app.models.analytics import (
     ReferralClassification,
     ReferralEvent,
 )
-from app.models.attribution import AttributionLink, AttributionSnapshot
 from app.models.audit import (
     Audit,
     AuditEngineSnapshot,
@@ -57,7 +56,19 @@ from app.models.brand import (
     OwnedDomain,
     UnintendedDomain,
 )
-from app.models.commerce import FeedIssue, OrderFact
+from app.models.commerce import (
+    CommerceCategory,
+    CommerceCompetitorAttempt,
+    CommerceCompetitorCandidate,
+    CommerceCsvImport,
+    CommerceObservationCitation,
+    CommerceProduct,
+    CommerceProductCategory,
+    CommerceProductObservation,
+    CommercePromptTarget,
+    CommerceRecommendationObservation,
+    CommerceShelfSnapshot,
+)
 from app.models.content import (
     ContentGeneration,
     ContentGenerationAttempt,
@@ -88,13 +99,6 @@ from app.models.opportunity import (
     OpportunitySnapshot,
     OpportunityStatusEvent,
     OpportunityVerificationEvent,
-)
-from app.models.product import (
-    MerchantMention,
-    Product,
-    ProductMention,
-    ProductMetricSnapshot,
-    ProductResponseAnalysis,
 )
 from app.models.project import Project
 from app.models.prompt import Prompt, PromptSet, Topic
@@ -131,8 +135,6 @@ __all__ = [
     "AgentToolAttempt",
     "AiReferralsSnapshot",
     "AnalyticsTask",
-    "AttributionLink",
-    "AttributionSnapshot",
     "Audit",
     "AuditEngineSnapshot",
     "AuditEvent",
@@ -164,7 +166,17 @@ __all__ = [
     "QueryEvidenceRow",
     "QueryEvidenceSnapshot",
     "ExecutionCostProjection",
-    "FeedIssue",
+    "CommerceCategory",
+    "CommerceCompetitorAttempt",
+    "CommerceCompetitorCandidate",
+    "CommerceCsvImport",
+    "CommerceObservationCitation",
+    "CommerceProduct",
+    "CommerceProductCategory",
+    "CommerceProductObservation",
+    "CommercePromptTarget",
+    "CommerceRecommendationObservation",
+    "CommerceShelfSnapshot",
     "GrantRevocation",
     "IdempotencyRecord",
     "IntegrationConnection",
@@ -175,7 +187,6 @@ __all__ = [
     "IntegrationOAuthState",
     "IntegrationPropertyMapping",
     "IntegrationSyncRun",
-    "MerchantMention",
     "MetricSnapshot",
     "PromptMetricSnapshot",
     "Opportunity",
@@ -185,14 +196,9 @@ __all__ = [
     "OpportunityOrder",
     "OpportunitySnapshot",
     "OpportunityStatusEvent",
-    "OrderFact",
     "OwnedDomain",
     "ObservedEntityCandidate",
     "PendingActivation",
-    "Product",
-    "ProductMention",
-    "ProductMetricSnapshot",
-    "ProductResponseAnalysis",
     "Project",
     "Prompt",
     "PromptSet",

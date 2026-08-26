@@ -1,7 +1,7 @@
 """Component tests for the unified API error envelope (WS-A A1).
 
-Exercises the live HTTP boundary: the four migrated routers (site_health,
-opportunities, products, commerce) raise ``ApiException``; legacy raw
+Exercises the live HTTP boundary: the migrated site-health, opportunities,
+and Commerce routers raise ``ApiException``; legacy raw
 ``HTTPException`` raises (unmigrated routers + Starlette routing errors) go
 through the compatibility shim; request validation and unhandled exceptions
 hit the two global handlers. Every non-2xx response carries the canonical
@@ -107,78 +107,22 @@ async def test_legacy_http_exception_router_normalized_by_shim(
     assert body["error"]["message"] == body["detail"]
 
 
-# =========================================================================
-# products
-# =========================================================================
-async def test_products_404_and_409_envelopes(client: httpx.AsyncClient) -> None:
-    await _register(client, "env-products@example.com")
-    project = await _project(client, "Envelope Products")
-
-    missing = await client.get(f"/api/v1/products/{uuid.uuid4()}")
-    assert missing.status_code == 404
-    body = missing.json()
-    assert body["detail"] == "Product not found"
-    _assert_envelope(body, code="not_found", retryable=False)
-
-    payload = {"sku": "ENV-1", "name": "Envelope Widget"}
-    created = await client.post(
-        f"/api/v1/projects/{project['id']}/products", json=payload
-    )
-    assert created.status_code == 201
-    dupe = await client.post(f"/api/v1/projects/{project['id']}/products", json=payload)
-    assert dupe.status_code == 409
-    dupe_body = dupe.json()
-    assert isinstance(dupe_body["detail"], str)
-    _assert_envelope(dupe_body, code="conflict", retryable=False)
-    assert dupe_body["error"]["message"] == dupe_body["detail"]
-
-
-async def test_products_import_422_sanitizes_pydantic_internals(
-    client: httpx.AsyncClient,
-) -> None:
-    """COM-5: the import 422 never leaks model names / pydantic.dev URLs."""
-    await _register(client, "env-import@example.com")
-    project = await _project(client, "Envelope Imports")
-    resp = await client.post(
-        f"/api/v1/projects/{project['id']}/products/import",
-        json={"products": [{"name": "Missing the required sku"}]},
-    )
-    assert resp.status_code == 422
-    body = resp.json()
-    _assert_envelope(body, code="validation_error", retryable=False)
-    assert (
-        body["detail"]
-        == "Invalid product import payload: products.0.sku: Field required"
-    )
-    errors = body["error"]["details"]["errors"]
-    assert errors == [
-        {
-            "loc": ["products", "0", "sku"],
-            "message": "Field required",
-            "type": "missing",
-        }
-    ]
-    # No Pydantic internals anywhere in the serialized response.
-    assert "ProductImport" not in resp.text
-    assert "errors.pydantic.dev" not in resp.text
-    assert "input_value" not in resp.text
-
-
 async def test_request_validation_error_envelope(client: httpx.AsyncClient) -> None:
     """FastAPI's 422 array normalizes into sanitized field-level details."""
     await _register(client, "env-validation@example.com")
+    project = await _project(client, "Envelope Validation")
     resp = await client.get(
-        f"/api/v1/products/{uuid.uuid4()}/visibility/evidence",
-        params={"limit": 0},
+        f"/api/v1/projects/{project['id']}/commerce/ai-shelf",
+        params={"audit_id": "not-a-uuid"},
     )
     assert resp.status_code == 422
     body = resp.json()
     # ``detail`` is now a human string, not the raw validation array.
     assert isinstance(body["detail"], str)
-    assert "limit" in body["detail"]
+    assert "audit_id" in body["detail"]
     _assert_envelope(body, code="validation_error", retryable=False)
     errors = body["error"]["details"]["errors"]
-    assert errors[0]["loc"] == ["limit"]  # the "query" prefix is stripped
+    assert errors[0]["loc"] == ["audit_id"]
     for entry in errors:
         assert set(entry) <= {"loc", "message", "type"}
 
@@ -332,18 +276,18 @@ async def test_opportunity_guidance_error_envelopes(
 # =========================================================================
 # commerce
 # =========================================================================
-async def test_commerce_attribution_422_envelope(client: httpx.AsyncClient) -> None:
+async def test_commerce_catalog_import_422_envelope(client: httpx.AsyncClient) -> None:
     await _register(client, "env-commerce@example.com")
     project = await _project(client, "Envelope Commerce")
-    resp = await client.get(
-        f"/api/v1/projects/{project['id']}/commerce/attribution",
-        params={"granularity": "hour"},
+    resp = await client.post(
+        f"/api/v1/projects/{project['id']}/commerce/catalog/import",
+        json={"filename": "bad.csv", "content_type": "text/csv", "content": ""},
     )
     assert resp.status_code == 422
     body = resp.json()
-    assert isinstance(body["detail"], str)
-    _assert_envelope(body, code="validation_error", retryable=False)
-    assert body["error"]["message"] == body["detail"]
+    assert body["detail"] == {"code": "commerce_invalid", "message": "CSV is empty"}
+    _assert_envelope(body, code="commerce_invalid", retryable=False)
+    assert body["error"]["message"] == body["detail"]["message"]
 
 
 # =========================================================================

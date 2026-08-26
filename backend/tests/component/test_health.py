@@ -152,13 +152,12 @@ def test_health_route_and_router_stubs_registered() -> None:
     # brand-discoveries router adds the eleventh (11); the OAuth router adds
     # the twelfth (12); the integrations router adds the thirteenth (13); the
     # AI Referrals router adds the fourteenth (14); the Traffic router adds
-    # the fifteenth (15); the products router adds the sixteenth (16); the
-    # Opportunities router adds the seventeenth; Billing adds the eighteenth
-    # and Commerce adds the nineteenth; audit schedules add the twentieth.
-    # The Growth Agent increments the current mounted-router set to twenty-two.
+    # the fifteenth (15); Opportunities adds the sixteenth; Billing adds the
+    # seventeenth and Commerce adds the eighteenth; audit schedules add the
+    # nineteenth. Growth Agent brings the mounted-router set to twenty-one.
     from app.main import _ROUTERS
 
     paths = {getattr(route, "path", None) for route in app.routes}
     assert "/health" in paths
     assert "/ready" in paths
-    assert len(_ROUTERS) == 22
+    assert len(_ROUTERS) == 21

@@ -102,50 +102,6 @@ import type {
   contentOutputTypeSchema,
   groundingStatusSchema,
   groundingEnvelopeSummarySchema,
-  // Products (agentic commerce)
-  buyerDestinationKindSchema,
-  buyerDestinationMixSchema,
-  priceRelationCountsSchema,
-  priceRelationSchema,
-  productAuditReferencesSchema,
-  productCompletenessSchema,
-  productEvidenceItemSchema,
-  productEvidenceKindSchema,
-  productEvidenceResponseSchema,
-  productImportResponseSchema,
-  productImportRowErrorSchema,
-  productImportSummarySchema,
-  productOriginSchema,
-  productSchema,
-  productVariantSchema,
-  productVisibilityEntrySchema,
-  productVisibilitySchema,
-  productVisibilityTrendResponseSchema,
-  // Commerce (catalog feed health)
-  commerceCatalogHealthSchema,
-  commerceConnectionSummarySchema,
-  commerceSyncSummarySchema,
-  feedHealthStatusSchema,
-  feedIssueSeveritySchema,
-  productFeedHealthSchema,
-  // Attribution (A1/A2 snapshot + recompute)
-  attributionDeltaSchema,
-  attributionDeltaStateSchema,
-  attributionDataStateSchema,
-  attributionDeterministicSchema,
-  attributionMethodMetricsSchema,
-  attributionMethodSchema,
-  attributionMetricSetSchema,
-  attributionMetricsSchema,
-  attributionProductRowSchema,
-  attributionRecomputeSchema,
-  attributionSnapshotSchema,
-  attributionSourceGranularitySchema,
-  attributionSourceRowSchema,
-  attributionStatisticalSchema,
-  attributionTaskStatusSchema,
-  statisticalAllocationRowSchema,
-  unattributedMetricsSchema,
   // Opportunities
   opportunitiesPageSchema,
   implementationEventSchema,
@@ -260,53 +216,6 @@ export type GroundingStatus = z.infer<typeof groundingStatusSchema>;
 export type GroundingEnvelopeSummary = z.infer<typeof groundingEnvelopeSummarySchema>;
 export type ContentGenerationListItem = z.infer<typeof contentGenerationListItemSchema>;
 export type ContentGenerationDetail = z.infer<typeof contentGenerationDetailSchema>;
-
-// --- Products (agentic commerce) ---
-export type ProductVariant = z.infer<typeof productVariantSchema>;
-export type ProductCompleteness = z.infer<typeof productCompletenessSchema>;
-export type ProductOrigin = z.infer<typeof productOriginSchema>;
-export type Product = z.infer<typeof productSchema>;
-export type ProductImportRowError = z.infer<typeof productImportRowErrorSchema>;
-export type ProductImportSummary = z.infer<typeof productImportSummarySchema>;
-export type ProductImportResponse = z.infer<typeof productImportResponseSchema>;
-export type ProductAuditReferences = z.infer<typeof productAuditReferencesSchema>;
-export type BuyerDestinationKind = z.infer<typeof buyerDestinationKindSchema>;
-export type BuyerDestinationMix = z.infer<typeof buyerDestinationMixSchema>;
-export type PriceRelationCounts = z.infer<typeof priceRelationCountsSchema>;
-export type PriceRelation = z.infer<typeof priceRelationSchema>;
-export type ProductVisibilityEntry = z.infer<typeof productVisibilityEntrySchema>;
-export type ProductVisibility = z.infer<typeof productVisibilitySchema>;
-export type ProductVisibilityTrend = z.infer<typeof productVisibilityTrendResponseSchema>;
-export type ProductEvidenceKind = z.infer<typeof productEvidenceKindSchema>;
-export type ProductEvidenceItem = z.infer<typeof productEvidenceItemSchema>;
-export type ProductEvidenceResponse = z.infer<typeof productEvidenceResponseSchema>;
-
-// --- Commerce (catalog feed health) ---
-export type FeedHealthStatus = z.infer<typeof feedHealthStatusSchema>;
-export type FeedIssueSeverity = z.infer<typeof feedIssueSeveritySchema>;
-export type CommerceSyncSummary = z.infer<typeof commerceSyncSummarySchema>;
-export type CommerceConnectionSummary = z.infer<typeof commerceConnectionSummarySchema>;
-export type ProductFeedHealth = z.infer<typeof productFeedHealthSchema>;
-export type CommerceCatalogHealth = z.infer<typeof commerceCatalogHealthSchema>;
-
-// --- Attribution (A1/A2 snapshot + recompute) ---
-export type AttributionMethod = z.infer<typeof attributionMethodSchema>;
-export type AttributionDataState = z.infer<typeof attributionDataStateSchema>;
-export type AttributionSourceGranularity = z.infer<typeof attributionSourceGranularitySchema>;
-export type AttributionMetricSet = z.infer<typeof attributionMetricSetSchema>;
-export type AttributionSourceRow = z.infer<typeof attributionSourceRowSchema>;
-export type AttributionProductRow = z.infer<typeof attributionProductRowSchema>;
-export type AttributionMethodMetrics = z.infer<typeof attributionMethodMetricsSchema>;
-export type AttributionDeltaState = z.infer<typeof attributionDeltaStateSchema>;
-export type AttributionDelta = z.infer<typeof attributionDeltaSchema>;
-export type UnattributedMetrics = z.infer<typeof unattributedMetricsSchema>;
-export type StatisticalAllocationRow = z.infer<typeof statisticalAllocationRowSchema>;
-export type AttributionStatistical = z.infer<typeof attributionStatisticalSchema>;
-export type AttributionDeterministic = z.infer<typeof attributionDeterministicSchema>;
-export type AttributionMetrics = z.infer<typeof attributionMetricsSchema>;
-export type AttributionSnapshot = z.infer<typeof attributionSnapshotSchema>;
-export type AttributionTaskStatus = z.infer<typeof attributionTaskStatusSchema>;
-export type AttributionRecompute = z.infer<typeof attributionRecomputeSchema>;
 
 // --- Opportunities ---
 export type OpportunityType = z.infer<typeof opportunityTypeSchema>;

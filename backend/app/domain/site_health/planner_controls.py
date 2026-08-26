@@ -30,7 +30,7 @@ def _page_limit(
         else site_health_settings.automatic_page_limit
     )
     maximum = (
-        site_health_settings.max_discovery_urls
+        site_health_settings.max_advanced_requested_page_limit
         if site_health_settings.advanced_controls_enabled
         else site_health_settings.max_requested_page_limit
     )

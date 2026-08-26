@@ -9,11 +9,6 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analysis.product_service import (
-    analyze_task_products,
-    build_product_scoring_config,
-    finalize_audit_product_analysis,
-)
 from app.analysis.service import (
     analyze_task,
     build_scoring_config,
@@ -42,6 +37,7 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.domain.audits.state_events import apply_transition, record_event
+from app.domain.commerce.shelf import analyze_commerce_task, finalize_commerce_shelf
 from app.domain.opportunities.verification import enqueue_audit_opportunity_tasks
 from app.domain.providers.credentials import pause_connection_after_key_failure
 from app.models.audit import (
@@ -140,13 +136,7 @@ class AuditTerminalizationMixin:
             if analysis is not None:
                 task.score = analysis.score
 
-            # Sibling deterministic PRODUCT pass (Agentic Commerce): scores
-            # the frozen catalog against the same persisted answer and writes
-            # ProductResponseAnalysis/ProductMention/MerchantMention rows
-            # (no-op on an empty frozen catalog). Never touches the
-            # brand-level rows above.
-            product_config = build_product_scoring_config(audit.configuration)
-            await analyze_task_products(session, task=task, config=product_config)
+            await analyze_commerce_task(session, task=task)
 
             # One ProviderAttempt per actual call (retries + final success).
             self._record_attempts(
@@ -497,10 +487,7 @@ class AuditTerminalizationMixin:
                 if audit is not None:
                     await session.rollback()
                 return
-            # Product finalize first (same session/commit): upserts the
-            # per-product ProductMetricSnapshot rows from the persisted
-            # product analyses; the brand finalize below stays untouched.
-            await finalize_audit_product_analysis(session, audit=audit)
+            await finalize_commerce_shelf(session, audit=audit)
             await finalize_audit_analysis(session, audit=audit)
             workspace_id = audit.workspace_id
             project_id = audit.project_id

@@ -110,14 +110,6 @@ class Project(Base):
         passive_deletes=True,
         order_by="ContentGeneration.created_at.desc()",
     )
-    # Uploaded product catalog, frozen into Commerce audits at creation.
-    products: Mapped[list[Product]] = relationship(
-        "Product",
-        back_populates="project",
-        cascade=CASCADE_ALL_DELETE_ORPHAN,
-        passive_deletes=True,
-        order_by="Product.created_at",
-    )
 
 
 # Imported at module end to avoid circular imports at definition time; the
@@ -129,5 +121,4 @@ from app.models.brand import (  # noqa: E402
     UnintendedDomain,
 )
 from app.models.content import ContentGeneration  # noqa: E402
-from app.models.product import Product  # noqa: E402
 from app.models.prompt import PromptSet, Topic  # noqa: E402

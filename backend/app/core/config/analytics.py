@@ -265,9 +265,8 @@ REFERRAL_RETENTION_DAYS: Final = 90
 # The analytics queue-row kinds. A3 landed the queue spine (model + queue
 # spec + worker skeleton); the per-kind executors are registered in the
 # worker dispatch table by A5 (ingest_referrals), A6 (classify_referrals,
-# referral_retention_sweep), A7 (traffic_snapshot_refresh), A8
-# (ai_referrals_snapshot_refresh) and WS-B Task 1 (attribution_snapshot — the
-# A1 commerce-attribution projection refresh).
+# referral_retention_sweep), A7 (traffic_snapshot_refresh), and A8
+# (ai_referrals_snapshot_refresh). Commerce uses its own replacement tasks.
 ANALYTICS_TASK_KIND_INGEST_REFERRALS: Final = "ingest_referrals"
 ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS: Final = "classify_referrals"
 ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH: Final = "traffic_snapshot_refresh"
@@ -275,13 +274,13 @@ ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH: Final = (
     "ai_referrals_snapshot_refresh"
 )
 ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP: Final = "referral_retention_sweep"
-ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT: Final = "attribution_snapshot"
-ANALYTICS_TASK_KIND_ATTRIBUTION_LINK: Final = "attribution_link"
 ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH: Final = "opportunity_refresh"
 ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION: Final = "opportunity_verification"
 ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH: Final = "demand_snapshot_refresh"
-# Commerce suite: workspace-scoped sweep hard-deleting expired OrderFacts.
-ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP: Final = "order_retention_sweep"
+ANALYTICS_TASK_KIND_COMMERCE_CATALOG_PROJECTION: Final = "commerce_catalog_projection"
+ANALYTICS_TASK_KIND_COMMERCE_COMPETITOR_DISCOVERY: Final = (
+    "commerce_competitor_discovery"
+)
 ANALYTICS_TASK_KINDS: Final[frozenset[str]] = frozenset(
     {
         ANALYTICS_TASK_KIND_INGEST_REFERRALS,
@@ -289,12 +288,11 @@ ANALYTICS_TASK_KINDS: Final[frozenset[str]] = frozenset(
         ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
         ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
         ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP,
-        ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
-        ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
         ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
         ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
         ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
-        ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
+        ANALYTICS_TASK_KIND_COMMERCE_CATALOG_PROJECTION,
+        ANALYTICS_TASK_KIND_COMMERCE_COMPETITOR_DISCOVERY,
     }
 )
 

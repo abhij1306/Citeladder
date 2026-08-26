@@ -35,7 +35,7 @@ describe('PageHeader', () => {
     ['/traffic/anything', 'Traffic'],
     ['/runs/abc', 'Run detail'],
     ['/runs/abc/executions/def', 'Execution evidence'],
-    ['/products/abc', 'Product evidence'],
+    ['/products/abc', 'Commerce Suite'],
     ['/site/crawls/abc/pages/def', 'Page detail'],
   ])('resolves deeper route %s by longest-prefix match to %s', (route, title) => {
     expect(renderTitle(route)).toBe(title);

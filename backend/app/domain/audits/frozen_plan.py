@@ -26,7 +26,6 @@ from app.core.config.projects import (
 from app.core.config.provider_catalog import route_policy
 from app.domain.audits.errors import AuditValidationError, PromptCountPolicyError
 from app.domain.audits.resolution import _prompt_panel_snapshot, _ResolvedRoute
-from app.domain.products.shim import project_product_identity
 from app.domain.projects.shim import project_scoring_identity
 from app.domain.providers.credentials import ResolvedCredential
 from app.models.project import Project
@@ -196,14 +195,6 @@ def _frozen_configuration(
     """
     return {
         **project_scoring_identity(project),
-        # Frozen product catalog (Agentic Commerce): the deterministic
-        # product analyzer scores against this copy, so later catalog edits
-        # never alter the audit (invariant 9).
-        **(
-            project_product_identity(project)
-            if plan.audit_scope == "commerce"
-            else {"products": []}
-        ),
         "audit_scope": plan.audit_scope,
         "trigger": plan.trigger,
         "benchmark_mode": plan.benchmark_mode,

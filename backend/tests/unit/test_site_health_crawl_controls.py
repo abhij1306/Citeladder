@@ -87,7 +87,7 @@ def test_production_page_limit_accepts_50_and_rejects_51(monkeypatch):
         )
 
 
-def test_development_page_limit_retains_internal_ceiling(monkeypatch):
+def test_development_page_limit_uses_technical_ceiling(monkeypatch):
     monkeypatch.setattr(
         "app.domain.site_health.planner.site_health_settings.advanced_controls_enabled",
         True,
@@ -96,16 +96,16 @@ def test_development_page_limit_retains_internal_ceiling(monkeypatch):
     assert (
         _controls_for_request(
             input_mode=None,
-            requested_page_limit=50_000,
+            requested_page_limit=500,
             seed_urls=None,
             page_kinds=None,
         )[1]
-        == 50_000
+        == 500
     )
     with pytest.raises(CrawlPlanError, match="outside the allowed range"):
         _controls_for_request(
             input_mode=None,
-            requested_page_limit=50_001,
+            requested_page_limit=501,
             seed_urls=None,
             page_kinds=None,
         )

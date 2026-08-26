@@ -1,82 +1,40 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-
-import { LaunchDialog } from '@/components/runs/launch-dialog';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProjectContext } from '@/lib/project/project-context';
-import {
-  useCatalogQueries,
-  useCommerceOverview,
-  useProductsTab,
-  useProductVisibilityQueries,
-} from '@/lib/products/use-products-screen';
+import { useCommerceQueries, useProductsTab } from '@/lib/products/use-products-screen';
 
-import { AiVisibilityPanel } from './ai-visibility-panel';
-import { CatalogPanel } from './catalog-panel';
-import { CommerceOverviewPanel } from './commerce-overview-panel';
+import { BuyerPromptsPanel, CatalogPanel, CompetitorsPanel, ShelfPanel } from './commerce-panels';
 import { ProductsTabs } from './products-tabs';
 
 export function ProductsScreenSkeleton() {
   return (
-    <div className="grid gap-4" aria-hidden>
-      <Skeleton className="h-8 w-72" />
-      <Card>
-        <CardContent>
-          <Skeleton className="h-48 w-full" />
-        </CardContent>
-      </Card>
-    </div>
+    <Card aria-hidden>
+      <CardContent>
+        <Skeleton className="h-48 w-full" />
+      </CardContent>
+    </Card>
   );
 }
 
-/** Three-tab Commerce workflow. Every inactive tab remains query-inert. */
 export function ProductsScreen() {
-  const { activeProject, isLoading: isProjectLoading } = useProjectContext();
-  const projectId = activeProject?.id ?? null;
+  const { activeProject, isLoading } = useProjectContext();
   const { activeTab, selectTab } = useProductsTab();
-  const router = useRouter();
-  const [launchOpen, setLaunchOpen] = useState(false);
-  const overviewQueries = useCommerceOverview(projectId, activeTab === 'overview');
-  const catalogQueries = useCatalogQueries(projectId, activeTab === 'catalog');
-  const visibilityQueries = useProductVisibilityQueries(projectId, activeTab === 'visibility');
-
-  if (isProjectLoading) return <ProductsScreenSkeleton />;
-  if (!projectId)
-    return <Alert tone="info">Select or create a project to manage its product catalog.</Alert>;
-
+  const projectId = activeProject?.id ?? '';
+  const queries = useCommerceQueries(projectId, activeTab);
+  if (isLoading) return <ProductsScreenSkeleton />;
+  if (!projectId) return <Alert tone="info">Select or create a project to use Commerce.</Alert>;
   const panel =
     activeTab === 'catalog' ? (
-      <CatalogPanel projectId={projectId} queries={catalogQueries} />
-    ) : activeTab === 'visibility' ? (
-      <AiVisibilityPanel
-        projectId={projectId}
-        queries={visibilityQueries}
-        onAddProducts={() => selectTab('catalog')}
-        onLaunchAudit={() => setLaunchOpen(true)}
-      />
+      <CatalogPanel projectId={projectId} query={queries.catalog} />
+    ) : activeTab === 'competitors' ? (
+      <CompetitorsPanel projectId={projectId} queries={queries} />
+    ) : activeTab === 'buyer-prompts' ? (
+      <BuyerPromptsPanel projectId={projectId} queries={queries} />
     ) : (
-      <CommerceOverviewPanel
-        queries={overviewQueries}
-        onSelectTab={selectTab}
-        onLaunchAudit={() => setLaunchOpen(true)}
-      />
+      <ShelfPanel query={queries.shelf} />
     );
-
-  return (
-    <>
-      <ProductsTabs activeTab={activeTab} onSelectTab={selectTab} panel={panel} />
-      <LaunchDialog
-        open={launchOpen}
-        onOpenChange={setLaunchOpen}
-        projectId={projectId}
-        fixedPromptSetId={overviewQueries.commercePromptSet?.id}
-        auditScope="commerce"
-        onLaunched={(audit) => router.push(`/runs/${audit.id}`)}
-      />
-    </>
-  );
+  return <ProductsTabs activeTab={activeTab} onSelectTab={selectTab} panel={panel} />;
 }

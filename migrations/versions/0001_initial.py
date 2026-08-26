@@ -11,10 +11,23 @@ it directly while CiteLadder has no data-retention requirement.
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import Text
 from sqlalchemy.dialects import postgresql
+
+
+_COMMERCE_SCHEMA_PATH = Path(__file__).parents[1] / "commerce_atomic_schema.py"
+_COMMERCE_SCHEMA_SPEC = importlib.util.spec_from_file_location(
+    "commerce_atomic_schema", _COMMERCE_SCHEMA_PATH
+)
+if _COMMERCE_SCHEMA_SPEC is None or _COMMERCE_SCHEMA_SPEC.loader is None:
+    raise RuntimeError("Unable to load the Commerce initial-schema operations")
+_COMMERCE_SCHEMA = importlib.util.module_from_spec(_COMMERCE_SCHEMA_SPEC)
+_COMMERCE_SCHEMA_SPEC.loader.exec_module(_COMMERCE_SCHEMA)
 
 revision = "0001_initial"
 down_revision = None
@@ -5075,9 +5088,55 @@ def upgrade() -> None:
     _create_indexes(
         "agent_tool_attempts", ("workspace_id", "project_id", "task_run_id")
     )
+    _COMMERCE_SCHEMA.upgrade()
 
 
 def downgrade() -> None:
+    # This is the repository's sole greenfield revision. The Commerce rebuild
+    # retires tables that the earlier body creates before the final schema is
+    # installed, so replaying the generated reverse delta would recreate those
+    # retired authorities. Drop the explicit final table set instead.
+    final_tables = (
+        "site_issues", "site_change_observations", "referral_classifications",
+        "opportunity_verification_events", "commerce_product_categories",
+        "commerce_observation_citations", "site_rule_evaluations", "referral_events",
+        "opportunity_implementation_events", "content_generation_attempts",
+        "competitor_mentions", "commerce_product_observations", "commerce_categories",
+        "citations", "brand_mentions", "traffic_page_stats", "site_url_observations",
+        "site_page_analyses", "response_analyses", "query_evidence_rows",
+        "provider_attempts", "prompt_metric_snapshots", "opportunity_status_events",
+        "opportunity_snapshots", "opportunity_guidance", "observed_entity_candidates",
+        "monitored_site_urls", "metric_snapshots", "integration_metric_rows",
+        "execution_cost_projections", "content_generations", "consumable_ledger",
+        "commerce_shelf_snapshots", "commerce_recommendation_observations",
+        "brand_research_snapshots", "brand_discovery_tasks", "audit_prompt_snapshots",
+        "audit_events", "audit_engine_snapshots", "site_urls", "site_health_snapshots",
+        "site_fetch_attempts", "site_discovery_frontier", "site_crawl_phase_runs",
+        "site_crawl_events", "site_change_snapshots", "opportunities",
+        "integration_import_artifacts", "commerce_prompt_targets",
+        "commerce_competitor_candidates", "brand_discoveries", "audits",
+        "traffic_query_stats", "site_crawls", "provider_capacity_leases", "prompts",
+        "integration_sync_runs", "integration_property_mappings", "integration_events",
+        "grant_revocations", "demand_signals", "commerce_competitor_attempts",
+        "brand_profiles", "brand_aliases", "billing_subscriptions", "audit_schedules",
+        "agent_tool_attempts", "workspace_billing_links", "unintended_domains",
+        "traffic_snapshots", "topics", "site_health_profiles", "query_evidence_snapshots",
+        "provider_routes", "provider_connection_tests", "provider_capacity_buckets",
+        "prompt_sets", "pending_activations", "owned_domains", "opportunity_orders",
+        "integration_connections", "idempotency_records", "discovery_model_configs",
+        "demand_snapshots", "competitors", "commerce_products", "commerce_csv_imports",
+        "brands", "branded_query_overrides", "billing_customers", "analytics_tasks",
+        "ai_referrals_snapshots", "agent_task_runs", "account_grants",
+        "workspace_site_health_runtime", "workspace_members", "queue_workspace_turns",
+        "provider_connections", "projects", "integration_oauth_states",
+        "integration_oauth_grants", "billing_accounts", "workspaces", "users",
+        "usage_windows", "site_fetch_artifacts", "site_crawl_tasks",
+        "raw_response_artifacts", "brand_logo_assets", "billing_webhook_events",
+        "audit_tasks",
+    )
+    for table_name in final_tables:
+        op.execute(sa.text(f'DROP TABLE IF EXISTS "{table_name}" CASCADE'))
+    return
     op.drop_table("agent_tool_attempts")
     op.drop_table("agent_task_runs")
     op.drop_index(

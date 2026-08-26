@@ -8,8 +8,7 @@
 # chain's first task; the executors chain ``classify_referrals`` and
 # ``ai_referrals_snapshot_refresh`` on completion), traffic-consumed artifacts
 # trigger one ``traffic_snapshot_refresh`` per distinct affected sync
-# window, and the GA4 ecommerce artifacts trigger one
-# ``attribution_snapshot`` refresh per distinct affected window (WS-B A1).
+# window. Retired Commerce attribution datasets enqueue no replacement here.
 # The mapping is additive and many-to-many (``ga4_source_medium_daily``
 # feeds BOTH referral ingest and the traffic refresh); a dataset consumed
 # by no projection chain enqueues nothing.
@@ -25,29 +24,18 @@ from collections.abc import Awaitable, Callable, Iterable, Sequence
 from datetime import date
 from typing import Any
 
-from sqlalchemy import Integer, cast, func, select, update
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.analytics import (
-    AI_REFERRAL_RULE_VERSION,
     ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
-    ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
-    ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
     ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
-    ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
     ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP,
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
     analytics_settings,
-)
-from app.core.config.attribution import (
-    ATTRIBUTION_ANALYZER_VERSION,
-    ATTRIBUTION_CONSUMED_DATASETS,
-)
-from app.core.config.integrations_datasets import (
-    DATASET_SHOPIFY_ORDERS,
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED
 from app.core.config.traffic import (
@@ -209,8 +197,6 @@ def _window_refresh_payload(
     }
     if source_revision is not None:
         payload["source_revision"] = source_revision
-    if task_kind == ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT:
-        payload["resync_seq"] = resync_seq
     return payload
 
 
@@ -321,135 +307,6 @@ async def enqueue_demand_snapshot_refresh(
     return task_id
 
 
-async def enqueue_attribution_snapshot_refresh(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    window_start: date,
-    window_end: date,
-    resync_seq: int,
-    source_revision: str | None = None,
-    priority: int = 0,
-) -> uuid.UUID | None:
-    """Enqueue a rebuild of the attribution snapshot rows for one window.
-
-    The A1 projection refresh (WS-B Task 1): the executor expands
-    ``ANALYTICS_SNAPSHOT_GRANULARITIES``; the revision-keyed dedupe rule is
-    documented on ``_enqueue_window_snapshot_refresh``.
-    """
-    payload: dict[str, object] = {
-        "window_start": window_start.isoformat(),
-        "window_end": window_end.isoformat(),
-        "resync_seq": resync_seq,
-    }
-    return await _enqueue_task(
-        session,
-        workspace_id=workspace_id,
-        project_id=project_id,
-        task_kind=ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
-        payload=payload,
-        idempotency_key=_idempotency_key(
-            ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
-            project_id,
-            window_start,
-            window_end,
-            resync_seq,
-            *([source_revision] if source_revision is not None else []),
-        ),
-        priority=priority,
-    )
-
-
-async def enqueue_attribution_recompute(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    window_start: date,
-    window_end: date,
-    priority: int = 0,
-) -> uuid.UUID:
-    """Allocate and enqueue a fresh manual attribution projection revision.
-
-    The project row lock serializes revision allocation across automatic and
-    manual snapshot tasks. The revision lives on the durable task payload,
-    not an integration run or mutable snapshot row.
-    """
-    project = await session.scalar(
-        select(Project)
-        .where(Project.id == project_id, Project.workspace_id == workspace_id)
-        .with_for_update()
-    )
-    if project is None:
-        raise ValueError(f"unknown project: {project_id}")
-
-    window_start_text = window_start.isoformat()
-    window_end_text = window_end.isoformat()
-    max_revision = await session.scalar(
-        select(func.max(cast(AnalyticsTask.payload["resync_seq"].astext, Integer)))
-        .where(AnalyticsTask.workspace_id == workspace_id)
-        .where(AnalyticsTask.project_id == project_id)
-        .where(AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT)
-        .where(AnalyticsTask.payload["window_start"].astext == window_start_text)
-        .where(AnalyticsTask.payload["window_end"].astext == window_end_text)
-    )
-    resync_seq = (max_revision if max_revision is not None else -1) + 1
-    task_id = await enqueue_attribution_snapshot_refresh(
-        session,
-        workspace_id=workspace_id,
-        project_id=project_id,
-        window_start=window_start,
-        window_end=window_end,
-        resync_seq=resync_seq,
-        priority=priority,
-    )
-    if task_id is not None:
-        return task_id
-
-    # Defensive idempotency-race fallback: always return the pollable row.
-    existing_id = await session.scalar(
-        select(AnalyticsTask.id)
-        .where(AnalyticsTask.workspace_id == workspace_id)
-        .where(AnalyticsTask.project_id == project_id)
-        .where(AnalyticsTask.task_kind == ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT)
-        .where(AnalyticsTask.payload["window_start"].astext == window_start_text)
-        .where(AnalyticsTask.payload["window_end"].astext == window_end_text)
-        .where(AnalyticsTask.payload["resync_seq"].astext == str(resync_seq))
-        .order_by(AnalyticsTask.created_at.desc(), AnalyticsTask.id.desc())
-    )
-    if existing_id is None:
-        raise RuntimeError("attribution recompute enqueue lost without a durable task")
-    return existing_id
-
-
-async def enqueue_attribution_link(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    sync_run_id: uuid.UUID,
-    rule_version: str = AI_REFERRAL_RULE_VERSION,
-    priority: int = 0,
-) -> uuid.UUID | None:
-    """Enqueue deterministic links for the latest order facts of one sync run."""
-    return await _enqueue_task(
-        session,
-        workspace_id=workspace_id,
-        project_id=project_id,
-        task_kind=ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
-        payload={"sync_run_id": str(sync_run_id), "rule_version": rule_version},
-        idempotency_key=_idempotency_key(
-            ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
-            project_id,
-            sync_run_id,
-            rule_version,
-            ATTRIBUTION_ANALYZER_VERSION,
-        ),
-        priority=priority,
-    )
-
-
 async def enqueue_referral_retention_sweep(
     session: AsyncSession,
     *,
@@ -471,32 +328,6 @@ async def enqueue_referral_retention_sweep(
         payload={"sweep_key": sweep_key},
         idempotency_key=_idempotency_key(
             ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP, workspace_id, sweep_key
-        ),
-        priority=priority,
-    )
-
-
-async def enqueue_order_retention_sweep(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    sweep_key: str,
-    priority: int = 0,
-) -> uuid.UUID | None:
-    """Enqueue one workspace-scoped order retention sweep (commerce suite).
-
-    Mirrors the referral sweep contract: ``sweep_key`` is the caller-chosen
-    period token making the sweep deterministic per period — at most one
-    sweep row per ``(workspace_id, sweep_key)`` is ever queued.
-    """
-    return await _enqueue_task(
-        session,
-        workspace_id=workspace_id,
-        project_id=None,
-        task_kind=ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
-        payload={"sweep_key": sweep_key},
-        idempotency_key=_idempotency_key(
-            ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP, workspace_id, sweep_key
         ),
         priority=priority,
     )
@@ -533,23 +364,13 @@ async def _load_projection_artifacts(
 
 def _projection_revisions(
     rows: Sequence[Any],
-) -> tuple[
-    dict[tuple[date, date, int, uuid.UUID], None],
-    dict[tuple[date, date, int, uuid.UUID], None],
-    dict[uuid.UUID, None],
-]:
+) -> dict[tuple[date, date, int, uuid.UUID], None]:
     traffic: dict[tuple[date, date, int, uuid.UUID], None] = {}
-    attribution: dict[tuple[date, date, int, uuid.UUID], None] = {}
-    order_sync_runs: dict[uuid.UUID, None] = {}
     for row in rows:
         revision = (row.window_start, row.window_end, row.resync_seq, row.sync_run_id)
         if row.dataset in TRAFFIC_REFRESH_TRIGGER_DATASETS:
             traffic.setdefault(revision)
-        if row.dataset in ATTRIBUTION_CONSUMED_DATASETS:
-            attribution.setdefault(revision)
-        if row.dataset == DATASET_SHOPIFY_ORDERS:
-            order_sync_runs.setdefault(row.sync_run_id)
-    return traffic, attribution, order_sync_runs
+    return traffic
 
 
 async def _enqueue_referral_projections(
@@ -600,26 +421,6 @@ async def _enqueue_window_projections(
     return enqueued
 
 
-async def _enqueue_attribution_links(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    sync_run_ids: dict[uuid.UUID, None],
-) -> list[uuid.UUID]:
-    enqueued: list[uuid.UUID] = []
-    for sync_run_id in sync_run_ids:
-        task_id = await enqueue_attribution_link(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            sync_run_id=sync_run_id,
-        )
-        if task_id is not None:
-            enqueued.append(task_id)
-    return enqueued
-
-
 async def enqueue_post_sync_projections(
     session: AsyncSession,
     *,
@@ -641,15 +442,11 @@ async def enqueue_post_sync_projections(
       distinct affected (sync window, ``resync_seq``) revision (C5).
       ``ga4_source_medium_daily`` keeps BOTH this trigger and referral
       ingest.
-    - ``ATTRIBUTION_CONSUMED_DATASETS`` (the three GA4 ecommerce datasets)
-      → one ``attribution_snapshot`` refresh per distinct affected
-      (window, revision) — and NOTHING else (they are not referral, not
-      traffic).
     - A dataset consumed by no projection chain (e.g. the future Shopify
       datasets, which enqueue through their own derive path) triggers
       nothing here.
 
-    The refresh idempotency keys carry the triggering run's data revision
+    Traffic refresh idempotency keys carry the triggering run's data revision
     so a re-sync of an already-projected window re-fires the refresh
     instead of deduping away.
 
@@ -675,9 +472,7 @@ async def enqueue_post_sync_projections(
     # deduped in first-seen order of the returned rows (the SELECT has no
     # ORDER BY; a hook call normally carries one run's artifacts — one
     # window at one resync_seq — so ordering is moot in practice).
-    traffic_revisions, attribution_revisions, order_sync_runs = _projection_revisions(
-        rows
-    )
+    traffic_revisions = _projection_revisions(rows)
 
     enqueued = await _enqueue_referral_projections(
         session,
@@ -693,23 +488,6 @@ async def enqueue_post_sync_projections(
             project_id=project_id,
             revisions=traffic_revisions,
             enqueue=enqueue_traffic_snapshot_refresh,
-        )
-    )
-    enqueued.extend(
-        await _enqueue_window_projections(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            revisions=attribution_revisions,
-            enqueue=enqueue_attribution_snapshot_refresh,
-        )
-    )
-    enqueued.extend(
-        await _enqueue_attribution_links(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            sync_run_ids=order_sync_runs,
         )
     )
     return enqueued

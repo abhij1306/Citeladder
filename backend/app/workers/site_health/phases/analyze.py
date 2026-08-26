@@ -44,6 +44,7 @@ from app.core.config.site_health_rules import (
 from app.core.config.site_health_runtime import (
     site_health_settings,
 )
+from app.domain.commerce.service import enqueue_catalog_projection
 from app.domain.site_health.state_events import record_crawl_event
 from app.domain.site_health.task_guards import evaluate_task_guard, lease_is_owned
 from app.models.site_health.analysis import (
@@ -451,12 +452,18 @@ class AnalyzePhaseMixin(PhaseSupport):
                 normalized_facts=outcome.facts,
             )
         assert artifact_id is not None and outcome.facts is not None
-        await self._write_page_analysis(
+        analysis_id = await self._write_page_analysis(
             session,
             crawl=crawl,
             task=task,
             artifact_id=artifact_id,
             facts=outcome.facts,
+        )
+        await enqueue_catalog_projection(
+            session,
+            workspace_id=crawl.workspace_id,
+            project_id=crawl.project_id,
+            source_analysis_id=analysis_id,
         )
         crawl.analyzed_url_count += 1
         task.result_artifact_id = artifact_id

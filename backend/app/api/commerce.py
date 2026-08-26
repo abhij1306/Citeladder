@@ -1,50 +1,56 @@
-# Commerce router (WS-B): the attribution read surface.
-#
-# Projections only (invariant 7): the endpoint serves the persisted
-# ``AttributionSnapshot`` rows built by the ``attribution_snapshot``
-# refresh executor. No provider is ever called and nothing is recomputed
-# at read time: an absent snapshot yields the empty contract (the
-# trends/A9 empty-history precedent).
-#
-# The surface is flat like the other MVP routers (AC12): the active
-# workspace is resolved by ``require_active_workspace`` (``X-Workspace-Id``
-# header or the caller's default workspace) and the project is authorized
-# through the workspace before any read (invariant 5) — a cross-workspace
-# project returns 404, never data.
+"""Workspace-authorized Commerce replacement API under one project family."""
+
 from __future__ import annotations
 
 import uuid
-from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import WorkspaceContext, get_db, require_active_workspace
-from app.core.config.analytics import ANALYTICS_DEFAULT_GRANULARITY
-from app.core.config.errors import CODE_INVALID_CURSOR, CODE_VALIDATION_ERROR
+from app.connectors.agent.client import AgentNotConfiguredError
+from app.connectors.agent.factory import create_model_gateway
+from app.connectors.agent.gateway import ModelGateway
 from app.core.errors import ApiException
 from app.core.http_errors import raise_not_found
-from app.domain.attribution.schemas import (
-    AttributionOrdersPage,
-    AttributionRecomputeRequest,
-    AttributionRecomputeResponse,
-    CommerceAttributionResponse,
+from app.domain.commerce.competitors import (
+    decide_candidate,
+    enqueue_discoveries,
+    list_candidates,
 )
-from app.domain.attribution.service import (
-    AttributionCursorError,
-    AttributionQueryError,
-    AttributionRecomputeNotFoundError,
-    enqueue_commerce_attribution_recompute,
-    get_attribution_orders,
-    get_attribution_recompute,
-    get_commerce_attribution,
+from app.domain.commerce.prompts import (
+    BuyerPromptGenerationUnavailable,
+    add_manual_buyer_prompt,
+    decide_buyer_prompt,
+    generate_buyer_prompts,
+    list_buyer_prompts,
 )
 from app.domain.commerce.schemas import (
-    CommerceCatalogHealth,
+    BuyerPromptDecisionRequest,
+    BuyerPromptGenerateRequest,
+    BuyerPromptManualRequest,
+    BuyerPromptResponse,
+    CatalogEditRequest,
+    CatalogImportRequest,
+    CatalogImportResponse,
+    CatalogResponse,
+    CompetitorCandidateResponse,
+    CompetitorDecisionRequest,
+    DiscoveryRequest,
+    DiscoveryResponse,
+    ProductResponse,
+    ShelfResponse,
 )
-from app.domain.commerce.service import get_catalog_health
-from app.domain.projects.service import ProjectNotFoundError, get_project
+from app.domain.commerce.service import (
+    CommerceConflictError,
+    CommerceImportError,
+    CommerceNotFoundError,
+    edit_product,
+    get_catalog,
+    import_catalog,
+)
+from app.domain.commerce.shelf import get_shelf
 
 router = APIRouter(prefix="/projects", tags=["commerce"])
 
@@ -52,159 +58,246 @@ _WorkspaceDep = Annotated[WorkspaceContext, Depends(require_active_workspace)]
 _SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
 
-async def _get_project_or_404(
-    session: AsyncSession, workspace_id: uuid.UUID, project_id: uuid.UUID
-):
-    """Authorize the project, translating a cross-workspace/missing project
-    into the API's 404 (mirrors ``_get_project_or_404`` in traffic.py)."""
-    try:
-        return await get_project(
-            session, workspace_id=workspace_id, project_id=project_id
+def _map_error(exc: Exception) -> ApiException:
+    if isinstance(exc, CommerceNotFoundError):
+        return ApiException(status.HTTP_404_NOT_FOUND, "commerce_not_found", str(exc))
+    if isinstance(exc, CommerceConflictError):
+        return ApiException.coded(
+            status.HTTP_409_CONFLICT, "commerce_conflict", str(exc)
         )
-    except ProjectNotFoundError as exc:
-        raise_not_found("Project", cause=exc)
-
-
-@router.get(
-    "/{project_id}/commerce/attribution",
-    response_model=CommerceAttributionResponse,
-)
-async def get_commerce_attribution_endpoint(
-    project_id: uuid.UUID,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-    from_date: Annotated[date | None, Query(alias="from")] = None,
-    to_date: Annotated[date | None, Query(alias="to")] = None,
-    granularity: Annotated[str, Query()] = ANALYTICS_DEFAULT_GRANULARITY,
-) -> CommerceAttributionResponse:
-    """Commerce attribution projection for a project (invariant 7).
-
-    The deterministic A1 (GA4 platform-attributed) method sections —
-    currency-partitioned totals, per-AI-source rows, and per-product rows
-    — plus the permanently ``not_offered`` statistical namespace, served
-    from the persisted ``AttributionSnapshot`` matching ``(from, to,
-    granularity)`` (or the project's latest snapshot at the granularity
-    when the window is omitted). An absent snapshot returns the empty
-    contract (not 404); an invalid granularity/window returns 422.
-    """
-    # Authorize the project first (404 for a cross-workspace/missing project).
-    await _get_project_or_404(session, ctx.workspace_id, project_id)
-    try:
-        return await get_commerce_attribution(
-            session,
-            workspace_id=ctx.workspace_id,
-            project_id=project_id,
-            from_date=from_date,
-            to_date=to_date,
-            granularity=granularity,
-        )
-    except AttributionQueryError as exc:
-        raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
-        ) from exc
-
-
-@router.get(
-    "/{project_id}/commerce/attribution/orders",
-    response_model=AttributionOrdersPage,
-)
-async def get_attribution_orders_endpoint(
-    project_id: uuid.UUID,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-    source: Annotated[str | None, Query()] = None,
-    attribution_state: Annotated[str | None, Query()] = None,
-    from_date: Annotated[date | None, Query(alias="from")] = None,
-    to_date: Annotated[date | None, Query(alias="to")] = None,
-    cursor: Annotated[str | None, Query()] = None,
-) -> AttributionOrdersPage:
-    """Page safe latest-order evidence with current deterministic links."""
-    await _get_project_or_404(session, ctx.workspace_id, project_id)
-    try:
-        return await get_attribution_orders(
-            session,
-            workspace_id=ctx.workspace_id,
-            project_id=project_id,
-            source=source,
-            attribution_state=attribution_state,
-            from_date=from_date,
-            to_date=to_date,
-            cursor=cursor,
-        )
-    except AttributionCursorError as exc:
-        raise ApiException(
-            status.HTTP_400_BAD_REQUEST, CODE_INVALID_CURSOR, str(exc)
-        ) from exc
-    except AttributionQueryError as exc:
-        raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
-        ) from exc
-
-
-@router.get(
-    "/{project_id}/commerce/catalog-health",
-    response_model=CommerceCatalogHealth,
-)
-async def get_catalog_health_endpoint(
-    project_id: uuid.UUID,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-) -> CommerceCatalogHealth:
-    """Serve persisted Shopify catalog/feed health; never call a provider."""
-    await _get_project_or_404(session, ctx.workspace_id, project_id)
-    return await get_catalog_health(
-        session,
-        workspace_id=ctx.workspace_id,
-        project_id=project_id,
+    return ApiException.coded(
+        status.HTTP_422_UNPROCESSABLE_CONTENT, "commerce_invalid", str(exc)
     )
 
 
+@router.get("/{project_id}/commerce/catalog", response_model=CatalogResponse)
+async def catalog_endpoint(
+    project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
+) -> CatalogResponse:
+    try:
+        return await get_catalog(
+            session, workspace_id=ctx.workspace_id, project_id=project_id
+        )
+    except CommerceNotFoundError as exc:
+        raise_not_found("Project", cause=exc)
+
+
 @router.post(
-    "/{project_id}/commerce/attribution/recompute",
-    response_model=AttributionRecomputeResponse,
-    status_code=status.HTTP_202_ACCEPTED,
+    "/{project_id}/commerce/catalog/import",
+    response_model=CatalogImportResponse,
+    status_code=status.HTTP_201_CREATED,
 )
-async def enqueue_attribution_recompute_endpoint(
+async def catalog_import_endpoint(
     project_id: uuid.UUID,
+    payload: CatalogImportRequest,
     ctx: _WorkspaceDep,
     session: _SessionDep,
-    request: AttributionRecomputeRequest | None = None,
-) -> AttributionRecomputeResponse:
-    """Enqueue a fresh projection rebuild from persisted facts/metrics."""
-    await _get_project_or_404(session, ctx.workspace_id, project_id)
-    request = request or AttributionRecomputeRequest()
+) -> CatalogImportResponse:
     try:
-        return await enqueue_commerce_attribution_recompute(
+        return await import_catalog(
             session,
             workspace_id=ctx.workspace_id,
             project_id=project_id,
-            from_date=request.from_date,
-            to_date=request.to_date,
+            payload=payload,
         )
-    except AttributionQueryError as exc:
-        raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
-        ) from exc
+    except (CommerceNotFoundError, CommerceConflictError, CommerceImportError) as exc:
+        raise _map_error(exc) from exc
+
+
+@router.patch(
+    "/{project_id}/commerce/catalog/products/{product_id}",
+    response_model=ProductResponse,
+)
+async def catalog_edit_endpoint(
+    project_id: uuid.UUID,
+    product_id: uuid.UUID,
+    payload: CatalogEditRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> ProductResponse:
+    try:
+        return await edit_product(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            product_id=product_id,
+            payload=payload,
+        )
+    except (CommerceNotFoundError, CommerceConflictError) as exc:
+        raise _map_error(exc) from exc
+
+
+@router.post(
+    "/{project_id}/commerce/competitors/discover",
+    response_model=DiscoveryResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def competitor_discovery_endpoint(
+    project_id: uuid.UUID,
+    payload: DiscoveryRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> DiscoveryResponse:
+    try:
+        return await enqueue_discoveries(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            targets=payload.targets,
+        )
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc
 
 
 @router.get(
-    "/{project_id}/commerce/attribution/recompute/{task_id}",
-    response_model=AttributionRecomputeResponse,
+    "/{project_id}/commerce/competitors",
+    response_model=list[CompetitorCandidateResponse],
 )
-async def get_attribution_recompute_endpoint(
+async def competitors_endpoint(
+    project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
+) -> list[CompetitorCandidateResponse]:
+    try:
+        return await list_candidates(
+            session, workspace_id=ctx.workspace_id, project_id=project_id
+        )
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc
+
+
+@router.patch(
+    "/{project_id}/commerce/competitors/{candidate_id}",
+    response_model=CompetitorCandidateResponse,
+)
+async def competitor_decision_endpoint(
     project_id: uuid.UUID,
-    task_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    payload: CompetitorDecisionRequest,
     ctx: _WorkspaceDep,
     session: _SessionDep,
-) -> AttributionRecomputeResponse:
-    """Read one project-scoped attribution recompute queue row."""
-    await _get_project_or_404(session, ctx.workspace_id, project_id)
+) -> CompetitorCandidateResponse:
     try:
-        return await get_attribution_recompute(
+        return await decide_candidate(
             session,
             workspace_id=ctx.workspace_id,
             project_id=project_id,
-            task_id=task_id,
+            candidate_id=candidate_id,
+            decision=payload.decision,
         )
-    except AttributionRecomputeNotFoundError as exc:
-        raise_not_found("Attribution recompute", cause=exc)
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc
+
+
+@router.get(
+    "/{project_id}/commerce/buyer-prompts", response_model=list[BuyerPromptResponse]
+)
+async def buyer_prompts_endpoint(
+    project_id: uuid.UUID, ctx: _WorkspaceDep, session: _SessionDep
+) -> list[BuyerPromptResponse]:
+    try:
+        return await list_buyer_prompts(
+            session, workspace_id=ctx.workspace_id, project_id=project_id
+        )
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc
+
+
+@router.post(
+    "/{project_id}/commerce/buyer-prompts/generate",
+    response_model=list[BuyerPromptResponse],
+    status_code=status.HTTP_201_CREATED,
+)
+async def buyer_prompts_generate_endpoint(
+    project_id: uuid.UUID,
+    payload: BuyerPromptGenerateRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> list[BuyerPromptResponse]:
+    try:
+        gateway: ModelGateway = create_model_gateway()
+    except AgentNotConfiguredError as exc:
+        raise ApiException.coded(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "commerce_prompt_generation_unavailable",
+            "No structured model is configured; manual prompt entry remains available.",
+        ) from exc
+    try:
+        return await generate_buyer_prompts(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            targets=payload.targets,
+            count=payload.count,
+            gateway=gateway,
+        )
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc
+    except BuyerPromptGenerationUnavailable as exc:
+        raise ApiException.coded(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "commerce_prompt_generation_unavailable",
+            str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{project_id}/commerce/buyer-prompts/manual",
+    response_model=BuyerPromptResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def buyer_prompt_manual_endpoint(
+    project_id: uuid.UUID,
+    payload: BuyerPromptManualRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> BuyerPromptResponse:
+    try:
+        return await add_manual_buyer_prompt(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            target=payload.target,
+            text=payload.text,
+        )
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc
+
+
+@router.patch(
+    "/{project_id}/commerce/buyer-prompts/{prompt_id}",
+    response_model=BuyerPromptResponse,
+)
+async def buyer_prompt_decision_endpoint(
+    project_id: uuid.UUID,
+    prompt_id: uuid.UUID,
+    payload: BuyerPromptDecisionRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> BuyerPromptResponse:
+    try:
+        return await decide_buyer_prompt(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            prompt_id=prompt_id,
+            approved=payload.approved,
+        )
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc
+
+
+@router.get("/{project_id}/commerce/ai-shelf", response_model=ShelfResponse)
+async def ai_shelf_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    audit_id: Annotated[uuid.UUID | None, Query()] = None,
+) -> ShelfResponse:
+    try:
+        return await get_shelf(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            audit_id=audit_id,
+        )
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc

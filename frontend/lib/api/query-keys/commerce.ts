@@ -1,5 +1,9 @@
-/** Commerce (catalog feed health) query-key namespace. */
+/** Atomic Commerce suite query-key namespace. */
 export const commerceKeys = {
   all: ['commerce'] as const,
-  catalogHealth: (projectId: string) => ['commerce', 'catalog-health', projectId] as const,
+  catalog: (projectId: string) => ['commerce', projectId, 'catalog'] as const,
+  competitors: (projectId: string) => ['commerce', projectId, 'competitors'] as const,
+  buyerPrompts: (projectId: string) => ['commerce', projectId, 'buyer-prompts'] as const,
+  shelf: (projectId: string, auditId?: string) =>
+    ['commerce', projectId, 'ai-shelf', auditId ?? 'latest'] as const,
 };

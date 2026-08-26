@@ -201,18 +201,20 @@
         "backend/app/analysis/product_scoring_aggregation.py",
         "backend/app/analysis/product_service.py",
         "backend/app/domain/products/**",
+        "backend/app/domain/attribution/**",
         "backend/app/domain/commerce/**",
         "backend/app/api/products.py",
         "backend/app/api/commerce.py",
         "backend/app/models/product.py",
-        "backend/app/models/commerce.py"
+        "backend/app/models/attribution.py",
+        "backend/app/models/commerce.py",
+        "backend/app/connectors/commerce_competitors.py",
+        "backend/app/core/config/commerce_catalog.py",
+        "backend/evaluations/commerce_catalog.py"
       ],
       "backendTests": [
-        "tests/unit/test_product_*.py",
         "tests/unit/test_commerce_*.py",
-        "tests/component/test_product*.py",
-        "tests/component/test_commerce_*.py",
-        "tests/component/test_catalog_sync_merge.py"
+        "tests/component/test_commerce_*.py"
       ]
     },
     {
@@ -267,22 +269,19 @@
       "sources": [
         "backend/app/domain/traffic/**",
         "backend/app/domain/analytics/**",
-        "backend/app/domain/attribution/**",
         "backend/app/workers/analytics_worker.py",
         "backend/app/api/traffic.py",
         "backend/app/api/ai_referrals.py",
         "backend/app/models/traffic.py",
         "backend/app/models/analytics.py",
-        "backend/app/models/attribution.py"
+        "backend/app/models/commerce.py"
       ],
       "backendTests": [
         "tests/unit/test_traffic_projection.py",
-        "tests/unit/test_attribution_*.py",
         "tests/unit/test_ai_referrals_snapshot.py",
         "tests/unit/test_referral_*.py",
         "tests/unit/test_analytics_config.py",
         "tests/component/test_traffic_*.py",
-        "tests/component/test_attribution_*.py",
         "tests/component/test_ai_referrals_*.py",
         "tests/component/test_analytics_queue.py",
         "tests/component/test_referral_*.py",
@@ -509,8 +508,15 @@
       ]
     },
     {
-      "sources": ["frontend/app/(app)/products/**", "frontend/components/products/**", "frontend/lib/products/**"],
-      "frontendTests": ["components/products/*.test.tsx", "lib/products/*.test.ts"]
+      "sources": [
+        "frontend/app/(app)/products/**",
+        "frontend/components/products/**",
+        "frontend/lib/products/**",
+        "frontend/lib/api/commerce.ts",
+        "frontend/lib/api/schemas/commerce-suite.ts",
+        "frontend/lib/api/query-keys/commerce.ts"
+      ],
+      "frontendTests": ["components/products/*.test.tsx", "lib/products/*.test.ts", "lib/api/commerce.test.ts"]
     },
     {
       "sources": ["frontend/app/(app)/opportunities/**", "frontend/components/opportunities/**", "frontend/lib/opportunities/**"],

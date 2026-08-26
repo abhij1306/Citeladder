@@ -21,11 +21,10 @@ from app.core.config.analytics import (
     ANALYTICS_MAX_WINDOW_DAYS,
     ANALYTICS_SNAPSHOT_GRANULARITIES,
     ANALYTICS_SNAPSHOT_TTL_S,
-    ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
-    ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
+    ANALYTICS_TASK_KIND_COMMERCE_CATALOG_PROJECTION,
+    ANALYTICS_TASK_KIND_COMMERCE_COMPETITOR_DISCOVERY,
     ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
     ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
-    ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
     ANALYTICS_TASK_KINDS,
     CONFIDENCE_BUCKETS,
     MATCH_SIGNALS,
@@ -91,10 +90,13 @@ def test_traffic_refresh_trigger_datasets() -> None:
     assert TRAFFIC_REFRESH_TRIGGER_DATASETS <= set(INTEGRATION_DATASET_TEMPLATES)
 
 
-def test_analytics_task_kinds_include_attribution_snapshot() -> None:
-    assert ANALYTICS_TASK_KIND_ATTRIBUTION_LINK == "attribution_link"
-    assert ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT == "attribution_snapshot"
-    assert ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP == "order_retention_sweep"
+def test_analytics_task_kinds_include_commerce_replacement_tasks() -> None:
+    assert ANALYTICS_TASK_KIND_COMMERCE_CATALOG_PROJECTION == (
+        "commerce_catalog_projection"
+    )
+    assert ANALYTICS_TASK_KIND_COMMERCE_COMPETITOR_DISCOVERY == (
+        "commerce_competitor_discovery"
+    )
     assert ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH == "opportunity_refresh"
     assert ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION == "opportunity_verification"
     assert ANALYTICS_TASK_KINDS == frozenset(
@@ -104,9 +106,8 @@ def test_analytics_task_kinds_include_attribution_snapshot() -> None:
             "traffic_snapshot_refresh",
             "ai_referrals_snapshot_refresh",
             "referral_retention_sweep",
-            "attribution_snapshot",
-            "attribution_link",
-            "order_retention_sweep",
+            "commerce_catalog_projection",
+            "commerce_competitor_discovery",
             "opportunity_refresh",
             "opportunity_verification",
             "demand_snapshot_refresh",

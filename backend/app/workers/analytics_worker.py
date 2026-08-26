@@ -12,9 +12,9 @@
 # already-terminal row writes NOTHING — single-writer, invariant 3) and
 # increments ``attempt_count`` exactly once.
 #
-# NO kind performs network I/O — every executor is a pure projection over
-# persisted rows (invariant 7), so this worker takes no transport; the test
-# seam is the executor mapping override instead.
+# Catalog projection remains DB-only. Optional competitor discovery performs
+# one bounded provider request after the queue claim has committed, and persists
+# an immutable attempt before publishing candidates.
 #
 # DISPATCH TABLE: every declared kind routes to its real executor
 # (``EXECUTORS`` below). A claimed kind outside the table is a config bug
@@ -34,14 +34,13 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config.analytics import (
     ANALYTICS_QUEUE_SPEC,
     ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH,
-    ANALYTICS_TASK_KIND_ATTRIBUTION_LINK,
-    ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT,
     ANALYTICS_TASK_KIND_CLASSIFY_REFERRALS,
+    ANALYTICS_TASK_KIND_COMMERCE_CATALOG_PROJECTION,
+    ANALYTICS_TASK_KIND_COMMERCE_COMPETITOR_DISCOVERY,
     ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH,
     ANALYTICS_TASK_KIND_INGEST_REFERRALS,
     ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH,
     ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION,
-    ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP,
     ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP,
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH,
     ERROR_EXECUTOR_NOT_WIRED,
@@ -62,9 +61,8 @@ from app.domain.analytics.tasks import (
     run_classify_referrals,
     run_referral_retention_sweep,
 )
-from app.domain.attribution.link import run_attribution_link
-from app.domain.attribution.snapshot import refresh_attribution_snapshot
-from app.domain.commerce.orders import run_order_retention_sweep
+from app.domain.commerce.competitors import run_competitor_discovery
+from app.domain.commerce.projector import project_catalog_analysis
 from app.domain.demand.service import recompute_demand
 from app.domain.opportunities.recompute import recompute as recompute_opportunities
 from app.domain.opportunities.verification import verify_implementation_events
@@ -114,9 +112,8 @@ EXECUTORS: dict[str, AnalyticsExecutor] = {
     ANALYTICS_TASK_KIND_TRAFFIC_SNAPSHOT_REFRESH: refresh_traffic_snapshot,
     ANALYTICS_TASK_KIND_AI_REFERRALS_SNAPSHOT_REFRESH: refresh_ai_referrals_snapshot,
     ANALYTICS_TASK_KIND_REFERRAL_RETENTION_SWEEP: run_referral_retention_sweep,
-    ANALYTICS_TASK_KIND_ATTRIBUTION_SNAPSHOT: refresh_attribution_snapshot,
-    ANALYTICS_TASK_KIND_ATTRIBUTION_LINK: run_attribution_link,
-    ANALYTICS_TASK_KIND_ORDER_RETENTION_SWEEP: run_order_retention_sweep,
+    ANALYTICS_TASK_KIND_COMMERCE_CATALOG_PROJECTION: project_catalog_analysis,
+    ANALYTICS_TASK_KIND_COMMERCE_COMPETITOR_DISCOVERY: run_competitor_discovery,
     ANALYTICS_TASK_KIND_OPPORTUNITY_REFRESH: _refresh_opportunities,
     ANALYTICS_TASK_KIND_OPPORTUNITY_VERIFICATION: verify_implementation_events,
     ANALYTICS_TASK_KIND_DEMAND_SNAPSHOT_REFRESH: recompute_demand,
@@ -126,9 +123,8 @@ EXECUTORS: dict[str, AnalyticsExecutor] = {
 class AnalyticsWorker(DrainableWorkerMixin):
     """Claim/lease loop for ``AnalyticsTask`` rows.
 
-    ``executors`` is the test seam: a dispatch-table override so tests drive
-    the loop with fake executors. Production passes none and uses the module
-    ``EXECUTORS`` table. No ``transport``: no kind performs network I/O.
+    ``executors`` is the test seam: tests can replace provider-backed work with
+    deterministic executors while production uses the module dispatch table.
     """
 
     def __init__(

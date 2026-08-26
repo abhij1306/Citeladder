@@ -15,7 +15,7 @@ const PAGE_TITLES: ReadonlyArray<readonly [prefix: string, title: string]> = [
   ['/traffic', 'Traffic'],
   ['/prompts', 'Prompts'],
   ['/opportunities', 'Opportunities'],
-  ['/products', 'Products'],
+  ['/products', 'Commerce Suite'],
   ['/runs', 'Runs'],
   ['/content', 'Content'],
   ['/projects', 'Overview'],
@@ -27,7 +27,6 @@ const PAGE_TITLES: ReadonlyArray<readonly [prefix: string, title: string]> = [
 
 /** Deeper-route overrides (checked before the prefix table). */
 const EXACT_OVERRIDES: ReadonlyArray<readonly [pattern: RegExp, title: string]> = [
-  [/^\/products\/[^/]+$/, 'Product evidence'],
   [/^\/site\/crawls\/[^/]+\/pages\/[^/]+$/, 'Page detail'],
   [/^\/runs\/[^/]+\/executions\/[^/]+$/, 'Execution evidence'],
   [/^\/runs\/[^/]+$/, 'Run detail'],
