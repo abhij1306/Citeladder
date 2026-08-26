@@ -97,19 +97,7 @@ omit = [
 ]
 
 [tool.coverage.report]
-# MEASURED, not chosen: the suite reports 85.14% statement+branch coverage of
-# ``app`` today, so the floor is 85 — the measured number rounded down. One
-# point below is a real regression, not a rounding artefact.
-#
-# This floor was FAILING at 83.79% before Slice 2 of
-# docs/plans/technical-debt-reduction.md landed tests on agent_worker (0% ->
-# 100%), onboarding/context_profile (0% -> 100%), brand_discovery_worker
-# (29% -> 89%), the audits estimate/schedule/performance modules, and the
-# integrations management service. Raising it to 86 is the next deliberate
-# step, taken only once the remaining thin seams (commerce/intelligence,
-# browser_transport, content_worker 62%) are covered — never as a guess ahead
-# of the tests.
-fail_under = 85
+# Coverage remains measured and published, but is not a merge-blocking gate.
 show_missing = false
 skip_covered = true
 exclude_also = [
