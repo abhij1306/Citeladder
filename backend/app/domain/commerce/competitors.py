@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.commerce_competitors import (
@@ -88,11 +89,10 @@ async def enqueue_discoveries(
             target=target,
         )
         key = f"commerce:competitors:{target.kind}:{target.id}"
-        task = await session.scalar(
-            select(AnalyticsTask).where(AnalyticsTask.idempotency_key == key)
-        )
-        if task is None:
-            task = AnalyticsTask(
+        task_id = await session.scalar(
+            insert(AnalyticsTask)
+            .values(
+                id=uuid.uuid4(),
                 workspace_id=workspace_id,
                 project_id=project_id,
                 task_kind="commerce_competitor_discovery",
@@ -104,9 +104,16 @@ async def enqueue_discoveries(
                 idempotency_key=key,
                 status=TASK_STATUS_QUEUED,
             )
-            session.add(task)
-            await session.flush()
-        task_ids.append(task.id)
+            .on_conflict_do_nothing(index_elements=[AnalyticsTask.idempotency_key])
+            .returning(AnalyticsTask.id)
+        )
+        if task_id is None:
+            task_id = await session.scalar(
+                select(AnalyticsTask.id).where(AnalyticsTask.idempotency_key == key)
+            )
+        if task_id is None:
+            raise RuntimeError("Competitor discovery task was not persisted")
+        task_ids.append(task_id)
     await session.commit()
     return DiscoveryResponse(task_ids=task_ids)
 
@@ -214,7 +221,9 @@ async def run_competitor_discovery(session_factory, task: AnalyticsTask) -> None
     target = CommerceTarget.model_validate(payload.get("target"))
     query = f"alternatives to {payload.get('target_name') or ''} product"
     locale = str(payload.get("locale") or "")
-    status, error_code, results = await _provider_results(query, locale=locale)
+    status, error_code, results, should_retry = await _provider_results(
+        query, locale=locale
+    )
     async with session_factory() as session:
         await _persist_discovery(
             session,
@@ -226,17 +235,19 @@ async def run_competitor_discovery(session_factory, task: AnalyticsTask) -> None
             error_code=error_code,
             results=results,
         )
+    if should_retry:
+        raise RuntimeError("Competitor discovery provider failed")
 
 
 async def _provider_results(
     query: str, *, locale: str
-) -> tuple[str, str, list[dict[str, Any]]]:
+) -> tuple[str, str, list[dict[str, Any]], bool]:
     try:
-        return "succeeded", "", await tavily_search(query, locale=locale)
+        return "succeeded", "", await tavily_search(query, locale=locale), False
     except CompetitorProviderUnavailable:
-        return "unavailable", "provider_unavailable", []
+        return "unavailable", "provider_unavailable", [], False
     except Exception:
-        return "failed", "provider_failed", []
+        return "failed", "provider_failed", [], True
 
 
 async def _persist_discovery(

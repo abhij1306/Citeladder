@@ -78,6 +78,7 @@ export const competitorCandidateSchema = z
     decision_at: z.string().nullable(),
   })
   .strict();
+export const competitorDiscoverySchema = z.object({ task_ids: z.array(uuid) }).strict();
 export const buyerPromptSchema = z
   .object({
     id: uuid,
@@ -137,6 +138,24 @@ export const shelfSchema = z
 export type CommerceTarget = z.infer<typeof commerceTargetSchema>;
 export type CommerceCatalog = z.infer<typeof commerceCatalogSchema>;
 export type CommerceProduct = z.infer<typeof commerceProductSchema>;
+export type CommerceProductEdit = Partial<
+  Pick<
+    CommerceProduct,
+    | 'canonical_url'
+    | 'name'
+    | 'description'
+    | 'brand'
+    | 'price'
+    | 'currency'
+    | 'sku'
+    | 'gtin'
+    | 'mpn'
+    | 'variants'
+    | 'attributes'
+    | 'category_ids'
+    | 'lifecycle_state'
+  >
+>;
 export type CatalogImport = z.infer<typeof catalogImportSchema>;
 export type CompetitorCandidate = z.infer<typeof competitorCandidateSchema>;
 export type BuyerPrompt = z.infer<typeof buyerPromptSchema>;

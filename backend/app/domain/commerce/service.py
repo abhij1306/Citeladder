@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.commerce_catalog import (
     COMMERCE_EDIT_VERSION,
     COMMERCE_IMPORT_ERROR_LIMIT,
+    COMMERCE_IMPORT_MAX_BYTES,
     COMMERCE_IMPORT_MAX_ROWS,
     COMMERCE_IMPORTER_VERSION,
     COMMERCE_PROJECTOR_VERSION,
@@ -323,6 +324,10 @@ async def import_catalog(
     payload: CatalogImportRequest,
 ) -> CatalogImportResponse:
     await require_project(session, workspace_id=workspace_id, project_id=project_id)
+    if len(payload.content.encode("utf-8")) > COMMERCE_IMPORT_MAX_BYTES:
+        raise CommerceImportError(
+            f"CSV exceeds the {COMMERCE_IMPORT_MAX_BYTES} byte limit"
+        )
     reader = _csv_reader(payload.content)
     rows = list(reader)
     if len(rows) > COMMERCE_IMPORT_MAX_ROWS:
@@ -601,18 +606,22 @@ def _apply_edit_values(
     supplied: set[str],
 ) -> dict[str, Any]:
     observed: dict[str, Any] = {}
+    cleared_values: dict[str, Any] = {
+        "price": None,
+        "variants": [],
+        "attributes": {},
+    }
     for field in supplied & (set(_FIELDS) | {"lifecycle_state"}):
         value = getattr(payload, field)
         if field == "canonical_url":
             if not value:
                 raise CommerceConflictError("canonical_url cannot be cleared")
             value = canonical_identity(value)[0]
-        setattr(
-            product,
-            field,
-            value if value is not None else (None if field == "price" else ""),
-        )
-        observed[field] = value
+        if field == "lifecycle_state" and value is None:
+            raise CommerceConflictError("lifecycle_state cannot be cleared")
+        applied = value if value is not None else cleared_values.get(field, "")
+        setattr(product, field, applied)
+        observed[field] = applied
     return observed
 
 

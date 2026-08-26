@@ -6,7 +6,7 @@ import uuid
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config.commerce_catalog import COMMERCE_PROJECTOR_VERSION
@@ -126,7 +126,7 @@ async def _project_category_source(
     artifact: SiteFetchArtifact,
     site_url: SiteUrl,
 ) -> None:
-    facts = dict(artifact.normalized_facts or {})
+    facts = _dict_value(artifact.normalized_facts)
     commerce = _dict_value(facts.get("commerce"))
     await _category_from_analysis(
         session,
@@ -153,7 +153,7 @@ async def _project_product_source(
     if prior is not None:
         return
     values = _crawl_values(
-        dict(artifact.normalized_facts or {}), site_url.normalized_url
+        _dict_value(artifact.normalized_facts), site_url.normalized_url
     )
     product = await session.scalar(
         select(CommerceProduct).where(
@@ -226,7 +226,7 @@ async def _merge_projected_categories(
     product: CommerceProduct,
     observation: CommerceProductObservation,
 ) -> None:
-    facts = dict(artifact.normalized_facts or {})
+    facts = _dict_value(artifact.normalized_facts)
     structured = _dict_value(_dict_value(facts.get("structured_data")).get("product"))
     names = [str(value) for value in _list_value(structured.get("category"))]
     commerce = _dict_value(facts.get("commerce"))
@@ -251,18 +251,22 @@ async def _category_from_analysis(
     title: str,
     role: str,
 ) -> None:
-    normalized = " ".join(title.casefold().split())
+    safe_title = title.strip() or "Uncategorized"
+    normalized = " ".join(safe_title.casefold().split())
     category = await session.scalar(
         select(CommerceCategory).where(
             CommerceCategory.project_id == analysis.project_id,
-            CommerceCategory.canonical_url == canonical_url,
+            or_(
+                CommerceCategory.canonical_url == canonical_url,
+                CommerceCategory.normalized_name == normalized[:255],
+            ),
         )
     )
     if category is None:
         category = CommerceCategory(
             workspace_id=analysis.workspace_id,
             project_id=analysis.project_id,
-            name=title[:255],
+            name=safe_title[:255],
             normalized_name=normalized[:255],
             canonical_url=canonical_url,
         )

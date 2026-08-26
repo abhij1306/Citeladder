@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { commerceApi } from '@/lib/api/commerce';
 import { queryKeys } from '@/lib/api/query-keys';
+import { ACTIVE_RUN_POLL_MS } from '@/lib/config/operational';
 import { normalizeProductsTab, type ProductsTab } from './catalog';
 
 export function useProductsTab() {
@@ -24,22 +25,24 @@ export function useCommerceQueries(projectId: string, tab: ProductsTab) {
   const catalog = useQuery({
     queryKey: queryKeys.commerce.catalog(projectId),
     queryFn: ({ signal }) => commerceApi.catalog(projectId, { signal }),
-    enabled: tab === 'catalog' || tab === 'competitors' || tab === 'buyer-prompts',
+    enabled:
+      Boolean(projectId) && (tab === 'catalog' || tab === 'competitors' || tab === 'buyer-prompts'),
   });
   const competitors = useQuery({
     queryKey: queryKeys.commerce.competitors(projectId),
     queryFn: ({ signal }) => commerceApi.competitors(projectId, { signal }),
-    enabled: tab === 'competitors',
+    enabled: Boolean(projectId) && tab === 'competitors',
+    refetchInterval: tab === 'competitors' ? ACTIVE_RUN_POLL_MS : false,
   });
   const buyerPrompts = useQuery({
     queryKey: queryKeys.commerce.buyerPrompts(projectId),
     queryFn: ({ signal }) => commerceApi.buyerPrompts(projectId, { signal }),
-    enabled: tab === 'buyer-prompts',
+    enabled: Boolean(projectId) && tab === 'buyer-prompts',
   });
   const shelf = useQuery({
     queryKey: queryKeys.commerce.shelf(projectId),
     queryFn: ({ signal }) => commerceApi.shelf(projectId, undefined, { signal }),
-    enabled: tab === 'ai-shelf',
+    enabled: Boolean(projectId) && tab === 'ai-shelf',
   });
   return { catalog, competitors, buyerPrompts, shelf };
 }
