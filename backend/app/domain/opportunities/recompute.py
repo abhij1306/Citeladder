@@ -8,24 +8,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.opportunities.detectors import (
     AnalysisEvidence,
-    CommerceEvidence,
     DetectorHit,
-    ProductEntryEvidence,
     PromptSnapshotEvidence,
     SiteEvidence,
     SiteIssueEvidence,
     SiteUrlEvidence,
     VisibilityEvidence,
     detect_brand_absent_high_value_prompt,
-    detect_catalog_fields_missing,
-    detect_cited_alternatives_without_uploaded_presence,
     detect_owned_page_not_cited,
-    detect_product_not_mentioned,
     detect_site_issue_opportunities,
 )
 from app.analysis.opportunities.scoring import priority_score
 from app.analysis.opportunities.source_patterns import CitationEvidence
-from app.analysis.product_service import build_product_scoring_config
 from app.core.config.audits import (
     AUDIT_STATUS_COMPLETED,
     AUDIT_STATUS_PARTIALLY_COMPLETED,
@@ -39,13 +33,8 @@ from app.core.config.opportunities import (
     OPPORTUNITY_RULES_BY_ID,
     RECOMPUTE_MAX_ANALYSES,
     RECOMPUTE_MAX_ISSUES,
-    RECOMPUTE_MAX_PRODUCT_SNAPSHOTS,
     RULE_VERSION,
     STATUS_OPEN,
-)
-from app.core.config.products import (
-    PRODUCT_COMPLETENESS_ATTRIBUTE_KEYS,
-    PRODUCT_REQUIRED_ATTRIBUTES,
 )
 from app.core.config.site_health_contracts import (
     CRAWL_STATUS_CANCELLED,
@@ -55,10 +44,8 @@ from app.core.config.site_health_contracts import (
 from app.core.config.site_health_rules import (
     FINDING_CLASS_DEFECT,
 )
-from app.domain.opportunities.category_citations import (
-    load_category_citation_evidence,
-)
 from app.domain.opportunities.change_hits import load_change_hits
+from app.domain.opportunities.commerce_hits import load_commerce_opportunity_hits
 from app.domain.opportunities.common import (
     _AUDIT_NOT_FOUND,
     _CRAWL_NOT_FOUND,
@@ -72,7 +59,6 @@ from app.domain.opportunities.errors import (
 from app.domain.opportunities.site_coverage import site_coverage
 from app.domain.opportunities.snapshot_build import build_snapshot
 from app.domain.opportunities.snapshot_projection import project_snapshot
-from app.domain.products.visibility import select_current_snapshots
 from app.domain.prompts.locks import acquire_project_lock
 from app.models.analysis import (
     Citation,
@@ -88,7 +74,6 @@ from app.models.opportunity import (
     Opportunity,
     OpportunitySnapshot,
 )
-from app.models.product import ProductMetricSnapshot
 from app.models.site_health.analysis import SiteIssue
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.urls import SiteUrl
@@ -370,112 +355,6 @@ async def _load_site_evidence(
     )
 
 
-def _project_commerce_entry(
-    *,
-    snapshot: ProductMetricSnapshot | None,
-    entry_id: str,
-    kind: str,
-    name: str,
-    sku: str,
-    competitor_name: str,
-    category: str = "",
-    missing_fields: tuple[str, ...] = (),
-) -> ProductEntryEvidence:
-    return ProductEntryEvidence(
-        entry_id=entry_id,
-        kind=kind,
-        name=name,
-        sku=sku,
-        competitor_name=competitor_name,
-        mention_count=snapshot.mention_count if snapshot is not None else 0,
-        sov_share=float(snapshot.sov_share) if snapshot is not None else 0.0,
-        price_mismatch_rate=(
-            float(snapshot.price_mismatch_rate)
-            if snapshot is not None and snapshot.price_mismatch_rate is not None
-            else None
-        ),
-        snapshot_id=snapshot.id if snapshot is not None else None,
-        source_analysis_ids=(
-            tuple(sorted(str(sid) for sid in (snapshot.source_analysis_ids or [])))
-            if snapshot is not None
-            else ()
-        ),
-        category=category,
-        missing_fields=missing_fields,
-    )
-
-
-def _project_commerce_entries(config, by_entry) -> list[ProductEntryEvidence]:
-    own = [
-        _project_commerce_entry(
-            snapshot=by_entry.get(entry.id),
-            entry_id=entry.id,
-            kind="product",
-            name=entry.name,
-            sku=entry.sku,
-            competitor_name="",
-            category=entry.category,
-            missing_fields=tuple(
-                key
-                for key in (
-                    *PRODUCT_REQUIRED_ATTRIBUTES,
-                    *PRODUCT_COMPLETENESS_ATTRIBUTE_KEYS,
-                )
-                if not (
-                    getattr(entry, key, None)
-                    if key in PRODUCT_REQUIRED_ATTRIBUTES
-                    else entry.attributes.get(key)
-                )
-            ),
-        )
-        for entry in config.products
-    ]
-    return own
-
-
-async def _load_commerce_evidence(
-    session: AsyncSession, *, workspace_id: uuid.UUID, audit: Audit
-) -> CommerceEvidence:
-    """Frozen catalog identity + persisted product snapshots for one audit.
-
-    Entry identity (name/sku/competitor) reads the audit's FROZEN catalog
-    (``Audit.configuration``, invariant 9) so a later catalog edit or delete
-    never rewrites what the audit measured; the metrics read the persisted
-    ``ProductMetricSnapshot`` rows (one per frozen entry, zero-filled when
-    unmentioned — invariant 7). An audit with no frozen catalog short-circuits
-    to empty evidence without a query.
-    """
-    config = build_product_scoring_config(audit.configuration or {})
-    if not config.products:
-        return CommerceEvidence(audit_id=audit.id, entries=())
-    snapshots = list(
-        (
-            await session.scalars(
-                select(ProductMetricSnapshot)
-                .where(
-                    ProductMetricSnapshot.audit_id == audit.id,
-                    ProductMetricSnapshot.workspace_id == workspace_id,
-                )
-                .order_by(
-                    ProductMetricSnapshot.created_at.desc(),
-                    ProductMetricSnapshot.id.desc(),
-                )
-                .limit(RECOMPUTE_MAX_PRODUCT_SNAPSHOTS)
-            )
-        ).all()
-    )
-    by_entry = select_current_snapshots(snapshots)
-
-    entries = _project_commerce_entries(config, by_entry)
-    return CommerceEvidence(
-        audit_id=audit.id,
-        entries=tuple(entries),
-        category_citations=await load_category_citation_evidence(
-            session, audit=audit, config=config
-        ),
-    )
-
-
 async def _confirmed_decline_hits(
     session: AsyncSession, *, workspace_id: uuid.UUID, audit: Audit
 ) -> list[DetectorHit]:
@@ -563,12 +442,14 @@ async def _collect_recompute_hits(
                     for hit in visibility_hits
                 ]
             hits.extend(visibility_hits)
-            commerce = await _load_commerce_evidence(
-                session, workspace_id=workspace_id, audit=audit
+            hits.extend(
+                await load_commerce_opportunity_hits(
+                    session,
+                    workspace_id=workspace_id,
+                    audit_id=audit.id,
+                    project_id=audit.project_id,
+                )
             )
-            hits.extend(detect_product_not_mentioned(commerce))
-            hits.extend(detect_cited_alternatives_without_uploaded_presence(commerce))
-            hits.extend(detect_catalog_fields_missing(commerce))
             hits.extend(
                 await _confirmed_decline_hits(
                     session, workspace_id=workspace_id, audit=audit

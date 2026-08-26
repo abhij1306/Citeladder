@@ -38,6 +38,9 @@ from app.core.config.projects import (
 # ``SCORING_RULE_VERSION`` in ``config/analysis.py``).
 ANALYZER_VERSION: Final = "opp-analyzer-6"
 RULE_VERSION: Final = "opp-rules-7"
+RULE_PRODUCT_NOT_MENTIONED: Final = "product_not_mentioned"
+RULE_CITED_ALTERNATIVES: Final = "cited_alternatives_without_uploaded_presence"
+RULE_CATALOG_FIELDS_MISSING: Final = "catalog_fields_missing"
 FORMULA_VERSION: Final = "opp-formula-1"
 CONFIRMED_DECLINE_MIN_FACTOR: Final = 0.1
 CONFIRMED_DECLINE_GAP_NORMALIZER: Final = 10.0
@@ -550,7 +553,7 @@ GAP_OWNED_CITATION_WEIGHT: Final = 1.0
 SITE_VALUE_FACTOR: Final = 1.0
 SITE_GAP_FACTOR: Final = 1.0
 
-# Commerce-derived rules (ProductMetricSnapshot/ProductMention evidence):
+# Commerce-derived rules (catalog observations and AI Shelf snapshots):
 # same neutral-base treatment as the site rules — the severity weight already
 # encodes importance; each detector owns its explicit evidence condition.
 COMMERCE_VALUE_FACTOR: Final = 1.0
@@ -570,8 +573,6 @@ MIN_PRIORITY_TO_SURFACE: Final = 10.0
 # Bounded recompute reads (deterministic truncation order: prompt_index, id).
 RECOMPUTE_MAX_ANALYSES: Final = 5000
 RECOMPUTE_MAX_ISSUES: Final = 5000
-# Bounded commerce evidence read (per-audit ProductMetricSnapshot rows).
-RECOMPUTE_MAX_PRODUCT_SNAPSHOTS: Final = 5000
 # List pagination bounds.
 LIST_DEFAULT_LIMIT: Final = 50
 LIST_MAX_LIMIT: Final = 200
