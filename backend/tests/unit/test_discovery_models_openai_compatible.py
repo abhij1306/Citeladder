@@ -1,4 +1,4 @@
-"""Mistral discovery client + factory tests (mock transport, no network)."""
+"""OpenAI-compatible Content client + factory tests (mock transport)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,9 @@ import pytest
 from app.connectors.answer_engines.errors import ProviderError
 from app.connectors.discovery_models.contracts import DiscoveryRequest
 from app.connectors.discovery_models.factory import build_discovery_client
-from app.connectors.discovery_models.mistral import MistralDiscoveryClient
+from app.connectors.discovery_models.openai_compatible import (
+    OpenAICompatibleDiscoveryClient,
+)
 from app.core.config.content import content_settings
 from app.core.config.provider_catalog import (
     ERROR_AUTH,
@@ -20,7 +22,7 @@ from app.core.config.provider_catalog import (
     ERROR_SERVER,
 )
 
-_ENDPOINT = "https://mock.mistral.test/v1/chat/completions"
+_ENDPOINT = "https://mock.gmi.test/v1/chat/completions"
 
 
 def _request() -> DiscoveryRequest:
@@ -29,14 +31,15 @@ def _request() -> DiscoveryRequest:
             {"role": "system", "content": "s"},
             {"role": "user", "content": "write a page"},
         ),
-        model="mistral-small-latest",
+        model="fixture-model",
         timeout_seconds=10.0,
         max_output_tokens=512,
     )
 
 
-def _client(handler) -> MistralDiscoveryClient:
-    return MistralDiscoveryClient(
+def _client(handler) -> OpenAICompatibleDiscoveryClient:
+    return OpenAICompatibleDiscoveryClient(
+        provider="gmi",
         api_key="test-key",
         endpoint=_ENDPOINT,
         transport=httpx.MockTransport(handler),
@@ -69,8 +72,8 @@ async def test_success_parses_model_finish_reason_usage() -> None:
         )
 
     response = await _client(handler).generate(_request())
-    assert response.provider == "mistral"
-    assert response.requested_model == "mistral-small-latest"
+    assert response.provider == "gmi"
+    assert response.requested_model == "fixture-model"
     assert response.returned_model == "mistral-small-2409"
     assert response.output_text == "# Hello"
     assert response.finish_reason == "stop"
@@ -140,19 +143,20 @@ async def test_error_messages_never_contain_the_key() -> None:
 
 def test_missing_key_is_auth_error() -> None:
     with pytest.raises(ProviderError) as excinfo:
-        MistralDiscoveryClient(api_key="", endpoint=_ENDPOINT)
+        OpenAICompatibleDiscoveryClient(provider="gmi", api_key="", endpoint=_ENDPOINT)
     assert excinfo.value.error_code == ERROR_AUTH
 
 
-def test_factory_builds_mistral_and_rejects_unknown(
+def test_factory_builds_gmi_and_rejects_unknown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from pydantic import SecretStr
 
-    monkeypatch.setattr(content_settings, "provider", "mistral")
-    monkeypatch.setattr(content_settings, "mistral_api_key", SecretStr("k"))
+    monkeypatch.setattr(content_settings, "provider", "gmi")
+    monkeypatch.setattr(content_settings, "gmicloud_api_key", SecretStr("k"))
     client = build_discovery_client()
-    assert isinstance(client, MistralDiscoveryClient)
+    assert isinstance(client, OpenAICompatibleDiscoveryClient)
+    assert client.provider == "gmi"
 
     monkeypatch.setattr(content_settings, "provider", "nonexistent")
     with pytest.raises(ProviderError) as excinfo:

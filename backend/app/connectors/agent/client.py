@@ -219,6 +219,7 @@ class DefaultAgentClient:
             async with httpx.AsyncClient(
                 timeout=settings.timeout_seconds,
                 transport=self._transport,
+                trust_env=False,
             ) as client:
                 response = await client.post(url, json=payload, headers=headers)
         except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.PoolTimeout) as exc:

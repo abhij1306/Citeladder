@@ -11,11 +11,10 @@ import httpx
 
 from app.connectors.answer_engines.errors import ProviderError
 from app.connectors.discovery_models.contracts import DiscoveryModelClient
-from app.connectors.discovery_models.mistral import (
-    PROVIDER_MISTRAL,
-    MistralDiscoveryClient,
+from app.connectors.discovery_models.openai_compatible import (
+    OpenAICompatibleDiscoveryClient,
 )
-from app.core.config.content import content_settings
+from app.core.config.content import CONTENT_KNOWN_PROVIDERS, content_settings
 from app.core.config.provider_catalog import ERROR_INVALID_SURFACE
 
 
@@ -28,10 +27,11 @@ def build_discovery_client(
     nothing and the client uses the real network.
     """
     provider = content_settings.provider
-    if provider == PROVIDER_MISTRAL:
-        return MistralDiscoveryClient(
-            api_key=content_settings.mistral_api_key.get_secret_value(),
-            endpoint=content_settings.endpoint,
+    if provider in CONTENT_KNOWN_PROVIDERS:
+        return OpenAICompatibleDiscoveryClient(
+            provider=provider,
+            api_key=content_settings.resolved_api_key,
+            endpoint=content_settings.resolved_endpoint,
             transport=transport,
         )
     raise ProviderError(

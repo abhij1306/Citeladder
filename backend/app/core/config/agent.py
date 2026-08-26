@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Final
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.config.dotenv import dotenv_sources
@@ -139,6 +139,7 @@ class DefaultAgentSettings(BaseSettings):
         default="",
         validation_alias=AliasChoices("MISTRAL_API_KEY", "MISTRALAI_API_KEY"),
     )
+    gmicloud_api_key: str = Field(default="", validation_alias="GMICLOUD_API_KEY")
     groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")
     bedrock_bearer_token: str = Field(
         default="", validation_alias="AWS_BEARER_TOKEN_BEDROCK"
@@ -146,12 +147,14 @@ class DefaultAgentSettings(BaseSettings):
     base_url: str = Field(
         default="",
         validation_alias=AliasChoices(
-            "DEFAULT_AGENT_BASE_URL", "default_agent_base_url"
+            "DEFAULT_AGENT_BASE_URL", "GMICLOUD_BASE_URL", "default_agent_base_url"
         ),
     )
     model: str = Field(
         default="",
-        validation_alias=AliasChoices("DEFAULT_AGENT_MODEL", "default_agent_model"),
+        validation_alias=AliasChoices(
+            "DEFAULT_AGENT_MODEL", "GMICLOUD_MODEL", "default_agent_model"
+        ),
     )
     structured_output_mode: str = Field(
         default=STRUCTURED_OUTPUT_PROMPT_JSON,
@@ -217,6 +220,18 @@ class DefaultAgentSettings(BaseSettings):
         ),
     )
 
+    @model_validator(mode="after")
+    def _validate_provider_capabilities(self) -> DefaultAgentSettings:
+        host = (urlsplit(self.base_url).hostname or "").casefold()
+        if (
+            _is_provider_host(host, "gmi-serving.com")
+            and self.structured_output_mode == STRUCTURED_OUTPUT_JSON_SCHEMA
+        ):
+            raise ValueError(
+                "GMI Cloud supports JSON-object mode; strict json_schema is not enabled"
+            )
+        return self
+
     def retry_delay(self, attempt_count: int) -> float:
         attempt = max(0, attempt_count - 1)
         return min(
@@ -233,6 +248,10 @@ class DefaultAgentSettings(BaseSettings):
         host = (urlsplit(self.base_url).hostname or "").casefold()
         provider_key = _first_provider_key(
             (
+                (
+                    _is_provider_host(host, "gmi-serving.com"),
+                    self.gmicloud_api_key,
+                ),
                 (_is_nvidia_host(host), self.nvidia_api_key),
                 (_is_provider_host(host, "mistral.ai"), self.mistral_api_key),
                 (_is_provider_host(host, "groq.com"), self.groq_api_key),

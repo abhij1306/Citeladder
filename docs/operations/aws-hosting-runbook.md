@@ -251,7 +251,7 @@ wildcard.
 
 | Catalog | Exact hosts and ports |
 | ------- | --------------------- |
-| `ai-provider` | `api.openai.com:443`, `api.anthropic.com:443`, `generativelanguage.googleapis.com:443`, `api.mistral.ai:443`; an optional agent gateway is added as one reviewed exact hostname before its key is installed |
+| `ai-provider` | `api.openai.com:443`, `api.anthropic.com:443`, `generativelanguage.googleapis.com:443`, `api.gmi-serving.com:443`, `api.keenable.ai:443`, `api.mistral.ai:443`; each credential is bound to its reviewed exact hostname |
 | `identity-oauth` | `oauth2.googleapis.com:443`, `github.com:443`, `appleid.apple.com:443`; browser authorization destinations do not grant task egress |
 | `integration-oauth` | `oauth2.googleapis.com:443`, `login.microsoftonline.com:443`, and each exact validated `<shop>.myshopify.com:443` |
 | `integration-data` | `www.googleapis.com:443`, `analyticsdata.googleapis.com:443`, `analyticsadmin.googleapis.com:443`, `ssl.bing.com:443`, and each exact validated `<shop>.myshopify.com:443` |
@@ -592,7 +592,7 @@ Secrets Manager does not prove it is strong.
 | `JWT_SECRET_KEY`                                                 | API                                           | High-entropy secret; versioned verification is needed before rotation to avoid invalidating every session unexpectedly. |
 | `ENCRYPTION_KEY`                                                 | API and workers handling BYOK/OAuth           | Restoring RDS without this key loses provider access. Do not rotate until key IDs/keyring rewrap exist.                 |
 | `REFERRAL_HASH_SALT`, `ORDER_HASH_SALT`                          | analytics/integration paths                   | Treat as long-lived pseudonymization keys; version any change.                                                          |
-| `DEFAULT_AGENT_API_KEY`, `MISTRAL_API_KEY`                       | API/content worker as applicable              | Separate staging/production provider projects, hard spend limits, routine rotation.                                     |
+| `GMICLOUD_API_KEY`, `KEENABLE_API_KEY`, optional `MISTRAL_API_KEY` | API/content and onboarding workers as applicable | Separate staging/production provider projects, hard spend limits, routine rotation; Mistral is dormant fallback only. |
 | `INTEGRATION_*_CLIENT_SECRET`                                    | API/integration worker/dispatcher as required | Separate provider apps per environment; rotate with callback and refresh tests.                                         |
 | `BILLING_RAZORPAY_KEY_SECRET`, `BILLING_RAZORPAY_WEBHOOK_SECRET` | API                                           | Live values only after billing sign-off; webhook dual-secret overlap requires code/support before rotation.             |
 | `LOGFIRE_TOKEN` or telemetry exporter token                      | Services that export                          | Optional; never enable until telemetry redaction is verified.                                                           |

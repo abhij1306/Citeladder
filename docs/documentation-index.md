@@ -30,6 +30,7 @@ listed here must prove a current operational purpose or move to the archive.
 | Document | Role |
 |---|---|
 | [`plans/technical-debt-reduction.md`](plans/technical-debt-reduction.md) | Measured complexity, coverage, and harness-gap reduction sequence |
+| [`plans/citeladder-onboarding-discovery-v7.md`](plans/citeladder-onboarding-discovery-v7.md) | Evidence-first onboarding discovery and GMI Cloud application-model cutover |
 
 ## Current-runtime references
 

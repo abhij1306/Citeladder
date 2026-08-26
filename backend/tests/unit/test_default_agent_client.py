@@ -106,6 +106,16 @@ async def test_native_schema_mode_is_explicitly_configurable() -> None:
     assert body["response_format"]["json_schema"]["strict"] is True
 
 
+def test_gmi_rejects_unverified_strict_schema_mode() -> None:
+    with pytest.raises(ValueError, match="strict json_schema"):
+        DefaultAgentSettings(
+            DEFAULT_AGENT_API_KEY="key",
+            DEFAULT_AGENT_BASE_URL="https://api.gmi-serving.com/v1",
+            DEFAULT_AGENT_MODEL="fixture-model",
+            DEFAULT_AGENT_STRUCTURED_OUTPUT_MODE="json_schema",
+        )
+
+
 @pytest.mark.asyncio
 async def test_errors_are_classified_and_do_not_expose_key() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
@@ -145,6 +155,23 @@ def test_mistral_configuration_is_entirely_env_driven(
     assert settings.resolved_api_key == "mistral-key"
     assert settings.base_url == "https://api.mistral.ai/v1"
     assert settings.model == "mistral-small-2603"
+
+
+def test_gmi_configuration_is_shared_by_default_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEFAULT_AGENT_API_KEY", raising=False)
+    monkeypatch.delenv("DEFAULT_AGENT_BASE_URL", raising=False)
+    monkeypatch.delenv("DEFAULT_AGENT_MODEL", raising=False)
+    monkeypatch.setenv("GMICLOUD_API_KEY", "gmi-key")
+    monkeypatch.setenv("GMICLOUD_BASE_URL", "https://api.gmi-serving.com/v1")
+    monkeypatch.setenv("GMICLOUD_MODEL", "fixture-model")
+
+    settings = DefaultAgentSettings(_env_file=None)
+
+    assert settings.resolved_api_key == "gmi-key"
+    assert settings.base_url == "https://api.gmi-serving.com/v1"
+    assert settings.model == "fixture-model"
 
 
 @pytest.mark.parametrize("missing", ["base_url", "model"])

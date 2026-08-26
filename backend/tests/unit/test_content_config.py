@@ -52,20 +52,35 @@ def test_api_key_is_secretstr_and_defaults_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A developer's real key in the env must not leak into this test.
-    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("GMICLOUD_API_KEY", raising=False)
     fresh = ContentSettings(_env_file=None)
-    assert isinstance(fresh.mistral_api_key, SecretStr)
+    assert isinstance(fresh.gmicloud_api_key, SecretStr)
     # The default is empty (provider not configured).
-    assert fresh.mistral_api_key.get_secret_value() == ""
+    assert fresh.gmicloud_api_key.get_secret_value() == ""
 
     # A non-empty key never leaks through str()/repr() (invariant 6).
     canary = "canary-key-do-not-print"
-    monkeypatch.setenv("MISTRAL_API_KEY", canary)
+    monkeypatch.setenv("GMICLOUD_API_KEY", canary)
     configured = ContentSettings(_env_file=None)
-    assert isinstance(configured.mistral_api_key, SecretStr)
-    assert configured.mistral_api_key.get_secret_value() == canary
-    assert canary not in str(configured.mistral_api_key)
-    assert canary not in repr(configured.mistral_api_key)
+    assert isinstance(configured.gmicloud_api_key, SecretStr)
+    assert configured.gmicloud_api_key.get_secret_value() == canary
+    assert canary not in str(configured.gmicloud_api_key)
+    assert canary not in repr(configured.gmicloud_api_key)
+
+
+def test_gmi_content_provider_resolves_shared_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GMICLOUD_API_KEY", "gmi-key")
+    monkeypatch.setenv("GMICLOUD_BASE_URL", "https://gmi.example/v1/")
+    monkeypatch.setenv("GMICLOUD_MODEL", "fixture-model")
+
+    configured = ContentSettings(_env_file=None)
+
+    assert configured.provider == "gmi"
+    assert configured.resolved_api_key == "gmi-key"
+    assert configured.resolved_endpoint == "https://gmi.example/v1/chat/completions"
+    assert configured.resolved_model == "fixture-model"
 
 
 def test_retry_delay_prefers_retry_after_and_caps() -> None:

@@ -47,6 +47,7 @@ ACTIVE_EXACT = {
     "docs/site-health.md",
     "docs/validate_documentation.py",
     "docs/plans/citeladder-aeo-product-rebuild.md",
+    "docs/plans/citeladder-onboarding-discovery-v7.md",
     "docs/plans/commerce-suite-atomic-rebuild.md",
     "docs/plans/commerce-suite-retirement-manifest.md",
     "docs/plans/growth-intelligence-platform.md",

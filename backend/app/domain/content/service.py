@@ -186,12 +186,12 @@ async def _insert_generation(
 def _require_provider_configured() -> None:
     # Readiness is provider-aware: an unknown provider name is just as
     # unconfigured as a missing key, and each known provider is checked for
-    # the key it actually uses (only Mistral exists today).
+    # the key selected for the configured provider.
     if content_settings.provider not in CONTENT_KNOWN_PROVIDERS:
         raise ProviderNotConfiguredError(
             f"unknown content provider: {content_settings.provider}"
         )
-    if not content_settings.mistral_api_key.get_secret_value():
+    if not content_settings.resolved_api_key:
         raise ProviderNotConfiguredError(
             "content provider is not configured (missing API key)"
         )
@@ -271,7 +271,7 @@ async def enqueue_generation(
             # generator is untouched, so provenance must record both.
             skill_version=CONTENT_SKILL_CATALOG_VERSION,
             provider=content_settings.provider,
-            requested_model=content_settings.model,
+            requested_model=content_settings.resolved_model,
             generator_version=CONTENT_GENERATOR_VERSION,
         ),
         grounding_envelope=grounding_envelope,
@@ -477,7 +477,7 @@ async def try_again(
             opportunity_id=source.opportunity_id,
             skill_version=source.skill_version,
             provider=content_settings.provider,
-            requested_model=content_settings.model,
+            requested_model=content_settings.resolved_model,
             generator_version=CONTENT_GENERATOR_VERSION,
         ),
         grounding_envelope=frozen,

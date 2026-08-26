@@ -1,7 +1,7 @@
 # AI Content generation configuration (invariant 1: config lives here).
 #
 # Owns every tunable knob for the content-generation vertical: the env-driven
-# provider settings (Mistral default, ``SecretStr`` key — deliberately NOT the
+# provider settings (GMI default, ``SecretStr`` keys — deliberately NOT the
 # BYOK ``ProviderConnection`` path used for measurement), the output-type
 # vocabulary, prompt/context caps, retry budget, and the
 # ``PostgresQueueSpec`` that parameterizes the shared generic queue over
@@ -26,8 +26,11 @@ if TYPE_CHECKING:
     from app.models.content import ContentGeneration
 
 # --- Providers -------------------------------------------------------------
+CONTENT_PROVIDER_GMI: Final = "gmi"
 CONTENT_PROVIDER_MISTRAL: Final = "mistral"
-CONTENT_KNOWN_PROVIDERS: Final[frozenset[str]] = frozenset({CONTENT_PROVIDER_MISTRAL})
+CONTENT_KNOWN_PROVIDERS: Final[frozenset[str]] = frozenset(
+    {CONTENT_PROVIDER_GMI, CONTENT_PROVIDER_MISTRAL}
+)
 
 # --- Output types ----------------------------------------------------------
 CONTENT_OUTPUT_TYPE_WEBSITE_PAGE: Final = "website_page"
@@ -99,7 +102,7 @@ ERROR_CANCEL_NOT_ALLOWED: Final = "cancel_not_allowed"
 class ContentSettings(BaseSettings):
     """Env-driven content-generation provider settings (``CONTENT_*``).
 
-    The provider key is env-driven (``MISTRAL_API_KEY``, ``SecretStr``) — a
+    Provider keys are env-driven ``SecretStr`` values — a
     deliberate deviation from the BYOK measurement path (user-approved): the
     content model is an app capability, not a customer-metered engine. The key
     is resolved only at call time and never enters any DTO/log/snapshot.
@@ -107,7 +110,9 @@ class ContentSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="CONTENT_", extra="ignore")
 
-    provider: str = CONTENT_PROVIDER_MISTRAL
+    provider: str = CONTENT_PROVIDER_GMI
+    # Dormant Mistral fallback values. Active GMI values have explicit fields
+    # below so both providers can be configured without ambiguous provenance.
     model: str = "mistral-small-latest"
     endpoint: str = Field(
         default="https://api.mistral.ai/v1/chat/completions",
@@ -118,13 +123,23 @@ class ContentSettings(BaseSettings):
     mistral_api_key: SecretStr = Field(
         default=SecretStr(""), validation_alias="MISTRAL_API_KEY"
     )
+    gmicloud_api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="GMICLOUD_API_KEY"
+    )
+    gmicloud_base_url: str = Field(
+        default="https://api.gmi-serving.com/v1",
+        validation_alias="GMICLOUD_BASE_URL",
+    )
+    gmicloud_model: str = Field(
+        default="MiniMaxAI/MiniMax-M3", validation_alias="GMICLOUD_MODEL"
+    )
     lease_ttl_seconds: float = Field(default=120.0, gt=0)
     heartbeat_interval_seconds: float = Field(default=30.0, gt=0)
     poll_interval_seconds: float = Field(default=1.0, gt=0)
     retry_base_delay_seconds: float = Field(default=2.0, gt=0)
     retry_max_delay_seconds: float = Field(default=45.0, gt=0)
 
-    @field_validator("endpoint")
+    @field_validator("endpoint", "gmicloud_base_url")
     @classmethod
     def _check_endpoint(cls, value: str) -> str:
         # The endpoint is forwarded verbatim to the provider HTTP client, so a
@@ -157,6 +172,27 @@ class ContentSettings(BaseSettings):
                 "retry_max_delay_seconds must not be below retry_base_delay_seconds"
             )
         return self
+
+    @property
+    def resolved_api_key(self) -> str:
+        key = (
+            self.gmicloud_api_key
+            if self.provider == CONTENT_PROVIDER_GMI
+            else self.mistral_api_key
+        )
+        return key.get_secret_value()
+
+    @property
+    def resolved_endpoint(self) -> str:
+        if self.provider == CONTENT_PROVIDER_GMI:
+            return self.gmicloud_base_url.rstrip("/") + "/chat/completions"
+        return self.endpoint
+
+    @property
+    def resolved_model(self) -> str:
+        if self.provider == CONTENT_PROVIDER_GMI:
+            return self.gmicloud_model
+        return self.model
 
     def retry_delay(
         self, attempt: int, retry_after_seconds: float | None = None

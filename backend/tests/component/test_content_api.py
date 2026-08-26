@@ -25,7 +25,8 @@ from app.models.content import ContentGeneration, ContentGenerationAttempt
 from app.models.project import Project
 from app.workers.content_worker import ContentWorker
 
-_API_KEY = "test-mistral-key-abc123"
+_CANARY_SECRET = "never-a-real-provider-secret"
+_FIXTURE_MODEL = "fixture-model"
 _REF_ID = "b" * 64
 _CONTEXT = {
     "status": "included",
@@ -50,7 +51,14 @@ _CONTEXT = {
 
 @pytest.fixture(autouse=True)
 def _configured_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(content_settings, "mistral_api_key", SecretStr(_API_KEY))
+    # Tests disable dotenv globally. This additionally pins an unresolvable
+    # endpoint and an in-memory MockTransport, so no provider can be contacted.
+    monkeypatch.setattr(content_settings, "provider", "gmi")
+    monkeypatch.setattr(content_settings, "gmicloud_api_key", SecretStr(_CANARY_SECRET))
+    monkeypatch.setattr(
+        content_settings, "gmicloud_base_url", "https://provider.invalid/v1"
+    )
+    monkeypatch.setattr(content_settings, "gmicloud_model", _FIXTURE_MODEL)
 
 
 async def _register(client: httpx.AsyncClient, email: str) -> None:
@@ -100,8 +108,8 @@ async def _seed_generation(
             grounding_envelope=_CONTEXT,
             request_fingerprint="a" * 64,
             idempotency_key=str(uuid.uuid4()),
-            provider="mistral",
-            requested_model=content_settings.model,
+            provider="gmi",
+            requested_model=content_settings.resolved_model,
             generator_version="content-v1",
         )
         session.add(row)
@@ -131,7 +139,7 @@ def _transport(
         return httpx.Response(
             200,
             json={
-                "model": "mistral-small-latest",
+                "model": _FIXTURE_MODEL,
                 "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
                 "usage": {"total_tokens": 30},
             },
@@ -173,8 +181,9 @@ async def test_worker_preserves_frozen_grounding_and_attempt_provenance(
     assert detail["status"] == TASK_STATUS_SUCCEEDED
     assert detail["grounding_summary"]["crawl_fragment_count"] == 1
     assert detail["output_text"].startswith("# Acme")
-    assert _API_KEY not in json.dumps(detail)
-    assert seen[0].headers["authorization"] == f"Bearer {_API_KEY}"
+    assert _CANARY_SECRET not in json.dumps(detail)
+    assert seen[0].url.host == "provider.invalid"
+    assert seen[0].headers["authorization"] == f"Bearer {_CANARY_SECRET}"
     sent_messages = json.loads(seen[0].content)["messages"]
     assert len(sent_messages) == 3
     assert "untrusted crawl observations" in sent_messages[-1]["content"]

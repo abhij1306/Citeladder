@@ -62,7 +62,7 @@ logger = logging.getLogger("app.workers.content_worker")
 ATTEMPT_STATUS_SUCCEEDED = "succeeded"
 ATTEMPT_STATUS_FAILED = "failed"
 
-# Mistral's truncation finish reason: output hit ``max_tokens``.
+# OpenAI-compatible truncation finish reason: output hit ``max_tokens``.
 FINISH_REASON_LENGTH = "length"
 
 
@@ -146,7 +146,7 @@ class ContentWorker(DrainableWorkerMixin):
     """Claim/lease loop for ``ContentGeneration`` rows.
 
     ``transport`` is the test seam: an ``httpx.MockTransport`` makes the real
-    ``MistralDiscoveryClient`` run without a network. Production passes none.
+    the OpenAI-compatible client run without a network. Production passes none.
     """
 
     def __init__(
@@ -234,7 +234,7 @@ class ContentWorker(DrainableWorkerMixin):
         )
         request = DiscoveryRequest(
             messages=tuple(messages),
-            model=claimed.requested_model or content_settings.model,
+            model=claimed.requested_model or content_settings.resolved_model,
             timeout_seconds=content_settings.request_timeout_seconds,
             max_output_tokens=content_settings.max_output_tokens,
         )

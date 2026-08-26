@@ -67,6 +67,19 @@ reviewer, and only then creates the bounded initial prompt portfolio exactly
 once. Topics in that portfolio are reusable semantic demand clusters, not query
 phrases; related prompts share a topic.
 
+Onboarding discovery v7 keeps the existing bounded first-party acquisition and
+adds bounded Keenable corroboration. One structured application-model call
+classifies identity and emits an evidence-referenced competitive signature;
+deterministic brand-neutral searches then establish the only admissible
+competitor-domain universe, and a second structured call qualifies those
+candidate IDs. Pydantic and deterministic reference/hard-gate checks enforce
+the contracts because the active GMI Cloud MiniMax M3 integration uses JSON
+object mode, not an assumed native strict-schema guarantee. The existing domain
+resolver remains the final candidate check. Provider failures yield explicit
+degraded warnings, and the immutable `BrandResearchSnapshot` records the
+evidence manifest, verdicts, and per-phase model provenance without a new table
+or queue.
+
 Demand's `page_equivalence` module is the sole cross-source owned-page resolver.
 It uses exact `SiteUrl` matches plus persisted redirect/canonical evidence and
 returns `exact`, `resolved`, `ambiguous`, or `unresolved` with a versioned

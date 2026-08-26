@@ -260,7 +260,7 @@
       "backendTests": [
         "tests/unit/test_demand_projection.py",
         "tests/unit/test_brand_*.py",
-        "tests/unit/test_discovery_models_mistral.py",
+        "tests/unit/test_discovery_models_openai_compatible.py",
         "tests/component/test_demand_projection.py",
         "tests/component/test_brand_*.py"
       ]
@@ -333,6 +333,8 @@
         "backend/app/domain/auth/**",
         "backend/app/domain/workspaces/**",
         "backend/app/domain/projects/**",
+        "backend/app/connectors/keenable.py",
+        "backend/evaluations/onboarding_identity_competitor_cases.py",
         "backend/app/domain/abuse/**",
         "backend/app/api/auth.py",
         "backend/app/api/projects.py",
@@ -348,6 +350,8 @@
         "tests/unit/test_workspace_auth.py",
         "tests/unit/test_project_*.py",
         "tests/unit/test_business_context_profile.py",
+        "tests/unit/test_keenable.py",
+        "tests/unit/test_onboarding_*.py",
         "tests/unit/test_onboarding_research_helpers.py",
         "tests/unit/test_security.py",
         "tests/component/test_auth_api.py",

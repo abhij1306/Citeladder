@@ -10,6 +10,12 @@ link an Opportunity. Before enqueue, `domain/content/grounding.py` freezes one
 authorized, bounded envelope; the worker rebuilds provider messages only from
 that immutable request material.
 
+The active application provider is GMI Cloud MiniMax M3 through the
+provider-neutral OpenAI-compatible Content transport. Configuration retains
+Mistral as an explicit dormant fallback; each attempt persists the selected
+provider and requested/returned model rather than treating the transport name
+as provenance.
+
 ```text
 confirmed BrandProfile facts + exact crawl-observed fragments
   -> frozen GroundingEnvelope

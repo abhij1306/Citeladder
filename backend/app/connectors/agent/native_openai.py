@@ -133,7 +133,9 @@ class NativeOpenAIClient:
         started = time.monotonic()
         try:
             async with httpx.AsyncClient(
-                timeout=self._settings.timeout_seconds, transport=self._transport
+                timeout=self._settings.timeout_seconds,
+                transport=self._transport,
+                trust_env=False,
             ) as client:
                 response = await client.post(
                     self._settings.base_url.rstrip("/") + "/responses",
