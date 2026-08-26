@@ -121,6 +121,13 @@ export const CONTRACT_SCHEMA_MAP = {
   providerConnectionStatesSchema: 'ProviderConnectionStatesResponse',
   providerConnectionStateEntrySchema: 'ProviderConnectionStateResponse',
   providerProbeSchema: 'ProviderProbeResponse',
+  // Products / commerce
+  productSchema: 'ProductResponse',
+  productVisibilitySchema: 'ProductVisibilityResponse',
+  productEvidenceResponseSchema: 'ProductEvidenceResponse',
+  commerceCatalogHealthSchema: 'CommerceCatalogHealth',
+  attributionSnapshotSchema: 'CommerceAttributionResponse',
+  attributionRecomputeSchema: 'AttributionRecomputeResponse',
   // Opportunities
   opportunitySchema: 'OpportunityItem',
   opportunityDetailSchema: 'OpportunityDetail',
