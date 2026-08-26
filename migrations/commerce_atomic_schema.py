@@ -252,8 +252,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['csv_import_id'], ['commerce_csv_imports.id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['product_id'], ['commerce_products.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['source_analysis_id'], ['site_page_analyses.id'], ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['source_artifact_id'], ['site_fetch_artifacts.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['source_analysis_id'], ['site_page_analyses.id'], ondelete='RESTRICT'),
+    sa.ForeignKeyConstraint(['source_artifact_id'], ['site_fetch_artifacts.id'], ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['workspace_id'], ['workspaces.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('source_analysis_id', 'projector_version', name='uq_commerce_projection_analysis_version')

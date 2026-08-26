@@ -7,10 +7,12 @@ import {
   buyerPromptSchema,
   catalogImportSchema,
   commerceCatalogSchema,
+  competitorDiscoverySchema,
   commerceProductSchema,
   competitorCandidateSchema,
   shelfSchema,
   type CommerceTarget,
+  type CommerceProductEdit,
 } from './schemas/commerce-suite';
 
 const path = (projectId: string, suffix: string) => `/projects/${projectId}/commerce/${suffix}`;
@@ -32,7 +34,7 @@ export const commerceApi = {
       }),
       'commerce.importCatalog',
     ),
-  editProduct: async (projectId: string, productId: string, body: Record<string, unknown>) =>
+  editProduct: async (projectId: string, productId: string, body: CommerceProductEdit) =>
     strictValidate(
       commerceProductSchema,
       await apiClient.patch(path(projectId, `catalog/products/${productId}`), body),
@@ -44,8 +46,12 @@ export const commerceApi = {
       await apiClient.get(path(projectId, 'competitors'), options),
       'commerce.competitors',
     ),
-  discoverCompetitors: (projectId: string, targets: CommerceTarget[]) =>
-    apiClient.post<{ task_ids: string[] }>(path(projectId, 'competitors/discover'), { targets }),
+  discoverCompetitors: async (projectId: string, targets: CommerceTarget[]) =>
+    strictValidate(
+      competitorDiscoverySchema,
+      await apiClient.post(path(projectId, 'competitors/discover'), { targets }),
+      'commerce.discoverCompetitors',
+    ),
   decideCompetitor: async (
     projectId: string,
     candidateId: string,

@@ -243,12 +243,12 @@ class CommerceProductObservation(Base):
     source_kind: Mapped[str] = mapped_column(String(16))
     source_analysis_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("site_page_analyses.id", ondelete="SET NULL"),
+        ForeignKey("site_page_analyses.id", ondelete="RESTRICT"),
         nullable=True,
     )
     source_artifact_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("site_fetch_artifacts.id", ondelete="SET NULL"),
+        ForeignKey("site_fetch_artifacts.id", ondelete="RESTRICT"),
         nullable=True,
     )
     csv_import_id: Mapped[uuid.UUID | None] = mapped_column(

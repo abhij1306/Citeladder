@@ -102,7 +102,7 @@ class Product(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
-    project: Mapped[Project] = relationship("Project", back_populates="products")
+    project: Mapped[Project] = relationship("Project")
 
 
 class ProductResponseAnalysis(Base):

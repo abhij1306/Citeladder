@@ -65,6 +65,7 @@ export function CatalogPanel({
           }}
         />
         {result ? <p className="text-secondary text-sm">{result}</p> : null}
+        {mutation.isError ? <Alert tone="danger">The catalog import failed.</Alert> : null}
       </CardHeader>
       <CardContent>
         <p className="text-secondary mb-3 text-sm">
@@ -183,6 +184,9 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
         ) : (
           <p>Project a catalog before discovering competitors.</p>
         )}
+        {discover.isError || decide.isError ? (
+          <Alert tone="danger">The competitor update failed. Please try again.</Alert>
+        ) : null}
       </CardHeader>
       <CardContent>
         {queries.competitors.isError ? (
@@ -211,6 +215,7 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
                     <div className="flex gap-2">
                       <Button
                         size="sm"
+                        disabled={discover.isPending || decide.isPending}
                         onClick={() => decide.mutate({ id: row.id, decision: 'approved' })}
                       >
                         Approve
@@ -218,6 +223,7 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
                       <Button
                         size="sm"
                         variant="secondary"
+                        disabled={discover.isPending || decide.isPending}
                         onClick={() => decide.mutate({ id: row.id, decision: 'rejected' })}
                       >
                         Reject
@@ -281,10 +287,17 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
               placeholder="What would a buyer ask?"
             />
             <div className="flex gap-2">
-              <Button disabled={!text.trim()} onClick={() => manual.mutate()}>
+              <Button
+                disabled={!text.trim() || manual.isPending || generate.isPending}
+                onClick={() => manual.mutate()}
+              >
                 Add manually
               </Button>
-              <Button variant="secondary" onClick={() => generate.mutate()}>
+              <Button
+                variant="secondary"
+                disabled={manual.isPending || generate.isPending}
+                onClick={() => generate.mutate()}
+              >
                 Generate 5
               </Button>
             </div>
@@ -292,6 +305,9 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
         ) : (
           <p>Project a catalog before creating buyer prompts.</p>
         )}
+        {manual.isError || generate.isError || decide.isError ? (
+          <Alert tone="danger">The buyer-prompt update failed. Please try again.</Alert>
+        ) : null}
       </CardHeader>
       <CardContent>
         <Table>
@@ -312,6 +328,7 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
                 <TableCell>
                   <Button
                     size="sm"
+                    disabled={manual.isPending || generate.isPending || decide.isPending}
                     onClick={() => decide.mutate({ id: row.id, approved: !row.enabled })}
                   >
                     {row.enabled ? 'Disable' : 'Approve'}

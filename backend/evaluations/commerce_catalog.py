@@ -9,6 +9,19 @@ from pathlib import Path
 from typing import Any
 
 
+def _workspace_file(raw: Path) -> Path:
+    """Resolve a CLI input without allowing reads outside the working tree."""
+    root = Path.cwd().resolve()
+    resolved = raw.resolve(strict=True)
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"evaluation input must be inside {root}") from exc
+    if not resolved.is_file():
+        raise ValueError(f"evaluation input is not a file: {resolved}")
+    return resolved
+
+
 def evaluate_catalog(
     exported: dict[str, Any], reference: dict[str, Any]
 ) -> dict[str, Any]:
@@ -46,9 +59,11 @@ def main() -> None:
     parser.add_argument("exported", type=Path)
     parser.add_argument("reference", type=Path)
     args = parser.parse_args()
+    exported_path = _workspace_file(args.exported)
+    reference_path = _workspace_file(args.reference)
     report = evaluate_catalog(
-        json.loads(args.exported.read_text(encoding="utf-8")),
-        json.loads(args.reference.read_text(encoding="utf-8")),
+        json.loads(exported_path.read_text(encoding="utf-8")),
+        json.loads(reference_path.read_text(encoding="utf-8")),
     )
     print(json.dumps(report, indent=2, sort_keys=True))
     raise SystemExit(0 if report["passed"] else 1)

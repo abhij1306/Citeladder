@@ -107,6 +107,13 @@ def _merchant(span: str) -> tuple[str, str]:
 async def _task_target(
     session: AsyncSession, *, task: AuditTask
 ) -> CommercePromptTarget | None:
+    audit = await session.get(Audit, task.audit_id)
+    if audit is None or audit.audit_scope != "commerce":
+        return None
+    frozen = dict((audit.configuration or {}).get("commerce_measurement") or {})
+    target_ids = _frozen_target_ids(frozen)
+    if not target_ids:
+        return None
     return await session.scalar(
         select(CommercePromptTarget)
         .join(
@@ -115,9 +122,22 @@ async def _task_target(
         )
         .where(
             AuditPromptSnapshot.id == task.prompt_snapshot_id,
+            AuditPromptSnapshot.audit_id == audit.id,
             CommercePromptTarget.workspace_id == task.workspace_id,
+            CommercePromptTarget.project_id == audit.project_id,
+            CommercePromptTarget.id.in_(target_ids),
         )
     )
+
+
+def _frozen_target_ids(frozen: dict) -> list[uuid.UUID]:
+    values: list[uuid.UUID] = []
+    for raw in frozen.get("prompt_target_ids") or []:
+        try:
+            values.append(uuid.UUID(str(raw)))
+        except (TypeError, ValueError, AttributeError):
+            continue
+    return values
 
 
 async def _catalog(
@@ -361,19 +381,20 @@ def _link_observation_citations(
 
 
 async def finalize_commerce_shelf(session: AsyncSession, *, audit: Audit) -> None:
+    if audit.audit_scope != "commerce":
+        return
+    frozen = dict((audit.configuration or {}).get("commerce_measurement") or {})
+    target_ids = _frozen_target_ids(frozen)
+    if not target_ids:
+        return
     targets = list(
         (
             await session.scalars(
-                select(CommercePromptTarget)
-                .join(
-                    AuditPromptSnapshot,
-                    AuditPromptSnapshot.prompt_id == CommercePromptTarget.prompt_id,
-                )
-                .where(
-                    AuditPromptSnapshot.audit_id == audit.id,
+                select(CommercePromptTarget).where(
                     CommercePromptTarget.workspace_id == audit.workspace_id,
+                    CommercePromptTarget.project_id == audit.project_id,
+                    CommercePromptTarget.id.in_(target_ids),
                 )
-                .distinct()
             )
         ).all()
     )

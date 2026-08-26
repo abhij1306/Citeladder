@@ -452,19 +452,20 @@ class AnalyzePhaseMixin(PhaseSupport):
                 normalized_facts=outcome.facts,
             )
         assert artifact_id is not None and outcome.facts is not None
-        analysis_id = await self._write_page_analysis(
+        analysis_id, page_kind = await self._write_page_analysis(
             session,
             crawl=crawl,
             task=task,
             artifact_id=artifact_id,
             facts=outcome.facts,
         )
-        await enqueue_catalog_projection(
-            session,
-            workspace_id=crawl.workspace_id,
-            project_id=crawl.project_id,
-            source_analysis_id=analysis_id,
-        )
+        if page_kind in {"category", "product"}:
+            await enqueue_catalog_projection(
+                session,
+                workspace_id=crawl.workspace_id,
+                project_id=crawl.project_id,
+                source_analysis_id=analysis_id,
+            )
         crawl.analyzed_url_count += 1
         task.result_artifact_id = artifact_id
         record_crawl_event(
@@ -485,7 +486,7 @@ class AnalyzePhaseMixin(PhaseSupport):
         task: SiteCrawlTask,
         artifact_id: uuid.UUID,
         facts: dict,
-    ) -> uuid.UUID:
+    ) -> tuple[uuid.UUID, str]:
         """Create the page analysis + rule evaluations + issues + scores.
 
         One UUID-identified ``SitePageAnalysis`` (``artifact_id`` is provenance), one
@@ -533,7 +534,7 @@ class AnalyzePhaseMixin(PhaseSupport):
             site_url_id=site_url_id,
             evaluations=evaluations,
         )
-        return analysis.id
+        return analysis.id, analysis.page_kind
 
     def _prepare_page_evaluation(
         self,
