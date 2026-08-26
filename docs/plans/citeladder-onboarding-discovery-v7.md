@@ -1,7 +1,7 @@
 # CiteLadder Onboarding Discovery v7 and GMI Cloud Cutover
 
-**Status:** Implemented  
-**Branch:** `feat/onboarding-discovery-v7-gmi`  
+**Status:** Implemented
+**Branch:** `feat/onboarding-discovery-v7-gmi`
 **Authority:** This plan replaces the ChatGPT implementation report. Runtime
 code, tests, and current architecture documents remain authoritative once the
 work ships.
