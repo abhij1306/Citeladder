@@ -19,6 +19,9 @@ class ResearchEvidenceItem(BaseModel):
     published_at: str = ""
     acquired_at: str = ""
     live: bool | None = None
+    supports: list[Literal["profile", "competitors", "topics"]] = Field(
+        default_factory=list
+    )
 
 
 class CompetitiveSignature(BaseModel):

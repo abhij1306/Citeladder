@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Final
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -294,6 +295,7 @@ class BrandDiscoverySettings(BaseSettings):
     competitor_search_reformulation_cap: int = Field(default=2, ge=0, le=2)
     competitor_candidate_cap: int = Field(default=24, ge=1, le=40)
     competitor_fetch_max_pages: int = Field(default=10, ge=0, le=15)
+    competitor_qualification_evidence_max_chars: int = Field(default=24_000, ge=1)
     keenable_snippet_max_chars: int = Field(default=1500, ge=100, le=4000)
     keenable_fetch_max_chars: int = Field(default=6000, ge=500, le=12000)
     keenable_concurrency: int = Field(default=5, ge=1, le=8)
@@ -303,8 +305,23 @@ class BrandDiscoverySettings(BaseSettings):
     @field_validator("keenable_base_url")
     @classmethod
     def _validate_keenable_url(cls, value: str) -> str:
-        if not value.startswith("https://"):
-            raise ValueError("Keenable base URL must use https")
+        parts = urlsplit(value)
+        try:
+            port = parts.port
+        except ValueError as exc:
+            raise ValueError("Keenable base URL has an invalid port") from exc
+        if (
+            parts.scheme != "https"
+            or parts.hostname != "api.keenable.ai"
+            or port not in {None, 443}
+            or parts.username is not None
+            or parts.password is not None
+            or parts.query
+            or parts.fragment
+        ):
+            raise ValueError(
+                "Keenable base URL must use canonical https://api.keenable.ai:443"
+            )
         return value.rstrip("/")
 
 

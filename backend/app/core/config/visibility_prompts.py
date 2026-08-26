@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import Final
 
 # --- Topic selection (Pass B) ----------------------------------------------
+TOPIC_SELECTION_PROMPT_VERSION: Final = "visibility-topic-selection-v1"
 # The floor is an "insufficient evidence" signal, not a target: below it we
 # report that we could not read what the business offers. The ceiling bounds
 # audit cost, nothing else.

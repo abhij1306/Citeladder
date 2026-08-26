@@ -55,6 +55,7 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
         text="Acme makes workflow software.",
         source_kind="external_search",
         provider="keenable",
+        supports=["profile"],
     )
     gateway = SimpleNamespace(base_url_host="provider.invalid", model="fixture-model")
     candidate = CompetitorCandidate(
@@ -62,7 +63,11 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
         name="Peer",
         domain="peer.com",
         source_url="https://peer.com",
-        evidence=[evidence.model_copy(update={"evidence_ref": "kc-search-1"})],
+        evidence=[
+            evidence.model_copy(
+                update={"evidence_ref": "kc-search-1", "supports": ["competitors"]}
+            )
+        ],
     )
 
     async def site_evidence(_site):
@@ -86,7 +91,12 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
         return []
 
     async def topics(**_kwargs):
-        return SimpleNamespace(topics=[], warnings=[])
+        return SimpleNamespace(
+            topics=[],
+            warnings=[],
+            provider="topic-provider.invalid",
+            model="topic-model",
+        )
 
     monkeypatch.setattr(module, "_site_evidence", site_evidence)
     monkeypatch.setattr(module, "_keenable_client", lambda: object())
@@ -115,10 +125,22 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
     assert [call["phase"] for call in result.model_calls] == [
         "identity",
         "competitor_qualification",
+        "topic_selection",
     ]
+    assert all(call["outcome"] == "succeeded" for call in result.model_calls)
     assert result.provider == "provider.invalid"
     assert result.competitor_verdicts[0]["candidate_id"] == "cand-1"
     assert any(item["capture_method"] == "external_search" for item in result.evidence)
+    model_supports = {
+        item["source_url"]: item["supports"]
+        for item in result.evidence
+        if item["source_url"].startswith("model://")
+    }
+    assert model_supports == {
+        "model://application-research/identity": ["profile"],
+        "model://application-research/competitor_qualification": ["competitors"],
+        "model://application-research/topic_selection": ["topics"],
+    }
 
 
 @pytest.mark.asyncio
@@ -137,7 +159,7 @@ async def test_missing_keenable_degrades_without_failing_identity(monkeypatch) -
         return []
 
     async def topics(**_kwargs):
-        return SimpleNamespace(topics=[], warnings=[])
+        return SimpleNamespace(topics=[], warnings=[], provider="", model="")
 
     monkeypatch.setattr(module, "_site_evidence", site_evidence)
     monkeypatch.setattr(module, "_keenable_client", lambda: None)
@@ -162,5 +184,45 @@ async def test_missing_keenable_degrades_without_failing_identity(monkeypatch) -
 
     assert result.profile["category"] == "workflow software"
     assert "external_research_unavailable" in result.warnings
+    assert "research_degraded" in result.warnings
     assert "competitors_not_found" in result.warnings
     assert [call["phase"] for call in result.model_calls] == ["identity"]
+
+
+@pytest.mark.asyncio
+async def test_failed_identity_attempt_is_recorded_without_success_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.domain.projects.onboarding import research as module
+
+    gateway = SimpleNamespace(base_url_host="provider.invalid", model="fixture-model")
+
+    async def fail_identity(*_args, **_kwargs):
+        raise ValueError("invalid identity envelope")
+
+    monkeypatch.setattr(module, "create_model_gateway", lambda: gateway)
+    monkeypatch.setattr(module, "synthesize_identity", fail_identity)
+
+    phase = await module._run_identity_phase(
+        keenable=None,
+        brand_name="Acme",
+        owned_domain="acme.example",
+        primary_market="US",
+        industry="Software",
+        subindustry="Workflow",
+        language_code="en",
+        first_party=[],
+        budget=module.ResearchCallBudget(0),
+    )
+
+    assert phase.identity is None
+    assert phase.gateway is None
+    assert phase.model_calls == [
+        {
+            "phase": "identity",
+            "provider": "provider.invalid",
+            "model": "fixture-model",
+            "prompt_version": module.BRAND_IDENTITY_PROMPT_VERSION,
+            "outcome": "failed",
+        }
+    ]

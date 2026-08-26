@@ -71,6 +71,7 @@ def test_api_key_is_secretstr_and_defaults_empty(
 def test_gmi_content_provider_resolves_shared_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("CONTENT_PROVIDER", "gmi")
     monkeypatch.setenv("GMICLOUD_API_KEY", "gmi-key")
     monkeypatch.setenv("GMICLOUD_BASE_URL", "https://gmi.example/v1/")
     monkeypatch.setenv("GMICLOUD_MODEL", "fixture-model")

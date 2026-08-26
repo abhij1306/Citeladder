@@ -146,7 +146,7 @@ class ContentWorker(DrainableWorkerMixin):
     """Claim/lease loop for ``ContentGeneration`` rows.
 
     ``transport`` is the test seam: an ``httpx.MockTransport`` makes the real
-    the OpenAI-compatible client run without a network. Production passes none.
+    OpenAI-compatible client run without a network. Production passes none.
     """
 
     def __init__(

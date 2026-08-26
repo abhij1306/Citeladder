@@ -6,9 +6,11 @@ import json
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from app.connectors.answer_engines.errors import ProviderError
 from app.connectors.keenable import KeenableClient
+from app.core.config.brand_discovery import BrandDiscoverySettings
 from app.core.config.provider_catalog import ERROR_PARSE, ERROR_RATE_LIMIT
 
 
@@ -19,6 +21,25 @@ def _client(handler) -> KeenableClient:
         timeout_seconds=5,
         transport=httpx.MockTransport(handler),
     )
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://api.keenable.ai",
+        "https://evil.example",
+        "https://api.keenable.ai:444",
+        "https://user@api.keenable.ai",
+    ],
+)
+def test_settings_bind_api_key_to_canonical_host(base_url: str) -> None:
+    with pytest.raises(ValidationError):
+        BrandDiscoverySettings(_env_file=None, KEENABLE_BASE_URL=base_url)
+
+    configured = BrandDiscoverySettings(
+        _env_file=None, KEENABLE_BASE_URL="https://api.keenable.ai:443/"
+    )
+    assert configured.keenable_base_url == "https://api.keenable.ai:443"
 
 
 @pytest.mark.asyncio

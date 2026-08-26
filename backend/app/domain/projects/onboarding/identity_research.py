@@ -68,6 +68,7 @@ def first_party_evidence(evidence: BrandEvidence) -> list[ResearchEvidenceItem]:
                 title=page.title,
                 text=bounded,
                 source_kind="first_party",
+                supports=["profile", "topics"],
             )
         )
     return items
@@ -171,6 +172,7 @@ def _search_item(
         query_ref=f"identity-query-{query_index}",
         published_at=result.published_at,
         acquired_at=result.acquired_at,
+        supports=["profile"],
     )
 
 
@@ -190,15 +192,18 @@ async def _identity_fetch_evidence(
     fetch_count = budget.take(
         min(len(selected), brand_discovery_settings.identity_fetch_max_pages)
     )
-    fetched = await asyncio.gather(
-        *(
-            client.fetch(
+    semaphore = asyncio.Semaphore(brand_discovery_settings.keenable_concurrency)
+
+    async def fetch(result: KeenableSearchResult) -> KeenableFetchResponse:
+        async with semaphore:
+            return await client.fetch(
                 result.url,
                 live=_host(result.url) == owned_domain,
                 max_chars=brand_discovery_settings.keenable_fetch_max_chars,
             )
-            for _, result in selected[:fetch_count]
-        ),
+
+    fetched = await asyncio.gather(
+        *(fetch(result) for _, result in selected[:fetch_count]),
         return_exceptions=True,
     )
     return [
@@ -273,6 +278,7 @@ def _fetch_item(
         published_at=result.published_at,
         acquired_at=result.acquired_at,
         live=result.live,
+        supports=["profile"],
     )
 
 

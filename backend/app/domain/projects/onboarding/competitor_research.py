@@ -112,7 +112,7 @@ async def discover_competitor_candidates(
     )
     results = await _search_queries(client, queries[:admitted])
     candidates, evidence = _candidate_pool(results, owned_domain=owned_domain)
-    if len(candidates) < 8:
+    if len(candidates) < brand_discovery_settings.competitor_candidate_cap:
         reformulations = _reformulations(signature)
         extra_count = budget.take(
             min(
@@ -164,6 +164,7 @@ async def discover_competitor_candidates(
                     published_at=response.published_at,
                     acquired_at=response.acquired_at,
                     live=response.live,
+                    supports=["competitors"],
                 )
                 additions.append(item)
                 all_evidence.append(item)
@@ -182,6 +183,7 @@ async def qualify_competitors(
     signature: CompetitiveSignature,
     candidates: tuple[CompetitorCandidate, ...],
 ) -> tuple[list[DiscoveryCompetitorSuggestion], list[dict]]:
+    candidates = _bounded_qualification_candidates(candidates)
     request = json.dumps(
         {
             "prompt_version": BRAND_COMPETITOR_QUALIFICATION_VERSION,
@@ -274,6 +276,7 @@ def _candidate_pool(
             query_ref=query_ref,
             published_at=result.published_at,
             acquired_at=result.acquired_at,
+            supports=["competitors"],
         )
         evidence.append(search_item)
         candidate = CompetitorCandidate(
@@ -286,6 +289,21 @@ def _candidate_pool(
         by_domain[domain] = len(candidates)
         candidates.append(candidate)
     return candidates, evidence
+
+
+def _bounded_qualification_candidates(
+    candidates: tuple[CompetitorCandidate, ...],
+) -> tuple[CompetitorCandidate, ...]:
+    remaining = brand_discovery_settings.competitor_qualification_evidence_max_chars
+    bounded: list[CompetitorCandidate] = []
+    for candidate in candidates:
+        evidence: list[ResearchEvidenceItem] = []
+        for item in candidate.evidence:
+            text = item.text[:remaining]
+            remaining -= len(text)
+            evidence.append(item.model_copy(update={"text": text}))
+        bounded.append(candidate.model_copy(update={"evidence": evidence}))
+    return tuple(bounded)
 
 
 def _validate_verdicts(verdicts, *, by_id, known_refs) -> None:

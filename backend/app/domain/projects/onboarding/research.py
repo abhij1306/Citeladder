@@ -24,6 +24,7 @@ from app.core.config.brand_discovery import (
     same_business_class,
 )
 from app.core.config.observed_competitors import EXCLUDED_RESEARCH_DOMAINS
+from app.core.config.visibility_prompts import TOPIC_SELECTION_PROMPT_VERSION
 from app.domain.projects.brand_evidence import BrandEvidence, collect_brand_evidence
 from app.domain.projects.discovery_schemas import (
     DiscoveryCompetitorSuggestion,
@@ -181,7 +182,21 @@ async def research_brand(
         qualification_available=competitor_phase.qualification_available,
     )
     warnings.extend(selection.warnings)
-    provider, model = _gateway_provenance(identity_phase.gateway)
+    if selection.provider and selection.model:
+        identity_phase.model_calls.append(
+            _model_call_values(
+                phase="topic_selection",
+                provider=selection.provider,
+                model=selection.model,
+                prompt_version=TOPIC_SELECTION_PROMPT_VERSION,
+                outcome=(
+                    "failed"
+                    if "topic_selection_unavailable" in selection.warnings
+                    else "succeeded"
+                ),
+            )
+        )
+    provider, model = _successful_model_provenance(identity_phase.model_calls)
     return ResearchResult(
         profile=profile.model_dump(),
         competitive_signature=signature.model_dump(),
@@ -237,9 +252,20 @@ async def _run_identity_phase(
                 phase="identity",
                 gateway=gateway,
                 prompt_version=BRAND_IDENTITY_PROMPT_VERSION,
+                outcome="succeeded",
             )
         )
     except (AgentNotConfiguredError, ProviderError, ValidationError, ValueError):
+        if gateway is not None:
+            model_calls.append(
+                _model_call(
+                    phase="identity",
+                    gateway=gateway,
+                    prompt_version=BRAND_IDENTITY_PROMPT_VERSION,
+                    outcome="failed",
+                )
+            )
+            gateway = None
         identity = None
     return _IdentityPhase(
         external_state=external_state,
@@ -304,7 +330,7 @@ async def _run_competitor_phase(
     budget: ResearchCallBudget,
     model_calls: list[dict],
 ) -> _CompetitorPhase:
-    empty = _CompetitorPhase([], [], [], True)
+    empty = _CompetitorPhase([], [], [], False)
     if keenable is None or identity is None or not signature.category:
         return empty
     evidence: list[ResearchEvidenceItem] = []
@@ -318,7 +344,7 @@ async def _run_competitor_phase(
         )
         evidence = list(result.evidence)
         if not result.candidates or gateway is None:
-            return _CompetitorPhase([], [], evidence, True)
+            return _CompetitorPhase([], [], evidence, False)
         suggestions, verdicts = await qualify_competitors(
             gateway,
             profile=profile,
@@ -330,10 +356,20 @@ async def _run_competitor_phase(
                 phase="competitor_qualification",
                 gateway=gateway,
                 prompt_version=BRAND_COMPETITOR_QUALIFICATION_VERSION,
+                outcome="succeeded",
             )
         )
         return _CompetitorPhase(suggestions, verdicts, evidence, True)
     except (ProviderError, ValidationError, ValueError):
+        if gateway is not None and evidence:
+            model_calls.append(
+                _model_call(
+                    phase="competitor_qualification",
+                    gateway=gateway,
+                    prompt_version=BRAND_COMPETITOR_QUALIFICATION_VERSION,
+                    outcome="failed",
+                )
+            )
         return _CompetitorPhase([], [], evidence, False)
 
 
@@ -341,10 +377,11 @@ def _identity_conflicts(identity: IdentityResearchEnvelope | None) -> bool:
     return identity is not None and identity.status == "conflicting_evidence"
 
 
-def _gateway_provenance(gateway: ModelGateway | None) -> tuple[str, str]:
-    if gateway is None:
-        return "", ""
-    return gateway.base_url_host, gateway.model
+def _successful_model_provenance(model_calls: list[dict]) -> tuple[str, str]:
+    for call in model_calls:
+        if call["outcome"] == "succeeded":
+            return call["provider"], call["model"]
+    return "", ""
 
 
 def _keenable_client() -> KeenableClient | None:
@@ -371,12 +408,25 @@ def _page_evidence(evidence: BrandEvidence) -> list[dict[str, str]]:
     ]
 
 
-def _model_call(*, phase: str, gateway, prompt_version: str) -> dict:
+def _model_call(*, phase: str, gateway, prompt_version: str, outcome: str) -> dict:
+    return _model_call_values(
+        phase=phase,
+        provider=gateway.base_url_host,
+        model=gateway.model,
+        prompt_version=prompt_version,
+        outcome=outcome,
+    )
+
+
+def _model_call_values(
+    *, phase: str, provider: str, model: str, prompt_version: str, outcome: str
+) -> dict:
     return {
         "phase": phase,
-        "provider": gateway.base_url_host,
-        "model": gateway.model,
+        "provider": provider,
+        "model": model,
         "prompt_version": prompt_version,
+        "outcome": outcome,
     }
 
 
@@ -397,7 +447,7 @@ def _research_evidence(site, items, model_calls):
                 provider=item.provider,
                 confidence=0.9 if item.source_kind == "first_party" else 0.7,
                 captured_at=captured_at,
-                supports=["profile", "competitors", "topics"],
+                supports=item.supports,
             ).model_dump(mode="json")
         )
     if not evidence:
@@ -411,6 +461,11 @@ def _research_evidence(site, items, model_calls):
                 supports=["official_website", "owned_domain", "profile"],
             ).model_dump(mode="json")
         )
+    model_supports = {
+        "identity": ["profile"],
+        "competitor_qualification": ["competitors"],
+        "topic_selection": ["topics"],
+    }
     for call in model_calls:
         evidence.append(
             DiscoveryEvidence(
@@ -419,9 +474,13 @@ def _research_evidence(site, items, model_calls):
                 method=call["prompt_version"],
                 provider=call["provider"],
                 model=call["model"],
-                confidence=0.7,
+                confidence=0.7 if call["outcome"] == "succeeded" else 0,
                 captured_at=captured_at,
-                supports=["profile", "competitors"],
+                supports=(
+                    model_supports.get(call["phase"], [])
+                    if call["outcome"] == "succeeded"
+                    else []
+                ),
             ).model_dump(mode="json")
         )
     return evidence

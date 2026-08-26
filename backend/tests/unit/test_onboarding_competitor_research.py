@@ -11,12 +11,15 @@ from app.domain.projects.discovery_schemas import DiscoveryProfile
 from app.domain.projects.onboarding.competitor_research import (
     CandidateVerdict,
     CompetitorCandidate,
+    _bounded_qualification_candidates,
     _candidate_pool,
     _is_direct,
+    discover_competitor_candidates,
     qualify_competitors,
 )
 from app.domain.projects.onboarding.research_evidence import (
     CompetitiveSignature,
+    ResearchCallBudget,
     ResearchEvidenceItem,
 )
 
@@ -94,6 +97,78 @@ def test_direct_competitor_requires_all_hard_gates() -> None:
     assert not _is_direct(_verdict(same_buyer=False))
     assert not _is_direct(_verdict(credible_substitute=False))
     assert not _is_direct(_verdict(geography="irrelevant"))
+
+
+def test_qualification_evidence_uses_one_shared_character_budget(monkeypatch) -> None:
+    from app.domain.projects.onboarding import competitor_research as module
+
+    monkeypatch.setattr(
+        module.brand_discovery_settings,
+        "competitor_qualification_evidence_max_chars",
+        7,
+    )
+    evidence = ResearchEvidenceItem(
+        evidence_ref="kc-search-1",
+        source_url="https://peer.example",
+        text="abcdefghij",
+        source_kind="external_search",
+        supports=["competitors"],
+    )
+    candidates = tuple(
+        CompetitorCandidate(
+            candidate_id=f"cand-{index}",
+            name=f"Peer {index}",
+            domain=f"peer{index}.example",
+            source_url=f"https://peer{index}.example",
+            evidence=[evidence.model_copy(update={"evidence_ref": f"kc-{index}"})],
+        )
+        for index in range(2)
+    )
+
+    bounded = _bounded_qualification_candidates(candidates)
+
+    assert (
+        sum(len(item.text) for candidate in bounded for item in candidate.evidence) == 7
+    )
+    assert [candidate.candidate_id for candidate in bounded] == ["cand-0", "cand-1"]
+
+
+@pytest.mark.asyncio
+async def test_full_candidate_pool_skips_reformulation(monkeypatch) -> None:
+    from app.domain.projects.onboarding import competitor_research as module
+
+    monkeypatch.setattr(module.brand_discovery_settings, "competitor_candidate_cap", 1)
+    monkeypatch.setattr(
+        module.brand_discovery_settings, "competitor_fetch_max_pages", 0
+    )
+    calls = 0
+
+    async def search(_client, _queries):
+        nonlocal calls
+        calls += 1
+        return [
+            (
+                "query-1",
+                KeenableSearchResult(
+                    title="Peer", url="https://peer.com", snippet="Peer"
+                ),
+            )
+        ]
+
+    monkeypatch.setattr(module, "_search_queries", search)
+
+    result = await discover_competitor_candidates(
+        object(),
+        brand_name="Acme",
+        owned_domain="acme.com",
+        signature=CompetitiveSignature(
+            category="workflow software", buyer="operations teams"
+        ),
+        budget=ResearchCallBudget(6),
+    )
+
+    assert calls == 1
+    assert len(result.candidates) == 1
 
 
 @pytest.mark.asyncio
