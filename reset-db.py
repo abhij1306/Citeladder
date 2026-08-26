@@ -16,6 +16,8 @@ BACKEND_DIR = PROJECT_ROOT / "backend"
 ROOT_ENV_FILE = PROJECT_ROOT / ".env"
 PROTECTED_DATABASES = frozenset({"postgres", "template0", "template1"})
 DEVELOPMENT_ENVS = frozenset({"development", "dev", "local", "test", "testing"})
+LOCAL_DATABASE_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+SUPPORTED_DATABASE_SCHEMES = frozenset({"postgresql", "postgresql+asyncpg"})
 DEFAULT_PROVISION_TIMEOUT_SECONDS = 300.0
 DESTRUCTIVE_RESET_VARIABLE = "RESET_CONFIRM_DESTRUCTIVE"
 DESTRUCTIVE_RESET_TOKEN = "drop-and-recreate"
@@ -76,6 +78,11 @@ def _database_url() -> str:
 
 
 def _connection_details(database_url: str) -> tuple[str, str, str]:
+    parsed_input = urlsplit(database_url)
+    if parsed_input.scheme.casefold() not in SUPPORTED_DATABASE_SCHEMES:
+        raise RuntimeError("DATABASE_URL must use PostgreSQL with the asyncpg driver")
+    if not parsed_input.hostname:
+        raise RuntimeError("DATABASE_URL must name a database host")
     driver_url = database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
     parsed = urlsplit(driver_url)
     target_db = unquote(parsed.path.removeprefix("/"))
@@ -105,19 +112,21 @@ def _quote_identifier(value: str) -> str:
     return f'"{value.replace(chr(34), chr(34) * 2)}"'
 
 
-def authorize_reset() -> None:
+def authorize_reset(database_url: str) -> None:
     """Refuse to drop anything that is not provably a development database.
 
     This script's whole job is DROP DATABASE, and the only thing that used to
     stand between it and a production URL was whichever DATABASE_URL happened
     to be exported. APP_ENV is the same signal the backend itself trusts, so a
-    development value authorizes the reset; anything else — production, or the
-    far more common case of APP_ENV simply never being set — has to say so
-    explicitly through the token.
+    development value plus a loopback database host authorizes the reset.
+    Anything else — production, an unset APP_ENV, or a remote/shared host —
+    has to say so explicitly through the token.
     """
     configuration = _configuration()
     app_env = configuration.get("APP_ENV", "").strip().lower()
-    if app_env in DEVELOPMENT_ENVS:
+    parsed = urlsplit(database_url)
+    host = (parsed.hostname or "").casefold()
+    if app_env in DEVELOPMENT_ENVS and host in LOCAL_DATABASE_HOSTS:
         return
     if (
         configuration.get(DESTRUCTIVE_RESET_VARIABLE, "").strip()
@@ -129,10 +138,12 @@ def authorize_reset() -> None:
         )
         return
     raise RuntimeError(
-        f"Refusing to drop the database: APP_ENV is '{app_env or '(unset)'}', "
-        f"not one of {sorted(DEVELOPMENT_ENVS)}. Set APP_ENV to a development "
-        f"value, or set {DESTRUCTIVE_RESET_VARIABLE}={DESTRUCTIVE_RESET_TOKEN} "
-        "to confirm this database is safe to destroy."
+        f"Refusing to drop the database: APP_ENV is '{app_env or '(unset)'}' "
+        f"and the target host is '{host or '(missing)'}'. Automatic reset "
+        f"requires a development APP_ENV and a host in "
+        f"{sorted(LOCAL_DATABASE_HOSTS)}. Otherwise set "
+        f"{DESTRUCTIVE_RESET_VARIABLE}={DESTRUCTIVE_RESET_TOKEN} to confirm "
+        "this exact database is safe to destroy."
     )
 
 
@@ -258,8 +269,9 @@ def main() -> None:
     print("=" * 50)
 
     try:
-        authorize_reset()
         database_url = _database_url()
+        _connection_details(database_url)
+        authorize_reset(database_url)
         asyncio.run(reset_database(database_url))
         run_migrations(database_url)
         provision_dev_login(database_url)

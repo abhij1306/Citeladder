@@ -442,9 +442,7 @@ async def enqueue_post_sync_projections(
       distinct affected (sync window, ``resync_seq``) revision (C5).
       ``ga4_source_medium_daily`` keeps BOTH this trigger and referral
       ingest.
-    - A dataset consumed by no projection chain (e.g. the future Shopify
-      datasets, which enqueue through their own derive path) triggers
-      nothing here.
+    - A dataset consumed by no projection chain triggers nothing here.
 
     Traffic refresh idempotency keys carry the triggering run's data revision
     so a re-sync of an already-projected window re-fires the refresh

@@ -6,7 +6,10 @@ from typing import Any
 
 import httpx
 
-from app.core.config.commerce_catalog import commerce_settings
+from app.core.config.commerce_catalog import (
+    COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT,
+    commerce_settings,
+)
 
 
 class CompetitorProviderUnavailable(RuntimeError):
@@ -19,7 +22,7 @@ async def tavily_search(query: str, *, locale: str) -> list[dict[str, Any]]:
     payload = {
         "query": f"{query} {locale}".strip(),
         "search_depth": "basic",
-        "max_results": 10,
+        "max_results": COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT,
         "include_answer": False,
         "include_raw_content": False,
     }

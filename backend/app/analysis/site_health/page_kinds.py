@@ -246,11 +246,11 @@ def _conflicts(
 def classify(final_url: str, facts: dict) -> PageKindAssessment:
     """Classify one page into the config taxonomy (pure, deterministic).
 
-    Evaluates all four signal sources in the fixed priority order, takes the
-    highest-priority matched signal as the winner, and sums the matched
-    signal weights into ``confidence``. Below the config threshold the page
-    falls back to ``other``. Never raises on malformed facts (partial facts
-    simply match fewer signals).
+    Evaluates all four signal sources in the fixed priority order and applies
+    the config-owned strong-content/path exception before selecting the
+    winner. Matched signal weights are summed into ``confidence``. Below the
+    config threshold the page falls back to ``other``. Never raises on
+    malformed facts (partial facts simply match fewer signals).
     """
     matched, schema_page_kind = _classification_signals(final_url, _mapping(facts))
     confidence, winner, page_kind, other_reason = _classification_outcome(matched)
@@ -340,10 +340,10 @@ def _classification_signals(
 def _classification_outcome(
     matched: list[dict[str, Any]],
 ) -> tuple[float, dict[str, Any] | None, str, str | None]:
-    # Fixed priority order: signals were appended in priority order already;
-    # the winner is the first matched signal (signals 1-3 outrank 4).
+    # Signals are appended in priority order; the config-owned exception may
+    # promote one strong visible-content signal over an ancestor path signal.
     confidence = round(sum(signal["weight"] for signal in matched), 4)
-    winner = matched[0] if matched else None
+    winner = _winning_signal(matched)
     below_threshold = confidence < _config.PAGE_KIND_CONFIDENCE_THRESHOLD
     page_kind = (
         winner["page_kind"]
@@ -358,3 +358,19 @@ def _classification_outcome(
             else CLASSIFICATION_OTHER_REASON_BELOW_THRESHOLD
         )
     return confidence, winner, page_kind, other_reason
+
+
+def _winning_signal(matched: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Apply the one config-owned strong-content exception to signal order."""
+    if not matched:
+        return None
+    winner = matched[0]
+    if winner["signal"] != _config.PAGE_KIND_SIGNAL_PATH_PATTERN:
+        return winner
+    for signal in matched[1:]:
+        if signal["signal"] != _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC:
+            continue
+        pair = (str(winner["page_kind"]), str(signal["page_kind"]))
+        if pair in _config.PAGE_KIND_CONTENT_PATH_OVERRIDES:
+            return signal
+    return winner

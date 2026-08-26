@@ -99,7 +99,7 @@ export const SOLUTION_SEGMENTS: readonly SolutionSegment[] = [
       'Product share-of-voice and rank distribution across top engines.',
       'Automated price accuracy validation matched against catalog data.',
       'Competitor co-placement and SKU displacement analytics.',
-      'Direct Shopify catalog sync and fast CSV import workflows.',
+      'Site-discovered catalog evidence and fast CSV import workflows.',
     ],
     cta: 'See commerce workflow',
     scene: 'commerce',

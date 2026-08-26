@@ -16,7 +16,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, Query, Request, status
+from fastapi import APIRouter, Cookie, Depends, Query, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,7 +37,6 @@ from app.core.config.integrations_contracts import (
     ERROR_MAPPING_PROVIDER_MISMATCH,
     ERROR_OAUTH_EXCHANGE_FAILED,
     ERROR_OAUTH_NOT_CONFIGURED,
-    ERROR_OAUTH_SHOP_INVALID,
     ERROR_OAUTH_STATE_INVALID,
     ERROR_PROPERTY_DISCOVERY_UNSUPPORTED,
     ERROR_SYNC_ACTIVE_WINDOW_CONFLICT,
@@ -46,11 +45,9 @@ from app.core.config.integrations_contracts import (
 )
 from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_TRANSACTION_COOKIE,
-    INTEGRATION_PROVIDER_SHOPIFY,
     INTEGRATION_PROVIDERS,
     integration_oauth_landing_url,
     integration_oauth_redirect_uri,
-    normalize_shopify_shop_domain,
 )
 from app.core.errors import ApiException
 from app.core.http_errors import raise_api_error, raise_not_found
@@ -168,41 +165,9 @@ async def integration_oauth_start(
     provider: str,
     ctx: _WorkspaceDep,
     session: _SessionDep,
-    shop: Annotated[str, Query()] = "",
 ) -> RedirectResponse:
-    """Begin the OAuth connect flow: 302 to the provider consent screen.
-
-    ``shop`` is REQUIRED for Shopify (the per-shop OAuth target) and
-    rejected for every other provider — both misuse forms are a 422, never
-    a guessed redirect target.
-    """
+    """Begin the OAuth connect flow: 302 to the provider consent screen."""
     _require_known_provider(provider)
-    provider_account_ref = ""
-    if provider == INTEGRATION_PROVIDER_SHOPIFY:
-        if not shop.strip():
-            raise_api_error(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                "A valid Shopify shop domain is required",
-                code=ERROR_OAUTH_SHOP_INVALID,
-                detail=ERROR_OAUTH_SHOP_INVALID,
-            )
-        try:
-            provider_account_ref = normalize_shopify_shop_domain(shop)
-        except ValueError as exc:
-            raise_api_error(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                "A valid Shopify shop domain is required",
-                code=ERROR_OAUTH_SHOP_INVALID,
-                detail=ERROR_OAUTH_SHOP_INVALID,
-                cause=exc,
-            )
-    elif shop.strip():
-        raise_api_error(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "The shop parameter is only valid for Shopify",
-            code=ERROR_OAUTH_SHOP_INVALID,
-            detail=ERROR_OAUTH_SHOP_INVALID,
-        )
     try:
         oauth_start = await start_connect(
             session,
@@ -210,7 +175,6 @@ async def integration_oauth_start(
             user_id=ctx.user.id,
             provider=provider,
             redirect_uri=integration_oauth_redirect_uri(provider),
-            provider_account_ref=provider_account_ref,
         )
     except IntegrationNotConfiguredError as exc:
         raise_api_error(
@@ -230,7 +194,6 @@ async def integration_oauth_start(
 @router.get("/oauth/{provider}/callback", status_code=status.HTTP_302_FOUND)
 async def integration_oauth_callback(
     provider: str,
-    request: Request,
     session: _SessionDep,
     transaction_nonce: Annotated[
         str | None, Cookie(alias=INTEGRATION_OAUTH_TRANSACTION_COOKIE)
@@ -258,9 +221,6 @@ async def integration_oauth_callback(
             state=state,
             session_nonce=transaction_nonce or "",
             redirect_uri=integration_oauth_redirect_uri(provider),
-            # The full query map for the Shopify callback HMAC verification
-            # (ignored by the single-tenant transports).
-            callback_params={key: value for key, value in request.query_params.items()},
         )
     except IntegrationStateError:
         return _oauth_callback_redirect({"error": ERROR_OAUTH_STATE_INVALID})

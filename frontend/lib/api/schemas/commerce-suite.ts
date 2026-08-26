@@ -11,6 +11,7 @@ export const commerceCategorySchema = z
     role: z.enum(['hub', 'leaf', 'unknown']),
     canonical_url: z.string(),
     product_count: z.number().int(),
+    field_sources: z.record(z.string(), z.unknown()),
     source_analysis_id: uuid.nullable(),
     projector_version: z.string(),
   })
@@ -24,9 +25,9 @@ export const commerceProductSchema = z
     brand: z.string(),
     price: z.number().nullable(),
     currency: z.string(),
-    sku: z.string(),
-    gtin: z.string(),
-    mpn: z.string(),
+    sku: z.string().nullable(),
+    gtin: z.string().nullable(),
+    mpn: z.string().nullable(),
     observed_external_id: z.string(),
     variants: z.array(z.unknown()),
     attributes: z.record(z.string(), z.unknown()),
@@ -137,6 +138,8 @@ export const shelfSchema = z
 
 export type CommerceTarget = z.infer<typeof commerceTargetSchema>;
 export type CommerceCatalog = z.infer<typeof commerceCatalogSchema>;
+export type CommerceCategory = z.infer<typeof commerceCategorySchema>;
+export type CommerceCategoryEdit = Partial<Pick<CommerceCategory, 'name' | 'role'>>;
 export type CommerceProduct = z.infer<typeof commerceProductSchema>;
 export type CommerceProductEdit = Partial<
   Pick<

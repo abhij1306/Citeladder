@@ -226,6 +226,15 @@ PAGE_KIND_SIGNAL_WEIGHTS: Final[dict[str, float]] = {
     PAGE_KIND_SIGNAL_STRUCTURED_DATA: 0.5,
 }
 
+# A category route family can contain a deep PDP URL. A bounded visible price
+# plus purchase CTA is deterministic page evidence and may therefore override
+# the ancestor category segment. Structured data is deliberately excluded: a
+# Product schema claim must not self-certify the page kind whose schema contract
+# will be evaluated.
+PAGE_KIND_CONTENT_PATH_OVERRIDES: Final[frozenset[tuple[str, str]]] = frozenset(
+    {(PAGE_KIND_CATEGORY, PAGE_KIND_PRODUCT)}
+)
+
 PAGE_KIND_CONFIDENCE_THRESHOLD: Final = 0.5
 
 PAGE_KIND_APPLICABILITY_PREFIX: Final = "page_kind:"

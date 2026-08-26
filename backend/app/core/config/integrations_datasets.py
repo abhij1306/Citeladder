@@ -8,7 +8,6 @@ from app.core.config.integrations_transport import (
     INTEGRATION_PROVIDER_BING,
     INTEGRATION_PROVIDER_GA4,
     INTEGRATION_PROVIDER_GSC,
-    INTEGRATION_PROVIDER_SHOPIFY,
 )
 
 DIMENSION_KEY_SEPARATOR: Final = " | "
@@ -26,11 +25,7 @@ DATASET_GSC_DEVICE_DAILY: Final = "gsc_device_daily"
 DATASET_GSC_COUNTRY_DAILY: Final = "gsc_country_daily"
 
 INTEGRATION_SYNC_EXCLUDED_DATASETS: Final[frozenset[str]] = frozenset(
-    {
-        DATASET_GSC_SEARCH_APPEARANCE_DAILY,
-        "shopify.products",
-        "shopify.orders",
-    }
+    {DATASET_GSC_SEARCH_APPEARANCE_DAILY}
 )
 
 DATASET_GA4_CHANNEL_DAILY: Final = "ga4_channel_daily"
@@ -51,10 +46,6 @@ DATASET_BING_PAGE_DAILY: Final = "bing_page_daily"
 
 DATASET_BING_QUERY_DAILY: Final = "bing_query_daily"
 
-DATASET_SHOPIFY_PRODUCTS: Final = "shopify.products"
-
-DATASET_SHOPIFY_ORDERS: Final = "shopify.orders"
-
 PAGING_MODE_OFFSET: Final = "offset"
 
 PAGING_MODE_CURSOR: Final = "cursor"
@@ -62,49 +53,6 @@ PAGING_MODE_CURSOR: Final = "cursor"
 PAGING_MODES: Final[frozenset[str]] = frozenset(
     {PAGING_MODE_OFFSET, PAGING_MODE_CURSOR}
 )
-
-SHOPIFY_GRAPHQL_PRODUCTS: Final = (
-    "query ShopifyProducts($first: Int!, $after: String, $query: String!, "
-    "$variantFirst: Int!) { shop { currencyCode } products(first: $first, "
-    "after: $after, sortKey: UPDATED_AT, query: $query) { pageInfo { "
-    "hasNextPage endCursor } nodes { id title handle description vendor "
-    "productType status onlineStoreUrl updatedAt variants(first: "
-    "$variantFirst) { pageInfo { hasNextPage endCursor } nodes { id title "
-    "sku barcode price inventoryQuantity updatedAt } } } } }"
-)
-
-SHOPIFY_GRAPHQL_PRODUCT_VARIANTS: Final = (
-    "query ShopifyProductVariants($id: ID!, $first: Int!, $after: String) { "
-    "product(id: $id) { variants(first: $first, after: $after) { pageInfo { "
-    "hasNextPage endCursor } nodes { id title sku barcode price "
-    "inventoryQuantity updatedAt } } } }"
-)
-
-SHOPIFY_GRAPHQL_ORDERS: Final = (
-    "query ShopifyOrders($first: Int!, $after: String, $query: String!, "
-    "$lineItemFirst: Int!) { orders(first: $first, after: $after, sortKey: "
-    "UPDATED_AT, query: $query) { pageInfo { hasNextPage endCursor } nodes { "
-    "id createdAt updatedAt cancelledAt currencyCode currentTotalPriceSet { "
-    "shopMoney { amount currencyCode } } displayFinancialStatus "
-    "displayFulfillmentStatus customerJourneySummary { ready firstVisit { "
-    "landingSiteUrl: landingPage referrerUrl referralCode source "
-    "sourceDescription sourceType utmParameters { campaign content medium "
-    "source term } } lastVisit { landingSiteUrl: landingPage referrerUrl "
-    "referralCode source sourceDescription sourceType utmParameters { "
-    "campaign content medium source term } } } lineItems(first: "
-    "$lineItemFirst) { pageInfo { hasNextPage endCursor } nodes { id sku "
-    "quantity currentQuantity originalUnitPriceSet { shopMoney { amount "
-    "currencyCode } } } } } } }"
-)
-
-SHOPIFY_GRAPHQL_ORDER_LINE_ITEMS: Final = (
-    "query ShopifyOrderLineItems($id: ID!, $first: Int!, $after: String) { "
-    "order(id: $id) { lineItems(first: $first, after: $after) { pageInfo { "
-    "hasNextPage endCursor } nodes { id sku quantity currentQuantity "
-    "originalUnitPriceSet { shopMoney { amount currencyCode } } } } } }"
-)
-
-SHOPIFY_GRAPHQL_CONNECTION_PROBE: Final = "query ShopifyConnectionProbe { shop { id } }"
 
 _GSC_SEARCH_ANALYTICS_METRICS: Final = ("clicks", "impressions", "ctr", "position")
 
@@ -138,8 +86,7 @@ class IntegrationDatasetTemplate:
     owner of ``dimension_key`` packing for both workstreams (integrations
     produces, analytics/traffic consumes).
 
-    ``paging_mode`` selects the worker's paging/resume protocol (``offset``
-    by default; Shopify's GraphQL entity feeds are ``cursor``).
+    ``paging_mode`` selects the worker's paging/resume protocol.
     """
 
     dataset: str
@@ -269,26 +216,6 @@ INTEGRATION_DATASET_TEMPLATES: Final[dict[str, IntegrationDatasetTemplate]] = {
         api_method="GetQueryStats",
         dimensions=("query", "date"),
         metrics=_BING_STATS_METRICS,
-    ),
-    # Shopify GraphQL entity feeds (commerce suite). Empty dimensions/metrics
-    # — these are not metric reports; ``api_method`` names the config-owned
-    # GraphQL operation the connector runs. Cursor paging: the worker
-    # persists the resume cursor in each page's ``query_snapshot``.
-    DATASET_SHOPIFY_PRODUCTS: IntegrationDatasetTemplate(
-        dataset=DATASET_SHOPIFY_PRODUCTS,
-        provider=INTEGRATION_PROVIDER_SHOPIFY,
-        api_method="ShopifyProducts",
-        dimensions=(),
-        metrics=(),
-        paging_mode=PAGING_MODE_CURSOR,
-    ),
-    DATASET_SHOPIFY_ORDERS: IntegrationDatasetTemplate(
-        dataset=DATASET_SHOPIFY_ORDERS,
-        provider=INTEGRATION_PROVIDER_SHOPIFY,
-        api_method="ShopifyOrders",
-        dimensions=(),
-        metrics=(),
-        paging_mode=PAGING_MODE_CURSOR,
     ),
 }
 

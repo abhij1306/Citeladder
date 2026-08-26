@@ -320,4 +320,4 @@ RULE_CATALOG_VERSION: Final = "sh-rules-4"
 
 SCORING_VERSION: Final = "sh-scoring-2"
 
-CLASSIFIER_VERSION: Final = "sh-classifier-4"
+CLASSIFIER_VERSION: Final = "sh-classifier-5"

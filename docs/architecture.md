@@ -140,5 +140,5 @@ turn unsupported output into a verified fact.
 5. Verify changes through recrawl or aligned later observations where the
    owning subsystem supports it.
 
-See [`plans/growth-intelligence-platform.md`](plans/growth-intelligence-platform.md)
+See [`plans/citeladder-aeo-product-rebuild.md`](plans/citeladder-aeo-product-rebuild.md)
 for the active cross-system delivery view.

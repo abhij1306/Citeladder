@@ -7,20 +7,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.config.dotenv import dotenv_sources
 
-COMMERCE_PROJECTOR_VERSION: Final = "commerce-projector-1"
+COMMERCE_PROJECTOR_VERSION: Final = "commerce-projector-3"
 COMMERCE_IMPORTER_VERSION: Final = "commerce-catalog-importer-1"
-COMMERCE_EDIT_VERSION: Final = "commerce-catalog-edit-1"
+COMMERCE_EDIT_VERSION: Final = "commerce-catalog-edit-2"
+COMMERCE_CATEGORY_EDIT_VERSION: Final = "commerce-category-edit-1"
 COMMERCE_COMPETITOR_PROVIDER_VERSION: Final = "tavily-commerce-1"
-COMMERCE_COMPETITOR_VALIDATOR_VERSION: Final = "commerce-competitor-validator-2"
-COMMERCE_PROMPT_TEMPLATE_VERSION: Final = "commerce-buyer-prompts-1"
-COMMERCE_RECOMMENDATION_PARSER_VERSION: Final = "commerce-recommendation-parser-1"
-COMMERCE_RECOMMENDATION_MATCHER_VERSION: Final = "commerce-recommendation-matcher-1"
-COMMERCE_SHELF_FORMULA_VERSION: Final = "commerce-shelf-formulas-1"
+COMMERCE_COMPETITOR_VALIDATOR_VERSION: Final = "commerce-competitor-validator-3"
+COMMERCE_PROMPT_TEMPLATE_VERSION: Final = "commerce-buyer-prompts-2"
+COMMERCE_RECOMMENDATION_PARSER_VERSION: Final = "commerce-recommendation-parser-2"
+COMMERCE_RECOMMENDATION_MATCHER_VERSION: Final = "commerce-recommendation-matcher-2"
+COMMERCE_SHELF_FORMULA_VERSION: Final = "commerce-shelf-formulas-2"
 
 COMMERCE_PROMPTS_MIN: Final = 2
 COMMERCE_PROMPTS_DEFAULT: Final = 5
 COMMERCE_PROMPTS_MAX: Final = 10
 COMMERCE_COMPETITOR_RESULT_LIMIT: Final = 5
+COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT: Final = 10
 COMMERCE_IMPORT_MAX_BYTES: Final = 2_000_000
 COMMERCE_IMPORT_MAX_ROWS: Final = 10_000
 COMMERCE_IMPORT_ERROR_LIMIT: Final = 100
@@ -42,6 +44,23 @@ COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS: Final = (
     "/search",
 )
 COMMERCE_SECOND_HAND_TOKENS: Final = ("used", "pre-owned", "second hand", "refurbished")
+COMMERCE_DOLLAR_CURRENCY_BY_COUNTRY: Final = {
+    "AU": "AUD",
+    "CA": "CAD",
+    "US": "USD",
+}
+COMMERCE_VISIBLE_PRICE_CURRENCY_MARKERS: Final[tuple[tuple[str, str], ...]] = (
+    ("AUD", "AUD"),
+    ("USD", "USD"),
+    ("CAD", "CAD"),
+    ("NZD", "NZD"),
+    ("GBP", "GBP"),
+    ("EUR", "EUR"),
+    ("INR", "INR"),
+    ("£", "GBP"),
+    ("€", "EUR"),
+    ("₹", "INR"),
+)
 
 
 class CommerceSettings(BaseSettings):

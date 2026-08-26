@@ -444,51 +444,6 @@ async def test_oauth_state_jti_unique(
 
 
 @pytest.mark.asyncio
-async def test_oauth_state_provider_account_ref_round_trip(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    """The per-account OAuth target (Shopify shop host) persists; default ''."""
-    async with session_factory() as session:
-        workspace = await _seed_workspace(session)
-        user = User(email=f"{uuid.uuid4().hex[:8]}@example.com", hashed_password="x")
-        session.add(user)
-        await session.flush()
-        shopify_state = IntegrationOAuthState(
-            jti="jti-shopify",
-            workspace_id=workspace.id,
-            user_id=user.id,
-            provider="shopify",
-            provider_account_ref="volt-city.myshopify.com",
-            expires_at=datetime.now(UTC) + timedelta(minutes=10),
-        )
-        google_state = IntegrationOAuthState(
-            jti="jti-google",
-            workspace_id=workspace.id,
-            user_id=user.id,
-            provider="gsc",
-            expires_at=datetime.now(UTC) + timedelta(minutes=10),
-        )
-        session.add_all([shopify_state, google_state])
-        await session.commit()
-
-    async with session_factory() as session:
-        shopify_row = await session.scalar(
-            select(IntegrationOAuthState).where(
-                IntegrationOAuthState.jti == "jti-shopify"
-            )
-        )
-        google_row = await session.scalar(
-            select(IntegrationOAuthState).where(
-                IntegrationOAuthState.jti == "jti-google"
-            )
-        )
-        assert shopify_row is not None
-        assert shopify_row.provider_account_ref == "volt-city.myshopify.com"
-        assert google_row is not None
-        assert google_row.provider_account_ref == ""
-
-
-@pytest.mark.asyncio
 async def test_event_survives_connection_delete_with_set_null(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections import defaultdict
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,41 +42,19 @@ async def freeze_commerce_context(
             )
         ).all()
     )
+    categories, products, competitors = await _target_evidence(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        targets=targets,
+    )
     target_rows: list[dict] = []
     for target in targets:
-        products_stmt = select(CommerceProduct).where(
-            CommerceProduct.workspace_id == workspace_id,
-            CommerceProduct.project_id == project_id,
-            CommerceProduct.lifecycle_state == "active",
-        )
-        if target.target_kind == "product":
-            products_stmt = products_stmt.where(CommerceProduct.id == target.target_id)
-            category = None
-        else:
-            products_stmt = products_stmt.join(
-                CommerceProductCategory,
-                CommerceProductCategory.product_id == CommerceProduct.id,
-            ).where(CommerceProductCategory.category_id == target.target_id)
-            category = await session.scalar(
-                select(CommerceCategory).where(
-                    CommerceCategory.id == target.target_id,
-                    CommerceCategory.workspace_id == workspace_id,
-                    CommerceCategory.project_id == project_id,
-                )
-            )
-        products = list((await session.scalars(products_stmt)).all())
-        competitors = list(
-            (
-                await session.scalars(
-                    select(CommerceCompetitorCandidate).where(
-                        CommerceCompetitorCandidate.workspace_id == workspace_id,
-                        CommerceCompetitorCandidate.project_id == project_id,
-                        CommerceCompetitorCandidate.target_kind == target.target_kind,
-                        CommerceCompetitorCandidate.target_id == target.target_id,
-                        CommerceCompetitorCandidate.state == "approved",
-                    )
-                )
-            ).all()
+        key = (target.target_kind, target.target_id)
+        category = (
+            categories.get(target.target_id)
+            if target.target_kind == "category"
+            else None
         )
         target_rows.append(
             {
@@ -102,7 +81,7 @@ async def freeze_commerce_context(
                         "attributes": product.attributes,
                         "field_sources": product.field_sources,
                     }
-                    for product in products
+                    for product in products[key]
                 ],
                 "approved_competitors": [
                     {
@@ -111,7 +90,7 @@ async def freeze_commerce_context(
                         "product_name": candidate.product_name,
                         "brand_name": candidate.brand_name,
                     }
-                    for candidate in competitors
+                    for candidate in competitors[key]
                 ],
             }
         )
@@ -123,3 +102,77 @@ async def freeze_commerce_context(
         "matcher_version": COMMERCE_RECOMMENDATION_MATCHER_VERSION,
         "formula_version": COMMERCE_SHELF_FORMULA_VERSION,
     }
+
+
+async def _target_evidence(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    targets: list[CommercePromptTarget],
+) -> tuple[
+    dict[uuid.UUID, CommerceCategory],
+    dict[tuple[str, uuid.UUID], list[CommerceProduct]],
+    dict[tuple[str, uuid.UUID], list[CommerceCompetitorCandidate]],
+]:
+    product_ids = {
+        target.target_id for target in targets if target.target_kind == "product"
+    }
+    category_ids = {
+        target.target_id for target in targets if target.target_kind == "category"
+    }
+    categories: dict[uuid.UUID, CommerceCategory] = {}
+    products: dict[tuple[str, uuid.UUID], list[CommerceProduct]] = defaultdict(list)
+    competitors: dict[tuple[str, uuid.UUID], list[CommerceCompetitorCandidate]] = (
+        defaultdict(list)
+    )
+    if product_ids:
+        product_rows = await session.scalars(
+            select(CommerceProduct).where(
+                CommerceProduct.id.in_(product_ids),
+                CommerceProduct.workspace_id == workspace_id,
+                CommerceProduct.project_id == project_id,
+                CommerceProduct.lifecycle_state == "active",
+            )
+        )
+        for product in product_rows:
+            products[("product", product.id)].append(product)
+    if category_ids:
+        category_rows = await session.scalars(
+            select(CommerceCategory).where(
+                CommerceCategory.id.in_(category_ids),
+                CommerceCategory.workspace_id == workspace_id,
+                CommerceCategory.project_id == project_id,
+            )
+        )
+        categories = {category.id: category for category in category_rows}
+        membership_rows = await session.execute(
+            select(CommerceProductCategory.category_id, CommerceProduct)
+            .join(
+                CommerceProduct,
+                CommerceProduct.id == CommerceProductCategory.product_id,
+            )
+            .where(
+                CommerceProductCategory.category_id.in_(category_ids),
+                CommerceProductCategory.workspace_id == workspace_id,
+                CommerceProductCategory.project_id == project_id,
+                CommerceProduct.workspace_id == workspace_id,
+                CommerceProduct.project_id == project_id,
+                CommerceProduct.lifecycle_state == "active",
+            )
+        )
+        for category_id, product in membership_rows:
+            products[("category", category_id)].append(product)
+    target_ids = product_ids | category_ids
+    if target_ids:
+        candidate_rows = await session.scalars(
+            select(CommerceCompetitorCandidate).where(
+                CommerceCompetitorCandidate.target_id.in_(target_ids),
+                CommerceCompetitorCandidate.workspace_id == workspace_id,
+                CommerceCompetitorCandidate.project_id == project_id,
+                CommerceCompetitorCandidate.state == "approved",
+            )
+        )
+        for candidate in candidate_rows:
+            competitors[(candidate.target_kind, candidate.target_id)].append(candidate)
+    return categories, products, competitors

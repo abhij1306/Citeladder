@@ -162,6 +162,26 @@ def test_path_pattern_outranks_schema_on_conflict() -> None:
     assert assessment.schema_suggested_type == "article"
 
 
+def test_strong_product_content_overrides_ancestor_category_path() -> None:
+    assessment = classify(
+        "https://example.com/categories/women/dresses/red-dress/ABC123",
+        _facts(body_text="Red cotton dress $49.00. Add to bag."),
+    )
+
+    assert assessment.page_kind == "product"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_CONTENT_HEURISTIC
+
+
+def test_product_schema_alone_cannot_override_category_path() -> None:
+    assessment = classify(
+        "https://example.com/categories/women/dresses/red-dress/ABC123",
+        _facts(schema_types=["Product"]),
+    )
+
+    assert assessment.page_kind == "category"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PATH_PATTERN
+
+
 # --- Signal 3: content/heading heuristics -----------------------------------
 
 

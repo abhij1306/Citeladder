@@ -13,13 +13,11 @@ from app.core.config.integrations_contracts import (
     ERROR_UNMAPPED_PROPERTY,
     EVENT_INTEGRATION_SYNC_FINISHED,
 )
-from app.core.config.integrations_transport import INTEGRATION_PROVIDER_SHOPIFY
 from app.core.config.task_queue import TASK_STATUS_FAILED, TASK_STATUS_SUCCEEDED
 from app.domain.analytics.enqueue import enqueue_post_sync_projections
 from app.domain.integrations.derive import (
     UnmappedPropertyError,
     derive_run,
-    resolve_active_mapping,
 )
 from app.models.integrations import (
     IntegrationConnection,
@@ -130,14 +128,6 @@ class RunFinalizer:
         connection: IntegrationConnection,
         artifacts: list[IntegrationImportArtifact],
     ) -> tuple[uuid.UUID, tuple[uuid.UUID, ...], int]:
-        if ctx.provider == INTEGRATION_PROVIDER_SHOPIFY:
-            mapping = await resolve_active_mapping(
-                session,
-                workspace_id=run.workspace_id,
-                provider=connection.provider,
-                property_ref=connection.account_ref,
-            )
-            return mapping.project_id, tuple(artifact.id for artifact in artifacts), 0
         metric_derived = await derive_run(
             session, run=run, connection=connection, artifacts=artifacts
         )

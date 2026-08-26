@@ -6,12 +6,14 @@ import { strictValidate } from './schemas';
 import {
   buyerPromptSchema,
   catalogImportSchema,
+  commerceCategorySchema,
   commerceCatalogSchema,
   competitorDiscoverySchema,
   commerceProductSchema,
   competitorCandidateSchema,
   shelfSchema,
   type CommerceTarget,
+  type CommerceCategoryEdit,
   type CommerceProductEdit,
 } from './schemas/commerce-suite';
 
@@ -39,6 +41,12 @@ export const commerceApi = {
       commerceProductSchema,
       await apiClient.patch(path(projectId, `catalog/products/${productId}`), body),
       'commerce.editProduct',
+    ),
+  editCategory: async (projectId: string, categoryId: string, body: CommerceCategoryEdit) =>
+    strictValidate(
+      commerceCategorySchema,
+      await apiClient.patch(path(projectId, `catalog/categories/${categoryId}`), body),
+      'commerce.editCategory',
     ),
   competitors: async (projectId: string, options?: ApiRequestOptions) =>
     strictValidate(

@@ -12,8 +12,6 @@ log line (invariant 6).
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 import logging
 import uuid
@@ -48,10 +46,6 @@ _GOOGLE_CLIENT_ID = "test-google-client-id"
 _GOOGLE_CLIENT_SECRET = "test-google-client-secret"  # pragma: allowlist secret
 _MS_CLIENT_ID = "test-ms-client-id"
 _MS_CLIENT_SECRET = "test-ms-client-secret"  # pragma: allowlist secret
-_SHOPIFY_CLIENT_ID = "test-shopify-client-id"
-_SHOPIFY_CLIENT_SECRET = "test-shopify-client-secret"  # pragma: allowlist secret
-_SHOP = "volt-city.myshopify.com"
-
 _GOOGLE_SCOPES = {
     "https://www.googleapis.com/auth/webmasters.readonly",
     "https://www.googleapis.com/auth/analytics.readonly",
@@ -114,10 +108,6 @@ def _oauth_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         settings, "integration_microsoft_client_secret", _MS_CLIENT_SECRET
     )
-    monkeypatch.setattr(settings, "integration_shopify_client_id", _SHOPIFY_CLIENT_ID)
-    monkeypatch.setattr(
-        settings, "integration_shopify_client_secret", _SHOPIFY_CLIENT_SECRET
-    )
 
 
 class _FakeOAuthServer:
@@ -150,15 +140,6 @@ class _FakeOAuthServer:
             return httpx.Response(200)
         if host == "www.googleapis.com":
             return httpx.Response(200, json=_fixture("gsc_sites_response.json"))
-        if host == _SHOP and request.url.path == "/admin/oauth/access_token":
-            return httpx.Response(
-                200,
-                json={
-                    # pragma: allowlist secret
-                    "access_token": "shpat_fake-offline-token",
-                    "scope": "read_products,read_orders",
-                },
-            )
         if host == "login.microsoftonline.com" and request.url.path.endswith("/token"):
             if self.microsoft_token_status != 200:
                 return httpx.Response(
@@ -174,20 +155,16 @@ class _FakeOAuthServer:
     def token_calls(self) -> list[httpx.Request]:
         return [r for r in self.requests if r.url.path.endswith("/token")]
 
-    def shopify_token_calls(self) -> list[httpx.Request]:
-        return [r for r in self.requests if r.url.path == "/admin/oauth/access_token"]
-
 
 @pytest.fixture
 def _fake_oauth(monkeypatch: pytest.MonkeyPatch) -> _FakeOAuthServer:
     """Inject the fake OAuth server into the domain service's client factory."""
     server = _FakeOAuthServer()
 
-    def _build(transport_kind: str, *, transport=None, provider_account_ref: str = ""):
+    def _build(transport_kind: str, *, transport=None):
         return integration_oauth.IntegrationOAuthClient(
             transport_kind,
             transport=server.transport,
-            provider_account_ref=provider_account_ref,
         )
 
     monkeypatch.setattr(integration_oauth, "build_oauth_client", _build)
@@ -793,104 +770,3 @@ async def test_state_rows_are_bound_per_mint(
     # uuid sanity: the grant id is a real UUID.
     (grant,) = await _grants(db_session)
     assert isinstance(grant.id, uuid.UUID)
-
-
-# ---------------------------------------------------------------------------
-# Shopify transport: per-shop authorize URL, callback HMAC, three-way shop
-# match, offline (non-refreshable) token grant (commerce suite WS-B task 2).
-# ---------------------------------------------------------------------------
-
-
-def _shopify_signed_callback_params(**params: str) -> dict[str, str]:
-    """Sign callback params exactly as Shopify would (HMAC-SHA256 hex)."""
-    canonical = "&".join(f"{key}={value}" for key, value in sorted(params.items()))
-    signature = hmac.new(
-        _SHOPIFY_CLIENT_SECRET.encode("utf-8"),
-        canonical.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    return {**params, "hmac": signature}
-
-
-async def _shopify_callback(
-    client: httpx.AsyncClient, state: str, *, shop: str = _SHOP, tamper: str = ""
-) -> httpx.Response:
-    params = _shopify_signed_callback_params(
-        code="fake-auth-code", shop=shop, state=state, timestamp="1700000000"
-    )
-    if tamper:
-        params[tamper] = "tampered" if tamper != "hmac" else "0" * 64
-    return await client.get(f"{_BASE}/oauth/shopify/callback", params=params)
-
-
-@pytest.mark.asyncio
-async def test_shopify_connect_happy_path(
-    client: httpx.AsyncClient,
-    db_session,
-    _oauth_credentials: None,
-    _fake_oauth: _FakeOAuthServer,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    await _register(client, "int-shopify@example.com")
-    # A bare shop name canonicalizes onto the per-shop authorize endpoint.
-    start = await client.get(
-        f"{_BASE}/oauth/shopify/start", params={"shop": " Volt-City "}
-    )
-    assert start.status_code == 302
-    location = start.headers["location"]
-    assert location.startswith(f"https://{_SHOP}/admin/oauth/authorize?")
-    query = parse_qs(urlsplit(location).query)
-    assert query["client_id"] == [_SHOPIFY_CLIENT_ID]
-    assert query["redirect_uri"] == [_callback_uri("shopify")]
-    # Comma-joined scopes; NO response_type/access_type/prompt extras.
-    assert query["scope"] == ["read_products,read_orders"]
-    assert "response_type" not in query
-    assert "access_type" not in query
-    assert "prompt" not in query
-    assert _SHOPIFY_CLIENT_SECRET not in location
-    state = query["state"][0]
-
-    # The state row persists the per-shop target (and the JWT signs it).
-    state_row = (await db_session.execute(select(IntegrationOAuthState))).scalar_one()
-    assert state_row.provider == "shopify"
-    assert state_row.provider_account_ref == _SHOP
-    assert state_row.consumed_at is None
-
-    with caplog.at_level(logging.DEBUG):
-        callback = await _shopify_callback(client, state)
-    assert callback.status_code == 302
-    assert callback.headers["location"] == _landing("connected=shopify")
-
-    # The offline token lands Fernet-encrypted on a shopify_oauth grant with
-    # NO expiry (non-refreshable transport) and comma-split scopes.
-    (grant,) = await _grants(db_session)
-    assert grant.transport == "shopify_oauth"
-    assert grant.status == "connected"
-    assert decrypt_secret(grant.access_token_encrypted) == "shpat_fake-offline-token"
-    assert grant.token_expires_at is None
-    assert set(grant.granted_scopes) == {"read_products", "read_orders"}
-
-    # One shopify connection bound to the canonical shop host.
-    (connection,) = await _connections(db_session)
-    assert connection.provider == "shopify"
-    assert connection.account_ref == _SHOP
-    assert connection.grant_id == grant.id
-
-    # The exchange form was EXACTLY client_id/client_secret/code, sent to
-    # the per-shop token endpoint — no grant_type, no redirect_uri.
-    (token_call,) = _fake_oauth.shopify_token_calls()
-    assert str(token_call.url) == f"https://{_SHOP}/admin/oauth/access_token"
-    form = parse_qs(token_call.content.decode("utf-8"))
-    assert set(form) == {"client_id", "client_secret", "code"}
-
-    # State consumed + connect event; no token/secret in any log or body.
-    await db_session.refresh(state_row)
-    assert state_row.consumed_at is not None
-    events = list((await db_session.execute(select(IntegrationEvent))).scalars())
-    assert [e.event_type for e in events] == ["integration.connected"]
-    assert events[0].payload["providers"] == ["shopify"]
-    assert _SHOP not in str(events[0].payload.get("connection_ids"))
-    forbidden = ["shpat_fake-offline-token", _SHOPIFY_CLIENT_SECRET]
-    blob = caplog.text + start.text + callback.text + json.dumps(events[0].payload)
-    for value in forbidden:
-        assert value not in blob

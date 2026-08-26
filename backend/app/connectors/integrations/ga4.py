@@ -236,11 +236,9 @@ def _report_currency_code(report: dict) -> str | None:
     """The property's ISO currency from ``metadata.currencyCode``.
 
     A GA4 property is single-currency and the Data API reports that code
-    on every ``runReport`` response — the ONLY currency source for the A1
-    attribution slice (the Shopify ``shop.currencyCode`` cannot serve A1:
-    A1 ships before Shopify). Normalized (strip + upper) and accepted only
-    as exactly three ASCII letters; anything else degrades to ``None``
-    (never guessed).
+    on every ``runReport`` response — the only currency source for the
+    attribution slice. Normalized (strip + upper) and accepted only as exactly
+    three ASCII letters; anything else degrades to ``None`` (never guessed).
     """
     metadata = report.get("metadata")
     if not isinstance(metadata, dict):

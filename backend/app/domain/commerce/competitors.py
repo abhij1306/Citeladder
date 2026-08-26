@@ -20,6 +20,7 @@ from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.resolver import SystemDnsResolver
 from app.core.config.commerce_catalog import (
     COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS,
+    COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT,
     COMMERCE_COMPETITOR_RESULT_LIMIT,
     COMMERCE_SECOND_HAND_TOKENS,
 )
@@ -47,24 +48,40 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-async def _target_name(
+async def _target_names(
     session: AsyncSession,
     *,
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
-    target: CommerceTarget,
-) -> str:
-    model = CommerceCategory if target.kind == "category" else CommerceProduct
-    row = await session.scalar(
-        select(model).where(
-            model.id == target.id,
-            model.workspace_id == workspace_id,
-            model.project_id == project_id,
+    targets: list[CommerceTarget],
+) -> dict[tuple[str, uuid.UUID], str]:
+    names: dict[tuple[str, uuid.UUID], str] = {}
+    category_ids = {target.id for target in targets if target.kind == "category"}
+    product_ids = {target.id for target in targets if target.kind == "product"}
+    if category_ids:
+        categories = await session.scalars(
+            select(CommerceCategory).where(
+                CommerceCategory.id.in_(category_ids),
+                CommerceCategory.workspace_id == workspace_id,
+                CommerceCategory.project_id == project_id,
+            )
         )
-    )
-    if row is None:
-        raise CommerceNotFoundError(f"Commerce {target.kind} not found")
-    return str(row.name if isinstance(row, (CommerceCategory, CommerceProduct)) else "")
+        for category in categories:
+            names[("category", category.id)] = str(category.name)
+    if product_ids:
+        products = await session.scalars(
+            select(CommerceProduct).where(
+                CommerceProduct.id.in_(product_ids),
+                CommerceProduct.workspace_id == workspace_id,
+                CommerceProduct.project_id == project_id,
+            )
+        )
+        for product in products:
+            names[("product", product.id)] = str(product.name)
+    for target in targets:
+        if (target.kind, target.id) not in names:
+            raise CommerceNotFoundError(f"Commerce {target.kind} not found")
+    return names
 
 
 async def enqueue_discoveries(
@@ -77,18 +94,20 @@ async def enqueue_discoveries(
     project = await require_project(
         session, workspace_id=workspace_id, project_id=project_id
     )
+    names = await _target_names(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        targets=targets,
+    )
     task_ids: list[uuid.UUID] = []
+    run_id = uuid.uuid4()
     locale = "-".join(
         value for value in (project.language_code, project.country_code) if value
     )
     for target in targets:
-        name = await _target_name(
-            session,
-            workspace_id=workspace_id,
-            project_id=project_id,
-            target=target,
-        )
-        key = f"commerce:competitors:{target.kind}:{target.id}"
+        name = names[(target.kind, target.id)]
+        key = f"commerce:competitors:{run_id}:{target.kind}:{target.id}"
         task_id = await session.scalar(
             insert(AnalyticsTask)
             .values(
@@ -100,6 +119,7 @@ async def enqueue_discoveries(
                     "target": target.model_dump(mode="json"),
                     "target_name": name,
                     "locale": locale,
+                    "run_id": str(run_id),
                 },
                 idempotency_key=key,
                 status=TASK_STATUS_QUEUED,
@@ -164,7 +184,9 @@ async def decide_candidate(
 
 
 def _host(value: str) -> str:
-    return (urlsplit(value).hostname or "").casefold().removeprefix("www.")
+    normalized = value.strip()
+    parsed = urlsplit(normalized if "://" in normalized else f"//{normalized}")
+    return (parsed.hostname or "").casefold().removeprefix("www.")
 
 
 def _owned(host: str, owned_hosts: set[str]) -> bool:
@@ -172,34 +194,48 @@ def _owned(host: str, owned_hosts: set[str]) -> bool:
 
 
 async def _owned_hosts(session: AsyncSession, *, project: Project) -> set[str]:
-    values = set(
-        await session.scalars(
+    values = {
+        _host(value)
+        for value in await session.scalars(
             select(OwnedDomain.domain).where(OwnedDomain.project_id == project.id)
         )
-    )
+    }
     values.add(_host(project.website_url))
     return {value for value in values if value}
+
+
+def _discovery_query(target: CommerceTarget, name: str) -> str:
+    if target.kind == "category":
+        return f"leading {name} brands and representative products"
+    return f"products similar to {name}"
 
 
 def _precheck(
     item: dict[str, Any], *, owned_hosts: set[str]
 ) -> tuple[str, str, str] | None:
+    checked, _ = _precheck_result(item, owned_hosts=owned_hosts)
+    return checked
+
+
+def _precheck_result(
+    item: dict[str, Any], *, owned_hosts: set[str]
+) -> tuple[tuple[str, str, str] | None, str]:
     raw_url = str(item.get("url") or "").strip()
     title = str(item.get("title") or "").strip()
     if not raw_url or not title:
-        return None
+        return None, "excluded_missing_identity"
     try:
         canonical = canonical_identity(raw_url)[0]
     except (TypeError, ValueError):
-        return None
+        return None, "excluded_invalid_url"
     lowered = f"{canonical} {title}".casefold()
     if _owned(_host(canonical), owned_hosts):
-        return None
+        return None, "excluded_owned_domain"
     if any(token in lowered for token in COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS):
-        return None
+        return None, "excluded_editorial"
     if any(token in lowered for token in COMMERCE_SECOND_HAND_TOKENS):
-        return None
-    return canonical, title, str(item.get("content") or "")[:1000]
+        return None, "excluded_incompatible"
+    return (canonical, title, str(item.get("content") or "")[:1000]), "eligible"
 
 
 async def _verify_url(url: str) -> bool:
@@ -219,7 +255,7 @@ async def run_competitor_discovery(session_factory, task: AnalyticsTask) -> None
         raise ValueError("Commerce discovery task has no project")
     payload = dict(task.payload or {})
     target = CommerceTarget.model_validate(payload.get("target"))
-    query = f"alternatives to {payload.get('target_name') or ''} product"
+    query = _discovery_query(target, str(payload.get("target_name") or ""))
     locale = str(payload.get("locale") or "")
     status, error_code, results, should_retry = await _provider_results(
         query, locale=locale
@@ -274,6 +310,12 @@ async def _persist_discovery(
         )
         or 0
     ) + 1
+    result_payload: list[dict[str, Any]] = []
+    survivors: list[tuple[str, str, str]] = []
+    if status == "succeeded":
+        result_payload, survivors = await _validated_results(
+            results, owned_hosts=await _owned_hosts(session, project=project)
+        )
     attempt = CommerceCompetitorAttempt(
         workspace_id=task.workspace_id,
         project_id=task.project_id,
@@ -284,35 +326,48 @@ async def _persist_discovery(
         query=query,
         locale=locale,
         status=status,
-        result_payload=results,
+        result_payload=result_payload,
         error_code=error_code,
     )
     session.add(attempt)
     await session.flush()
-    if status == "succeeded":
-        survivors = await _validated_survivors(
-            results, owned_hosts=await _owned_hosts(session, project=project)
-        )
+    if survivors:
         await _add_candidates(
             session, task=task, target=target, attempt=attempt, rows=survivors
         )
     await session.commit()
 
 
-async def _validated_survivors(
+async def _validated_results(
     results: list[dict[str, Any]], *, owned_hosts: set[str]
-) -> list[tuple[str, str, str]]:
+) -> tuple[list[dict[str, Any]], list[tuple[str, str, str]]]:
+    outcomes: list[dict[str, Any]] = []
     survivors: list[tuple[str, str, str]] = []
-    for item in results:
-        checked = _precheck(item, owned_hosts=owned_hosts)
+    for item in results[:COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT]:
+        checked, outcome = _precheck_result(item, owned_hosts=owned_hosts)
         duplicate = checked is not None and any(
             checked[0] == row[0] for row in survivors
         )
-        if checked is not None and not duplicate and await _verify_url(checked[0]):
+        if duplicate:
+            outcome = "excluded_duplicate"
+        elif checked is not None and len(survivors) >= COMMERCE_COMPETITOR_RESULT_LIMIT:
+            outcome = "excluded_limit"
+        elif checked is not None and not await _verify_url(checked[0]):
+            outcome = "excluded_unavailable"
+        elif checked is not None:
+            outcome = "accepted"
             survivors.append(checked)
-        if len(survivors) >= COMMERCE_COMPETITOR_RESULT_LIMIT:
-            break
-    return survivors
+        outcomes.append(_result_outcome(item, outcome=outcome))
+    return outcomes, survivors
+
+
+def _result_outcome(item: dict[str, Any], *, outcome: str) -> dict[str, Any]:
+    return {
+        "url": str(item.get("url") or "")[:2048],
+        "title": str(item.get("title") or "")[:512],
+        "content": str(item.get("content") or "")[:1000],
+        "validation_outcome": outcome,
+    }
 
 
 async def _add_candidates(
@@ -324,24 +379,25 @@ async def _add_candidates(
     rows: list[tuple[str, str, str]],
 ) -> None:
     for url, title, content in rows:
-        existing = await session.scalar(
-            select(CommerceCompetitorCandidate.id).where(
-                CommerceCompetitorCandidate.project_id == task.project_id,
-                CommerceCompetitorCandidate.target_kind == target.kind,
-                CommerceCompetitorCandidate.target_id == target.id,
-                CommerceCompetitorCandidate.canonical_url == url,
+        await session.execute(
+            insert(CommerceCompetitorCandidate)
+            .values(
+                id=uuid.uuid4(),
+                workspace_id=task.workspace_id,
+                project_id=task.project_id,
+                attempt_id=attempt.id,
+                target_kind=target.kind,
+                target_id=target.id,
+                canonical_url=url,
+                product_name=title,
+                evidence={"search_excerpt": content},
+            )
+            .on_conflict_do_nothing(
+                index_elements=[
+                    CommerceCompetitorCandidate.project_id,
+                    CommerceCompetitorCandidate.target_kind,
+                    CommerceCompetitorCandidate.target_id,
+                    CommerceCompetitorCandidate.canonical_url,
+                ]
             )
         )
-        if existing is None:
-            session.add(
-                CommerceCompetitorCandidate(
-                    workspace_id=task.workspace_id,
-                    project_id=task.project_id,
-                    attempt_id=attempt.id,
-                    target_kind=target.kind,
-                    target_id=target.id,
-                    canonical_url=url,
-                    product_name=title,
-                    evidence={"search_excerpt": content},
-                )
-            )

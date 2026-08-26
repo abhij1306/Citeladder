@@ -217,6 +217,11 @@ From the repository root, reset and recreate the database named by
 uv run --project backend python reset-db.py
 ```
 
+The reset runs without an extra token only when `APP_ENV` is a development
+value and `DATABASE_URL` targets `localhost`, `127.0.0.1`, or `::1`. A remote
+host is refused even under `APP_ENV=development`; the exceptional case requires
+the explicit `RESET_CONFIRM_DESTRUCTIVE=drop-and-recreate` token.
+
 ## Migrations (single greenfield baseline)
 
 CiteLadder is greenfield and keeps one complete `0001_initial` revision. Fold

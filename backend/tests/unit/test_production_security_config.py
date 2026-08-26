@@ -16,7 +16,6 @@ def _production_settings(**updates: object) -> Settings:
         "jwt_secret_key": _VALID + "jwt",
         "encryption_key": _VALID + "enc",
         "referral_hash_salt": _VALID + "ref",
-        "order_hash_salt": _VALID + "order",
         "database_url": (
             f"postgresql+asyncpg://citeladder:{_VALID}db@database.example.com/citeladder"
         ),

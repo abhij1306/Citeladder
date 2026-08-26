@@ -125,29 +125,6 @@ class Settings(BaseSettings):
             "integration_microsoft_client_secret",
         ),
     )
-    integration_shopify_client_id: str = Field(
-        default="",
-        validation_alias=AliasChoices(
-            "INTEGRATION_SHOPIFY_CLIENT_ID", "integration_shopify_client_id"
-        ),
-    )
-    integration_shopify_client_secret: str = Field(
-        default="",
-        validation_alias=AliasChoices(
-            "INTEGRATION_SHOPIFY_CLIENT_SECRET",
-            "integration_shopify_client_secret",
-        ),
-    )
-    # HMAC key for the opaque ``order_ref_hash`` stamped on sanitized order
-    # facts (commerce suite, invariant 6 — the raw Shopify order id is PII-
-    # adjacent provider data and never persists). Env-injected deployment
-    # secret — resolved only inside the order sanitization pass, never
-    # logged and never placed in a DTO.
-    order_hash_salt: str = Field(
-        default="replace-with-64-byte-random-secret",
-        validation_alias=AliasChoices("ORDER_HASH_SALT", "order_hash_salt"),
-    )
-
     # --- Database ---
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/citeladder",
@@ -298,7 +275,6 @@ _SECRET_FIELDS = (
     "jwt_secret_key",
     "encryption_key",
     "referral_hash_salt",
-    "order_hash_salt",
 )
 
 

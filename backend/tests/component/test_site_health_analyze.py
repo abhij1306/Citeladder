@@ -500,7 +500,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
     assert (ANALYZER_VERSION, SCORING_VERSION, CLASSIFIER_VERSION) == (
         "sh-analyzer-5",
         "sh-scoring-2",
-        "sh-classifier-4",
+        "sh-classifier-5",
     )
 
     seed, _site_url_id, _task_id = await _seed_analyze_ready(
@@ -520,7 +520,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         ).scalar_one()
         # The /blog/ path pattern classified the page as an article.
         assert analysis.page_kind == "article"
-        assert analysis.classifier_version == "sh-classifier-4"
+        assert analysis.classifier_version == "sh-classifier-5"
         assert analysis.analyzer_version == "sh-analyzer-5"
         assert analysis.scoring_version == "sh-scoring-2"
 

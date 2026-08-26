@@ -16,7 +16,6 @@ from typing import Protocol
 from app.connectors.integrations.bing import BingApiError
 from app.connectors.integrations.ga4 import Ga4ApiError
 from app.connectors.integrations.gsc import GscApiError
-from app.connectors.integrations.shopify import ShopifyApiError
 from app.core.config.integrations_contracts import (
     ERROR_PROVIDER_API,
 )
@@ -84,7 +83,7 @@ class DataClient(Protocol):
     ) -> DataClientPage: ...
 
 
-PROVIDER_API_ERRORS = (GscApiError, Ga4ApiError, BingApiError, ShopifyApiError)
+PROVIDER_API_ERRORS = (GscApiError, Ga4ApiError, BingApiError)
 
 
 @dataclass(frozen=True)

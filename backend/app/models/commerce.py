@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.config.commerce_catalog import (
+    COMMERCE_CATEGORY_EDIT_VERSION,
     COMMERCE_COMPETITOR_PROVIDER_VERSION,
     COMMERCE_COMPETITOR_VALIDATOR_VERSION,
     COMMERCE_EDIT_VERSION,
@@ -66,6 +67,7 @@ class CommerceCategory(Base):
     role: Mapped[str] = mapped_column(String(16), default="unknown")
     canonical_url: Mapped[str] = mapped_column(Text, default="")
     editable: Mapped[bool] = mapped_column(Boolean, default=True)
+    field_sources: Mapped[dict] = mapped_column(JSONB, default=dict)
     source_analysis_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey("site_page_analyses.id", ondelete="SET NULL"),
@@ -79,6 +81,36 @@ class CommerceCategory(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class CommerceCategoryObservation(Base):
+    """Append-only explicit correction evidence for a category projection."""
+
+    __tablename__ = "commerce_category_observations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("workspaces.id", ondelete="CASCADE"),
+        index=True,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("commerce_categories.id", ondelete="CASCADE"),
+        index=True,
+    )
+    observed_fields: Mapped[dict] = mapped_column(JSONB, default=dict)
+    edit_version: Mapped[str] = mapped_column(
+        String(64), default=COMMERCE_CATEGORY_EDIT_VERSION
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
     )
 
 
@@ -110,9 +142,9 @@ class CommerceProduct(Base):
     brand: Mapped[str] = mapped_column(String(255), default="")
     price: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), default="")
-    sku: Mapped[str] = mapped_column(String(255), default="")
-    gtin: Mapped[str] = mapped_column(String(64), default="")
-    mpn: Mapped[str] = mapped_column(String(255), default="")
+    sku: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    gtin: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mpn: Mapped[str | None] = mapped_column(String(255), nullable=True)
     observed_external_id: Mapped[str] = mapped_column(String(255), default="")
     variants: Mapped[list] = mapped_column(JSONB, default=list)
     attributes: Mapped[dict] = mapped_column(JSONB, default=dict)

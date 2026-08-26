@@ -165,7 +165,7 @@ const PANELS: Record<SolutionScene, { label: string; body: React.ReactNode }> = 
         </div>
         <div className="border-border-subtle mt-5 flex flex-wrap gap-3 border-t pt-5">
           <Badge variant="status" value="info">
-            Shopify Catalog Synced
+            Catalog Evidence Synced
           </Badge>
           <Badge variant="status" value="success">
             64% SKU Share of Voice

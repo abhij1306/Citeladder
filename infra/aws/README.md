@@ -79,7 +79,6 @@ Required secret values:
 - `JWT_SECRET_KEY`
 - `ENCRYPTION_KEY`
 - `REFERRAL_HASH_SALT`
-- `ORDER_HASH_SALT`
 
 Add optional provider, integration, or billing secret ARNs only when those features
 are configured in the target environment. The deployment injects the same backend

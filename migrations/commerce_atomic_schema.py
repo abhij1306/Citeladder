@@ -50,9 +50,9 @@ def upgrade() -> None:
     sa.Column('brand', sa.String(length=255), nullable=False),
     sa.Column('price', sa.Numeric(precision=14, scale=2), nullable=True),
     sa.Column('currency', sa.String(length=3), nullable=False),
-    sa.Column('sku', sa.String(length=255), nullable=False),
-    sa.Column('gtin', sa.String(length=64), nullable=False),
-    sa.Column('mpn', sa.String(length=255), nullable=False),
+    sa.Column('sku', sa.String(length=255), nullable=True),
+    sa.Column('gtin', sa.String(length=64), nullable=True),
+    sa.Column('mpn', sa.String(length=255), nullable=True),
     sa.Column('observed_external_id', sa.String(length=255), nullable=False),
     sa.Column('variants', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('attributes', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
@@ -219,6 +219,7 @@ def upgrade() -> None:
     sa.Column('role', sa.String(length=16), nullable=False),
     sa.Column('canonical_url', sa.Text(), nullable=False),
     sa.Column('editable', sa.Boolean(), nullable=False),
+    sa.Column('field_sources', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('source_analysis_id', sa.UUID(), nullable=True),
     sa.Column('projector_version', sa.String(length=64), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
@@ -231,6 +232,22 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_commerce_categories_project_id'), 'commerce_categories', ['project_id'], unique=False)
     op.create_index(op.f('ix_commerce_categories_workspace_id'), 'commerce_categories', ['workspace_id'], unique=False)
+    op.create_table('commerce_category_observations',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('workspace_id', sa.UUID(), nullable=False),
+    sa.Column('project_id', sa.UUID(), nullable=False),
+    sa.Column('category_id', sa.UUID(), nullable=False),
+    sa.Column('observed_fields', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+    sa.Column('edit_version', sa.String(length=64), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['category_id'], ['commerce_categories.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['workspace_id'], ['workspaces.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_commerce_category_observations_category_id'), 'commerce_category_observations', ['category_id'], unique=False)
+    op.create_index(op.f('ix_commerce_category_observations_project_id'), 'commerce_category_observations', ['project_id'], unique=False)
+    op.create_index(op.f('ix_commerce_category_observations_workspace_id'), 'commerce_category_observations', ['workspace_id'], unique=False)
     op.create_table('commerce_product_observations',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('workspace_id', sa.UUID(), nullable=False),
@@ -363,6 +380,32 @@ def downgrade() -> None:
     op.create_index(op.f('ix_product_response_analyses_workspace_id'), 'product_response_analyses', ['workspace_id'], unique=False)
     op.create_index(op.f('ix_product_response_analyses_task_id'), 'product_response_analyses', ['task_id'], unique=False)
     op.create_index(op.f('ix_product_response_analyses_audit_id'), 'product_response_analyses', ['audit_id'], unique=False)
+    op.create_table('products',
+    sa.Column('id', sa.UUID(), autoincrement=False, nullable=False),
+    sa.Column('project_id', sa.UUID(), autoincrement=False, nullable=False),
+    sa.Column('sku', sa.VARCHAR(length=128), autoincrement=False, nullable=False),
+    sa.Column('name', sa.VARCHAR(length=255), autoincrement=False, nullable=False),
+    sa.Column('aliases', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=False),
+    sa.Column('variants', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=False),
+    sa.Column('price', sa.NUMERIC(precision=12, scale=2), autoincrement=False, nullable=True),
+    sa.Column('currency', sa.VARCHAR(length=3), autoincrement=False, nullable=False),
+    sa.Column('url', sa.TEXT(), autoincrement=False, nullable=False),
+    sa.Column('attributes', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=False),
+    sa.Column('origin', sa.VARCHAR(length=32), autoincrement=False, nullable=False),
+    sa.Column('connection_id', sa.UUID(), autoincrement=False, nullable=True),
+    sa.Column('external_item_ref', sa.VARCHAR(length=255), autoincrement=False, nullable=False),
+    sa.Column('last_seen_sync_run_id', sa.UUID(), autoincrement=False, nullable=True),
+    sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=False),
+    sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=False),
+    sa.ForeignKeyConstraint(['connection_id'], ['integration_connections.id'], name=op.f('products_connection_id_fkey'), ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['last_seen_sync_run_id'], ['integration_sync_runs.id'], name=op.f('products_last_seen_sync_run_id_fkey'), ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], name=op.f('products_project_id_fkey'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('products_pkey')),
+    sa.UniqueConstraint('project_id', 'sku', name=op.f('uq_product_project_sku'), postgresql_include=[], postgresql_nulls_not_distinct=False)
+    )
+    op.create_index(op.f('ix_products_project_id'), 'products', ['project_id'], unique=False)
+    op.create_index(op.f('ix_products_last_seen_sync_run_id'), 'products', ['last_seen_sync_run_id'], unique=False)
+    op.create_index(op.f('ix_products_connection_id'), 'products', ['connection_id'], unique=False)
     op.create_table('feed_issues',
     sa.Column('id', sa.UUID(), autoincrement=False, nullable=False),
     sa.Column('workspace_id', sa.UUID(), autoincrement=False, nullable=False),
@@ -500,32 +543,6 @@ def downgrade() -> None:
     op.create_index(op.f('ix_attribution_links_workspace_id'), 'attribution_links', ['workspace_id'], unique=False)
     op.create_index(op.f('ix_attribution_links_project_id'), 'attribution_links', ['project_id'], unique=False)
     op.create_index(op.f('ix_attribution_links_order_fact_id'), 'attribution_links', ['order_fact_id'], unique=False)
-    op.create_table('products',
-    sa.Column('id', sa.UUID(), autoincrement=False, nullable=False),
-    sa.Column('project_id', sa.UUID(), autoincrement=False, nullable=False),
-    sa.Column('sku', sa.VARCHAR(length=128), autoincrement=False, nullable=False),
-    sa.Column('name', sa.VARCHAR(length=255), autoincrement=False, nullable=False),
-    sa.Column('aliases', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=False),
-    sa.Column('variants', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=False),
-    sa.Column('price', sa.NUMERIC(precision=12, scale=2), autoincrement=False, nullable=True),
-    sa.Column('currency', sa.VARCHAR(length=3), autoincrement=False, nullable=False),
-    sa.Column('url', sa.TEXT(), autoincrement=False, nullable=False),
-    sa.Column('attributes', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=False),
-    sa.Column('origin', sa.VARCHAR(length=32), autoincrement=False, nullable=False),
-    sa.Column('connection_id', sa.UUID(), autoincrement=False, nullable=True),
-    sa.Column('external_item_ref', sa.VARCHAR(length=255), autoincrement=False, nullable=False),
-    sa.Column('last_seen_sync_run_id', sa.UUID(), autoincrement=False, nullable=True),
-    sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=False),
-    sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=False),
-    sa.ForeignKeyConstraint(['connection_id'], ['integration_connections.id'], name=op.f('products_connection_id_fkey'), ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['last_seen_sync_run_id'], ['integration_sync_runs.id'], name=op.f('products_last_seen_sync_run_id_fkey'), ondelete='SET NULL'),
-    sa.ForeignKeyConstraint(['project_id'], ['projects.id'], name=op.f('products_project_id_fkey'), ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id', name=op.f('products_pkey')),
-    sa.UniqueConstraint('project_id', 'sku', name=op.f('uq_product_project_sku'), postgresql_include=[], postgresql_nulls_not_distinct=False)
-    )
-    op.create_index(op.f('ix_products_project_id'), 'products', ['project_id'], unique=False)
-    op.create_index(op.f('ix_products_last_seen_sync_run_id'), 'products', ['last_seen_sync_run_id'], unique=False)
-    op.create_index(op.f('ix_products_connection_id'), 'products', ['connection_id'], unique=False)
     op.create_table('attribution_snapshots',
     sa.Column('id', sa.UUID(), autoincrement=False, nullable=False),
     sa.Column('workspace_id', sa.UUID(), autoincrement=False, nullable=False),
@@ -589,6 +606,10 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_commerce_product_observations_project_id'), table_name='commerce_product_observations')
     op.drop_index(op.f('ix_commerce_product_observations_product_id'), table_name='commerce_product_observations')
     op.drop_table('commerce_product_observations')
+    op.drop_index(op.f('ix_commerce_category_observations_workspace_id'), table_name='commerce_category_observations')
+    op.drop_index(op.f('ix_commerce_category_observations_project_id'), table_name='commerce_category_observations')
+    op.drop_index(op.f('ix_commerce_category_observations_category_id'), table_name='commerce_category_observations')
+    op.drop_table('commerce_category_observations')
     op.drop_index(op.f('ix_commerce_categories_workspace_id'), table_name='commerce_categories')
     op.drop_index(op.f('ix_commerce_categories_project_id'), table_name='commerce_categories')
     op.drop_table('commerce_categories')

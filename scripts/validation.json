@@ -5,6 +5,10 @@
   "frontendExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs"],
   "rules": [
     {
+      "sources": ["reset-db.py"],
+      "backendTests": ["tests/unit/test_reset_db.py"]
+    },
+    {
       "sources": ["scripts/check.ps1", "scripts/test.ps1", "scripts/validation.json"],
       "backendTests": ["tests/unit/test_static_analysis_tools.py", "tests/unit/test_check_complexity.py"],
       "frontendTests": ["scripts/check-frontend-complexity.test.ts", "scripts/check-jscpd.test.ts"]

@@ -1,8 +1,51 @@
 # Commerce Suite atomic rebuild
 
-> **Status:** implemented
-> **Authority:** historical delivery sequence. [`../commerce-intelligence.md`](../commerce-intelligence.md)
-> is the shipped-runtime reference.
+> **Status:** implementation in progress; release and manual gates remain open
+> **Authority:** active delivery sequence. [`../commerce-intelligence.md`](../commerce-intelligence.md)
+> describes the currently present runtime, not completion of the four PR gates.
+
+The four route tabs currently exist, but their presence is not a completion
+claim. PR 1's automated and manual catalog gates must pass before PR 1 is
+finished; PR 2 through PR 4 retain their own credentialed/manual gates and any
+remaining UX requirements below.
+
+## Pending work after implementation review
+
+The current implementation closes the supplied 100-product reference-corpus
+gap, category prompt leakage, refreshable discovery-run identity, locale-aware
+dollar interpretation, and the buyer-prompt loading-state defect. The following
+review findings remain valid and are release work, not completion claims:
+
+1. **Hybrid recommendation resolution:** split unresolved prose into bounded
+   recommendation spans and call a mocked structured-model resolver only for
+   spans deterministic matching cannot resolve. Malformed/unavailable model
+   output must preserve unresolved observations.
+2. **Recommendation identity separation:** do not create an AI-observed
+   competitor from the first URL in a span. Resolve the recommended product
+   independently; persist merchant and Citation associations separately so a
+   retailer, Reddit post, or article cannot become the competitor identity.
+3. **Frozen-audit interpretation:** match observations against the catalog and
+   approved-competitor evidence frozen in `commerce_measurement`, not current
+   mutable Commerce rows. Editing the live catalog after launch must not change
+   interpretation of an older audit.
+4. **Target-bound AI Shelf:** require an explicit product/category selection and
+   bind the four headline metrics, evidence, and history to that target. Never
+   display `snapshots[0]` without identifying its target.
+5. **Async discovery lifecycle:** expose task status and poll or stream until
+   competitor-discovery tasks reach a terminal state before refreshing
+   candidates. A successful enqueue must not look like an empty discovery.
+6. **Competitor query and PDP validation:** enrich product queries with product
+   type, attributes, and price band; retain category-specific queries; and
+   verify candidate evidence is a competing PDP rather than merely safe HTML.
+7. **Visible audit launch:** add the provider, repetition, estimate, approval,
+   and launch step that connects approved Commerce prompts to the existing
+   audit runner from the Buyer Prompts workspace.
+
+Still-open manual gates are the disposable-database migration/crawl/CSV and
+100-product reference-eval run, one bounded credentialed Tavily contract check
+with its exact call count, and credentialed audit/schedule validation performed
+by the user. Automated tests continue to mock Tavily, structured-model, and
+answer-provider responses.
 
 ## Outcome
 

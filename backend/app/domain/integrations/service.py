@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import secrets
 import uuid
-from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
@@ -34,7 +33,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.integrations import bing as bing_connector
 from app.connectors.integrations import oauth as integration_oauth
-from app.connectors.integrations import shopify as shopify_connector
 from app.connectors.integrations.oauth import OAuthTokenBundle
 from app.core.config.integrations_clients import (
     INTEGRATION_CLIENT_BUILDERS,
@@ -57,8 +55,6 @@ from app.core.config.integrations_transport import (
     INTEGRATION_OAUTH_SCOPES,
     INTEGRATION_PROVIDER_TRANSPORT,
     INTEGRATION_TRANSPORT_GOOGLE,
-    INTEGRATION_TRANSPORT_SHOPIFY,
-    shopify_oauth_authorize_url,
 )
 from app.core.config.oauth import oauth_settings
 from app.core.config.provider_catalog import TEST_STATUS_FAILED, TEST_STATUS_OK
@@ -82,7 +78,6 @@ from app.domain.integrations.schemas import (
 from app.domain.integrations.state import (
     consume_state,
     prepare_connect_callback,
-    validate_shopify_state_match,
 )
 from app.domain.integrations.tokens import fresh_access_token
 from app.models.integrations import (
@@ -116,17 +111,12 @@ async def start_connect(
     user_id: uuid.UUID,
     provider: str,
     redirect_uri: str,
-    provider_account_ref: str = "",
 ) -> IntegrationOAuthStart:
     """Mint + persist the OAuth state row and build the provider authorize URL.
 
     The state JWT carries the workspace/user/jti binding claims and a random
     nonce returned for the short-lived transaction cookie; the persisted row
     enables atomic one-time consumption at the callback.
-    ``provider_account_ref`` is the per-account OAuth target (Shopify: the
-    canonical shop host, validated by the caller): it is persisted on the
-    state row AND signed into the state JWT so the callback can require an
-    exact three-way match (claim, persisted value, provider-returned shop).
     """
     transport = INTEGRATION_PROVIDER_TRANSPORT[provider]
     if not integration_oauth.oauth_client_configured(transport):
@@ -137,7 +127,6 @@ async def start_connect(
         workspace_id=str(workspace_id),
         user_id=str(user_id),
         jti=jti,
-        provider_account_ref=provider_account_ref or None,
     )
     session.add(
         IntegrationOAuthState(
@@ -145,27 +134,11 @@ async def start_connect(
             workspace_id=workspace_id,
             user_id=user_id,
             provider=provider,
-            provider_account_ref=provider_account_ref,
             expires_at=_utcnow() + timedelta(seconds=oauth_settings.state_ttl_seconds),
         )
     )
     await session.commit()
     client_id, _client_secret = integration_oauth.oauth_client_credentials(transport)
-    if transport == INTEGRATION_TRANSPORT_SHOPIFY:
-        # Shopify's per-shop authorize endpoint: no ``response_type`` and no
-        # offline/consent extras — the custom-app grant IS the offline token.
-        # Scopes join with COMMAS (Shopify's form), never spaces.
-        params = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "scope": ",".join(INTEGRATION_OAUTH_SCOPES[transport]),
-            "state": state_token,
-        }
-        authorize_url = shopify_oauth_authorize_url(provider_account_ref)
-        return IntegrationOAuthStart(
-            authorize_url=f"{authorize_url}?{urlencode(params)}",
-            session_nonce=session_nonce,
-        )
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
@@ -230,16 +203,11 @@ async def _attach_connections(
     workspace_id: uuid.UUID,
     grant: IntegrationOAuthGrant,
     transport: str,
-    provider_account_ref: str = "",
 ) -> list[IntegrationConnection]:
     """Attach the transport's logical connections to the grant (idempotent).
 
     One Google consent yields exactly one ``gsc`` + one ``ga4`` row on the
-    shared grant; Bing yields one ``bing`` row on a Microsoft grant; a
-    Shopify consent yields one ``shopify`` row whose ``account_ref`` is the
-    canonical shop host the token was issued for. ``provider_account_ref``
-    is empty for the single-tenant transports, which never set an
-    account_ref here.
+    shared grant; Bing yields one ``bing`` row on a Microsoft grant.
     """
     attached: list[IntegrationConnection] = []
     for provider in _providers_for_transport(transport):
@@ -258,11 +226,6 @@ async def _attach_connections(
             )
             session.add(connection)
             await session.flush()
-        if provider_account_ref:
-            # Bind the connection to the exact per-account target (Shopify:
-            # the canonical shop); a re-connect to another shop re-points
-            # the single transport connection with its fresh token.
-            connection.account_ref = provider_account_ref
         attached.append(connection)
     return attached
 
@@ -270,13 +233,10 @@ async def _attach_connections(
 async def _exchange_connect_code(
     *,
     transport: str,
-    provider_account_ref: str,
     code: str,
     redirect_uri: str,
 ) -> OAuthTokenBundle:
-    client = integration_oauth.build_oauth_client(
-        transport, provider_account_ref=provider_account_ref
-    )
+    client = integration_oauth.build_oauth_client(transport)
     try:
         return await client.exchange_code(code=code, redirect_uri=redirect_uri)
     except integration_oauth.IntegrationOAuthError as exc:
@@ -289,7 +249,6 @@ async def _persist_connected_grant(
     workspace_id: uuid.UUID,
     transport: str,
     provider: str,
-    provider_account_ref: str,
     bundle: OAuthTokenBundle,
 ) -> None:
     grant = await _find_or_create_grant(
@@ -312,7 +271,6 @@ async def _persist_connected_grant(
         workspace_id=workspace_id,
         grant=grant,
         transport=transport,
-        provider_account_ref=provider_account_ref,
     )
     session.add(
         IntegrationEvent(
@@ -338,40 +296,22 @@ async def complete_connect(
     state: str,
     session_nonce: str,
     redirect_uri: str,
-    callback_params: Mapping[str, str] | None = None,
 ) -> None:
     """Verify + consume the state, exchange the code, persist the grant.
 
     The workspace comes ONLY from the verified, consumed state (never from
     client input — invariant 5). The consumption commits before the code
     exchange so no transaction is held open across the provider call.
-
-    Shopify callbacks additionally require, BEFORE the exchange: (1) the
-    callback HMAC-SHA256 verified against the full query parameter map
-    (``callback_params``); (2) an EXACT three-way shop match across the
-    signed state claim, the persisted state value, and the callback's
-    ``shop`` parameter. Both reject as state errors — nothing is
-    exchanged for an unauthenticated or mis-bound callback.
     """
-    transport, claims, signed_account_ref = prepare_connect_callback(
+    transport, claims = prepare_connect_callback(
         provider=provider,
         state=state,
         session_nonce=session_nonce,
-        callback_params=callback_params,
     )
-    workspace_id, persisted_account_ref = await consume_state(
-        session, claims=claims, provider=provider
-    )
-    if transport == INTEGRATION_TRANSPORT_SHOPIFY:
-        validate_shopify_state_match(
-            signed_account_ref=signed_account_ref,
-            persisted_account_ref=persisted_account_ref,
-            callback_params=callback_params,
-        )
+    workspace_id = await consume_state(session, claims=claims, provider=provider)
     await session.commit()
     bundle = await _exchange_connect_code(
         transport=transport,
-        provider_account_ref=persisted_account_ref,
         code=code,
         redirect_uri=redirect_uri,
     )
@@ -380,7 +320,6 @@ async def complete_connect(
         workspace_id=workspace_id,
         transport=transport,
         provider=provider,
-        provider_account_ref=persisted_account_ref,
         bundle=bundle,
     )
     await session.commit()
@@ -485,14 +424,6 @@ async def run_connection_test(
         if grant.transport == INTEGRATION_TRANSPORT_GOOGLE:
             client = integration_oauth.build_oauth_client(grant.transport)
             await client.probe_access_token(access_token=access_token)
-        elif grant.transport == INTEGRATION_TRANSPORT_SHOPIFY:
-            # The provider-specific GraphQL probe (``shop { id }``) against
-            # the connection's canonical shop — the Google probe is not
-            # reused. The grant is untouched: a probe is not a rotation.
-            shopify_client = shopify_connector.build_shopify_client()
-            await shopify_client.probe_access_token(
-                access_token=access_token, property_ref=connection.account_ref
-            )
         else:
             # Real cheap authenticated probe against the pinned Bing host
             # (I12, replacing the refresh round-trip placeholder): the
@@ -504,7 +435,6 @@ async def run_connection_test(
     except (
         integration_oauth.IntegrationOAuthError,
         bing_connector.BingApiError,
-        shopify_connector.ShopifyApiError,
     ) as exc:
         status = TEST_STATUS_FAILED
         error_code = exc.error_code
@@ -553,10 +483,8 @@ async def list_available_properties(
     not make the picker fail) and is used for exactly one read-only listing
     call — never logged or returned (invariant 6).
 
-    Only the providers whose property is DISCOVERABLE are supported: a
-    Shopify connection's property is the shop it was authorized for, which
-    the connect flow already pinned onto ``account_ref``, and Bing exposes
-    no property listing in this pass. Both raise
+    Only the providers whose property is discoverable are supported. Bing
+    exposes no property listing in this pass and raises
     ``PropertyDiscoveryUnsupportedError`` rather than returning an empty
     list, which would read as "you own nothing".
     """

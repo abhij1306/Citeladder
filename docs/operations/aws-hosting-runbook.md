@@ -245,16 +245,14 @@ impact of a future SSRF bypass.
 NAT and security groups do not make arbitrary HTTPS destinations safe. Hosted
 production must use the following integration-class catalogs. Every entry is
 TCP 443 only; HTTP, wildcard domain rules, and tenant-supplied hostnames are
-denied. The dynamic Shopify entry is instantiated as one exact, validated
-`<shop>.myshopify.com:443` host per approved connection, never as a suffix
-wildcard.
+denied.
 
 | Catalog | Exact hosts and ports |
 | ------- | --------------------- |
 | `ai-provider` | `api.openai.com:443`, `api.anthropic.com:443`, `generativelanguage.googleapis.com:443`, `api.mistral.ai:443`; an optional agent gateway is added as one reviewed exact hostname before its key is installed |
 | `identity-oauth` | `oauth2.googleapis.com:443`, `github.com:443`, `appleid.apple.com:443`; browser authorization destinations do not grant task egress |
-| `integration-oauth` | `oauth2.googleapis.com:443`, `login.microsoftonline.com:443`, and each exact validated `<shop>.myshopify.com:443` |
-| `integration-data` | `www.googleapis.com:443`, `analyticsdata.googleapis.com:443`, `analyticsadmin.googleapis.com:443`, `ssl.bing.com:443`, and each exact validated `<shop>.myshopify.com:443` |
+| `integration-oauth` | `oauth2.googleapis.com:443`, `login.microsoftonline.com:443` |
+| `integration-data` | `www.googleapis.com:443`, `analyticsdata.googleapis.com:443`, `analyticsadmin.googleapis.com:443`, `ssl.bing.com:443` |
 | `razorpay` | `api.razorpay.com:443`; checkout hosts are browser destinations and do not grant task egress |
 
 Site Health uses one SSRF-pinned `curl_cffi` acquisition transport.
@@ -591,7 +589,7 @@ Secrets Manager does not prove it is strong.
 | `DATABASE_URL` or DB username/password components                | API, workers; separate value for migrator     | Secrets Manager; verified TLS endpoint; rotate through an overlap/redeploy procedure.                                   |
 | `JWT_SECRET_KEY`                                                 | API                                           | High-entropy secret; versioned verification is needed before rotation to avoid invalidating every session unexpectedly. |
 | `ENCRYPTION_KEY`                                                 | API and workers handling BYOK/OAuth           | Restoring RDS without this key loses provider access. Do not rotate until key IDs/keyring rewrap exist.                 |
-| `REFERRAL_HASH_SALT`, `ORDER_HASH_SALT`                          | analytics/integration paths                   | Treat as long-lived pseudonymization keys; version any change.                                                          |
+| `REFERRAL_HASH_SALT`                                             | analytics paths                               | Treat as a long-lived pseudonymization key; version any change.                                                         |
 | `DEFAULT_AGENT_API_KEY`, `MISTRAL_API_KEY`                       | API/content worker as applicable              | Separate staging/production provider projects, hard spend limits, routine rotation.                                     |
 | `INTEGRATION_*_CLIENT_SECRET`                                    | API/integration worker/dispatcher as required | Separate provider apps per environment; rotate with callback and refresh tests.                                         |
 | `BILLING_RAZORPAY_KEY_SECRET`, `BILLING_RAZORPAY_WEBHOOK_SECRET` | API                                           | Live values only after billing sign-off; webhook dual-secret overlap requires code/support before rotation.             |

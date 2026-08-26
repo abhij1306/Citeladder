@@ -28,6 +28,12 @@ words product or commerce outside this list are not retirement evidence.
 - Opportunity hooks: `product_not_mentioned`,
   `cited_alternatives_without_uploaded_presence`, and
   `catalog_fields_missing` when sourced from legacy product metric snapshots.
+- Shopify integration capability: OAuth provider/transport support, per-shop
+  endpoint handling, Admin GraphQL product/order datasets and connector,
+  provider-specific mapping/finalization, secrets, infrastructure egress, and
+  the order pseudonymization salt. Commerce catalog evidence now enters through
+  Site Health discovery or explicit CSV import; Shopify synchronization can be
+  reconsidered only as a complete future integration slice.
 
 ### Frontend and public assets
 
@@ -52,14 +58,14 @@ inventory found no external caller.
 | Site Health acquisition | `sh-acquisition-2` | unchanged |
 | Site Health extractor | `sh-extractor-8` | `sh-extractor-9` |
 | Site Health analyzer | `sh-analyzer-4` | `sh-analyzer-5` |
-| Page classifier | `sh-classifier-3` | `sh-classifier-4` |
+| Page classifier | `sh-classifier-3` | `sh-classifier-5` |
 | Site Health rules | `sh-rules-4` | unchanged |
 | Site Health scoring | `sh-scoring-2` | unchanged |
 | Legacy Commerce importer | `commerce-importer-1` | retired |
 | Legacy product analyzer | `product-analysis-3` | retired |
 | Legacy product scoring | `product-scoring-v2` | retired |
-| Catalog projector | absent | `commerce-projector-1` |
-| Catalog importer/edit policy | absent | `commerce-catalog-importer-1` / `commerce-catalog-edit-1` |
+| Catalog projector | absent | `commerce-projector-3` |
+| Catalog importer/edit policy | absent | `commerce-catalog-importer-1` / `commerce-catalog-edit-2` / `commerce-category-edit-1` |
 | Competitor provider/validator | absent | `tavily-commerce-1` / `commerce-competitor-validator-1` |
 | Buyer prompt template | absent | `commerce-buyer-prompts-1` |
 | Recommendation parser/matcher | absent | `commerce-recommendation-parser-1` / `commerce-recommendation-matcher-1` |

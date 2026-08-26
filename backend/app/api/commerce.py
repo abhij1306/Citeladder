@@ -35,6 +35,8 @@ from app.domain.commerce.schemas import (
     CatalogImportRequest,
     CatalogImportResponse,
     CatalogResponse,
+    CategoryEditRequest,
+    CategoryResponse,
     CompetitorCandidateResponse,
     CompetitorDecisionRequest,
     DiscoveryRequest,
@@ -46,6 +48,7 @@ from app.domain.commerce.service import (
     CommerceConflictError,
     CommerceImportError,
     CommerceNotFoundError,
+    edit_category,
     edit_product,
     get_catalog,
     import_catalog,
@@ -101,6 +104,29 @@ async def catalog_import_endpoint(
             payload=payload,
         )
     except (CommerceNotFoundError, CommerceConflictError, CommerceImportError) as exc:
+        raise _map_error(exc) from exc
+
+
+@router.patch(
+    "/{project_id}/commerce/catalog/categories/{category_id}",
+    response_model=CategoryResponse,
+)
+async def category_edit_endpoint(
+    project_id: uuid.UUID,
+    category_id: uuid.UUID,
+    payload: CategoryEditRequest,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+) -> CategoryResponse:
+    try:
+        return await edit_category(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            category_id=category_id,
+            payload=payload,
+        )
+    except (CommerceNotFoundError, CommerceConflictError) as exc:
         raise _map_error(exc) from exc
 
 

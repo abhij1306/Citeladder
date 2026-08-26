@@ -2,11 +2,15 @@
 
 > **Current role:** persisted first-party evidence and projections
 > **Target role:** source layer for Demand Intelligence
-> **Canonical plan:** [`plans/demand-intelligence.md`](plans/demand-intelligence.md)
+> **Canonical plan:** [`plans/citeladder-aeo-product-rebuild.md`](plans/citeladder-aeo-product-rebuild.md)
 
 The existing subsystem owns OAuth connections, property mapping, queued syncs, immutable import
 artifacts, normalized metric rows, and current Traffic/Analytics snapshots. Demand Intelligence
 extends these owners; reports and agent tasks never call Google or Bing directly.
+
+The active provider set is Google Search Console, Google Analytics 4, and Bing
+Webmaster Tools. Shopify OAuth and product/order synchronization are retired;
+Commerce catalog evidence is owned by Site Health discovery and CSV import.
 
 ## Current guarantees
 

@@ -1,12 +1,18 @@
 # Commerce Intelligence
 
-Commerce is the shipped four-tab `/products` workspace: **Catalog**, **Competitors**, **Buyer Prompts**, and **AI Shelf**. It reuses Site Health acquisition and the shared audit system; it does not own a crawler, response store, prompt store, or opportunity store.
+Commerce currently exposes four `/products` tabs: **Catalog**, **Competitors**, **Buyer Prompts**, and **AI Shelf**. This document describes the present runtime; it does not mark the staged PR or credentialed manual gates complete. Commerce reuses Site Health acquisition and the shared audit system; it does not own a crawler, response store, prompt store, or opportunity store.
 
 ## Catalog
 
-Site Health extractor `sh-extractor-9`, analyzer `sh-analyzer-5`, and classifier `sh-classifier-4` emit generic category and PDP facts. The Commerce projector `commerce-projector-1` creates the persisted catalog from those analyses. A normalized canonical PDP URL is the primary product identity; GTIN, SKU, and MPN are secondary merge evidence.
+Site Health extractor `sh-extractor-9`, analyzer `sh-analyzer-5`, and classifier `sh-classifier-5` emit generic category and PDP facts. The Commerce projector `commerce-projector-3` creates the persisted catalog from those analyses. Structured Product price is preferred; when it is absent, a validated visible PDP price is retained with its evidence path. A normalized canonical PDP URL is the primary product identity; GTIN, SKU, and MPN are secondary merge evidence.
 
 CSV imports and explicit edits are append-only observations. Current product rows are read projections whose `field_sources` identify the exact observation and version controlling every field. CSV and edit authority is not silently overwritten by later crawl projection. Imports are content-hash idempotent and expose bounded, row-level outcomes.
+
+Catalog surfaces persisted Site Health crawl and Commerce projection progress,
+category hub/leaf roles and counts, product memberships, explicit product
+correction/reassignment, and category rename/role correction. Category edits
+also create append-only observations and retain field-level authority over later
+projection refreshes.
 
 ## Competitors
 
@@ -20,7 +26,7 @@ Every Commerce prompt has a typed category or product target. Structured generat
 
 Successful Commerce audit executions create append-only recommendation observations linked to the raw response artifact and any persisted Citations. Ordered lists and provider card order carry a one-based rank; prose and bullets remain unordered with a null rank. Unknown recommendations are retained as unresolved evidence.
 
-The persisted `commerce-shelf-formula-1` snapshot exposes:
+The persisted `commerce-shelf-formulas-2` snapshot exposes:
 
 - Product Visibility: successful target executions with an owned appearance divided by all successful target executions.
 - Share of Shelf: owned recognized slots divided by all recognized slots.
