@@ -7,7 +7,9 @@ strands rows: a worker killed after ``mark_running`` leaves its row at
 is the one that just died. Commerce competitor discovery showed this as a
 workspace polling "Discovery for this category is running" indefinitely.
 
-So this process sweeps every queue, owns none of them, and runs no executors.
+So this process sweeps the parentless queues, owns none of them, and runs no
+executors. (A queue whose reclaim must also reconcile an owning run is left to
+that run's own worker -- see ``SWEPT_QUEUES`` below.)
 It is deliberately the least privileged worker in the system: it only calls
 ``release_expired``, whose reclaim path is bounded, ``SKIP LOCKED`` (so it
 never contends with a live worker holding its row), and already the
@@ -40,13 +42,27 @@ logger = logging.getLogger("app.workers.queue_sweeper")
 # old behaviour (reclaimed only by its own live worker), so the cost of
 # forgetting one is a stranded row, not a crash -- hence the list is explicit
 # rather than discovered by reflection.
-SWEPT_QUEUES: tuple[PostgresQueueSpec, ...] = (
+_CANDIDATE_QUEUES: tuple[PostgresQueueSpec, ...] = (
     ANALYTICS_QUEUE_SPEC,
     AUDIT_QUEUE_SPEC,
     BRAND_DISCOVERY_QUEUE_SPEC,
     CONTENT_QUEUE_SPEC,
     INTEGRATION_QUEUE_SPEC,
     SITE_CRAWL_QUEUE_SPEC,
+)
+
+# A queue whose spec names a `parent_id_attr` is deliberately NOT swept here.
+# Reclaiming such a row at max attempts terminalizes it, and terminalizing the
+# LAST outstanding task of a run means the owning discovery or crawl has to be
+# reconciled in the same breath -- otherwise the task is `failed` while its
+# parent sits `running` forever, which is a worse state than the stranded lease
+# this process exists to clear. That reconciliation is domain logic owned by
+# `brand_discovery_worker._reap_expired` and `site_health_worker`, both of
+# which already sweep their own queue with `release_expired_detailed`. This
+# process stays the least privileged one in the system: it reclaims only the
+# queues where a reclaim needs no owner to be told.
+SWEPT_QUEUES: tuple[PostgresQueueSpec, ...] = tuple(
+    spec for spec in _CANDIDATE_QUEUES if spec.parent_id_attr is None
 )
 
 # Slower than any worker's own poll: this is the backstop for a process that

@@ -224,7 +224,7 @@ async def get_shelf(
     target = CommerceTarget(kind=target_kind, id=target_id)
     if selected_audit_id is None:
         return ShelfResponse(target=target)
-    snapshots = _selected_audit_first(
+    snapshots = _scoped_snapshots(
         await _shelf_snapshots(
             session,
             workspace_id=workspace_id,
@@ -233,6 +233,7 @@ async def get_shelf(
             target_id=target_id,
         ),
         audit_id=selected_audit_id,
+        explicit=audit_id is not None,
     )
     observations = await _shelf_observations(
         session,
@@ -253,18 +254,28 @@ async def get_shelf(
     )
 
 
-def _selected_audit_first(
-    snapshots: list[CommerceShelfSnapshot], *, audit_id: uuid.UUID
+def _scoped_snapshots(
+    snapshots: list[CommerceShelfSnapshot],
+    *,
+    audit_id: uuid.UUID,
+    explicit: bool,
 ) -> list[CommerceShelfSnapshot]:
-    """Lead with the requested audit, keeping the rest as target history.
+    """The snapshots this read may answer with, headline metrics first.
 
-    Observations are filtered to ``selected_audit_id`` while the snapshot list
-    stays the target's full history, so an explicit older ``audit_id`` request
-    read its evidence from that audit but its headline metrics -- which the
-    reader takes from the first snapshot -- from the newest one. The history
-    is a real product surface, so it is ordered rather than filtered away.
-    Stable sort: only the selected audit's snapshot moves.
+    Observations are filtered to ``selected_audit_id``, so the snapshot list
+    must not contradict them: the reader takes its headline metrics from the
+    first snapshot, and returning the target's newest one beside another
+    audit's evidence reports two audits as one.
+
+    An EXPLICIT ``audit_id`` asks about that audit alone, so only its snapshot
+    answers -- and if it has none (a missing or not-yet-finalized audit) the
+    metrics are honestly unavailable rather than borrowed from unrelated
+    history. The default latest-audit read keeps the full history, because
+    there the newest snapshot IS the selected audit and the history table is a
+    real product surface.
     """
+    if explicit:
+        return [row for row in snapshots if row.audit_id == audit_id]
     return sorted(snapshots, key=lambda row: row.audit_id != audit_id)
 
 

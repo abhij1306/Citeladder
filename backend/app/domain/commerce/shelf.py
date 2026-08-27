@@ -549,8 +549,22 @@ def _resolved_product_url(raw_url: str, *, citations: list[Citation]) -> str | N
         return None
     if any(token in lowered for token in COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS):
         return None
-    citation_urls = {citation.url for citation in citations if citation.url}
-    return None if url in citation_urls else url
+    # Both sides canonicalized: `url` already is, and comparing it against raw
+    # citation URLs let a trailing slash, a fragment, or a tracking parameter
+    # slip a cited publisher page through as a competitor candidate.
+    return None if url in _canonical_citation_urls(citations) else url
+
+
+def _canonical_citation_urls(citations: list[Citation]) -> set[str]:
+    canonical: set[str] = set()
+    for citation in citations:
+        if not citation.url:
+            continue
+        try:
+            canonical.add(canonical_identity(citation.url.strip())[0])
+        except (TypeError, ValueError):
+            continue
+    return canonical
 
 
 async def _persist_observation(
