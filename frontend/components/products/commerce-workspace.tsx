@@ -68,9 +68,14 @@ export function CommerceWorkspace({ projectId }: Readonly<{ projectId: string }>
         onDiscover={() => discovery.discover.mutate(checkedTargets)}
         onClear={() => setChecked([])}
       />
-      <div className="grid gap-4 lg:grid-cols-[minmax(16rem,20rem)_1fr]">
-        <Card>
-          <CardContent className="pt-4">
+      {/* `min-w-0` on BOTH columns is load-bearing: a grid item defaults to
+          `min-width: auto`, so a long product name ("TempPro TP920 Bluetooth
+          Meat Thermometer + TP620 Instant-Read + TP358 Hygrometer — Bundle")
+          forces the track wider than its track sizing and the list overflows
+          its own card, on top of the detail pane. */}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+        <Card className="min-w-0 lg:sticky lg:top-4">
+          <CardContent className="max-h-[calc(100vh-8rem)] overflow-y-auto pt-4">
             <CatalogList
               query={queries.catalog}
               selectedKey={selectedKey}
@@ -80,20 +85,25 @@ export function CommerceWorkspace({ projectId }: Readonly<{ projectId: string }>
             />
           </CardContent>
         </Card>
-        {target && label ? (
-          <TargetDetail
-            projectId={projectId}
-            target={target}
-            label={label}
-            queries={queries}
-            discovery={discovery}
-          />
-        ) : (
-          <Alert tone="info">
-            Select a category or product to see its shelf position, its competitors, and the prompts
-            that measure it.
-          </Alert>
-        )}
+        <div className="min-w-0">
+          {target ? (
+            // Rendered as soon as a target exists, not once the catalog has
+            // loaded a label for it: a reload with `?target=` in the URL used
+            // to show "select a category" until the catalog landed.
+            <TargetDetail
+              projectId={projectId}
+              target={target}
+              label={label || `Selected ${target.kind}`}
+              queries={queries}
+              discovery={discovery}
+            />
+          ) : (
+            <Alert tone="info">
+              Select a category or product to see its shelf position, its competitors, and the
+              prompts that measure it.
+            </Alert>
+          )}
+        </div>
       </div>
     </div>
   );

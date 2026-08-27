@@ -7,15 +7,20 @@ strands rows: a worker killed after ``mark_running`` leaves its row at
 is the one that just died. Commerce competitor discovery showed this as a
 workspace polling "Discovery for this category is running" indefinitely.
 
-So this process sweeps the parentless queues, owns none of them, and runs no
-executors. (A queue whose reclaim must also reconcile an owning run is left to
-that run's own worker -- see ``SWEPT_QUEUES`` below.)
-It is deliberately the least privileged worker in the system: it only calls
-``release_expired``, whose reclaim path is bounded, ``SKIP LOCKED`` (so it
-never contends with a live worker holding its row), and already the
-single writer of the reclaim transition. Running it alongside the real
-workers is therefore safe rather than redundant -- whichever sweeps first
-wins, and the other finds nothing.
+So this process sweeps EVERY queue, owns none of them, and runs no executors.
+Its reclaim path is bounded, ``SKIP LOCKED`` (so it never contends with a live
+worker holding its row), and already the single writer of the reclaim
+transition. Running it alongside the real workers is therefore safe rather
+than redundant -- whichever sweeps first wins, and the other finds nothing.
+
+A queue whose spec names a ``parent_id_attr`` needs one thing more. Reclaiming
+its row at max attempts terminalizes the task, and terminalizing the LAST
+outstanding task of a run leaves the owning discovery or crawl ``running``
+forever unless it is reconciled in the same pass. Excluding those queues was
+not a fix either -- it stranded exactly the rows the sweeper exists to clear,
+in exactly the case (their worker is gone) it exists for. So the sweep uses
+``release_expired_detailed`` and hands the reported parents to the domain
+reconciler registered in ``parent_reconcilers``.
 """
 
 from __future__ import annotations
@@ -35,6 +40,7 @@ from app.core.config.task_queue import PostgresQueueSpec
 from app.core.database import SessionLocal
 from app.core.telemetry import configure_logging, instrument_worker
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.parent_reconcilers import PARENT_RECONCILERS
 
 logger = logging.getLogger("app.workers.queue_sweeper")
 
@@ -51,19 +57,7 @@ _CANDIDATE_QUEUES: tuple[PostgresQueueSpec, ...] = (
     SITE_CRAWL_QUEUE_SPEC,
 )
 
-# A queue whose spec names a `parent_id_attr` is deliberately NOT swept here.
-# Reclaiming such a row at max attempts terminalizes it, and terminalizing the
-# LAST outstanding task of a run means the owning discovery or crawl has to be
-# reconciled in the same breath -- otherwise the task is `failed` while its
-# parent sits `running` forever, which is a worse state than the stranded lease
-# this process exists to clear. That reconciliation is domain logic owned by
-# `brand_discovery_worker._reap_expired` and `site_health_worker`, both of
-# which already sweep their own queue with `release_expired_detailed`. This
-# process stays the least privileged one in the system: it reclaims only the
-# queues where a reclaim needs no owner to be told.
-SWEPT_QUEUES: tuple[PostgresQueueSpec, ...] = tuple(
-    spec for spec in _CANDIDATE_QUEUES if spec.parent_id_attr is None
-)
+SWEPT_QUEUES: tuple[PostgresQueueSpec, ...] = _CANDIDATE_QUEUES
 
 # Slower than any worker's own poll: this is the backstop for a process that
 # is gone, not the primary path, and a lease has to expire before there is
@@ -82,16 +76,16 @@ class QueueSweeper:
     ) -> None:
         self._session_factory = session_factory or SessionLocal
         self._queues = [
-            (spec.model.__tablename__, PostgresTaskQueue(self._session_factory, spec))
-            for spec in specs
+            (spec, PostgresTaskQueue(self._session_factory, spec)) for spec in specs
         ]
 
     async def run_once(self) -> int:
         """One pass over every queue. Returns the total rows reclaimed."""
         reclaimed = 0
-        for name, queue in self._queues:
+        for spec, queue in self._queues:
+            name = spec.model.__tablename__
             try:
-                reclaimed += await queue.release_expired()
+                reclaimed += await self._sweep(spec, queue)
             except Exception:  # one bad queue must not stop the others
                 logger.exception("queue sweep failed", extra={"queue": name})
         if reclaimed:
@@ -99,6 +93,29 @@ class QueueSweeper:
                 "queue sweeper reclaimed leases", extra={"reclaimed": reclaimed}
             )
         return reclaimed
+
+    async def _sweep(self, spec: PostgresQueueSpec, queue: PostgresTaskQueue) -> int:
+        """Reclaim one queue, reconciling any run a terminal reclaim orphaned."""
+        sweep = await queue.release_expired_detailed()
+        name = spec.model.__tablename__
+        if spec.parent_id_attr is None or not sweep.failed_parent_ids:
+            return sweep.reclaimed
+        reconcile = PARENT_RECONCILERS.get(name)
+        if reconcile is None:
+            # Never silent: an unregistered parented queue means those runs are
+            # now terminal-with-a-live-parent, which is the state this whole
+            # path exists to prevent.
+            logger.error(
+                "no parent reconciler for a parented queue",
+                extra={"queue": name, "parents": len(sweep.failed_parent_ids)},
+            )
+            return sweep.reclaimed
+        await reconcile(self._session_factory, list(sweep.failed_parent_ids))
+        logger.info(
+            "queue sweeper reconciled orphaned parents",
+            extra={"queue": name, "parents": len(sweep.failed_parent_ids)},
+        )
+        return sweep.reclaimed
 
     async def run_forever(self) -> None:  # pragma: no cover - process loop
         logger.info("queue sweeper started", extra={"queues": len(self._queues)})

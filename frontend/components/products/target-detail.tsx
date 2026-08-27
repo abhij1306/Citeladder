@@ -3,6 +3,7 @@
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import type { CommerceTarget } from '@/lib/api/schemas/commerce-suite';
+import { targetKey } from '@/lib/products/use-commerce-target';
 import type { useCompetitorDiscovery } from '@/lib/products/competitor-discovery';
 
 import type { CommerceQueries } from './commerce-queries';
@@ -40,7 +41,12 @@ export function TargetDetail({
           {target.kind}
         </Badge>
         <div className="ml-auto">
-          <TargetCorrections projectId={projectId} target={target} catalog={queries.catalog.data} />
+          <TargetCorrections
+            key={targetKey(target)}
+            projectId={projectId}
+            target={target}
+            catalog={queries.catalog.data}
+          />
         </div>
       </div>
       <TargetShelfBand query={queries.shelf} />

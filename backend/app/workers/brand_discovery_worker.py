@@ -10,11 +10,8 @@ import socket
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
-
 from app.core.config.brand_discovery import (
     BRAND_DISCOVERY_QUEUE_SPEC,
-    DISCOVERY_STATUS_FAILED,
     DISCOVERY_STATUS_PROJECT_CREATED,
     DISCOVERY_STATUS_READY,
     DISCOVERY_STATUS_RUNNING,
@@ -32,6 +29,7 @@ from app.core.telemetry import configure_logging, instrument_worker
 from app.domain.projects.discovery import process_discovery
 from app.models.discovery import BrandDiscovery, BrandDiscoveryTask
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
+from app.workers.parent_reconcilers import reconcile_brand_discoveries
 
 logger = logging.getLogger(__name__)
 
@@ -98,28 +96,13 @@ async def run_once(worker_id: str, *, reap: bool = False) -> bool:
 
 
 async def _reap_expired() -> None:
+    # The reconcile body is shared with the cross-queue sweeper, which reclaims
+    # this queue when THIS worker is the process that died. Two copies of the
+    # same terminal transition would be two things to keep in step.
     sweep = await _queue.release_expired_detailed(
         batch_size=brand_discovery_settings.reaper_batch_size
     )
-    if not sweep.failed_parent_ids:
-        return
-    async with SessionLocal() as session:
-        rows = list(
-            (
-                await session.scalars(
-                    select(BrandDiscovery).where(
-                        BrandDiscovery.id.in_(sweep.failed_parent_ids)
-                    )
-                )
-            ).all()
-        )
-        for row in rows:
-            row.status = DISCOVERY_STATUS_FAILED
-            row.stage = "failed"
-            row.error_code = ERROR_BRAND_DISCOVERY
-            row.warnings = list(dict.fromkeys([*row.warnings, "research_degraded"]))
-            row.error_detail = BRAND_DISCOVERY_QUEUE_SPEC.max_attempts_error
-        await session.commit()
+    await reconcile_brand_discoveries(SessionLocal, list(sweep.failed_parent_ids))
 
 
 async def _process_claimed_task(task, worker_id: str) -> None:

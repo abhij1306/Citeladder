@@ -416,8 +416,22 @@ async def _analyze_span(
     if not resolved_rows:
         await _persist_observation(session, context=context, span=span)
         return
+    # One span carries at most ONE position. When the resolver reads several
+    # recommendations out of "1. A, B and C", every observation inherited
+    # `rank=1, order_observable=True`, so three products each claimed first
+    # place -- which is a made-up ordering the answer never stated, and it
+    # skewed both the mean rank and the first-position rate. The position is
+    # only observable when the span resolved to a single product.
+    positioned = span if len(resolved_rows) == 1 else _unordered(span)
     for resolved in resolved_rows:
-        await _persist_resolved(session, context=context, span=span, resolved=resolved)
+        await _persist_resolved(
+            session, context=context, span=positioned, resolved=resolved
+        )
+
+
+def _unordered(span: _Span) -> _Span:
+    """The same span with its position withheld rather than shared out."""
+    return _Span(text=span.text, rank=None, order_observable=False)
 
 
 async def _persist_resolved(

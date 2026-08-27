@@ -28,6 +28,11 @@ function productEdits(product: CommerceProduct, name: string, price: number | nu
  * Corrections used to be an `Edit` / `Rename` button on every row of a wide
  * catalog table, which is a column of buttons for a thing you do rarely. The
  * target is already selected here, so the correction belongs to it.
+ *
+ * The CALLER keys this on the target id, which is what actually resets it.
+ * Every field is seeded from the catalog row at mount, and the disclosure's
+ * open flag is held here, so without a remount the previous target's name sat
+ * in the input and could be saved onto the newly selected row.
  */
 export function TargetCorrections({
   projectId,

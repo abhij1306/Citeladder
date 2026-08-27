@@ -766,3 +766,43 @@ def test_a_merchant_page_survives_the_editorial_gate() -> None:
     checked, outcome = _precheck_result(merchant, owned_hosts=set())
     assert outcome == "eligible"
     assert checked is not None
+
+
+def test_merchant_review_and_recommendation_routes_are_not_editorial() -> None:
+    """A shop's own reviews tab or recommendations shelf is still a shop.
+
+    The patterns match the canonical URL AND the title, so the bare words
+    `review` and `recommendations` excluded every merchant carrying either.
+    """
+    from app.domain.commerce.competitors import _precheck_result
+
+    for url, title in (
+        ("https://www.all-clad.com/reviews", "Customer Reviews | All-Clad"),
+        (
+            "https://www.all-clad.com/product-recommendations",
+            "Recommendations for you | All-Clad",
+        ),
+        ("https://www.lodgecastiron.com/skillets", "Cast Iron Skillets | Lodge"),
+    ):
+        checked, outcome = _precheck_result(
+            {"url": url, "title": title, "content": "Shop."}, owned_hosts=set()
+        )
+        assert outcome == "eligible", (url, title)
+        assert checked is not None
+
+
+def test_editorial_phrases_still_exclude_a_listicle() -> None:
+    from app.domain.commerce.competitors import _precheck_result
+
+    for title in (
+        "The 5 Best Stainless Steel Cookware Sets of 2026, Tested & Reviewed",
+        "Best Meat Thermometers: Reviews and Buying Guide",
+        "Our Expert Picks for Kitchen Thermometers",
+        "We Tested 21 Cookware Sets",
+    ):
+        checked, outcome = _precheck_result(
+            {"url": "https://www.example-magazine.com/x", "title": title},
+            owned_hosts=set(),
+        )
+        assert outcome == "excluded_editorial", title
+        assert checked is None

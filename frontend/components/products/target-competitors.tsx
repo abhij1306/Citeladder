@@ -43,7 +43,13 @@ export function TargetCompetitors({
     onSuccess: () =>
       client.invalidateQueries({ queryKey: queryKeys.commerce.competitors(projectId) }),
   });
-  const running = discovery.tasks.filter((task) => !task.terminal).length > 0;
+  // The tracker follows every run in the project, so a bulk discovery across
+  // three categories otherwise showed all three banners on each one, and made
+  // every target read as "Finding…" while any of them was running.
+  const tasks = discovery.tasks.filter(
+    (task) => task.target.kind === target.kind && task.target.id === target.id,
+  );
+  const running = tasks.some((task) => !task.terminal);
   const rows = query.data ? forTarget(query.data, target) : [];
   return (
     <Card>
@@ -61,7 +67,7 @@ export function TargetCompetitors({
             {running ? 'Finding…' : 'Find competitors'}
           </Button>
         </div>
-        {discovery.tasks.map((task) => (
+        {tasks.map((task) => (
           <Alert key={task.id} tone={task.status === 'failed' ? 'danger' : 'info'}>
             {discoveryMessage(task.status, task.target.kind, task.error_code)}
           </Alert>

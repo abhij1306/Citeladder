@@ -113,17 +113,22 @@ COMMERCE_COMPETITOR_EXCLUDED_HOST_SUFFIXES: Final = (
 # Deliberately phrase-level, not word-level: a bare "best" would reject a
 # merchant's own "Best Sellers" page, so the ranking patterns require the
 # counting shape ("5 best", "best ... of 2026") that only a listicle has.
+# These match the combined canonical URL AND title, so a bare word is far too
+# greedy: a merchant's own `/reviews` route, a "Customer Reviews" tab, or a
+# `/product-recommendations` shelf are all shops, and `review` /
+# `recommendations` on their own excluded every one of them. Each entry below
+# needs the surrounding listicle phrasing, not the word.
 COMMERCE_EDITORIAL_TITLE_PATTERNS: Final = (
     r"\b\d+\s+best\b",
     r"\bbest\b.{0,40}\bof\s+20\d{2}\b",
     r"\btop\s+\d+\b",
-    r"\b(tested|reviewed|review|reviews)\b",
+    r"\btested\s*(?:&|and)\s*reviewed\b",
+    r"\b(?:best|top)\b[^.]{0,40}\breviews?\b",
+    r"\bwe\s+(?:tested|tried|reviewed)\b",
+    r"\b(?:our|editors?'?s?|expert)\s+(?:pick|picks|recommendations?)\b",
     r"\bbuy(?:er|ing)'?s?\s+guide\b",
-    r"\bwe\s+(tested|tried|reviewed)\b",
     r"\branked\b",
     r"\bvs\.?\s",
-    r"\bcomparison\b",
-    r"\brecommendations?\b",
 )
 COMMERCE_SECOND_HAND_TOKENS: Final = ("used", "pre-owned", "second hand", "refurbished")
 COMMERCE_DOLLAR_CURRENCY_BY_COUNTRY: Final = {

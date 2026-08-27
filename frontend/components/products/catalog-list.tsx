@@ -59,12 +59,17 @@ function CatalogRow({
   onToggle: () => void;
 }>) {
   return (
-    <li>
+    <li className="min-w-0">
       {/* The row is the picker. A checkbox in the gutter is bulk selection and
           deliberately does NOT change which target is open, so checking three
           categories to run them together never moves you off the one you are
           reading. */}
-      <div className={cn('group flex items-center gap-2 rounded-md px-2', selected && 'bg-active')}>
+      <div
+        className={cn(
+          'group flex min-w-0 items-center gap-2 rounded-md px-2',
+          selected && 'bg-active',
+        )}
+      >
         <input
           type="checkbox"
           className="accent-accent size-4 shrink-0"
@@ -109,12 +114,12 @@ function CatalogGroup({
 }>) {
   if (!entries.length) return null;
   return (
-    <div className="grid gap-1">
+    <div className="grid min-w-0 gap-1">
       <div className="text-muted flex items-center justify-between px-2 text-xs font-medium">
         <span>{title}</span>
         <span className="tabular-nums">{entries.length}</span>
       </div>
-      <ul className="grid">
+      <ul className="grid min-w-0">
         {entries.map((entry) => (
           <CatalogRow
             key={entry.key}
@@ -160,7 +165,7 @@ export function CatalogList({
   if (query.isPending) return <Skeleton className="h-96 w-full" />;
   if (query.isError) return <Alert tone="danger">The catalog could not be loaded.</Alert>;
   return (
-    <div className="grid content-start gap-3">
+    <div className="grid min-w-0 content-start gap-3">
       <Input
         aria-label="Search the catalog"
         placeholder="Search categories and products"
@@ -174,7 +179,7 @@ export function CatalogList({
             : 'Nothing projected yet. Run a Site Health crawl or import a CSV.'}
         </p>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid min-w-0 gap-4">
           <CatalogGroup
             title="Categories"
             entries={shownCategories}
