@@ -4,11 +4,11 @@
 .website-type {
   /* Keep public/auth surfaces on their established Proof palette and geometry.
      The authenticated app overrides these shared roles at the root. */
-  --color-background: #f8fafc;
-  --color-background-alt: #f1f5f9;
-  --color-well: #f1f5f9;
-  --color-border: #e2e8f0;
-  --color-border-subtle: #f1f5f9;
+  --color-background: var(--color-panel-tonal);
+  --color-background-alt: var(--color-neutral-bg);
+  --color-well: var(--color-neutral-bg);
+  --color-border: var(--color-active);
+  --color-border-subtle: var(--color-neutral-bg);
   --radius-control: var(--radius-sm);
   --radius-card: var(--radius-sm);
   --radius-overlay: var(--radius-md);
