@@ -11,6 +11,7 @@ import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import type { DeliveryFacts, PageDetail, SiteIssue } from '@/lib/api/types';
 import { ICONS } from '@/lib/icons';
 import {
+  CONFIDENCE_LABELS,
   pageKindLabel,
   readPageKindEvidence,
   type PageKindEvidenceView,
@@ -173,7 +174,7 @@ function PageKindEvidencePanel({
           <EvidenceFact label="Classified by" value={evidence.classifiedBy} />
           <EvidenceFact
             label="Confidence"
-            value={`${evidence.confidence.toFixed(2)} / ${evidence.confidenceThreshold.toFixed(2)} threshold`}
+            value={CONFIDENCE_LABELS[evidence.confidence] ?? evidence.confidence}
           />
           <EvidenceFact
             label="Schema suggests"
@@ -191,9 +192,11 @@ function PageKindEvidencePanel({
             role="note"
             className="border-border-subtle text-secondary rounded-sm border px-3 py-2 text-sm"
           >
-            {evidence.otherReason === 'below_threshold'
-              ? 'Signals matched but scored below the confidence threshold, so the page stayed unclassified.'
-              : 'No classification signals matched this page.'}
+            {evidence.otherReason === 'schema_only'
+              ? 'Schema suggested a type, but no independent page evidence confirmed it, so the type was left unassigned.'
+              : evidence.otherReason === 'conflicting_top_tier_evidence'
+                ? 'Independent evidence disagreed at the same confidence tier, so the type was left unassigned.'
+                : 'No classification signals matched this page, so its type was left unassigned rather than guessed.'}
           </div>
         ) : null}
         {evidence.alternatives.length > 0 ? (
@@ -203,9 +206,7 @@ function PageKindEvidencePanel({
               {evidence.alternatives.map((candidate) => (
                 <span key={candidate.pageKind} className="flex items-center gap-1">
                   <Badge>{pageKindLabel(candidate.pageKind)}</Badge>
-                  <span className="mono text-2xs text-muted tabular-nums">
-                    {candidate.confidence.toFixed(2)}
-                  </span>
+                  <span className="mono text-2xs text-muted">{candidate.tier}</span>
                 </span>
               ))}
             </div>
@@ -294,19 +295,13 @@ function EvidenceSignals({ evidence }: Readonly<{ evidence: PageKindEvidenceView
             <Badge>{pageKindLabel(signal.pageKind)}</Badge>
             <span
               className={cn(
-                'mono text-sm font-medium tabular-nums',
+                'mono text-sm font-medium',
                 chosen ? 'text-foreground' : 'text-secondary',
               )}
             >
-              {signal.weight.toFixed(2)}
+              {signal.tier}
             </span>
             <span className="flex min-w-0 flex-1 items-center gap-3">
-              <span className="bg-border h-1 w-16 shrink-0 rounded-full">
-                <span
-                  className="bg-accent block h-1 rounded-full opacity-60"
-                  style={{ width: `${Math.min(100, Math.max(0, signal.weight * 100))}%` }}
-                />
-              </span>
               <span className="mono text-muted truncate text-xs" title={signal.detail}>
                 {signal.detail}
               </span>

@@ -1,10 +1,9 @@
-"""Unit tests for the v2 P1 page-type classifier (spec §5.1).
+"""Unit tests for the deterministic page-type classifier.
 
-Covers every signal in the fixed priority order (root path, URL path
-patterns, content heuristics, structured-data types), the deliberate
-conflict semantics (URL/content signals 1-3 outrank the schema signal 4),
-the confidence threshold fallback to ``other``, homepage path equivalents,
-bounded evidence contents, and determinism. Pure, offline.
+Covers each evidence tier (structural primary entity, route family, semantic
+fallback), the deliberate conflict semantics (structured data sits in the
+weakest tier and can never self-certify), abstention to ``other``, homepage
+path equivalents, bounded evidence contents, and determinism. Pure, offline.
 """
 
 from __future__ import annotations
@@ -18,16 +17,21 @@ from app.core.config.site_health_contracts import (
     CLASSIFIER_VERSION,
 )
 from app.core.config.site_health_taxonomy import (
-    PAGE_KIND_CONFIDENCE_THRESHOLD,
+    PAGE_KIND_CONFIDENCE_HIGH,
+    PAGE_KIND_CONFIDENCE_LOW,
+    PAGE_KIND_CONFIDENCE_MEDIUM,
+    PAGE_KIND_CONFIDENCE_UNKNOWN,
     PAGE_KIND_PATH_PATTERNS,
     PAGE_KIND_PROFILES,
     PAGE_KIND_SCHEMA_TYPE_MAP,
     PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
     PAGE_KIND_SIGNAL_NONE,
     PAGE_KIND_SIGNAL_PATH_PATTERN,
+    PAGE_KIND_SIGNAL_PRIMARY_LISTING,
+    PAGE_KIND_SIGNAL_PRIMARY_PRODUCT,
     PAGE_KIND_SIGNAL_ROOT_PATH,
-    PAGE_KIND_SIGNAL_STRUCTURED_DATA,
-    PAGE_KIND_SIGNAL_WEIGHTS,
+    PAGE_KIND_SIGNAL_SEMANTIC_TITLE,
+    PAGE_KIND_SIGNAL_TIERS,
     PAGE_KINDS,
 )
 
@@ -37,12 +41,51 @@ def _facts(
     h2_texts: list[str] | None = None,
     body_text: str = "",
     schema_types: list[str] | None = None,
+    title: str = "",
+    entity: dict | None = None,
 ) -> dict:
     """A bounded parser-facts-shaped dict with only what classify() reads."""
     return {
-        "headings": {"h2_texts": h2_texts or []},
+        "title": title,
+        "headings": {"h2_texts": h2_texts or [], "h1_texts": []},
         "body": {"text": body_text, "word_count": len(body_text.split())},
-        "structured_data": {"types": schema_types or []},
+        "structured_data": {"types": schema_types or [], "blocks": []},
+        "entity": entity or {},
+    }
+
+
+def _buy_box() -> dict:
+    """Entity facts for a page whose OWN region holds a working buy box."""
+    return {
+        "product": {
+            "has_primary_price": True,
+            "has_purchase_control": True,
+            "has_variant_control": True,
+            "has_sku_marker": False,
+        }
+    }
+
+
+def _listing_grid(size: int = 24) -> dict:
+    """Entity facts for a page whose OWN region holds a real listing grid."""
+    return {
+        "listing": {
+            "largest_card_list_size": size,
+            "distinct_card_list_targets": size,
+            "has_result_count": True,
+            "has_sort_control": True,
+            "has_filter_control": False,
+        }
+    }
+
+
+def _single_location() -> dict:
+    return {
+        "location": {
+            "address_entity_count": 1,
+            "has_phone": True,
+            "has_hours": False,
+        }
     }
 
 
@@ -78,7 +121,7 @@ def test_root_path_equivalents_classify_homepage(url: str) -> None:
     assessment = classify(url, _facts())
     assert assessment.page_kind == "homepage"
     assert assessment.classified_by == PAGE_KIND_SIGNAL_ROOT_PATH
-    assert assessment.confidence >= PAGE_KIND_CONFIDENCE_THRESHOLD
+    assert assessment.confidence == PAGE_KIND_CONFIDENCE_HIGH
 
 
 def test_unlisted_locale_root_falls_through_to_other() -> None:
@@ -86,7 +129,7 @@ def test_unlisted_locale_root_falls_through_to_other() -> None:
     assessment = classify("https://example.com/uk/", _facts())
     assert assessment.page_kind == "other"
     assert assessment.classified_by == PAGE_KIND_SIGNAL_NONE
-    assert assessment.confidence == 0.0
+    assert assessment.confidence == PAGE_KIND_CONFIDENCE_UNKNOWN
 
 
 def test_homepage_outranks_conflicting_schema_and_records_suggestion() -> None:
@@ -152,6 +195,14 @@ def test_path_pattern_requires_a_complete_semantic_segment() -> None:
     assert assessment.page_kind == "other"
 
 
+def test_semantic_title_requires_a_complete_phrase() -> None:
+    assessment = classify(
+        "https://example.com/contactless-payments",
+        _facts(title="Contactless payments"),
+    )
+    assert assessment.page_kind == "other"
+
+
 def test_path_pattern_outranks_schema_on_conflict() -> None:
     assessment = classify(
         "https://example.com/product/123",
@@ -162,14 +213,40 @@ def test_path_pattern_outranks_schema_on_conflict() -> None:
     assert assessment.schema_suggested_type == "article"
 
 
-def test_strong_product_content_overrides_ancestor_category_path() -> None:
+def test_primary_buy_box_overrides_ancestor_category_path() -> None:
+    # A real PDP living under a /categories/ route: its own region holds the
+    # buy box, which outranks the ancestor route segment.
     assessment = classify(
         "https://example.com/categories/women/dresses/red-dress/ABC123",
-        _facts(body_text="Red cotton dress $49.00. Add to bag."),
+        _facts(entity=_buy_box()),
     )
 
     assert assessment.page_kind == "product"
-    assert assessment.classified_by == PAGE_KIND_SIGNAL_CONTENT_HEURISTIC
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PRIMARY_PRODUCT
+    assert assessment.confidence == PAGE_KIND_CONFIDENCE_MEDIUM
+
+
+def test_recommendation_carousel_cannot_make_a_policy_page_a_product() -> None:
+    # The whole-body "price + cart marker anywhere" heuristic used to fire
+    # here: a returns-policy page carrying a "You May Also Like" strip has
+    # both. Product evidence is now scoped outside every repeated card list,
+    # so the carousel contributes nothing and the page keeps its own type.
+    facts = _facts(
+        title="Returns",
+        body_text="30 day return window. Add to cart $99.00 Add to cart $88.00",
+        entity={
+            "product": {
+                "has_primary_price": False,
+                "has_purchase_control": False,
+                "has_variant_control": False,
+                "has_sku_marker": False,
+            },
+            "listing": {"largest_card_list_size": 4, "has_result_count": False},
+        },
+    )
+    assessment = classify("https://example.com/pages/refund-policy", facts)
+    assert assessment.page_kind == "trust_policy"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_SEMANTIC_TITLE
 
 
 def test_product_schema_alone_cannot_override_category_path() -> None:
@@ -209,10 +286,40 @@ def test_question_word_prefix_counts_as_question_form() -> None:
     assert classify("https://example.com/answers", facts).page_kind == "faq"
 
 
-def test_price_and_cart_markers_classify_product() -> None:
+def test_body_text_price_and_cart_marker_alone_do_not_classify_product() -> None:
+    # Body text says nothing about WHERE the price and button are. Any page
+    # carrying a product carousel has both, so this can only be read from the
+    # page's own region -- see the entity-scoped test above.
     assessment = classify("https://example.com/item", _facts(body_text=_PRODUCT_TEXT))
-    assert assessment.page_kind == "product"
-    assert assessment.classified_by == PAGE_KIND_SIGNAL_CONTENT_HEURISTIC
+    assert assessment.page_kind == "other"
+
+
+def test_listing_grid_classifies_category_without_a_route_token() -> None:
+    # A flat ecommerce slug with no /category/ or /collections/ segment.
+    assessment = classify(
+        "https://example.com/womens-dresses", _facts(entity=_listing_grid())
+    )
+    assert assessment.page_kind == "category"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PRIMARY_LISTING
+
+
+def test_single_address_requires_a_local_route() -> None:
+    arbitrary = classify(
+        "https://example.com/team/member", _facts(entity=_single_location())
+    )
+    local = classify(
+        "https://example.com/stores/gosford", _facts(entity=_single_location())
+    )
+    assert arbitrary.page_kind == "other"
+    assert local.page_kind == "local"
+
+
+def test_small_card_strip_is_not_a_listing() -> None:
+    # Four related products is a module, not a listing page.
+    assessment = classify(
+        "https://example.com/some/page", _facts(entity=_listing_grid(size=4))
+    )
+    assert assessment.page_kind == "other"
 
 
 def test_price_without_cart_marker_does_not_classify_product() -> None:
@@ -242,10 +349,21 @@ def test_content_heuristics_have_fixed_sub_order() -> None:
     assert classify("https://example.com/x", facts).page_kind == "faq"
 
 
+def test_conflicting_semantic_evidence_abstains() -> None:
+    facts = _facts(
+        h2_texts=_question_h2s(3),
+        title="Shipping policy questions and answers",
+    )
+    assessment = classify("https://example.com/x", facts)
+    assert assessment.page_kind == "other"
+    assert assessment.confidence == PAGE_KIND_CONFIDENCE_UNKNOWN
+    assert assessment.other_reason == "conflicting_top_tier_evidence"
+
+
 def test_content_heuristic_outranks_schema_on_conflict() -> None:
-    facts = _facts(body_text=_PRODUCT_TEXT, schema_types=["Article"])
+    facts = _facts(h2_texts=_question_h2s(3), schema_types=["Article"])
     assessment = classify("https://example.com/item", facts)
-    assert assessment.page_kind == "product"
+    assert assessment.page_kind == "faq"
     assert assessment.classified_by == PAGE_KIND_SIGNAL_CONTENT_HEURISTIC
     assert assessment.schema_suggested_type == "article"
 
@@ -266,13 +384,16 @@ def test_content_heuristic_outranks_schema_on_conflict() -> None:
         ("ContactPage", "about_contact"),
     ],
 )
-def test_schema_types_map_to_page_types(schema_type: str, expected: str) -> None:
+def test_schema_types_are_suggestions_not_page_type_verdicts(
+    schema_type: str, expected: str
+) -> None:
     assessment = classify(
         "https://example.com/anything", _facts(schema_types=[schema_type])
     )
-    assert assessment.page_kind == expected
-    assert assessment.classified_by == PAGE_KIND_SIGNAL_STRUCTURED_DATA
+    assert assessment.page_kind == "other"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_NONE
     assert assessment.schema_suggested_type == expected
+    assert assessment.other_reason == "schema_only"
 
 
 def test_unmapped_schema_type_does_not_classify() -> None:
@@ -288,46 +409,51 @@ def test_multiple_schema_types_use_explicit_specificity_order() -> None:
         "https://example.com/anything",
         _facts(schema_types=["Product", "Article"]),
     )
-    assert assessment.page_kind == "product"
+    assert assessment.page_kind == "other"
     assert assessment.schema_suggested_type == "product"
 
 
 # --- Confidence, threshold, evidence, determinism ----------------------------
 
 
-def test_confidence_is_sum_of_matched_signal_weights() -> None:
+def test_confidence_reports_the_deciding_tier_not_a_score() -> None:
+    # Confidence must describe the evidence that DECIDED the type. Summing
+    # every matched weight let agreeing and disagreeing signals inflate the
+    # same number, so a page classified from a route signal could report a
+    # confidence higher than that signal was ever worth.
     facts = _facts(schema_types=["BlogPosting"])
     assessment = classify("https://example.com/blog/x", facts)
-    expected = round(
-        PAGE_KIND_SIGNAL_WEIGHTS[PAGE_KIND_SIGNAL_PATH_PATTERN]
-        + PAGE_KIND_SIGNAL_WEIGHTS[PAGE_KIND_SIGNAL_STRUCTURED_DATA],
-        4,
-    )
-    assert assessment.confidence == pytest.approx(expected)
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PATH_PATTERN
+    assert assessment.confidence == PAGE_KIND_CONFIDENCE_MEDIUM
+
+    structural = classify("https://example.com/blog/x", _facts(entity=_buy_box()))
+    assert structural.confidence == PAGE_KIND_CONFIDENCE_MEDIUM
+
+    # A slug with no route family at all: only the page's own stated purpose
+    # is left, which is the weakest evidence the classifier accepts.
+    semantic = classify("https://example.com/pages/care-cleaning", _facts())
+    assert semantic.page_kind == "guide"
+    assert semantic.classified_by == PAGE_KIND_SIGNAL_SEMANTIC_TITLE
+    assert semantic.confidence == PAGE_KIND_CONFIDENCE_LOW
 
 
-def test_below_threshold_falls_back_to_other(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # A raised threshold makes even a matched (schema-only) page fall back.
-    monkeypatch.setattr(
-        config,
-        "PAGE_KIND_CONFIDENCE_THRESHOLD",
-        PAGE_KIND_SIGNAL_WEIGHTS[PAGE_KIND_SIGNAL_STRUCTURED_DATA] + 0.1,
+def test_structural_evidence_outranks_a_conflicting_route_family() -> None:
+    # The route says category; the page's own region holds a buy box. The
+    # stronger tier wins and the disagreement stays on the record.
+    facts = _facts(entity=_buy_box())
+    assessment = classify("https://example.com/collections/red-dress", facts)
+    assert assessment.page_kind == "product"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PRIMARY_PRODUCT
+    assert any(
+        conflict["conflicting_page_kind"] == "category"
+        for conflict in assessment.conflicts
     )
-    assessment = classify(
-        "https://example.com/anything", _facts(schema_types=["Article"])
-    )
-    assert assessment.page_kind == "other"
-    # The matched signal is still recorded for explainability.
-    assert assessment.classified_by == PAGE_KIND_SIGNAL_STRUCTURED_DATA
-    assert assessment.confidence < config.PAGE_KIND_CONFIDENCE_THRESHOLD
 
 
 def test_no_signals_classifies_other_with_none_classifier() -> None:
     assessment = classify("https://example.com/some/random-page", _facts())
     assert assessment.page_kind == "other"
-    assert assessment.confidence == 0.0
+    assert assessment.confidence == PAGE_KIND_CONFIDENCE_UNKNOWN
     assert assessment.classified_by == PAGE_KIND_SIGNAL_NONE
     assert assessment.signals == ()
 
@@ -340,12 +466,13 @@ def test_evidence_is_bounded_and_explainable() -> None:
     assert evidence["classified_by"] == PAGE_KIND_SIGNAL_PATH_PATTERN
     assert evidence["schema_suggested_type"] == "article"
     assert evidence["confidence"] == assessment.confidence
-    assert evidence["confidence_threshold"] == PAGE_KIND_CONFIDENCE_THRESHOLD
+    assert evidence["tier"] == assessment.tier
     # At most one signal record per signal source, each small + JSON-safe.
-    assert len(evidence["signals"]) <= 4
+    assert len(evidence["signals"]) <= len(PAGE_KIND_SIGNAL_TIERS)
     for signal in evidence["signals"]:
-        assert set(signal) == {"signal", "page_kind", "weight", "detail"}
+        assert set(signal) == {"signal", "page_kind", "tier", "detail"}
         assert signal["page_kind"] in PAGE_KINDS
+        assert signal["tier"] in config.PAGE_KIND_TIERS
         assert len(signal["detail"]) <= 256
 
 
@@ -394,14 +521,22 @@ def test_page_type_config_tables_are_internally_consistent() -> None:
         assert page_kind in PAGE_KINDS, f"path pattern type unknown: {page_kind}"
     for page_kind in PAGE_KIND_SCHEMA_TYPE_MAP.values():
         assert page_kind in PAGE_KINDS, f"schema map type unknown: {page_kind}"
-    # Every signal name the classifier records has a weight.
+    # Every signal name the classifier records is placed in a known tier.
     for signal in (
         config.PAGE_KIND_SIGNAL_ROOT_PATH,
         config.PAGE_KIND_SIGNAL_PATH_PATTERN,
         config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
         config.PAGE_KIND_SIGNAL_STRUCTURED_DATA,
+        config.PAGE_KIND_SIGNAL_PRIMARY_PRODUCT,
+        config.PAGE_KIND_SIGNAL_PRIMARY_LISTING,
+        config.PAGE_KIND_SIGNAL_PRIMARY_LOCATION,
+        config.PAGE_KIND_SIGNAL_SEMANTIC_TITLE,
     ):
-        assert signal in PAGE_KIND_SIGNAL_WEIGHTS
+        assert PAGE_KIND_SIGNAL_TIERS[signal] in config.PAGE_KIND_TIERS
+    # The semantic fallback only ever proposes types the taxonomy already has.
+    for page_kind, phrase in config.PAGE_KIND_TITLE_KEYWORDS:
+        assert page_kind in PAGE_KINDS, f"title keyword type unknown: {page_kind}"
+        assert phrase == phrase.lower().strip()
 
 
 @pytest.mark.parametrize(

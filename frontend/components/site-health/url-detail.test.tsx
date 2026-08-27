@@ -48,19 +48,19 @@ function detail(overrides: Partial<PageDetail> = {}): PageDetail {
       classifier_version: 'sh-classifier-1',
       classified_by: 'path_pattern',
       schema_suggested_type: 'article',
-      confidence: 1.3,
-      confidence_threshold: 0.5,
+      confidence: 'medium',
+      tier: 'route',
       signals: [
         {
           signal: 'path_pattern',
           page_kind: 'product',
-          weight: 0.8,
+          tier: 'route',
           detail: '^/(products?|p|shop)(/|$)',
         },
         {
           signal: 'structured_data',
           page_kind: 'article',
-          weight: 0.5,
+          tier: 'semantic',
           detail: 'Article',
         },
       ],
@@ -197,19 +197,18 @@ describe('UrlDetail', () => {
 
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     // Verdict facts: winning signal (shown as the verdict AND as the winning
-    // signal row), confidence vs threshold, signals count.
+    // signal row), the confidence label, signals count.
     expect(screen.getByText('Classified by')).toBeInTheDocument();
     expect(screen.getAllByText('path_pattern')).toHaveLength(2);
-    expect(screen.getByText(/1\.30/)).toBeInTheDocument();
-    expect(screen.getByText(/\/ 0\.50 threshold/)).toBeInTheDocument();
+    expect(screen.getByText('Medium — URL family')).toBeInTheDocument();
     expect(screen.getByText('Signals matched')).toBeInTheDocument();
     // The schema conflict is highlighted, naming both types.
     const note = screen.getByRole('note');
     expect(note).toHaveTextContent('Schema markup on this page declares Article');
     expect(note).toHaveTextContent('treated as Product');
-    // Ranked signals with weights; the winner carries the "chosen" tag.
+    // Ranked signals with their evidence tier; the winner carries "chosen".
     expect(screen.getByText('structured_data')).toBeInTheDocument();
-    expect(screen.getByText('0.80')).toBeInTheDocument();
+    expect(screen.getAllByText('route')).not.toHaveLength(0);
     expect(screen.getByText('chosen')).toBeInTheDocument();
     expect(screen.getByText('sh-classifier-1')).toBeInTheDocument();
 

@@ -344,6 +344,14 @@ def test_js_shell_reports_one_finding_not_a_cascade():
     assert evals["technical.https"].outcome == RULE_OUTCOME_PASS
 
 
+def test_product_parity_is_not_applicable_to_a_js_shell():
+    facts = _js_shell_facts()
+    facts["page_kind"] = "product"
+    parity = _outcome(facts, "aeo.product_visible_schema_parity")
+    assert parity.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert parity.evidence["reason"] == "content_not_server_rendered"
+
+
 def test_content_rules_still_apply_to_a_server_rendered_page():
     """The gate must not swallow real findings on a normally-rendered page."""
     facts = _html_facts(headings={"h1_count": 0, "counts": {"h1": 0, "h2": 3}})
@@ -992,6 +1000,17 @@ def test_schema_matches_content():
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.evidence["matched_visible_content"] is False
     assert ev.evidence["candidates"] == ["Totally Unrelated Brand"]
+
+
+def test_schema_content_match_rejects_one_generic_shared_token():
+    block = dict(_html_facts()["structured_data"]["blocks"][0])
+    block["name"] = "Widget Pro"
+    facts = _html_facts(
+        title="Pro",
+        headings={"h1_count": 1, "counts": {"h1": 1}, "h1_texts": ["Pro"]},
+        structured_data=_sd([block]),
+    )
+    assert _outcome(facts, "aeo.schema_matches_content").outcome == RULE_OUTCOME_FAIL
 
 
 def test_schema_matches_content_not_applicable_without_names():

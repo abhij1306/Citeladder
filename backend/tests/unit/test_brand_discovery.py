@@ -679,35 +679,76 @@ def test_category_vocabulary_never_unbans_a_real_brand_token() -> None:
 
 
 def test_one_unreadable_row_no_longer_voids_its_whole_batch() -> None:
-    """A single bad topic_id used to discard all four prompts in the call."""
+    """An unknown slot is dropped without discarding a valid planned row."""
     import json
 
-    from app.domain.projects.onboarding.portfolio_generation import _salvaged_rows
+    from app.domain.prompts.generation_contract import parse_planned_output
+    from app.domain.prompts.query_patterns import build_prompt_slots
+
+    slots = build_prompt_slots(
+        topics=[{"id": "t1", "name": "Linen Dresses", "description": ""}],
+        count=2,
+        cohort="core",
+    )
 
     raw = json.dumps(
         {
             "prompts": [
-                {
-                    "topic_id": "t1",
-                    "text": "best linen midi dresses",
-                    "intent": "discovery",
-                },
-                {
-                    "topic_id": "Sustainable fabrics",
-                    "text": "where to buy linen",
-                    "intent": "made_up",
-                },
-                {"topic_id": "t2", "text": "", "intent": "discovery"},
-                "not an object",
+                {"slot_id": "q1", "text": "What is linen dresses?"},
+                {"slot_id": "unknown", "text": "Best linen dresses for work"},
             ]
         }
     )
-    rows = _salvaged_rows(raw)
-    # The good row survives; the empty row and the non-object are dropped, and
-    # the row with a bad id/intent is left for the deterministic validator.
-    assert [row["text"] for row in rows] == [
-        "best linen midi dresses",
-        "where to buy linen",
+    rows, dropped = parse_planned_output(raw, slots=slots)
+
+    assert [row.text for row in rows] == ["What is linen dresses?"]
+    assert dropped == 1
+
+
+def test_onboarding_uses_the_shared_constrained_buyer_query_plan() -> None:
+    import json
+    import uuid
+
+    from app.domain.projects.discovery_schemas import DiscoveryTopic
+    from app.domain.projects.onboarding.portfolio_generation import (
+        _brand_request,
+        _topic_request,
+    )
+
+    topic = DiscoveryTopic(
+        topic_id=uuid.uuid4(),
+        name="Product Feed Management",
+        description="Retail catalog distribution and diagnostics",
+        source_refs=["confirmed-profile"],
+    )
+    user, slots = _topic_request(
+        brand_name="Feedonomics",
+        market="US",
+        business_model="b2b_saas",
+        buyer_register="technical_buyer",
+        topics=[topic],
+        rejected=(),
+    )
+
+    assert [slot.pattern for slot in slots] == [
+        "what_is",
+        "best_for",
+        "how_to",
+        "pricing",
     ]
-    assert _salvaged_rows("not json") == []
-    assert _salvaged_rows("{}") == []
+    assert len(json.loads(user)["buyer_query_slots"]) == 4
+
+    _, brand_slots = _brand_request(
+        brand_name="Feedonomics",
+        market="US",
+        business_model="b2b_saas",
+        competitors=["Productsup"],
+        topics=[topic],
+        count=2,
+        cohort="brand_diagnostic",
+    )
+    assert [slot.pattern for slot in brand_slots] == [
+        "brand_overview",
+        "brand_fit",
+    ]
+    assert all(slot.topic_id is None for slot in brand_slots)

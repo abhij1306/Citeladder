@@ -12,7 +12,6 @@ from typing import Any
 
 from app.core.config import site_health_taxonomy as _config
 
-_PRICE_RE = re.compile(_config.PAGE_KIND_PRICE_PATTERN, re.IGNORECASE)
 _BYLINE_RE = re.compile(_config.PAGE_KIND_BYLINE_PATTERN)
 _DATE_RE = re.compile(_config.PAGE_KIND_DATE_PATTERN, re.IGNORECASE)
 
@@ -53,20 +52,6 @@ def _faq_signal(facts: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
-def _product_signal(body_text: str) -> dict[str, Any] | None:
-    if not body_text or not _PRICE_RE.search(body_text):
-        return None
-    if not any(
-        marker in body_text.lower() for marker in _config.PAGE_KIND_CART_MARKERS
-    ):
-        return None
-    return {
-        "signal": _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
-        "page_kind": _config.PAGE_KIND_PRODUCT,
-        "detail": "price_and_cart_markers",
-    }
-
-
 def _article_signal(body_text: str) -> dict[str, Any] | None:
     if not body_text:
         return None
@@ -81,10 +66,16 @@ def _article_signal(body_text: str) -> dict[str, Any] | None:
 
 
 def content_heuristic(facts: dict[str, Any]) -> dict[str, Any] | None:
-    """Return the first FAQ, product, or article content signal."""
+    """Return the first FAQ or article content signal.
+
+    The product heuristic that lived here read the WHOLE body for a price plus
+    a cart marker. On a real store that fired on a returns-policy page, because
+    its "You May Also Like" carousel carries both. Product evidence now comes
+    from ``fact_entity``, scoped to the page's own region and to structures
+    outside every repeated card list, so this leaf keeps only the two signals
+    that were never region-sensitive: question headings and a byline + date.
+    """
     body = _mapping(facts.get("body"))
     raw_body_text = body.get("text")
     body_text = raw_body_text if isinstance(raw_body_text, str) else ""
-    return (
-        _faq_signal(facts) or _product_signal(body_text) or _article_signal(body_text)
-    )
+    return _faq_signal(facts) or _article_signal(body_text)

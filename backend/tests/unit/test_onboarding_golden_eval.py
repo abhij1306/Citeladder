@@ -44,6 +44,21 @@ def _valid_portfolio(case) -> list[PortfolioPrompt]:
     return [*neutral, *branded]
 
 
+def test_portfolio_evaluation_reports_buyer_query_pattern_coverage() -> None:
+    prompts = [
+        PortfolioPrompt("What is product feed management?", "core", pattern="what_is"),
+        PortfolioPrompt(
+            "Best product feed management for retailers",
+            "core",
+            pattern="best_for",
+        ),
+        PortfolioPrompt("How to fix product feed errors", "core", pattern="how_to"),
+        PortfolioPrompt("Product feed management pricing", "core", pattern="pricing"),
+    ]
+
+    assert evaluate_portfolio(FEEDONOMICS, prompts).buyer_query_pattern_coverage == 1.0
+
+
 def test_corpus_covers_the_agreed_cases() -> None:
     # Membership is the contract, not ordering: the cases are assembled from the
     # commerce and services modules, so their order follows that split rather

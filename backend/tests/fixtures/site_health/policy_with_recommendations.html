@@ -1,0 +1,52 @@
+<!doctype html>
+<!--
+  A returns-policy page carrying the SAME recommendation carousel as the PDP
+  fixture. Its body text therefore contains prices and "Add to cart" markers,
+  which is exactly what made the old whole-body product heuristic classify a
+  policy page as a product.
+
+  It has no route family of its own either: "/pages/refund-policy" matches no
+  path pattern, so before the semantic fallback this page had no signals at
+  all and scored well by being exempt from every type-scoped check.
+-->
+<html>
+  <head>
+    <title>Returns &ndash; Example Store</title>
+    <script>
+      var re = /[.*+?^${}()|[\]\\]/g;
+      function esc(s) { return s.replace(re, '\\$1'); }
+    </script>
+    <script type="application/ld+json">
+      { "@context": "https://schema.org", "@type": "Organization", "name": "Example Store" }
+    </script>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/collections/bags">Bags</a>
+        <a href="/collections/totes">Totes</a>
+        <a href="/collections/clutches">Clutches</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>Returns</h1>
+      <p>You may return an unused item within 30 days of delivery.</p>
+      <p>Repair Program requests are handled separately.</p>
+
+      <section class="recommendations">
+        <h2>You May Also Like</h2>
+        <ul>
+          <li><a href="/products/rec-a">Bag A</a><span>$99.00</span><button>Add to cart</button></li>
+          <li><a href="/products/rec-b">Bag B</a><span>$88.00</span><button>Add to cart</button></li>
+          <li><a href="/products/rec-c">Bag C</a><span>$77.00</span><button>Add to cart</button></li>
+        </ul>
+      </section>
+    </main>
+
+    <footer>
+      <a href="/products/promo-one">Promo One</a>
+      <a href="/pages/shipping">Shipping</a>
+    </footer>
+  </body>
+</html>

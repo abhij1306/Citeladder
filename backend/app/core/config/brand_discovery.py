@@ -121,8 +121,8 @@ BRAND_DISCOVERY_VERSION: Final = "brand-discovery-v8"
 BRAND_IDENTITY_PROMPT_VERSION: Final = "brand-identity-v2"
 BRAND_COMPETITOR_QUALIFICATION_VERSION: Final = "brand-competitor-qualification-v3"
 KEENABLE_RESEARCH_VERSION: Final = "keenable-research-v1"
-BRAND_DISCOVERY_PROMPT_GENERATOR_VERSION: Final = "brand-discovery-prompts-v9"
-BRAND_DISCOVERY_PROMPT_VALIDATION_VERSION: Final = "initial-portfolio-validation-v2"
+BRAND_DISCOVERY_PROMPT_GENERATOR_VERSION: Final = "brand-discovery-prompts-v10"
+BRAND_DISCOVERY_PROMPT_VALIDATION_VERSION: Final = "initial-portfolio-validation-v3"
 DISCOVERY_PROGRESS_TOTAL_STEPS: Final = 4
 DISCOVERY_PROMPT_GENERATION_CONCURRENCY: Final = 4
 # Bounded model-call duration. Completion ends its read transaction before the

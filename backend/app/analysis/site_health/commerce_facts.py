@@ -7,6 +7,8 @@ from collections.abc import Callable
 from typing import Any
 from urllib.parse import urljoin
 
+from app.analysis.site_health.fact_regions import primary_region_text
+
 _PRICE = re.compile(
     r"(?:[$£€₹]|AUD|USD|CAD|NZD|GBP|EUR|INR)\s*\d[\d,.]*(?:\.\d{1,2})?",
     re.IGNORECASE,
@@ -78,7 +80,10 @@ def extract_commerce_facts(
     """Return structural taxonomy/card facts without assigning a page kind."""
     breadcrumbs = _breadcrumbs(root, text_of)
     product_cards, category_links = _cards(root, final_url=final_url, text_of=text_of)
-    page_text = text_of(root)
+    # The page's own visible text, not the whole tree: ``text_of(root)`` also
+    # reads inline <script> bodies, and a JavaScript regex replacement string
+    # made every crawled page of a real store report a visible price of "$1".
+    page_text = primary_region_text(root)
     match = _PRICE.search(page_text)
     return {
         "breadcrumbs": breadcrumbs,

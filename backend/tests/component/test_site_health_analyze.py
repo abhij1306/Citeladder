@@ -498,9 +498,9 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
     )
 
     assert (ANALYZER_VERSION, SCORING_VERSION, CLASSIFIER_VERSION) == (
-        "sh-analyzer-5",
-        "sh-scoring-2",
-        "sh-classifier-5",
+        "sh-analyzer-6",
+        "sh-scoring-3",
+        "sh-classifier-6",
     )
 
     seed, _site_url_id, _task_id = await _seed_analyze_ready(
@@ -520,9 +520,9 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         ).scalar_one()
         # The /blog/ path pattern classified the page as an article.
         assert analysis.page_kind == "article"
-        assert analysis.classifier_version == "sh-classifier-5"
-        assert analysis.analyzer_version == "sh-analyzer-5"
-        assert analysis.scoring_version == "sh-scoring-2"
+        assert analysis.classifier_version == "sh-classifier-6"
+        assert analysis.analyzer_version == "sh-analyzer-6"
+        assert analysis.scoring_version == "sh-scoring-3"
 
         # The bounded classifier evidence persisted WITH the row (it used to
         # be computed, injected into the facts dict after the artifact flush,
@@ -531,7 +531,8 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         assert evidence is not None
         assert evidence["classifier_version"] == analysis.classifier_version
         assert evidence["classified_by"] == "path_pattern"
-        assert evidence["confidence"] >= evidence["confidence_threshold"]
+        assert evidence["confidence"] == "medium"
+        assert evidence["tier"] == "route"
         assert evidence["signals"][0]["signal"] == "path_pattern"
         assert evidence["signals"][0]["page_kind"] == "article"
 
@@ -555,7 +556,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         crawl = await session.get(SiteCrawl, seed.crawl_id)
         assert crawl is not None
         summary = crawl.score_summary or {}
-        assert summary.get("scoring_version") == "sh-scoring-2"
+        assert summary.get("scoring_version") == "sh-scoring-3"
         by_page_kind = summary.get("by_page_kind") or {}
         assert set(by_page_kind) == {"article"}
         assert by_page_kind["article"]["analyzed_count"] == 1
@@ -684,7 +685,7 @@ async def test_analyze_injects_site_facts_on_root_analysis_only(
         assert stance is not None
         assert stance.outcome == RULE_OUTCOME_FAIL
         assert stance.evidence["blocked"] == ["GPTBot"]
-        assert stance.rule_version == RULE_CATALOG_VERSION == "sh-rules-4"
+        assert stance.rule_version == RULE_CATALOG_VERSION == "sh-rules-5"
         llms = await _eval("aeo.llms_txt_present", root_analysis.id)
         assert llms is not None
         assert llms.outcome == RULE_OUTCOME_PASS

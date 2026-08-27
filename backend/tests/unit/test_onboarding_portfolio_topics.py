@@ -11,8 +11,8 @@ from app.domain.projects.discovery_schemas import DiscoveryTopic
 from app.domain.projects.onboarding import portfolio_generation as pg
 
 
-class _EchoesTopicNames:
-    """The observed small-model behaviour: return the topic NAME, not its id."""
+class _EchoesShortSlots:
+    """The model echoes only short slot IDs; code owns every UUID and label."""
 
     base_url_host = "fake"
     model = "fake-small"
@@ -24,23 +24,23 @@ class _EchoesTopicNames:
         self.calls += 1
         payload = json.loads(user)
         brand = payload["brand_name"]
-        competitors = payload.get("competitors") or []
-        named = "brand" in system.lower() or "compar" in system.lower()
         rows = []
-        for topic in payload["topics"]:
-            for index in range(payload["prompts_per_topic"]):
-                if competitors:
-                    text = f"{brand} or {competitors[0]} for {topic['name']} buyers"
-                    intent = "comparison"
-                elif named:
-                    text = f"is {brand} worth it for {topic['name']} in winter {index}"
-                    intent = "purchase"
-                else:
-                    text = f"warmest {topic['name']} pick for a {index} degree commute"
-                    intent = "discovery"
-                rows.append({"topic_id": topic["name"], "text": text, "intent": intent})
-            if named:
-                break
+        for slot in payload["buyer_query_slots"]:
+            topic = slot["topic"]
+            competitors = slot.get("competitors") or []
+            pattern = slot["pattern"]
+            if pattern == "brand_comparison":
+                text = f"{brand} vs {competitors[0]}"
+            else:
+                text = {
+                    "what_is": f"What is {topic}?",
+                    "best_for": f"Best {topic} for a winter commute",
+                    "how_to": f"How to choose {topic} for winter",
+                    "pricing": f"{topic} pricing",
+                    "brand_overview": f"What is {brand}?",
+                    "brand_fit": f"Is {brand} good for {topic}?",
+                }[pattern]
+            rows.append({"slot_id": slot["slot_id"], "text": text})
         return json.dumps({"prompts": rows})
 
 
@@ -62,7 +62,7 @@ async def test_a_model_that_never_returns_a_uuid_still_yields_a_portfolio(
     Best&Less reported `core_prompts_empty` with `prompt_rejected:topic_id`
     for ten topics, and the run failed outright.
     """
-    gateway = _EchoesTopicNames()
+    gateway = _EchoesShortSlots()
     monkeypatch.setattr(pg, "create_model_gateway", lambda: gateway)
 
     result = await pg.generate_portfolio(

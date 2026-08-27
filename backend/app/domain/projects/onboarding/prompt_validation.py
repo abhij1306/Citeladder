@@ -26,6 +26,8 @@ from app.core.config.prompts import (
     TOPICAL_BINDING_STOPWORDS,
 )
 from app.core.config.visibility_prompts import (
+    BUYER_QUERY_CORE_PATTERNS,
+    BUYER_QUERY_PATTERN_MIN_WORDS,
     PROVIDER_DESCRIPTION_PHRASES,
     VISIBILITY_MAX_ORGANIC_PROMPTS,
     VISIBILITY_MAX_SHARED_OPENINGS,
@@ -164,7 +166,9 @@ class PortfolioValidator:
     def topics_covered(self) -> set[str]:
         return {prompt["topic_id"] for prompt in self._accepted}
 
-    def _shape_error(self, text: str, topic_id: str, intent: str, cohort: str) -> str:
+    def _shape_error(
+        self, text: str, topic_id: str, intent: str, cohort: str, pattern: str
+    ) -> str:
         if cohort == PROMPT_COHORT_BRAND_DIAGNOSTIC:
             # A diagnostic prompt need not name a topic, but an id it does
             # carry has to be one of ours. Blanking an unknown id threw the
@@ -176,11 +180,10 @@ class PortfolioValidator:
             return "topic_id"
         if intent not in PROMPT_INTENTS:
             return "intent"
-        if not (
-            VISIBILITY_PROMPT_MIN_WORDS
-            <= len(words(text))
-            <= VISIBILITY_PROMPT_MAX_WORDS
-        ):
+        minimum_words = BUYER_QUERY_PATTERN_MIN_WORDS.get(
+            pattern, VISIBILITY_PROMPT_MIN_WORDS
+        )
+        if not minimum_words <= len(words(text)) <= VISIBILITY_PROMPT_MAX_WORDS:
             return "length"
         return ""
 
@@ -230,8 +233,9 @@ class PortfolioValidator:
         text = " ".join(str(candidate.get("text") or "").split())
         topic_id = str(candidate.get("topic_id") or "")
         intent = str(candidate.get("intent") or "").strip().casefold()
+        pattern = str(candidate.get("pattern") or "")
         error = (
-            self._shape_error(text, topic_id, intent, cohort)
+            self._shape_error(text, topic_id, intent, cohort, pattern)
             or self._name_error(text, cohort, intent)
             or self._style_error(text, topic_id)
         )
@@ -244,23 +248,20 @@ class PortfolioValidator:
             self._market_by_topic[topic_id] = self._market_by_topic.get(topic_id, 0) + 1
         self._accepted.append(
             {
+                "slot_id": str(candidate.get("slot_id") or ""),
                 "topic_id": topic_id,
                 "text": text,
                 "intent": intent,
                 "cohort": cohort,
+                "pattern": pattern,
             }
         )
         return ""
 
 
-def ordered_portfolio(prompts: list[dict], *, topic_ids: list[str]) -> list[dict]:
-    """Round-robin across topics, capped, then the named-brand cohorts.
-
-    Round-robin because the cap has to fall somewhere: taking prompts in
-    generation order would measure the first few topics exhaustively and leave
-    the rest with none. Every topic gets its first prompt before any topic gets
-    a second.
-    """
+def _partition_portfolio(
+    prompts: list[dict], topic_ids: list[str]
+) -> tuple[dict[str, list[dict]], list[dict]]:
     by_topic: dict[str, list[dict]] = {topic_id: [] for topic_id in topic_ids}
     trailing: list[dict] = []
     for prompt in prompts:
@@ -268,15 +269,55 @@ def ordered_portfolio(prompts: list[dict], *, topic_ids: list[str]) -> list[dict
             by_topic[prompt["topic_id"]].append(prompt)
         else:
             trailing.append(prompt)
+    return by_topic, trailing
+
+
+def _available_index(
+    rows: list[dict], used: set[int], desired_pattern: str
+) -> int | None:
+    preferred = next(
+        (
+            index
+            for index, row in enumerate(rows)
+            if index not in used and row.get("pattern") == desired_pattern
+        ),
+        None,
+    )
+    if preferred is not None:
+        return preferred
+    return next((index for index in range(len(rows)) if index not in used), None)
+
+
+def _rotated_organic(
+    by_topic: dict[str, list[dict]], topic_ids: list[str]
+) -> list[dict]:
     ordered: list[dict] = []
+    used: dict[str, set[int]] = {topic_id: set() for topic_id in topic_ids}
     round_index = 0
-    while any(len(rows) > round_index for rows in by_topic.values()):
-        for topic_id in topic_ids:
+    while len(ordered) < VISIBILITY_MAX_ORGANIC_PROMPTS and any(
+        len(used[topic_id]) < len(by_topic[topic_id]) for topic_id in topic_ids
+    ):
+        for topic_index, topic_id in enumerate(topic_ids):
             rows = by_topic[topic_id]
-            if (
-                len(rows) > round_index
-                and len(ordered) < VISIBILITY_MAX_ORGANIC_PROMPTS
-            ):
-                ordered.append(rows[round_index])
+            if len(ordered) >= VISIBILITY_MAX_ORGANIC_PROMPTS:
+                break
+            desired = BUYER_QUERY_CORE_PATTERNS[
+                (topic_index + round_index) % len(BUYER_QUERY_CORE_PATTERNS)
+            ]
+            choice = _available_index(rows, used[topic_id], desired)
+            if choice is not None:
+                used[topic_id].add(choice)
+                ordered.append(rows[choice])
         round_index += 1
-    return [*ordered, *trailing]
+    return ordered
+
+
+def ordered_portfolio(prompts: list[dict], *, topic_ids: list[str]) -> list[dict]:
+    """Round-robin across topics and patterns, then append named cohorts.
+
+    Every topic gets a first prompt before any gets a second. The preferred
+    pattern rotates by topic and round so a ten-topic cap does not become ten
+    identical ``What is ...?`` questions.
+    """
+    by_topic, trailing = _partition_portfolio(prompts, topic_ids)
+    return [*_rotated_organic(by_topic, topic_ids), *trailing]

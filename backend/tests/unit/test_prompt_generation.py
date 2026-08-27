@@ -20,6 +20,7 @@ from app.domain.prompts.generation import (
     parse_generation_output,
 )
 from app.domain.prompts.normalization import normalize_prompt_text, prompt_text_hash
+from app.domain.prompts.query_patterns import build_prompt_slots
 
 TOPIC_ID = uuid.uuid4()
 SECOND_TOPIC_ID = uuid.uuid4()
@@ -35,6 +36,7 @@ BRAND_CONTEXT = {
     "language_code": "en-AU",
     "knowledge_base": {"description": "Australian footwear retailer."},
 }
+SLOTS = build_prompt_slots(topics=ALLOWED_TOPICS, count=4, cohort="core")
 
 
 def test_normalization_and_hash_are_stable() -> None:
@@ -49,25 +51,17 @@ def test_normalization_remains_linear() -> None:
     assert time.perf_counter() - started < 1.0
 
 
-def test_parse_groups_prompts_by_supplied_topic_id() -> None:
+def test_parse_resolves_short_slots_to_code_owned_topic_and_intent() -> None:
     raw = json.dumps(
         {
             "prompts": [
-                {
-                    "topic_id": str(TOPIC_ID),
-                    "text": "best shoes for walking",
-                    "intent": "Discovery",
-                },
-                {
-                    "topic_id": str(SECOND_TOPIC_ID),
-                    "text": "comfortable gym clothes",
-                    "intent": "purchase",
-                },
+                {"slot_id": "q1", "text": "What is footwear?"},
+                {"slot_id": "q2", "text": "Best activewear for running"},
             ]
         }
     )
 
-    topics, dropped = parse_generation_output(raw, allowed_topics=ALLOWED_TOPICS)
+    topics, dropped = parse_generation_output(raw, slots=SLOTS)
 
     assert dropped == 0
     assert [(topic.topic_id, topic.name) for topic in topics] == [
@@ -75,79 +69,34 @@ def test_parse_groups_prompts_by_supplied_topic_id() -> None:
         (SECOND_TOPIC_ID, "Activewear"),
     ]
     assert topics[0].prompts[0].intent == "discovery"
+    assert topics[0].prompts[0].pattern == "what_is"
+    assert topics[1].prompts[0].intent == "purchase"
 
 
-def test_parse_accepts_allowed_topic_keyed_string_lists() -> None:
-    raw = json.dumps(
-        {
-            str(TOPIC_ID): [
-                "which running shoes suit daily walking",
-                "compare Acme Road Runner and Acme Trail Pro",
-            ]
-        }
-    )
-
-    topics, dropped = parse_generation_output(
-        raw,
-        allowed_topics=ALLOWED_TOPICS,
-        fallback_intents=("discovery", "comparison"),
-    )
-
-    assert dropped == 0
-    assert topics[0].topic_id == TOPIC_ID
-    assert [prompt.intent for prompt in topics[0].prompts] == [
-        "discovery",
-        "comparison",
+def test_slot_plan_rotates_patterns_while_covering_topics() -> None:
+    assert [(slot.topic_id, slot.pattern) for slot in SLOTS] == [
+        (str(TOPIC_ID), "what_is"),
+        (str(SECOND_TOPIC_ID), "best_for"),
+        (str(TOPIC_ID), "best_for"),
+        (str(SECOND_TOPIC_ID), "how_to"),
     ]
 
 
-def test_parse_accepts_topic_keyed_lists_without_requested_intents() -> None:
-    raw = json.dumps({str(TOPIC_ID): ["which running shoes suit daily walking"]})
-
-    topics, dropped = parse_generation_output(raw, allowed_topics=ALLOWED_TOPICS)
-
-    assert dropped == 0
-    assert topics[0].topic_id == TOPIC_ID
-    assert topics[0].prompts[0].intent == ""
-
-
-def test_parse_rejects_unknown_topic_keyed_string_lists() -> None:
-    raw = json.dumps({str(uuid.uuid4()): ["best walking shoes"]})
-
-    with pytest.raises(GenerationOutputError):
-        parse_generation_output(
-            raw,
-            allowed_topics=ALLOWED_TOPICS,
-            fallback_intents=("discovery",),
-        )
-
-
-def test_parse_drops_unknown_topic_ids_and_duplicates() -> None:
+def test_parse_drops_unknown_duplicate_and_wrong_shape_slots() -> None:
     raw = json.dumps(
         {
             "prompts": [
-                {
-                    "topic_id": str(uuid.uuid4()),
-                    "text": "unsupported topic",
-                    "intent": "discovery",
-                },
-                {
-                    "topic_id": str(TOPIC_ID),
-                    "text": "best walking shoes",
-                    "intent": "discovery",
-                },
-                {
-                    "topic_id": str(SECOND_TOPIC_ID),
-                    "text": "BEST  WALKING SHOES?",
-                    "intent": "discovery",
-                },
+                {"slot_id": "unknown", "text": "What is footwear?"},
+                {"slot_id": "q1", "text": "What is footwear?"},
+                {"slot_id": "q1", "text": "What is footwear exactly?"},
+                {"slot_id": "q2", "text": "comfortable gym clothes"},
             ]
         }
     )
 
-    topics, dropped = parse_generation_output(raw, allowed_topics=ALLOWED_TOPICS)
+    topics, dropped = parse_generation_output(raw, slots=SLOTS)
 
-    assert dropped == 1
+    assert dropped == 3
     assert len(topics) == 1
     assert topics[0].topic_id == TOPIC_ID
 
@@ -162,9 +111,8 @@ def test_parse_drops_unknown_topic_ids_and_duplicates() -> None:
             {
                 "prompts": [
                     {
-                        "topic_id": str(TOPIC_ID),
+                        "slot_id": "q1",
                         "text": "best walking shoes",
-                        "intent": "discovery",
                         "theme": "model invented topic",
                     }
                 ]
@@ -174,21 +122,19 @@ def test_parse_drops_unknown_topic_ids_and_duplicates() -> None:
 )
 def test_parse_rejects_malformed_or_empty_output(raw: str) -> None:
     with pytest.raises(GenerationOutputError):
-        parse_generation_output(raw, allowed_topics=ALLOWED_TOPICS)
+        parse_generation_output(raw, slots=SLOTS)
 
 
 def test_user_message_contains_only_canonical_topic_ids() -> None:
     message = build_generation_user_message(
         brand_context=BRAND_CONTEXT,
-        topics=ALLOWED_TOPICS,
+        slots=SLOTS,
         existing_prompts=["existing prompt"],
-        count=4,
-        intents=["discovery"],
     )
 
-    assert str(TOPIC_ID) in message
-    assert "Canonical topics" in message
-    assert "Generate exactly 4 prompts" in message
+    assert "q1" in message
+    assert "Buyer-query slots" in message
+    assert "Return exactly 4 prompts" in message
     assert "create a topic" not in message.casefold()
 
 

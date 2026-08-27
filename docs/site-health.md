@@ -202,23 +202,30 @@ about_contact, service, local, guide, comparison,
 case_study_review, trust_policy, other
 ```
 
-Classification is pure, deterministic, bounded, and versioned. Signals normally
-run in this priority order:
+Classification is pure, deterministic, bounded, and versioned. The extractor
+first selects the primary `<main>`, `<article>`, or body-minus-chrome region.
+Non-rendered subtrees and page chrome cannot contribute visible text or entity
+controls. Repeated, structurally similar linked cards are identified so a
+recommendation carousel cannot speak for the page's primary entity.
 
-1. root/homepage path equivalence;
+The classifier resolves three evidence tiers:
+
+1. structural page-owned evidence: a corroborated visible product buy box, a
+   listing grid plus a listing affordance, or one address under a local route;
 2. the semantic URL path segment nearest the root;
-3. bounded visible-content heuristics for FAQ, product, and article pages;
-4. explicitly prioritized recognized schema types.
+3. bounded FAQ/article/title semantics.
 
-Path/content evidence outranks schema because schema is a page's claim about
-itself. Letting that claim select the contract used to validate it would make
-schema analysis circular. Conflicts, alternatives, confidence, winning signal,
-and schema suggestion persist on `SitePageAnalysis.page_kind_evidence`.
+Structured data remains recorded as weak evidence and a schema suggestion, but
+is never eligible to decide a page kind by itself. Same-tier disagreements
+abstain to `other`; lower-tier disagreements persist as conflicts. Confidence
+is the label `high`, `medium`, `low`, or `unknown`, not a probability. The
+winning signal, tier, conflicts, alternatives, and schema suggestion persist on
+`SitePageAnalysis.page_kind_evidence`.
 
-One config-owned exception handles category route families that contain deep
-PDP URLs: visible price plus a purchase CTA overrides an ancestor category-path
-signal. Product schema alone never triggers that override, so structured data
-still cannot self-certify the product contract.
+A visible price plus purchase control and a corroborator may therefore override
+an ancestor category-path signal for a deep PDP. Product schema may corroborate
+that independently visible structure but cannot self-certify the product
+contract.
 
 Nested route families such as `/resources/guides/...`,
 `/company/contact-us`, and `/legal/privacy-policy` are recognized. Exact path
@@ -305,8 +312,9 @@ current per-page evidence is retained, and no dormant scope configuration or
 placeholder identity owner is introduced.
 
 Current versions are owned in the focused `backend/app/core/config/site_health_*`
-modules; tests
-pin persistence and replay behavior.
+modules. The structural-facts slice ships extractor `sh-extractor-10`, classifier
+`sh-classifier-6`, analyzer `sh-analyzer-6`, rule catalog `sh-rules-5`, and
+scoring `sh-scoring-3`; tests pin persistence and replay behavior.
 
 ## Known boundary
 

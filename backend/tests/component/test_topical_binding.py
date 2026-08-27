@@ -15,6 +15,7 @@ Covers, against real Postgres (service level) and the API envelope:
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import httpx
@@ -282,6 +283,7 @@ async def test_generation_drops_off_domain_model_output(
             json={"name": "Running Shoes"},
         )
     ).json()
+    assert topic["name"] == "Running Shoes"
 
     class _MixedAgent:
         model = "fake-model"
@@ -295,14 +297,13 @@ async def test_generation_drops_off_domain_model_output(
             schema_name: str,
             schema: dict[str, object],
         ) -> str:
-            return (
-                '{"prompts": ['
-                f'{{"topic_id": "{topic["id"]}", '
-                '"text": "best running shoes for daily training", '
-                '"intent": "discovery"},'
-                f'{{"topic_id": "{topic["id"]}", '
-                '"text": "best laptops for programming", "intent": "discovery"}'
-                "]}"
+            return json.dumps(
+                {
+                    "prompts": [
+                        {"slot_id": "q1", "text": "What is running shoes?"},
+                        {"slot_id": "q2", "text": "Best laptops for programming"},
+                    ]
+                }
             )
 
     monkeypatch.setattr(prompts_api, "create_model_gateway", lambda: _MixedAgent())
@@ -312,11 +313,9 @@ async def test_generation_drops_off_domain_model_output(
     )
     assert resp.status_code == 201
     generated = resp.json()["generated"]
-    assert [p["text"] for p in generated] == ["best running shoes for daily training"]
+    assert [p["text"] for p in generated] == ["What is running shoes?"]
     listed = (await client.get(f"/api/v1/prompt-sets/{prompt_set_id}")).json()
-    assert [p["text"] for p in listed["prompts"]] == [
-        "best running shoes for daily training"
-    ]
+    assert [p["text"] for p in listed["prompts"]] == ["What is running shoes?"]
 
 
 # ---------------------------------------------------------------------------

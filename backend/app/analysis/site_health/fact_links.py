@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
+from app.analysis.site_health.fact_regions import element_region
 from app.core.config import site_health_acquisition as config
 
 # These are immutable normalized-fact labels, not task kinds. They remain
@@ -47,6 +48,11 @@ def _anchor_assets(
                     "anchor_text": _text(anchor)[
                         : config.SITE_HEALTH_MAX_ANCHOR_TEXT_CHARS
                     ],
+                    # Which landmark the link sits in. Recorded here because the
+                    # DOM already knows: every page of a site repeats the same
+                    # navigation, so a link count that cannot separate menu from
+                    # main content describes the template rather than the page.
+                    "region": element_region(anchor),
                 }
             )
     except DOM_ERRORS as exc:

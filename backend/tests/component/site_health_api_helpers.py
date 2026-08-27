@@ -255,13 +255,13 @@ async def _seed_scenario(session: AsyncSession, *, email: str) -> Scenario:
                 "classifier_version": "sh-classifier-1",
                 "classified_by": "path_pattern",
                 "schema_suggested_type": None,
-                "confidence": 0.8,
-                "confidence_threshold": 0.5,
+                "confidence": "medium",
+                "tier": "route",
                 "signals": [
                     {
                         "signal": "path_pattern",
                         "page_kind": page_kind,
-                        "weight": 0.8,
+                        "tier": "route",
                         "detail": "^/(blog|news|guides)(/|$)",
                     }
                 ],

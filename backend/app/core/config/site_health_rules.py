@@ -372,8 +372,17 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_STRUCTURED_DATA,
-        severity=SEVERITY_HIGH,
-        weight=3.0,
+        # ABSENT markup is an optimization opportunity, not a reproducible
+        # defect: a valid trust-policy page without a WebPage node is not
+        # broken. As a HIGH weight-3.0 defect this rule fired on every
+        # correctly classified page that simply had no markup yet, so
+        # improving the classifier would have LOWERED scores across a site
+        # for pages that had nothing wrong with them. Malformed or
+        # contradictory markup remains a defect -- see
+        # ``aeo.schema_required_valid``.
+        severity=SEVERITY_LOW,
+        finding_class=FINDING_CLASS_ADVISORY,
+        weight=0.5,
         applicability_key=_page_kinds(
             *PAGE_KIND_SCHEMA_ANALYSIS_KINDS,
             requires_html=True,
@@ -411,7 +420,9 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         rule_version=RULE_CATALOG_VERSION,
         dimension=DIMENSION_AEO,
         category=CATEGORY_STRUCTURED_DATA,
+        # Recommended properties are, by their own name, guidance.
         severity=SEVERITY_LOW,
+        finding_class=FINDING_CLASS_ADVISORY,
         weight=0.5,
         applicability_key=_page_kinds(
             *PAGE_KIND_SCHEMA_ANALYSIS_KINDS,

@@ -432,10 +432,10 @@ _V2_PAGE = b"""
 
 
 def test_extractor_version_is_sh_extractor_9():
-    # sh-extractor-9 adds generic Commerce facts while retaining the v8 DOM
+    # sh-extractor-10 adds structurally scoped entity facts while retaining the DOM
     # traversal failure boundary.
-    assert EXTRACTOR_VERSION == "sh-extractor-9"
-    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-9"
+    assert EXTRACTOR_VERSION == "sh-extractor-10"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-10"
 
 
 # --- sh-extractor-3: industry-role classifier facts -------------------------

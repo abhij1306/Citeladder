@@ -118,6 +118,8 @@ _STOPWORDS = frozenset(
 class PortfolioPrompt:
     text: str
     cohort: str
+    intent: str = ""
+    pattern: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +131,7 @@ class PortfolioEvaluation:
     market_signal_rate: float = 0.0
     offering_coverage: float = 0.0
     use_case_coverage: float = 0.0
+    buyer_query_pattern_coverage: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +264,8 @@ def evaluate_portfolio(
         *_identity_issues(case, prompts),
     ]
     combined = " ".join(_normalized(p.text) for p in prompts)
+    expected_patterns = {"what_is", "best_for", "how_to", "pricing"}
+    observed_patterns = {prompt.pattern for prompt in neutral if prompt.pattern}
     return PortfolioEvaluation(
         valid=not issues,
         issues=tuple(issues),
@@ -269,6 +274,8 @@ def evaluate_portfolio(
         market_signal_rate=_signal_rate(prompts, case.market_terms),
         offering_coverage=_covered_fraction(combined, case.products_or_services),
         use_case_coverage=_covered_fraction(combined, case.use_cases),
+        buyer_query_pattern_coverage=len(expected_patterns & observed_patterns)
+        / len(expected_patterns),
     )
 
 

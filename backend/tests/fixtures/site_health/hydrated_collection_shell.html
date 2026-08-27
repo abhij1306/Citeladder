@@ -1,0 +1,36 @@
+<!doctype html>
+<!--
+  A collection page whose product grid is rendered by JavaScript after load.
+  Four of the reference crawl's collection pages looked exactly like this: the
+  same five footer product links as a policy page and nothing else.
+
+  There is no listing evidence to find here, and inventing one would be wrong.
+  The route family carries this page instead, at a lower confidence.
+-->
+<html>
+  <head>
+    <title>New Arrivals</title>
+    <script>
+      var re = /[.*+?^${}()|[\]\\]/g;
+      function esc(s) { return s.replace(re, '\\$1'); }
+    </script>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/collections/bags">Bags</a>
+        <a href="/collections/totes">Totes</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>New Arrivals</h1>
+      <div id="collection-grid-root"></div>
+    </main>
+
+    <footer>
+      <a href="/products/promo-one">Promo One</a>
+      <a href="/pages/shipping">Shipping</a>
+    </footer>
+  </body>
+</html>

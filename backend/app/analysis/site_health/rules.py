@@ -20,7 +20,6 @@
 # the v1 analysis-owned ``MIN_SUFFICIENT_WORDS`` constant moved there in v2.
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -28,6 +27,10 @@ from typing import Any
 from app.analysis.site_health.indexing import (
     evaluate_indexability,
     normalized_url_for_compare,
+)
+from app.analysis.site_health.product_rules import (
+    check_product_offer_details,
+    check_product_visible_schema_parity,
 )
 from app.analysis.site_health.schema_rules import (
     check_schema_expected_for_type,
@@ -51,11 +54,7 @@ from app.core.config.site_health_contracts import (
 from app.core.config.site_health_page_profiles import (
     PRODUCT_ANALYSIS_RULES,
     PRODUCT_ANALYSIS_RULES_BY_ID,
-    PRODUCT_PARITY_FIELDS,
-    PRODUCT_PARITY_NORMALIZATION_PATTERN,
-    PRODUCT_PARITY_SCHEMA_FACT_KEYS,
     PRODUCT_SCHEMA_EXPECTATION,
-    PRODUCT_SCHEMA_URI_SEPARATOR,
 )
 from app.core.config.site_health_rules import (
     ANSWER_FIRST_MIN_WORDS,
@@ -341,121 +340,6 @@ def _check_llms_txt_present(facts: dict) -> tuple[str, dict]:
     }
 
 
-def _product_block(facts: dict) -> dict | None:
-    """The bounded Product fact, only when Product markup is actually present."""
-    product = (facts.get("structured_data") or {}).get("product") or {}
-    return product if int(product.get("schema_product_count", 0) or 0) else None
-
-
-def _check_product_offer_details(facts: dict) -> tuple[str, dict]:
-    """Validate Product/Offer completeness without inferring optional claims."""
-    product = _product_block(facts)
-    if product is None:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_product_schema"}
-    offer_declared = _product_offer_declared(facts)
-    missing = _missing_product_offer_fields(product, offer_declared=offer_declared)
-    return _pass_fail(not missing), _product_offer_evidence(
-        product, offer_declared=offer_declared, missing=missing
-    )
-
-
-def _product_offer_declared(facts: dict) -> bool:
-    blocks = (facts.get("structured_data") or {}).get("blocks") or []
-    return any(
-        block.get("type") == "Product"
-        and "offers" in (block.get("props_present") or [])
-        for block in blocks
-    )
-
-
-def _missing_product_offer_fields(product: dict, *, offer_declared: bool) -> list[str]:
-    missing: list[str] = []
-    if not (product.get("sku") or product.get("gtin") or product.get("mpn")):
-        missing.append("identifier")
-    if not product.get("brand"):
-        missing.append("brand")
-    if offer_declared:
-        for field, key in (
-            ("price", "price"),
-            ("priceCurrency", "price_currency"),
-            ("availability", "availability"),
-        ):
-            if not product.get(key):
-                missing.append(f"offers.{field}")
-    return missing
-
-
-def _product_offer_evidence(
-    product: dict, *, offer_declared: bool, missing: list[str]
-) -> dict:
-    return {
-        "schema_product_count": product["schema_product_count"],
-        "offer_declared": offer_declared,
-        "missing": missing,
-        "sku": product.get("sku") or [],
-        "gtin": product.get("gtin") or [],
-        "brand": product.get("brand") or [],
-        "price": product.get("price") or [],
-        "price_currency": product.get("price_currency") or [],
-        "availability": product.get("availability") or [],
-        "variants": product.get("variants") or [],
-        "ratings": product.get("ratings") or [],
-        "shipping": bool(product.get("shipping")),
-        "returns": bool(product.get("returns")),
-    }
-
-
-def _parity_text(facts: dict) -> str:
-    headings = facts.get("headings") or {}
-    visible = " ".join(
-        [str(facts.get("title") or "")]
-        + [str(value) for value in (headings.get("h1_texts") or [])]
-        + [str((facts.get("body") or {}).get("text") or "")]
-    )
-    return re.sub(PRODUCT_PARITY_NORMALIZATION_PATTERN, "", visible.lower())
-
-
-def _check_product_visible_schema_parity(facts: dict) -> tuple[str, dict]:
-    """Compare only populated Product claims with persisted visible facts."""
-    product = _product_block(facts)
-    if product is None:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_product_schema"}
-    visible = _parity_text(facts)
-    checks: list[dict[str, object]] = []
-    for parity_field in PRODUCT_PARITY_FIELDS:
-        values = (
-            product.get("name") or []
-            if parity_field == "name"
-            else product.get(PRODUCT_PARITY_SCHEMA_FACT_KEYS[parity_field]) or []
-        )
-        for value in values:
-            normalized = re.sub(
-                PRODUCT_PARITY_NORMALIZATION_PATTERN, "", str(value).lower()
-            )
-            if not normalized:
-                continue
-            comparable = re.sub(
-                PRODUCT_PARITY_NORMALIZATION_PATTERN,
-                "",
-                str(value).rsplit(PRODUCT_SCHEMA_URI_SEPARATOR, 1)[-1].lower(),
-            )
-            checks.append(
-                {
-                    "field": parity_field,
-                    "schema_value": str(value)[:256],
-                    "visible_match": normalized in visible or comparable in visible,
-                }
-            )
-    if not checks:
-        return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_comparable_product_claims"}
-    mismatches = [check for check in checks if not check["visible_match"]]
-    return _pass_fail(not mismatches), {
-        "checked_claim_count": len(checks),
-        "mismatch_count": len(mismatches),
-        "checks": checks,
-    }
-
-
 # --- v2 P2: citability checks -----------------------------------------------
 
 
@@ -615,8 +499,8 @@ _CHECKS: dict[str, Callable[[dict], tuple[str, dict]]] = {
     "aeo.question_headings": _check_question_headings,
     "aeo.server_rendered_content": _check_server_rendered_content,
     "aeo.no_expand_gating": _check_no_expand_gating,
-    "aeo.product_offer_details": _check_product_offer_details,
-    "aeo.product_visible_schema_parity": _check_product_visible_schema_parity,
+    "aeo.product_offer_details": check_product_offer_details,
+    "aeo.product_visible_schema_parity": check_product_visible_schema_parity,
 }
 
 

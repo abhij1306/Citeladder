@@ -7,6 +7,7 @@ from typing import Any
 
 from app.core.config.prompts import PROMPT_NEAR_DUPLICATE_SIMILARITY
 from app.core.config.visibility_prompts import (
+    BUYER_QUERY_PATTERN_MIN_WORDS,
     VISIBILITY_MAX_SHARED_OPENINGS,
     VISIBILITY_PROMPT_MAX_WORDS,
     VISIBILITY_PROMPT_MIN_WORDS,
@@ -58,11 +59,10 @@ def _style_is_valid(
     positioning: frozenset[str],
     openings: dict[str, int],
 ) -> bool:
-    if not (
-        VISIBILITY_PROMPT_MIN_WORDS
-        <= len(words(prompt.text))
-        <= VISIBILITY_PROMPT_MAX_WORDS
-    ):
+    minimum_words = BUYER_QUERY_PATTERN_MIN_WORDS.get(
+        prompt.pattern, VISIBILITY_PROMPT_MIN_WORDS
+    )
+    if not minimum_words <= len(words(prompt.text)) <= VISIBILITY_PROMPT_MAX_WORDS:
         return False
     if starts_with_template(prompt.text) or repeats_positioning(
         prompt.text, positioning

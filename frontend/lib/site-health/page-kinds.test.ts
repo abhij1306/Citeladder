@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PageKindScoreSummary } from '@/lib/api/types';
-import { PAGE_KINDS, byPageKindRows, pageKindLabel, readPageKindEvidence } from './page-kinds';
+import {
+  CONFIDENCE_LABELS,
+  PAGE_KINDS,
+  byPageKindRows,
+  pageKindLabel,
+  readPageKindEvidence,
+} from './page-kinds';
+
+describe('confidence labels', () => {
+  it('describes low confidence as general semantic evidence', () => {
+    expect(CONFIDENCE_LABELS.low).toBe('Low — semantic evidence');
+  });
+});
 
 describe('pageKindLabel (the single shared mapping)', () => {
   it('has a humanized label for every page kind in the vocabulary', () => {
@@ -71,16 +83,16 @@ describe('readPageKindEvidence (why-this-type disclosure reader)', () => {
     classifier_version: 'sh-classifier-1',
     classified_by: 'path_pattern',
     schema_suggested_type: 'product',
-    confidence: 1.3,
-    confidence_threshold: 0.5,
+    confidence: 'medium',
+    tier: 'route',
     signals: [
       {
         signal: 'path_pattern',
         page_kind: 'article',
-        weight: 0.8,
+        tier: 'route',
         detail: '^/(blog|news|guides)(/|$)',
       },
-      { signal: 'structured_data', page_kind: 'product', weight: 0.5, detail: 'Product' },
+      { signal: 'structured_data', page_kind: 'product', tier: 'semantic', detail: 'Product' },
     ],
   };
 
@@ -90,16 +102,16 @@ describe('readPageKindEvidence (why-this-type disclosure reader)', () => {
       classifierVersion: 'sh-classifier-1',
       classifiedBy: 'path_pattern',
       schemaSuggestedType: 'product',
-      confidence: 1.3,
-      confidenceThreshold: 0.5,
+      confidence: 'medium',
+      tier: 'route',
       signals: [
         {
           signal: 'path_pattern',
           pageKind: 'article',
-          weight: 0.8,
+          tier: 'route',
           detail: '^/(blog|news|guides)(/|$)',
         },
-        { signal: 'structured_data', pageKind: 'product', weight: 0.5, detail: 'Product' },
+        { signal: 'structured_data', pageKind: 'product', tier: 'semantic', detail: 'Product' },
       ],
       schemaConflict: true,
       // Absent in this fixture; the parser still surfaces the fields so the
@@ -129,7 +141,7 @@ describe('readPageKindEvidence (why-this-type disclosure reader)', () => {
     expect(readPageKindEvidence([], 'article')).toBeNull();
     expect(readPageKindEvidence({}, 'article')).toBeNull();
     // A required field of the wrong type sinks the whole record.
-    expect(readPageKindEvidence({ ...persisted, confidence: 'high' }, 'article')).toBeNull();
+    expect(readPageKindEvidence({ ...persisted, confidence: 1.3 }, 'article')).toBeNull();
     expect(readPageKindEvidence({ ...persisted, classified_by: 7 }, 'article')).toBeNull();
   });
 
@@ -139,14 +151,14 @@ describe('readPageKindEvidence (why-this-type disclosure reader)', () => {
         ...persisted,
         signals: [
           'not-an-object',
-          { signal: 'path_pattern', page_kind: 'article' }, // no weight
-          { signal: 'structured_data', page_kind: 'product', weight: 0.5 }, // no detail
+          { signal: 'path_pattern', page_kind: 'article' }, // no tier
+          { signal: 'structured_data', page_kind: 'product', tier: 'semantic' }, // no detail
         ],
       },
       'article',
     );
     expect(view?.signals).toEqual([
-      { signal: 'structured_data', pageKind: 'product', weight: 0.5, detail: '' },
+      { signal: 'structured_data', pageKind: 'product', tier: 'semantic', detail: '' },
     ]);
   });
 });
@@ -155,8 +167,8 @@ describe('readPageKindEvidence — alternatives, conflicts, other_reason', () =>
   const base = {
     classifier_version: 'sh-classifier-2',
     classified_by: 'path_pattern',
-    confidence: 0.4,
-    confidence_threshold: 0.5,
+    confidence: 'low',
+    tier: 'semantic',
     signals: [],
   };
 
@@ -164,8 +176,8 @@ describe('readPageKindEvidence — alternatives, conflicts, other_reason', () =>
     const view = readPageKindEvidence(
       {
         ...base,
-        other_reason: 'below_threshold',
-        alternatives: [{ page_kind: 'article', confidence: 0.3, signals: ['path_pattern'] }],
+        other_reason: 'no_classification_signals',
+        alternatives: [{ page_kind: 'article', tier: 'route', signals: ['path_pattern'] }],
         conflicts: [
           {
             winner_page_kind: 'faq',
@@ -177,9 +189,9 @@ describe('readPageKindEvidence — alternatives, conflicts, other_reason', () =>
       },
       'other',
     );
-    expect(view?.otherReason).toBe('below_threshold');
+    expect(view?.otherReason).toBe('no_classification_signals');
     expect(view?.alternatives).toEqual([
-      { pageKind: 'article', confidence: 0.3, signals: ['path_pattern'] },
+      { pageKind: 'article', tier: 'route', signals: ['path_pattern'] },
     ]);
     expect(view?.conflicts).toHaveLength(1);
     expect(view?.conflicts[0].conflictingPageKind).toBe('article');
@@ -191,7 +203,7 @@ describe('readPageKindEvidence — alternatives, conflicts, other_reason', () =>
         ...base,
         // Wrong types, wrong shapes, and a valid entry mixed together.
         other_reason: 42,
-        alternatives: ['nope', null, { page_kind: 'faq' }, { page_kind: 'docs', confidence: 0.2 }],
+        alternatives: ['nope', null, { page_kind: 'faq' }, { page_kind: 'docs', tier: 'route' }],
         conflicts: [{ signal: 'only_a_signal' }, 7],
       },
       'other',
@@ -200,7 +212,7 @@ describe('readPageKindEvidence — alternatives, conflicts, other_reason', () =>
     // A non-string other_reason is not a reason.
     expect(view?.otherReason).toBeNull();
     // Only the fully-shaped alternative survives.
-    expect(view?.alternatives).toEqual([{ pageKind: 'docs', confidence: 0.2, signals: [] }]);
+    expect(view?.alternatives).toEqual([{ pageKind: 'docs', tier: 'route', signals: [] }]);
     expect(view?.conflicts).toEqual([]);
   });
 

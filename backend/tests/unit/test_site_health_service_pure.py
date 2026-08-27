@@ -236,7 +236,7 @@ def test_unmonitored_with_nothing_is_not_selected() -> None:
 
 
 def _crawl_with_summary(summary: dict | None) -> SimpleNamespace:
-    return SimpleNamespace(score_summary=summary, scoring_version="sh-scoring-2")
+    return SimpleNamespace(score_summary=summary, scoring_version="sh-scoring-3")
 
 
 def test_score_summary_projects_by_page_kind() -> None:
@@ -248,7 +248,7 @@ def test_score_summary_projects_by_page_kind() -> None:
             "selected_count": 4,
             "analyzed_count": 3,
             "issue_count": 2,
-            "scoring_version": "sh-scoring-2",
+            "scoring_version": "sh-scoring-3",
             "by_page_kind": {
                 "article": {
                     "analyzed_count": 2,
@@ -295,7 +295,7 @@ def test_score_summary_without_breakdown_projects_empty_map() -> None:
     projected = _score_summary(cast(SiteCrawl, crawl))
     assert projected is not None
     assert projected["by_page_kind"] == {}
-    assert projected["scoring_version"] == "sh-scoring-2"
+    assert projected["scoring_version"] == "sh-scoring-3"
 
 
 def test_score_summary_none_when_absent() -> None:

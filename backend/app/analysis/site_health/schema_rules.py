@@ -2,18 +2,60 @@
 
 from __future__ import annotations
 
+import re
+
 from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
 )
-from app.core.config.site_health_page_profiles import PRODUCT_SCHEMA_EXPECTATION
+from app.core.config.site_health_page_profiles import (
+    PRODUCT_SCHEMA_EXPECTATION,
+    SCHEMA_CONTENT_MATCH_MIN_TOKEN_OVERLAP,
+)
 from app.core.config.site_health_rules import SCHEMA_CONTENT_MATCH_MAX_CANDIDATES
 from app.core.config.site_health_taxonomy import (
     PAGE_KIND_EXPECTED_SCHEMA,
     PAGE_KIND_OTHER,
     PageKindSchemaExpectation,
 )
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def normalized_tokens(value: str) -> set[str]:
+    """Lowercase alphanumeric word tokens of ``value``."""
+    return set(_TOKEN_RE.findall(str(value or "").lower()))
+
+
+def matches_by_tokens(claim: str, visible: str) -> bool:
+    """Whether a schema claim and visible text describe the same thing.
+
+    Compared by shared word tokens rather than substring containment: a
+    storefront writes "Dillen Letter Carrier" in its H1 and
+    "Dillen Letter Carrier, Caramel" in its markup, and calling that a
+    contradiction produced a HIGH-severity finding on essentially every
+    correctly marked-up product page.
+    """
+    claim_sequence = _TOKEN_RE.findall(str(claim or "").lower())
+    if not claim_sequence:
+        return False
+    visible_sequence = _TOKEN_RE.findall(str(visible or "").lower())
+    if not visible_sequence:
+        return False
+    if any(
+        visible_sequence[start : start + len(claim_sequence)] == claim_sequence
+        for start in range(len(visible_sequence) - len(claim_sequence) + 1)
+    ):
+        return True
+    claim_tokens = set(claim_sequence)
+    visible_tokens = set(visible_sequence)
+    shared = len(claim_tokens & visible_tokens)
+    # A schema name is often the longer string ("Gretta Satchel, Brown Tmoro"
+    # for a heading of "Gretta Satchel"). Require meaningful coverage in both
+    # directions when the full claim is not a visible token-boundary phrase.
+    ratio = min(shared / len(claim_tokens), shared / len(visible_tokens))
+    return ratio >= SCHEMA_CONTENT_MATCH_MIN_TOKEN_OVERLAP
 
 
 def _pass_fail(condition: bool) -> str:
@@ -121,7 +163,7 @@ def check_schema_matches_content(facts: dict) -> tuple[str, dict]:
         return RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_schema_names"}
     lowered = _visible_names(facts)
     matched = any(
-        candidate.lower() in hay for candidate in candidates for hay in lowered
+        matches_by_tokens(candidate, hay) for candidate in candidates for hay in lowered
     )
     return _pass_fail(matched), {
         "page_kind": expectation.page_kind,

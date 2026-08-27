@@ -36,6 +36,7 @@ from app.core.config.prompts import (
     PROMPT_COHORT_CORE,
 )
 from app.core.config.visibility_prompts import (
+    BUYER_QUERY_PATTERN_VERSION,
     VISIBILITY_TOPIC_MAX,
 )
 from app.domain.projects.discovery_schemas import (
@@ -436,6 +437,9 @@ def _generated_prompts(
                 origin="generated",
                 generation_evidence={
                     "generator_version": BRAND_DISCOVERY_PROMPT_GENERATOR_VERSION,
+                    "buyer_query_pattern_version": BUYER_QUERY_PATTERN_VERSION,
+                    "buyer_query_pattern": str(item.get("pattern") or ""),
+                    "buyer_query_slot_id": str(item.get("slot_id") or ""),
                     "discovery_id": str(discovery_id),
                     "provider": provider,
                     "model": model,

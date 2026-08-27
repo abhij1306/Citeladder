@@ -14,12 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
 from dataclasses import dataclass
 from functools import partial
-from typing import Literal
-
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.connectors.agent.client import AgentNotConfiguredError
 from app.connectors.agent.factory import create_model_gateway
@@ -29,7 +25,6 @@ from app.core.config.brand_discovery import (
     DISCOVERY_PROMPT_GENERATION_CONCURRENCY,
     brand_discovery_settings,
 )
-from app.core.config.projects import PROMPT_INTENTS
 from app.core.config.prompts import (
     PROMPT_COHORT_BRAND_DIAGNOSTIC,
     PROMPT_COHORT_COMPARISON,
@@ -51,22 +46,12 @@ from app.domain.projects.onboarding.prompt_validation import (
     ordered_portfolio,
     positioning_shingles,
 )
-
-PromptIntent = Literal["discovery", "comparison", "purchase", "service", "local"]
-
-
-class GeneratedPrompt(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    topic_id: uuid.UUID | None = None
-    text: str = Field(min_length=1, max_length=300)
-    intent: PromptIntent
-
-
-class PortfolioEnvelope(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    prompts: list[GeneratedPrompt] = Field(default_factory=list, max_length=40)
+from app.domain.prompts.generation_contract import (
+    GenerationOutput,
+    GenerationOutputError,
+    parse_planned_output,
+)
+from app.domain.prompts.query_patterns import PromptSlot, build_prompt_slots
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,26 +75,23 @@ def _topic_request(
     buyer_register: str,
     topics: list[DiscoveryTopic],
     rejected: tuple[str, ...],
-) -> str:
+) -> tuple[str, list[PromptSlot]]:
+    slots = build_prompt_slots(
+        topics=topics,
+        count=len(topics) * VISIBILITY_PROMPTS_PER_TOPIC,
+        cohort=PROMPT_COHORT_CORE,
+        brand_name=brand_name,
+    )
     payload: dict[str, object] = {
         "brand_name": brand_name,
         "market": market,
         "business_model": business_model,
         "buyer_register": buyer_register,
-        "allowed_intents": sorted(PROMPT_INTENTS),
-        "prompts_per_topic": VISIBILITY_PROMPTS_PER_TOPIC,
-        "topics": [
-            {
-                "topic_id": str(topic.topic_id),
-                "name": topic.name,
-                "description": topic.description,
-            }
-            for topic in topics
-        ],
+        "buyer_query_slots": [slot.as_model_input() for slot in slots],
     }
     if rejected:
         payload["previous_rejection_reasons"] = list(rejected)
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(payload, ensure_ascii=False), slots
 
 
 def _brand_request(
@@ -122,70 +104,52 @@ def _brand_request(
     count: int,
     cohort: str,
     rejected: tuple[str, ...] = (),
-) -> str:
+) -> tuple[str, list[PromptSlot]]:
+    slots = build_prompt_slots(
+        topics=topics,
+        count=count,
+        cohort=cohort,
+        brand_name=brand_name,
+        competitor_names=tuple(competitors),
+        unbound_brand_diagnostic=cohort == PROMPT_COHORT_BRAND_DIAGNOSTIC,
+    )
     payload: dict[str, object] = {
         "brand_name": brand_name,
         "market": market,
         "business_model": business_model,
         "competitors": competitors if cohort == PROMPT_COHORT_COMPARISON else [],
-        "allowed_intents": sorted(PROMPT_INTENTS),
-        "prompts_per_topic": count,
-        "topics": [
-            {"topic_id": str(topic.topic_id), "name": topic.name} for topic in topics
-        ],
+        "buyer_query_slots": [slot.as_model_input() for slot in slots],
     }
     if rejected:
         payload["previous_rejection_reasons"] = list(rejected)
-    return json.dumps(payload, ensure_ascii=False)
+    return json.dumps(payload, ensure_ascii=False), slots
 
 
-def _salvaged_rows(raw: str) -> list[dict]:
-    """Every well-formed row in a response, ignoring the rows that are not.
-
-    Validating the envelope as a whole discarded all four prompts whenever one
-    row echoed a topic name instead of an id, or invented an intent. The batch
-    is the unit of generation, not the unit of correctness: a row that cannot
-    be read is dropped and the rest are kept, and the deterministic validator
-    still has the final say on every survivor.
-    """
-    try:
-        payload = json.loads(raw)
-    except (TypeError, ValueError):
-        return []
-    if not isinstance(payload, dict):
-        return []
-    prompts = payload.get("prompts")
-    if not isinstance(prompts, list):
-        return []
-    rows: list[dict] = []
-    for item in prompts:
-        if not isinstance(item, dict):
-            continue
-        text = str(item.get("text") or "").strip()
-        if not text:
-            continue
-        rows.append(
-            {
-                "topic_id": str(item.get("topic_id") or "").strip(),
-                "text": text,
-                "intent": str(item.get("intent") or "").strip(),
-            }
-        )
-    return rows
-
-
-async def _call(client: ModelGateway, *, system: str, user: str) -> list[dict] | None:
+async def _call(
+    client: ModelGateway, *, system: str, user: str, slots: list[PromptSlot]
+) -> list[dict] | None:
     """One generation call. ``None`` means the provider itself failed."""
     try:
         raw = await client.complete_structured_json(
             system=system,
             user=user,
             schema_name="visibility_prompts",
-            schema=PortfolioEnvelope.model_json_schema(),
+            schema=GenerationOutput.model_json_schema(),
         )
-    except (ProviderError, ValidationError, ValueError):
+        planned, _ = parse_planned_output(raw, slots=slots)
+    except (ProviderError, GenerationOutputError, ValueError):
         return None
-    return _salvaged_rows(raw)
+    return [
+        {
+            "slot_id": prompt.slot_id,
+            "topic_id": str(prompt.topic_id or ""),
+            "text": prompt.text,
+            "intent": prompt.intent,
+            "cohort": prompt.cohort,
+            "pattern": prompt.pattern,
+        }
+        for prompt in planned
+    ]
 
 
 async def _gather_batches(
@@ -203,17 +167,19 @@ async def _gather_batches(
 
     async def run(topics: list[DiscoveryTopic]) -> list[dict] | None:
         async with semaphore:
+            user, slots = _topic_request(
+                brand_name=brand_name,
+                market=market,
+                business_model=business_model,
+                buyer_register=buyer_register,
+                topics=topics,
+                rejected=rejected,
+            )
             return await _call(
                 client,
                 system=system,
-                user=_topic_request(
-                    brand_name=brand_name,
-                    market=market,
-                    business_model=business_model,
-                    buyer_register=buyer_register,
-                    topics=topics,
-                    rejected=rejected,
-                ),
+                user=user,
+                slots=slots,
             )
 
     results = await asyncio.gather(
@@ -223,24 +189,6 @@ async def _gather_batches(
         (batch, None if isinstance(item, BaseException) else item)
         for batch, item in zip(batches, results, strict=True)
     ]
-
-
-def _assigned_topic(
-    rows: list[dict] | None, topics: list[DiscoveryTopic]
-) -> list[dict] | None:
-    """Stamp the batch's topic onto its rows when the batch names exactly one.
-
-    Asking a small model to echo a UUID back is asking it to do the one thing
-    it is worst at. It returned the topic NAME, or a truncated id, and every
-    core prompt was rejected as `topic_id` -- which emptied the organic cohort
-    and left a portfolio of two branded prompts. When a call covers a single
-    topic, the association is already known here and does not need to survive
-    a round trip through the model.
-    """
-    if rows is None or len(topics) != 1:
-        return rows
-    topic_id = str(topics[0].topic_id)
-    return [{**row, "topic_id": topic_id} for row in rows]
 
 
 @dataclass(frozen=True, slots=True)
@@ -312,10 +260,8 @@ async def _generate_core(
     )
     reasons: list[str] = []
     covered: set[str] = set()
-    for batch, rows in results:
-        absorbed = _absorb(
-            validator, _assigned_topic(rows, batch), cohort=PROMPT_COHORT_CORE
-        )
+    for _batch, rows in results:
+        absorbed = _absorb(validator, rows, cohort=PROMPT_COHORT_CORE)
         reasons.extend(absorbed.reasons)
         covered.update(absorbed.topics)
 
@@ -331,10 +277,8 @@ async def _generate_core(
             buyer_register=buyer_register,
             rejected=tuple(dict.fromkeys(reasons))[:8],
         )
-        for batch, rows in retried:
-            absorbed = _absorb(
-                validator, _assigned_topic(rows, batch), cohort=PROMPT_COHORT_CORE
-            )
+        for _batch, rows in retried:
+            absorbed = _absorb(validator, rows, cohort=PROMPT_COHORT_CORE)
             reasons.extend(absorbed.reasons)
             covered.update(absorbed.topics)
 
@@ -348,26 +292,6 @@ async def _generate_core(
         # the two mandatory brand prompts and no explanation.
         warnings.append("core_prompts_empty")
     return warnings, reasons
-
-
-def _named_topic(
-    rows: list[dict] | None, topics: list[DiscoveryTopic], cohort: str
-) -> list[dict] | None:
-    """Resolve the topic for a brand or comparison row without the model's help.
-
-    Same failure as the core cohort: the model returns the topic name, and the
-    id gate then rejects the entire cohort. A brand-diagnostic prompt does not
-    need a topic at all, so its id is cleared rather than guessed. A comparison
-    prompt does need one, and there is only ever one comparison prompt, so it
-    is attributed to the leading topic here instead of round-tripping a UUID.
-    """
-    if rows is None:
-        return rows
-    if cohort == PROMPT_COHORT_BRAND_DIAGNOSTIC:
-        return [{**row, "topic_id": ""} for row in rows]
-    if cohort == PROMPT_COHORT_COMPARISON and topics:
-        return [{**row, "topic_id": str(topics[0].topic_id)} for row in rows]
-    return rows
 
 
 async def _generate_named(
@@ -437,23 +361,23 @@ async def _named_attempt(
     The rows come back so the caller can tell a provider failure (``None``)
     from a well-formed response that simply admitted nothing.
     """
+    user, slots = _brand_request(
+        brand_name=brand_name,
+        market=market,
+        business_model=business_model,
+        competitors=competitors,
+        topics=topics[:VISIBILITY_TOPIC_NAME_LIMIT],
+        count=count,
+        cohort=cohort,
+        rejected=rejected,
+    )
     rows = await _call(
         client,
         system=brand_cohort_system_prompt(business_model, cohort),
-        user=_brand_request(
-            brand_name=brand_name,
-            market=market,
-            business_model=business_model,
-            competitors=competitors,
-            topics=topics[:VISIBILITY_TOPIC_NAME_LIMIT],
-            count=count,
-            cohort=cohort,
-            rejected=rejected,
-        ),
+        user=user,
+        slots=slots,
     )
-    return rows, _absorb(
-        validator, _named_topic(rows, topics, cohort), cohort=cohort, limit=count
-    )
+    return rows, _absorb(validator, rows, cohort=cohort, limit=count)
 
 
 def _validator(

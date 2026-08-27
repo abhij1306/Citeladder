@@ -24,6 +24,10 @@ from lxml import html as lxml_html
 from app.analysis.site_health.commerce_facts import extract_commerce_facts
 from app.analysis.site_health.dom import DOM_ERRORS, dom_failure
 from app.analysis.site_health.dom import node_text as _text
+from app.analysis.site_health.fact_entity import (
+    empty_entity_signals,
+    safe_entity_signals,
+)
 from app.analysis.site_health.fact_links import links_and_assets
 from app.analysis.site_health.fact_signals import (
     cta_texts,
@@ -606,6 +610,7 @@ def _empty_facts() -> dict[str, Any]:
         "cta_text": [],
         "form_fields": [],
         "link_context": [],
+        "entity": empty_entity_signals(),
         "structured_data": {
             "blocks": [],
             "count": 0,
@@ -689,6 +694,7 @@ def _extract_document(root: Any, *, final_url: str, settings: Any) -> dict[str, 
     facts["structured_data"] = _structured_data(
         root, max_blocks=settings.max_structured_data_blocks
     )
+    facts["entity"] = safe_entity_signals(root)
     try:
         base_host = urlsplit(final_url).hostname or ""
     except DOM_ERRORS as exc:

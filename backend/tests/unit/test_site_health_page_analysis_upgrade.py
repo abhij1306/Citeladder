@@ -35,7 +35,7 @@ def test_classification_evidence_has_alternatives_conflicts_and_other_reason() -
     assert evidence["alternatives"] == [
         {
             "page_kind": "article",
-            "confidence": 0.5,
+            "tier": "semantic",
             "signals": ["structured_data"],
         }
     ]
@@ -114,6 +114,54 @@ def test_product_visible_schema_parity_fails_on_persisted_conflict() -> None:
     parity = _outcome(facts, "aeo.product_visible_schema_parity")
     assert parity.outcome == "fail"
     assert parity.evidence["mismatch_count"] >= 1
+
+
+def test_product_parity_does_not_match_inside_a_longer_field() -> None:
+    facts = extract_page_facts(
+        b"""<html><head><title>Widget Pro</title>
+        <script type="application/ld+json">{
+          "@context":"https://schema.org", "@type":"Product",
+          "name":"Widget Pro", "sku":"W-10"
+        }</script></head><body><h1>Widget Pro</h1>
+        <p>SKU W-100</p></body></html>""",
+        final_url="https://example.test/products/widget-pro",
+    )
+    facts["page_kind"] = "product"
+
+    parity = _outcome(facts, "aeo.product_visible_schema_parity")
+    assert parity.outcome == "fail"
+    assert any(
+        check["field"] == "sku" and check["visible_match"] is False
+        for check in parity.evidence["checks"]
+    )
+
+
+def test_in_stock_does_not_match_negated_available_phrase() -> None:
+    facts = extract_page_facts(
+        b"""<html><head><title>Widget Pro</title>
+        <script type="application/ld+json">{
+          "@context":"https://schema.org", "@type":"Product",
+          "name":"Widget Pro", "offers":{"@type":"Offer","availability":"InStock"}
+        }</script></head><body><h1>Widget Pro</h1>
+        <p>This item is not available.</p></body></html>""",
+        final_url="https://example.test/products/widget-pro",
+    )
+    facts["page_kind"] = "product"
+    assert _outcome(facts, "aeo.product_visible_schema_parity").outcome == "fail"
+
+
+def test_out_of_stock_matches_negated_available_phrase() -> None:
+    facts = extract_page_facts(
+        b"""<html><head><title>Widget Pro</title>
+        <script type="application/ld+json">{
+          "@context":"https://schema.org", "@type":"Product",
+          "name":"Widget Pro", "offers":{"@type":"Offer","availability":"OutOfStock"}
+        }</script></head><body><h1>Widget Pro</h1>
+        <p>This item is not available.</p></body></html>""",
+        final_url="https://example.test/products/widget-pro",
+    )
+    facts["page_kind"] = "product"
+    assert _outcome(facts, "aeo.product_visible_schema_parity").outcome == "pass"
 
 
 def test_site_opportunity_mapping_covers_schema_and_content_catalog() -> None:

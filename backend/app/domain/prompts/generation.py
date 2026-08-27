@@ -30,6 +30,7 @@ from app.core.config.prompts import (
     PROMPT_STATUS_ACTIVE,
     prompt_generation_settings,
 )
+from app.core.config.visibility_prompts import BUYER_QUERY_PATTERN_VERSION
 from app.domain.projects.knowledge_base import build_brand_knowledge_data
 from app.domain.projects.shim import project_scoring_identity
 from app.domain.prompts.generation_contract import (
@@ -51,6 +52,7 @@ from app.domain.prompts.generation_filtering import (
 )
 from app.domain.prompts.locks import acquire_project_lock, acquire_prompt_set_lock
 from app.domain.prompts.normalization import prompt_text_hash
+from app.domain.prompts.query_patterns import PromptSlot, build_prompt_slots
 from app.domain.prompts.service import PromptSetNotFoundError, prepare_prompt_inserts
 from app.domain.prompts.topical_binding import (
     BindingVocabulary,
@@ -117,10 +119,6 @@ async def _load_prompt_set_with_project(
     if prompt_set is None:
         raise PromptSetNotFoundError("Prompt set not found")
     return prompt_set
-
-
-def _prompt_count(suggestions: list[SuggestedTopic]) -> int:
-    return sum(len(topic.prompts) for topic in suggestions)
 
 
 def _drop_cross_batch_duplicates(
@@ -340,7 +338,11 @@ async def _insert_prompts_returning(
             "enabled": True,
             "status": PROMPT_STATUS_ACTIVE,
             "origin": PROMPT_ORIGIN_GENERATED,
-            "generation_evidence": evidence_base,
+            "generation_evidence": {
+                **evidence_base,
+                "buyer_query_pattern": prompt.pattern,
+                "buyer_query_slot_id": prompt.slot_id,
+            },
         }
         for idx, prompt in enumerate(prompts)
     ]
@@ -445,6 +447,7 @@ def _generation_evidence(
         ),
         "generation_run_id": str(uuid.uuid4()),
         "generator_version": GENERATOR_VERSION,
+        "buyer_query_pattern_version": BUYER_QUERY_PATTERN_VERSION,
         "brand_context_hash": _brand_context_hash(brand_context),
         "requested_count": payload.count,
         "requested_intents": [intent for intent in payload.intents if intent],
@@ -484,6 +487,59 @@ def _existing_generation_context(
     return [*existing, *accumulated][-limit:]
 
 
+def _accepted_slot_ids(suggestions: list[SuggestedTopic]) -> set[str]:
+    return {prompt.slot_id for topic in suggestions for prompt in topic.prompts}
+
+
+async def _collect_model_suggestions(
+    *,
+    agent: ModelGateway,
+    prompt_set: PromptSet,
+    payload: Any,
+    brand_context: dict[str, Any],
+    planned_slots: list[PromptSlot],
+) -> tuple[list[SuggestedTopic], int]:
+    suggestions: list[SuggestedTopic] = []
+    dropped = 0
+    batch_size = min(prompt_generation_settings.model_batch_size, len(planned_slots))
+    maximum_calls = generation_model_call_budget(len(planned_slots))
+    last_error: GenerationOutputError | None = None
+    for _call in range(maximum_calls):
+        accepted = _accepted_slot_ids(suggestions)
+        remaining = [slot for slot in planned_slots if slot.slot_id not in accepted]
+        if not remaining:
+            break
+        batch_slots = remaining[:batch_size]
+        user_message = build_generation_user_message(
+            brand_context=brand_context,
+            slots=batch_slots,
+            existing_prompts=_existing_generation_context(
+                prompt_set,
+                suggestions,
+                limit=prompt_generation_settings.existing_prompt_context_limit,
+            ),
+        )
+        raw = await agent.complete_structured_json(
+            system=generation_system_prompt(payload.cohort, brand_context),
+            user=user_message,
+            schema_name="prompt_generation",
+            schema=GenerationOutput.model_json_schema(),
+        )
+        try:
+            batch, batch_dropped = parse_generation_output(raw, slots=batch_slots)
+        except GenerationOutputError as exc:
+            last_error = exc
+            continue
+        dropped += batch_dropped
+        batch = filter_for_cohort(batch, payload.cohort, brand_context)
+        batch, duplicate_count = _drop_cross_batch_duplicates(suggestions, batch)
+        dropped += duplicate_count
+        suggestions.extend(batch)
+    if not suggestions and last_error is not None:
+        raise last_error
+    return suggestions, dropped
+
+
 async def _generate_suggestions(
     session: AsyncSession,
     *,
@@ -506,46 +562,31 @@ async def _generate_suggestions(
         limit=payload.count,
     )
     brand_context = _generation_brand_context(prompt_set.project, demand_signals)
-    context_limit = prompt_generation_settings.existing_prompt_context_limit
     allowed_topics = _allowed_generation_topics(prompt_set.project, target_topic)
+    planned_slots = build_prompt_slots(
+        topics=allowed_topics,
+        count=payload.count,
+        cohort=payload.cohort,
+        intents=tuple(intent for intent in payload.intents if intent),
+        brand_name=str(brand_context.get("brand_name") or ""),
+        competitor_names=tuple(
+            str(item.get("name") or "")
+            for item in brand_context.get("competitors", [])
+            if item.get("name")
+        ),
+    )
+    if not planned_slots:
+        raise GenerationOutputError("No buyer-query pattern supports this request")
     await session.commit()
     if agent is None:
         raise GenerationOutputError("Model gateway is required for this cohort")
-    system_prompt = generation_system_prompt(payload.cohort, brand_context)
-    suggestions: list[SuggestedTopic] = []
-    intra_duplicates = 0
-    batch_size = min(prompt_generation_settings.model_batch_size, payload.count)
-    maximum_calls = generation_model_call_budget(payload.count)
-    for _call in range(maximum_calls):
-        missing = payload.count - _prompt_count(suggestions)
-        if missing <= 0:
-            break
-        requested = min(batch_size, missing)
-        user_message = build_generation_user_message(
-            brand_context=brand_context,
-            topics=allowed_topics,
-            existing_prompts=_existing_generation_context(
-                prompt_set, suggestions, limit=context_limit
-            ),
-            count=requested,
-            intents=[i for i in payload.intents if i],
-        )
-        raw = await agent.complete_structured_json(
-            system=system_prompt,
-            user=user_message,
-            schema_name="prompt_generation",
-            schema=GenerationOutput.model_json_schema(),
-        )
-        batch, batch_duplicates = parse_generation_output(
-            raw,
-            allowed_topics=allowed_topics,
-            fallback_intents=tuple(i for i in payload.intents if i),
-        )
-        intra_duplicates += batch_duplicates
-        batch = filter_for_cohort(batch, payload.cohort, brand_context)
-        batch, cross_batch_duplicates = _drop_cross_batch_duplicates(suggestions, batch)
-        intra_duplicates += cross_batch_duplicates
-        suggestions.extend(batch)
+    suggestions, intra_duplicates = await _collect_model_suggestions(
+        agent=agent,
+        prompt_set=prompt_set,
+        payload=payload,
+        brand_context=brand_context,
+        planned_slots=planned_slots,
+    )
     capped = _cap_suggestions_to_count(suggestions, payload.count)
     return (
         capped,

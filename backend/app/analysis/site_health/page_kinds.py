@@ -1,28 +1,31 @@
-# Deterministic page-type classification (v2 P1 — spec §5.1).
+# Deterministic page-type classification.
 #
 # ``classify(final_url, facts)`` assigns every analyzed page a config-owned
-# ``page_kind`` (homepage / article / product / category / pricing / docs /
-# faq / about_contact / other) with a confidence score and bounded,
-# explainable signal evidence. PURE: no I/O, no ORM, no LLM — the same
-# inputs always yield the same type (invariant 9), and every pattern table,
-# threshold, and weight is read from ``app.core.config.site_health_taxonomy``
-# (invariant 1).
+# ``page_kind`` with a confidence LABEL and bounded, explainable evidence.
+# PURE: no I/O, no ORM, no LLM — the same inputs always yield the same type
+# (invariant 9), and every pattern table and vocabulary is read from
+# ``app.core.config.site_health_taxonomy`` (invariant 1).
 #
-# Signal sources, evaluated in a FIXED priority order (spec §5.1):
-#   1. root path            -> homepage (deterministic special case;
-#                              HOMEPAGE_PATH_EQUIVALENTS covers locale roots /
-#                              index variants; unlisted paths fall through)
-#   2. URL path patterns    -> nearest semantic segment, config order on ties
-#   3. content heuristics   -> question-heading ratio (faq) / price + cart
-#                              markers (product) / byline + date (article)
-#   4. structured-data types -> PAGE_KIND_SCHEMA_TYPE_MAP
+# EVIDENCE TIERS, not accumulated weights. The classifier takes the highest
+# tier that produced evidence and stops:
 #
-# DELIBERATE SEMANTICS: signals 1-3 OUTRANK signal 4 on conflict. The schema
-# markup is the page's *claim* about itself; letting the claim decide the
-# type would make type-expected-schema rules circular. The winning signal is
-# recorded as ``classified_by`` and the schema-suggested type as
-# ``schema_suggested_type`` in the bounded evidence so the UI can explain
-# the classification.
+#   Tier A  structural   the page's own primary entity — one Product node with
+#                        an Offer, or a buy box outside every repeated card
+#                        list; a listing grid with result/sort/filter controls;
+#                        a single address entity
+#   Tier B  route        the semantic URL segment nearest the root
+#   Tier C  semantic     question headings, a byline + date, the page's own
+#                        stated purpose in its title/H1/slug, schema types
+#
+# A score summed across signals let several weak agreeing signals outrank one
+# decisive observation, and it produced a "confidence" of 1.3 on a page it
+# classified from a signal worth 0.8 — because the sum included the signals
+# that DISAGREED. Tiers make the deciding fact nameable: ``classified_by`` is
+# always the one signal that chose the type.
+#
+# DELIBERATE SEMANTICS: structured data sits in the weakest tier. The markup is
+# the page's *claim* about itself; letting the claim decide the type would make
+# the type-expected-schema rules circular.
 from __future__ import annotations
 
 import re
@@ -36,8 +39,9 @@ from app.core.config import site_health_contracts as _contracts
 from app.core.config import site_health_taxonomy as _config
 from app.core.config.site_health_page_profiles import (
     CLASSIFICATION_MAX_ALTERNATIVES,
-    CLASSIFICATION_OTHER_REASON_BELOW_THRESHOLD,
+    CLASSIFICATION_OTHER_REASON_CONFLICT,
     CLASSIFICATION_OTHER_REASON_NO_SIGNALS,
+    CLASSIFICATION_OTHER_REASON_SCHEMA_ONLY,
 )
 
 # Bounded per-input caps so a hostile URL/body can never bloat the evidence
@@ -51,23 +55,40 @@ _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     for page_kind, pattern in _config.PAGE_KIND_PATH_PATTERNS
 )
 
+#: Schema types that corroborate a listing structure (never create one).
+_LISTING_SCHEMA_TYPES: frozenset[str] = frozenset({"ItemList", "CollectionPage"})
+
+#: Signal precedence WITHIN a tier. Reaching two signals in one tier is a
+#: genuine disagreement, recorded as a conflict; this table decides it.
+_TIER_SIGNAL_ORDER: tuple[str, ...] = (
+    _config.PAGE_KIND_SIGNAL_PRIMARY_PRODUCT,
+    _config.PAGE_KIND_SIGNAL_PRIMARY_LISTING,
+    _config.PAGE_KIND_SIGNAL_PRIMARY_LOCATION,
+    _config.PAGE_KIND_SIGNAL_ROOT_PATH,
+    _config.PAGE_KIND_SIGNAL_PATH_PATTERN,
+    _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC,
+    _config.PAGE_KIND_SIGNAL_SEMANTIC_TITLE,
+    _config.PAGE_KIND_SIGNAL_STRUCTURED_DATA,
+)
+
 
 @dataclass(frozen=True)
 class PageKindAssessment:
     """The bounded, deterministic result of classifying one page.
 
     ``page_kind`` is a config ``PAGE_KINDS`` member (falling back to
-    ``other``); ``confidence`` is the sum of the matched signal weights;
-    ``signals`` is the bounded matched-signal evidence (at most one entry
-    per signal source, priority order); ``classified_by`` is the winning
-    signal name (``none`` when nothing matched);
-    ``schema_suggested_type`` is what the structured-data signal alone would
-    have suggested (None when no recognized mapping), recorded so a
-    URL/content-vs-schema conflict is explainable in the UI.
+    ``other``); ``confidence`` is a LABEL (``high``/``medium``/``low``/
+    ``unknown``) derived from the deciding tier, never a decimal that invites
+    a reader to treat it as a calibrated probability; ``signals`` is the
+    bounded matched-signal evidence; ``classified_by`` is the one signal that
+    chose the type (``none`` when nothing matched); ``schema_suggested_type``
+    is what structured data alone would have suggested, recorded so a
+    content-vs-schema disagreement stays explainable.
     """
 
     page_kind: str
-    confidence: float
+    confidence: str
+    tier: str
     signals: tuple[dict[str, Any], ...]
     classifier_version: str
     classified_by: str
@@ -83,7 +104,7 @@ class PageKindAssessment:
             "classified_by": self.classified_by,
             "schema_suggested_type": self.schema_suggested_type,
             "confidence": self.confidence,
-            "confidence_threshold": _config.PAGE_KIND_CONFIDENCE_THRESHOLD,
+            "tier": self.tier,
             "signals": [dict(signal) for signal in self.signals],
             "alternatives": [dict(item) for item in self.alternatives],
             "conflicts": [dict(item) for item in self.conflicts],
@@ -128,14 +149,16 @@ def _is_absolute_http_url(final_url: str) -> bool:
 
 
 def _signal(signal: str, page_kind: str, detail: str) -> dict[str, Any]:
-    """One bounded matched-signal record (weight from the config table)."""
+    """One bounded matched-signal record, tagged with its evidence tier."""
     return {
         "signal": signal,
         "page_kind": page_kind,
-        # ``.get`` with a 0.0 default: a signal constant added without a weight
-        # should contribute nothing, not raise KeyError and fail the whole
-        # classification of an otherwise analyzable page.
-        "weight": float(_config.PAGE_KIND_SIGNAL_WEIGHTS.get(signal, 0.0)),
+        # ``.get`` with the weakest tier as default: a signal constant added
+        # without a tier should contribute the least, not raise KeyError and
+        # fail the whole classification of an otherwise analyzable page.
+        "tier": _config.PAGE_KIND_SIGNAL_TIERS.get(
+            signal, _config.PAGE_KIND_TIER_SEMANTIC
+        ),
         "detail": detail[:_MAX_SIGNAL_DETAIL_CHARS],
     }
 
@@ -178,7 +201,7 @@ def _str_sequence(value: Any) -> list[str]:
 
 
 def _schema_suggestion(facts: dict) -> tuple[str | None, str | None]:
-    """Signal 4: (suggested page_kind, matched schema type) or (None, None).
+    """(suggested page_kind, matched schema type) or (None, None).
 
     Uses the explicit config order (most specific to most general), rather
     than alphabetical ordering, when a JSON-LD object declares multiple types.
@@ -191,14 +214,83 @@ def _schema_suggestion(facts: dict) -> tuple[str | None, str | None]:
     return None, None
 
 
+def classify(final_url: str, facts: dict) -> PageKindAssessment:
+    """Classify one page into the config taxonomy (pure, deterministic).
+
+    Collects every tier's evidence, then resolves by taking the highest tier
+    that produced any. Never raises on malformed facts: partial facts simply
+    match fewer signals, and no evidence at all is an explicit ``other``.
+    """
+    mapped = _mapping(facts)
+    matched, schema_page_kind = _classification_signals(final_url, mapped)
+    winner = _winning_signal(matched)
+    return _assessment(matched, winner, schema_page_kind)
+
+
+def _assessment(
+    matched: list[dict[str, Any]],
+    winner: dict[str, Any] | None,
+    schema_page_kind: str | None,
+) -> PageKindAssessment:
+    winner_type = str(winner["page_kind"]) if winner is not None else None
+    tier = (
+        str(winner["tier"]) if winner is not None else _config.PAGE_KIND_TIER_SEMANTIC
+    )
+    return PageKindAssessment(
+        page_kind=winner_type or _config.PAGE_KIND_OTHER,
+        confidence=_confidence(matched, winner, tier),
+        tier=tier if winner is not None else "",
+        signals=tuple(matched),
+        classifier_version=_contracts.CLASSIFIER_VERSION,
+        classified_by=(
+            str(winner["signal"])
+            if winner is not None
+            else _config.PAGE_KIND_SIGNAL_NONE
+        ),
+        schema_suggested_type=schema_page_kind,
+        alternatives=_alternatives(matched, winner_type=winner_type),
+        conflicts=_conflicts(matched, winner_type=winner_type),
+        other_reason=_other_reason(matched, winner),
+    )
+
+
+def _other_reason(
+    matched: list[dict[str, Any]], winner: dict[str, Any] | None
+) -> str | None:
+    if winner is not None:
+        return None
+    independent = [
+        signal
+        for signal in matched
+        if signal["signal"] != _config.PAGE_KIND_SIGNAL_STRUCTURED_DATA
+    ]
+    if independent:
+        return CLASSIFICATION_OTHER_REASON_CONFLICT
+    if matched:
+        return CLASSIFICATION_OTHER_REASON_SCHEMA_ONLY
+    return CLASSIFICATION_OTHER_REASON_NO_SIGNALS
+
+
+def _confidence(
+    matched: list[dict[str, Any]],
+    winner: dict[str, Any] | None,
+    tier: str,
+) -> str:
+    if winner is None:
+        return _config.PAGE_KIND_CONFIDENCE_UNKNOWN
+    has_conflict = any(signal["page_kind"] != winner["page_kind"] for signal in matched)
+    if tier == _config.PAGE_KIND_TIER_STRUCTURAL and has_conflict:
+        return _config.PAGE_KIND_CONFIDENCE_MEDIUM
+    return _config.PAGE_KIND_TIER_CONFIDENCE[tier]
+
+
 def _alternatives(
     matched: list[dict[str, Any]], *, winner_type: str | None
 ) -> tuple[dict[str, Any], ...]:
-    """Aggregate non-winning candidate types into bounded evidence.
+    """Non-winning candidate types with the tier that proposed them.
 
-    A candidate may have multiple supporting signals (for example a URL path
-    and structured data).  Aggregating them makes the runner-up explainable
-    without changing the priority-based winner policy.
+    Aggregating by kind makes the runner-up explainable without changing the
+    tier-based winner policy.
     """
     candidates: dict[str, dict[str, Any]] = {}
     for signal in matched:
@@ -207,21 +299,17 @@ def _alternatives(
             continue
         entry = candidates.setdefault(
             page_kind,
-            {"page_kind": page_kind, "confidence": 0.0, "signals": []},
+            {"page_kind": page_kind, "tier": str(signal["tier"]), "signals": []},
         )
-        entry["confidence"] += float(signal["weight"])
         entry["signals"].append(str(signal["signal"]))
     ordered = sorted(
-        candidates.values(), key=lambda item: (-item["confidence"], item["page_kind"])
+        candidates.values(),
+        key=lambda item: (
+            _config.PAGE_KIND_TIERS.index(item["tier"]),
+            item["page_kind"],
+        ),
     )[:CLASSIFICATION_MAX_ALTERNATIVES]
-    return tuple(
-        {
-            "page_kind": item["page_kind"],
-            "confidence": round(float(item["confidence"]), 4),
-            "signals": item["signals"],
-        }
-        for item in ordered
-    )
+    return tuple(dict(item) for item in ordered)
 
 
 def _conflicts(
@@ -235,6 +323,7 @@ def _conflicts(
             "winner_page_kind": winner_type,
             "conflicting_page_kind": str(signal["page_kind"]),
             "signal": str(signal["signal"]),
+            "tier": str(signal["tier"]),
             "detail": str(signal["detail"]),
         }
         for signal in matched
@@ -243,31 +332,33 @@ def _conflicts(
     return tuple(conflicts[:CLASSIFICATION_MAX_ALTERNATIVES])
 
 
-def classify(final_url: str, facts: dict) -> PageKindAssessment:
-    """Classify one page into the config taxonomy (pure, deterministic).
-
-    Evaluates all four signal sources in the fixed priority order and applies
-    the config-owned strong-content/path exception before selecting the
-    winner. Matched signal weights are summed into ``confidence``. Below the
-    config threshold the page falls back to ``other``. Never raises on
-    malformed facts (partial facts simply match fewer signals).
-    """
-    matched, schema_page_kind = _classification_signals(final_url, _mapping(facts))
-    confidence, winner, page_kind, other_reason = _classification_outcome(matched)
-    winner_type = str(winner["page_kind"]) if winner is not None else None
-    classified_by = (
-        winner["signal"] if winner is not None else _config.PAGE_KIND_SIGNAL_NONE
+def _winning_signal(matched: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The single signal that decides the type: highest tier, then priority."""
+    # Structured data remains evidence and a schema suggestion, but cannot
+    # self-certify the page kind whose schema contract will then be validated.
+    eligible = [
+        signal
+        for signal in matched
+        if signal["signal"] != _config.PAGE_KIND_SIGNAL_STRUCTURED_DATA
+    ]
+    if not eligible:
+        return None
+    best_tier = min(
+        _config.PAGE_KIND_TIERS.index(str(signal["tier"])) for signal in eligible
     )
-    return PageKindAssessment(
-        page_kind=page_kind,
-        confidence=confidence,
-        signals=tuple(matched),
-        classifier_version=_contracts.CLASSIFIER_VERSION,
-        classified_by=classified_by,
-        schema_suggested_type=schema_page_kind,
-        alternatives=_alternatives(matched, winner_type=winner_type),
-        conflicts=_conflicts(matched, winner_type=winner_type),
-        other_reason=other_reason,
+    top_tier = [
+        signal
+        for signal in eligible
+        if _config.PAGE_KIND_TIERS.index(str(signal["tier"])) == best_tier
+    ]
+    if len({str(signal["page_kind"]) for signal in top_tier}) > 1:
+        return None
+    return min(
+        top_tier,
+        key=lambda signal: (
+            _config.PAGE_KIND_TIERS.index(str(signal["tier"])),
+            _TIER_SIGNAL_ORDER.index(str(signal["signal"])),
+        ),
     )
 
 
@@ -283,7 +374,8 @@ def _classification_signals(
         return matched, None
     path = _normalized_path(final_url)
 
-    # Signal 1 — root path → homepage (deterministic special case).
+    # The root path is an exact fact about the URL, not a heuristic: a
+    # homepage stays a homepage even when it also renders a product grid.
     if path in _config.HOMEPAGE_PATH_EQUIVALENTS:
         matched.append(
             _signal(
@@ -292,85 +384,214 @@ def _classification_signals(
                 path or "/",
             )
         )
+        return matched, _schema_suggestion(facts)[0]
 
-    # Signal 2 — choose the semantic segment nearest the root. Config order is
-    # the deterministic tie-breaker if two patterns identify the same segment.
-    # This preserves ``/blog/products/...`` as article while correctly finding
-    # nested route families such as ``/resources/guides/...``.
+    route_signals = _route_signals(path)
+    matched.extend(_structural_signals(facts, route_signals))
+    matched.extend(route_signals)
+    matched.extend(_semantic_signals(path, facts))
+    schema_page_kind, _schema_type = _schema_suggestion(facts)
+    return matched, schema_page_kind
+
+
+def _structural_signals(
+    facts: dict, route_signals: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Tier A — what the page's own primary content region contains."""
+    entity = _mapping(facts.get("entity"))
+    signals: list[dict[str, Any]] = []
+    product_detail = _product_evidence(facts, _mapping(entity.get("product")))
+    if product_detail:
+        signals.append(
+            _signal(
+                _config.PAGE_KIND_SIGNAL_PRIMARY_PRODUCT,
+                _config.PAGE_KIND_PRODUCT,
+                product_detail,
+            )
+        )
+    listing_detail = _listing_evidence(facts, _mapping(entity.get("listing")))
+    if listing_detail:
+        signals.append(
+            _signal(
+                _config.PAGE_KIND_SIGNAL_PRIMARY_LISTING,
+                _config.PAGE_KIND_CATEGORY,
+                listing_detail,
+            )
+        )
+    has_local_route = any(
+        signal["page_kind"] == _config.PAGE_KIND_LOCAL for signal in route_signals
+    )
+    location_detail = _location_evidence(
+        _mapping(entity.get("location")), has_local_route=has_local_route
+    )
+    if location_detail:
+        signals.append(
+            _signal(
+                _config.PAGE_KIND_SIGNAL_PRIMARY_LOCATION,
+                _config.PAGE_KIND_LOCAL,
+                location_detail,
+            )
+        )
+    return signals
+
+
+def _product_evidence(facts: dict, product: dict) -> str:
+    """Decisive product evidence, or "" when the page has not shown any.
+
+    Two independent routes so neither markup nor rendering alone is required:
+    one unambiguous Product node with an Offer, or a real buy box in the
+    page's own region with a corroborator. Both are scoped outside every
+    repeated card list, which is what stops a recommendation carousel on a
+    returns-policy page from speaking for that page.
+    """
+    if not (product.get("has_primary_price") and product.get("has_purchase_control")):
+        return ""
+    corroborated = (
+        product.get("has_variant_control")
+        or product.get("has_sku_marker")
+        or _og_type(facts) == "product"
+        or _single_product_schema(facts)
+    )
+    return "primary_buy_box" if corroborated else ""
+
+
+def _single_product_schema(facts: dict) -> bool:
+    """Exactly one top-level Product node, carrying offer evidence."""
+    structured = _mapping(facts.get("structured_data"))
+    blocks = structured.get("blocks")
+    if not isinstance(blocks, list):
+        return False
+    products = [
+        block
+        for block in blocks
+        if isinstance(block, dict) and str(block.get("type") or "") == "Product"
+    ]
+    if len(products) != 1:
+        return False
+    has_offer = "Offer" in set(_str_sequence(structured.get("types")))
+    return has_offer or bool(_mapping(structured.get("product")).get("price"))
+
+
+def _listing_evidence(facts: dict, listing: dict) -> str:
+    """Decisive listing evidence: a real grid PLUS a listing affordance.
+
+    The grid size alone is not enough — a related-products strip is also a
+    grid. Requiring a result count, a sort control, a filter control or an
+    ItemList/CollectionPage node is what separates a page that IS a listing
+    from a page that merely contains one.
+    """
+    size = listing.get("largest_card_list_size")
+    if not isinstance(size, int) or size < _config.LISTING_MIN_CARD_ITEMS:
+        return ""
+    structured = _mapping(facts.get("structured_data"))
+    schema_types = set(_str_sequence(structured.get("types")))
+    affordances = [
+        name
+        for name, present in (
+            ("result_count", listing.get("has_result_count")),
+            ("sort_control", listing.get("has_sort_control")),
+            ("filter_control", listing.get("has_filter_control")),
+            ("item_list_schema", bool(schema_types & _LISTING_SCHEMA_TYPES)),
+        )
+        if present
+    ]
+    if not affordances:
+        return ""
+    return f"grid:{size} {'+'.join(affordances)}"
+
+
+def _location_evidence(location: dict, *, has_local_route: bool) -> str:
+    """One address under a local route; a store finder listing many is not local."""
+    if not has_local_route:
+        return ""
+    count = location.get("address_entity_count")
+    if count != 1:
+        return ""
+    if not (location.get("has_phone") or location.get("has_hours")):
+        return ""
+    return "single_address_entity"
+
+
+def _route_signals(path: str) -> list[dict[str, Any]]:
+    """Tier B — the semantic URL segment nearest the root.
+
+    Config order is the deterministic tie-breaker when two patterns identify
+    the same segment. This preserves ``/blog/products/...`` as article while
+    still finding nested families such as ``/resources/guides/...``.
+    """
     path_matches: list[tuple[int, int, str, re.Pattern[str]]] = []
     for priority, (page_kind, pattern) in enumerate(_PATH_PATTERNS):
         match = pattern.match(path)
         if match is not None:
             path_matches.append((match.start(1), priority, page_kind, pattern))
-    if path_matches:
-        _position, _priority, page_kind, pattern = min(path_matches)
-        matched.append(
-            _signal(
-                _config.PAGE_KIND_SIGNAL_PATH_PATTERN,
-                page_kind,
-                pattern.pattern,
-            )
-        )
+    if not path_matches:
+        return []
+    _position, _priority, page_kind, pattern = min(path_matches)
+    return [_signal(_config.PAGE_KIND_SIGNAL_PATH_PATTERN, page_kind, pattern.pattern)]
 
-    # Signal 3 — content/heading heuristics.
+
+def _semantic_signals(path: str, facts: dict) -> list[dict[str, Any]]:
+    """Tier C — weak evidence, used only when nothing stronger spoke."""
+    signals: list[dict[str, Any]] = []
     heuristic = content_heuristic(facts)
     if heuristic is not None:
-        matched.append(
+        signals.append(
             _signal(
                 str(heuristic["signal"]),
                 str(heuristic["page_kind"]),
                 str(heuristic["detail"]),
             )
         )
-
-    # Signal 4 — structured-data types (evaluated always, so the suggested
-    # type is recorded in the evidence even when outranked).
+    title_kind, phrase = _title_suggestion(path, facts)
+    if title_kind is not None:
+        signals.append(
+            _signal(_config.PAGE_KIND_SIGNAL_SEMANTIC_TITLE, title_kind, phrase)
+        )
     schema_page_kind, schema_type = _schema_suggestion(facts)
     if schema_page_kind is not None:
-        matched.append(
+        signals.append(
             _signal(
                 _config.PAGE_KIND_SIGNAL_STRUCTURED_DATA,
                 schema_page_kind,
                 schema_type or "",
             )
         )
-    return matched, schema_page_kind
+    return signals
 
 
-def _classification_outcome(
-    matched: list[dict[str, Any]],
-) -> tuple[float, dict[str, Any] | None, str, str | None]:
-    # Signals are appended in priority order; the config-owned exception may
-    # promote one strong visible-content signal over an ancestor path signal.
-    confidence = round(sum(signal["weight"] for signal in matched), 4)
-    winner = _winning_signal(matched)
-    below_threshold = confidence < _config.PAGE_KIND_CONFIDENCE_THRESHOLD
-    page_kind = (
-        winner["page_kind"]
-        if winner is not None and not below_threshold
-        else _config.PAGE_KIND_OTHER
-    )
-    other_reason = None
-    if page_kind == _config.PAGE_KIND_OTHER:
-        other_reason = (
-            CLASSIFICATION_OTHER_REASON_NO_SIGNALS
-            if winner is None
-            else CLASSIFICATION_OTHER_REASON_BELOW_THRESHOLD
-        )
-    return confidence, winner, page_kind, other_reason
+def _title_suggestion(path: str, facts: dict) -> tuple[str | None, str]:
+    """The page's own stated purpose, from its title, H1 and final slug.
 
-
-def _winning_signal(matched: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """Apply the one config-owned strong-content exception to signal order."""
-    if not matched:
-        return None
-    winner = matched[0]
-    if winner["signal"] != _config.PAGE_KIND_SIGNAL_PATH_PATTERN:
-        return winner
-    for signal in matched[1:]:
-        if signal["signal"] != _config.PAGE_KIND_SIGNAL_CONTENT_HEURISTIC:
+    Longest phrase wins so ``shipping policy`` is read as a policy rather than
+    as a shipping service; config order breaks ties between equal-length
+    phrases. This is the weakest signal in the classifier and only ever fires
+    where the alternative is ``other``.
+    """
+    haystack = _semantic_haystack(path, facts)
+    if not haystack:
+        return None, ""
+    best: tuple[int, int, str, str] | None = None
+    for index, (page_kind, phrase) in enumerate(_config.PAGE_KIND_TITLE_KEYWORDS):
+        if f" {phrase} " not in f" {haystack} ":
             continue
-        pair = (str(winner["page_kind"]), str(signal["page_kind"]))
-        if pair in _config.PAGE_KIND_CONTENT_PATH_OVERRIDES:
-            return signal
-    return winner
+        candidate = (-len(phrase), index, page_kind, phrase)
+        if best is None or candidate < best:
+            best = candidate
+    if best is None:
+        return None, ""
+    return best[2], best[3]
+
+
+def _semantic_haystack(path: str, facts: dict) -> str:
+    """Normalized title + H1 + final path segment, lowercased."""
+    headings = _mapping(facts.get("headings"))
+    parts = [str(facts.get("title") or "")]
+    parts.extend(_str_sequence(headings.get("h1_texts"))[:1])
+    slug = path.rsplit("/", 1)[-1] if path else ""
+    parts.append(slug.replace("-", " ").replace("_", " "))
+    joined = " ".join(part for part in parts if part).lower()
+    return " ".join(re.findall(r"[a-z0-9]+", joined))
+
+
+def _og_type(facts: dict) -> str:
+    return str(_mapping(facts.get("open_graph")).get("og:type") or "").strip().lower()

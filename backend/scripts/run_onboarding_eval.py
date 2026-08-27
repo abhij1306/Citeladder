@@ -196,7 +196,12 @@ async def _run_case(case, *, judge_key: str, judge_model: str | None) -> CaseRes
             )
         prompts = list(portfolio.prompts)
         result.prompts = [
-            PortfolioPrompt(text=str(item["text"]), cohort=str(item["cohort"]))
+            PortfolioPrompt(
+                text=str(item["text"]),
+                cohort=str(item["cohort"]),
+                intent=str(item.get("intent") or ""),
+                pattern=str(item.get("pattern") or ""),
+            )
             for item in prompts
         ]
         result.metrics = await _score(
@@ -334,6 +339,9 @@ async def _score(
         "market_signal_rate": round(portfolio.market_signal_rate, 3),
         "offering_coverage": round(portfolio.offering_coverage, 3),
         "use_case_coverage": round(portfolio.use_case_coverage, 3),
+        "buyer_query_pattern_coverage": round(
+            portfolio.buyer_query_pattern_coverage, 3
+        ),
         "research_warnings": warnings,
     }
 

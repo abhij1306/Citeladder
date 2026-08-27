@@ -184,6 +184,91 @@ PAGE_KIND_CART_MARKERS: Final[frozenset[str]] = frozenset(
     }
 )
 
+# --- Structural region extraction (fact_regions) -----------------------------
+# Region names recorded per anchor and used to scope entity signals. These are
+# structural landmarks, never a vocabulary judgement about what content means.
+PAGE_REGION_MAIN: Final = "main"
+
+PAGE_REGION_NAV: Final = "nav"
+
+PAGE_REGION_HEADER: Final = "header"
+
+PAGE_REGION_FOOTER: Final = "footer"
+
+PAGE_REGION_ASIDE: Final = "aside"
+
+PAGE_REGION_OTHER: Final = "other"
+
+PAGE_REGIONS: Final[tuple[str, ...]] = (
+    PAGE_REGION_MAIN,
+    PAGE_REGION_NAV,
+    PAGE_REGION_HEADER,
+    PAGE_REGION_FOOTER,
+    PAGE_REGION_ASIDE,
+    PAGE_REGION_OTHER,
+)
+
+# Subtrees excluded from the primary region. Chrome landmarks plus non-rendered
+# elements: an inline <script> body is why every crawled page reported a visible
+# price of "$1" taken from a JavaScript regex replacement string.
+REGION_EXCLUDED_TAGS: Final[tuple[str, ...]] = (
+    "script",
+    "style",
+    "noscript",
+    "template",
+    "nav",
+    "header",
+    "footer",
+    "aside",
+)
+
+REGION_EXCLUDED_ROLES: Final[tuple[str, ...]] = (
+    "banner",
+    "navigation",
+    "contentinfo",
+    "complementary",
+)
+
+# A container is a repeated card list when it holds at least this many
+# structurally similar linked children. A recommendation carousel, a product
+# grid and a related-posts strip are all the same shape, so one structural test
+# covers them without naming any of them.
+CARD_LIST_MIN_ITEMS: Final = 3
+
+# Only this many direct child tags contribute to a repeated-card shape.
+CARD_SHAPE_MAX_CHILDREN: Final = 8
+
+# A listing PAGE needs a substantially larger grid than an incidental carousel.
+LISTING_MIN_CARD_ITEMS: Final = 6
+
+# Bounded scan caps so a hostile document cannot make region extraction costly.
+REGION_MAX_CONTAINERS_SCANNED: Final = 4000
+
+REGION_MAX_ANCESTOR_DEPTH: Final = 24
+
+REGION_MAX_TEXT_CHARS: Final = 200_000
+
+# A variant control is structural: one select with several options, or several
+# radio inputs sharing a name.
+VARIANT_MIN_OPTIONS: Final = 2
+
+# Small, generic control vocabularies. These name UI affordances, not industries.
+RESULT_COUNT_PATTERN: Final = r"\b\d{1,6}\s*(?:results?|items?|products?)\b"
+
+SORT_CONTROL_TOKENS: Final[frozenset[str]] = frozenset({"sort", "sortby", "order-by"})
+
+FILTER_CONTROL_TOKENS: Final[frozenset[str]] = frozenset(
+    {"filter", "filters", "refine", "facet"}
+)
+
+SKU_ATTRIBUTE_TOKENS: Final[frozenset[str]] = frozenset(
+    {"sku", "data-sku", "data-product-id", "productid"}
+)
+
+CART_FORM_ACTION_TOKENS: Final[frozenset[str]] = frozenset(
+    {"/cart", "cart/add", "basket"}
+)
+
 PAGE_KIND_ARTICLE_SCAN_CHARS: Final = 2000
 
 PAGE_KIND_BYLINE_PATTERN: Final = r"\b[Bb]y\s+[A-Z][\w'’-]+(?:\s+[A-Z][\w'’-]+){1,2}\b"
@@ -209,6 +294,57 @@ PAGE_KIND_SCHEMA_TYPE_MAP: Final[dict[str, str]] = {
     "Article": PAGE_KIND_ARTICLE,
 }
 
+# Tier C semantic fallback. Matched against the page's own title, H1 and final
+# path segment ONLY when no structural evidence and no route family produced a
+# type. Every phrase names a page's own stated purpose in plain English; none
+# names an industry, a brand or a platform, and none maps to a page kind that
+# is not already in PAGE_KINDS. Longest phrase wins; declaration order breaks
+# ties. Deliberately small: this is the weakest evidence in the classifier and
+# only ever fires where the alternative is `other`.
+PAGE_KIND_TITLE_KEYWORDS: Final[tuple[tuple[str, str], ...]] = (
+    (PAGE_KIND_TRUST_POLICY, "privacy policy"),
+    (PAGE_KIND_TRUST_POLICY, "cookie policy"),
+    (PAGE_KIND_TRUST_POLICY, "refund policy"),
+    (PAGE_KIND_TRUST_POLICY, "return policy"),
+    (PAGE_KIND_TRUST_POLICY, "shipping policy"),
+    (PAGE_KIND_TRUST_POLICY, "terms of service"),
+    (PAGE_KIND_TRUST_POLICY, "terms and conditions"),
+    (PAGE_KIND_TRUST_POLICY, "accessibility"),
+    (PAGE_KIND_TRUST_POLICY, "disclaimer"),
+    (PAGE_KIND_TRUST_POLICY, "guarantee"),
+    (PAGE_KIND_TRUST_POLICY, "counterfeit"),
+    (PAGE_KIND_TRUST_POLICY, "policy"),
+    (PAGE_KIND_TRUST_POLICY, "terms"),
+    (PAGE_KIND_TRUST_POLICY, "legal"),
+    (PAGE_KIND_GUIDE, "how to"),
+    (PAGE_KIND_GUIDE, "care and cleaning"),
+    (PAGE_KIND_GUIDE, "care cleaning"),
+    (PAGE_KIND_GUIDE, "size guide"),
+    (PAGE_KIND_GUIDE, "buying guide"),
+    (PAGE_KIND_GUIDE, "tutorial"),
+    (PAGE_KIND_GUIDE, "instructions"),
+    (PAGE_KIND_SERVICE, "track your order"),
+    (PAGE_KIND_SERVICE, "order status"),
+    (PAGE_KIND_SERVICE, "store locator"),
+    (PAGE_KIND_SERVICE, "find a store"),
+    (PAGE_KIND_SERVICE, "product registration"),
+    (PAGE_KIND_SERVICE, "repair request"),
+    (PAGE_KIND_SERVICE, "returns portal"),
+    (PAGE_KIND_SERVICE, "orders and payments"),
+    (PAGE_KIND_SERVICE, "orders payments"),
+    (PAGE_KIND_SERVICE, "delivery"),
+    (PAGE_KIND_SERVICE, "shipping"),
+    (PAGE_KIND_SERVICE, "warranty"),
+    (PAGE_KIND_SERVICE, "register"),
+    (PAGE_KIND_SERVICE, "repair"),
+    (PAGE_KIND_FAQ, "frequently asked questions"),
+    (PAGE_KIND_FAQ, "faq"),
+    (PAGE_KIND_ABOUT_CONTACT, "contact us"),
+    (PAGE_KIND_ABOUT_CONTACT, "about us"),
+    (PAGE_KIND_ABOUT_CONTACT, "our story"),
+    (PAGE_KIND_ABOUT_CONTACT, "contact"),
+)
+
 PAGE_KIND_SIGNAL_ROOT_PATH: Final = "root_path"
 
 PAGE_KIND_SIGNAL_PATH_PATTERN: Final = "path_pattern"
@@ -219,23 +355,60 @@ PAGE_KIND_SIGNAL_STRUCTURED_DATA: Final = "structured_data"
 
 PAGE_KIND_SIGNAL_NONE: Final = "none"
 
-PAGE_KIND_SIGNAL_WEIGHTS: Final[dict[str, float]] = {
-    PAGE_KIND_SIGNAL_ROOT_PATH: 1.0,
-    PAGE_KIND_SIGNAL_PATH_PATTERN: 0.8,
-    PAGE_KIND_SIGNAL_CONTENT_HEURISTIC: 0.6,
-    PAGE_KIND_SIGNAL_STRUCTURED_DATA: 0.5,
-}
+PAGE_KIND_SIGNAL_PRIMARY_PRODUCT: Final = "primary_product_entity"
 
-# A category route family can contain a deep PDP URL. A bounded visible price
-# plus purchase CTA is deterministic page evidence and may therefore override
-# the ancestor category segment. Structured data is deliberately excluded: a
-# Product schema claim must not self-certify the page kind whose schema contract
-# will be evaluated.
-PAGE_KIND_CONTENT_PATH_OVERRIDES: Final[frozenset[tuple[str, str]]] = frozenset(
-    {(PAGE_KIND_CATEGORY, PAGE_KIND_PRODUCT)}
+PAGE_KIND_SIGNAL_PRIMARY_LISTING: Final = "primary_listing_structure"
+
+PAGE_KIND_SIGNAL_PRIMARY_LOCATION: Final = "primary_location_entity"
+
+PAGE_KIND_SIGNAL_SEMANTIC_TITLE: Final = "semantic_title"
+
+# Evidence tiers. The classifier resolves a page kind by taking the highest
+# tier that produced evidence, NOT by summing weights: a score built from
+# several weak agreeing signals must never outrank one decisive structural
+# observation, and a later reader must be able to say which single fact
+# decided the type.
+PAGE_KIND_TIER_STRUCTURAL: Final = "structural"
+
+PAGE_KIND_TIER_ROUTE: Final = "route"
+
+PAGE_KIND_TIER_SEMANTIC: Final = "semantic"
+
+PAGE_KIND_TIERS: Final[tuple[str, ...]] = (
+    PAGE_KIND_TIER_STRUCTURAL,
+    PAGE_KIND_TIER_ROUTE,
+    PAGE_KIND_TIER_SEMANTIC,
 )
 
-PAGE_KIND_CONFIDENCE_THRESHOLD: Final = 0.5
+PAGE_KIND_SIGNAL_TIERS: Final[dict[str, str]] = {
+    PAGE_KIND_SIGNAL_PRIMARY_PRODUCT: PAGE_KIND_TIER_STRUCTURAL,
+    PAGE_KIND_SIGNAL_PRIMARY_LISTING: PAGE_KIND_TIER_STRUCTURAL,
+    PAGE_KIND_SIGNAL_PRIMARY_LOCATION: PAGE_KIND_TIER_STRUCTURAL,
+    # Not a route guess: an exact match against the curated root-equivalent
+    # set means the page IS the site root, which is the most certain
+    # classification the system makes.
+    PAGE_KIND_SIGNAL_ROOT_PATH: PAGE_KIND_TIER_STRUCTURAL,
+    PAGE_KIND_SIGNAL_PATH_PATTERN: PAGE_KIND_TIER_ROUTE,
+    PAGE_KIND_SIGNAL_CONTENT_HEURISTIC: PAGE_KIND_TIER_SEMANTIC,
+    PAGE_KIND_SIGNAL_STRUCTURED_DATA: PAGE_KIND_TIER_SEMANTIC,
+    PAGE_KIND_SIGNAL_SEMANTIC_TITLE: PAGE_KIND_TIER_SEMANTIC,
+}
+
+# Confidence is a LABEL, never a number. A decimal invites the UI and later
+# code to treat it as a calibrated probability, which it is not.
+PAGE_KIND_CONFIDENCE_HIGH: Final = "high"
+
+PAGE_KIND_CONFIDENCE_MEDIUM: Final = "medium"
+
+PAGE_KIND_CONFIDENCE_LOW: Final = "low"
+
+PAGE_KIND_CONFIDENCE_UNKNOWN: Final = "unknown"
+
+PAGE_KIND_TIER_CONFIDENCE: Final[dict[str, str]] = {
+    PAGE_KIND_TIER_STRUCTURAL: PAGE_KIND_CONFIDENCE_HIGH,
+    PAGE_KIND_TIER_ROUTE: PAGE_KIND_CONFIDENCE_MEDIUM,
+    PAGE_KIND_TIER_SEMANTIC: PAGE_KIND_CONFIDENCE_LOW,
+}
 
 PAGE_KIND_APPLICABILITY_PREFIX: Final = "page_kind:"
 

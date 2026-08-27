@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  A product detail page shaped like the real storefronts in the reference
+  crawl: an inline script whose regex replacement string contains "$1", a
+  navigation menu full of category links, a footer full of product links, and
+  a "You May Also Like" carousel carrying prices and cart buttons that belong
+  to OTHER pages.
+
+  The page's own buy box is the only product evidence that describes THIS page.
+-->
+<html>
+  <head>
+    <title>Dillen Letter Carrier | Example Store</title>
+    <meta property="og:type" content="product" />
+    <script>
+      var re = /[.*+?^${}()|[\]\\]/g;
+      function esc(s) { return s.replace(re, '\\$1'); }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        "name": "Dillen Letter Carrier, Caramel",
+        "sku": "BDILL1725CATN",
+        "offers": {
+          "@type": "Offer",
+          "price": "195.00",
+          "priceCurrency": "USD",
+          "availability": "https://schema.org/OutOfStock"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/collections/bags">Bags</a>
+        <a href="/collections/totes">Totes</a>
+        <a href="/collections/clutches">Clutches</a>
+        <a href="/collections/shoes">Shoes</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>Dillen Letter Carrier</h1>
+      <div class="price">$195.00</div>
+      <p>Sold out</p>
+      <form action="/cart/add" method="post">
+        <select name="color">
+          <option value="tan">Caramel</option>
+          <option value="navy">Navy</option>
+        </select>
+        <button type="submit">Add to cart</button>
+      </form>
+      <span itemprop="sku">BDILL1725CATN</span>
+
+      <section class="recommendations">
+        <h2>You May Also Like</h2>
+        <ul>
+          <li><a href="/products/rec-a">Bag A</a><span>$99.00</span><button>Add to cart</button></li>
+          <li><a href="/products/rec-b">Bag B</a><span>$88.00</span><button>Add to cart</button></li>
+          <li><a href="/products/rec-c">Bag C</a><span>$77.00</span><button>Add to cart</button></li>
+          <li><a href="/products/rec-d">Bag D</a><span>$66.00</span><button>Add to cart</button></li>
+        </ul>
+      </section>
+    </main>
+
+    <footer>
+      <a href="/products/promo-one">Promo One</a>
+      <a href="/pages/shipping">Shipping</a>
+    </footer>
+  </body>
+</html>

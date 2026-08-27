@@ -273,13 +273,15 @@ select source analyses, compare facts, enqueue work, or manufacture issues.
 The analysis sequence is fixed:
 
 ```text
-artifact -> normalized facts -> page_kind assessment
+artifact -> normalized region/entity facts -> tiered page_kind assessment
   -> inject kind/evidence -> rule evaluation -> scoring -> persisted rows
 ```
 
 The former industry-role, knowledge, correction, and comparison columns/tables
 were removed. `page_kind` remains the generic structural classifier and drives
-schema/property contracts and rule applicability. See
+schema/property contracts and rule applicability. Primary-region facts exclude
+chrome, non-rendered subtrees, and repeated-card contamination. Structured data
+is retained as a suggestion/corroborator and never decides the kind alone. See
 [`site-health.md`](site-health.md).
 
 ## Content
@@ -338,12 +340,16 @@ offerings the user explicitly confirms, preserving that wording and provenance
 instead of blocking onboarding or padding with built-in categories.
 
 Prompt generation receives those persisted UUIDs and cannot create, rename,
-repair, or replace topics. It runs per topic in small batches, with the buyer
-register demonstrated by exemplars chosen for the brand's `business_model`, and
-a deterministic validator that rejects template lead-ins, pasted positioning,
-repeated openings, and brand leakage into the organic cohort. A topic that
-yields no usable prompt is reported as a warning, not a failure. Later library
-generation is also restricted to existing project topic IDs. See
+repair, or replace topics. One config-owned buyer-query planner freezes short
+slots across `what_is`, `best_for`, `how_to`, `pricing`, brand overview/fit,
+and brand-versus-competitor patterns. The model returns only slot ID and text;
+code owns topic, cohort, intent, pattern, and count, then deterministically
+validates shape, topical binding, template lead-ins, pasted positioning, and
+brand leakage. Onboarding and later library generation use this same contract,
+and every persisted prompt records the generator and buyer-query pattern
+versions. A topic that yields no usable prompt is reported as a warning, not a
+failure. Later library generation remains restricted to existing project topic
+IDs. See
 [`visibility-prompt.md`](visibility-prompt.md) for the complete runtime
 contract and model instructions.
 

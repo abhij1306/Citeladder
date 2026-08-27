@@ -4,7 +4,7 @@ Commerce currently exposes four `/products` tabs: **Catalog**, **Competitors**, 
 
 ## Catalog
 
-Site Health extractor `sh-extractor-9`, analyzer `sh-analyzer-5`, and classifier `sh-classifier-5` emit generic category and PDP facts. The Commerce projector `commerce-projector-3` creates the persisted catalog from those analyses. Structured Product price is preferred; when it is absent, a validated visible PDP price is retained with its evidence path. A normalized canonical PDP URL is the primary product identity; GTIN, SKU, and MPN are secondary merge evidence.
+Site Health extractor `sh-extractor-10`, analyzer `sh-analyzer-6`, and classifier `sh-classifier-6` emit generic category and PDP facts. The Commerce projector `commerce-projector-3` creates the persisted catalog from those analyses. Structured Product price is preferred; when it is absent, a validated visible PDP price is retained with its evidence path. A normalized canonical PDP URL is the primary product identity; GTIN, SKU, and MPN are secondary merge evidence.
 
 CSV imports and explicit edits are append-only observations. Current product rows are read projections whose `field_sources` identify the exact observation and version controlling every field. CSV and edit authority is not silently overwritten by later crawl projection. Imports are content-hash idempotent and expose bounded, row-level outcomes.
 

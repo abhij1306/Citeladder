@@ -68,15 +68,28 @@ export function byPageKindRows(
 }
 
 /**
+ * Display wording for the classifier's confidence label. The classifier
+ * reports how strong the deciding evidence was, not a score, so the UI names
+ * the evidence rather than printing a number that looks calibrated.
+ */
+export const CONFIDENCE_LABELS: Readonly<Record<string, string>> = {
+  high: 'High — page structure',
+  medium: 'Medium — URL family',
+  low: 'Low — semantic evidence',
+  unknown: 'Unclassified',
+};
+
+/**
  * One ranked matched-signal entry of the persisted classifier evidence —
- * `{ signal, page_kind, weight, detail }` as the backend
+ * `{ signal, page_kind, tier, detail }` as the backend
  * `PageKindAssessment.to_evidence()` emits it (detail already truncated
  * server-side).
  */
 export type PageKindEvidenceSignal = {
   signal: string;
   pageKind: string;
-  weight: number;
+  /** Evidence tier the signal belongs to: structural, route or semantic. */
+  tier: string;
   detail: string;
 };
 
@@ -90,8 +103,14 @@ export type PageKindEvidenceView = {
   classifiedBy: string;
   /** What the structured-data signal alone would have suggested. */
   schemaSuggestedType: string | null;
-  confidence: number;
-  confidenceThreshold: number;
+  /**
+   * A label — `high`, `medium`, `low` or `unknown` — not a score. The
+   * classifier reports the tier of the evidence that decided the type; a
+   * decimal here invited readers to treat it as a calibrated probability.
+   */
+  confidence: string;
+  /** The deciding evidence tier (empty when the page stayed unclassified). */
+  tier: string;
   signals: PageKindEvidenceSignal[];
   /**
    * True when the schema-suggested type disagrees with the page's final
@@ -100,7 +119,7 @@ export type PageKindEvidenceView = {
    */
   schemaConflict: boolean;
   /**
-   * Non-winning candidate kinds with their aggregated confidence. Dropping
+   * Non-winning candidate kinds and the tier that proposed them. Dropping
    * these hid the runner-up entirely, so a near-tie looked identical to a
    * decisive classification.
    */
@@ -108,10 +127,7 @@ export type PageKindEvidenceView = {
   /** Signals that disagreed with the winner (the "why not X?" evidence). */
   conflicts: PageKindEvidenceConflict[];
   /**
-   * Why the page fell back to `other`: `no_signals` (nothing matched) or
-   * `below_threshold` (something matched but too weakly). Null when a kind
-   * was chosen. Without it, a below-threshold page is indistinguishable from
-   * one the classifier never found evidence for.
+   * Why the page fell back to `other`. Null when a kind was chosen.
    */
   otherReason: string | null;
 };
@@ -119,7 +135,7 @@ export type PageKindEvidenceView = {
 /** One non-winning candidate kind. */
 export type PageKindEvidenceCandidate = {
   pageKind: string;
-  confidence: number;
+  tier: string;
   signals: string[];
 };
 
@@ -138,10 +154,10 @@ function readAlternatives(value: unknown): PageKindEvidenceCandidate[] {
   for (const raw of value) {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) continue;
     const entry = raw as Record<string, unknown>;
-    if (typeof entry.page_kind !== 'string' || typeof entry.confidence !== 'number') continue;
+    if (typeof entry.page_kind !== 'string' || typeof entry.tier !== 'string') continue;
     out.push({
       pageKind: entry.page_kind,
-      confidence: entry.confidence,
+      tier: entry.tier,
       signals: Array.isArray(entry.signals)
         ? entry.signals.filter((item): item is string => typeof item === 'string')
         : [],
@@ -188,7 +204,7 @@ function readSignals(value: unknown): PageKindEvidenceSignal[] {
       !entry ||
       typeof entry.signal !== 'string' ||
       typeof entry.page_kind !== 'string' ||
-      typeof entry.weight !== 'number'
+      typeof entry.tier !== 'string'
     ) {
       return [];
     }
@@ -196,7 +212,7 @@ function readSignals(value: unknown): PageKindEvidenceSignal[] {
       {
         signal: entry.signal,
         pageKind: entry.page_kind,
-        weight: entry.weight,
+        tier: entry.tier,
         detail: typeof entry.detail === 'string' ? entry.detail : '',
       },
     ];
@@ -205,18 +221,14 @@ function readSignals(value: unknown): PageKindEvidenceSignal[] {
 
 function evidenceBasics(record: Record<string, unknown>): {
   classifiedBy: string;
-  confidence: number;
-  confidenceThreshold: number;
+  confidence: string;
+  tier: string;
 } | null {
-  const {
-    classified_by: classifiedBy,
-    confidence,
-    confidence_threshold: confidenceThreshold,
-  } = record;
+  const { classified_by: classifiedBy, confidence, tier } = record;
   return typeof classifiedBy === 'string' &&
-    typeof confidence === 'number' &&
-    typeof confidenceThreshold === 'number'
-    ? { classifiedBy, confidence, confidenceThreshold }
+    typeof confidence === 'string' &&
+    typeof tier === 'string'
+    ? { classifiedBy, confidence, tier }
     : null;
 }
 

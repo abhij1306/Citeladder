@@ -105,19 +105,67 @@ class FakeAgent:
         if "prompts" in payload:
             return self.response
 
-        marker = "Canonical topics (copy one id exactly for every prompt): "
-        topic_line = next(line for line in user.splitlines() if line.startswith(marker))
-        canonical = json.loads(topic_line.removeprefix(marker))
-        by_name = {str(topic["name"]).casefold(): topic for topic in canonical}
-        flattened = []
+        marker = "Buyer-query slots (return one row per slot): "
+        slot_line = next(line for line in user.splitlines() if line.startswith(marker))
+        slots = json.loads(slot_line.removeprefix(marker))
+        candidate_texts: list[str] = []
         for suggested_topic in payload.get("topics", []):
-            topic = by_name.get(str(suggested_topic.get("name", "")).casefold())
-            topic = topic or canonical[0]
-            flattened.extend(
-                {"topic_id": topic["id"], **prompt}
+            candidate_texts.extend(
+                str(prompt.get("text") or "")
                 for prompt in suggested_topic.get("prompts", [])
             )
-        return json.dumps({"prompts": flattened})
+        return json.dumps(
+            {
+                "prompts": [
+                    {
+                        "slot_id": slot["slot_id"],
+                        "text": _slot_text(
+                            slot,
+                            candidate_texts[index]
+                            if index < len(candidate_texts)
+                            else "",
+                            index,
+                        ),
+                    }
+                    for index, slot in enumerate(slots)
+                ]
+            }
+        )
+
+
+def _slot_text(slot: dict[str, object], candidate: str, index: int) -> str:
+    """Render valid contract rows while retaining already-valid test text."""
+    topic = str(slot.get("topic") or "topic")
+    pattern = str(slot.get("pattern") or "")
+    normalized = candidate.casefold()
+    topic_word = topic.casefold().split()[0]
+    valid = {
+        "what_is": normalized.startswith("what is "),
+        "best_for": normalized.startswith("best ") and " for " in normalized,
+        "how_to": normalized.startswith("how to "),
+        "pricing": any(word in normalized for word in ("price", "pricing", "cost")),
+        "brand_overview": normalized.startswith("what is "),
+        "brand_fit": normalized.startswith("is ") and " good for " in normalized,
+        "brand_comparison": " vs " in normalized or " versus " in normalized,
+    }.get(pattern, False)
+    if valid and (pattern.startswith("brand_") or topic_word in normalized):
+        return candidate
+    brand = str(slot.get("brand") or "Brand")
+    competitors = list(slot.get("competitors") or [])
+    competitor = str(competitors[0]) if competitors else "Competitor"
+    candidate_words = candidate.split()
+    qualifier = candidate_words[1] if len(candidate_words) > 1 else "query"
+    suffix = f"{index + 1} {qualifier}"
+    rendered = {
+        "what_is": f"What is {topic} option {suffix}?",
+        "best_for": f"Best {topic} for buyer use case {suffix}",
+        "how_to": f"How to choose {topic} for need {suffix}",
+        "pricing": f"{topic} pricing option {suffix}",
+        "brand_overview": f"What is {brand}?",
+        "brand_fit": f"Is {brand} good for {topic}?",
+        "brand_comparison": f"{brand} vs {competitor}",
+    }
+    return rendered[pattern]
 
 
 @pytest.fixture
@@ -201,13 +249,15 @@ async def test_generate_creates_prompts_under_existing_topic(
 
     assert body["dropped_duplicates"] == 0
     assert len(body["generated"]) == 3
-    by_status = {p["text"]: p["status"] for p in body["generated"]}
-    # Fresh core set, 3 < the 20-active pool -> all unbranded prompts activate.
-    assert by_status["best running shoes in australia"] == "active"
-    assert by_status["how to choose the right running shoe size"] == "active"
-    assert (
-        by_status["affordable running shoes for budget conscious families"] == "active"
-    )
+    assert {p["status"] for p in body["generated"]} == {"active"}
+    patterns = {
+        p["generation_evidence"]["buyer_query_pattern"] for p in body["generated"]
+    }
+    assert patterns == {
+        "what_is",
+        "best_for",
+        "how_to",
+    }
     for prompt in body["generated"]:
         assert prompt["origin"] == "generated"
         assert prompt["topic_id"] is not None
@@ -227,7 +277,7 @@ async def test_generate_creates_prompts_under_existing_topic(
     assert "Globex" in sent
     assert "Value-priced family footwear" in sent
     assert "exactly 3 prompts" in sent
-    assert "Canonical topics" in sent
+    assert "Buyer-query slots" in sent
     assert '["running shoes"]' in sent
 
     # Provenance evidence is persisted but the API response never includes
@@ -235,9 +285,7 @@ async def test_generate_creates_prompts_under_existing_topic(
     listed = (await client.get(f"/api/v1/prompt-sets/{prompt_set_id}")).json()
     assert len(listed["prompts"]) == 3
     # Core generation excludes tracked and competitor names.
-    branded = {p["text"]: p["branded"] for p in listed["prompts"]}
-    assert branded["affordable running shoes for budget conscious families"] is False
-    assert branded["how to choose the right running shoe size"] is False
+    assert all(prompt["branded"] is False for prompt in listed["prompts"])
 
 
 @pytest.mark.asyncio
@@ -294,7 +342,13 @@ async def test_generate_persists_provenance_evidence(
     for prompt in prompts:
         evidence = prompt.generation_evidence
         assert evidence is not None
-        assert evidence["generator_version"] == "prompt-gen-v17"
+        assert evidence["generator_version"] == "prompt-gen-v18"
+        assert evidence["buyer_query_pattern_version"] == "buyer-query-patterns-v1"
+        assert evidence["buyer_query_pattern"] in {
+            "what_is",
+            "best_for",
+            "how_to",
+        }
         assert evidence["generation_mode"] == "model"
         assert evidence["model_identity"] == {
             "transport_host": "agent.test",
@@ -483,7 +537,7 @@ async def test_generate_into_target_topic(
     topic = (
         await client.post(
             f"/api/v1/projects/{project['id']}/topics",
-            json={"name": "Pricing"},
+            json={"name": "Running Shoe Pricing"},
         )
     ).json()
 
@@ -519,11 +573,11 @@ async def test_generate_into_target_topic(
     body = resp.json()
     assert [t["id"] for t in body["topics"]] == [topic["id"]]
     assert body["generated"][0]["topic_id"] == topic["id"]
-    assert '"name":"Pricing"' in agent.calls[0]["user"]
+    assert '"topic":"Running Shoe Pricing"' in agent.calls[0]["user"]
 
     # No new topic was created from the model's invented name.
     topics = (await client.get(f"/api/v1/projects/{project['id']}/topics")).json()
-    assert {t["name"] for t in topics} == {"Pricing", "Running Shoes"}
+    assert {t["name"] for t in topics} == {"Running Shoe Pricing", "Running Shoes"}
 
 
 @pytest.mark.asyncio
@@ -560,16 +614,20 @@ async def test_generation_reuses_existing_topic_with_description(
 
     response = await client.post(
         f"/api/v1/prompt-sets/{prompt_set_id}/generate",
-        json={"count": 1, "confirm_send_evidence": True},
+        json={
+            "count": 1,
+            "topic_id": topic["id"],
+            "confirm_send_evidence": True,
+        },
     )
 
     assert response.status_code == 201
     body = response.json()
     assert [item["id"] for item in body["topics"]] == [topic["id"]]
     assert body["generated"][0]["topic_id"] == topic["id"]
-    assert '"name":"Footwear"' in agent.calls[0]["user"]
+    assert '"topic":"Footwear"' in agent.calls[0]["user"]
     assert (
-        '"description":"Running and everyday shoes for families."'
+        '"topic_description":"Running and everyday shoes for families."'
         in agent.calls[0]["user"]
     )
     topics = (await client.get(f"/api/v1/projects/{project['id']}/topics")).json()
@@ -624,10 +682,10 @@ async def test_generate_activates_validated_requested_count(
     )
     assert resp.status_code == 201
     body = resp.json()
-    # Model returned 25 but only 20 were requested -> output trimmed to 20.
-    assert len(body["generated"]) == 20
+    # One topic has exactly four constrained buyer-query patterns.
+    assert len(body["generated"]) == 4
     statuses = [p["status"] for p in body["generated"]]
-    assert statuses == ["active"] * 20
+    assert statuses == ["active"] * 4
 
 
 @pytest.mark.asyncio
@@ -672,12 +730,12 @@ async def test_generate_comparison_cohort_is_active_and_branded(
     )
     assert resp.status_code == 201
     body = resp.json()
-    assert len(body["generated"]) == 10
+    assert len(body["generated"]) == 1
 
     active_branded = [
         p for p in body["generated"] if p["branded"] and p["status"] == "active"
     ]
-    assert len(active_branded) == 10
+    assert len(active_branded) == 1
 
 
 @pytest.mark.asyncio
@@ -732,24 +790,12 @@ async def test_generate_counts_intra_response_duplicates(
     agent = FakeAgent(
         response=json.dumps(
             {
-                "topics": [
-                    {
-                        "name": "Running Shoes",
-                        "prompts": [
-                            {
-                                "text": "Best running shoes for flat feet?",
-                                "intent": "discovery",
-                            },
-                            {
-                                "text": "best  running shoes for flat feet",
-                                "intent": "discovery",
-                            },
-                            {
-                                "text": "hiking shoes for wet weather trails",
-                                "intent": "discovery",
-                            },
-                        ],
-                    }
+                "prompts": [
+                    {"slot_id": "q1", "text": "What is running shoes?"},
+                    {"slot_id": "q1", "text": "What is running shoes?"},
+                    {"slot_id": "q2", "text": "Best running shoes for flat feet"},
+                    {"slot_id": "q3", "text": "How to choose running shoes"},
+                    {"slot_id": "q4", "text": "Running shoes pricing"},
                 ]
             }
         )
@@ -761,11 +807,8 @@ async def test_generate_counts_intra_response_duplicates(
     )
     assert resp.status_code == 201
     body = resp.json()
-    assert len(body["generated"]) == 2  # the collapsed duplicate is gone
-    # The bounded replacement call receives the same fake response: one
-    # duplicate is collapsed in each model batch, then its two surviving
-    # rows duplicate the first batch at persistence time.
-    assert body["dropped_duplicates"] == 4
+    assert len(body["generated"]) == 4
+    assert body["dropped_duplicates"] == 1
 
 
 @pytest.mark.asyncio
@@ -869,7 +912,7 @@ async def test_concurrent_generation_keeps_all_validated_rows_active(
             .scalars()
             .all()
         )
-    assert len(active) == 30
+    assert len(active) == 8
 
 
 @pytest.mark.asyncio
