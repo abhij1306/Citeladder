@@ -468,6 +468,20 @@ def test_visible_breadcrumb_links_preserve_resolvable_urls():
     ]
 
 
+def test_breadcrumb_label_limit_does_not_discard_later_parent_links():
+    labels = b"".join(f"<span>Label {index}</span>".encode() for index in range(16))
+    facts = _facts(
+        b"<html><body><nav aria-label='Breadcrumb'>"
+        + labels
+        + b"<a href='/parent'>Parent</a></nav></body></html>"
+    )
+
+    assert len(facts["commerce"]["breadcrumbs"]) == 16
+    assert facts["commerce"]["breadcrumb_links"] == [
+        {"url": "https://acme.example.com/parent", "title": "Parent"}
+    ]
+
+
 # --- sh-extractor-3: industry-role classifier facts -------------------------
 
 _ROLE_FACTS_PAGE = b"""

@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import urljoin
 
 from app.analysis.site_health.fact_regions import primary_region_text
+from app.core.config.site_health_archetypes import ARCHITECTURE_MAX_BREADCRUMB_ITEMS
 
 _PRICE = re.compile(
     r"(?:[$£€₹]|AUD|USD|CAD|NZD|GBP|EUR|INR)\s*\d[\d,.]*(?:\.\d{1,2})?",
@@ -42,9 +43,16 @@ def _breadcrumbs(
     values: list[str] = []
     links: list[dict[str, str]] = []
     for node in root.xpath(xpath)[:4]:
-        for item in node.xpath(".//a|.//li|.//span"):
+        items = node.xpath(".//a|.//li|.//span")[
+            : ARCHITECTURE_MAX_BREADCRUMB_ITEMS * 4
+        ]
+        for item in items:
             cleaned = text_of(item).strip()[:255]
-            if cleaned and cleaned not in values:
+            if (
+                cleaned
+                and cleaned not in values
+                and len(values) < ARCHITECTURE_MAX_BREADCRUMB_ITEMS
+            ):
                 values.append(cleaned)
             href = str(item.get("href") or "").strip()
             if href:
@@ -52,8 +60,11 @@ def _breadcrumbs(
                     "url": urljoin(final_url, href)[:2048],
                     "title": cleaned,
                 }
-                _append_unique(links, row, limit=16)
-            if len(values) >= 16:
+                _append_unique(links, row, limit=ARCHITECTURE_MAX_BREADCRUMB_ITEMS)
+            if (
+                len(values) >= ARCHITECTURE_MAX_BREADCRUMB_ITEMS
+                and len(links) >= ARCHITECTURE_MAX_BREADCRUMB_ITEMS
+            ):
                 return values, links
     return values, links
 

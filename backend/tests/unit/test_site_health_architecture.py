@@ -183,6 +183,15 @@ def test_archetype_resolution_abstains_on_every_unsafe_profile_path() -> None:
     assert assessment.archetype == "other"
     assert assessment.reason == "crawl_materially_contradicts_profile"
 
+    pricing_pages = [_page(f"/pricing/{index}", "pricing") for index in range(5)]
+    assessment = resolve_archetype(
+        business_context=_context(),
+        pages=pricing_pages,
+        coverage_state=COVERAGE_STATE_COMPLETE,
+    )
+    assert assessment.archetype == "commerce"
+    assert assessment.reason == "profile_supported"
+
 
 def test_archetype_absence_advice_requires_complete_coverage() -> None:
     pages = [_page("/products/widget", PAGE_KIND_PRODUCT)]
