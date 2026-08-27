@@ -67,7 +67,7 @@ function PaneResizer({ pane }: Readonly<{ pane: ResizablePane }>) {
       aria-valuemin={MIN_PANE_WIDTH}
       aria-valuemax={MAX_PANE_WIDTH}
       aria-valuenow={pane.width}
-      className="group focus-visible:ring-accent hidden cursor-col-resize touch-none items-stretch justify-center rounded-full px-1 focus-visible:ring-2 focus-visible:outline-none lg:flex"
+      className="group focus-visible:ring-accent hidden min-h-24 cursor-col-resize touch-none items-stretch justify-center self-stretch rounded-full px-1 focus-visible:ring-2 focus-visible:outline-none lg:flex"
       onPointerDown={(event) => {
         event.currentTarget.setPointerCapture(event.pointerId);
         pane.beginDrag(event.clientX);
