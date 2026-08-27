@@ -1,6 +1,6 @@
 # Commerce UI redesign
 
-> **Status:** Proposed. Not implemented.
+> **Status:** Implemented. Shipped in the Commerce workspace rebuild.
 > **Scope:** `frontend/components/products/**` and `frontend/lib/products/**`.
 > No backend contract change, no database change, no new endpoint.
 > **Authority:** [`design.md`](../design.md) owns every token and primitive
@@ -152,14 +152,12 @@ run API already accepts a target list, and the shelf, competitor, and prompt
 reads are already target-scoped — this is a composition change on top of
 contracts that are already right.
 
-## Open questions for the owner
+## Resolved at delivery
 
-1. **Categories and products in one list, or two?** The mock shows one grouped
-   list. A catalog with thousands of products may want products behind a
-   category rather than beside it.
-2. **Does a category detail need its products inline?** Showing "13 products"
-   as a drill-down inside the category detail is more work but avoids a second
-   navigation model.
-3. **Is AI Shelf ever read across targets?** If a "shelf across the whole
-   catalog" view is wanted, that is a separate report surface, not part of this
-   master–detail screen.
+1. **One grouped list**, categories above products, with a search box. Revisit
+   only if a catalog arrives with enough products that the flat list stops
+   being scannable.
+2. **A category detail drills into its own products**, so there is one
+   navigation model rather than two.
+3. **No cross-target shelf view.** A "shelf across the whole catalog" report is
+   a separate surface if it is ever wanted, not part of this screen.
