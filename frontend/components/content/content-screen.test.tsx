@@ -376,6 +376,27 @@ describe('ContentScreen — platform skills', () => {
 });
 
 describe('ContentScreen — ready state', () => {
+  it('reports an empty preview as a crawl to run, not as a pending check', async () => {
+    // Regression: the indicator distinguished only "have preview" from "no
+    // preview", so a resolved-but-empty preview read as "Checking available
+    // context…" rather than telling the user what to actually do.
+    mockBase();
+    mswServer.use(
+      http.get('/api/v1/content/context-preview', () =>
+        HttpResponse.json({
+          crawl_available: false,
+          crawl_page_count: 0,
+          crawl_completed_at: null,
+          brand_fields: [],
+          search_connected: false,
+        }),
+      ),
+    );
+    renderScreen();
+    expect(await screen.findByText(/run a crawl to ground drafts/i)).toBeInTheDocument();
+    expect(screen.queryByText(/checking available context/i)).not.toBeInTheDocument();
+  });
+
   it('disables Generate until a prompt is typed and names its available context', async () => {
     mockBase();
     renderScreen();

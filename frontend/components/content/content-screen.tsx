@@ -19,12 +19,8 @@ import {
   useOpportunityContext,
   useSkillCatalog,
 } from './content-screen-data';
-import {
-  ContentComposer,
-  GenerationErrorPanel,
-  GeneratingPanel,
-  GenerationResult,
-} from './content-screen-panels';
+import { ContentComposer, GenerationErrorPanel, GeneratingPanel } from './content-screen-panels';
+import { GenerationResult } from './content-screen-result';
 import { GenerationHistory } from './content-screen-history';
 
 const FALLBACK_SKILL_ID = 'content_page';
@@ -133,6 +129,9 @@ function ProjectContentScreen({
       promptRef={promptRef}
       opportunity={opportunity}
       contextPreview={contextPreview.data ?? null}
+      // Only pending BEFORE the query settles: an errored preview must fall
+      // through to a real line, and isLoading stays true across retries.
+      contextLoading={contextPreview.isPending && !contextPreview.isError}
       generating={generating}
       skillId={skillId}
       skills={skills}
@@ -160,6 +159,7 @@ function ContentWorkspace({
   promptRef,
   opportunity,
   contextPreview,
+  contextLoading,
   generating,
   skillId,
   skills,
@@ -183,6 +183,7 @@ function ContentWorkspace({
   promptRef: React.RefObject<HTMLTextAreaElement | null>;
   opportunity: ReturnType<typeof useOpportunityContext>;
   contextPreview: Parameters<typeof ContentComposer>[0]['contextPreview'];
+  contextLoading: boolean;
   generating: boolean;
   skillId: string;
   skills: Parameters<typeof ContentComposer>[0]['skills'];
@@ -210,6 +211,7 @@ function ContentWorkspace({
           promptRef={promptRef}
           opportunity={opportunity}
           contextPreview={contextPreview}
+          contextLoading={contextLoading}
           demandSource={demand.brief?.sourceLabel ?? null}
           generating={generating}
           skillId={skillId}
