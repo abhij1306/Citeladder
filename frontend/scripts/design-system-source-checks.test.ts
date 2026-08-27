@@ -10,6 +10,9 @@ describe('standalonePlaceholderViolations', () => {
     expect(
       standalonePlaceholderViolations('<span>—</span>', 'components/value.tsx', true),
     ).toHaveLength(1);
+    expect(
+      standalonePlaceholderViolations('const value = `—`;', 'lib/value.ts', true),
+    ).toHaveLength(1);
   });
 
   it('allows semantic labels, prose punctuation, and excluded surfaces', () => {

@@ -160,7 +160,8 @@ and crisp semantic hairlines to maintain clear structure without visual clutter:
   row (`flex items-center justify-between`) rather than wasting vertical canvas on an empty
   header row.
 - **Custom Select Menus**: Filter dropdowns and page-kind selectors use custom Radix menus with
-  `shadow-elevated rounded-sm` and radio items—never raw browser-native `<select>` popups.
+  `shadow-elevated`, the semantic overlay-radius role, and radio items—never raw browser-native
+  `<select>` popups.
 
 ## Data and geometry
 
@@ -320,7 +321,7 @@ switcher of its own; the top bar owns project context.
 - The Trends metric row is **exactly the five computed metrics** (Visibility
   Score, SOV mention, SOV response, brand mentions, owned citations). Sentiment
   and average position are never computed (decision B-2), so they are disclosed
-  as "—" in their rankings-table columns and are **not** stat cards — two
+  as **Not measured** in their rankings-table columns and are **not** stat cards — two
   permanently blank tiles pushed the row past the five-metric cap and read as
   broken.
 - A trend chart renders only with at least two points. One run plots one dot;
@@ -442,8 +443,8 @@ never an empty-state label.
 The marketing nav floats transparent over the hero and becomes a frosted white on
 scroll, with no shadow. The app sidebar makes the active location obvious through a
 blue fill, a leading blue rail, and a Carbon-Dark label — not through weight.
-Menus and custom listboxes use `shadow-elevated`, `rounded-md`, the shared menu
-panel/item recipes, and a short system-curve entrance. Single-select filters use
+Menus and custom listboxes use `shadow-elevated`, the semantic overlay-radius role, the shared
+menu panel/item recipes, and a short system-curve entrance. Single-select filters use
 radio menu items so the current value is visible without relying on colour.
 Tooltips use the elevated rung and the 10px overlay-radius role; dialogs and drawers use
 `shadow-modal-value` with the same overlay-radius role. Drawers are right-side modal contextual

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -252,9 +252,27 @@ describe('DashboardScreen', () => {
     // arrives on the projection but no longer has a station-tile surface.
     expect(screen.queryByRole('heading', { name: 'Product loop' })).not.toBeInTheDocument();
     expect(screen.getByText('Run the first visibility audit')).toBeVisible();
-    expect(screen.getByText('Citation share')).toBeVisible();
-    expect(screen.getAllByText('Not run').length).toBeGreaterThan(0);
+    expect(
+      within(screen.getByRole('region', { name: 'Citation share' })).getByText('Not run'),
+    ).toBeVisible();
     expect(screen.queryByRole('button', { name: /executive pdf/i })).not.toBeInTheDocument();
+  });
+
+  it('labels a null citation share from an observed run as unavailable', () => {
+    queryResult.data = {
+      ...commandCenter,
+      track: {
+        ...commandCenter.track,
+        citation_share: { value: null, delta: null },
+        limitations: ['The completed audit did not produce a citation-share value.'],
+      },
+    };
+
+    render(<DashboardScreen />);
+
+    expect(
+      within(screen.getByRole('region', { name: 'Citation share' })).getByText('Unavailable'),
+    ).toBeVisible();
   });
 
   it('keeps observed zero distinct from an unavailable value', () => {

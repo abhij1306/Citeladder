@@ -112,6 +112,7 @@ export function FactsDrawer({
           {profile.isError ? <Alert tone="danger">Company facts could not be loaded.</Alert> : null}
           {profile.data ? (
             <BrandProfilePanel
+              key={projectId}
               projectId={projectId}
               profile={profile.data}
               competitors={competitors}

@@ -196,9 +196,9 @@ export function editorialTypographyViolations(source, label, ownsWebsiteEditoria
 export function standalonePlaceholderViolations(source, label, ownsProductUi) {
   if (!ownsProductUi) return [];
   const violations = [];
-  const quotedStandaloneDash = /(['"])—\1/g;
+  const literalStandaloneDash = /(['"`])—\1/g;
   const jsxStandaloneDash = />\s*—\s*</g;
-  if (quotedStandaloneDash.test(source) || jsxStandaloneDash.test(source)) {
+  if (literalStandaloneDash.test(source) || jsxStandaloneDash.test(source)) {
     violations.push(`${label}: standalone em-dash placeholder; use semantic availability copy`);
   }
   return violations;

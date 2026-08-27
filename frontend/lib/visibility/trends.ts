@@ -231,7 +231,7 @@ export function trendStats(points: readonly VisibilityTrendPoint[]): TrendStat[]
       value: formatScoreValue(vs),
       delta: scoreDelta.text,
       direction: scoreDelta.direction,
-      placeholder: false,
+      placeholder: vs === null,
     },
     {
       key: 'sov',
@@ -239,7 +239,7 @@ export function trendStats(points: readonly VisibilityTrendPoint[]): TrendStat[]
       value: formatPct(sov),
       delta: sovDelta.text,
       direction: sovDelta.direction,
-      placeholder: false,
+      placeholder: sov === null,
     },
     {
       key: 'response_sov',
@@ -247,7 +247,7 @@ export function trendStats(points: readonly VisibilityTrendPoint[]): TrendStat[]
       value: formatPct(rsov),
       delta: rsovDelta.text,
       direction: rsovDelta.direction,
-      placeholder: false,
+      placeholder: rsov === null,
     },
     {
       key: 'brand_mention_count',
@@ -255,7 +255,7 @@ export function trendStats(points: readonly VisibilityTrendPoint[]): TrendStat[]
       value: bmc === null ? availabilityLabel('not_measured') : `${bmc}`,
       delta: bmcDelta.text,
       direction: bmcDelta.direction,
-      placeholder: false,
+      placeholder: bmc === null,
     },
     {
       key: 'owned_citation_rate',
@@ -263,7 +263,7 @@ export function trendStats(points: readonly VisibilityTrendPoint[]): TrendStat[]
       value: formatPct(oc),
       delta: ocDelta.text,
       direction: ocDelta.direction,
-      placeholder: false,
+      placeholder: oc === null,
     },
   ];
 }

@@ -223,7 +223,10 @@ function NextAction({ data }: Readonly<{ data: CommandCenter }>) {
 function Track({ data }: Readonly<{ data: CommandCenter }>) {
   const delta = data.track.citation_share.delta;
   return (
-    <div className="bg-panel shadow-card border-border flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border p-5 sm:p-6">
+    <section
+      aria-labelledby="citation-share-track"
+      className="bg-panel shadow-card border-border flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border p-5 sm:p-6"
+    >
       <div>
         <div className="flex items-center justify-between">
           <span className={eyebrowClasses}>AI Visibility Track</span>
@@ -232,10 +235,15 @@ function Track({ data }: Readonly<{ data: CommandCenter }>) {
           </span>
         </div>
         <div className="mt-3">
-          <h3 className={displayHeadingLgClasses}>Citation share</h3>
+          <h3 id="citation-share-track" className={displayHeadingLgClasses}>
+            Citation share
+          </h3>
           <div className="mt-1 flex items-baseline gap-3">
             {data.track.citation_share.value === null ? (
-              <UnavailableValue state="not_run" className="text-sm" />
+              <UnavailableValue
+                state={data.track.observed_at ? 'unavailable' : 'not_run'}
+                className="text-sm"
+              />
             ) : (
               <p className="font-display text-foreground text-3xl leading-none font-semibold tracking-[-0.03em] tabular-nums">
                 {metricValue(data.track.citation_share.value, '%')}
@@ -265,7 +273,7 @@ function Track({ data }: Readonly<{ data: CommandCenter }>) {
           </Link>
         </Button>
       </div>
-    </div>
+    </section>
   );
 }
 

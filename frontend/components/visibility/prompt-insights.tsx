@@ -65,6 +65,9 @@ export function CompetitorSuggestions({
         queryKey: queryKeys.visibility.competitorSuggestions(projectId),
       });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects.list() });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.commandCenter(projectId),
+      });
       void queryClient.invalidateQueries({ queryKey: queryKeys.visibility.all });
     },
   });
