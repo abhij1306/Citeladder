@@ -328,7 +328,7 @@ current per-page evidence is retained, and no dormant scope configuration or
 placeholder identity owner is introduced.
 
 Current versions are owned in the focused `backend/app/core/config/site_health_*`
-modules. The structural-facts slice ships extractor `sh-extractor-10`, classifier
+modules. The structural-facts slice ships extractor `sh-extractor-11`, classifier
 `sh-classifier-7`, analyzer `sh-analyzer-6`, rule catalog `sh-rules-5`, and
 scoring `sh-scoring-3`. Coverage uses `sh-coverage-1` and internal-link metrics
 use `sh-link-metrics-1`; tests pin persistence and replay behavior.

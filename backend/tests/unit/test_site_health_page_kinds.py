@@ -59,6 +59,7 @@ def _buy_box() -> dict:
     return {
         "product": {
             "has_primary_price": True,
+            "has_product_detail_heading": False,
             "has_purchase_control": True,
             "has_variant_control": True,
             "has_sku_marker": False,
@@ -230,10 +231,10 @@ def test_primary_price_and_product_heading_classify_without_purchase_control() -
     assessment = classify(
         "https://example.com/catalogue/a-light-in-the-attic_1000/index.html",
         _facts(
-            h2_texts=["Product Description", "Product Information"],
             entity={
                 "product": {
                     "has_primary_price": True,
+                    "has_product_detail_heading": True,
                     "has_purchase_control": False,
                     "has_variant_control": False,
                     "has_sku_marker": False,

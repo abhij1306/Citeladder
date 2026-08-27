@@ -27,7 +27,13 @@ class SitePageLinkMetric(Base):
 
     __tablename__ = "site_page_link_metrics"
     __table_args__ = (
-        UniqueConstraint("crawl_id", "site_url_id", name="uq_site_page_link_metric"),
+        UniqueConstraint(
+            "crawl_id",
+            "site_url_id",
+            "extractor_version",
+            "formula_version",
+            name="uq_site_page_link_metric",
+        ),
         ForeignKeyConstraint(
             ["workspace_id", "project_id", "crawl_id"],
             [

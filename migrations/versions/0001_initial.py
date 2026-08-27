@@ -3837,7 +3837,11 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
-            "crawl_id", "site_url_id", name="uq_site_page_link_metric"
+            "crawl_id",
+            "site_url_id",
+            "extractor_version",
+            "formula_version",
+            name="uq_site_page_link_metric",
         ),
     )
     _create_indexes(

@@ -15,6 +15,7 @@ from app.core.config.site_health_link_metrics import (
 )
 from app.core.config.task_queue import TASK_STATUS_QUEUED, TASK_STATUS_SUCCEEDED
 from app.domain.site_health.link_metrics import persist_link_metrics
+from app.domain.site_health.link_queue import enqueue_link_metric_refresh
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.links import SitePageLinkMetric
 from app.models.site_health.queue import SiteCrawlTask
@@ -155,6 +156,36 @@ async def test_post_terminal_metrics_are_scoped_versioned_and_idempotent(
             .where(SitePageLinkMetric.crawl_id == seed.crawl_id)
         )
         assert count == 2
+
+        for row in rows:
+            row.formula_version = "prior-formula"
+        await session.commit()
+
+        assert await persist_link_metrics(session, crawl=crawl) == 2
+        await session.commit()
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(SitePageLinkMetric)
+                .where(SitePageLinkMetric.crawl_id == seed.crawl_id)
+            )
+            == 4
+        )
+
+        crawl.extractor_version = "next-extractor"
+        await enqueue_link_metric_refresh(session, crawl=crawl)
+        await session.commit()
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(SiteCrawlTask)
+                .where(
+                    SiteCrawlTask.crawl_id == seed.crawl_id,
+                    SiteCrawlTask.task_kind == TASK_KIND_LINK_METRICS,
+                )
+            )
+            == 2
+        )
 
 
 @pytest.mark.asyncio

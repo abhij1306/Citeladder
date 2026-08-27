@@ -9,7 +9,7 @@ self-contained enough to hand to a fresh session.
 conservative about claiming what a site's structure *is* or what it *must* contain.
 
 **Versions:** every shipped semantic change bumps the relevant replay token, even pre-launch. PR1
-ships `sh-extractor-10`, `sh-classifier-7`, `sh-analyzer-6`, `sh-rules-5`, and `sh-scoring-3`.
+ships `sh-extractor-11`, `sh-classifier-7`, `sh-analyzer-6`, `sh-rules-5`, and `sh-scoring-3`.
 Later PRs must bump the exact extractor, classifier, analyzer, rule, scoring, or formula versions they
 change. A disposable database reset does not replace provenance.
 

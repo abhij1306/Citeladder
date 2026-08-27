@@ -45,6 +45,7 @@ from app.core.config.site_health_link_metrics import COVERAGE_FORMULA_VERSION
 from app.domain.site_health.coverage import crawl_coverage
 from app.models.site_health.analysis import SiteIssue, SitePageAnalysis
 from app.models.site_health.crawl import SiteCrawl
+from app.models.site_health.runtime import SiteHealthProfile
 from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import MonitoredSiteUrl
 
@@ -80,6 +81,20 @@ async def persist_crawl_snapshot(
     Returns ``True`` when a snapshot/projection was (re)written, ``False`` when
     persistence was skipped because the aggregate was empty.
     """
+    # The caller holds the crawl row lock, which closes discovery/task writes.
+    # Selection mutations are serialized by the profile row, so take that same
+    # lock before the first membership-backed read. The aggregate, selected
+    # count, and coverage evidence then describe one frozen terminal state.
+    await session.scalar(
+        select(SiteHealthProfile.id)
+        .where(
+            SiteHealthProfile.id == crawl.profile_id,
+            SiteHealthProfile.workspace_id == crawl.workspace_id,
+            SiteHealthProfile.project_id == crawl.project_id,
+        )
+        .with_for_update()
+    )
+
     # Exactly one latest completed analysis per ACTIVE monitored URL in this
     # crawl. Rank by the full timestamp, then UUID for a deterministic tie-break
     # (never truncate timestamps to whole seconds).

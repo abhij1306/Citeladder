@@ -62,6 +62,7 @@ def empty_entity_signals() -> dict[str, Any]:
         "region": {"source": "", "card_list_count": 0},
         "product": {
             "has_primary_price": False,
+            "has_product_detail_heading": False,
             "has_purchase_control": False,
             "has_variant_control": False,
             "has_sku_marker": False,
@@ -115,10 +116,23 @@ def extract_entity_signals(root: Any) -> dict[str, Any]:
 def _product_signals(region: Any, container_ids: set[int]) -> dict[str, Any]:
     return {
         "has_primary_price": _has_price_outside_cards(region, container_ids),
+        "has_product_detail_heading": _has_product_detail_heading(
+            region, container_ids
+        ),
         "has_purchase_control": _has_purchase_control(region, container_ids),
         "has_variant_control": _has_variant_control(region, container_ids),
         "has_sku_marker": _has_sku_marker(region, container_ids),
     }
+
+
+def _has_product_detail_heading(region: Any, container_ids: set[int]) -> bool:
+    for node in _find(region, ".//h2"):
+        if not node_outside_containers(node, container_ids):
+            continue
+        normalized = " ".join(re.findall(r"[a-z0-9]+", _text(node).lower()))
+        if normalized in _config.PRODUCT_DETAIL_HEADING_PHRASES:
+            return True
+    return False
 
 
 def _listing_signals(region: Any, containers: list[Any]) -> dict[str, Any]:

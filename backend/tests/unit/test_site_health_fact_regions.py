@@ -128,6 +128,7 @@ def test_product_signals_ignore_the_recommendation_carousel() -> None:
     signals = extract_entity_signals(_tree("policy_with_recommendations.html"))
     assert signals["product"] == {
         "has_primary_price": False,
+        "has_product_detail_heading": False,
         "has_purchase_control": False,
         "has_variant_control": False,
         "has_sku_marker": False,
@@ -140,6 +141,22 @@ def test_product_signals_read_the_pages_own_buy_box() -> None:
     assert signals["product"]["has_purchase_control"] is True
     assert signals["product"]["has_variant_control"] is True
     assert signals["product"]["has_sku_marker"] is True
+
+
+def test_product_detail_heading_is_scoped_to_primary_content() -> None:
+    primary = lxml_html.fromstring(
+        "<html><body><main><p>$19.00</p><h2>Product Information</h2></main>"
+        "</body></html>"
+    )
+    chrome_only = lxml_html.fromstring(
+        "<html><body><nav><h2>Product Information</h2></nav>"
+        "<main><p>$19.00</p></main></body></html>"
+    )
+
+    assert extract_entity_signals(primary)["product"]["has_product_detail_heading"]
+    assert not extract_entity_signals(chrome_only)["product"][
+        "has_product_detail_heading"
+    ]
 
 
 @pytest.mark.parametrize("tag", ["script", "style", "noscript", "template"])

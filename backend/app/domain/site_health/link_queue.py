@@ -19,7 +19,10 @@ async def enqueue_link_metric_refresh(
     session: AsyncSession, *, crawl: SiteCrawl
 ) -> None:
     token = hashlib.sha256(
-        f"link-metrics:{crawl.id}:{LINK_METRIC_FORMULA_VERSION}".encode()
+        (
+            f"link-metrics:{crawl.id}:{crawl.extractor_version}:"
+            f"{LINK_METRIC_FORMULA_VERSION}"
+        ).encode()
     ).hexdigest()
     await session.execute(
         pg_insert(SiteCrawlTask)
@@ -30,7 +33,8 @@ async def enqueue_link_metric_refresh(
             requested_url=crawl.root_url,
             url_hash=token,
             idempotency_key=(
-                f"{crawl.id}:{TASK_KIND_LINK_METRICS}:{LINK_METRIC_FORMULA_VERSION}"
+                f"{crawl.id}:{TASK_KIND_LINK_METRICS}:{crawl.extractor_version}:"
+                f"{LINK_METRIC_FORMULA_VERSION}"
             ),
             status=TASK_STATUS_QUEUED,
             max_attempts=site_health_settings.max_attempts,
