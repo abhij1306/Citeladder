@@ -100,6 +100,23 @@ def test_product_offer_facts_and_visible_schema_parity_fixture() -> None:
     assert _outcome(facts, "aeo.product_visible_schema_parity").outcome == "pass"
 
 
+def test_declared_product_offer_requires_all_offer_fields() -> None:
+    facts = extract_page_facts(
+        b"""<html><head><script type="application/ld+json">{
+        "@context":"https://schema.org", "@type":"Product", "name":"Widget",
+        "sku":"W-100", "brand":"Acme",
+        "offers":{"@type":"Offer","price":"19.99","priceCurrency":"USD"}
+        }</script></head><body><h1>Widget</h1></body></html>""",
+        final_url="https://example.test/products/widget",
+    )
+    facts["page_kind"] = "product"
+
+    outcome = _outcome(facts, "aeo.product_offer_details")
+    assert outcome.outcome == "fail"
+    assert outcome.evidence["offer_declared"] is True
+    assert outcome.evidence["missing"] == ["offers.availability"]
+
+
 def test_product_visible_schema_parity_fails_on_persisted_conflict() -> None:
     facts = extract_page_facts(
         b"""<html><head><title>Widget Pro</title><script type="application/ld+json">

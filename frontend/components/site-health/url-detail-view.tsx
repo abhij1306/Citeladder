@@ -11,7 +11,7 @@ import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import type { DeliveryFacts, PageDetail, SiteIssue } from '@/lib/api/types';
 import { ICONS } from '@/lib/icons';
 import {
-  CONFIDENCE_LABELS,
+  pageKindConfidenceLabel,
   pageKindLabel,
   readPageKindEvidence,
   type PageKindEvidenceView,
@@ -174,7 +174,7 @@ function PageKindEvidencePanel({
           <EvidenceFact label="Classified by" value={evidence.classifiedBy} />
           <EvidenceFact
             label="Confidence"
-            value={CONFIDENCE_LABELS[evidence.confidence] ?? evidence.confidence}
+            value={pageKindConfidenceLabel(evidence.confidence, evidence.tier)}
           />
           <EvidenceFact
             label="Schema suggests"

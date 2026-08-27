@@ -5,6 +5,7 @@ import {
   CONFIDENCE_LABELS,
   PAGE_KINDS,
   byPageKindRows,
+  pageKindConfidenceLabel,
   pageKindLabel,
   readPageKindEvidence,
 } from './page-kinds';
@@ -12,6 +13,11 @@ import {
 describe('confidence labels', () => {
   it('describes low confidence as general semantic evidence', () => {
     expect(CONFIDENCE_LABELS.low).toBe('Low — semantic evidence');
+  });
+
+  it('describes structural medium confidence without claiming URL evidence', () => {
+    expect(pageKindConfidenceLabel('medium', 'structural')).toBe('Medium — mixed evidence');
+    expect(pageKindConfidenceLabel('medium', 'route')).toBe('Medium — URL family');
   });
 });
 
@@ -159,6 +165,29 @@ describe('readPageKindEvidence (why-this-type disclosure reader)', () => {
     );
     expect(view?.signals).toEqual([
       { signal: 'structured_data', pageKind: 'product', tier: 'semantic', detail: '' },
+    ]);
+  });
+
+  it('keeps historical numeric evidence readable', () => {
+    const view = readPageKindEvidence(
+      {
+        classifier_version: 'sh-classifier-5',
+        classified_by: 'path_pattern',
+        confidence: 0.85,
+        confidence_threshold: 0.6,
+        signals: [{ signal: 'path_pattern', page_kind: 'article', weight: 0.85, detail: '/blog/' }],
+        alternatives: [{ page_kind: 'article', confidence: 0.85, signals: ['path_pattern'] }],
+      },
+      'article',
+    );
+
+    expect(view?.confidence).toBe('0.85');
+    expect(view?.tier).toBe('legacy');
+    expect(view?.signals).toEqual([
+      { signal: 'path_pattern', pageKind: 'article', tier: 'legacy', detail: '/blog/' },
+    ]);
+    expect(view?.alternatives).toEqual([
+      { pageKind: 'article', tier: 'legacy', signals: ['path_pattern'] },
     ]);
   });
 });

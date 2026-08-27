@@ -110,6 +110,18 @@ def test_unrelated_linked_sections_are_not_a_card_list() -> None:
     assert card_list_containers(region) == []
 
 
+def test_card_list_tolerates_optional_child_markup() -> None:
+    tree = lxml_html.fromstring(
+        """<html><body><main><ul>
+        <li><a href='/a'>A</a><span>$10</span></li>
+        <li><a href='/b'>B</a><span>$20</span><em>Sale</em></li>
+        <li><a href='/c'>C</a><span>$30</span></li>
+        </ul></main></body></html>"""
+    )
+    region, _source = primary_region(tree)
+    assert len(card_list_containers(region)) == 1
+
+
 def test_product_signals_ignore_the_recommendation_carousel() -> None:
     # The carousel carries four prices and four "Add to cart" buttons. None of
     # them describe this page, so none of them may speak for it.
@@ -256,6 +268,14 @@ def test_store_locator_is_not_treated_as_one_local_business() -> None:
 def test_visible_price_is_read_from_the_page_not_from_a_script() -> None:
     facts = _facts("pdp_with_recommendations.html", "https://example.test/products/x")
     assert facts["commerce"]["visible_price"] == "$195.00"
+
+
+def test_visible_price_excludes_repeated_recommendation_cards() -> None:
+    facts = _facts(
+        "policy_with_recommendations.html",
+        "https://example.test/pages/refund-policy",
+    )
+    assert facts["commerce"]["visible_price"] == ""
 
 
 def test_body_without_content_carries_the_zero_entity_shape() -> None:

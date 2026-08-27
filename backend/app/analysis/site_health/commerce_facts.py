@@ -83,7 +83,7 @@ def extract_commerce_facts(
     # The page's own visible text, not the whole tree: ``text_of(root)`` also
     # reads inline <script> bodies, and a JavaScript regex replacement string
     # made every crawled page of a real store report a visible price of "$1".
-    page_text = primary_region_text(root)
+    page_text = primary_region_text(root, exclude_card_lists=True)
     match = _PRICE.search(page_text)
     return {
         "breadcrumbs": breadcrumbs,

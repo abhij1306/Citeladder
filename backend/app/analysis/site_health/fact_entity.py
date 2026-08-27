@@ -21,6 +21,7 @@ from app.analysis.site_health.dom import node_text as _text
 from app.analysis.site_health.fact_regions import (
     card_list_containers,
     element_region,
+    node_outside_containers,
     primary_region,
     region_node_is_visible,
     region_text,
@@ -156,24 +157,6 @@ def _find(node: Any, expression: str) -> list[Any]:
     ]
 
 
-def _outside_cards(node: Any, container_ids: set[int]) -> bool:
-    """Whether ``node`` sits outside every repeated card list in the region."""
-    if not container_ids:
-        return True
-    current = node
-    for _depth in range(_config.REGION_MAX_ANCESTOR_DEPTH):
-        if current is None:
-            return True
-        if id(current) in container_ids:
-            return False
-        try:
-            current = current.getparent()
-        except DOM_ERRORS as exc:
-            dom_failure("_outside_cards", exc)
-            return True
-    return True
-
-
 def _has_price_outside_cards(region: Any, container_ids: set[int]) -> bool:
     """A visible price that belongs to this page, not to a card in a list."""
     scanned = 0
@@ -189,7 +172,7 @@ def _has_price_outside_cards(region: Any, container_ids: set[int]) -> bool:
             continue
         if element_region(parent) in _CHROME_REGIONS:
             continue
-        if _outside_cards(parent, container_ids):
+        if node_outside_containers(parent, container_ids):
             return True
     return False
 
@@ -212,7 +195,7 @@ def _has_purchase_control(region: Any, container_ids: set[int]) -> bool:
     """
     for form in _find(region, ".//form[@action]"):
         action = (form.get("action") or "").strip().lower()
-        if not _outside_cards(form, container_ids):
+        if not node_outside_containers(form, container_ids):
             continue
         if any(token in action for token in _config.CART_FORM_ACTION_TOKENS):
             return True
@@ -221,7 +204,7 @@ def _has_purchase_control(region: Any, container_ids: set[int]) -> bool:
 
 def _has_purchase_button(region: Any, container_ids: set[int]) -> bool:
     for control in _find(region, ".//button | .//input[@type='submit'] | .//a[@href]"):
-        if not _outside_cards(control, container_ids):
+        if not node_outside_containers(control, container_ids):
             continue
         blob = f"{_attr_blob(control)} {_text(control).lower()}"
         if any(marker in blob for marker in _config.PAGE_KIND_CART_MARKERS):
@@ -238,7 +221,7 @@ def _has_variant_control(region: Any, container_ids: set[int]) -> bool:
     itself.
     """
     for select in _find(region, ".//select"):
-        if not _outside_cards(select, container_ids):
+        if not node_outside_containers(select, container_ids):
             continue
         if _matches_tokens(select, _config.SORT_CONTROL_TOKENS):
             continue
@@ -248,7 +231,7 @@ def _has_variant_control(region: Any, container_ids: set[int]) -> bool:
             return True
     names: dict[str, int] = {}
     for radio in _find(region, ".//input[@type='radio']"):
-        if not _outside_cards(radio, container_ids):
+        if not node_outside_containers(radio, container_ids):
             continue
         name = (radio.get("name") or "").strip().lower()
         if name:
@@ -258,7 +241,7 @@ def _has_variant_control(region: Any, container_ids: set[int]) -> bool:
 
 def _has_sku_marker(region: Any, container_ids: set[int]) -> bool:
     for node in _find(region, ".//*[@itemprop='sku'] | .//*[@data-sku] | .//*[@id]"):
-        if not _outside_cards(node, container_ids):
+        if not node_outside_containers(node, container_ids):
             continue
         if _sku_attribute(node):
             return True

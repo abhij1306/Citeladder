@@ -120,7 +120,7 @@ def region_node_is_visible(node: Any) -> bool:
     return True
 
 
-def region_text(node: Any) -> str:
+def region_text(node: Any, *, excluded_container_ids: set[int] | None = None) -> str:
     """Visible text of ``node`` with every excluded subtree left out.
 
     This is what ``commerce_facts`` must read instead of the whole tree: an
@@ -130,6 +130,10 @@ def region_text(node: Any) -> str:
     collected: list[str] = []
     size = 0
     for part in visible_region_text_nodes(node):
+        if excluded_container_ids and not node_outside_containers(
+            part, excluded_container_ids
+        ):
+            continue
         chunk = str(part).strip()
         if not chunk:
             continue
@@ -140,10 +144,29 @@ def region_text(node: Any) -> str:
     return " ".join(collected)
 
 
-def primary_region_text(root: Any) -> str:
+def primary_region_text(root: Any, *, exclude_card_lists: bool = False) -> str:
     """Visible text of the page's primary region (convenience wrapper)."""
     node, _source = primary_region(root)
-    return region_text(node)
+    containers = card_list_containers(node) if exclude_card_lists else []
+    return region_text(node, excluded_container_ids={id(item) for item in containers})
+
+
+def node_outside_containers(node: Any, container_ids: set[int]) -> bool:
+    """Whether ``node`` sits outside every identified repeated container."""
+    if not container_ids:
+        return True
+    current = node
+    for _depth in range(_config.REGION_MAX_ANCESTOR_DEPTH):
+        if current is None:
+            return True
+        if id(current) in container_ids:
+            return False
+        try:
+            current = current.getparent()
+        except DOM_ERRORS as exc:
+            dom_failure("node_outside_containers", exc)
+            return True
+    return True
 
 
 def element_region(node: Any) -> str:
@@ -223,7 +246,26 @@ def _is_card_list(candidate: Any) -> bool:
         if not _contains_link(child):
             continue
         counts[signature] = counts.get(signature, 0) + 1
-    return any(count >= _config.CARD_LIST_MIN_ITEMS for count in counts.values())
+    return any(
+        sum(
+            count
+            for other, count in counts.items()
+            if _card_shapes_compatible(shape, other)
+        )
+        >= _config.CARD_LIST_MIN_ITEMS
+        for shape in counts
+    )
+
+
+def _card_shapes_compatible(
+    left: tuple[str, tuple[str, ...]], right: tuple[str, tuple[str, ...]]
+) -> bool:
+    """Match repeated wrappers while tolerating optional direct-child markup."""
+    if left[0] != right[0]:
+        return False
+    left_children = set(left[1])
+    right_children = set(right[1])
+    return left_children <= right_children or right_children <= left_children
 
 
 def _card_shape(node: Any) -> tuple[str, tuple[str, ...]] | None:

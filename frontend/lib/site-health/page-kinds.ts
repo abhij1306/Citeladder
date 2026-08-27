@@ -79,6 +79,13 @@ export const CONFIDENCE_LABELS: Readonly<Record<string, string>> = {
   unknown: 'Unclassified',
 };
 
+export function pageKindConfidenceLabel(confidence: string, tier: string): string {
+  if (confidence === 'medium' && tier === 'structural') {
+    return 'Medium — mixed evidence';
+  }
+  return CONFIDENCE_LABELS[confidence] ?? confidence;
+}
+
 /**
  * One ranked matched-signal entry of the persisted classifier evidence —
  * `{ signal, page_kind, tier, detail }` as the backend
@@ -154,10 +161,16 @@ function readAlternatives(value: unknown): PageKindEvidenceCandidate[] {
   for (const raw of value) {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) continue;
     const entry = raw as Record<string, unknown>;
-    if (typeof entry.page_kind !== 'string' || typeof entry.tier !== 'string') continue;
+    const tier =
+      typeof entry.tier === 'string'
+        ? entry.tier
+        : typeof entry.confidence === 'number'
+          ? 'legacy'
+          : null;
+    if (typeof entry.page_kind !== 'string' || tier === null) continue;
     out.push({
       pageKind: entry.page_kind,
-      tier: entry.tier,
+      tier,
       signals: Array.isArray(entry.signals)
         ? entry.signals.filter((item): item is string => typeof item === 'string')
         : [],
@@ -200,11 +213,17 @@ function readSignals(value: unknown): PageKindEvidenceSignal[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((raw) => {
     const entry = recordFrom(raw);
+    const tier =
+      typeof entry?.tier === 'string'
+        ? entry.tier
+        : typeof entry?.weight === 'number'
+          ? 'legacy'
+          : null;
     if (
       !entry ||
       typeof entry.signal !== 'string' ||
       typeof entry.page_kind !== 'string' ||
-      typeof entry.tier !== 'string'
+      !tier
     ) {
       return [];
     }
@@ -212,7 +231,7 @@ function readSignals(value: unknown): PageKindEvidenceSignal[] {
       {
         signal: entry.signal,
         pageKind: entry.page_kind,
-        tier: entry.tier,
+        tier,
         detail: typeof entry.detail === 'string' ? entry.detail : '',
       },
     ];
@@ -225,11 +244,18 @@ function evidenceBasics(record: Record<string, unknown>): {
   tier: string;
 } | null {
   const { classified_by: classifiedBy, confidence, tier } = record;
-  return typeof classifiedBy === 'string' &&
-    typeof confidence === 'string' &&
-    typeof tier === 'string'
-    ? { classifiedBy, confidence, tier }
-    : null;
+  if (typeof classifiedBy !== 'string') return null;
+  if (typeof confidence === 'string' && typeof tier === 'string') {
+    return { classifiedBy, confidence, tier };
+  }
+  if (
+    typeof confidence === 'number' &&
+    typeof record.confidence_threshold === 'number' &&
+    tier === undefined
+  ) {
+    return { classifiedBy, confidence: String(confidence), tier: 'legacy' };
+  }
+  return null;
 }
 
 /**
