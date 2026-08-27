@@ -31,8 +31,8 @@ import {
  * Renders one row per analyzed page: URL (+ path), the page-kind badge (v2
  * P1), a per-page analysis status badge (queued/running/completed/error/
  * blocked), issue count, Web Fundamentals / AEO scores, last audited, and a View
- * action. Missing / not-yet-analysed scores render the `—` placeholder —
- * never a fabricated zero (an error/blocked row shows `—`, not 0). The whole
+ * action. Missing / not-yet-analysed scores render the `Not measured` placeholder —
+ * never a fabricated zero (an error/blocked row shows `Not measured`, not 0). The whole
  * row is clickable and navigates to the Slice 8 per-URL detail route
  * (`/site/crawls/[crawlId]/pages/[siteUrlId]`); the View link remains
  * as the keyboard/screen-reader affordance.

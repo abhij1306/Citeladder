@@ -426,7 +426,7 @@ export function statusLabel(status: string): string {
 
 /**
  * Format a 0–100 score for display. Null (not yet analysed) and NaN render the
- * `—` placeholder — an error/blocked row is NEVER shown as 0.
+ * `Not measured` placeholder — an error/blocked row is NEVER shown as 0.
  */
 export function formatScore(score: number | null): string {
   if (score === null || Number.isNaN(score)) return PLACEHOLDER;

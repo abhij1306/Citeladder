@@ -9,7 +9,7 @@ import { PLACEHOLDER } from '@/lib/site-health/status';
  * inventory), affected-URL rows, and the per-URL detail header. Reuses the
  * design-system neutral `Badge` — no new colour family. An unclassified page
  * (no completed analysis yet, or a projection that does not carry the field)
- * renders the `—` placeholder, never a guessed type.
+ * renders the `Not measured` placeholder, never a guessed type.
  */
 export function PageKindBadge({ pageKind }: Readonly<{ pageKind: string | null | undefined }>) {
   if (!pageKind) {

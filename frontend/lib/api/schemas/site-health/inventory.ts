@@ -10,7 +10,7 @@ import { cursorPageSchema } from './pagination';
 // Nullable analysis-summary fields shared by inventory rows and analyzed-page
 // summary rows (null until analysis completes for that URL). `page_kind`
 // joins them: it is stamped by the analysis classifier, so an unanalyzed row
-// has no classification yet (null — the UI renders `—`, never a guessed type).
+// has no classification yet (null — the UI renders `Not measured`, never a guessed type).
 export const analysisSummaryFields = {
   issue_count: z.number().int().nullable(),
   technical_score: z.number().nullable(),

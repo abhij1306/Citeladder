@@ -13,7 +13,7 @@ import { PLACEHOLDER, formatScore } from '@/lib/site-health/status';
  * while analysis is in flight, and the final `score_summary` once it lands.
  * Scores appear IN PLACE — the section never unmounts, so finishing a crawl
  * updates the cards instead of jumping to a different screen. Missing scores
- * render `—`, never a fabricated zero.
+ * render `Not measured`, never a fabricated zero.
  */
 export function ScoreSection({
   crawl,
@@ -91,7 +91,7 @@ function overallSub(
 
 /**
  * Running mean of the per-page scores that have landed so far. Only pages with
- * a completed analysis contribute; returns null (rendered as `—`) until at
+ * a completed analysis contribute; returns null (rendered as `Not measured`) until at
  * least one page has scores — never a fabricated zero.
  */
 function computeLiveScores(

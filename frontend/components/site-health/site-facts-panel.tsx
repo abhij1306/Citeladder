@@ -99,7 +99,7 @@ function BlockedBotsAlert({ blocked }: Readonly<{ blocked: SiteFactsView['bots']
   );
 }
 
-/** Mono status code for one well-known file, `—` when no fetch answered. */
+/** Mono status code for one well-known file, `Unknown` when no fetch answered. */
 function StatusValue({ status }: Readonly<{ status: number | null }>) {
   if (status === null) {
     return <UnavailableValue state="unknown" className="text-sm" />;

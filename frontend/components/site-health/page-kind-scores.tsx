@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
  * panel is data-driven: it appears once a score summary exists (a mid-run
  * projection included) and follows the same dashboard-then-crawl fallback as
  * the score cards. An empty breakdown means analysis has not classified any
- * page yet; missing mean scores render `—`, never a fabricated zero.
+ * page yet; missing mean scores render `Not measured`, never a fabricated zero.
  *
  * READ-ONLY by design. This used to expand each row into an accordion holding
  * its own paginated URL list, checkboxes, and a "Re-analyze selected" button —

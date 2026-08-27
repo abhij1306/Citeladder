@@ -36,7 +36,7 @@ export const scoreBandText: Record<ScoreBand, string> = {
 
 /**
  * Null-aware text class for a score cell: muted for a missing score (which
- * renders the `—` placeholder), the band colour otherwise. Shared by every
+ * renders the `Not measured` placeholder), the band colour otherwise. Shared by every
  * score table so the missing-score treatment never diverges.
  */
 export function scoreTextClass(score: number | null): string {
