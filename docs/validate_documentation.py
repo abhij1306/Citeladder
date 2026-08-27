@@ -49,6 +49,7 @@ ACTIVE_EXACT = {
     "docs/plans/citeladder-aeo-product-rebuild.md",
     "docs/plans/citeladder-onboarding-discovery-v7.md",
     "docs/plans/commerce-suite-atomic-rebuild.md",
+    "docs/plans/commerce-ui-redesign.md",
     "docs/plans/commerce-suite-retirement-manifest.md",
     "docs/plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md",
     # Written (and re-written) by `next dev`; see the notice inside them and

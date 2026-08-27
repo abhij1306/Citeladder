@@ -21,6 +21,7 @@ listed here must prove a current operational purpose or move to the archive.
 | [`plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md`](plans/CITELADDER_CONTENT_GENERATION_SIMPLIFIED_PLAN.md) | Demo-first Content Generation improvement proposal |
 | [`plans/citeladder-onboarding-discovery-v7.md`](plans/citeladder-onboarding-discovery-v7.md) | Implemented evidence-first onboarding discovery. Its GMI Cloud cutover was later reverted to Mistral. |
 | [`plans/commerce-suite-atomic-rebuild.md`](plans/commerce-suite-atomic-rebuild.md) | Active staged delivery plan and open gates for the Commerce Suite replacement |
+| [`plans/commerce-ui-redesign.md`](plans/commerce-ui-redesign.md) | Proposed master-detail redesign of the Commerce workspace, replacing the four verb tabs and their repeated target selectors |
 | [`plans/commerce-suite-retirement-manifest.md`](plans/commerce-suite-retirement-manifest.md) | Exact retired Commerce authorities and version lineage for the atomic cutover |
 
 ## Active implementation plans
