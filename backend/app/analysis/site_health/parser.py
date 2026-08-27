@@ -636,10 +636,10 @@ def _empty_facts() -> dict[str, Any]:
         "hreflang_alternates": [],
         "first_answer_text": "",
         "inline_script_chars": 0,
-        # v2 S2 (sh-extractor-4) knowledge evidence.
         "contact_points": [],
         "commerce": {
             "breadcrumbs": [],
+            "breadcrumb_links": [],
             "product_cards": [],
             "category_links": [],
             "category_role": "unknown",

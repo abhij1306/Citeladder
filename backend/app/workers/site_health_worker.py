@@ -9,14 +9,10 @@
 # lost-lease or cancelled task writes NOTHING (invariant 3, acceptance
 # criterion 7).
 #
-# SCOPE (Task 3): this worker claims and executes ONLY ``discover`` tasks. It
-# fetches the target through the SSRF-safe ``SecureFetcher`` (with an injected
-# DNS resolver — tests inject a fake one, production a real one), extracts
-# in-scope canonical links, admits them into the frontier via
-# ``discovery.admit_candidates`` (Starter progressive inventory / Free
-# workspace-wide stop-at-10 sample), and persists an immutable
-# ``SiteUrlObservation`` + ``SiteFetchAttempt`` (+ ``SiteFetchArtifact``) in the
-# SAME transaction as the admitted rows + counter bumps + child-task enqueues.
+# The same queue owns discovery, analysis, and the post-terminal change,
+# link-metric, and architecture derivations. Network tasks use the SSRF-safe
+# fetcher; derived tasks read only persisted evidence. Each phase commits its
+# evidence and successor admission atomically.
 #
 # Discovery and analysis share this one worker so their lifecycle can be
 # terminalized from a single durable queue owner.
@@ -51,6 +47,7 @@ from app.core.config.site_health_contracts import (
     POST_TERMINAL_SITE_TASK_KINDS,
     SITE_TASK_KINDS,
     TASK_KIND_ANALYZE,
+    TASK_KIND_ARCHITECTURE,
     TASK_KIND_CHANGE_INTEL,
     TASK_KIND_DISCOVER,
     TASK_KIND_LINK_METRICS,
@@ -96,6 +93,7 @@ from app.workers.site_health.outcomes import AnalyzeOutcome as _AnalyzeOutcome
 from app.workers.site_health.outcomes import DiscoverOutcome as _DiscoverOutcome
 from app.workers.site_health.phases import (
     AnalyzePhaseMixin,
+    ArchitecturePhaseMixin,
     ChangeIntelPhaseMixin,
     DiscoverPhaseMixin,
     LinkMetricsPhaseMixin,
@@ -116,6 +114,7 @@ class SiteHealthWorker(
     AnalyzePhaseMixin,
     ChangeIntelPhaseMixin,
     LinkMetricsPhaseMixin,
+    ArchitecturePhaseMixin,
     DrainableWorkerMixin,
 ):
     """Owns a claim/lease loop over ``SiteCrawlTask`` discover rows.
@@ -406,6 +405,10 @@ class SiteHealthWorker(
             )
         elif kind == TASK_KIND_LINK_METRICS:
             await self._run_link_metrics(
+                claimed.id, claimed.crawl_id, claimed.workspace_id
+            )
+        elif kind == TASK_KIND_ARCHITECTURE:
+            await self._run_architecture(
                 claimed.id, claimed.crawl_id, claimed.workspace_id
             )
         else:

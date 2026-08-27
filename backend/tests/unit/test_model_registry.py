@@ -26,6 +26,7 @@ def test_models_are_exported_and_registered_once() -> None:
         "SiteFetchArtifact": "site_fetch_artifacts",
         "SitePageAnalysis": "site_page_analyses",
         "SitePageLinkMetric": "site_page_link_metrics",
+        "SiteObservedArchitecture": "site_observed_architectures",
         "SiteRuleEvaluation": "site_rule_evaluations",
         "SiteIssue": "site_issues",
         "SiteHealthSnapshot": "site_health_snapshots",
@@ -85,3 +86,23 @@ def test_site_health_critical_metadata_contracts() -> None:
         "fk_site_page_link_metric_site_url_scoped",
         "uq_site_page_link_metric",
     } <= {constraint.name for constraint in link_metric.constraints}
+
+    architecture = models.SiteObservedArchitecture.__table__
+    assert {
+        "fk_site_observed_architecture_crawl_scoped",
+        "uq_site_observed_architecture",
+    } <= {constraint.name for constraint in architecture.constraints}
+
+    evaluation = models.SiteRuleEvaluation.__table__
+    assert "source_architecture_id" in evaluation.c
+    evaluation_unique = next(
+        constraint
+        for constraint in evaluation.constraints
+        if constraint.name == "uq_site_rule_evaluation"
+    )
+    assert {column.name for column in evaluation_unique.columns} == {
+        "analysis_id",
+        "rule_id",
+        "source_architecture_id",
+    }
+    assert evaluation_unique.dialect_options["postgresql"]["nulls_not_distinct"]

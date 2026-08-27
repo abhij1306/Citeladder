@@ -69,6 +69,12 @@ The former multi-panel Site Intelligence workspace is removed. Do not nest a
 second site workspace, knowledge panel, journey panel, correction workflow, or
 comparison surface inside these routes.
 
+PR3's persisted observed-architecture backend projection adds no new route or
+screen by itself. Its planned presentation belongs in the existing Website
+tablist as **Architecture**, never as a second site workspace. The browser must
+render the persisted coverage and abstention states and must not infer parents,
+families, an archetype, or missing structures.
+
 The backend owns the current Site Health phase. The client renders the provided
 phase and action availability instead of reconstructing a cross-product of
 crawl, discovery, analysis, and phase-run states.

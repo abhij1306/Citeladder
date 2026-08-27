@@ -3,7 +3,7 @@
 Four sequential PRs, each merged before the next starts, each in its own chat. Every stage below is
 self-contained enough to hand to a fresh session.
 
-**Status:** PR1 and PR2 implemented; PR3-PR4 remain planned.
+**Status:** PR1, PR2, and PR3 implemented; PR4 remains planned.
 
 **Guiding constraint:** CiteLadder may confidently report **what it observed**. It must be extremely
 conservative about claiming what a site's structure *is* or what it *must* contain.
@@ -12,6 +12,10 @@ conservative about claiming what a site's structure *is* or what it *must* conta
 ships `sh-extractor-11`, `sh-classifier-7`, `sh-analyzer-6`, `sh-rules-5`, and `sh-scoring-3`.
 Later PRs must bump the exact extractor, classifier, analyzer, rule, scoring, or formula versions they
 change. A disposable database reset does not replace provenance.
+
+PR3 ships extractor `sh-extractor-12`, analyzer `sh-analyzer-7`, rule catalog
+`sh-rules-6`, architecture formula `sh-architecture-1`, and archetype policy
+`sh-archetypes-1`. Classifier and scoring semantics remain unchanged.
 
 ---
 

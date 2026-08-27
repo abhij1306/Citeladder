@@ -28,6 +28,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_NOT_APPLICABLE,
     RULE_OUTCOME_PASS,
 )
+from app.core.config.site_health_link_metrics import COVERAGE_STATE_COMPLETE
 from app.core.config.site_health_rules import (
     SiteHealthRule,
 )
@@ -67,7 +68,7 @@ def _evaluation(rule: SiteHealthRule, outcome: str, evidence: dict) -> RuleEvalu
 
 
 def evaluate_sitemap_orphan(
-    *, sitemap_url_count: int, orphan_urls: list[str]
+    *, sitemap_url_count: int, orphan_urls: list[str], coverage_state: str
 ) -> RuleEvaluation:
     """``technical.sitemap_orphan`` for the whole crawl (root-anchored).
 
@@ -78,6 +79,12 @@ def evaluate_sitemap_orphan(
     nothing to orphan).
     """
     rule = _catalog_rule("technical.sitemap_orphan")
+    if coverage_state != COVERAGE_STATE_COMPLETE:
+        return _evaluation(
+            rule,
+            RULE_OUTCOME_NOT_APPLICABLE,
+            {"reason": "coverage_not_complete", "coverage_state": coverage_state},
+        )
     if sitemap_url_count <= 0:
         return _evaluation(rule, RULE_OUTCOME_NOT_APPLICABLE, {"reason": "no_sitemap"})
     outcome = RULE_OUTCOME_FAIL if orphan_urls else RULE_OUTCOME_PASS

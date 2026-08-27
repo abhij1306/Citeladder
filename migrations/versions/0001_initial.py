@@ -3849,6 +3849,58 @@ def upgrade() -> None:
         ("workspace_id", "project_id", "crawl_id", "site_url_id"),
     )
     op.create_table(
+        "site_observed_architectures",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("crawl_id", sa.UUID(), nullable=False),
+        sa.Column("source_snapshot_id", sa.UUID(), nullable=False),
+        sa.Column("source_brand_profile_id", sa.UUID(), nullable=True),
+        sa.Column("coverage_state", sa.String(length=16), nullable=False),
+        sa.Column("page_count", sa.Integer(), nullable=False),
+        sa.Column("page_kind_counts", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("families", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("hierarchy", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("archetype", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("source_analysis_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
+        sa.Column("source_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
+        sa.Column("source_evaluation_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
+        sa.Column("source_link_metric_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
+        sa.Column("extractor_version", sa.String(length=32), nullable=False),
+        sa.Column("analyzer_version", sa.String(length=32), nullable=False),
+        sa.Column("rule_version", sa.String(length=32), nullable=False),
+        sa.Column("architecture_formula_version", sa.String(length=32), nullable=False),
+        sa.Column("archetype_policy_version", sa.String(length=32), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id", "project_id", "crawl_id"],
+            ["site_crawls.workspace_id", "site_crawls.project_id", "site_crawls.id"],
+            name="fk_site_observed_architecture_crawl_scoped",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["source_snapshot_id"],
+            ["site_health_snapshots.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "crawl_id",
+            "extractor_version",
+            "analyzer_version",
+            "rule_version",
+            "architecture_formula_version",
+            "archetype_policy_version",
+            name="uq_site_observed_architecture",
+        ),
+    )
+    _create_indexes(
+        "site_observed_architectures", ("workspace_id", "project_id", "crawl_id")
+    )
+    op.create_table(
         "brand_mentions",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
@@ -4071,6 +4123,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("analysis_id", sa.UUID(), nullable=False),
         sa.Column("source_artifact_id", sa.UUID(), nullable=False),
+        sa.Column("source_architecture_id", sa.UUID(), nullable=True),
         sa.Column("rule_id", sa.String(length=64), nullable=False),
         sa.Column("dimension", sa.String(length=16), nullable=False),
         sa.Column("category", sa.String(length=32), nullable=False),
@@ -4093,6 +4146,11 @@ def upgrade() -> None:
             ["source_artifact_id"], ["site_fetch_artifacts.id"], ondelete="CASCADE"
         ),
         sa.ForeignKeyConstraint(
+            ["source_architecture_id"],
+            ["site_observed_architectures.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
             ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
         ),
         sa.PrimaryKeyConstraint("id"),
@@ -4100,7 +4158,13 @@ def upgrade() -> None:
             "outcome IN ('pass', 'fail', 'not_applicable', 'error')",
             name="ck_site_rule_evaluations_outcome",
         ),
-        sa.UniqueConstraint("analysis_id", "rule_id", name="uq_site_rule_evaluation"),
+        sa.UniqueConstraint(
+            "analysis_id",
+            "rule_id",
+            "source_architecture_id",
+            name="uq_site_rule_evaluation",
+            postgresql_nulls_not_distinct=True,
+        ),
     )
     op.create_index(
         op.f("ix_site_rule_evaluations_analysis_id"),
@@ -4112,6 +4176,12 @@ def upgrade() -> None:
         op.f("ix_site_rule_evaluations_source_artifact_id"),
         "site_rule_evaluations",
         ["source_artifact_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_site_rule_evaluations_source_architecture_id"),
+        "site_rule_evaluations",
+        ["source_architecture_id"],
         unique=False,
     )
     op.create_index(
@@ -5156,6 +5226,7 @@ def downgrade() -> None:
     # retired authorities. Drop the explicit final table set instead.
     final_tables = (
         "site_issues",
+        "site_observed_architectures",
         "site_page_link_metrics",
         "site_change_observations",
         "referral_classifications",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Final
 
+from app.core.config.site_health_architecture_rules import ARCHITECTURE_RULE_SPECS
 from app.core.config.site_health_contracts import (
     APPLICABILITY_CRAWL_FINALIZE,
     APPLICABILITY_OBSERVED_CONTENT,
@@ -648,6 +649,7 @@ SITE_HEALTH_RULES: Final[tuple[SiteHealthRule, ...]] = (
         ),
         display_label="Hreflang return-tag conflict",
     ),
+    *(SiteHealthRule(**spec) for spec in ARCHITECTURE_RULE_SPECS),
 )
 
 SITE_HEALTH_RULES_BY_ID: Final[dict[str, SiteHealthRule]] = {

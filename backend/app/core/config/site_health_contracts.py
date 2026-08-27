@@ -123,8 +123,10 @@ TASK_KIND_CHANGE_INTEL: Final = "change_intel"
 
 TASK_KIND_LINK_METRICS: Final = "link_metrics"
 
+TASK_KIND_ARCHITECTURE: Final = "architecture"
+
 POST_TERMINAL_SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
-    {TASK_KIND_CHANGE_INTEL, TASK_KIND_LINK_METRICS}
+    {TASK_KIND_CHANGE_INTEL, TASK_KIND_LINK_METRICS, TASK_KIND_ARCHITECTURE}
 )
 
 SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
@@ -133,6 +135,7 @@ SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
         TASK_KIND_ANALYZE,
         TASK_KIND_CHANGE_INTEL,
         TASK_KIND_LINK_METRICS,
+        TASK_KIND_ARCHITECTURE,
     }
 )
 
@@ -259,6 +262,8 @@ CATEGORY_SECURITY: Final = "security"
 
 CATEGORY_CITABILITY: Final = "citability"
 
+CATEGORY_ARCHITECTURE: Final = "architecture"
+
 APPLICABILITY_SITE_ROOT: Final = "site_root"
 
 APPLICABILITY_CRAWL_FINALIZE: Final = "crawl_finalize"
@@ -315,15 +320,15 @@ EVENT_CRAWL_CANCELLED: Final = "crawl.cancelled"
 # logged instead of silently emptying the fact bucket, so an extraction bug is
 # no longer replayed as "this page had no title / no CTAs / no forms". Facts
 # extracted under v7 stay replayable at v7 (invariant 5).
-EXTRACTOR_VERSION: Final = "sh-extractor-11"
+EXTRACTOR_VERSION: Final = "sh-extractor-12"
 
 LINK_REWRITE_VERSION: Final = "sh-link-rewrite-1"
 
 LINK_REWRITE_ENCODED_TRACKING_QUERY: Final = "encoded_tracking_query_delimiter"
 
-ANALYZER_VERSION: Final = "sh-analyzer-6"
+ANALYZER_VERSION: Final = "sh-analyzer-7"
 
-RULE_CATALOG_VERSION: Final = "sh-rules-5"
+RULE_CATALOG_VERSION: Final = "sh-rules-6"
 
 SCORING_VERSION: Final = "sh-scoring-3"
 

@@ -61,7 +61,10 @@ Opportunities. The former Site Intelligence workspace, industry-pack runtime,
 knowledge kernel, corrections, and its cross-industry comparison workspace were
 removed during the 2026-08 simplification. The shipped deterministic
 comparable-crawl Change Intelligence projection is a Site Health owner, not a
-revival of that workspace. Historical context is non-authoritative; use
+revival of that workspace. The persisted observed-architecture projection is
+also a Site Health owner. Its broad archetype expects common structures, does
+not classify a site, cannot emit a defect, and is suppressed for absence claims
+without complete crawl coverage. Historical context is non-authoritative; use
 [`site-health.md`](site-health.md) for the current contract.
 
 Site analysis is governed by the generic `page_kind` taxonomy and its

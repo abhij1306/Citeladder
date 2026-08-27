@@ -35,7 +35,7 @@ def test_0001_initial_is_the_only_migration_revision() -> None:
     source = _BASELINE.read_text(encoding="utf-8")
     assert 'revision = "0001_initial"' in source
     assert "down_revision = None" in source
-    assert len(_created_tables(source)) == 110
+    assert len(_created_tables(source)) == 111
     assert "industry_pack_id" not in source
     assert "from app.models" not in source
 
@@ -73,6 +73,7 @@ def test_baseline_contains_site_health_guidance_and_commerce_schema() -> None:
         "site_issues",
         "site_health_snapshots",
         "site_page_link_metrics",
+        "site_observed_architectures",
         "site_crawl_events",
     } <= tables
 
@@ -84,5 +85,6 @@ def test_baseline_contains_site_health_guidance_and_commerce_schema() -> None:
         "acquisition_options",
         "acquisition_policy_version",
         "source_artifact_id",
+        "source_architecture_id",
     ):
         assert f'"{column}"' in source

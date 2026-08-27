@@ -115,6 +115,7 @@ from app.models.site_health.analysis import (
     SitePageAnalysis,
     SiteRuleEvaluation,
 )
+from app.models.site_health.architecture import SiteObservedArchitecture
 from app.models.site_health.crawl import (
     SiteCrawl,
     SiteCrawlPhaseRun,
@@ -227,6 +228,7 @@ __all__ = [
     "SiteIssue",
     "SitePageAnalysis",
     "SitePageLinkMetric",
+    "SiteObservedArchitecture",
     "SiteRuleEvaluation",
     "SiteUrl",
     "SiteUrlObservation",

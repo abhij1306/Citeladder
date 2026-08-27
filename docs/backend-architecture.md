@@ -265,6 +265,16 @@ The crawl snapshot separately freezes `complete | partial | unknown` coverage
 with its formula version and reason evidence; `inventory_complete` is not used
 as a completeness claim.
 
+Link-metric completion admits a versioned `architecture` task. It reads only
+persisted page analyses, immutable normalized facts, link metrics, the crawl
+snapshot, and the workspace-authorized onboarding profile. One immutable
+`SiteObservedArchitecture` stores page families, evidence-ordered parents,
+coverage-gated archetype advisories, exact source IDs, and all relevant
+versions. Its aggregated structural evaluations reuse the existing
+`crawl_finalize` rule scope at weight zero; absence claims abstain unless crawl
+coverage is complete. The task is retryable and cannot fail crawl
+terminalization.
+
 The AEO Readiness endpoint is a separate read-only projection over those same
 persisted current page analyses and rule evaluations. It requires the crawl's
 exact analyzer/extractor versions, maps only the 20 config-declared rule IDs
@@ -287,7 +297,9 @@ artifact -> normalized region/entity facts -> tiered page_kind assessment
 ```
 
 The former industry-role, knowledge, correction, and comparison columns/tables
-were removed. `page_kind` remains the generic structural classifier and drives
+were removed. The broad observed-architecture archetype is an advisory
+expectation layer only: it cannot classify a site, create a defect, or alter a
+score. `page_kind` remains the generic structural classifier and drives
 schema/property contracts and rule applicability. Primary-region facts exclude
 chrome, non-rendered subtrees, and repeated-card contamination. Structured data
 is retained as a suggestion/corroborator and never decides the kind alone. See

@@ -29,6 +29,7 @@ from app.core.config.site_health_contracts import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     RULE_OUTCOME_FAIL,
 )
+from app.domain.site_health.coverage import crawl_coverage
 from app.domain.site_health.normalization import canonical_identity, canonical_or_empty
 from app.domain.site_health.snapshot import persist_crawl_snapshot
 from app.models.site_health.acquisition import SiteFetchArtifact
@@ -313,11 +314,14 @@ class CrawlFinalizeMixin:
         orphans = _sitemap_orphan_urls(
             sitemap_rows, root_canonical=root_canonical, linked_targets=linked_targets
         )
+        coverage = await crawl_coverage(session, crawl=crawl)
         return [
             (
                 root_analysis_id,
                 evaluate_sitemap_orphan(
-                    sitemap_url_count=len(sitemap_rows), orphan_urls=orphans
+                    sitemap_url_count=len(sitemap_rows),
+                    orphan_urls=orphans,
+                    coverage_state=coverage.state,
                 ),
             )
         ]
@@ -352,7 +356,13 @@ class CrawlFinalizeMixin:
                     analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
                     rule_version=ev.rule_version,
                 )
-                .on_conflict_do_nothing(index_elements=["analysis_id", "rule_id"])
+                .on_conflict_do_nothing(
+                    index_elements=[
+                        "analysis_id",
+                        "rule_id",
+                        "source_architecture_id",
+                    ]
+                )
                 .returning(SiteRuleEvaluation.id)
             )
             if inserted_id is None:

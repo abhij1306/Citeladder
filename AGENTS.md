@@ -54,6 +54,9 @@ approved future work. Archived plans have no authority.
 The shipped Site Health product has three pages: **Site Health**, **Issues**,
 and **Opportunities**. Do not recreate the removed Site Intelligence workspace,
 industry-pack catalog, knowledge tables, corrections, or comparison system.
+The single persisted observed-architecture projection is part of Site Health,
+not a second workspace. Its broad onboarding-derived archetype expects common
+structures; it does not classify the site and cannot produce a defect.
 
 Page analysis separates acquisition truth from structural classification:
 

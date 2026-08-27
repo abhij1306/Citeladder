@@ -347,6 +347,20 @@ def test_jsonld_graph_and_type_url_normalization():
     assert types == {"WebPage", "Organization"}
 
 
+def test_jsonld_preserves_explicit_architecture_relationship_urls():
+    payload = """{
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {"@type": "ListItem", "position": 1, "item": {"@id": "/shop"}},
+        {"@type": "ListItem", "position": 2, "item": "https://x.test/p"}
+      ],
+      "isPartOf": {"@id": "https://x.test/help"}
+    }"""
+    (block,) = parse_jsonld_blocks([payload], max_blocks=10)
+    assert block["breadcrumb_items"] == ["/shop", "https://x.test/p"]
+    assert block["is_part_of_url"] == "https://x.test/help"
+
+
 def test_unrecognized_jsonld_type_ignored():
     facts = parse_jsonld_blocks(['{"@type":"UnknownThing","name":"x"}'], max_blocks=10)
     assert facts == []
@@ -431,12 +445,27 @@ _V2_PAGE = b"""
 """
 
 
-def test_extractor_version_is_sh_extractor_11():
-    # sh-extractor-11 scopes product-detail headings to the primary entity region
+def test_extractor_version_is_sh_extractor_12():
+    # sh-extractor-12 also freezes explicit breadcrumb relationship URLs.
     # while retaining the DOM
     # traversal failure boundary.
-    assert EXTRACTOR_VERSION == "sh-extractor-11"
-    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-11"
+    assert EXTRACTOR_VERSION == "sh-extractor-12"
+    assert _facts(_V2_PAGE)["extractor_version"] == "sh-extractor-12"
+
+
+def test_visible_breadcrumb_links_preserve_resolvable_urls():
+    facts = _facts(
+        b"""<html><body><main>
+        <nav aria-label="Breadcrumb">
+          <a href="/">Home</a><a href="/products">Products</a>
+          <span>Widget</span>
+        </nav></main></body></html>"""
+    )
+    assert facts["commerce"]["breadcrumbs"] == ["Home", "Products", "Widget"]
+    assert facts["commerce"]["breadcrumb_links"] == [
+        {"url": "https://acme.example.com/", "title": "Home"},
+        {"url": "https://acme.example.com/products", "title": "Products"},
+    ]
 
 
 # --- sh-extractor-3: industry-role classifier facts -------------------------

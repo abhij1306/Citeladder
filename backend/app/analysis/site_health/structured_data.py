@@ -165,6 +165,34 @@ def _first_string(value: Any) -> str:
     return ""
 
 
+def _relationship_url(value: Any) -> str:
+    """Return one explicit schema relationship URL without guessing from names."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        return _relationship_url(value.get("@id") or value.get("url"))
+    if isinstance(value, list):
+        for item in value:
+            url = _relationship_url(item)
+            if url:
+                return url
+    return ""
+
+
+def _breadcrumb_item_urls(value: Any) -> list[str]:
+    values = value if isinstance(value, list) else [value]
+    urls: list[str] = []
+    for entry in values:
+        if not isinstance(entry, dict):
+            continue
+        url = _relationship_url(entry.get("item") or entry)
+        if url and url not in urls:
+            urls.append(url[:_MAX_SAME_AS_CHARS])
+        if len(urls) >= _MAX_SAME_AS_ENTRIES:
+            break
+    return urls
+
+
 def _enrichment(obj: dict) -> dict[str, Any]:
     """The bounded P2 enrichment fields for one recognized JSON-LD object."""
     name = _first_string(obj.get("name")) or _first_string(obj.get("headline"))
@@ -189,6 +217,8 @@ def _enrichment(obj: dict) -> dict[str, Any]:
         "description": _first_string(obj.get("description"))[:_MAX_NAME_CHARS],
         "url": _first_string(obj.get("url"))[:_MAX_SAME_AS_CHARS],
         "category": _first_string(obj.get("category"))[:_MAX_NAME_CHARS],
+        "is_part_of_url": _relationship_url(obj.get("isPartOf"))[:_MAX_SAME_AS_CHARS],
+        "breadcrumb_items": _breadcrumb_item_urls(obj.get("itemListElement")),
         "product": _product_enrichment(obj),
     }
 

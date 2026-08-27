@@ -24,7 +24,10 @@ The user-facing area has three pages:
 3. **Opportunities** — persisted prioritized actions.
 
 The removed Site Intelligence workspace and industry-pack/knowledge subsystems
-must not be reintroduced as parallel owners.
+must not be reintroduced as parallel owners. Site Health does own one persisted
+observed-architecture projection. Its broad onboarding-derived archetype is an
+advisory expectation layer: it does not classify the site and cannot produce a
+defect or alter a score.
 
 ## Pipeline
 
@@ -163,6 +166,26 @@ ordinary followable-link depth from home, bounded top neighbours, exact source
 artifact IDs, and formula/extractor versions. Raw edges, PageRank, and authority
 scores are not persisted.
 
+After link metrics commit, a second idempotent post-terminal task derives one
+immutable `SiteObservedArchitecture` for the crawl. It performs no acquisition
+and no model call. The projection freezes exact analysis, artifact,
+indexability-evaluation, and link-metric IDs plus extractor, analyzer, rule,
+architecture-formula, and archetype-policy versions.
+Each structural rule evaluation references that exact architecture projection,
+so a later formula or policy version persists independent replayable results.
+
+Page families replace only the final path segment with `*` and report URL and
+page-kind counts, median observed depth, indexable count, metadata-duplication
+rate, and—only for complete coverage—orphan count. Parent evidence resolves in
+strict order: visible breadcrumb links, explicit `BreadcrumbList`/`isPartOf`
+relationships, a crawled immediate URL parent whose page kind can safely act as
+a hub, then `unknown`. Cross-links never manufacture a parent.
+
+The archetype can only be mapped from a sufficiently grounded onboarding
+`business_model`; an absent/weak profile or materially contradictory crawl
+abstains to `other`. Crawl evidence may veto but never assign an archetype.
+Common structures not observed are suppressed unless coverage is complete.
+
 ## AEO Readiness
 
 `GET /api/v1/projects/{project_id}/site-health/aeo-readiness` is a read-only
@@ -285,6 +308,10 @@ Not-applicable is different from pass and is excluded from scoring.
 - Answer-first structure applies to article, FAQ, guide, docs, service,
   comparison, and case-study/review pages.
 - Product offer and visible/schema parity rules apply only to product pages.
+- Architecture depth, breadcrumb-conflict, and duplicate-family-metadata rules
+  report positive observations at any coverage. Orphan, parentless-detail,
+  unhubbed-family, and sitemap-orphan absence claims require complete coverage;
+  otherwise they are `not_applicable` with `coverage_not_complete`.
 
 A JS shell receives one server-rendering finding. Rules that need unseen body
 content remain not-applicable instead of producing a cascade of fabricated
@@ -328,10 +355,12 @@ current per-page evidence is retained, and no dormant scope configuration or
 placeholder identity owner is introduced.
 
 Current versions are owned in the focused `backend/app/core/config/site_health_*`
-modules. The structural-facts slice ships extractor `sh-extractor-11`, classifier
-`sh-classifier-7`, analyzer `sh-analyzer-6`, rule catalog `sh-rules-5`, and
-scoring `sh-scoring-3`. Coverage uses `sh-coverage-1` and internal-link metrics
-use `sh-link-metrics-1`; tests pin persistence and replay behavior.
+modules. The observed-architecture slice ships extractor `sh-extractor-12`,
+classifier `sh-classifier-7`, analyzer `sh-analyzer-7`, rule catalog
+`sh-rules-6`, and scoring `sh-scoring-3`. Coverage uses `sh-coverage-1`,
+internal-link metrics use `sh-link-metrics-1`, architecture uses
+`sh-architecture-1`, and the archetype policy uses `sh-archetypes-1`; tests pin
+persistence and replay behavior.
 
 ## Known boundary
 

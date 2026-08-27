@@ -447,9 +447,9 @@ async def test_analyze_task_persists_analysis_evaluations_issues_scores(
             .select_from(SiteRuleEvaluation)
             .where(SiteRuleEvaluation.analysis_id == analysis.id)
         )
-        # 30 per-page evaluations from the analyze writer + 2 crawl-finalize
-        # evaluations (sitemap_orphan and hreflang_conflict).
-        assert eval_count == 32
+        # 30 per-page evaluations + 2 terminalization evaluations + 6
+        # post-link-metric observed-architecture evaluations.
+        assert eval_count == 38
 
         # A rich page passes every rule, so no issues are snapshotted.
         issue_count = await session.scalar(
@@ -498,7 +498,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
     )
 
     assert (ANALYZER_VERSION, SCORING_VERSION, CLASSIFIER_VERSION) == (
-        "sh-analyzer-6",
+        "sh-analyzer-7",
         "sh-scoring-3",
         "sh-classifier-7",
     )
@@ -521,7 +521,7 @@ async def test_analyze_persists_page_kind_classifier_and_current_versions(
         # The /blog/ path pattern classified the page as an article.
         assert analysis.page_kind == "article"
         assert analysis.classifier_version == "sh-classifier-7"
-        assert analysis.analyzer_version == "sh-analyzer-6"
+        assert analysis.analyzer_version == "sh-analyzer-7"
         assert analysis.scoring_version == "sh-scoring-3"
 
         # The bounded classifier evidence persisted WITH the row (it used to
@@ -685,7 +685,7 @@ async def test_analyze_injects_site_facts_on_root_analysis_only(
         assert stance is not None
         assert stance.outcome == RULE_OUTCOME_FAIL
         assert stance.evidence["blocked"] == ["GPTBot"]
-        assert stance.rule_version == RULE_CATALOG_VERSION == "sh-rules-5"
+        assert stance.rule_version == RULE_CATALOG_VERSION == "sh-rules-6"
         llms = await _eval("aeo.llms_txt_present", root_analysis.id)
         assert llms is not None
         assert llms.outcome == RULE_OUTCOME_PASS

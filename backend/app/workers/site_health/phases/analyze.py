@@ -490,7 +490,7 @@ class AnalyzePhaseMixin(PhaseSupport):
         """Create the page analysis + rule evaluations + issues + scores.
 
         One UUID-identified ``SitePageAnalysis`` (``artifact_id`` is provenance), one
-        ``SiteRuleEvaluation`` per rule (unique ``(analysis_id, rule_id)``), a
+        ordinary ``SiteRuleEvaluation`` per rule/analysis scope, a
         ``SiteIssue`` snapshot per FAIL (unique ``evaluation_id``), and the
         deterministic Technical/AEO/overall scores stamped with the versions.
         """
@@ -579,7 +579,7 @@ class AnalyzePhaseMixin(PhaseSupport):
             for ev in evaluate_all(eval_facts)
             # The analyze writer NEVER persists crawl_finalize-scoped
             # evaluations (no placeholder not_applicable rows): the unique
-            # (analysis_id, rule_id) slot stays free for the finalize pass,
+            # ordinary analysis/rule scope stays free for the finalize pass,
             # which solely owns those rules' rows (single-writer per scope).
             if not _is_crawl_finalize_rule(ev.rule_id)
         ]

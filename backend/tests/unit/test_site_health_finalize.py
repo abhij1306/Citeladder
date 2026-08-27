@@ -25,7 +25,9 @@ from app.core.config.site_health_contracts import (
 
 
 def test_finalize_rules_carry_catalog_provenance_and_zero_weight():
-    ev = evaluate_sitemap_orphan(sitemap_url_count=1, orphan_urls=[])
+    ev = evaluate_sitemap_orphan(
+        sitemap_url_count=1, orphan_urls=[], coverage_state="complete"
+    )
     assert ev.rule_id == "technical.sitemap_orphan"
     assert ev.rule_version == RULE_CATALOG_VERSION
     assert ev.dimension == DIMENSION_TECHNICAL
@@ -38,13 +40,17 @@ def test_finalize_rules_carry_catalog_provenance_and_zero_weight():
 
 
 def test_sitemap_orphan_not_applicable_without_sitemap():
-    ev = evaluate_sitemap_orphan(sitemap_url_count=0, orphan_urls=[])
+    ev = evaluate_sitemap_orphan(
+        sitemap_url_count=0, orphan_urls=[], coverage_state="complete"
+    )
     assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
     assert ev.evidence == {"reason": "no_sitemap"}
 
 
 def test_sitemap_orphan_passes_when_all_linked():
-    ev = evaluate_sitemap_orphan(sitemap_url_count=7, orphan_urls=[])
+    ev = evaluate_sitemap_orphan(
+        sitemap_url_count=7, orphan_urls=[], coverage_state="complete"
+    )
     assert ev.outcome == RULE_OUTCOME_PASS
     assert ev.evidence["sitemap_url_count"] == 7
     assert ev.evidence["orphan_count"] == 0
@@ -52,11 +58,26 @@ def test_sitemap_orphan_passes_when_all_linked():
 
 def test_sitemap_orphan_fails_with_bounded_evidence():
     orphans = [f"https://x.example/orphan-{i}" for i in range(_MAX_EVIDENCE_URLS + 2)]
-    ev = evaluate_sitemap_orphan(sitemap_url_count=50, orphan_urls=orphans)
+    ev = evaluate_sitemap_orphan(
+        sitemap_url_count=50, orphan_urls=orphans, coverage_state="complete"
+    )
     assert ev.outcome == RULE_OUTCOME_FAIL
     assert ev.rule_id == "technical.sitemap_orphan"
     assert ev.evidence["orphan_count"] == _MAX_EVIDENCE_URLS + 2
     assert len(ev.evidence["orphan_urls"]) == _MAX_EVIDENCE_URLS
+
+
+def test_sitemap_orphan_abstains_when_coverage_is_not_complete():
+    ev = evaluate_sitemap_orphan(
+        sitemap_url_count=50,
+        orphan_urls=["https://x.example/orphan"],
+        coverage_state="partial",
+    )
+    assert ev.outcome == RULE_OUTCOME_NOT_APPLICABLE
+    assert ev.evidence == {
+        "reason": "coverage_not_complete",
+        "coverage_state": "partial",
+    }
 
 
 # --- technical.hreflang_conflict ---------------------------------------------

@@ -33,6 +33,7 @@ from .common import (
     _FK_PROJECT,
     _FK_SITE_CRAWL,
     _FK_SITE_FETCH_ARTIFACT,
+    _FK_SITE_OBSERVED_ARCHITECTURE,
     _FK_SITE_PAGE_ANALYSIS,
     _FK_SITE_RULE_EVALUATION,
     _FK_SITE_URL,
@@ -136,18 +137,23 @@ class SitePageAnalysis(Base):
 
 
 class SiteRuleEvaluation(Base):
-    """Immutable per-rule evaluation for one analysis (unique per rule).
+    """Immutable per-rule evaluation for one analysis and evidence scope.
 
-    Unique ``(analysis_id, rule_id)``: exactly one evaluation per configured
-    rule per analysis. Records the outcome (pass|fail|not_applicable|error),
-    bounded exact evidence, the rule's dimension/category/severity/weight, the
-    supporting artifact IDs, and the extractor/analyzer/rule versions for full
-    reproducibility (invariant 4).
+    The nullable architecture identity distinguishes crawl-level structural
+    evaluations from ordinary page/finalize evaluations. ``NULLS NOT DISTINCT``
+    preserves one ordinary evaluation per analysis/rule while allowing each
+    immutable architecture projection to carry its own result.
     """
 
     __tablename__ = "site_rule_evaluations"
     __table_args__ = (
-        UniqueConstraint("analysis_id", "rule_id", name="uq_site_rule_evaluation"),
+        UniqueConstraint(
+            "analysis_id",
+            "rule_id",
+            "source_architecture_id",
+            name="uq_site_rule_evaluation",
+            postgresql_nulls_not_distinct=True,
+        ),
         CheckConstraint(
             "outcome IN ('pass', 'fail', 'not_applicable', 'error')",
             name="ck_site_rule_evaluations_outcome",
@@ -170,6 +176,12 @@ class SiteRuleEvaluation(Base):
     source_artifact_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True),
         ForeignKey(_FK_SITE_FETCH_ARTIFACT, ondelete=_ON_DELETE_CASCADE),
+        index=True,
+    )
+    source_architecture_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey(_FK_SITE_OBSERVED_ARCHITECTURE, ondelete=_ON_DELETE_CASCADE),
+        nullable=True,
         index=True,
     )
     rule_id: Mapped[str] = mapped_column(String(64))
