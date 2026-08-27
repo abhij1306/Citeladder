@@ -1,16 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProjectContext } from '@/lib/project/project-context';
-import { useCommerceQueries, useProductsTab } from '@/lib/products/use-products-screen';
-import type { CommerceTarget } from '@/lib/api/schemas/commerce-suite';
 
-import { CatalogPanel } from './catalog-panel';
-import { BuyerPromptsPanel, CompetitorsPanel, ShelfPanel } from './commerce-panels';
-import { ProductsTabs } from './products-tabs';
+import { CommerceWorkspace } from './commerce-workspace';
 
 export function ProductsScreenSkeleton() {
   return (
@@ -22,31 +17,20 @@ export function ProductsScreenSkeleton() {
   );
 }
 
+/**
+ * Commerce is one screen, not four tabs.
+ *
+ * The tabs were verbs — Catalog, Competitors, Buyer Prompts, AI Shelf — and
+ * each one re-asked the same noun, so the target selector was duplicated three
+ * times over three selection states that never agreed. The catalog is the
+ * navigation now and everything else is a view of the selected target, held in
+ * `?target=`. A legacy `?tab=` value is simply ignored, which lands on the
+ * workspace rather than a route that no longer exists.
+ */
 export function ProductsScreen() {
   const { activeProject, isLoading } = useProjectContext();
-  const { activeTab, selectTab } = useProductsTab();
   const projectId = activeProject?.id ?? '';
-  const [shelfSelection, setShelfSelection] = useState<{
-    projectId: string;
-    target: CommerceTarget;
-  }>();
-  const shelfTarget = shelfSelection?.projectId === projectId ? shelfSelection.target : undefined;
-  const queries = useCommerceQueries(projectId, activeTab, shelfTarget);
   if (isLoading) return <ProductsScreenSkeleton />;
   if (!projectId) return <Alert tone="info">Select or create a project to use Commerce.</Alert>;
-  const panel =
-    activeTab === 'catalog' ? (
-      <CatalogPanel projectId={projectId} query={queries.catalog} />
-    ) : activeTab === 'competitors' ? (
-      <CompetitorsPanel projectId={projectId} queries={queries} />
-    ) : activeTab === 'buyer-prompts' ? (
-      <BuyerPromptsPanel projectId={projectId} queries={queries} />
-    ) : (
-      <ShelfPanel
-        queries={queries}
-        target={shelfTarget}
-        onTargetChange={(target) => setShelfSelection({ projectId, target })}
-      />
-    );
-  return <ProductsTabs activeTab={activeTab} onSelectTab={selectTab} panel={panel} />;
+  return <CommerceWorkspace projectId={projectId} />;
 }
