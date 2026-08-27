@@ -54,16 +54,37 @@ export const contentSkillCatalogSchema = responseObject({
   skills: z.array(contentSkillViewSchema),
 });
 
-// Public summary of the frozen grounding envelope. Never fragment bodies.
-export const groundingEnvelopeSummarySchema = responseObject({
+// Public summary of the frozen generation context: counts and URLs only,
+// never the rendered blocks themselves.
+export const contentContextSummarySchema = responseObject({
   version: z.string(),
-  allowed_fact_count: z.number().int().nonnegative(),
-  source_ref_count: z.number().int().nonnegative(),
-  crawl_fragment_count: z.number().int().nonnegative(),
-  prohibited_claim_classes: z.array(z.string()),
+  crawl_page_count: z.number().int().nonnegative(),
+  crawl_urls: z.array(z.string()).default([]),
+  crawl_completed_at: z.string().nullable(),
+  brand_fields: z.array(z.string()).default([]),
+  search_connected: z.boolean(),
   omissions: z.array(z.record(z.string(), z.unknown())).default([]),
-  budget: z.record(z.string(), z.unknown()),
 });
+
+// Pre-flight answer for the composer indicator: what would ground a draft
+// right now. An absent crawl or unconnected Search Console is a neutral
+// absence, not a fault — the UI renders it as such.
+export const contentContextPreviewSchema = responseObject({
+  crawl_available: z.boolean(),
+  crawl_page_count: z.number().int().nonnegative(),
+  crawl_completed_at: z.string().nullable(),
+  brand_fields: z.array(z.string()).default([]),
+  search_connected: z.boolean(),
+});
+
+// Fixed vocabulary for why a draft was rejected.
+export const contentFeedbackReasonSchema = z.enum([
+  'too_generic',
+  'wrong_tone',
+  'missed_topic',
+  'incorrect_facts',
+  'other',
+]);
 
 // Bounded history-list projection (backend `ContentGenerationListItem`) —
 // never `output_text`, never the full prompt. Model provenance is explicit
@@ -97,6 +118,8 @@ export const contentGenerationDetailSchema = responseObject({
   opportunity_id: uuid().nullable(),
   skill_version: z.string(),
   feedback: z.enum(['accepted', 'rejected']).nullable(),
+  // Empty on an acceptance or an older row; otherwise a known reason.
+  feedback_reason: z.union([contentFeedbackReasonSchema, z.literal('')]).default(''),
   feedback_at: z.string().nullable(),
   grounding_status: groundingStatusSchema,
   requested_model: z.string(),
@@ -108,7 +131,7 @@ export const contentGenerationDetailSchema = responseObject({
   error_code: z.string(),
   prompt_preview: z.string(),
   prompt: z.string(),
-  grounding_summary: groundingEnvelopeSummarySchema,
+  grounding_summary: contentContextSummarySchema,
   finish_reason: z.string().nullable(),
   output_truncated: z.boolean(),
   output_text: z.string().nullable(),

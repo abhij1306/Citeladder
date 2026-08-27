@@ -44,6 +44,7 @@ function generation(overrides: Record<string, unknown> = {}) {
     skill_id: 'article',
     opportunity_id: null,
     feedback: null,
+    feedback_reason: '',
     feedback_at: null,
     grounding_status: 'included',
     requested_model: 'mistral-small-latest',
@@ -56,13 +57,13 @@ function generation(overrides: Record<string, unknown> = {}) {
     prompt_preview: 'Write a landing page',
     prompt: 'Write a landing page for Acme.',
     grounding_summary: {
-      version: 'grounding-envelope-v2',
-      allowed_fact_count: 3,
-      source_ref_count: 4,
-      crawl_fragment_count: 1,
-      prohibited_claim_classes: ['pricing'],
+      version: 'content-context-v1',
+      crawl_page_count: 3,
+      crawl_urls: ['https://acme.test/', 'https://acme.test/pricing', 'https://acme.test/about'],
+      crawl_completed_at: '2026-07-15T00:00:00Z',
+      brand_fields: ['description'],
+      search_connected: false,
       omissions: [],
-      budget: {},
     },
     finish_reason: null,
     output_truncated: false,
@@ -134,6 +135,15 @@ function mockBase(listItems: Record<string, unknown>[] = []) {
   mswServer.use(
     http.get('/api/v1/projects', () => HttpResponse.json([project])),
     http.get('/api/v1/content/skills', () => HttpResponse.json(skillCatalog)),
+    http.get('/api/v1/content/context-preview', () =>
+      HttpResponse.json({
+        crawl_available: true,
+        crawl_page_count: 8,
+        crawl_completed_at: '2026-07-15T00:00:00Z',
+        brand_fields: ['description'],
+        search_connected: false,
+      }),
+    ),
     http.get('/api/v1/content/generations', () => HttpResponse.json(listItems)),
     // ProjectProvider kicks off a background logo refresh; stubbed so it does
     // not surface as an unhandled request in longer-running tests.
@@ -366,13 +376,16 @@ describe('ContentScreen — platform skills', () => {
 });
 
 describe('ContentScreen — ready state', () => {
-  it('disables Generate until a prompt is typed and explains required grounding', async () => {
+  it('disables Generate until a prompt is typed and names its available context', async () => {
     mockBase();
     renderScreen();
     const generate = await screen.findByRole('button', { name: 'Generate' });
     expect(generate).toBeDisabled();
 
-    expect(screen.getByText(/uses confirmed facts and crawl evidence/i)).toBeInTheDocument();
+    // The indicator is live: it names what will actually ground the draft,
+    // and reports an unconnected optional source neutrally, not as a fault.
+    expect(await screen.findByText(/website crawl · 8 pages available/i)).toBeInTheDocument();
+    expect(screen.getByText(/search console · not connected/i)).toBeInTheDocument();
 
     await userEvent.type(
       screen.getByRole('textbox', { name: /describe the website content/i }),
@@ -427,10 +440,11 @@ describe('ContentScreen — generate flow', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'About Acme' }, { timeout: 5000 }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/requested model: mistral-small-latest/i)).toBeInTheDocument();
-    expect(screen.getByText(/returned model: mistral-small-2506/i)).toBeInTheDocument();
+    // Model ids are provenance on the row, not something the writer needs on
+    // the page; the footer says only what the draft was grounded with.
+    expect(screen.queryByText(/requested model/i)).not.toBeInTheDocument();
     expect(
-      screen.getByText(/grounding: 3 confirmed facts · 1 crawl fragments/i),
+      screen.getByText(/grounded with: website crawl · 3 pages/i),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /regenerate/i })).toBeInTheDocument();
     expect(screen.queryByText(/hit the length limit/i)).not.toBeInTheDocument();
@@ -533,7 +547,7 @@ describe('ContentScreen — error state', () => {
     expect(textarea).toBeEnabled();
   });
 
-  it('truthfully labels a generated draft when grounding is unavailable', async () => {
+  it('truthfully labels a draft that had no site evidence to ground it', async () => {
     mockBase();
     mswServer.use(
       http.post('/api/v1/content/generations', () =>
@@ -542,13 +556,13 @@ describe('ContentScreen — error state', () => {
             status: 'succeeded',
             grounding_status: 'unavailable',
             grounding_summary: {
-              version: 'grounding-envelope-v2',
-              allowed_fact_count: 0,
-              source_ref_count: 0,
-              crawl_fragment_count: 0,
-              prohibited_claim_classes: ['identity', 'pricing'],
-              omissions: [{ reason_code: 'crawl_evidence_unavailable' }],
-              budget: {},
+              version: 'content-context-v1',
+              crawl_page_count: 0,
+              crawl_urls: [],
+              crawl_completed_at: null,
+              brand_fields: [],
+              search_connected: false,
+              omissions: [],
             },
             output_text: 'Draft',
           }),
@@ -562,7 +576,7 @@ describe('ContentScreen — error state', () => {
       'My prompt text',
     );
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
-    expect(await screen.findByText(/unavailable — ungrounded draft/i)).toBeInTheDocument();
+    expect(await screen.findByText(/grounded with: no site evidence available/i)).toBeInTheDocument();
   });
 
   it('a failed generation offers Try again, which enqueues a new record', async () => {

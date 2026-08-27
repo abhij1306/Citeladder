@@ -749,6 +749,9 @@ def upgrade() -> None:
         sa.Column("skill_id", sa.String(64), nullable=False),
         sa.Column("skill_version", sa.String(32), nullable=False),
         sa.Column("feedback", sa.String(16), nullable=True),
+        sa.Column(
+            "feedback_reason", sa.String(32), nullable=False, server_default=""
+        ),
         sa.Column("feedback_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("grounding_status", sa.String(length=16), nullable=False),
         sa.Column(

@@ -21,6 +21,7 @@ from app.core.errors import ApiException
 from app.core.http_errors import api_error, raise_api_error
 from app.domain.abuse.service import UsageLimitExceededError
 from app.domain.content.schemas import (
+    ContentContextPreview,
     ContentFeedbackRequest,
     ContentGenerationCreate,
     ContentGenerationDetail,
@@ -34,6 +35,7 @@ from app.domain.content.service import (
     IdempotencyConflictError,
     ProviderNotConfiguredError,
     cancel_generation,
+    context_preview,
     enqueue_generation,
     get_generation,
     list_generations,
@@ -80,6 +82,22 @@ async def list_skills_endpoint(ctx: _WorkspaceDep) -> ContentSkillCatalog:
     """
     del ctx
     return skill_catalog()
+
+
+@router.get("/context-preview", response_model=ContentContextPreview)
+async def context_preview_endpoint(
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    project_id: Annotated[uuid.UUID, Query()],
+) -> ContentContextPreview:
+    """What CiteLadder would ground a draft with, before one is requested."""
+    try:
+        preview = await context_preview(
+            session, workspace_id=ctx.workspace_id, project_id=project_id
+        )
+    except ContentGenerationNotFoundError as exc:
+        raise _not_found(exc) from exc
+    return ContentContextPreview.model_validate(preview)
 
 
 @router.get("/generations", response_model=list[ContentGenerationListItem])
@@ -168,6 +186,7 @@ async def content_feedback_endpoint(
             workspace_id=ctx.workspace_id,
             generation_id=generation_id,
             feedback=payload.feedback,
+            reason=payload.reason,
         )
     except ContentGenerationNotFoundError as exc:
         raise _not_found(exc) from exc

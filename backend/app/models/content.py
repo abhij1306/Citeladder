@@ -89,7 +89,10 @@ class ContentGeneration(Base):
     skill_id: Mapped[str] = mapped_column(String(64), default="article")
     skill_version: Mapped[str] = mapped_column(String(32), default="content-v1")
     output_type: Mapped[str] = mapped_column(String(32))
-    # Frozen confirmed-fact + crawl-observation envelope. Never the key.
+    # Frozen rendered generation context (brand/task/website/search blocks plus
+    # a provenance summary) — see ``domain/content/context_builder.py``. The
+    # column keeps its historical name; older rows hold the retired grounding
+    # envelope and are read as empty by ``ContentContext.from_snapshot``.
     grounding_status: Mapped[str] = mapped_column(String(16), default="")
     grounding_envelope: Mapped[dict] = mapped_column(JSONB, default=dict)
     # Stable hash over (project_id, prompt, output_type, context flag): the
@@ -139,6 +142,8 @@ class ContentGeneration(Base):
     request_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     generator_version: Mapped[str] = mapped_column(String(32), default="")
     feedback: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Optional rejection category from the fixed vocabulary; "" on acceptance.
+    feedback_reason: Mapped[str] = mapped_column(String(32), default="")
     feedback_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

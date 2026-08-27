@@ -27,25 +27,22 @@ from app.workers.content_worker import ContentWorker
 
 _CANARY_SECRET = "never-a-real-provider-secret"
 _FIXTURE_MODEL = "fixture-model"
-_REF_ID = "b" * 64
 _CONTEXT = {
-    "status": "included",
-    "version": "grounding-envelope-v2",
-    "allowed_facts": [],
-    "prohibited_claims": [],
-    "source_refs": [
-        {
-            "source_ref_id": _REF_ID,
-            "source_kind": "crawl_fragment",
-            "source_id": "33333333-3333-4333-8333-333333333333",
-            "field_or_fragment": "Facts.",
-            "observed_at": "2026-07-15T00:00:00Z",
-            "origin": "crawl_observed",
-            "review_state": "observed_untrusted",
-        }
-    ],
-    "omissions": [],
-    "budget": {"selected_count": 1, "omitted_count": 0, "character_count": 6},
+    "version": "content-context-v1",
+    "brand_block": "BRAND\nName: Acme",
+    "task_block": "",
+    "website_block": ("RELEVANT WEBSITE CONTENT\n\nSOURCE: https://acme.test/"),
+    "search_block": "",
+    "summary": {
+        "crawl_page_count": 1,
+        "crawl_urls": ["https://acme.test/"],
+        "crawl_completed_at": "2026-07-15T00:00:00Z",
+        "brand_fields": ["description"],
+        "opportunity_id": None,
+        "search_connected": False,
+        "selection_policy_version": "crawl-fragment-selection-2",
+        "omissions": [],
+    },
 }
 
 
@@ -148,9 +145,11 @@ def _transport(
     return httpx.MockTransport(handler)
 
 
-async def test_enqueue_unavailable_grounding_and_legacy_routes_are_gone(
+async def test_enqueue_without_a_crawl_still_grounds_on_brand_context(
     client: httpx.AsyncClient,
 ) -> None:
+    """A project with no crawl is not an error state: the brand context it
+    already has is enough to generate, and the summary says so plainly."""
     await _register(client, "content-context@example.com")
     project_id = await _create_project(client)
     response = await client.post(
@@ -158,7 +157,10 @@ async def test_enqueue_unavailable_grounding_and_legacy_routes_are_gone(
         json={"project_id": project_id, "prompt": "Write a page."},
     )
     assert response.status_code == 201
-    assert response.json()["grounding_status"] == "unavailable"
+    body = response.json()
+    assert body["grounding_status"] == "included"
+    assert body["grounding_summary"]["crawl_page_count"] == 0
+    assert body["grounding_summary"]["search_connected"] is False
     for path in ("strategy", "inventory", "briefs", "revisions", "verifications"):
         assert (
             await client.get(
@@ -179,14 +181,17 @@ async def test_worker_preserves_frozen_grounding_and_attempt_provenance(
 
     detail = (await client.get(f"/api/v1/content/generations/{generation_id}")).json()
     assert detail["status"] == TASK_STATUS_SUCCEEDED
-    assert detail["grounding_summary"]["crawl_fragment_count"] == 1
+    assert detail["grounding_summary"]["crawl_page_count"] == 1
+    assert detail["grounding_summary"]["crawl_urls"] == ["https://acme.test/"]
     assert detail["output_text"].startswith("# Acme")
     assert _CANARY_SECRET not in json.dumps(detail)
     assert seen[0].url.host == "provider.invalid"
     assert seen[0].headers["authorization"] == f"Bearer {_CANARY_SECRET}"
     sent_messages = json.loads(seen[0].content)["messages"]
     assert len(sent_messages) == 3
-    assert "untrusted crawl observations" in sent_messages[-1]["content"]
+    assert sent_messages[-1]["content"].startswith("REFERENCE MATERIAL")
+    # Publishable copy carries no citation machinery.
+    assert "[[source:" not in detail["output_text"]
 
     async with session_factory() as session:
         attempts = (

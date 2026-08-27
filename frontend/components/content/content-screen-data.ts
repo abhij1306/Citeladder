@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 
 import { type ContentSkillView, contentApi } from '@/lib/api/content';
 import { demandApi } from '@/lib/api/demand';
+import { opportunitiesQueries } from '@/lib/api/opportunities';
 import { queryKeys } from '@/lib/api/query-keys';
 import { ApiError, httpErrorStatus } from '@/lib/api/errors';
 import { buildDemandBrief } from '@/lib/demand/content-brief';
@@ -64,6 +65,44 @@ export function useDemandBrief(projectId: string, demandSignalId?: string | null
       brief: buildDemandBrief(match, brandName ? { brand_name: brandName } : null),
     };
   }, [brandName, demandSignalId, signals, snapshot.isError, snapshot.isLoading]);
+}
+
+/**
+ * What would ground a draft for this project right now, so the composer can
+ * say so before Generate rather than after. Cheap enough to refetch on a
+ * project switch, stale-tolerant enough not to poll.
+ */
+export function useContentContextPreview(projectId: string) {
+  return useQuery({
+    queryKey: queryKeys.content.contextPreview(projectId),
+    queryFn: ({ signal }) => contentApi.getContextPreview(projectId, { signal }),
+    staleTime: 60_000,
+  });
+}
+
+/** The opportunity behind a `?opportunity_id=` arrival, in its own words. */
+export type ContentOpportunityContext = {
+  title: string;
+  remediation: string;
+  target: string;
+};
+
+export function useOpportunityContext(
+  opportunityId?: string | null,
+): ContentOpportunityContext | null {
+  const query = useQuery({
+    ...opportunitiesQueries.detail(opportunityId ?? ''),
+    enabled: Boolean(opportunityId),
+  });
+  const data = query.data;
+  return useMemo(() => {
+    if (!data) return null;
+    return {
+      title: data.title,
+      remediation: data.remediation ?? '',
+      target: data.target_url ?? data.target_theme ?? '',
+    };
+  }, [data]);
 }
 
 export type { ContentSkillView };

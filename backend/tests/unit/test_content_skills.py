@@ -38,25 +38,29 @@ def test_every_skill_declares_a_known_channel() -> None:
         assert definition.channel in CONTENT_CHANNELS
 
 
-def test_every_skill_carries_the_shared_evidence_rules() -> None:
-    # A format that omitted these would be free to invent pricing or stats on
-    # a page published under the customer's own domain.
+def test_skills_carry_craft_only_not_grounding_rules() -> None:
+    # Grounding lives once in the system prompt. Repeating it into every skill
+    # is what made drafts read like audit reports, so no skill may tell the
+    # model to declare a gap in publishable copy.
     for skill_id in CONTENT_SKILL_IDS:
         rendered = skill_directive(skill_id)
-        assert "Never invent facts" in rendered
-        assert "not available rather than filling the gap" in rendered
+        assert "not available rather than filling the gap" not in rendered
+        assert "grounding envelope" not in rendered.lower()
 
 
-def test_content_page_directive_specifies_a_publishable_page_spec() -> None:
+def test_directives_stay_short_enough_to_read() -> None:
+    # A skill is a short opinionated template, not a giant prompt: an
+    # overlong directive crowds out the user's own instruction.
+    for skill_id in CONTENT_SKILL_IDS:
+        assert len(skill_directive(skill_id)) < 1000
+
+
+def test_content_page_directive_specifies_a_publishable_page() -> None:
     rendered = skill_directive("content_page")
-    for required in (
-        "## Meta",
-        "Meta title",
-        "Canonical route",
-        "Primary CTA",
-        "## Sources",
-    ):
+    for required in ("H1", "meta title", "call to action"):
         assert required in rendered
+    # The old spec forced a Sources section into ordinary publishable copy.
+    assert "## Sources" not in rendered
 
 
 def test_platform_skills_state_their_posting_constraints() -> None:

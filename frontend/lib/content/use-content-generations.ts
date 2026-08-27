@@ -10,7 +10,11 @@ import {
   contentApi,
 } from '@/lib/api/content';
 import { queryKeys } from '@/lib/api/query-keys';
-import type { ContentGenerationDetail, ContentGenerationStatus } from '@/lib/api/types';
+import type {
+  ContentFeedbackReason,
+  ContentGenerationDetail,
+  ContentGenerationStatus,
+} from '@/lib/api/types';
 
 const TERMINAL_STATUSES: ReadonlySet<ContentGenerationStatus> = new Set([
   'succeeded',
@@ -122,8 +126,11 @@ export function useContentGenerations(
   });
 
   const feedbackMutation = useMutation({
-    mutationFn: (input: { generationId: string; feedback: 'accepted' | 'rejected' }) =>
-      contentApi.recordFeedback(input.generationId, input.feedback),
+    mutationFn: (input: {
+      generationId: string;
+      feedback: 'accepted' | 'rejected';
+      reason?: ContentFeedbackReason;
+    }) => contentApi.recordFeedback(input.generationId, input.feedback, input.reason),
     onSuccess: (record) => {
       queryClient.setQueryData(queryKeys.content.detail(record.id), record);
       invalidateList();

@@ -101,7 +101,9 @@ import type {
   contentGenerationStatusSchema,
   contentOutputTypeSchema,
   groundingStatusSchema,
-  groundingEnvelopeSummarySchema,
+  contentContextSummarySchema,
+  contentContextPreviewSchema,
+  contentFeedbackReasonSchema,
   // Opportunities
   opportunitiesPageSchema,
   implementationEventSchema,
@@ -213,7 +215,9 @@ export type VisibilityEvidenceResponse = z.infer<typeof visibilityEvidenceRespon
 export type ContentGenerationStatus = z.infer<typeof contentGenerationStatusSchema>;
 export type ContentOutputType = z.infer<typeof contentOutputTypeSchema>;
 export type GroundingStatus = z.infer<typeof groundingStatusSchema>;
-export type GroundingEnvelopeSummary = z.infer<typeof groundingEnvelopeSummarySchema>;
+export type ContentContextSummary = z.infer<typeof contentContextSummarySchema>;
+export type ContentContextPreview = z.infer<typeof contentContextPreviewSchema>;
+export type ContentFeedbackReason = z.infer<typeof contentFeedbackReasonSchema>;
 export type ContentGenerationListItem = z.infer<typeof contentGenerationListItemSchema>;
 export type ContentGenerationDetail = z.infer<typeof contentGenerationDetailSchema>;
 

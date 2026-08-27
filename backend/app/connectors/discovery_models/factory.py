@@ -1,21 +1,24 @@
-"""Discovery-model client factory (provider swap = one branch here).
+"""Discovery-model client factory.
 
 Builds a fresh client per attempt, resolving the ``SecretStr`` key at call
 time so a live env change applies and the key never lives on a long-lived
-object. An unknown provider is an ``invalid_surface`` misconfiguration.
+object.
+
+The transport is OpenAI-compatible and provider-neutral, so there is no
+provider allowlist: the model is swapped entirely from ``.env`` via
+``CONTENT_PROVIDER`` / ``CONTENT_MODEL`` / ``CONTENT_PROVIDER_ENDPOINT`` /
+``CONTENT_API_KEY``. A missing key still raises ``ERROR_AUTH`` in the client.
 """
 
 from __future__ import annotations
 
 import httpx
 
-from app.connectors.answer_engines.errors import ProviderError
 from app.connectors.discovery_models.contracts import DiscoveryModelClient
 from app.connectors.discovery_models.openai_compatible import (
     OpenAICompatibleDiscoveryClient,
 )
-from app.core.config.content import CONTENT_KNOWN_PROVIDERS, content_settings
-from app.core.config.provider_catalog import ERROR_INVALID_SURFACE
+from app.core.config.content import content_settings
 
 
 def build_discovery_client(
@@ -26,16 +29,9 @@ def build_discovery_client(
     ``transport`` is a test seam (``httpx.MockTransport``); production passes
     nothing and the client uses the real network.
     """
-    provider = content_settings.provider
-    if provider in CONTENT_KNOWN_PROVIDERS:
-        return OpenAICompatibleDiscoveryClient(
-            provider=provider,
-            api_key=content_settings.resolved_api_key,
-            endpoint=content_settings.resolved_endpoint,
-            transport=transport,
-        )
-    raise ProviderError(
-        f"unknown content provider: {provider}",
-        error_code=ERROR_INVALID_SURFACE,
-        retryable=False,
+    return OpenAICompatibleDiscoveryClient(
+        provider=content_settings.provider,
+        api_key=content_settings.resolved_api_key,
+        endpoint=content_settings.resolved_endpoint,
+        transport=transport,
     )

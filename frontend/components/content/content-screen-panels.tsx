@@ -1,24 +1,33 @@
-import { Check, Copy, Download, RefreshCw, Sparkles, TrendingUp, X } from 'lucide-react';
+import { Check, Circle, Copy, Download, RefreshCw, Sparkles, TrendingUp, X } from 'lucide-react';
 import { type RefObject } from 'react';
 
 import { SkillPicker } from '@/components/content/skill-picker';
 import { Alert } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { Textarea } from '@/components/ui/input';
 import { CONTENT_PROMPT_MAX_LEN } from '@/lib/api/content';
-import type { ContentGenerationDetail } from '@/lib/api/types';
+import type {
+  ContentContextPreview,
+  ContentFeedbackReason,
+  ContentGenerationDetail,
+} from '@/lib/api/types';
 import { ContentMarkdown } from '@/lib/content/markdown';
 import { ICONS } from '@/lib/icons';
 
-import { actionErrorMessage, type ContentSkillView } from './content-screen-data';
+import {
+  actionErrorMessage,
+  type ContentOpportunityContext,
+  type ContentSkillView,
+} from './content-screen-data';
 
 export function ContentComposer({
   prompt,
   promptRef,
-  opportunityId,
+  opportunity,
   demandSource,
+  contextPreview,
   generating,
   skillId,
   skills,
@@ -30,8 +39,9 @@ export function ContentComposer({
 }: Readonly<{
   prompt: string;
   promptRef: RefObject<HTMLTextAreaElement | null>;
-  opportunityId?: string | null;
+  opportunity?: ContentOpportunityContext | null;
   demandSource?: string | null;
+  contextPreview?: ContentContextPreview | null;
   generating: boolean;
   skillId: string;
   skills: readonly ContentSkillView[];
@@ -44,20 +54,16 @@ export function ContentComposer({
   return (
     <Card
       data-component-id="content-prompt-box"
-      className="border-border/70 bg-panel shadow-card rounded-sm border p-6 sm:p-8"
+      className="border-border bg-panel shadow-card rounded-sm border p-6 sm:p-8"
     >
       <CardContent className="flex flex-col gap-5 p-0">
         <div className="grid gap-1">
-          <span className="text-muted text-xs font-semibold tracking-wider uppercase">
-            New generation
-          </span>
+          <span className={eyebrowClasses}>New generation</span>
           <h2 className="font-display text-foreground text-xl font-semibold tracking-tight">
             What can I help you create?
           </h2>
         </div>
-        {opportunityId ? (
-          <Alert tone="info">This draft will keep a link to the selected opportunity.</Alert>
-        ) : null}
+        {opportunity ? <OpportunityContext opportunity={opportunity} /> : null}
         {demandSource ? <DemandSource source={demandSource} /> : null}
         <Textarea
           ref={promptRef}
@@ -65,10 +71,10 @@ export function ContentComposer({
           onChange={(event) => onPromptChange(event.target.value)}
           disabled={generating}
           maxLength={CONTENT_PROMPT_MAX_LEN}
-          rows={demandSource ? 10 : 4}
+          rows={demandSource || opportunity ? 10 : 4}
           aria-label="Describe the website content you want to create"
           placeholder="Describe the website content you want to create…"
-          className="border-border/80 bg-background/50 focus:bg-panel rounded-sm p-4 text-sm leading-relaxed"
+          className="border-border bg-background focus:bg-panel rounded-sm p-4 text-sm leading-relaxed"
         />
         <SkillPicker
           skills={skills}
@@ -77,19 +83,8 @@ export function ContentComposer({
           disabled={generating}
           loading={skillsLoading}
         />
-        <div className="border-border/60 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge data-component-id="content-output-type" aria-label="Output type: Website page">
-              Website page
-            </Badge>
-            <div
-              data-component-id="content-website-context-required"
-              className="text-muted inline-flex items-center gap-1.5 text-xs font-medium"
-            >
-              <Sparkles className="text-accent size-3.5" aria-hidden />
-              Uses confirmed facts and crawl evidence when available
-            </div>
-          </div>
+        <div className="border-border flex flex-wrap items-end justify-between gap-4 border-t pt-4">
+          <ContextIndicator preview={contextPreview} />
           <Button
             data-component-id="content-generate-button"
             disabled={!canGenerate}
@@ -104,11 +99,82 @@ export function ContentComposer({
   );
 }
 
+/**
+ * What CiteLadder will actually ground this draft with, before Generate.
+ *
+ * An unavailable source is a neutral absence, never a warning: a project
+ * without Search Console is not in a degraded state, it simply has one fewer
+ * optional source. Hence muted text and a hollow marker rather than a tone.
+ */
+function ContextIndicator({
+  preview,
+}: Readonly<{ preview?: ContentContextPreview | null }>) {
+  const crawlLabel = (() => {
+    if (!preview) return 'Checking available context…';
+    if (!preview.crawl_available) return 'Website crawl · run a crawl to ground drafts';
+    const pages = preview.crawl_page_count;
+    return `Website crawl · ${pages} ${pages === 1 ? 'page' : 'pages'} available`;
+  })();
+  return (
+    <div
+      data-component-id="content-context-indicator"
+      className="text-muted grid gap-1 text-xs font-medium"
+    >
+      <ContextLine available={Boolean(preview?.crawl_available)} label={crawlLabel} />
+      <ContextLine
+        available={Boolean(preview?.search_connected)}
+        label={
+          preview?.search_connected ? 'Search Console · connected' : 'Search Console · not connected'
+        }
+      />
+    </div>
+  );
+}
+
+function ContextLine({ available, label }: Readonly<{ available: boolean; label: string }>) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {available ? (
+        <Check className="text-accent size-3.5 shrink-0" aria-hidden />
+      ) : (
+        <Circle className="size-3.5 shrink-0" aria-hidden />
+      )}
+      {label}
+    </span>
+  );
+}
+
+/**
+ * The opportunity in its own words. The previous version said only that a
+ * link would be kept, which told the user nothing about what they were
+ * being asked to write — and the backend never sent the text to the model
+ * either. Both halves are fixed together.
+ */
+function OpportunityContext({
+  opportunity,
+}: Readonly<{ opportunity: ContentOpportunityContext }>) {
+  return (
+    <div
+      data-component-id="content-opportunity-context"
+      className="border-border bg-well grid gap-2 rounded-sm border p-4"
+    >
+      <span className={eyebrowClasses}>Based on opportunity</span>
+      <p className="text-foreground text-sm font-semibold">{opportunity.title}</p>
+      {opportunity.remediation ? (
+        <p className="text-secondary text-sm leading-relaxed">{opportunity.remediation}</p>
+      ) : null}
+      {opportunity.target ? (
+        <p className="text-muted text-xs">Target: {opportunity.target}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function DemandSource({ source }: Readonly<{ source: string }>) {
   return (
     <div
       data-component-id="content-demand-source"
-      className="border-accent-border bg-accent-soft/50 text-secondary flex items-start gap-2.5 rounded-sm border p-3.5 text-sm"
+      className="border-accent-border bg-accent-soft text-secondary flex items-start gap-2.5 rounded-sm border p-3.5 text-sm"
     >
       <TrendingUp className="text-accent-text mt-0.5 size-4 shrink-0" aria-hidden />
       <span>
@@ -132,7 +198,7 @@ export function GeneratingPanel({
   return (
     <Card
       data-component-id="content-generating-panel"
-      className="border-border/70 bg-panel shadow-card rounded-sm border p-6"
+      className="border-border bg-panel shadow-card rounded-sm border p-6"
     >
       <CardContent className="flex items-center gap-4 p-0">
         <div role="status" aria-label="Generating content" className="flex items-center gap-3">
@@ -171,7 +237,7 @@ export function GenerationErrorPanel({
   return (
     <Card
       data-component-id="content-error-panel"
-      className="border-danger/30 bg-danger-bg/50 shadow-card rounded-sm border p-6"
+      className="border-danger-border bg-danger-bg shadow-card rounded-sm border p-6"
     >
       <CardContent className="flex flex-col gap-4 p-0">
         <div role="alert" className="text-danger-text flex items-start gap-2.5 text-sm">
@@ -215,25 +281,29 @@ export function GenerationResult({
   copyLabel,
   regenerating,
   feedbackPending,
+  reasonOpen,
   onCopy,
   onExport,
   onRegenerate,
   onFeedback,
+  onRejectClick,
 }: Readonly<{
   detail: ContentGenerationDetail;
   copied: boolean;
   copyLabel: string;
   regenerating: boolean;
   feedbackPending: boolean;
+  reasonOpen: boolean;
   onCopy: () => void;
   onExport: () => void;
   onRegenerate: (generationId: string) => void;
-  onFeedback: (generationId: string, feedback: 'accepted' | 'rejected') => void;
+  onFeedback: (generationId: string, feedback: 'accepted' | 'rejected', reason?: ContentFeedbackReason) => void;
+  onRejectClick: () => void;
 }>) {
   return (
     <Card
       data-component-id="content-result-card"
-      className="border-border/70 bg-panel shadow-card rounded-sm border p-6 sm:p-8"
+      className="border-border bg-panel shadow-card rounded-sm border p-6 sm:p-8"
     >
       <CardContent className="flex flex-col gap-5 p-0">
         {detail.output_truncated ? (
@@ -255,7 +325,14 @@ export function GenerationResult({
           onExport={onExport}
           onRegenerate={onRegenerate}
           onFeedback={onFeedback}
+          onRejectClick={onRejectClick}
         />
+        {reasonOpen && detail.feedback === null ? (
+          <FeedbackReasonPicker
+            disabled={feedbackPending}
+            onSelect={(reason) => onFeedback(detail.id, 'rejected', reason)}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -273,21 +350,24 @@ function ResultBody({ detail }: Readonly<{ detail: ContentGenerationDetail }>) {
       </p>
       <div
         data-component-id="content-result-provenance"
-        className="border-border/60 text-muted flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-4 font-mono text-xs"
+        className="border-border text-muted flex flex-wrap items-center gap-x-2 border-t pt-4 text-xs"
       >
-        <span>Requested model: {detail.requested_model}</span>
-        {detail.returned_model ? <span>Returned model: {detail.returned_model}</span> : null}
-        <span>
-          Grounding:{' '}
-          {detail.grounding_status === 'included'
-            ? `${detail.grounding_summary.allowed_fact_count} confirmed facts · ${detail.grounding_summary.crawl_fragment_count} crawl fragments`
-            : detail.grounding_status === 'conflicting'
-              ? 'Conflicting facts omitted'
-              : 'Unavailable — ungrounded draft'}
-        </span>
+        {groundedWithLabel(detail)}
       </div>
     </>
   );
+}
+
+/** One quiet line: what this draft was actually grounded with. */
+function groundedWithLabel(detail: ContentGenerationDetail): string {
+  const pages = detail.grounding_summary.crawl_page_count;
+  if (pages > 0) {
+    return `Grounded with: website crawl · ${pages} ${pages === 1 ? 'page' : 'pages'}`;
+  }
+  if (detail.grounding_summary.brand_fields.length > 0) {
+    return 'Grounded with: brand context';
+  }
+  return 'Grounded with: no site evidence available';
 }
 
 function ResultActions({
@@ -300,6 +380,7 @@ function ResultActions({
   onExport,
   onRegenerate,
   onFeedback,
+  onRejectClick,
 }: Readonly<{
   detail: ContentGenerationDetail;
   copied: boolean;
@@ -309,7 +390,8 @@ function ResultActions({
   onCopy: () => void;
   onExport: () => void;
   onRegenerate: (id: string) => void;
-  onFeedback: (id: string, feedback: 'accepted' | 'rejected') => void;
+  onFeedback: (id: string, feedback: 'accepted' | 'rejected', reason?: ContentFeedbackReason) => void;
+  onRejectClick: () => void;
 }>) {
   return (
     <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -361,8 +443,9 @@ function ResultActions({
             <Button
               variant="secondary"
               size="sm"
+              data-component-id="content-reject-button"
               disabled={feedbackPending}
-              onClick={() => onFeedback(detail.id, 'rejected')}
+              onClick={onRejectClick}
             >
               Not useful
             </Button>
@@ -373,6 +456,47 @@ function ResultActions({
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+const FEEDBACK_REASONS: ReadonlyArray<{ value: ContentFeedbackReason; label: string }> = [
+  { value: 'too_generic', label: 'Too generic' },
+  { value: 'wrong_tone', label: 'Wrong tone' },
+  { value: 'missed_topic', label: 'Missed the topic' },
+  { value: 'incorrect_facts', label: 'Incorrect facts' },
+  { value: 'other', label: 'Other' },
+];
+
+/**
+ * Why a draft missed. Shown only after "Not useful" is pressed, so the
+ * common path stays a single click and the reason never becomes a required
+ * field standing between the user and dismissing a bad result.
+ */
+export function FeedbackReasonPicker({
+  disabled,
+  onSelect,
+}: Readonly<{
+  disabled: boolean;
+  onSelect: (reason: ContentFeedbackReason) => void;
+}>) {
+  return (
+    <div
+      data-component-id="content-feedback-reasons"
+      className="border-border flex flex-wrap items-center gap-2 border-t pt-4"
+    >
+      <span className="text-secondary text-sm font-medium">Why?</span>
+      {FEEDBACK_REASONS.map((reason) => (
+        <button
+          key={reason.value}
+          type="button"
+          disabled={disabled}
+          onClick={() => onSelect(reason.value)}
+          className="border-border text-secondary hover:border-accent-border hover:text-accent-text focus-ring disabled:text-muted rounded-full border px-3 py-1.5 text-xs transition-colors disabled:cursor-not-allowed"
+        >
+          {reason.label}
+        </button>
+      ))}
     </div>
   );
 }

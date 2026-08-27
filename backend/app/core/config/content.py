@@ -27,8 +27,11 @@ if TYPE_CHECKING:
     from app.models.content import ContentGeneration
 
 # --- Providers -------------------------------------------------------------
+# The transport is OpenAI-compatible and provider-neutral, so the provider name
+# is a label recorded on the attempt rather than a gate: any non-empty
+# ``CONTENT_PROVIDER`` is accepted and the model is swapped purely from ``.env``
+# (``CONTENT_MODEL`` + ``CONTENT_PROVIDER_ENDPOINT`` + ``CONTENT_API_KEY``).
 CONTENT_PROVIDER_MISTRAL: Final = "mistral"
-CONTENT_KNOWN_PROVIDERS: Final[frozenset[str]] = frozenset({CONTENT_PROVIDER_MISTRAL})
 
 # --- Output types ----------------------------------------------------------
 CONTENT_OUTPUT_TYPE_WEBSITE_PAGE: Final = "website_page"
@@ -79,17 +82,35 @@ CONTENT_CONTEXT_MAX_PAGES: Final = 10
 CONTEXT_MAX_H1: Final = 3
 CONTEXT_MAX_H2: Final = 8
 CONTENT_CONTEXT_PER_PAGE_BODY_CHARS: Final = 2000
-CONTENT_CONTEXT_MAX_CHARS: Final = 16000
+CONTENT_CONTEXT_MAX_CHARS: Final = 24000
 # Per-field hard cap applied after sanitisation (title/meta/heading strings).
 CONTENT_CONTEXT_FIELD_MAX_CHARS: Final = 300
-CONTENT_GROUNDING_MAX_FACTS: Final = 16
-CONTENT_GROUNDING_MAX_SOURCE_REFS: Final = 32
+
+# --- Relevance scoring weights (deterministic lexical overlap) -------------
+# Applied per distinct prompt term present in the field, not per occurrence, so
+# a long page cannot outrank a precisely-matching one on repetition alone.
+CONTENT_SCORE_TARGET_URL: Final = 1000
+CONTENT_SCORE_TITLE: Final = 20
+CONTENT_SCORE_H1: Final = 20
+CONTENT_SCORE_H2: Final = 10
+CONTENT_SCORE_URL: Final = 10
+CONTENT_SCORE_BODY: Final = 2
+CONTENT_SCORE_MONITORED: Final = 5
 
 # --- Versioning + retry budget --------------------------------------------
-CONTENT_GENERATOR_VERSION: Final = "content-v2"
-CONTENT_CRAWL_FRAGMENT_SELECTION_VERSION: Final = "crawl-fragment-selection-1"
-CONTENT_GROUNDING_ENVELOPE_VERSION: Final = "grounding-envelope-v2"
+CONTENT_GENERATOR_VERSION: Final = "content-v3"
+CONTENT_CRAWL_FRAGMENT_SELECTION_VERSION: Final = "crawl-fragment-selection-2"
+CONTENT_CONTEXT_VERSION: Final = "content-context-v1"
 CONTENT_MAX_ATTEMPTS: Final = 3
+
+# --- Negative-feedback reasons (fixed vocabulary) -------------------------
+CONTENT_FEEDBACK_REASONS: Final[tuple[str, ...]] = (
+    "too_generic",
+    "wrong_tone",
+    "missed_topic",
+    "incorrect_facts",
+    "other",
+)
 
 # --- Error tokens specific to the content vertical -------------------------
 ERROR_PROVIDER_NOT_CONFIGURED: Final = "provider_not_configured"
@@ -123,6 +144,11 @@ class ContentSettings(BaseSettings):
     )
     request_timeout_seconds: float = Field(default=60.0, gt=0)
     max_output_tokens: int = Field(default=4096, gt=0)
+    # Provider-neutral key, preferred. ``MISTRAL_API_KEY`` remains as a
+    # fallback so an existing env keeps working without an edit.
+    api_key: SecretStr = Field(
+        default=SecretStr(""), validation_alias="CONTENT_API_KEY"
+    )
     mistral_api_key: SecretStr = Field(
         default=SecretStr(""), validation_alias="MISTRAL_API_KEY"
     )
@@ -168,7 +194,10 @@ class ContentSettings(BaseSettings):
 
     @property
     def resolved_api_key(self) -> str:
-        return self.mistral_api_key.get_secret_value()
+        """``CONTENT_API_KEY`` when set, else the legacy ``MISTRAL_API_KEY``."""
+        return (
+            self.api_key.get_secret_value() or self.mistral_api_key.get_secret_value()
+        )
 
     @property
     def resolved_endpoint(self) -> str:

@@ -2,9 +2,10 @@
 
 Seeds Site Health evidence rows (crawl -> url -> task -> artifact ->
 analysis) directly through the ORM and proves the projection is: newest
-usable terminal crawl only, allowlist-only fields, homepage -> active
-monitored -> stable-URL ordering, sanitised, bounded (pages + chars), and
-byte-for-byte deterministic. No fetching, no provider calls.
+usable terminal crawl only, allowlist-only fields, ranked by lexical
+relevance to the prompt (with an explicit target URL always first, and the
+positional tiering as the prompt-free fallback), sanitised, bounded (pages +
+chars), and byte-for-byte deterministic. No fetching, no provider calls.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.content import (
@@ -29,6 +31,7 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_PARTIALLY_COMPLETED,
     CRAWL_STATUS_RUNNING,
 )
+from app.domain.content import website_context
 from app.domain.content.website_context import select_crawl_fragments
 from app.models.project import Project
 from app.models.site_health.acquisition import SiteFetchArtifact
@@ -261,11 +264,12 @@ async def test_allowlist_fields_and_heading_caps(
         assert "app.js" not in str(context)
 
 
-async def test_ordering_homepage_then_monitored_then_stable(
+async def test_prompt_free_ordering_falls_back_to_positional_tiers(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
-    """Homepage first, active monitored second, rest by URL; inactive
-    monitored rows are ignored (tier 2)."""
+    """With no prompt and no target, ordering stays the deterministic
+    positional tiering: homepage, active monitored, then URL. Inactive
+    monitored rows fall into the stable tier."""
     async with session_factory() as session:
         ws_id, project_id, profile_id = await _seed_project(session)
         crawl = await _seed_crawl(
@@ -307,6 +311,105 @@ async def test_ordering_homepage_then_monitored_then_stable(
         # Homepage, then the active monitored page, then the rest sorted by
         # normalized_url (inactive monitored falls into the stable tier).
         assert titles == ["Home", "Pricing", "Inactive monitored", "Last"]
+
+
+async def _seed_storefront(session) -> tuple:
+    """A small store whose pages are unevenly relevant to schoolwear."""
+    ws_id, project_id, profile_id = await _seed_project(session)
+    crawl = await _seed_crawl(
+        session,
+        workspace_id=ws_id,
+        project_id=project_id,
+        profile_id=profile_id,
+    )
+    await _seed_page(session, crawl=crawl, url=_ROOT, facts=_facts(title="Home"))
+    await _seed_page(
+        session,
+        crawl=crawl,
+        url=f"{_ROOT}shipping",
+        facts=_facts(title="Shipping and delivery"),
+    )
+    await _seed_page(
+        session,
+        crawl=crawl,
+        url=f"{_ROOT}schoolwear",
+        facts=_facts(title="School uniforms and schoolwear"),
+    )
+    await _seed_page(
+        session,
+        crawl=crawl,
+        url=f"{_ROOT}school-polos",
+        facts=_facts(title="School polo shirts", body="Sizing guide for uniform polos"),
+    )
+    await _seed_page(
+        session,
+        crawl=crawl,
+        url=f"{_ROOT}womens-dresses",
+        facts=_facts(title="Womens dresses"),
+    )
+    await session.commit()
+    return ws_id, project_id
+
+
+async def test_relevant_pages_outrank_unrelated_ones(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The whole point of the selector: a schoolwear prompt must not be
+    grounded on /shipping just because it sorts earlier alphabetically."""
+    async with session_factory() as session:
+        ws_id, project_id = await _seed_storefront(session)
+        context = await select_crawl_fragments(
+            session,
+            workspace_id=ws_id,
+            project_id=project_id,
+            query_text="school uniform sizing guide",
+        )
+        urls = [page["final_url"] for page in context.pages]
+        assert urls[0].endswith(("/schoolwear", "/school-polos"))
+        assert urls[1].endswith(("/schoolwear", "/school-polos"))
+        schoolwear_rank = min(
+            index for index, url in enumerate(urls) if "school" in url
+        )
+        shipping_rank = next(
+            index for index, url in enumerate(urls) if url.endswith("/shipping")
+        )
+        assert schoolwear_rank < shipping_rank
+        # The homepage is background context, not the head of the selection.
+        assert not urls[0].rstrip("/").endswith(_ROOT.rstrip("/"))
+
+
+async def test_target_url_is_always_selected_first(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A rewrite must always see the page being rewritten, even when the
+    prompt's own wording points somewhere else entirely."""
+    async with session_factory() as session:
+        ws_id, project_id = await _seed_storefront(session)
+        context = await select_crawl_fragments(
+            session,
+            workspace_id=ws_id,
+            project_id=project_id,
+            query_text="school uniform sizing guide",
+            target_url=f"{_ROOT}womens-dresses",
+        )
+        assert context.pages[0]["final_url"].endswith("/womens-dresses")
+
+
+async def test_homepage_as_target_url_is_still_selected_first(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The homepage is demoted to background context — except when it IS the
+    page being rewritten, where the target guarantee must still win."""
+    async with session_factory() as session:
+        ws_id, project_id = await _seed_storefront(session)
+        context = await select_crawl_fragments(
+            session,
+            workspace_id=ws_id,
+            project_id=project_id,
+            query_text="school uniform sizing guide",
+            target_url=_ROOT,
+        )
+        assert context.pages[0]["final_url"] == _ROOT
 
 
 async def test_sanitisation_and_field_caps(
@@ -375,15 +478,68 @@ async def test_page_and_char_budgets(
         assert context.summary is not None
         assert context.summary["char_count"] <= CONTENT_CONTEXT_MAX_CHARS
         assert len(context.pages) < CONTENT_CONTEXT_MAX_PAGES + 2
-        assert context.summary["omissions"] == [
-            {
-                "reason": "character_budget",
-                "count": CONTENT_CONTEXT_MAX_PAGES - len(context.pages),
-            }
-        ]
+        # Whatever did not fit is reported, by page cap and/or char budget.
+        reasons = {item["reason"] for item in context.summary["omissions"]}
+        assert reasons <= {"page_limit", "character_budget"}
+        assert reasons
         # Kept pages are the deterministic head of the ordering.
         titles = [page["title"] for page in context.pages]
         assert titles == [f"Page {i:02d}" for i in range(len(titles))]
+
+
+async def test_oversized_page_is_skipped_not_terminal(
+    session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A page too big for the remaining budget must not truncate the pages
+    ranked behind it — the old loop broke, losing every smaller match."""
+    # Squeeze the total budget so one max-body page nearly fills it; the
+    # per-page body cap otherwise keeps real pages comfortably inside it.
+    monkeypatch.setattr(
+        website_context,
+        "CONTENT_CONTEXT_MAX_CHARS",
+        CONTENT_CONTEXT_PER_PAGE_BODY_CHARS,
+    )
+    async with session_factory() as session:
+        ws_id, project_id, profile_id = await _seed_project(session)
+        crawl = await _seed_crawl(
+            session,
+            workspace_id=ws_id,
+            project_id=project_id,
+            profile_id=profile_id,
+        )
+        # A max-body page consumes essentially the whole squeezed budget, so
+        # the next big page cannot fit. Alphabetical URLs pin the order.
+        for i in range(2):
+            await _seed_page(
+                session,
+                crawl=crawl,
+                url=f"{_ROOT}a-big-{i:02d}",
+                facts=_facts(
+                    title=f"Big {i:02d}",
+                    body="b" * CONTENT_CONTEXT_PER_PAGE_BODY_CHARS,
+                ),
+            )
+        await _seed_page(
+            session,
+            crawl=crawl,
+            url=f"{_ROOT}z-small",
+            facts=_facts(title="Small", body="s" * 20),
+        )
+        await session.commit()
+        context = await select_crawl_fragments(
+            session, workspace_id=ws_id, project_id=project_id
+        )
+        titles = [page["title"] for page in context.pages]
+        # The oversized second page is skipped, and the small page ranked
+        # behind it still lands. A breaking loop would have dropped both.
+        assert "Big 01" not in titles
+        assert "Small" in titles
+        assert context.summary is not None
+        assert any(
+            item["reason"] == "character_budget"
+            for item in context.summary["omissions"]
+        )
 
 
 async def test_newest_usable_terminal_crawl_wins(

@@ -16,7 +16,6 @@ from app.connectors.discovery_models.openai_compatible import (
 from app.core.config.content import content_settings
 from app.core.config.provider_catalog import (
     ERROR_AUTH,
-    ERROR_INVALID_SURFACE,
     ERROR_PARSE,
     ERROR_RATE_LIMIT,
     ERROR_SERVER,
@@ -149,18 +148,37 @@ def test_missing_key_is_auth_error() -> None:
     assert excinfo.value.error_code == ERROR_AUTH
 
 
-def test_factory_builds_known_provider_and_rejects_unknown(
+def test_factory_builds_any_env_configured_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The transport is OpenAI-compatible and provider-neutral, so swapping
+    the content model is a pure .env change — there is no provider allowlist
+    to extend. The provider name is a label recorded on the attempt."""
     from pydantic import SecretStr
 
-    monkeypatch.setattr(content_settings, "provider", "mistral")
+    monkeypatch.setattr(content_settings, "api_key", SecretStr(""))
     monkeypatch.setattr(content_settings, "mistral_api_key", SecretStr("k"))
+    monkeypatch.setattr(content_settings, "provider", "mistral")
     client = build_discovery_client()
     assert isinstance(client, OpenAICompatibleDiscoveryClient)
     assert client.provider == "mistral"
 
-    monkeypatch.setattr(content_settings, "provider", "nonexistent")
+    # An arbitrary provider is accepted, and CONTENT_API_KEY takes precedence.
+    monkeypatch.setattr(content_settings, "provider", "some-other-provider")
+    monkeypatch.setattr(content_settings, "api_key", SecretStr("generic"))
+    other = build_discovery_client()
+    assert isinstance(other, OpenAICompatibleDiscoveryClient)
+    assert other.provider == "some-other-provider"
+
+
+def test_missing_key_is_the_only_provider_configuration_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pydantic import SecretStr
+
+    monkeypatch.setattr(content_settings, "provider", "anything")
+    monkeypatch.setattr(content_settings, "api_key", SecretStr(""))
+    monkeypatch.setattr(content_settings, "mistral_api_key", SecretStr(""))
     with pytest.raises(ProviderError) as excinfo:
         build_discovery_client()
-    assert excinfo.value.error_code == ERROR_INVALID_SURFACE
+    assert excinfo.value.error_code == ERROR_AUTH

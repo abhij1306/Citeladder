@@ -2,8 +2,9 @@
  * Client for the website-grounded Content generation queue.
  *
  * Content has one workflow: enqueue, inspect bounded history/detail, retry,
- * cancel, regenerate, and record feedback. Website evidence is mandatory and
- * is assembled by the backend from persisted Site Health artifacts.
+ * cancel, regenerate, and record feedback. Generation context (brand, task,
+ * relevant crawl pages) is assembled by the backend; `getContextPreview`
+ * reports what is available before a draft is requested.
  */
 import { z } from 'zod';
 
@@ -11,6 +12,7 @@ import { CONTENT_LIST_DEFAULT_LIMIT } from '@/lib/config/operational';
 
 import { apiClient, type ApiRequestOptions } from './client';
 import {
+  contentContextPreviewSchema,
   contentGenerationDetailSchema,
   contentGenerationListItemSchema,
   contentSkillCatalogSchema,
@@ -18,7 +20,12 @@ import {
   strictValidate,
 } from './schemas';
 import { definedQuery, withQuery } from './shared';
-import type { ContentGenerationDetail, ContentGenerationListItem } from './types';
+import type {
+  ContentContextPreview,
+  ContentFeedbackReason,
+  ContentGenerationDetail,
+  ContentGenerationListItem,
+} from './types';
 
 export {
   CONTENT_DETAIL_POLL_MS,
@@ -49,6 +56,16 @@ export const contentApi = {
   listSkills: async (options?: ApiRequestOptions): Promise<ContentSkillCatalog> => {
     const response = await apiClient.get<unknown>('/content/skills', options);
     return strictValidate(contentSkillCatalogSchema, response, 'content.listSkills');
+  },
+
+  /** What would ground a draft for this project right now. */
+  getContextPreview: async (
+    projectId: string,
+    options?: ApiRequestOptions,
+  ): Promise<ContentContextPreview> => {
+    const path = withQuery('/content/context-preview', definedQuery({ project_id: projectId }));
+    const response = await apiClient.get<unknown>(path, options);
+    return strictValidate(contentContextPreviewSchema, response, 'content.getContextPreview');
   },
 
   listGenerations: async (
@@ -123,11 +140,12 @@ export const contentApi = {
   recordFeedback: async (
     generationId: string,
     feedback: 'accepted' | 'rejected',
+    reason?: ContentFeedbackReason,
     options?: ApiRequestOptions,
   ): Promise<ContentGenerationDetail> => {
     const response = await apiClient.post<ContentGenerationDetail>(
       `/content/generations/${generationId}/feedback`,
-      { feedback },
+      reason ? { feedback, reason } : { feedback },
       options,
     );
     return strictValidate(contentGenerationDetailSchema, response, 'content.recordFeedback');

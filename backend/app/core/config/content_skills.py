@@ -61,8 +61,9 @@ class ContentSkillDefinition:
     def render_directive(self) -> str:
         """Deterministic multi-part instruction prepended to the user prompt.
 
-        The shared evidence rules are appended here rather than repeated in
-        each definition, so no format can ship without them.
+        Craft only — format, structure, tone, length. Grounding rules live once
+        in the system prompt (``message_builder``) rather than being repeated
+        into every skill, which is what made drafts read like audit reports.
         """
         parts = [self.directive]
         if self.structure:
@@ -74,22 +75,10 @@ class ContentSkillDefinition:
             parts.append(f"Tone: {self.tone}")
         if self.length_hint:
             parts.append(f"Length: {self.length_hint}")
-        constraints = "\n".join(f"- {rule}" for rule in (*_EVIDENCE_RULES, *self.rules))
-        parts.append(f"Rules:\n{constraints}")
+        if self.rules:
+            constraints = "\n".join(f"- {rule}" for rule in self.rules)
+            parts.append(f"Rules:\n{constraints}")
         return "\n\n".join(parts)
-
-
-# Sourcing rules shared by every format. Content that will be published under
-# the customer's own domain cannot invent pricing, statistics, or capabilities,
-# and an unknown must read as unknown rather than be smoothed over.
-_EVIDENCE_RULES: Final[tuple[str, ...]] = (
-    "Never invent facts, pricing, capabilities, statistics, quotes, or examples. "
-    "Everything factual must trace to the grounding envelope.",
-    "Where the evidence does not support a claim, say the information is not "
-    "available rather than filling the gap.",
-    "Keep the exact qualifiers the evidence uses — do not restate an estimate "
-    "as a certainty.",
-)
 
 
 _DEFINITIONS: Final[tuple[ContentSkillDefinition, ...]] = (
@@ -97,44 +86,29 @@ _DEFINITIONS: Final[tuple[ContentSkillDefinition, ...]] = (
         id="content_page",
         label="Website content page",
         channel=CHANNEL_WEB,
-        description=(
-            "A publish-ready page spec: meta block, sections, CTA, and sources."
-        ),
+        description="A publish-ready page: opening answer, sections, and a CTA.",
         directive=(
-            "Build a website content page — a comparison guide, listicle, "
-            "how-to, or pillar page. Produce a page-ready build spec, not a "
-            "research report: everything you write is copy intended to render "
-            "on the page. Prefer structured tables and lists over repeated "
-            "prose, and include only copy that earns its space."
+            "Write a website content page. Everything you produce is copy "
+            "intended to render on the page — not a research report. Open by "
+            "answering the subject directly, then prefer tables and lists "
+            "wherever they carry the information better than prose."
         ),
         structure=(
-            "The final H1, as a level-1 Markdown heading.",
-            "A `## Meta` section listing, as a bullet each: Target query; "
-            "Audience and intent; Meta title (60 characters or fewer); Meta "
-            "description (155 characters or fewer); Canonical route; Primary "
-            "CTA and its destination.",
-            "A `## Sections` block with one `###` heading per page section, "
-            "each holding final page-ready copy.",
-            "Structured comparison tables, step lists, or item data wherever "
-            "they carry the information better than prose.",
-            "A one-line imagery note under any section whose subject calls "
-            "for a visual, so the page is not an unbroken wall of text.",
-            "A closing `## Sources` section listing each source used and the "
-            "claims it supports.",
+            "The page H1, as a level-1 Markdown heading.",
+            "An opening paragraph that answers the subject or states the "
+            "value proposition, before any background.",
+            "H2/H3 sections of final page-ready copy, one subject each.",
+            "Tables or lists wherever they beat prose.",
+            "A closing call to action.",
+            "Optionally, a meta title (60 characters or fewer) and meta "
+            "description (155 characters or fewer) at the end.",
         ),
         tone="Clear and specific; informative rather than promotional.",
-        length_hint=(
-            "500–800 words for a simple content page, 800–1500 for a "
-            "comparison or listicle (50–100 words per item), 1200–2000 for an "
-            "in-depth guide. Treat these as budgets, not quotas."
-        ),
+        length_hint="500–900 words for a simple page, up to 1500 for a guide.",
         rules=(
             "Use exactly one H1 and a logical H2/H3 hierarchy beneath it.",
-            "For a comparison or listicle, give every item the same shape: "
-            "what it is, who it is best for, the key verified fact, then two "
-            "or three sentences on decision-relevant strengths and limits.",
-            "Do not include research methodology, exhaustive feature "
-            "inventories, or prose that merely restates a table.",
+            "No research methodology, feature inventories, or prose that "
+            "merely restates a table.",
         ),
     ),
     ContentSkillDefinition(
@@ -144,9 +118,9 @@ _DEFINITIONS: Final[tuple[ContentSkillDefinition, ...]] = (
         description="Authoritative long-form piece for search and citation.",
         directive=(
             "Write an authoritative, evidence-led article. Lead with the "
-            "substantive answer rather than background. Every factual claim "
-            "must trace to the grounding envelope; where evidence is absent, "
-            "write around the gap instead of estimating."
+            "substantive answer rather than background, and use the brand's "
+            "own terminology and specifics wherever the reference material "
+            "supplies them."
         ),
         structure=(
             "A specific H1 that states the subject, not a teaser.",
@@ -207,8 +181,8 @@ _DEFINITIONS: Final[tuple[ContentSkillDefinition, ...]] = (
         directive=(
             "Write a comparison page. Be genuinely balanced: name the cases "
             "where each option is the weaker choice. State the criteria "
-            "before applying them, and never compare on an attribute the "
-            "grounding envelope does not support."
+            "before applying them, and compare only on attributes the "
+            "reference material actually supports."
         ),
         structure=(
             "H1 naming the options being compared.",
@@ -412,7 +386,7 @@ CONTENT_DEFAULT_SKILL: Final = "content_page"
 
 # Bumped whenever any directive text changes, so a generation's provenance
 # records which catalog wrote it.
-CONTENT_SKILL_CATALOG_VERSION: Final = "content-skills-v2"
+CONTENT_SKILL_CATALOG_VERSION: Final = "content-skills-v3"
 
 # Back-compatible flat view: ``{skill_id: rendered directive}``.
 CONTENT_SKILL_DIRECTIVES: Final[dict[str, str]] = {

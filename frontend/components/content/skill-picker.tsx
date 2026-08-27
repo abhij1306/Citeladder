@@ -100,7 +100,7 @@ export function SkillPicker({
                     'focus-ring inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                     selected
                       ? 'border-accent-border bg-accent-soft text-accent-text font-medium'
-                      : 'border-border/70 text-secondary hover:border-border-strong hover:text-foreground',
+                      : 'border-border text-secondary hover:border-border-strong hover:text-foreground',
                   )}
                 >
                   {selected ? <Check className="size-3.5" aria-hidden /> : null}

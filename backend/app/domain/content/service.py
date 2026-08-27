@@ -21,8 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.abuse import abuse_settings
 from app.core.config.content import (
     CONTENT_DEFAULT_SKILL,
+    CONTENT_FEEDBACK_REASONS,
     CONTENT_GENERATOR_VERSION,
-    CONTENT_KNOWN_PROVIDERS,
     CONTENT_LIST_MAX_LIMIT,
     CONTENT_SKILL_CATALOG_VERSION,
     FEEDBACK_ACCEPTED,
@@ -36,15 +36,16 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.domain.abuse.service import reserve_workspace_capacity
-from app.domain.content.grounding import (
-    GroundingEnvelope,
-    build_grounding_envelope,
+from app.domain.content.context_builder import (
+    ContentContext,
+    build_content_context,
+    content_context_availability,
 )
 from app.domain.content.message_builder import build_messages
 from app.domain.content.schemas import (
+    ContentContextSummary,
     ContentGenerationDetail,
     ContentGenerationListItem,
-    GroundingEnvelopeSummary,
     prompt_preview,
 )
 from app.models.content import ContentGeneration
@@ -124,22 +125,17 @@ async def _project_in_workspace(
     return project
 
 
-def _summary_dto(row: ContentGeneration) -> GroundingEnvelopeSummary:
-    envelope = row.grounding_envelope or {}
-    refs = list(envelope.get("source_refs") or [])
-    prohibited = list(envelope.get("prohibited_claims") or [])
-    return GroundingEnvelopeSummary(
-        version=str(envelope.get("version") or ""),
-        allowed_fact_count=len(envelope.get("allowed_facts") or []),
-        source_ref_count=len(refs),
-        crawl_fragment_count=sum(
-            item.get("source_kind") == "crawl_fragment" for item in refs
-        ),
-        prohibited_claim_classes=[
-            str(item.get("claim_class") or "") for item in prohibited
-        ],
-        omissions=list(envelope.get("omissions") or []),
-        budget=dict(envelope.get("budget") or {}),
+def _summary_dto(row: ContentGeneration) -> ContentContextSummary:
+    """Bounded public provenance: counts and URLs, never the rendered blocks."""
+    summary = (row.grounding_envelope or {}).get("summary") or {}
+    return ContentContextSummary(
+        version=str((row.grounding_envelope or {}).get("version") or ""),
+        crawl_page_count=int(summary.get("crawl_page_count") or 0),
+        crawl_urls=[str(url) for url in (summary.get("crawl_urls") or [])],
+        crawl_completed_at=summary.get("crawl_completed_at"),
+        brand_fields=[str(item) for item in (summary.get("brand_fields") or [])],
+        search_connected=bool(summary.get("search_connected")),
+        omissions=list(summary.get("omissions") or []),
     )
 
 
@@ -160,23 +156,22 @@ def to_detail(row: ContentGeneration) -> ContentGenerationDetail:
     return ContentGenerationDetail.model_validate(payload)
 
 
-async def _insert_generation(
+def _insert_generation(
     session: AsyncSession,
     *,
     row: ContentGeneration,
-    grounding_envelope: GroundingEnvelope,
+    context: ContentContext,
 ) -> ContentGeneration:
     messages, digest, message_snapshot = build_messages(
         prompt=row.prompt,
-        output_type=row.output_type,
-        grounding_envelope=grounding_envelope,
+        context=context,
         skill_id=row.skill_id,
     )
     # ``messages`` itself is never persisted — the worker rebuilds it from the
     # frozen prompt + snapshot; only the digest + safe snapshot are stored.
     del messages
-    row.grounding_status = grounding_envelope.status
-    row.grounding_envelope = grounding_envelope.snapshot()
+    row.grounding_status = context.status
+    row.grounding_envelope = context.snapshot()
     row.message_digest = digest
     row.message_snapshot = message_snapshot
     session.add(row)
@@ -184,13 +179,10 @@ async def _insert_generation(
 
 
 def _require_provider_configured() -> None:
-    # Readiness is provider-aware: an unknown provider name is just as
-    # unconfigured as a missing key, and each known provider is checked for
-    # the key selected for the configured provider.
-    if content_settings.provider not in CONTENT_KNOWN_PROVIDERS:
-        raise ProviderNotConfiguredError(
-            f"unknown content provider: {content_settings.provider}"
-        )
+    # The transport is provider-neutral, so readiness is just: a provider name
+    # and a key. Model/endpoint swaps are pure ``.env`` changes.
+    if not content_settings.provider:
+        raise ProviderNotConfiguredError("content provider is not configured")
     if not content_settings.resolved_api_key:
         raise ProviderNotConfiguredError(
             "content provider is not configured (missing API key)"
@@ -215,11 +207,11 @@ async def enqueue_generation(
     ``IdempotencyConflictError``; a concurrent same-key insert converges via
     the IntegrityError reload/compare path.
     """
-    await _project_in_workspace(
+    project = await _project_in_workspace(
         session, workspace_id=workspace_id, project_id=project_id
     )
 
-    await _require_opportunity(
+    opportunity = await _require_opportunity(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
@@ -249,13 +241,20 @@ async def enqueue_generation(
     if existing is not None:
         return existing, False
 
-    grounding_envelope = await build_grounding_envelope(
-        session, workspace_id=workspace_id, project_id=project_id
+    context = await build_content_context(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        prompt=prompt,
+        brand_name=project.brand_name or project.name,
+        website=project.website_url,
+        locale=_project_locale(project),
+        opportunity=opportunity,
     )
     _require_provider_configured()
     await _reserve_content_capacity(session, workspace_id=workspace_id)
 
-    row = await _insert_generation(
+    row = _insert_generation(
         session,
         row=ContentGeneration(
             workspace_id=workspace_id,
@@ -274,7 +273,7 @@ async def enqueue_generation(
             requested_model=content_settings.resolved_model,
             generator_version=CONTENT_GENERATOR_VERSION,
         ),
-        grounding_envelope=grounding_envelope,
+        context=context,
     )
     winner = await _commit_generation(
         session, workspace_id=workspace_id, key=key, fingerprint=fingerprint
@@ -285,7 +284,22 @@ async def enqueue_generation(
     return row, True
 
 
-async def _require_opportunity(session, *, workspace_id, project_id, opportunity_id):
+def _project_locale(project: Project) -> str:
+    """Market/language hint so drafts stay in the project's locale."""
+    return " ".join(
+        part
+        for part in (
+            project.country_code or project.primary_market,
+            project.language_code,
+        )
+        if part
+    ).strip()
+
+
+async def _require_opportunity(
+    session, *, workspace_id, project_id, opportunity_id
+) -> Opportunity | None:
+    """Authorize and RETURN the opportunity so its text can reach the model."""
     if opportunity_id is None:
         return None
     opportunity = await session.scalar(
@@ -297,7 +311,7 @@ async def _require_opportunity(session, *, workspace_id, project_id, opportunity
     )
     if opportunity is None:
         raise ContentGenerationNotFoundError("Opportunity not found")
-    return None
+    return opportunity
 
 
 async def _idempotent_replay(
@@ -366,6 +380,18 @@ async def list_generations(
         .limit(capped)
     )
     return list(rows.all())
+
+
+async def context_preview(
+    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
+) -> dict:
+    """What would ground a draft for this project right now (authorizes first)."""
+    await _project_in_workspace(
+        session, workspace_id=workspace_id, project_id=project_id
+    )
+    return await content_context_availability(
+        session, workspace_id=workspace_id, project_id=project_id
+    )
 
 
 async def get_generation(
@@ -456,7 +482,7 @@ async def try_again(
     )
     _require_provider_configured()
     await _reserve_content_capacity(session, workspace_id=workspace_id)
-    frozen = GroundingEnvelope.from_snapshot(source.grounding_envelope or {})
+    frozen = ContentContext.from_snapshot(source.grounding_envelope or {})
     fingerprint = request_fingerprint(
         project_id=source.project_id,
         prompt=source.prompt,
@@ -464,7 +490,7 @@ async def try_again(
         skill_id=source.skill_id,
         opportunity_id=source.opportunity_id,
     )
-    row = await _insert_generation(
+    row = _insert_generation(
         session,
         row=ContentGeneration(
             workspace_id=workspace_id,
@@ -480,7 +506,7 @@ async def try_again(
             requested_model=content_settings.resolved_model,
             generator_version=CONTENT_GENERATOR_VERSION,
         ),
-        grounding_envelope=frozen,
+        context=frozen,
     )
     await session.commit()
     await session.refresh(row)
@@ -493,8 +519,13 @@ async def record_feedback(
     workspace_id: uuid.UUID,
     generation_id: uuid.UUID,
     feedback: str,
+    reason: str = "",
 ) -> ContentGeneration:
-    """Record an immutable accepted/rejected reaction on completed output."""
+    """Record an immutable accepted/rejected reaction on completed output.
+
+    ``reason`` is an optional rejection category from the fixed vocabulary; it
+    is meaningless on an acceptance and ignored there.
+    """
     row = await session.scalar(
         select(ContentGeneration)
         .where(
@@ -507,6 +538,8 @@ async def record_feedback(
         raise ContentGenerationNotFoundError("Content generation not found")
     if feedback not in {FEEDBACK_ACCEPTED, FEEDBACK_REJECTED}:
         raise ValueError("unknown content feedback")
+    if reason and reason not in CONTENT_FEEDBACK_REASONS:
+        raise ValueError("unknown content feedback reason")
     if row.status != TASK_STATUS_SUCCEEDED or not row.output_text:
         raise ValueError("only completed content can be reviewed")
     if row.feedback is not None and row.feedback != feedback:
@@ -515,6 +548,7 @@ async def record_feedback(
         await session.commit()
         return row
     row.feedback = feedback
+    row.feedback_reason = reason if feedback == FEEDBACK_REJECTED else ""
     row.feedback_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(row)

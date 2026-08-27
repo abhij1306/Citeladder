@@ -1,5 +1,8 @@
+import { FileText } from 'lucide-react';
+
 import { Badge } from '@/components/ui/badge';
 import type { RunStatusValue } from '@/components/ui/badge-variants';
+import { eyebrowClasses } from '@/components/ui/eyebrow';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ContentGenerationListItem, ContentGenerationStatus } from '@/lib/api/types';
 import { cn } from '@/lib/utils';
@@ -28,10 +31,10 @@ export function GenerationHistory({
   return (
     <section
       data-component-id="content-history"
-      className="bg-panel shadow-card border-border/70 flex flex-col gap-3.5 rounded-sm border p-5 sm:p-6"
+      className="bg-panel shadow-card border-border flex flex-col gap-3.5 rounded-sm border p-5 sm:p-6"
     >
-      <div className="border-border/60 grid gap-1 border-b pb-3">
-        <span className="text-muted text-xs font-semibold tracking-wider uppercase">History</span>
+      <div className="border-border grid gap-1 border-b pb-3">
+        <span className={eyebrowClasses}>History</span>
         <h2 className="font-display text-foreground text-lg leading-tight font-semibold tracking-tight">
           Recent generations
         </h2>
@@ -54,8 +57,16 @@ function HistoryItems({
   selectedId: string | null;
   onSelect: (generationId: string) => void;
 }>) {
+  // A sidebar rail, so the full <EmptyState> card would out-weigh the panel
+  // it sits in; this keeps the same icon → line shape at rail scale.
   if (items.length === 0)
-    return <p className="text-muted py-4 text-center text-sm">No generations yet.</p>;
+    return (
+      <div className="text-muted grid justify-items-center gap-2 py-6 text-center">
+        <FileText className="size-5" aria-hidden />
+        <p className="text-sm">No generations yet.</p>
+        <p className="text-xs">Your drafts will collect here.</p>
+      </div>
+    );
   return (
     <ul className="flex flex-col gap-2">
       {items.map((item) => (
@@ -66,8 +77,8 @@ function HistoryItems({
             className={cn(
               'focus-ring hover:bg-background-alt flex w-full items-center gap-3 rounded-sm border px-3.5 py-3 text-left text-sm transition-colors',
               item.id === selectedId
-                ? 'border-accent-border bg-accent-soft/50 font-medium'
-                : 'border-border/60',
+                ? 'border-accent-border bg-accent-soft font-medium'
+                : 'border-border',
             )}
           >
             <span className="text-foreground min-w-0 flex-1 truncate font-medium">

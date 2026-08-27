@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.config.content import (
     CONTENT_DEFAULT_OUTPUT_TYPE,
     CONTENT_DEFAULT_SKILL,
+    CONTENT_FEEDBACK_REASONS,
     CONTENT_HISTORY_TITLE_MAX_LEN,
     CONTENT_OUTPUT_TYPES,
     CONTENT_PROMPT_MAX_LEN,
@@ -130,16 +131,30 @@ class ContentGenerationListItem(BaseModel):
     prompt_preview: str = ""
 
 
-class GroundingEnvelopeSummary(BaseModel):
-    """Bounded public provenance summary; never source-fragment bodies."""
+class ContentContextSummary(BaseModel):
+    """Bounded public provenance: counts and URLs, never the rendered blocks."""
 
-    version: str
-    allowed_fact_count: int = 0
-    source_ref_count: int = 0
-    crawl_fragment_count: int = 0
-    prohibited_claim_classes: list[str] = []
+    version: str = ""
+    crawl_page_count: int = 0
+    crawl_urls: list[str] = []
+    crawl_completed_at: str | None = None
+    brand_fields: list[str] = []
+    search_connected: bool = False
     omissions: list[dict] = []
-    budget: dict = {}
+
+
+class ContentContextPreview(BaseModel):
+    """Pre-flight answer for the composer indicator: what will ground a draft.
+
+    A missing crawl or an unconnected Search Console is a neutral absence, not
+    a fault — the client renders it as such.
+    """
+
+    crawl_available: bool = False
+    crawl_page_count: int = 0
+    crawl_completed_at: str | None = None
+    brand_fields: list[str] = []
+    search_connected: bool = False
 
 
 class ContentGenerationDetail(BaseModel):
@@ -155,6 +170,7 @@ class ContentGenerationDetail(BaseModel):
     opportunity_id: uuid.UUID | None = None
     skill_version: str = ""
     feedback: str | None = None
+    feedback_reason: str = ""
     feedback_at: datetime | None = None
     grounding_status: str
     requested_model: str
@@ -166,7 +182,7 @@ class ContentGenerationDetail(BaseModel):
     error_code: str = ""
     prompt_preview: str = ""
     prompt: str
-    grounding_summary: GroundingEnvelopeSummary
+    grounding_summary: ContentContextSummary
     finish_reason: str | None = None
     output_truncated: bool = False
     output_text: str | None = None
@@ -178,3 +194,12 @@ class ContentGenerationDetail(BaseModel):
 
 class ContentFeedbackRequest(BaseModel):
     feedback: str = Field(pattern="^(accepted|rejected)$")
+    #: Optional rejection category; ignored on an acceptance.
+    reason: str = ""
+
+    @field_validator("reason")
+    @classmethod
+    def _reason_known(cls, value: str) -> str:
+        if value and value not in CONTENT_FEEDBACK_REASONS:
+            raise ValueError(f"unknown feedback reason: {value}")
+        return value

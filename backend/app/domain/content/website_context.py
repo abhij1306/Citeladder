@@ -1,12 +1,17 @@
 """Deterministic crawl-fragment selection from persisted Site Health evidence.
 
 Pure DB projection (invariant 7): no fetch, no extraction, no provider call.
-Selects the newest terminal crawl with usable artifacts, orders pages
-deterministically (homepage -> active monitored -> stable URL), emits an
-allowlist-only subset of each page's ``normalized_facts``, sanitises and caps
-every field plus the total character budget, and records full provenance so
-the result UI can show exactly which crawl (and how fresh) grounded the
-content. The same inputs always produce the same snapshot.
+Selects the newest terminal crawl with usable artifacts, then ranks its pages
+by lexical relevance to the generation prompt (and to an explicit target URL
+when rewriting), emits an allowlist-only subset of each page's
+``normalized_facts``, sanitises and caps every field plus the total character
+budget, and records full provenance so the result UI can show exactly which
+crawl (and how fresh) grounded the content.
+
+Relevance is deliberately a deterministic lexical score — no embeddings, no
+vector store. The same inputs always produce the same snapshot. With no prompt
+text the module falls back to the original positional ordering (homepage ->
+active monitored -> stable URL) so behaviour is never undefined.
 """
 
 from __future__ import annotations
@@ -25,6 +30,13 @@ from app.core.config.content import (
     CONTENT_CONTEXT_MAX_PAGES,
     CONTENT_CONTEXT_PER_PAGE_BODY_CHARS,
     CONTENT_CRAWL_FRAGMENT_SELECTION_VERSION,
+    CONTENT_SCORE_BODY,
+    CONTENT_SCORE_H1,
+    CONTENT_SCORE_H2,
+    CONTENT_SCORE_MONITORED,
+    CONTENT_SCORE_TARGET_URL,
+    CONTENT_SCORE_TITLE,
+    CONTENT_SCORE_URL,
     CONTEXT_MAX_H1,
     CONTEXT_MAX_H2,
 )
@@ -42,6 +54,71 @@ from app.models.site_health.urls import MonitoredSiteUrl, SiteUrl
 # included) to single spaces.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
 _WHITESPACE = re.compile(r"\s+")
+
+# Relevance tokenisation: split on anything non-alphanumeric so URL path
+# segments ("/school-polos") tokenise the same way prose does.
+_TOKEN_SPLIT = re.compile(r"[^a-z0-9]+")
+# Small inline stop list — enough to stop instruction verbs and articles from
+# matching every page. Deliberately not a linguistics dependency.
+_STOP_WORDS: frozenset[str] = frozenset(
+    {
+        "about",
+        "and",
+        "any",
+        "are",
+        "best",
+        "but",
+        "can",
+        "content",
+        "create",
+        "for",
+        "from",
+        "get",
+        "give",
+        "guide",
+        "has",
+        "have",
+        "how",
+        "into",
+        "its",
+        "make",
+        "more",
+        "new",
+        "not",
+        "our",
+        "out",
+        "page",
+        "post",
+        "some",
+        "that",
+        "the",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "top",
+        "use",
+        "using",
+        "want",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "will",
+        "with",
+        "write",
+        "writing",
+        "you",
+        "your",
+    }
+)
 
 
 def _facts_usable() -> ColumnElement[bool]:
@@ -103,13 +180,72 @@ def _is_homepage(site_url: SiteUrl, *, root_url: str, root_host: str) -> bool:
     return stripped == root_host
 
 
-def _context_sort_key(
+def _tokens(value: object) -> set[str]:
+    """Lowercase alphanumeric terms, minus stop words and 1-2 char noise."""
+    text = str(value or "").lower()
+    return {
+        token
+        for token in _TOKEN_SPLIT.split(text)
+        if len(token) > 2 and token not in _STOP_WORDS
+    }
+
+
+def _overlap(terms: set[str], value: object) -> int:
+    """Count of DISTINCT prompt terms present — never term frequency, so a
+    long page cannot outrank a precise one by repeating a word."""
+    if not terms:
+        return 0
+    return len(terms & _tokens(value))
+
+
+def _normalized_target(url: str) -> str:
+    """Compare URLs without scheme, trailing slash, or case differences."""
+    return re.sub(r"^https?://", "", str(url or "").strip().lower()).rstrip("/")
+
+
+def _relevance_score(
+    entry: _ContextRow,
+    *,
+    terms: set[str],
+    target: str,
+    monitored_ids: set[uuid.UUID],
+) -> int:
+    """Deterministic lexical relevance of one page to the generation prompt."""
+    _analysis, artifact, site_url = entry
+    if target and target in {
+        _normalized_target(artifact.final_url),
+        _normalized_target(site_url.normalized_url),
+    }:
+        return CONTENT_SCORE_TARGET_URL
+
+    facts = artifact.normalized_facts or {}
+    headings = facts.get("headings") or {}
+    body = facts.get("body") or {}
+    score = 0
+    score += CONTENT_SCORE_TITLE * _overlap(terms, facts.get("title"))
+    score += CONTENT_SCORE_H1 * _overlap(
+        terms, " ".join(headings.get("h1_texts") or [])
+    )
+    score += CONTENT_SCORE_H2 * _overlap(
+        terms, " ".join(headings.get("h2_texts") or [])
+    )
+    score += CONTENT_SCORE_URL * _overlap(terms, site_url.normalized_url)
+    score += CONTENT_SCORE_BODY * _overlap(
+        terms, str(body.get("text") or "")[:CONTENT_CONTEXT_PER_PAGE_BODY_CHARS]
+    )
+    if site_url.id in monitored_ids:
+        score += CONTENT_SCORE_MONITORED
+    return score
+
+
+def _positional_sort_key(
     entry: _ContextRow,
     *,
     root_url: str,
     root_host: str,
     monitored_ids: set[uuid.UUID],
 ) -> tuple[int, str, str]:
+    """Prompt-free fallback ordering: homepage -> monitored -> stable URL."""
     _analysis, _artifact, site_url = entry
     if _is_homepage(site_url, root_url=root_url, root_host=root_host):
         tier = 0
@@ -126,18 +262,58 @@ def _ordered_usable_rows(
     root_url: str,
     root_host: str,
     monitored_ids: set[uuid.UUID],
+    query_text: str = "",
+    target_url: str = "",
 ) -> list[_ContextRow]:
-    """Filter and deterministically prioritize persisted page evidence."""
+    """Filter and rank persisted page evidence for this generation.
+
+    Ranked by lexical relevance to the prompt, with an explicit target URL
+    always first. The homepage is demoted from its old top tier to a fallback
+    appended last, so it supplies brand background without displacing a page
+    that actually matches the topic.
+    """
     usable = [entry for entry in rows if entry[1].normalized_facts]
-    usable.sort(
-        key=lambda entry: _context_sort_key(
-            entry,
-            root_url=root_url,
-            root_host=root_host,
-            monitored_ids=monitored_ids,
+    terms = _tokens(query_text)
+    target = _normalized_target(target_url)
+    if not terms and not target:
+        usable.sort(
+            key=lambda entry: _positional_sort_key(
+                entry,
+                root_url=root_url,
+                root_host=root_host,
+                monitored_ids=monitored_ids,
+            )
+        )
+        return usable
+
+    # The homepage is demoted UNLESS it is itself the rewrite target — a
+    # request to rewrite the homepage must still put it first, so it stays in
+    # the ranked set and picks up the target score like any other page.
+    def _is_target(entry: _ContextRow) -> bool:
+        return bool(target) and target in {
+            _normalized_target(entry[1].final_url),
+            _normalized_target(entry[2].normalized_url),
+        }
+
+    homepage = [
+        entry
+        for entry in usable
+        if _is_homepage(entry[2], root_url=root_url, root_host=root_host)
+        and not _is_target(entry)
+    ]
+    homepage_ids = {entry[2].id for entry in homepage}
+    ranked = [entry for entry in usable if entry[2].id not in homepage_ids]
+    ranked.sort(
+        key=lambda entry: (
+            -_relevance_score(
+                entry, terms=terms, target=target, monitored_ids=monitored_ids
+            ),
+            entry[2].normalized_url,
+            str(entry[2].id),
         )
     )
-    return usable
+    # Homepage last: useful brand context, never a displacement of a match.
+    return [*ranked, *homepage]
 
 
 def _page_block(artifact: SiteFetchArtifact, site_url: SiteUrl) -> dict:
@@ -187,20 +363,18 @@ def _bounded_projection(rows: list[_ContextRow]) -> _ContextProjection:
     analyzer_version = ""
     total_chars = 0
     omissions: list[dict] = []
+    budget_skipped = 0
     for index, (analysis, artifact, site_url) in enumerate(rows):
-        if index >= CONTENT_CONTEXT_MAX_PAGES:
+        if len(pages) >= CONTENT_CONTEXT_MAX_PAGES:
             omissions.append({"reason": "page_limit", "count": len(rows) - index})
             break
         page = _page_block(artifact, site_url)
         page_chars = _page_char_count(page)
         if total_chars + page_chars > CONTENT_CONTEXT_MAX_CHARS:
-            omissions.append(
-                {
-                    "reason": "character_budget",
-                    "count": min(len(rows), CONTENT_CONTEXT_MAX_PAGES) - index,
-                }
-            )
-            break
+            # Skip, don't stop: one oversized page must not truncate every
+            # smaller relevant page ranked behind it.
+            budget_skipped += 1
+            continue
         total_chars += page_chars
         pages.append(page)
         site_url_ids.append(str(site_url.id))
@@ -210,6 +384,8 @@ def _bounded_projection(rows: list[_ContextRow]) -> _ContextProjection:
         fetched_ats.append(fetched_at.isoformat() if fetched_at else None)
         extractor_version = extractor_version or artifact.extractor_version
         analyzer_version = analyzer_version or analysis.analyzer_version
+    if budget_skipped:
+        omissions.append({"reason": "character_budget", "count": budget_skipped})
     return _ContextProjection(
         pages=pages,
         site_url_ids=site_url_ids,
@@ -277,9 +453,20 @@ async def _newest_usable_crawl(
 
 
 async def select_crawl_fragments(
-    session: AsyncSession, *, workspace_id: uuid.UUID, project_id: uuid.UUID
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    query_text: str = "",
+    target_url: str = "",
 ) -> CrawlFragmentSelection:
-    """Select bounded crawl fragments for the grounding-envelope owner."""
+    """Select bounded crawl fragments most relevant to this generation.
+
+    ``query_text`` is the user's prompt (plus any opportunity theme); pages are
+    ranked by lexical overlap with it. ``target_url`` is an explicit rewrite
+    target and always ranks first. With neither, ordering falls back to the
+    deterministic positional tiering.
+    """
     crawl = await _newest_usable_crawl(
         session, workspace_id=workspace_id, project_id=project_id
     )
@@ -319,6 +506,8 @@ async def select_crawl_fragments(
         root_url=root_url,
         root_host=root_host,
         monitored_ids=monitored_ids,
+        query_text=query_text,
+        target_url=target_url,
     )
     projection = _bounded_projection(ordered_rows)
     if not projection.pages:

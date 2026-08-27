@@ -40,16 +40,17 @@ const detail = {
   ...listItem,
   skill_version: 'content-v1',
   feedback: null,
+  feedback_reason: '',
   feedback_at: null,
   prompt: 'Write a landing page for Acme.',
   grounding_summary: {
-    version: 'grounding-envelope-v2',
-    allowed_fact_count: 3,
-    source_ref_count: 4,
-    crawl_fragment_count: 1,
-    prohibited_claim_classes: ['pricing'],
+    version: 'content-context-v1',
+    crawl_page_count: 3,
+    crawl_urls: ['https://acme.test/', 'https://acme.test/pricing', 'https://acme.test/about'],
+    crawl_completed_at: '2026-07-15T00:00:00Z',
+    brand_fields: ['description'],
+    search_connected: false,
     omissions: [],
-    budget: { selected_count: 4, omitted_count: 0, character_count: 1200 },
   },
   finish_reason: null,
   output_truncated: false,
@@ -100,7 +101,7 @@ describe('content generation API', () => {
       { project_id: PROJECT_ID, prompt: 'Write a landing page for Acme.', skill_id: 'article' },
       'idem-key-1',
     );
-    expect(result.grounding_summary.allowed_fact_count).toBe(3);
+    expect(result.grounding_summary.crawl_page_count).toBe(3);
     expect(key).toBe('idem-key-1');
     expect(body).toEqual({
       project_id: PROJECT_ID,
