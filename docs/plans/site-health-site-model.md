@@ -3,13 +3,13 @@
 Four sequential PRs, each merged before the next starts, each in its own chat. Every stage below is
 self-contained enough to hand to a fresh session.
 
-**Status:** PR1 implemented on `feat/site-health-structural-facts`; PR2-PR4 remain planned.
+**Status:** PR1 and PR2 implemented; PR3-PR4 remain planned.
 
 **Guiding constraint:** CiteLadder may confidently report **what it observed**. It must be extremely
 conservative about claiming what a site's structure *is* or what it *must* contain.
 
 **Versions:** every shipped semantic change bumps the relevant replay token, even pre-launch. PR1
-ships `sh-extractor-10`, `sh-classifier-6`, `sh-analyzer-6`, `sh-rules-5`, and `sh-scoring-3`.
+ships `sh-extractor-10`, `sh-classifier-7`, `sh-analyzer-6`, `sh-rules-5`, and `sh-scoring-3`.
 Later PRs must bump the exact extractor, classifier, analyzer, rule, scoring, or formula versions they
 change. A disposable database reset does not replace provenance.
 
@@ -255,7 +255,11 @@ Persist an explicit `coverage_state` on the crawl snapshot: `complete | partial 
 - `unknown` otherwise — discovery can fail without hitting a limit, so not hitting the limit does not
   prove completeness
 
-Every site-level number is rendered beside this state. This is the single most important guard against
+Persist the config-owned coverage-formula version and bounded evidence behind the state (budget,
+frontier, observation, and discovery-task counts plus reason codes). Do not derive this from
+`inventory_complete`: the shipped lifecycle uses that field as an inventory-read projection and it
+can be true after a non-empty discovery without proving frontier exhaustion. PR2 persists the state;
+PR4 renders every site-level number beside it. This is the single most important guard against
 confidently wrong output.
 
 ### 2.2 Transient graph, persisted metrics — `backend/app/analysis/site_health/link_graph.py` (new)
@@ -265,7 +269,9 @@ Build the graph **in memory** from already-persisted anchor facts. Persist only:
 **`SitePageLinkMetric`** — `backend/app/models/site_health/links.py` (new), one row per
 `(crawl_id, site_url_id)`: `inbound_count`, `outbound_count`, `main_content_inbound_count`,
 `main_content_outbound_count`, `nofollow_inbound_count`, `depth_from_home`, `source_page_count`,
-`created_at`. Follow the `SiteUrlObservation` tenancy pattern (bare `mapped_column` for
+bounded `top_inbound` / `top_outbound` JSONB, exact `source_artifact_ids`, `extractor_version`, the
+config-owned link-metric `formula_version`, and `created_at`. Follow the `SiteUrlObservation` tenancy
+pattern (bare `mapped_column` for
 `project_id`/`crawl_id`/`site_url_id`, composite `ForeignKeyConstraint` on
 `(workspace_id, project_id, crawl_id)` and `(workspace_id, project_id, site_url_id)`).
 
@@ -283,8 +289,10 @@ table later only if a feature actually requires it.
   `facts["robots"]["nofollow"]`.
 - URL identity reuses `domain/site_health/normalization.canonical_identity` and
   `url_policy.canonicalize(href, base_url=source_final_url)` — no second normalizer. Nodes resolve via
-  `SiteUrl (project_id, url_hash)`; redirects resolve through a `canonical(final_url) → site_url_id`
-  map from `SiteUrlObservation`. Off-crawl internal targets are counted but are never nodes.
+  `SiteUrl (project_id, url_hash)`. Redirect aliases use the current analysis artifact's acquired
+  `final_url`, augmented by immutable `SiteUrlObservation` aliases: early admission observations can
+  predate the fetch and therefore cannot own redirect truth alone. Off-crawl internal targets are
+  counted but are never nodes.
 
 **Migration:** one new table folded into `migrations/versions/0001_initial.py` per repo policy; bump
 the table-count assertion in `backend/tests/unit/test_migration_revision_baseline.py:38` `109` → `110`.

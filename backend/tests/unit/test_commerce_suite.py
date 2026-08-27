@@ -424,7 +424,8 @@ def test_nested_collection_product_url_is_not_excluded() -> None:
 async def test_competitor_validation_is_bounded_and_records_outcomes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def verify(url: str, fetcher: object) -> bool:
+    async def verify(url: str, fetcher: object, *, target_kind: str) -> bool:
+        assert target_kind == "product"
         return "dead" not in url
 
     monkeypatch.setattr(competitors, "_verify_url", verify)
@@ -436,7 +437,9 @@ async def test_competitor_validation_is_bounded_and_records_outcomes(
         {"url": "https://rival.test/p", "title": "Duplicate"},
     ]
 
-    outcomes, survivors = await _validated_results(results, owned_hosts={"owned.test"})
+    outcomes, survivors = await _validated_results(
+        results, owned_hosts={"owned.test"}, target_kind="product"
+    )
 
     assert [row[0] for row in survivors] == ["https://rival.test/p"]
     assert [row["validation_outcome"] for row in outcomes] == [
@@ -446,6 +449,62 @@ async def test_competitor_validation_is_bounded_and_records_outcomes(
         "accepted",
         "excluded_duplicate",
     ]
+
+
+@pytest.mark.asyncio
+async def test_category_discovery_verifies_category_pages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[tuple[str, str]] = []
+
+    async def verify(url: str, fetcher: object, *, target_kind: str) -> bool:
+        seen.append((url, target_kind))
+        return target_kind == "category"
+
+    monkeypatch.setattr(competitors, "_verify_url", verify)
+
+    outcomes, survivors = await _validated_results(
+        [{"url": "https://rival.test/shoes", "title": "Shoes"}],
+        owned_hosts=set(),
+        target_kind="category",
+    )
+
+    assert seen == [("https://rival.test/shoes", "category")]
+    assert [row[0] for row in survivors] == ["https://rival.test/shoes"]
+    assert outcomes[0]["validation_outcome"] == "accepted"
+
+
+@pytest.mark.asyncio
+async def test_category_verifier_accepts_a_structural_category_only_for_category_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Fetcher:
+        async def fetch(self, *_: object, **__: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                status_code=200,
+                content_type="text/html",
+                body=b"<html></html>",
+                final_url="https://rival.test/shoes",
+                charset="utf-8",
+            )
+
+    monkeypatch.setattr(competitors, "extract_page_facts", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        competitors,
+        "classify",
+        lambda *_args, **_kwargs: SimpleNamespace(page_kind="category"),
+    )
+
+    assert await competitors._verify_url(
+        "https://rival.test/shoes",
+        Fetcher(),
+        target_kind="category",  # type: ignore[arg-type]
+    )
+    assert not await competitors._verify_url(
+        "https://rival.test/shoes",
+        Fetcher(),
+        target_kind="product",  # type: ignore[arg-type]
+    )
 
 
 def test_owned_host_normalization_accepts_urls_and_bare_domains() -> None:
@@ -708,7 +767,8 @@ async def test_marketplace_hosts_are_never_competitors(
 ) -> None:
     """Poshmark and Stylight listings were returned as competing brands."""
 
-    async def verify(url: str, fetcher: object) -> bool:
+    async def verify(url: str, fetcher: object, *, target_kind: str) -> bool:
+        assert target_kind == "product"
         return True
 
     monkeypatch.setattr(competitors, "_verify_url", verify)
@@ -718,7 +778,9 @@ async def test_marketplace_hosts_are_never_competitors(
         {"url": "https://rival.test/p", "title": "Rival"},
     ]
 
-    outcomes, survivors = await _validated_results(results, owned_hosts={"owned.test"})
+    outcomes, survivors = await _validated_results(
+        results, owned_hosts={"owned.test"}, target_kind="product"
+    )
 
     assert [row[0] for row in survivors] == ["https://rival.test/p"]
     assert [row["validation_outcome"] for row in outcomes] == [
@@ -734,7 +796,8 @@ async def test_a_failed_verification_does_not_consume_an_accept_slot(
 ) -> None:
     """Verification runs concurrently, but the limit still counts acceptances."""
 
-    async def verify(url: str, fetcher: object) -> bool:
+    async def verify(url: str, fetcher: object, *, target_kind: str) -> bool:
+        assert target_kind == "product"
         return "dead" not in url
 
     monkeypatch.setattr(competitors, "_verify_url", verify)
@@ -743,7 +806,9 @@ async def test_a_failed_verification_does_not_consume_an_accept_slot(
         for index in range(6)
     ]
 
-    outcomes, survivors = await _validated_results(results, owned_hosts=set())
+    outcomes, survivors = await _validated_results(
+        results, owned_hosts=set(), target_kind="product"
+    )
 
     assert len(survivors) == 5
     assert [row["validation_outcome"] for row in outcomes] == [

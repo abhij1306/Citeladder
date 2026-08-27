@@ -258,7 +258,7 @@ async def _add_free_sample(
             url_hash_value=url_hash_value,
             task_kind=TASK_KIND_ANALYZE,
             depth=depth,
-            priority=1,
+            priority=value_priority,
             phase_run_id=phase_run_id,
         )
     return activated_id is not None, observation_id is not None

@@ -121,6 +121,7 @@ from app.models.site_health.crawl import (
     SiteDiscoveryFrontier,
 )
 from app.models.site_health.events import SiteCrawlEvent
+from app.models.site_health.links import SitePageLinkMetric
 from app.models.site_health.queue import SiteCrawlTask
 from app.models.site_health.runtime import SiteHealthProfile, WorkspaceSiteHealthRuntime
 from app.models.site_health.snapshot import SiteHealthSnapshot
@@ -225,6 +226,7 @@ __all__ = [
     "SiteHealthSnapshot",
     "SiteIssue",
     "SitePageAnalysis",
+    "SitePageLinkMetric",
     "SiteRuleEvaluation",
     "SiteUrl",
     "SiteUrlObservation",

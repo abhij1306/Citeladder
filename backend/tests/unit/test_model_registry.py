@@ -25,6 +25,7 @@ def test_models_are_exported_and_registered_once() -> None:
         "SiteFetchAttempt": "site_fetch_attempts",
         "SiteFetchArtifact": "site_fetch_artifacts",
         "SitePageAnalysis": "site_page_analyses",
+        "SitePageLinkMetric": "site_page_link_metrics",
         "SiteRuleEvaluation": "site_rule_evaluations",
         "SiteIssue": "site_issues",
         "SiteHealthSnapshot": "site_health_snapshots",
@@ -77,3 +78,10 @@ def test_site_health_critical_metadata_contracts() -> None:
         constraint.name for constraint in analysis.constraints
     }
     assert "uq_site_page_analysis_current" in {index.name for index in analysis.indexes}
+
+    link_metric = models.SitePageLinkMetric.__table__
+    assert {
+        "fk_site_page_link_metric_crawl_scoped",
+        "fk_site_page_link_metric_site_url_scoped",
+        "uq_site_page_link_metric",
+    } <= {constraint.name for constraint in link_metric.constraints}

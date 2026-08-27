@@ -4,7 +4,7 @@ Commerce currently exposes four `/products` tabs: **Catalog**, **Competitors**, 
 
 ## Catalog
 
-Site Health extractor `sh-extractor-10`, analyzer `sh-analyzer-6`, and classifier `sh-classifier-6` emit generic category and PDP facts. The Commerce projector `commerce-projector-3` creates the persisted catalog from those analyses. Structured Product price is preferred; when it is absent, a validated visible PDP price is retained with its evidence path. A normalized canonical PDP URL is the primary product identity; GTIN, SKU, and MPN are secondary merge evidence.
+Site Health extractor `sh-extractor-10`, analyzer `sh-analyzer-6`, and classifier `sh-classifier-7` emit generic category and PDP facts. The Commerce projector `commerce-projector-3` creates the persisted catalog from those analyses. Structured Product price is preferred; when it is absent, a validated visible PDP price is retained with its evidence path. A normalized canonical PDP URL is the primary product identity; GTIN, SKU, and MPN are secondary merge evidence.
 
 CSV imports and explicit edits are append-only observations. Current product rows are read projections whose `field_sources` identify the exact observation and version controlling every field. CSV and edit authority is not silently overwritten by later crawl projection. Imports are content-hash idempotent and expose bounded, row-level outcomes.
 
@@ -15,8 +15,8 @@ also create append-only observations and retain field-level authority over later
 projection refreshes. The Commerce rail renders products beneath every category
 they belong to, keeps products without a projected category under
 `Uncategorized`, and keeps catalog search pinned as an opaque first row while
-the list scrolls. Categories are collapsed initially, show their persisted
-product count, and expose a disclosure control only when projected child
+the list scrolls. Categories are ordered by descending persisted product count,
+then by name; they are collapsed initially, show that count, and expose a disclosure control only when projected child
 products exist. Bulk checking a category includes that category and all of its
 product targets; opening or expanding a category remains a separate navigation
 action.
@@ -27,10 +27,11 @@ Discovery runs as a queued, versioned attempt whose status is exposed to the
 workspace until it terminalizes. Tavily is optional; an unavailable provider
 produces an explicit unavailable state. Product queries include bounded product
 type, attribute, and price-band context; category queries retain their separate
-brand-and-representative-product form. Candidate URLs pass deterministic
-path/domain filters, the shared safe fetcher, and deterministic PDP
-classification before persistence. Candidates remain pending until approved or
-rejected and cannot enter measurement before approval.
+merchant-intent form. Candidate URLs pass deterministic path/domain filters,
+the shared safe fetcher, and target-aware deterministic classification before
+persistence: product discovery requires a PDP and category discovery requires
+a category/listing page. Candidates remain pending until approved or rejected
+and cannot enter measurement before approval.
 
 ## Buyer Prompts
 

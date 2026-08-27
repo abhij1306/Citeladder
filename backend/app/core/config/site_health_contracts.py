@@ -121,11 +121,18 @@ TASK_KIND_ANALYZE: Final = "analyze"
 
 TASK_KIND_CHANGE_INTEL: Final = "change_intel"
 
+TASK_KIND_LINK_METRICS: Final = "link_metrics"
+
+POST_TERMINAL_SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
+    {TASK_KIND_CHANGE_INTEL, TASK_KIND_LINK_METRICS}
+)
+
 SITE_TASK_KINDS: Final[frozenset[str]] = frozenset(
     {
         TASK_KIND_DISCOVER,
         TASK_KIND_ANALYZE,
         TASK_KIND_CHANGE_INTEL,
+        TASK_KIND_LINK_METRICS,
     }
 )
 
@@ -320,4 +327,4 @@ RULE_CATALOG_VERSION: Final = "sh-rules-5"
 
 SCORING_VERSION: Final = "sh-scoring-3"
 
-CLASSIFIER_VERSION: Final = "sh-classifier-6"
+CLASSIFIER_VERSION: Final = "sh-classifier-7"

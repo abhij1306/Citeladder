@@ -61,6 +61,35 @@ async def test_catalog_import_is_idempotent_with_row_outcomes(
 
 
 @pytest.mark.asyncio
+async def test_catalog_orders_categories_by_product_count_descending(
+    client: httpx.AsyncClient,
+) -> None:
+    await _register(client, "commerce-category-order@example.com")
+    project = await _project(client)
+    response = await client.post(
+        f"/api/v1/projects/{project['id']}/commerce/catalog/import",
+        json={
+            "filename": "catalog.csv",
+            "content_type": "text/csv",
+            "content": (
+                "canonical_url,name,category\n"
+                "https://shop.example/products/one,One,Small\n"
+                "https://shop.example/products/two,Two,Large\n"
+                "https://shop.example/products/three,Three,Large\n"
+            ),
+        },
+    )
+    assert response.status_code == 201
+
+    catalog = await client.get(f"/api/v1/projects/{project['id']}/commerce/catalog")
+
+    assert catalog.status_code == 200
+    assert [
+        (row["name"], row["product_count"]) for row in catalog.json()["categories"]
+    ] == [("Large", 2), ("Small", 1)]
+
+
+@pytest.mark.asyncio
 async def test_commerce_catalog_is_workspace_isolated(
     client: httpx.AsyncClient,
 ) -> None:

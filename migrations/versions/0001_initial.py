@@ -2385,6 +2385,13 @@ def upgrade() -> None:
         sa.Column(
             "category_counts", postgresql.JSONB(astext_type=Text()), nullable=True
         ),
+        sa.Column("coverage_state", sa.String(length=16), nullable=False),
+        sa.Column(
+            "coverage_evidence", postgresql.JSONB(astext_type=Text()), nullable=True
+        ),
+        sa.Column(
+            "coverage_formula_version", sa.String(length=32), nullable=False
+        ),
         sa.Column("source_analysis_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("source_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
         sa.Column("source_evaluation_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
@@ -3794,6 +3801,50 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
+        "site_page_link_metrics",
+        sa.Column("id", sa.UUID(), nullable=False),
+        sa.Column("workspace_id", sa.UUID(), nullable=False),
+        sa.Column("project_id", sa.UUID(), nullable=False),
+        sa.Column("crawl_id", sa.UUID(), nullable=False),
+        sa.Column("site_url_id", sa.UUID(), nullable=False),
+        sa.Column("inbound_count", sa.Integer(), nullable=False),
+        sa.Column("outbound_count", sa.Integer(), nullable=False),
+        sa.Column("main_content_inbound_count", sa.Integer(), nullable=False),
+        sa.Column("main_content_outbound_count", sa.Integer(), nullable=False),
+        sa.Column("nofollow_inbound_count", sa.Integer(), nullable=False),
+        sa.Column("depth_from_home", sa.Integer(), nullable=True),
+        sa.Column("source_page_count", sa.Integer(), nullable=False),
+        sa.Column("top_inbound", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("top_outbound", postgresql.JSONB(astext_type=Text()), nullable=True),
+        sa.Column("source_artifact_ids", postgresql.ARRAY(sa.UUID()), nullable=True),
+        sa.Column("extractor_version", sa.String(length=32), nullable=False),
+        sa.Column("formula_version", sa.String(length=32), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["workspace_id", "project_id", "crawl_id"],
+            ["site_crawls.workspace_id", "site_crawls.project_id", "site_crawls.id"],
+            name="fk_site_page_link_metric_crawl_scoped",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id", "project_id", "site_url_id"],
+            ["site_urls.workspace_id", "site_urls.project_id", "site_urls.id"],
+            name="fk_site_page_link_metric_site_url_scoped",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["workspace_id"], ["workspaces.id"], ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "crawl_id", "site_url_id", name="uq_site_page_link_metric"
+        ),
+    )
+    _create_indexes(
+        "site_page_link_metrics",
+        ("workspace_id", "project_id", "crawl_id", "site_url_id"),
+    )
+    op.create_table(
         "brand_mentions",
         sa.Column("id", sa.UUID(), nullable=False),
         sa.Column("workspace_id", sa.UUID(), nullable=False),
@@ -5101,6 +5152,7 @@ def downgrade() -> None:
     # retired authorities. Drop the explicit final table set instead.
     final_tables = (
         "site_issues",
+        "site_page_link_metrics",
         "site_change_observations",
         "referral_classifications",
         "opportunity_verification_events",

@@ -149,6 +149,13 @@ async def get_catalog(
         ).all()
     )
     by_product, by_category = await _memberships(session, project_id=project_id)
+    categories.sort(
+        key=lambda row: (
+            -by_category[row.id],
+            row.name.casefold(),
+            str(row.id),
+        )
+    )
     queue_rows = (
         await session.execute(
             select(AnalyticsTask.status, func.count())

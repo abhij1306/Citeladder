@@ -54,6 +54,9 @@ class SiteHealthSnapshot(Base):
     issue_count: Mapped[int] = mapped_column(Integer, default=0)
     severity_counts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     category_counts: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    coverage_state: Mapped[str] = mapped_column(String(16), default="unknown")
+    coverage_evidence: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    coverage_formula_version: Mapped[str] = mapped_column(String(32), default="")
     source_analysis_ids: Mapped[list | None] = mapped_column(
         ARRAY(PGUUID(as_uuid=True)), nullable=True
     )

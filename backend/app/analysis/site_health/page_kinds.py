@@ -438,14 +438,20 @@ def _structural_signals(
 def _product_evidence(facts: dict, product: dict) -> str:
     """Decisive product evidence, or "" when the page has not shown any.
 
-    Two independent routes so neither markup nor rendering alone is required:
-    one unambiguous Product node with an Offer, or a real buy box in the
-    page's own region with a corroborator. Both are scoped outside every
-    repeated card list, which is what stops a recommendation carousel on a
+    A real buy box in the page's own region needs a corroborator. A product
+    without an active purchase control can instead use a primary-region price
+    plus an explicit product-detail heading. Both routes stay scoped outside
+    every repeated card list, which stops a recommendation carousel on a
     returns-policy page from speaking for that page.
     """
-    if not (product.get("has_primary_price") and product.get("has_purchase_control")):
+    if not product.get("has_primary_price"):
         return ""
+    if not product.get("has_purchase_control"):
+        return (
+            "primary_price+product_heading"
+            if _has_product_detail_heading(facts)
+            else ""
+        )
     corroborated = (
         product.get("has_variant_control")
         or product.get("has_sku_marker")
@@ -453,6 +459,15 @@ def _product_evidence(facts: dict, product: dict) -> str:
         or _single_product_schema(facts)
     )
     return "primary_buy_box" if corroborated else ""
+
+
+def _has_product_detail_heading(facts: dict) -> bool:
+    headings = _mapping(facts.get("headings"))
+    normalized = {
+        " ".join(re.findall(r"[a-z0-9]+", heading.lower()))
+        for heading in _str_sequence(headings.get("h2_texts"))
+    }
+    return bool(normalized & _config.PRODUCT_DETAIL_HEADING_PHRASES)
 
 
 def _single_product_schema(facts: dict) -> bool:

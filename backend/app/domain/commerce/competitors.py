@@ -28,6 +28,7 @@ from app.core.config.commerce_catalog import (
     COMMERCE_COMPETITOR_EXCLUDED_HOST_SUFFIXES,
     COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS,
     COMMERCE_COMPETITOR_KEENABLE_SNIPPET_CHARS,
+    COMMERCE_COMPETITOR_PAGE_KINDS_BY_TARGET,
     COMMERCE_COMPETITOR_PRICE_BANDS,
     COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT,
     COMMERCE_COMPETITOR_QUERY_ATTRIBUTE_LIMIT,
@@ -454,7 +455,7 @@ def _editorial(lowered: str) -> bool:
     return any(pattern.search(lowered) for pattern in _EDITORIAL)
 
 
-async def _verify_url(url: str, fetcher: SecureFetcher) -> bool:
+async def _verify_url(url: str, fetcher: SecureFetcher, *, target_kind: str) -> bool:
     request = FetchRequest(url=url, purpose=FETCH_PURPOSE_ANALYZE)
     try:
         result = await fetcher.fetch(request, enforce_scope=False)
@@ -479,9 +480,13 @@ async def _verify_url(url: str, fetcher: SecureFetcher) -> bool:
     has_visible_identity = bool(facts.get("title")) and bool(
         (facts.get("commerce") or {}).get("visible_price")
     )
-    return assessment.page_kind == "product" and (
-        has_product_identity or has_visible_identity
-    )
+    if assessment.page_kind not in COMMERCE_COMPETITOR_PAGE_KINDS_BY_TARGET.get(
+        target_kind, frozenset()
+    ):
+        return False
+    if target_kind == "category":
+        return True
+    return has_product_identity or has_visible_identity
 
 
 async def run_competitor_discovery(session_factory, task: AnalyticsTask) -> None:
@@ -610,7 +615,9 @@ async def _persist_discovery(
     survivors: list[tuple[str, str, str]] = []
     if status == "succeeded":
         result_payload, survivors = await _validated_results(
-            results, owned_hosts=await _owned_hosts(session, project=project)
+            results,
+            owned_hosts=await _owned_hosts(session, project=project),
+            target_kind=target.kind,
         )
     attempt = CommerceCompetitorAttempt(
         workspace_id=task.workspace_id,
@@ -635,7 +642,7 @@ async def _persist_discovery(
 
 
 async def _validated_results(
-    results: list[dict[str, Any]], *, owned_hosts: set[str]
+    results: list[dict[str, Any]], *, owned_hosts: set[str], target_kind: str
 ) -> tuple[list[dict[str, Any]], list[tuple[str, str, str]]]:
     """Pre-check every result deterministically, then verify the survivors.
 
@@ -648,7 +655,8 @@ async def _validated_results(
     """
     prechecked = _prechecked_results(results, owned_hosts=owned_hosts)
     verified = await _verified_urls(
-        [checked for _, checked, _ in prechecked if checked is not None]
+        [checked for _, checked, _ in prechecked if checked is not None],
+        target_kind=target_kind,
     )
     return _admitted_results(prechecked, verified)
 
@@ -673,7 +681,9 @@ def _prechecked_results(
     return prechecked
 
 
-async def _verified_urls(candidates: list[tuple[str, str, str]]) -> dict[str, bool]:
+async def _verified_urls(
+    candidates: list[tuple[str, str, str]], *, target_kind: str
+) -> dict[str, bool]:
     """Fetch the surviving candidates concurrently over one shared fetcher."""
     if not candidates:
         return {}
@@ -683,7 +693,7 @@ async def _verified_urls(candidates: list[tuple[str, str, str]]) -> dict[str, bo
         async with semaphore:
             try:
                 async with asyncio.timeout(COMMERCE_COMPETITOR_VERIFY_TIMEOUT_SECONDS):
-                    return url, await _verify_url(url, fetcher)
+                    return url, await _verify_url(url, fetcher, target_kind=target_kind)
             except Exception:  # noqa: BLE001 - one bad page never fails a run
                 return url, False
 

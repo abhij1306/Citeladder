@@ -17,7 +17,7 @@ MANUAL_PHASE_LIFECYCLE_KEY: Final = "manual_phase_lifecycle"
 SAMPLE_URL_LIMIT: Final = 10
 SAMPLE_DISCOVERY_URL_CAP: Final = 200
 
-URL_ADMISSION_POLICY_VERSION: Final = "sh-url-admission-2"
+URL_ADMISSION_POLICY_VERSION: Final = "sh-url-admission-3"
 INPUT_MODE_AUTO: Final = "auto"
 INPUT_MODE_EXACT_URLS: Final = "exact_urls"
 INPUT_MODE_DISCOVERY_SEEDS: Final = "discovery_seeds"
@@ -72,6 +72,7 @@ URL_HARD_EXCLUSION_PATH_PATTERNS: Final[tuple[str, ...]] = (
     r"(?:^|/)(?:cart|basket|checkout|payment|payments|order|orders|wishlist)(?:/|$)",
     r"(?:^|/)(?:search|tag|tags|author|authors|feed)(?:/|$)",
     r"(?:^|/)(?:viewcart|searchsuggestion)(?:/|$)",
+    r"(?:^|/)item/(?:payments?[-_][^/]*|product[-_](?:delivery|warranty))(?:/|$)",
     r"(?:^|/)(?:preview|print|share)(?:/|$)",
 )
 # The same non-content endpoints as the path patterns above, but named by

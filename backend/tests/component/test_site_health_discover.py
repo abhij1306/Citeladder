@@ -43,6 +43,7 @@ from app.core.config.site_health_contracts import (
     TASK_KIND_DISCOVER,
 )
 from app.core.config.site_health_crawl_policy import (
+    AUTOMATIC_MONITOR_LIMIT_KEY,
     SELECTION_SOURCE_FREE_SAMPLE,
 )
 from app.core.config.site_health_runtime import (
@@ -81,6 +82,52 @@ from tests.component.site_health_worker_helpers import (
     _seed_runtime,
     _worker,
 )
+
+
+@pytest.mark.asyncio
+async def test_progressive_analysis_keeps_discovered_page_priority(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    root = "https://example.com/"
+    child = "https://example.com/products/widget"
+    seed = await _seed_root_discover(session_factory, root=root)
+    async with session_factory() as session:
+        crawl = await session.get(SiteCrawl, seed.crawl_id)
+        assert crawl is not None
+        crawl.configuration = {
+            **(crawl.configuration or {}),
+            AUTOMATIC_MONITOR_LIMIT_KEY: 2,
+        }
+        await session.commit()
+    worker = _worker(
+        session_factory,
+        {"/": _html([child]), "/products/widget": _html([])},
+        owner="progressive-priority",
+    )
+
+    assert await worker.run_once() == 1
+
+    _canonical, child_hash = canonical_identity(child)
+    async with session_factory() as session:
+        child_tasks = list(
+            (
+                await session.scalars(
+                    select(SiteCrawlTask).where(
+                        SiteCrawlTask.crawl_id == seed.crawl_id,
+                        SiteCrawlTask.url_hash == child_hash,
+                    )
+                )
+            ).all()
+        )
+        tasks_by_kind = {task.task_kind: task for task in child_tasks}
+        discover = tasks_by_kind[TASK_KIND_DISCOVER]
+        analyze = tasks_by_kind[TASK_KIND_ANALYZE]
+        assert discover.priority > 1
+        assert analyze.priority == discover.priority
+
+    claimed = await worker._claim_one()
+    assert claimed is not None
+    assert claimed.task_kind == TASK_KIND_ANALYZE
 
 
 @pytest.mark.asyncio
@@ -549,8 +596,8 @@ async def test_free_sample_stops_at_ten_across_two_projects(
         )
         assert any(u in set(links_b) for u in monitored_urls)
 
-        # Auto-enqueued analyze tasks (priority=1 by the sample path) are
-        # now claimable and EXECUTED by the worker (Task 5): the workspace-wide
+        # Auto-enqueued analyze tasks retain their discovery value priority and
+        # are now claimable and EXECUTED by the worker: the workspace-wide
         # free-sample cap of 10 still holds (10 monitored URLs -> 10 analyze
         # tasks total), but they are succeeded rather than left queued.
         analyze_statuses = (

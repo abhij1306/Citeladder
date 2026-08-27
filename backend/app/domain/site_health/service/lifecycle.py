@@ -51,6 +51,7 @@ from app.domain.entitlements.service import (
     refresh_site_health_runtime_for_workspace,
 )
 from app.domain.site_health.change_queue import enqueue_change_refresh
+from app.domain.site_health.link_queue import enqueue_link_metric_refresh
 from app.domain.site_health.phase import resolve_phase
 from app.domain.site_health.service.common import (
     _CRAWL_NOT_FOUND,
@@ -418,6 +419,7 @@ async def cancel_crawl(
     )
     if snapshot_written:
         await enqueue_change_refresh(session, crawl=crawl)
+        await enqueue_link_metric_refresh(session, crawl=crawl)
     await session.commit()
 
     refreshed = await _load_crawl(session, workspace_id=workspace_id, crawl_id=crawl_id)

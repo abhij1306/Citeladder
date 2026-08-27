@@ -41,6 +41,8 @@ from app.core.config.site_health_contracts import (
     PAGE_ANALYSIS_STATUS_COMPLETED,
     SCORING_VERSION,
 )
+from app.core.config.site_health_link_metrics import COVERAGE_FORMULA_VERSION
+from app.domain.site_health.coverage import crawl_coverage
 from app.models.site_health.analysis import SiteIssue, SitePageAnalysis
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.snapshot import SiteHealthSnapshot
@@ -196,6 +198,7 @@ async def persist_crawl_snapshot(
 
     analyzer_version = crawl.analyzer_version or ANALYZER_VERSION
     scoring_version = crawl.scoring_version or SCORING_VERSION
+    coverage = await crawl_coverage(session, crawl=crawl)
 
     # One immutable snapshot per crawl. ``ON CONFLICT DO NOTHING`` makes this
     # safe if the worker and a cancel both reach terminalization (the earliest
@@ -215,6 +218,9 @@ async def persist_crawl_snapshot(
             issue_count=issue_total,
             severity_counts=severity_counts,
             category_counts=category_counts,
+            coverage_state=coverage.state,
+            coverage_evidence=coverage.evidence,
+            coverage_formula_version=COVERAGE_FORMULA_VERSION,
             source_analysis_ids=analysis_ids,
             source_artifact_ids=artifact_ids,
             source_evaluation_ids=evaluation_ids,

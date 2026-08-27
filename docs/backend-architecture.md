@@ -256,6 +256,15 @@ projects route `change -> Demand -> Opportunities`; site-only projects route
 `change -> Opportunities`. Retries reuse projection and task
 identities, so no successor can race or duplicate a predecessor.
 
+The same terminal boundary independently enqueues a versioned, retryable
+internal-link metric task. It constructs no durable edge graph: current page
+analysis artifacts supply bounded anchor facts, and one workspace/project/crawl
+scoped `SitePageLinkMetric` row per page stores counts, followable depth,
+bounded neighbours, exact source artifact IDs, and extractor/formula versions.
+The crawl snapshot separately freezes `complete | partial | unknown` coverage
+with its formula version and reason evidence; `inventory_complete` is not used
+as a completeness claim.
+
 The AEO Readiness endpoint is a separate read-only projection over those same
 persisted current page analyses and rule evaluations. It requires the crawl's
 exact analyzer/extractor versions, maps only the 20 config-declared rule IDs

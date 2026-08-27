@@ -12,7 +12,7 @@ COMMERCE_IMPORTER_VERSION: Final = "commerce-catalog-importer-1"
 COMMERCE_EDIT_VERSION: Final = "commerce-catalog-edit-2"
 COMMERCE_CATEGORY_EDIT_VERSION: Final = "commerce-category-edit-1"
 COMMERCE_COMPETITOR_PROVIDER_VERSION: Final = "tavily-commerce-1"
-COMMERCE_COMPETITOR_VALIDATOR_VERSION: Final = "commerce-competitor-validator-4"
+COMMERCE_COMPETITOR_VALIDATOR_VERSION: Final = "commerce-competitor-validator-5"
 COMMERCE_PROMPT_TEMPLATE_VERSION: Final = "commerce-buyer-prompts-3"
 COMMERCE_RECOMMENDATION_PARSER_VERSION: Final = "commerce-recommendation-parser-3"
 COMMERCE_RECOMMENDATION_MATCHER_VERSION: Final = "commerce-recommendation-matcher-3"
@@ -51,6 +51,10 @@ COMMERCE_COMPETITOR_PRICE_BANDS: Final[tuple[tuple[float, str], ...]] = (
 )
 
 COMMERCE_TARGET_KINDS: Final = frozenset({"category", "product"})
+COMMERCE_COMPETITOR_PAGE_KINDS_BY_TARGET: Final[dict[str, frozenset[str]]] = {
+    "category": frozenset({"category"}),
+    "product": frozenset({"product"}),
+}
 COMMERCE_CATEGORY_ROLES: Final = frozenset({"hub", "leaf", "unknown"})
 COMMERCE_LIFECYCLE_STATES: Final = frozenset({"active", "archived"})
 COMMERCE_COMPETITOR_STATES: Final = frozenset(

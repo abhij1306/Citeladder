@@ -48,9 +48,12 @@ from app.core.config.site_health_contracts import (
     CRAWL_STATUS_RUNNING,
     CRAWL_TERMINAL_STATUSES,
     EXTRACTOR_VERSION,
+    POST_TERMINAL_SITE_TASK_KINDS,
+    SITE_TASK_KINDS,
     TASK_KIND_ANALYZE,
     TASK_KIND_CHANGE_INTEL,
     TASK_KIND_DISCOVER,
+    TASK_KIND_LINK_METRICS,
 )
 from app.core.config.site_health_runtime import (
     SITE_CRAWL_QUEUE_SPEC,
@@ -95,6 +98,7 @@ from app.workers.site_health.phases import (
     AnalyzePhaseMixin,
     ChangeIntelPhaseMixin,
     DiscoverPhaseMixin,
+    LinkMetricsPhaseMixin,
 )
 from app.workers.site_health.urls import authority_key as _authority_key
 
@@ -111,6 +115,7 @@ class SiteHealthWorker(
     DiscoverPhaseMixin,
     AnalyzePhaseMixin,
     ChangeIntelPhaseMixin,
+    LinkMetricsPhaseMixin,
     DrainableWorkerMixin,
 ):
     """Owns a claim/lease loop over ``SiteCrawlTask`` discover rows.
@@ -177,13 +182,7 @@ class SiteHealthWorker(
             site_health_settings.global_concurrency,
         )
         tasks = await self._queue.claim(
-            owner=self.owner,
-            limit=claim_limit,
-            kinds=[
-                TASK_KIND_DISCOVER,
-                TASK_KIND_ANALYZE,
-                TASK_KIND_CHANGE_INTEL,
-            ],
+            owner=self.owner, limit=claim_limit, kinds=sorted(SITE_TASK_KINDS)
         )
         if tasks:
             # ``return_exceptions`` waits for EVERY claimed task before any
@@ -214,11 +213,7 @@ class SiteHealthWorker(
             claimed = await self._queue.claim(
                 owner=self.owner,
                 limit=1,
-                kinds=[
-                    TASK_KIND_DISCOVER,
-                    TASK_KIND_ANALYZE,
-                    TASK_KIND_CHANGE_INTEL,
-                ],
+                kinds=sorted(SITE_TASK_KINDS),
             )
         except Exception:  # a DB blip must not kill the slot
             logger.exception("site health claim failed")
@@ -360,7 +355,7 @@ class SiteHealthWorker(
                 await self._queue.cancel(task_id=task_id)
                 return False
             terminal_refresh = (
-                kind == TASK_KIND_CHANGE_INTEL
+                kind in POST_TERMINAL_SITE_TASK_KINDS
                 and crawl.status in CRAWL_TERMINAL_STATUSES
             )
             # Once the crawl is running, preparation is a read-only liveness
@@ -409,6 +404,10 @@ class SiteHealthWorker(
             await self._run_change_intel(
                 claimed.id, claimed.crawl_id, claimed.workspace_id
             )
+        elif kind == TASK_KIND_LINK_METRICS:
+            await self._run_link_metrics(
+                claimed.id, claimed.crawl_id, claimed.workspace_id
+            )
         else:
             raise NotImplementedError(f"unknown task kind '{kind}'")
 
@@ -449,7 +448,7 @@ class SiteHealthWorker(
         finally:
             # Change intelligence runs after terminalization; acquisition and
             # analysis task completion is what reconciles the crawl itself.
-            if kind != TASK_KIND_CHANGE_INTEL:
+            if kind not in POST_TERMINAL_SITE_TASK_KINDS:
                 await self._reconcile_crawl_status(crawl_id)
 
     def _ensure_running(self, crawl: SiteCrawl) -> None:

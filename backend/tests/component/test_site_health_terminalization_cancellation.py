@@ -20,6 +20,7 @@ from app.core.config.analytics import (
 from app.core.config.site_health_contracts import (
     TASK_KIND_ANALYZE,
     TASK_KIND_CHANGE_INTEL,
+    TASK_KIND_LINK_METRICS,
 )
 from app.core.config.task_queue import (
     TASK_STATUS_CANCELLED,
@@ -246,7 +247,7 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
                 SiteCrawlTask.status == TASK_STATUS_QUEUED,
             )
         )
-        assert queued == 1
+        assert queued == 2
         change_task = await session.scalar(
             select(SiteCrawlTask).where(
                 SiteCrawlTask.crawl_id == seed.crawl_id,
@@ -254,6 +255,14 @@ async def test_cancel_crawl_persists_partial_snapshot_from_completed_analyses(
             )
         )
         assert change_task is not None
+        link_metric_task = await session.scalar(
+            select(SiteCrawlTask).where(
+                SiteCrawlTask.crawl_id == seed.crawl_id,
+                SiteCrawlTask.task_kind == TASK_KIND_LINK_METRICS,
+                SiteCrawlTask.status == TASK_STATUS_QUEUED,
+            )
+        )
+        assert link_metric_task is not None
         verification = await session.scalar(
             select(AnalyticsTask).where(
                 AnalyticsTask.project_id == seed.project_id,

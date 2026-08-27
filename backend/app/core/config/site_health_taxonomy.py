@@ -252,6 +252,13 @@ REGION_MAX_TEXT_CHARS: Final = 200_000
 # radio inputs sharing a name.
 VARIANT_MIN_OPTIONS: Final = 2
 
+# Explicit headings that identify the page's own product-detail region. These
+# corroborate a primary-region price when a product is unavailable or otherwise
+# has no active purchase control.
+PRODUCT_DETAIL_HEADING_PHRASES: Final[frozenset[str]] = frozenset(
+    {"product description", "product details", "product information"}
+)
+
 # Small, generic control vocabularies. These name UI affordances, not industries.
 RESULT_COUNT_PATTERN: Final = r"\b\d{1,6}\s*(?:results?|items?|products?)\b"
 

@@ -147,6 +147,22 @@ analyses skips both projections but carries its crawl identity through the same
 bounded downstream path so stale Site Opportunities are superseded. A
 cancellation before any usable analysis enqueues none.
 
+Every terminal crawl snapshot freezes a conservative coverage state:
+`complete`, `partial`, or `unknown`, with a formula version and bounded reason
+evidence. Complete requires a successfully exhausted discovery frontier below
+the frozen page/frontier limits. A reached budget, pending frontier, bounded
+sample/manual/rerun, or cancellation is partial. A discovery failure without a
+limit signal is unknown. The older `inventory_complete` presentation field is
+not evidence of complete site coverage.
+
+Successful terminal crawls also enqueue a retryable internal-link projection
+outside crawl finalization. It builds a transient graph from persisted current
+analysis artifacts and stores one versioned `SitePageLinkMetric` per crawled
+page: inbound/outbound and main-content counts, nofollow inbound count,
+ordinary followable-link depth from home, bounded top neighbours, exact source
+artifact IDs, and formula/extractor versions. Raw edges, PageRank, and authority
+scores are not persisted.
+
 ## AEO Readiness
 
 `GET /api/v1/projects/{project_id}/site-health/aeo-readiness` is a read-only
@@ -313,8 +329,9 @@ placeholder identity owner is introduced.
 
 Current versions are owned in the focused `backend/app/core/config/site_health_*`
 modules. The structural-facts slice ships extractor `sh-extractor-10`, classifier
-`sh-classifier-6`, analyzer `sh-analyzer-6`, rule catalog `sh-rules-5`, and
-scoring `sh-scoring-3`; tests pin persistence and replay behavior.
+`sh-classifier-7`, analyzer `sh-analyzer-6`, rule catalog `sh-rules-5`, and
+scoring `sh-scoring-3`. Coverage uses `sh-coverage-1` and internal-link metrics
+use `sh-link-metrics-1`; tests pin persistence and replay behavior.
 
 ## Known boundary
 

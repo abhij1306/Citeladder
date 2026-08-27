@@ -77,6 +77,7 @@ from app.core.config.task_queue import (
 )
 from app.domain.site_health.change_queue import enqueue_change_refresh
 from app.domain.site_health.failure import load_root_failure_summary
+from app.domain.site_health.link_queue import enqueue_link_metric_refresh
 from app.domain.site_health.state_events import (
     apply_analysis_status,
     apply_crawl_status,
@@ -403,6 +404,7 @@ class CrawlLifecycle(CrawlFinalizeMixin):
         )
         if summary.analyze_succeeded > 0:
             await enqueue_change_refresh(session, crawl=crawl)
+            await enqueue_link_metric_refresh(session, crawl=crawl)
         else:
             await enqueue_terminal_analytics_refresh(
                 session, crawl=crawl, change_snapshot_id=None

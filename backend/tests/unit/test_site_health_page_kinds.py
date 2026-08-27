@@ -226,6 +226,27 @@ def test_primary_buy_box_overrides_ancestor_category_path() -> None:
     assert assessment.confidence == PAGE_KIND_CONFIDENCE_MEDIUM
 
 
+def test_primary_price_and_product_heading_classify_without_purchase_control() -> None:
+    assessment = classify(
+        "https://example.com/catalogue/a-light-in-the-attic_1000/index.html",
+        _facts(
+            h2_texts=["Product Description", "Product Information"],
+            entity={
+                "product": {
+                    "has_primary_price": True,
+                    "has_purchase_control": False,
+                    "has_variant_control": False,
+                    "has_sku_marker": False,
+                }
+            },
+        ),
+    )
+
+    assert assessment.page_kind == "product"
+    assert assessment.classified_by == PAGE_KIND_SIGNAL_PRIMARY_PRODUCT
+    assert assessment.signals[0]["detail"] == "primary_price+product_heading"
+
+
 def test_recommendation_carousel_cannot_make_a_policy_page_a_product() -> None:
     # The whole-body "price + cart marker anywhere" heuristic used to fire
     # here: a returns-policy page carrying a "You May Also Like" strip has
