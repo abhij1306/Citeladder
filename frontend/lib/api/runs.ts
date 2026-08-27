@@ -56,6 +56,7 @@ export type AuditRepairInput = {
 
 export type CreateAuditScheduleInput = {
   prompt_set_id: string;
+  audit_scope?: 'brand' | 'commerce';
   cadence: AuditScheduleCadence;
   interval_minutes?: number;
   timezone?: string;

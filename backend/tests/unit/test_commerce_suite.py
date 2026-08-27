@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.connectors import commerce_competitors as competitor_connector
+from app.connectors.agent.gateway import FakeModelGateway
 from app.connectors.commerce_competitors import CompetitorProviderUnavailable
 from app.core.config.commerce_catalog import COMMERCE_IMPORT_MAX_BYTES
 from app.domain.commerce import competitors
@@ -23,7 +24,11 @@ from app.domain.commerce.competitors import (
     _precheck,
     _validated_results,
 )
-from app.domain.commerce.projector import _category_from_analysis, _crawl_values
+from app.domain.commerce.projector import (
+    _category_from_analysis,
+    _category_title,
+    _crawl_values,
+)
 from app.domain.commerce.prompts import _leaks_owned_identity
 from app.domain.commerce.schemas import (
     CatalogEditRequest,
@@ -39,12 +44,18 @@ from app.domain.commerce.service import (
     edit_category,
 )
 from app.domain.commerce.shelf import (
-    _first_position_rate,
+    _ai_observed_candidate,
+    _frozen_catalog,
     _frozen_target_ids,
+    _match_product,
     _merchant,
     _price,
+    _resolve_span,
+    _resolved_product_url,
+    _ResolvedRecommendation,
     _spans,
 )
+from app.domain.commerce.shelf_metrics import _first_position_rate
 from app.models.commerce import CommerceProduct
 
 
@@ -231,6 +242,93 @@ def test_unstructured_answer_remains_an_unordered_observation_span() -> None:
     ]
 
 
+def test_unstructured_answer_is_split_into_bounded_unordered_spans() -> None:
+    spans = _spans("Acme One is useful. Rival Two is cheaper; Third is compact.")
+
+    assert [row.text for row in spans] == [
+        "Acme One is useful.",
+        "Rival Two is cheaper",
+        "Third is compact.",
+    ]
+    assert all(row.rank is None and not row.order_observable for row in spans)
+
+
+@pytest.mark.asyncio
+async def test_structured_resolver_is_bounded_and_malformed_output_abstains() -> None:
+    span = _spans("A retailer recommends Rival Runner.")[0]
+    gateway = FakeModelGateway(
+        '{"recommendations":[{"title":"Rival Runner","brand":"Rival",'
+        '"product_url":"https://rival.test/products/runner",'
+        '"merchant_url":"https://merchant.test/buy"}]}'
+    )
+
+    resolved = await _resolve_span(span, gateway=gateway)
+
+    assert resolved is not None
+    assert resolved[0].product_url == "https://rival.test/products/runner"
+    assert resolved[0].merchant_url == "https://merchant.test/buy"
+    assert gateway.calls[0]["schema_name"] == "commerce_recommendation_resolution"
+    assert await _resolve_span(span, gateway=FakeModelGateway("not-json")) is None
+    assert await _resolve_span(span, gateway=None) is None
+
+
+@pytest.mark.asyncio
+async def test_merchant_only_resolution_never_creates_a_competitor() -> None:
+    resolved = _ResolvedRecommendation(
+        title="Rival Runner", merchant_url="https://merchant.test/buy"
+    )
+    target = SimpleNamespace()
+
+    assert (
+        await _ai_observed_candidate(
+            SimpleNamespace(),  # type: ignore[arg-type]
+            target=target,  # type: ignore[arg-type]
+            resolved=resolved,
+            span=_spans("Rival Runner at a merchant")[0],
+            citations=[],
+        )
+        is None
+    )
+
+
+def test_social_or_citation_url_cannot_become_competitor_identity() -> None:
+    citation = SimpleNamespace(url="https://publisher.test/reviews/runner")
+
+    assert _resolved_product_url("https://reddit.com/r/shoes/123", citations=[]) is None
+    assert (
+        _resolved_product_url(
+            "https://publisher.test/reviews/runner",
+            citations=[citation],  # type: ignore[list-item]
+        )
+        is None
+    )
+
+
+def test_matching_uses_frozen_measurement_product_evidence() -> None:
+    product_id = uuid.uuid4()
+    products, candidates = _frozen_catalog(
+        {
+            "products": [
+                {
+                    "id": str(product_id),
+                    "canonical_url": "https://owned.test/frozen-runner",
+                    "name": "Frozen Runner",
+                    "brand": "Acme",
+                    "sku": "FROZEN-1",
+                    "attributes": {"colour": "blue"},
+                }
+            ],
+            "approved_competitors": [],
+        }
+    )
+
+    matched, confidence = _match_product("Try Frozen Runner", products)
+
+    assert candidates == []
+    assert matched is not None and matched.id == product_id
+    assert confidence == 1.0
+
+
 def test_recommendation_spans_retain_continuation_lines() -> None:
     spans = _spans(
         "1. Trail Runner\nPrice $1.234,56 at https://shop.test/runner\n"
@@ -325,7 +423,7 @@ def test_nested_collection_product_url_is_not_excluded() -> None:
 async def test_competitor_validation_is_bounded_and_records_outcomes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def verify(url: str) -> bool:
+    async def verify(url: str, fetcher: object) -> bool:
         return "dead" not in url
 
     monkeypatch.setattr(competitors, "_verify_url", verify)
@@ -363,6 +461,18 @@ def test_discovery_queries_distinguish_product_and_category_targets() -> None:
     )
     assert _discovery_query(category, "Running shoes") == (
         "leading Running shoes brands and representative products"
+    )
+    assert (
+        _discovery_query(
+            product,
+            "Trail Runner",
+            {
+                "attributes": {"product_type": "trail shoe", "colour": "blue"},
+                "price": 129.0,
+                "currency": "AUD",
+            },
+        )
+        == "products similar to Trail Runner trail shoe blue price AUD 75 to 200"
     )
 
 
@@ -534,3 +644,93 @@ def test_frozen_target_ids_ignore_malformed_values() -> None:
     assert _frozen_target_ids({"prompt_target_ids": [valid, "bad", None]}) == [
         uuid.UUID(valid)
     ]
+
+
+@pytest.mark.asyncio
+async def test_marketplace_hosts_are_never_competitors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Poshmark and Stylight listings were returned as competing brands."""
+
+    async def verify(url: str, fetcher: object) -> bool:
+        return True
+
+    monkeypatch.setattr(competitors, "_verify_url", verify)
+    results = [
+        {"url": "https://poshmark.com/listing/tee", "title": "Daydreamer | Poshmark"},
+        {"url": "https://www.stylight.com/red-clothing", "title": "Red Clothing"},
+        {"url": "https://rival.test/p", "title": "Rival"},
+    ]
+
+    outcomes, survivors = await _validated_results(results, owned_hosts={"owned.test"})
+
+    assert [row[0] for row in survivors] == ["https://rival.test/p"]
+    assert [row["validation_outcome"] for row in outcomes] == [
+        "excluded_marketplace",
+        "excluded_marketplace",
+        "accepted",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_verification_does_not_consume_an_accept_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verification runs concurrently, but the limit still counts acceptances."""
+
+    async def verify(url: str, fetcher: object) -> bool:
+        return "dead" not in url
+
+    monkeypatch.setattr(competitors, "_verify_url", verify)
+    results = [{"url": "https://rival.test/dead", "title": "Dead"}] + [
+        {"url": f"https://rival{index}.test/p", "title": f"Rival {index}"}
+        for index in range(6)
+    ]
+
+    outcomes, survivors = await _validated_results(results, owned_hosts=set())
+
+    assert len(survivors) == 5
+    assert [row["validation_outcome"] for row in outcomes] == [
+        "excluded_unavailable",
+        *["accepted"] * 5,
+        "excluded_limit",
+    ]
+
+
+def test_category_name_is_the_page_s_own_name_not_its_title_tag() -> None:
+    """Raw titles were stored verbatim and fed into the competitor query."""
+    title = "ASTR The Label Elevated Women's Clothing | Red Dress"
+    # The breadcrumb leaf is the page's own claim and wins outright.
+    assert (
+        _category_title(
+            {
+                "commerce": {"breadcrumbs": ["Home", "Clothing", "Dresses"]},
+                "title": title,
+            },
+            "",
+        )
+        == "Dresses"
+    )
+    # Then the h1.
+    assert _category_title(
+        {"headings": {"h1_texts": ["Midi Dresses"]}, "title": title}, ""
+    ) == ("Midi Dresses")
+    # Only then the title, with the site-name segment dropped.
+    assert _category_title({"title": "Dresses | Red Dress"}, "") == "Dresses"
+    assert _category_title({"title": title}, "") == (
+        "ASTR The Label Elevated Women's Clothing"
+    )
+    # A separator-free title survives intact.
+    assert _category_title({"title": "Back in Stock"}, "") == "Back in Stock"
+
+
+def test_a_shipping_banner_is_not_a_product_price() -> None:
+    """Only the bare "$100" reached the guard, so the banner became the price."""
+    from app.domain.commerce.projector import _has_product_identity, _visible_price
+
+    assert _visible_price("$100", "Free shipping over $100 on all orders") == (None, "")
+    assert _visible_price("$82", "Belted Midi Dress $82 Add to cart")[0] is not None
+    # And a page with no price of its own never enters the catalog as a product.
+    assert not _has_product_identity({"name": "Back in Stock", "price": None})
+    assert _has_product_identity({"name": "Midi Dress", "price": 82})
+    assert _has_product_identity({"name": "", "sku": "ABC-1", "price": None})

@@ -22,8 +22,10 @@ class _Gateway:
     def __init__(self, responses: list[dict]) -> None:
         self.responses = responses
         self.calls = 0
+        self.users: list[str] = []
 
-    async def complete_structured_json(self, **_kwargs) -> str:
+    async def complete_structured_json(self, **kwargs) -> str:
+        self.users.append(kwargs["user"])
         response = self.responses[self.calls]
         self.calls += 1
         return json.dumps(response)
@@ -106,5 +108,9 @@ async def test_identity_synthesis_retries_an_invented_reference() -> None:
     )
 
     assert gateway.calls == 2
+    assert "CORRECTION_REQUIRED" not in gateway.users[0]
+    assert '"allowed_evidence_refs": ["fp-1"]' in gateway.users[0]
+    assert "invented" in gateway.users[1]
+    assert "fp-1" in gateway.users[1]
     assert result.signature.category == "workflow software"
     assert result.field_evidence_refs == {"category": ["fp-1"]}

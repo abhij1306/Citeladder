@@ -47,7 +47,7 @@ causal claims.
 | Integrations/Traffic/Analytics/Demand | GSC/Traffic evidence, snapshots, signals |
 | Prompts/Audits/Visibility | Prompt portfolios and answer-engine measurement |
 | Opportunities | One persisted cross-system action store |
-| Commerce | Site Health-projected canonical catalog, append-only CSV/edit observations, approved competitor candidates, typed buyer prompts, Commerce-scoped recommendation observations, persisted AI Shelf metrics, and deterministic actions |
+| Commerce | Site Health-projected canonical catalog, append-only CSV/edit observations, approved competitor candidates, typed buyer prompts, frozen-audit recommendation observations, target-bound persisted AI Shelf metrics, and shared manual/scheduled audit execution |
 | Growth Agent | Standalone explain/roadmap runs and append-only typed-tool attempts |
 
 The command-center read projection is useful before the first visibility audit.
@@ -67,18 +67,28 @@ reviewer, and only then creates the bounded initial prompt portfolio exactly
 once. Topics in that portfolio are reusable semantic demand clusters, not query
 phrases; related prompts share a topic.
 
-Onboarding discovery v7 keeps the existing bounded first-party acquisition and
+Onboarding discovery v8 keeps the existing bounded first-party acquisition and
 adds bounded Keenable corroboration. One structured application-model call
 classifies identity and emits an evidence-referenced competitive signature;
-deterministic brand-neutral searches then establish the only admissible
-competitor-domain universe, and a second structured call qualifies those
-candidate IDs. Pydantic and deterministic reference/hard-gate checks enforce
-the contracts because the active GMI Cloud MiniMax M3 integration uses JSON
-object mode, not an assumed native strict-schema guarantee. The existing domain
-resolver remains the final candidate check. Provider failures yield explicit
+deterministic brand-neutral searches then gather the competitor research
+evidence, and a second structured call reads the competitor names out of that
+evidence text. Search results are evidence, never candidates: a query such as
+"<brand> competitors" returns pages *about* the brand -- listicles, directories,
+coupon and analytics sites -- so the rivals are the companies named inside that
+text, not the domains that published it. Pydantic and deterministic reference
+checks enforce the contracts and always run: no host is assumed to guarantee
+native strict-schema output, so those checks stay in force even when the
+gateway selects Mistral's verified native mode. The existing domain resolver remains the
+final candidate check, so a name the model invents cannot reach the customer. Provider failures yield explicit
 degraded warnings, and the immutable `BrandResearchSnapshot` records the
 evidence manifest, verdicts, and per-phase model provenance without a new table
-or queue.
+or queue. Discovery also adds one shared bounded repair seam for the two Keenable
+research schemas: requests expose explicit allowed evidence IDs and validation
+failures receive bounded contract feedback without response bodies or evidence
+text. Retryable provider failures honor bounded backoff without weakening any
+evidence-reference or hard-admission gate. The application gateway selects
+Mistral's verified native strict JSON Schema mode automatically, falling back to
+prompt-carried JSON-object mode for hosts without a verified guarantee.
 
 Demand's `page_equivalence` module is the sole cross-source owned-page resolver.
 It uses exact `SiteUrl` matches plus persisted redirect/canonical evidence and

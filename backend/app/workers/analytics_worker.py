@@ -68,6 +68,7 @@ from app.domain.opportunities.recompute import recompute as recompute_opportunit
 from app.domain.opportunities.verification import verify_implementation_events
 from app.domain.traffic.service import refresh_traffic_snapshot
 from app.models.analytics import AnalyticsTask
+from app.orchestration.executor_errors import TerminalExecutorError
 from app.orchestration.postgres_task_queue import PostgresTaskQueue
 from app.workers.drain import DrainableWorkerMixin
 
@@ -258,6 +259,11 @@ class AnalyticsWorker(DrainableWorkerMixin):
                 row.status = TASK_STATUS_FAILED
                 row.completed_at = now
                 row.error_code = ERROR_EXECUTOR_NOT_WIRED
+                row.error_detail = str(error)[:2000]
+            elif isinstance(error, TerminalExecutorError):
+                row.status = TASK_STATUS_FAILED
+                row.completed_at = now
+                row.error_code = error.error_code
                 row.error_detail = str(error)[:2000]
             elif attempt_number < row.max_attempts:
                 row.status = TASK_STATUS_RETRY_WAIT

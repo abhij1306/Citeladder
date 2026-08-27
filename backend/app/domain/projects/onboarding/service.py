@@ -42,6 +42,7 @@ from app.core.config.visibility_prompts import (
 from app.domain.projects.discovery_schemas import (
     BrandDiscoveryComplete,
     BrandDiscoveryCreate,
+    DiscoveryProfile,
     DiscoveryTopic,
 )
 from app.domain.projects.onboarding.industry_library import (
@@ -255,6 +256,15 @@ async def process_discovery(session: AsyncSession, row: BrandDiscovery) -> None:
     selected_industry, _context = industry_context(
         str(data.get("industry") or "General")
     )
+
+    async def _finding_competitors() -> None:
+        row.progress = _progress(
+            phase="finding_competitors",
+            completed_steps=2,
+            previous=row.progress,
+        )
+        await session.commit()
+
     result = await research_brand(
         brand_name=str(data["brand_name"]),
         primary_market=str(data["primary_market"]),
@@ -262,6 +272,7 @@ async def process_discovery(session: AsyncSession, row: BrandDiscovery) -> None:
         subindustry=str(data.get("subindustry") or ""),
         language_code=str(data.get("language_code") or "en"),
         site=site,
+        on_competitor_phase=_finding_competitors,
     )
     row.profile = result.profile
     row.competitors = result.competitors
@@ -701,6 +712,25 @@ def _confirmed_portfolio_inputs(
     )
 
 
+def _category_vocabulary(
+    profile: DiscoveryProfile, topics: list[DiscoveryTopic]
+) -> list[str]:
+    """The words this business's own category uses.
+
+    Confirmed at review, so it is the user's vocabulary rather than a guess.
+    A brand token that also appears here is category language and must stay
+    usable in organic prompts -- see `brand_terms`.
+    """
+    return [
+        *[profile.category],
+        *profile.category_options,
+        *profile.category_aliases,
+        *profile.category_terms,
+        *profile.products_services,
+        *[topic.name for topic in topics],
+    ]
+
+
 async def _generate_confirmed_portfolio(
     *,
     payload: BrandDiscoveryComplete,
@@ -711,7 +741,11 @@ async def _generate_confirmed_portfolio(
 ) -> tuple[list[dict], str, str, list[str]]:
     result = await generate_portfolio(
         brand_name=brand_name,
-        brand_terms=brand_terms(brand_name, []),
+        brand_terms=brand_terms(
+            brand_name,
+            [],
+            _category_vocabulary(payload.profile, topics),
+        ),
         primary_market=primary_market,
         profile=payload.profile.model_dump(),
         competitors=[competitor["name"] for competitor in competitors],

@@ -102,6 +102,30 @@ describe('Catalog panel', () => {
     );
   });
 
+  it('renders a zero price rather than dropping it, with or without a currency', async () => {
+    // `filter(Boolean)` treated a price of 0 as absent: a free item rendered
+    // as a bare "AUD", or as an empty cell when no currency was observed.
+    vi.spyOn(siteHealthApi, 'getDashboard').mockResolvedValue({ crawl: null } as never);
+    const state = query();
+    const [product] = state.data.products;
+    state.data.products = [
+      { ...product, id: PRODUCT_ID, price: 0, currency: 'AUD' },
+      {
+        ...product,
+        id: '44444444-4444-4444-8444-444444444444',
+        name: 'Sample Pack',
+        canonical_url: 'https://shop.test/products/sample-pack',
+        price: 0,
+        currency: '',
+      },
+    ];
+
+    renderWithProviders(<CatalogPanel projectId={PROJECT_ID} query={state as never} />);
+
+    expect(await screen.findByText('AUD 0')).toBeInTheDocument();
+    expect(screen.getByText('0')).toBeInTheDocument();
+  });
+
   it('opens category name and role correction controls', async () => {
     vi.spyOn(siteHealthApi, 'getDashboard').mockResolvedValue({ crawl: null } as never);
 

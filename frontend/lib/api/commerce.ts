@@ -9,6 +9,7 @@ import {
   commerceCategorySchema,
   commerceCatalogSchema,
   competitorDiscoverySchema,
+  competitorDiscoveryTaskSchema,
   commerceProductSchema,
   competitorCandidateSchema,
   shelfSchema,
@@ -60,6 +61,26 @@ export const commerceApi = {
       await apiClient.post(path(projectId, 'competitors/discover'), { targets }),
       'commerce.discoverCompetitors',
     ),
+  /**
+   * Discovery task status. Omitting `taskIds` asks the server for whatever is
+   * still in flight for the project — the only form a page reload can recover
+   * from, since ids held in component state do not survive one.
+   */
+  competitorDiscoveries: async (
+    projectId: string,
+    taskIds?: string[],
+    options?: ApiRequestOptions,
+  ) => {
+    const query = (taskIds ?? []).map((id) => `task_ids=${encodeURIComponent(id)}`).join('&');
+    return strictValidate(
+      z.array(competitorDiscoveryTaskSchema),
+      await apiClient.get(
+        `${path(projectId, 'competitors/discoveries')}${query ? `?${query}` : ''}`,
+        options,
+      ),
+      'commerce.competitorDiscoveries',
+    );
+  },
   decideCompetitor: async (
     projectId: string,
     candidateId: string,
@@ -94,11 +115,16 @@ export const commerceApi = {
       await apiClient.patch(path(projectId, `buyer-prompts/${promptId}`), { approved }),
       'commerce.decideBuyerPrompt',
     ),
-  shelf: async (projectId: string, auditId?: string, options?: ApiRequestOptions) =>
+  shelf: async (
+    projectId: string,
+    target: CommerceTarget,
+    auditId?: string,
+    options?: ApiRequestOptions,
+  ) =>
     strictValidate(
       shelfSchema,
       await apiClient.get(
-        `${path(projectId, 'ai-shelf')}${auditId ? `?audit_id=${encodeURIComponent(auditId)}` : ''}`,
+        `${path(projectId, 'ai-shelf')}?target_kind=${target.kind}&target_id=${encodeURIComponent(target.id)}${auditId ? `&audit_id=${encodeURIComponent(auditId)}` : ''}`,
         options,
       ),
       'commerce.shelf',

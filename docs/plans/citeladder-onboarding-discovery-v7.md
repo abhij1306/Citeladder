@@ -1,10 +1,33 @@
 # CiteLadder Onboarding Discovery v7 and GMI Cloud Cutover
 
+> **Superseded in part.** The evidence-first onboarding research in this plan
+> shipped and remains current. The GMI Cloud / MiniMax M3 application-model
+> cutover was later reverted: the default agent and content generation both
+> run on Mistral, and no GMI code path remains. Kept as a historical record.
+
 **Status:** Implemented
 **Branch:** `feat/onboarding-discovery-v7-gmi`
 **Authority:** This plan replaces the ChatGPT implementation report. Runtime
 code, tests, and current architecture documents remain authoritative once the
 work ships.
+
+## Reliability amendment (brand-discovery-v8)
+
+> The GMI Cloud statements in this section are historical. They describe the
+> amendment as written while the GMI cutover was still in place; see the
+> supersession notice above for the current state.
+
+Onboarding identity and competitor qualification now share a three-attempt
+structured-response repair loop. Requests carry explicit allowed
+evidence-reference IDs; a schema or deterministic reference rejection supplies
+bounded contract feedback without response bodies or evidence text instead of
+repeating the same prompt. Retryable provider failures honor `Retry-After` or
+config-owned exponential backoff while non-retryable failures still degrade
+immediately. The shared application gateway selects native strict JSON Schema
+automatically for Mistral and prompt-carried JSON-object mode for hosts without
+a verified guarantee — at the time of writing, GMI Cloud.
+Identity and competitor prompt versions advance to v2; all original evidence
+gates and persisted provider/model provenance remain unchanged.
 
 ## Outcome
 

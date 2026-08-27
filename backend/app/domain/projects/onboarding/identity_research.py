@@ -7,7 +7,7 @@ import json
 from dataclasses import dataclass
 from urllib.parse import urldefrag, urlsplit
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from app.connectors.agent.gateway import ModelGateway
 from app.connectors.keenable import (
@@ -34,6 +34,9 @@ from app.domain.projects.onboarding.research_evidence import (
     ResearchCallBudget,
     ResearchEvidenceItem,
     evidence_payload,
+)
+from app.domain.projects.onboarding.structured_repair import (
+    complete_validated_envelope,
 )
 
 
@@ -225,6 +228,7 @@ async def synthesize_identity(
     language_code: str,
     evidence: list[ResearchEvidenceItem],
 ) -> IdentityResearchEnvelope:
+    known_refs = {item.evidence_ref for item in evidence}
     request = json.dumps(
         {
             "brand_name": brand_name,
@@ -238,30 +242,31 @@ async def synthesize_identity(
             "allowed_buyer_registers": list(BUYER_REGISTERS),
             "allowed_sectors": list(SECTORS),
             "allowed_knowledge_strengths": list(KNOWLEDGE_STRENGTHS),
+            "allowed_evidence_refs": sorted(known_refs),
             "evidence": evidence_payload(evidence),
         },
         ensure_ascii=False,
     )
-    known_refs = {item.evidence_ref for item in evidence}
-    for attempt in range(brand_discovery_settings.synthesis_max_attempts):
-        raw = await client.complete_structured_json(
-            system=IDENTITY_RESEARCH_SYSTEM_PROMPT,
-            user=request,
-            schema_name="brand_identity_research",
-            schema=IdentityResearchEnvelope.model_json_schema(),
-        )
-        try:
-            envelope = IdentityResearchEnvelope.model_validate_json(raw)
-            returned_refs = {
-                ref for refs in envelope.field_evidence_refs.values() for ref in refs
-            }
-            if not returned_refs.issubset(known_refs):
-                raise ValueError("identity response cited unknown evidence")
-            return envelope
-        except (ValidationError, ValueError):
-            if attempt + 1 >= brand_discovery_settings.synthesis_max_attempts:
-                raise
-    raise RuntimeError("identity synthesis attempts exhausted")
+
+    def validate(envelope: IdentityResearchEnvelope) -> None:
+        returned_refs = {
+            ref for refs in envelope.field_evidence_refs.values() for ref in refs
+        }
+        unknown_refs = returned_refs - known_refs
+        if unknown_refs:
+            raise ValueError(
+                "identity response cited unknown evidence refs "
+                f"{sorted(unknown_refs)}; allowed refs are {sorted(known_refs)}"
+            )
+
+    return await complete_validated_envelope(
+        client,
+        system=IDENTITY_RESEARCH_SYSTEM_PROMPT,
+        user=request,
+        schema_name="brand_identity_research",
+        envelope_type=IdentityResearchEnvelope,
+        validate=validate,
+    )
 
 
 def _fetch_item(

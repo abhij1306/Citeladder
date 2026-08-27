@@ -66,11 +66,23 @@ async def test_create_persists_the_schedule_scoped_to_its_workspace(
     assert schedule.workspace_id == seed.workspace_id
     assert schedule.project_id == seed.project_id
     assert schedule.prompt_set_id == seed.prompt_set_id
+    assert schedule.audit_scope == "brand"
     assert schedule.cadence == "daily"
     assert schedule.enabled is True
     # An enabled schedule is immediately due unless the caller pinned a time,
     # so the scheduler has something to claim rather than a null next run.
     assert schedule.next_run_at is not None
+
+
+@pytest.mark.asyncio
+async def test_create_persists_commerce_measurement_scope(
+    db_session: AsyncSession,
+) -> None:
+    seed = await seed_audit_fixtures(db_session)
+
+    schedule = await _seed_schedule(db_session, seed, audit_scope="commerce")
+
+    assert schedule.audit_scope == "commerce"
 
 
 @pytest.mark.asyncio

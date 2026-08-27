@@ -79,6 +79,7 @@ export const auditScheduleSchema = responseObject({
   workspace_id: uuid(),
   project_id: uuid(),
   prompt_set_id: uuid(),
+  audit_scope: z.enum(['brand', 'commerce']),
   cadence: auditScheduleCadenceSchema,
   interval_minutes: z.number().int().nullable(),
   timezone: z.string(),

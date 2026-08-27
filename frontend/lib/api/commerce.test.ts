@@ -10,7 +10,16 @@ describe('Commerce replacement contracts', () => {
       projection_tasks: { queued: 1 },
     });
     expect(catalog.projection_tasks.queued).toBe(1);
-    expect(shelfSchema.parse({ snapshots: [], observations: [] })).toEqual({
+    expect(
+      shelfSchema.parse({
+        target: null,
+        selected_audit_id: null,
+        snapshots: [],
+        observations: [],
+      }),
+    ).toEqual({
+      target: null,
+      selected_audit_id: null,
       snapshots: [],
       observations: [],
     });

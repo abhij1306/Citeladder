@@ -290,6 +290,16 @@ function warningMessage(code: string): string {
       'Some research was unavailable. We prepared a market-aware fallback for you to edit.',
     competitors_not_found:
       'No competitors were confirmed. You can continue with none or add them yourself.',
+    external_research_unavailable:
+      'External research is temporarily unavailable. Review the website-based suggestions.',
+    external_research_no_results:
+      'External research returned no corroborating results. Review the website-based suggestions.',
+    conflicting_evidence:
+      'Sources disagreed about this business. Review the suggested positioning carefully.',
+    topic_selection_unavailable:
+      'Topic suggestions are temporarily unavailable. You can configure them after setup.',
+    insufficient_offering_evidence:
+      'We could not confirm enough offering evidence to suggest topics yet.',
     site_health_deferred:
       'The project is ready; its Site Health review will need to be started later.',
   };

@@ -16,6 +16,7 @@ export { DEFAULT_REPETITIONS, MAX_REPETITIONS, MIN_REPETITIONS } from '@/lib/con
 export type LaunchSelection = {
   projectId: string;
   promptSetId: string | null;
+  promptIds?: string[];
   engines: LogicalEngine[];
   repetitions: number;
   auditScope?: 'brand' | 'commerce';
@@ -33,7 +34,9 @@ export function clampRepetitions(value: number): number {
  * engine; the dialog only offers configured engines.)
  */
 export function canLaunch(selection: LaunchSelection): boolean {
-  return Boolean(selection.promptSetId) && selection.engines.length > 0;
+  return (
+    Boolean(selection.promptSetId || selection.promptIds?.length) && selection.engines.length > 0
+  );
 }
 
 /**
@@ -41,12 +44,14 @@ export function canLaunch(selection: LaunchSelection): boolean {
  * selection is not launchable — callers gate on `canLaunch` first.
  */
 export function buildLaunchPayload(selection: LaunchSelection): LaunchAuditInput {
-  if (!canLaunch(selection) || !selection.promptSetId) {
+  if (!canLaunch(selection)) {
     throw new Error('Cannot build a launch payload from an incomplete selection.');
   }
   return {
     project_id: selection.projectId,
-    prompt_set_id: selection.promptSetId,
+    ...(selection.promptIds?.length
+      ? { prompt_ids: [...selection.promptIds] }
+      : { prompt_set_id: selection.promptSetId! }),
     engines: [...selection.engines],
     repetitions: clampRepetitions(selection.repetitions),
     audit_scope: selection.auditScope ?? 'brand',

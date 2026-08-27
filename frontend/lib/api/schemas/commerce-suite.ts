@@ -80,9 +80,19 @@ export const competitorCandidateSchema = z
   })
   .strict();
 export const competitorDiscoverySchema = z.object({ task_ids: z.array(uuid) }).strict();
+export const competitorDiscoveryTaskSchema = z
+  .object({
+    id: uuid,
+    target: commerceTargetSchema,
+    status: z.string(),
+    error_code: z.string(),
+    terminal: z.boolean(),
+  })
+  .strict();
 export const buyerPromptSchema = z
   .object({
     id: uuid,
+    prompt_set_id: uuid,
     target: commerceTargetSchema,
     text: z.string(),
     enabled: z.boolean(),
@@ -131,6 +141,8 @@ export const recommendationObservationSchema = z
   .strict();
 export const shelfSchema = z
   .object({
+    target: commerceTargetSchema.nullable(),
+    selected_audit_id: uuid.nullable(),
     snapshots: z.array(shelfSnapshotSchema),
     observations: z.array(recommendationObservationSchema),
   })
@@ -161,5 +173,6 @@ export type CommerceProductEdit = Partial<
 >;
 export type CatalogImport = z.infer<typeof catalogImportSchema>;
 export type CompetitorCandidate = z.infer<typeof competitorCandidateSchema>;
+export type CompetitorDiscoveryTask = z.infer<typeof competitorDiscoveryTaskSchema>;
 export type BuyerPrompt = z.infer<typeof buyerPromptSchema>;
 export type Shelf = z.infer<typeof shelfSchema>;

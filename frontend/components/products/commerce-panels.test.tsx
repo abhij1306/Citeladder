@@ -2,7 +2,13 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { renderWithProviders } from '@/test/render';
-import { BuyerPromptsPanel, CompetitorsPanel } from './commerce-panels';
+import {
+  BuyerPromptsPanel,
+  CompetitorsPanel,
+  ShelfPanel,
+  competitorHost,
+  discoveryMessage,
+} from './commerce-panels';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const TARGET_ID = '22222222-2222-4222-8222-222222222222';
@@ -10,6 +16,8 @@ const TARGET_ID = '22222222-2222-4222-8222-222222222222';
 function queries({ buyerPromptsError = false, buyerPromptsPending = false } = {}) {
   return {
     catalog: {
+      isLoading: false,
+      isError: false,
       data: {
         categories: [{ id: TARGET_ID, name: 'Running shoes' }],
         products: [],
@@ -63,5 +71,40 @@ describe('Commerce panels', () => {
 
     expect(screen.getByText('Loading persisted buyer prompts…')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('requires an explicit AI Shelf target before loading metrics', () => {
+    renderWithProviders(
+      <ShelfPanel queries={queries() as never} onTargetChange={() => undefined} />,
+    );
+
+    expect(screen.getByRole('combobox', { name: 'AI Shelf target' })).toHaveValue('');
+    expect(screen.getByText(/select one product or category/i)).toBeInTheDocument();
+  });
+});
+
+describe('Discovery status copy', () => {
+  it('reads as a sentence instead of interpolating the raw status', () => {
+    // Shipped as "Discovery for this category is succeeded".
+    expect(discoveryMessage('succeeded', 'category', '')).toBe(
+      'Discovery finished for this category.',
+    );
+    expect(discoveryMessage('running', 'category', '')).toBe(
+      'Finding competitors for this category…',
+    );
+  });
+
+  it('explains the two failures a person can act on', () => {
+    expect(discoveryMessage('failed', 'category', 'unusable_target')).toContain(
+      'needs a clearer name',
+    );
+    expect(discoveryMessage('failed', 'category', 'provider_unavailable')).toContain(
+      'not configured',
+    );
+  });
+
+  it('identifies a candidate by domain, not by its page title', () => {
+    expect(competitorHost('https://www.rival.test/products/linen-dress')).toBe('rival.test');
+    expect(competitorHost('not a url')).toBe('not a url');
   });
 });

@@ -16,15 +16,41 @@ projection refreshes.
 
 ## Competitors
 
-Discovery runs as a queued, versioned attempt. Tavily is optional; an unavailable provider produces an explicit unavailable state. Candidate URLs pass deterministic path/domain filters and the shared safe fetcher before persistence. Candidates remain pending until approved or rejected and cannot enter measurement before approval.
+Discovery runs as a queued, versioned attempt whose status is exposed to the
+workspace until it terminalizes. Tavily is optional; an unavailable provider
+produces an explicit unavailable state. Product queries include bounded product
+type, attribute, and price-band context; category queries retain their separate
+brand-and-representative-product form. Candidate URLs pass deterministic
+path/domain filters, the shared safe fetcher, and deterministic PDP
+classification before persistence. Candidates remain pending until approved or
+rejected and cannot enter measurement before approval.
 
 ## Buyer Prompts
 
-Every Commerce prompt has a typed category or product target. Structured generation is bounded and rejects owned-name leakage. Generated and manual prompts use the shared Prompt owner and remain disabled until explicit approval. Audit creation freezes approved prompts, current catalog identity, approved competitors, and all relevant parser, matcher, formula, and template versions.
+Every Commerce prompt has a typed category or product target. Structured
+generation is bounded and rejects owned-name leakage. Generated and manual
+prompts use the shared Prompt owner and remain disabled until explicit approval.
+For one selected target, the Buyer Prompts workspace opens the shared audit
+launcher over only its approved prompt IDs; provider selection, repetitions,
+provider-free estimate, capacity admission, and execution stay with the audit
+owner. Audit creation freezes approved prompts, current catalog identity,
+approved competitors, and all relevant parser, matcher, formula, and template
+versions. The shared schedule owner persists `audit_scope`; scheduled Commerce
+runs therefore enter the same freeze, execution, observation, and snapshot path
+as a manual Commerce launch.
 
 ## AI Shelf
 
-Successful Commerce audit executions create append-only recommendation observations linked to the raw response artifact and any persisted Citations. Ordered lists and provider card order carry a one-based rank; prose and bullets remain unordered with a null rank. Unknown recommendations are retained as unresolved evidence.
+Successful Commerce audit executions create append-only recommendation
+observations linked to the raw response artifact and any persisted Citations.
+Deterministic matching reads the catalog and approved competitors frozen into
+that audit, so later catalog edits cannot reinterpret historical answers.
+Unresolved bounded spans alone may use the configured structured-model resolver;
+unavailable or malformed output preserves unresolved evidence. Product identity,
+merchant URL/domain, and Citation associations stay separate, and an AI-observed
+competitor is created only from an independently resolved product URL. Ordered
+lists and provider card order carry a one-based rank; prose and bullets remain
+unordered with a null rank.
 
 The persisted `commerce-shelf-formulas-2` snapshot exposes:
 
@@ -33,7 +59,10 @@ The persisted `commerce-shelf-formulas-2` snapshot exposes:
 - Average Shelf Position: mean owned rank across explicitly ordered observations; unavailable without ranked owned appearances.
 - First-Position Win Rate: eligible ordered executions whose first slot is owned divided by eligible ordered executions.
 
-Zero and unavailable are distinct. Share of Shelf uses all recognized slots while position metrics use only explicitly ordered recommendations.
+AI Shelf requires an explicit product or category target. Its headline metrics,
+latest evidence, and immutable snapshot history are all filtered to that target.
+Zero and unavailable are distinct. Share of Shelf uses all recognized slots
+while position metrics use only explicitly ordered recommendations.
 
 ## Deferred
 

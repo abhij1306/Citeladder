@@ -9,7 +9,6 @@ import pytest
 from app.domain.projects.brand_evidence import BrandEvidence
 from app.domain.projects.discovery_schemas import DiscoveryProfile
 from app.domain.projects.onboarding.competitor_research import (
-    CompetitorCandidate,
     CompetitorResearchResult,
 )
 from app.domain.projects.onboarding.identity_research import (
@@ -58,16 +57,8 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
         supports=["profile"],
     )
     gateway = SimpleNamespace(base_url_host="provider.invalid", model="fixture-model")
-    candidate = CompetitorCandidate(
-        candidate_id="cand-1",
-        name="Peer",
-        domain="peer.com",
-        source_url="https://peer.com",
-        evidence=[
-            evidence.model_copy(
-                update={"evidence_ref": "kc-search-1", "supports": ["competitors"]}
-            )
-        ],
+    competitor_evidence = evidence.model_copy(
+        update={"evidence_ref": "kc-search-1", "supports": ["competitors"]}
     )
 
     async def site_evidence(_site):
@@ -80,12 +71,10 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
         return _identity()
 
     async def discover(*_args, **_kwargs):
-        return CompetitorResearchResult(
-            candidates=(candidate,), evidence=tuple(candidate.evidence), state="ready"
-        )
+        return CompetitorResearchResult(evidence=(competitor_evidence,), state="ready")
 
     async def qualify(*_args, **_kwargs):
-        return [], [{"candidate_id": "cand-1", "decision": "exclude"}]
+        return [], [{"name": "Peer", "domain": "peer.com"}]
 
     async def verify(*_args, **_kwargs):
         return []
@@ -129,7 +118,7 @@ async def test_ready_path_records_two_structured_phases(monkeypatch) -> None:
     ]
     assert all(call["outcome"] == "succeeded" for call in result.model_calls)
     assert result.provider == "provider.invalid"
-    assert result.competitor_verdicts[0]["candidate_id"] == "cand-1"
+    assert result.competitor_verdicts[0]["domain"] == "peer.com"
     assert any(item["capture_method"] == "external_search" for item in result.evidence)
     model_supports = {
         item["source_url"]: item["supports"]

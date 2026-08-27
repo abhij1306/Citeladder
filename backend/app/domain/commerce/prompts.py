@@ -296,6 +296,7 @@ def _prompt_response(
 ) -> BuyerPromptResponse:
     return BuyerPromptResponse(
         id=prompt.id,
+        prompt_set_id=prompt.prompt_set_id,
         target=CommerceTarget(kind=relation.target_kind, id=relation.target_id),
         text=prompt.text,
         enabled=prompt.enabled,

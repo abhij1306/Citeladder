@@ -4,6 +4,18 @@ export const commerceKeys = {
   catalog: (projectId: string) => ['commerce', projectId, 'catalog'] as const,
   competitors: (projectId: string) => ['commerce', projectId, 'competitors'] as const,
   buyerPrompts: (projectId: string) => ['commerce', projectId, 'buyer-prompts'] as const,
-  shelf: (projectId: string, auditId?: string) =>
-    ['commerce', projectId, 'ai-shelf', auditId ?? 'latest'] as const,
+  discoveryTasks: (projectId: string, taskIds: string[]) =>
+    ['commerce', projectId, 'competitor-discoveries', ...taskIds] as const,
+  /** Whatever discovery is in flight for the project, per the server. */
+  activeDiscoveries: (projectId: string) =>
+    ['commerce', projectId, 'competitor-discoveries', 'active'] as const,
+  shelf: (projectId: string, target?: { kind: string; id: string }, auditId?: string) =>
+    [
+      'commerce',
+      projectId,
+      'ai-shelf',
+      target?.kind ?? 'no-target',
+      target?.id ?? 'no-target',
+      auditId ?? 'latest',
+    ] as const,
 };

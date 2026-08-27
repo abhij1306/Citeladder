@@ -37,7 +37,8 @@ from app.core.config.task_queue import (
     TASK_TERMINAL_STATUSES,
 )
 from app.domain.audits.state_events import apply_transition, record_event
-from app.domain.commerce.shelf import analyze_commerce_task, finalize_commerce_shelf
+from app.domain.commerce.shelf import analyze_commerce_task
+from app.domain.commerce.shelf_metrics import finalize_commerce_shelf
 from app.domain.opportunities.verification import enqueue_audit_opportunity_tasks
 from app.domain.providers.credentials import pause_connection_after_key_failure
 from app.models.audit import (

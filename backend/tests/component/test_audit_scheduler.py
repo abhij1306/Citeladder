@@ -35,6 +35,7 @@ async def test_due_schedule_delegates_to_audit_planner_once(
         workspace_id=workspace.id,
         project_id=project.id,
         prompt_set_id=prompt_set.id,
+        audit_scope="commerce",
         cadence=CADENCE_ONE_TIME,
         engines=["chatgpt"],
         next_run_at=due_at,
@@ -56,6 +57,7 @@ async def test_due_schedule_delegates_to_audit_planner_once(
     assert calls[0]["trigger"] == AUDIT_TRIGGER_SCHEDULED
     assert calls[0]["schedule_id"] == schedule.id
     assert calls[0]["scheduled_for"] == due_at
+    assert calls[0]["audit_scope"] == "commerce"
 
     await db_session.refresh(schedule)
     assert schedule.enabled is False

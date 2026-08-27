@@ -211,11 +211,11 @@ defaults by decomposition; an exception is not an intended delivery outcome.
 | `/products` | Commerce: Catalog (default), Competitors, Buyer Prompts, AI Shelf |
 | `/settings` | Shared workspace/project configuration, including Integrations and Providers |
 
-Commerce AI Shelf prioritizes the comparison the buyer-destination prompts
-actually measure: category-level tracked-brand presence, configured competitor
-mentions, and brand/competitor/other cited-source labels. Per-SKU visibility and
-average position remain supporting evidence; top-three, prior-run change, and
-engine-coverage columns are not the primary Commerce comparison surface.
+Commerce AI Shelf requires a product or category target before reading its
+persisted projection. The four headline metrics, recommendation evidence, and
+immutable measurement history remain bound to that target. Buyer Prompts reuses
+the shared audit-launch dialog for target-filtered approved prompt IDs, provider
+selection, repetitions, estimates, and launch; Commerce owns no parallel runner.
 
 ## Authentication flow
 

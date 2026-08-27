@@ -40,6 +40,11 @@ describe('canLaunch', () => {
     expect(canLaunch(selection())).toBe(true);
     expect(canLaunch(selection({ promptSetId: null }))).toBe(false);
     expect(canLaunch(selection({ engines: [] }))).toBe(false);
+    expect(
+      canLaunch(
+        selection({ promptSetId: null, promptIds: ['33333333-3333-4333-8333-333333333333'] }),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -59,6 +64,13 @@ describe('buildLaunchPayload', () => {
 
   it('clamps the repetition count into range', () => {
     expect(buildLaunchPayload(selection({ repetitions: 42 })).repetitions).toBe(MAX_REPETITIONS);
+  });
+
+  it('launches an explicitly approved prompt selection without a prompt set', () => {
+    const promptId = '33333333-3333-4333-8333-333333333333';
+    expect(
+      buildLaunchPayload(selection({ promptSetId: null, promptIds: [promptId] })),
+    ).toMatchObject({ prompt_ids: [promptId], audit_scope: 'brand' });
   });
 
   it('throws on an incomplete selection', () => {

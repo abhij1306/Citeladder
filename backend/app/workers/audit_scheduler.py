@@ -172,6 +172,7 @@ class AuditScheduler:
                     engines=list(schedule.engines),
                     trigger=AUDIT_TRIGGER_SCHEDULED,
                     prompt_set_id=schedule.prompt_set_id,
+                    audit_scope=schedule.audit_scope,
                     repetitions=schedule.repetitions,
                     benchmark_mode=schedule.benchmark_mode,
                     schedule_id=schedule.id,

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -24,7 +25,7 @@ import type {
   CommerceProduct,
   CommerceProductEdit,
 } from '@/lib/api/schemas/commerce-suite';
-import { ACTIVE_RUN_POLL_MS } from '@/lib/config/operational';
+import { crawlPollInterval } from '@/lib/site-health/status';
 import type { useCommerceQueries } from '@/lib/products/use-products-screen';
 import type { SiteCrawl } from '@/lib/api/types';
 
@@ -60,6 +61,7 @@ function CatalogHeader({
   onSiteHealthAction: () => void;
   onImport: (file: File) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   return (
     <Card>
       <CardHeader>
@@ -68,11 +70,22 @@ function CatalogHeader({
           Site Health observations project automatically. CSV and explicit edits retain field-level
           authority.
         </CardDescription>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button disabled={discoverPending || dashboardPending} onClick={onSiteHealthAction}>
             {crawl ? 'Refresh from Site Health' : 'Discover from Site Health'}
           </Button>
-          <a className="text-link self-center text-sm" href="/site">
+          {/* A native file input rendered as a full-width control, which made
+              CSV import the largest thing on the page and put it visually
+              ahead of the primary action. It is one more toolbar action, so
+              it looks like one; the input itself stays hidden. */}
+          <Button
+            variant="secondary"
+            disabled={importPending}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {importPending ? 'Importing…' : 'Import CSV'}
+          </Button>
+          <a className="text-link text-sm" href="/site">
             Open Site Health
           </a>
         </div>
@@ -85,10 +98,12 @@ function CatalogHeader({
           <p className="text-secondary text-sm">No Site Health crawl is available yet.</p>
         )}
         <p className="text-secondary text-sm">Commerce projection: {projectionSummary(tasks)}</p>
-        <Input
+        <input
+          ref={fileInputRef}
           aria-label="Import catalog CSV"
           type="file"
           accept=".csv,text/csv"
+          className="sr-only"
           disabled={importPending}
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -104,6 +119,17 @@ function CatalogHeader({
       </CardHeader>
     </Card>
   );
+}
+
+/**
+ * A known price with its currency when there is one.
+ *
+ * `filter(Boolean)` dropped a price of exactly 0 — a free item rendered as a
+ * bare "AUD", or as nothing at all when no currency was observed. Only a
+ * missing currency is filtered; the caller has already ruled out a null price.
+ */
+export function formatPrice(currency: string, price: number): string {
+  return currency ? `${currency} ${price}` : String(price);
 }
 
 function categoryNames(product: CommerceProduct, catalog: CommerceCatalog) {
@@ -154,16 +180,15 @@ function CategoryEditor({
         value={name}
         onChange={(event) => setName(event.target.value)}
       />
-      <select
+      <Select
         aria-label="Category role"
-        className="bg-input h-8 rounded-sm border px-2 text-sm"
         value={role}
         onChange={(event) => setRole(event.target.value as CommerceCategory['role'])}
       >
         <option value="hub">Hub</option>
         <option value="leaf">Leaf</option>
         <option value="unknown">Unknown</option>
-      </select>
+      </Select>
       {mutation.isError ? <Alert tone="danger">The category correction failed.</Alert> : null}
       <div className="flex gap-2">
         <Button disabled={!name.trim() || mutation.isPending} onClick={() => mutation.mutate()}>
@@ -267,7 +292,13 @@ export function CatalogPanel({ projectId, query }: { projectId: string; query: C
   const [editingCategoryId, setEditingCategoryId] = useState('');
   const dashboard = useQuery({
     ...siteHealthQueries.dashboard(projectId),
-    refetchInterval: query.data ? ACTIVE_RUN_POLL_MS : false,
+    // Polled every three seconds for as long as the tab was open, whatever the
+    // crawl was doing. Site Health already owns this rule, including its
+    // backoff, so reuse it rather than keeping a second answer here.
+    refetchInterval: (result) => {
+      const crawl = result.state.data?.crawl;
+      return crawl ? crawlPollInterval(crawl) : false;
+    },
   });
   const catalogMutation = useMutation({
     mutationFn: async (file: File) =>
@@ -378,9 +409,17 @@ export function CatalogPanel({ projectId, query }: { projectId: string; query: C
                     ) : null}
                   </TableCell>
                   <TableCell>{categoryNames(product, query.data)}</TableCell>
-                  <TableCell>{product.brand || 'Unknown'}</TableCell>
                   <TableCell>
-                    {product.price == null ? 'Unknown' : `${product.currency} ${product.price}`}
+                    {product.brand || <span className="text-muted">&mdash;</span>}
+                  </TableCell>
+                  <TableCell>
+                    {/* Never invent a value: a bare "100" next to real prices
+                        read as a price the merchant had set. */}
+                    {product.price == null ? (
+                      <span className="text-muted">&mdash;</span>
+                    ) : (
+                      formatPrice(product.currency, product.price)
+                    )}
                   </TableCell>
                   <TableCell>
                     <Button size="sm" onClick={() => setEditingId(product.id)}>

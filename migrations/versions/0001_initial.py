@@ -252,6 +252,7 @@ def upgrade() -> None:
         sa.Column("workspace_id", sa.UUID(), nullable=False),
         sa.Column("project_id", sa.UUID(), nullable=False),
         sa.Column("prompt_set_id", sa.UUID(), nullable=False),
+        sa.Column("audit_scope", sa.String(16), nullable=False),
         sa.Column("cadence", sa.String(32), nullable=False),
         sa.Column("interval_minutes", sa.Integer(), nullable=True),
         sa.Column("timezone", sa.String(64), nullable=False),

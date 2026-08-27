@@ -37,6 +37,8 @@ export function LaunchDialog({
   projectId,
   onLaunched,
   fixedPromptSetId,
+  fixedPromptIds,
+  promptSelectionLabel,
   auditScope = 'brand',
 }: Readonly<{
   open: boolean;
@@ -44,6 +46,8 @@ export function LaunchDialog({
   projectId: string;
   onLaunched?: (audit: Audit) => void;
   fixedPromptSetId?: string;
+  fixedPromptIds?: string[];
+  promptSelectionLabel?: string;
   auditScope?: 'brand' | 'commerce';
 }>) {
   const queryClient = useQueryClient();
@@ -61,6 +65,18 @@ export function LaunchDialog({
     () => availableEngines(connectionsQuery.data),
     [connectionsQuery.data],
   );
+  // One contract, derived from the same values the payload is built from:
+  // `fixedPromptIds` wins in `buildLaunchPayload`, so it must also lock the
+  // field and name the selection. Locking only on `fixedPromptSetId` left the
+  // commerce caller showing an editable prompt-set select whose value the
+  // payload ignored.
+  const fixedPromptCount = fixedPromptIds?.length ?? 0;
+  const promptSetLocked = fixedPromptCount > 0 || Boolean(fixedPromptSetId);
+  const selectionLabel =
+    promptSelectionLabel ??
+    (fixedPromptCount
+      ? `${fixedPromptCount} selected ${fixedPromptCount === 1 ? 'prompt' : 'prompts'}`
+      : undefined);
   const [promptSetId, setPromptSetId] = useState<string | null>(null);
   const [engines, setEngines] = useState<LogicalEngine[]>([]);
   const [repetitions, setRepetitions] = useState(DEFAULT_REPETITIONS);
@@ -70,6 +86,7 @@ export function LaunchDialog({
   const selection = {
     projectId,
     promptSetId: effectivePromptSetId,
+    promptIds: fixedPromptIds,
     engines,
     repetitions,
     auditScope,
@@ -119,7 +136,9 @@ export function LaunchDialog({
       onLaunch={() => launchMutation.mutate()}
       connectOpen={connectOpen}
       setConnectOpen={setConnectOpen}
-      promptSetLocked={Boolean(fixedPromptSetId)}
+      promptSetLocked={promptSetLocked}
+      promptSelectionLabel={selectionLabel}
+      selectionReady={ready}
     />
   );
 }

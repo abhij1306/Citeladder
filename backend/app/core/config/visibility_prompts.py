@@ -176,7 +176,18 @@ VISIBILITY_PROMPTS_PER_TOPIC: Final = 2
 # produced the templated output: a small model given many topics at once has no
 # move except applying one sentence frame to each topic name. Four prompts for
 # one named topic is a task it can actually do.
-VISIBILITY_TOPIC_BATCH_SIZE: Final = 4
+# ONE topic per call. The comment above already argued that "four prompts for
+# one named topic is a task it can do"; batching four topics into a call also
+# forced the model to carry a UUID per row to say which topic each prompt was
+# for, and it could not -- every core prompt came back rejected as `topic_id`.
+# At one topic per call the association is known by the caller and never has to
+# survive a round trip. Calls are bounded by
+# DISCOVERY_PROMPT_GENERATION_CONCURRENCY and run concurrently.
+VISIBILITY_TOPIC_BATCH_SIZE: Final = 1
+# How many topic names the brand/comparison cohorts are shown for context.
+# Previously reused VISIBILITY_TOPIC_BATCH_SIZE, which now means "topics per
+# core call" and is 1 -- these are unrelated numbers and must not move together.
+VISIBILITY_TOPIC_NAME_LIMIT: Final = 4
 VISIBILITY_BRAND_PROMPT_COUNT: Final = 2
 VISIBILITY_COMPARISON_PROMPT_COUNT: Final = 1
 # The whole portfolio, organic side. Ten topics at two prompts each would be

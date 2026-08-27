@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -20,6 +21,7 @@ from app.core.config.brand_discovery import (
     CAPTURE_METHOD_CRAWLER,
     CAPTURE_METHOD_EXTERNAL_FETCH,
     CAPTURE_METHOD_EXTERNAL_SEARCH,
+    MARKET_CONTEXT_TERMS,
     brand_discovery_settings,
     same_business_class,
 )
@@ -58,6 +60,12 @@ from app.domain.projects.onboarding.site_resolution import (
 from app.domain.projects.onboarding.topic_selection import select_topics
 
 COMPETITOR_POOL_MULTIPLIER = 3
+
+
+def market_terms(primary_market: str) -> str:
+    """The plain place name a buyer would search, e.g. ``AU`` -> ``Australia``."""
+    terms = MARKET_CONTEXT_TERMS.get(primary_market.upper())
+    return terms[0] if terms else primary_market
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,10 +109,21 @@ async def _site_evidence(site) -> BrandEvidence:
         return BrandEvidence()
 
 
-def _fallback_profile(*, brand_name: str, industry: str) -> DiscoveryProfile:
+def _fallback_profile(
+    *, brand_name: str, industry: str, subindustry: str
+) -> DiscoveryProfile:
+    # The declared industry/subindustry is user-supplied, so it is always
+    # present and is a usable category of last resort. It is carried into
+    # ``category``/``category_terms`` for the downstream readers that still
+    # need a category -- ``business_category`` in topic selection -- NOT to
+    # keep competitor discovery running: the fallback signature deliberately
+    # leaves ``category`` empty, which skips the competitor phase entirely.
+    category = subindustry.strip() or industry.strip()
     return DiscoveryProfile(
         description=f"{brand_name} is being reviewed for AI visibility.",
         industry=industry,
+        category=category,
+        category_terms=[term for term in (category, industry.strip()) if term],
         field_confidence={"industry": 1.0, "description": 0.2},
     )
 
@@ -117,7 +136,14 @@ async def research_brand(
     subindustry: str,
     language_code: str,
     site,
+    on_competitor_phase: Callable[[], Awaitable[None]] | None = None,
 ) -> ResearchResult:
+    """Research one brand. `on_competitor_phase` reports the longest phase.
+
+    The frontend timeline has always had a "Finding comparable brands" step,
+    but nothing emitted it, so the bar sat on step one for the whole run and
+    the pipeline read as hung.
+    """
     website_evidence = await _site_evidence(site)
     first_party = first_party_evidence(website_evidence)
     budget = ResearchCallBudget(brand_discovery_settings.keenable_total_call_cap)
@@ -137,16 +163,19 @@ async def research_brand(
         identity_phase.identity,
         brand_name=brand_name,
         industry=industry,
+        subindustry=subindustry,
         primary_market=primary_market,
     )
+    if on_competitor_phase is not None:
+        await on_competitor_phase()
     competitor_phase = await _run_competitor_phase(
         keenable=keenable,
         gateway=identity_phase.gateway,
-        identity=identity_phase.identity,
         profile=profile,
         signature=signature,
         brand_name=brand_name,
         owned_domain=site.registrable_domain,
+        primary_market=primary_market,
         budget=budget,
         model_calls=identity_phase.model_calls,
     )
@@ -304,13 +333,32 @@ def _profile_and_signature(
     *,
     brand_name: str,
     industry: str,
+    subindustry: str,
     primary_market: str,
 ) -> tuple[DiscoveryProfile, CompetitiveSignature]:
     if identity is not None:
-        return identity.profile, identity.signature
-    profile = _fallback_profile(brand_name=brand_name, industry=industry)
+        # A researched identity can still land without a category - typically
+        # when the evidence conflicts and the model declines to guess. The
+        # stand-in must stay as narrow as the evidence: the declared
+        # subindustry is user-supplied and sector-wide, and searching it turned
+        # a linen-womenswear brand into a query for "Apparel", which returned
+        # A.P.C. Paris. An empty category skips competitor search, and
+        # returning no competitors is better than returning the wrong ones.
+        signature = identity.signature
+        if not signature.category:
+            signature = signature.model_copy(
+                update={"category": _evidence_category(identity.profile)}
+            )
+        return identity.profile, signature
+    profile = _fallback_profile(
+        brand_name=brand_name, industry=industry, subindustry=subindustry
+    )
     return profile, CompetitiveSignature(
-        category=profile.category,
+        # The fallback profile's category IS the declared subindustry, so it is
+        # deliberately not carried into the signature. The competitor phase
+        # already returns nothing without a gateway; leaving this empty also
+        # stops it spending the search budget on a sector-wide query first.
+        category="",
         buyer=profile.target_audience,
         core_job=(profile.jobs_to_be_done or [""])[0],
         market_context=primary_market,
@@ -318,20 +366,36 @@ def _profile_and_signature(
     )
 
 
+def _evidence_category(profile: DiscoveryProfile) -> str:
+    """The narrowest category the evidence itself supports, or nothing.
+
+    Every source here is model-written from first-party and retrieved
+    evidence. The user-declared industry/subindustry is deliberately excluded:
+    it is a sector, and a sector-wide competitor search is what produced an
+    unrelated brand.
+    """
+    candidates = [
+        profile.category,
+        *profile.category_terms,
+        *profile.products_services,
+    ]
+    return next((value.strip() for value in candidates if value.strip()), "")
+
+
 async def _run_competitor_phase(
     *,
     keenable: KeenableClient | None,
     gateway: ModelGateway | None,
-    identity: IdentityResearchEnvelope | None,
     profile: DiscoveryProfile,
     signature: CompetitiveSignature,
     brand_name: str,
     owned_domain: str,
+    primary_market: str,
     budget: ResearchCallBudget,
     model_calls: list[dict],
 ) -> _CompetitorPhase:
     empty = _CompetitorPhase([], [], [], False)
-    if keenable is None or identity is None or not signature.category:
+    if keenable is None or not signature.category:
         return empty
     evidence: list[ResearchEvidenceItem] = []
     try:
@@ -341,15 +405,16 @@ async def _run_competitor_phase(
             owned_domain=owned_domain,
             signature=signature,
             budget=budget,
+            market=market_terms(primary_market),
         )
         evidence = list(result.evidence)
-        if not result.candidates or gateway is None:
+        if not evidence or gateway is None:
             return _CompetitorPhase([], [], evidence, False)
         suggestions, verdicts = await qualify_competitors(
             gateway,
             profile=profile,
             signature=signature,
-            candidates=result.candidates,
+            evidence=result.evidence,
         )
         model_calls.append(
             _model_call(
@@ -511,10 +576,18 @@ def _customer_warnings(
 def _competitor_domain_candidates(
     candidate: DiscoveryCompetitorSuggestion,
 ) -> list[str]:
-    evidence = [
-        url for url in candidate.evidence_urls if not _is_excluded_research_url(url)
+    """Usable domains for this candidate, declared ones filtered like evidence.
+
+    The exclusion list was applied to `evidence_urls` only, so a declared
+    domain naming a directory or analytics site was still tried -- and, being
+    first, it consumed one of the two attempts and could be persisted as the
+    competitor's domain.
+    """
+    return [
+        value
+        for value in dict.fromkeys([*candidate.domains, *candidate.evidence_urls])
+        if not _is_excluded_research_url(value)
     ]
-    return list(dict.fromkeys([*candidate.domains, *evidence]))
 
 
 def _is_excluded_research_url(value: str) -> bool:

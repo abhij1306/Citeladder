@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import type { StatusValue } from '@/components/ui/badge-variants';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -18,30 +22,33 @@ import {
 import { commerceApi } from '@/lib/api/commerce';
 import { queryKeys } from '@/lib/api/query-keys';
 import type { CommerceTarget } from '@/lib/api/schemas/commerce-suite';
+import { LaunchDialog } from '@/components/runs/launch-dialog';
+import { useCompetitorDiscovery } from '@/lib/products/competitor-discovery';
 import type { useCommerceQueries } from '@/lib/products/use-products-screen';
 
-type Queries = ReturnType<typeof useCommerceQueries>;
-const percentage = (value: number | null) =>
-  value == null ? 'Unavailable' : `${(value * 100).toFixed(1)}%`;
+export type CommerceQueries = ReturnType<typeof useCommerceQueries>;
+type Queries = CommerceQueries;
 
-function TargetSelect({
+export function TargetSelect({
   label,
   targets,
   value,
   onChange,
+  placeholder,
 }: {
   label: string;
   targets: Array<{ label: string; target: CommerceTarget }>;
   value: string;
   onChange: (value: string) => void;
+  placeholder?: string;
 }) {
   return (
-    <select
-      aria-label={label}
-      className="bg-input h-8 rounded-sm border px-2 text-sm"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    >
+    <Select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
+      {placeholder ? (
+        <option value="" disabled>
+          {placeholder}
+        </option>
+      ) : null}
       {targets.map((item) => (
         <option
           key={`${item.target.kind}:${item.target.id}`}
@@ -50,11 +57,31 @@ function TargetSelect({
           {item.label}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
-function availableTargets(query: Queries['catalog']) {
+/**
+ * Discovery status as a sentence, not a status string dropped into one.
+ * Interpolating the raw value produced "Discovery for this category is
+ * succeeded", and `unavailable` read as success to anyone skimming.
+ */
+export function discoveryMessage(status: string, kind: string, errorCode: string): string {
+  if (status === 'succeeded') return `Discovery finished for this ${kind}.`;
+  if (status === 'cancelled') return `Discovery was cancelled for this ${kind}.`;
+  if (status === 'failed') {
+    if (errorCode === 'unusable_target') {
+      return `This ${kind} needs a clearer name before competitors can be found.`;
+    }
+    if (errorCode === 'provider_unavailable') {
+      return 'Competitor discovery is unavailable: the search provider is not configured.';
+    }
+    return `Discovery failed for this ${kind}${errorCode ? ` (${errorCode})` : ''}.`;
+  }
+  return `Finding competitors for this ${kind}…`;
+}
+
+export function availableTargets(query: Queries['catalog']) {
   if (!query.data) return [];
   return [
     ...query.data.categories.map((row) => ({
@@ -68,6 +95,53 @@ function availableTargets(query: Queries['catalog']) {
   ];
 }
 
+/** The candidate's domain — what a person recognises as "who is this?". */
+export function competitorHost(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+const COMPETITOR_TONES: Record<string, StatusValue> = {
+  approved: 'success',
+  rejected: 'danger',
+  excluded: 'danger',
+  pending: 'info',
+};
+
+export function competitorTone(state: string): StatusValue {
+  return COMPETITOR_TONES[state] ?? 'info';
+}
+
+/**
+ * Loading / error / empty / ready for the candidate list.
+ *
+ * Zero candidates used to render an empty `<tbody>` under a full header, which
+ * looks identical to a list that has not loaded — the state the user reported
+ * as the panel "always pending".
+ */
+function renderCompetitors(
+  query: Queries['competitors'],
+  discovering: boolean,
+  render: (rows: NonNullable<Queries['competitors']['data']>) => ReactNode,
+): ReactNode {
+  if (query.isError) return <Alert tone="danger">Competitors could not be loaded.</Alert>;
+  if (query.isPending) return <Skeleton className="h-24 w-full" />;
+  const rows = query.data ?? [];
+  if (rows.length === 0) {
+    return (
+      <p className="text-muted py-8 text-center text-sm">
+        {discovering
+          ? 'Looking for competitors…'
+          : 'No candidates yet. Run Discover to find competing brands for this target.'}
+      </p>
+    );
+  }
+  return render(rows);
+}
+
 export function CompetitorsPanel({ projectId, queries }: { projectId: string; queries: Queries }) {
   const client = useQueryClient();
   const targets = availableTargets(queries.catalog);
@@ -76,10 +150,7 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
     targets.find((row) => `${row.target.kind}:${row.target.id}` === selected) ?? targets[0];
   const refresh = () =>
     client.invalidateQueries({ queryKey: queryKeys.commerce.competitors(projectId) });
-  const discover = useMutation({
-    mutationFn: () => commerceApi.discoverCompetitors(projectId, [current.target]),
-    onSuccess: refresh,
-  });
+  const { tasks, discover } = useCompetitorDiscovery(projectId);
   const decide = useMutation({
     mutationFn: ({ id, decision }: { id: string; decision: 'approved' | 'rejected' }) =>
       commerceApi.decideCompetitor(projectId, id, decision),
@@ -101,7 +172,7 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
               value={`${current.target.kind}:${current.target.id}`}
               onChange={setSelected}
             />
-            <Button onClick={() => discover.mutate()} disabled={discover.isPending}>
+            <Button onClick={() => discover.mutate([current.target])} disabled={discover.isPending}>
               Discover
             </Button>
           </div>
@@ -111,11 +182,14 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
         {discover.isError || decide.isError ? (
           <Alert tone="danger">The competitor update failed. Please try again.</Alert>
         ) : null}
+        {tasks.map((task) => (
+          <Alert key={task.id} tone={task.status === 'failed' ? 'danger' : 'info'}>
+            {discoveryMessage(task.status, task.target.kind, task.error_code)}
+          </Alert>
+        ))}
       </CardHeader>
       <CardContent>
-        {queries.competitors.isError ? (
-          <Alert tone="danger">Competitors could not be loaded.</Alert>
-        ) : (
+        {renderCompetitors(queries.competitors, discover.isPending, (rows) => (
           <Table>
             <TableHeader>
               <TableRow>
@@ -126,15 +200,22 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(queries.competitors.data ?? []).map((row) => (
+              {rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>
-                    <a className="text-link" href={row.canonical_url}>
-                      {row.product_name || row.canonical_url}
+                    <a className="text-link font-medium" href={row.canonical_url}>
+                      {competitorHost(row.canonical_url)}
                     </a>
+                    {row.product_name ? (
+                      <span className="text-muted block truncate text-xs">{row.product_name}</span>
+                    ) : null}
                   </TableCell>
                   <TableCell>{row.target_kind}</TableCell>
-                  <TableCell>{row.state}</TableCell>
+                  <TableCell>
+                    <Badge variant="status" value={competitorTone(row.state)}>
+                      {row.state}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       <Button
@@ -158,7 +239,7 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
               ))}
             </TableBody>
           </Table>
-        )}
+        ))}
       </CardContent>
     </Card>
   );
@@ -169,6 +250,7 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
   const targets = availableTargets(queries.catalog);
   const [selected, setSelected] = useState('');
   const [text, setText] = useState('');
+  const [launchOpen, setLaunchOpen] = useState(false);
   const current =
     targets.find((row) => `${row.target.kind}:${row.target.id}` === selected) ?? targets[0];
   const refresh = () =>
@@ -189,6 +271,13 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
       commerceApi.decideBuyerPrompt(projectId, id, approved),
     onSuccess: refresh,
   });
+  const approvedPromptIds = approvedPromptsForTarget(
+    queries.buyerPrompts.data ?? [],
+    current?.target,
+  );
+  const writePending = [manual.isPending, generate.isPending].some(Boolean);
+  const actionPending = [manual.isPending, generate.isPending, decide.isPending].some(Boolean);
+  const updateFailed = [manual.isError, generate.isError, decide.isError].some(Boolean);
   return (
     <Card>
       <CardHeader>
@@ -212,37 +301,54 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
               placeholder="What would a buyer ask?"
             />
             <div className="flex gap-2">
-              <Button
-                disabled={!text.trim() || manual.isPending || generate.isPending}
-                onClick={() => manual.mutate()}
-              >
+              <Button disabled={!text.trim() || writePending} onClick={() => manual.mutate()}>
                 Add manually
               </Button>
-              <Button
-                variant="secondary"
-                disabled={manual.isPending || generate.isPending}
-                onClick={() => generate.mutate()}
-              >
+              <Button variant="secondary" disabled={writePending} onClick={() => generate.mutate()}>
                 Generate 5
               </Button>
+              <Button
+                disabled={!approvedPromptIds.length || writePending}
+                onClick={() => setLaunchOpen(true)}
+              >
+                Review estimate and launch
+              </Button>
             </div>
+            <LaunchDialog
+              open={launchOpen}
+              onOpenChange={setLaunchOpen}
+              projectId={projectId}
+              fixedPromptIds={approvedPromptIds}
+              promptSelectionLabel={`${approvedPromptIds.length} approved prompts for ${current.label}`}
+              auditScope="commerce"
+            />
           </>
         ) : (
           <p>Project a catalog before creating buyer prompts.</p>
         )}
-        {manual.isError || generate.isError || decide.isError ? (
+        {updateFailed ? (
           <Alert tone="danger">The buyer-prompt update failed. Please try again.</Alert>
         ) : null}
       </CardHeader>
       <CardContent>
         <BuyerPromptsContent
           query={queries.buyerPrompts}
-          actionPending={manual.isPending || generate.isPending || decide.isPending}
+          actionPending={actionPending}
           onToggle={(id, approved) => decide.mutate({ id, approved })}
         />
       </CardContent>
     </Card>
   );
+}
+
+function approvedPromptsForTarget(
+  prompts: NonNullable<Queries['buyerPrompts']['data']>,
+  target?: CommerceTarget,
+) {
+  if (!target) return [];
+  return prompts
+    .filter((row) => row.enabled && row.target.kind === target.kind && row.target.id === target.id)
+    .map((row) => row.id);
 }
 
 function BuyerPromptsContent({
@@ -289,62 +395,4 @@ function BuyerPromptsContent({
   );
 }
 
-export function ShelfPanel({ query }: { query: Queries['shelf'] }) {
-  if (query.isLoading) return <p>Loading persisted AI Shelf…</p>;
-  if (query.isError || !query.data)
-    return <Alert tone="danger">AI Shelf could not be loaded.</Alert>;
-  const latest = query.data.snapshots[0];
-  return (
-    <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-4">
-        {[
-          ['Product visibility', latest ? percentage(latest.product_visibility) : 'Unavailable'],
-          ['Share of shelf', latest ? percentage(latest.share_of_shelf) : 'Unavailable'],
-          ['Average shelf position', latest?.average_shelf_position?.toFixed(2) ?? 'Unavailable'],
-          [
-            'First-position win rate',
-            latest ? percentage(latest.first_position_win_rate) : 'Unavailable',
-          ],
-        ].map(([label, value]) => (
-          <Card key={label}>
-            <CardHeader>
-              <CardDescription>{label}</CardDescription>
-              <CardTitle>{value}</CardTitle>
-            </CardHeader>
-          </Card>
-        ))}
-      </div>
-      <Alert tone="info">
-        Share of Shelf uses every recognized recommendation slot. Position metrics use only
-        explicitly ordered recommendations, so these metrics can move differently.
-      </Alert>
-      <Card>
-        <CardHeader>
-          <CardTitle>Recommendation evidence</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Observed product</TableHead>
-                <TableHead>Class</TableHead>
-                <TableHead>Merchant</TableHead>
-                <TableHead>Rank</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {query.data.observations.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.observed_product || row.observed_title}</TableCell>
-                  <TableCell>{row.classification}</TableCell>
-                  <TableCell>{row.merchant_domain || 'Not observed'}</TableCell>
-                  <TableCell>{row.order_observable ? row.rank : 'Unordered'}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+export { ShelfPanel } from './shelf-panel';

@@ -147,7 +147,7 @@ once the planned implementation is finished — not after every step.
 ```powershell
 .\scripts\check.ps1     # static + fix gate: ruff, mypy, complexity, vulture,
                         # prettier, eslint, tsc, frontend policies, docs index
-.\scripts	est.ps1      # affected backend, frontend, and mapped E2E tests
+.\scripts	test.ps1      # affected backend, frontend, and mapped E2E tests
 ```
 
 Useful variants:

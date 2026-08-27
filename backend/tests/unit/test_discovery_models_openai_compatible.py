@@ -22,7 +22,7 @@ from app.core.config.provider_catalog import (
     ERROR_SERVER,
 )
 
-_ENDPOINT = "https://mock.gmi.test/v1/chat/completions"
+_ENDPOINT = "https://mock.provider.test/v1/chat/completions"
 
 
 def _request() -> DiscoveryRequest:
@@ -39,7 +39,7 @@ def _request() -> DiscoveryRequest:
 
 def _client(handler) -> OpenAICompatibleDiscoveryClient:
     return OpenAICompatibleDiscoveryClient(
-        provider="gmi",
+        provider="mistral",
         api_key="test-key",
         endpoint=_ENDPOINT,
         transport=httpx.MockTransport(handler),
@@ -72,7 +72,7 @@ async def test_success_parses_model_finish_reason_usage() -> None:
         )
 
     response = await _client(handler).generate(_request())
-    assert response.provider == "gmi"
+    assert response.provider == "mistral"
     assert response.requested_model == "fixture-model"
     assert response.returned_model == "mistral-small-2409"
     assert response.output_text == "# Hello"
@@ -143,20 +143,22 @@ async def test_error_messages_never_contain_the_key() -> None:
 
 def test_missing_key_is_auth_error() -> None:
     with pytest.raises(ProviderError) as excinfo:
-        OpenAICompatibleDiscoveryClient(provider="gmi", api_key="", endpoint=_ENDPOINT)
+        OpenAICompatibleDiscoveryClient(
+            provider="mistral", api_key="", endpoint=_ENDPOINT
+        )
     assert excinfo.value.error_code == ERROR_AUTH
 
 
-def test_factory_builds_gmi_and_rejects_unknown(
+def test_factory_builds_known_provider_and_rejects_unknown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from pydantic import SecretStr
 
-    monkeypatch.setattr(content_settings, "provider", "gmi")
-    monkeypatch.setattr(content_settings, "gmicloud_api_key", SecretStr("k"))
+    monkeypatch.setattr(content_settings, "provider", "mistral")
+    monkeypatch.setattr(content_settings, "mistral_api_key", SecretStr("k"))
     client = build_discovery_client()
     assert isinstance(client, OpenAICompatibleDiscoveryClient)
-    assert client.provider == "gmi"
+    assert client.provider == "mistral"
 
     monkeypatch.setattr(content_settings, "provider", "nonexistent")
     with pytest.raises(ProviderError) as excinfo:

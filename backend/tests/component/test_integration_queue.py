@@ -235,3 +235,74 @@ async def test_sweeper_leaves_unexpired_leases(session_factory, db_session) -> N
     await db_session.refresh(live)
     assert live.status == TASK_STATUS_RUNNING
     assert live.lease_owner == "live-worker"
+
+
+@pytest.mark.asyncio
+async def test_a_task_that_keeps_dying_mid_run_eventually_terminalizes(
+    session_factory, db_session
+) -> None:
+    """`attempt_count` was only ever raised by a worker's finalize.
+
+    An executor killed mid-run (crash, OOM, container stop) came back from the
+    sweeper with the count still at zero, so the row cycled
+    running -> retry_wait -> running forever and the UI polled a discovery that
+    said "is running" and never terminalized.
+    """
+    _workspace_id, connection = await _seed_connection(db_session)
+    row = _run_row(connection, status=TASK_STATUS_RUNNING)
+    row.lease_owner = "dead-worker"
+    row.lease_expires_at = datetime.now(UTC) - timedelta(seconds=5)
+    row.max_attempts = 2
+    row.attempt_count = 0
+    db_session.add(row)
+    await db_session.commit()
+
+    queue = PostgresTaskQueue(session_factory, INTEGRATION_QUEUE_SPEC)
+
+    assert await queue.release_expired() == 1
+    await db_session.refresh(row)
+    assert row.status == TASK_STATUS_RETRY_WAIT
+    assert row.attempt_count == 1
+
+    # It dies mid-run a second time.
+    row.status = TASK_STATUS_RUNNING
+    row.lease_owner = "dead-worker"
+    row.lease_expires_at = datetime.now(UTC) - timedelta(seconds=5)
+    await db_session.commit()
+
+    assert await queue.release_expired() == 1
+    await db_session.refresh(row)
+    assert row.status == TASK_STATUS_FAILED
+    assert row.error_code == ERROR_MAX_ATTEMPTS
+    assert await queue.claim(owner="live-worker", limit=1) == []
+
+
+@pytest.mark.asyncio
+async def test_queue_sweeper_reclaims_a_row_whose_worker_died(
+    session_factory, db_session
+) -> None:
+    """The reclaimer has to outlive the process that stranded the row.
+
+    Every worker sweeps its own queue, so the one case nothing covered was the
+    worker being gone: the row sat at `running` with an expired lease and the
+    only process that would have reclaimed it was the one that died.
+    """
+    from app.workers.queue_sweeper import QueueSweeper
+
+    _workspace_id, connection = await _seed_connection(db_session)
+    stranded = _run_row(connection, status=TASK_STATUS_RUNNING)
+    stranded.lease_owner = "dead-worker"
+    stranded.lease_expires_at = datetime.now(UTC) - timedelta(seconds=5)
+    db_session.add(stranded)
+    await db_session.commit()
+
+    sweeper = QueueSweeper(
+        session_factory=session_factory, specs=(INTEGRATION_QUEUE_SPEC,)
+    )
+    assert await sweeper.run_once() == 1
+
+    await db_session.refresh(stranded)
+    assert stranded.status == TASK_STATUS_RETRY_WAIT
+    assert stranded.lease_owner is None
+    # A second pass finds nothing left to do.
+    assert await sweeper.run_once() == 0

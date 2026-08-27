@@ -52,7 +52,11 @@ __all__ = [
 ]
 
 
-def brand_terms(brand_name: str, aliases: list[str]) -> list[str]:
+def brand_terms(
+    brand_name: str,
+    aliases: list[str],
+    category_vocabulary: list[str] | None = None,
+) -> list[str]:
     """The brand name, its aliases, and the short form people actually type.
 
     An organic prompt must never name the tracked brand, or the visibility
@@ -66,22 +70,57 @@ def brand_terms(brand_name: str, aliases: list[str]) -> list[str]:
     not the brand, and banning it would reject legitimate prompts across the
     whole category. A brand built entirely from such words keeps only its full
     name, which is the safe direction to fail in.
+
+    `category_vocabulary` is the same escape hatch driven by evidence rather
+    than by a fixed word list. "Red Dress" sells dresses, so the static generic
+    set never saw "dress" and banned it -- which rejected every organic dress
+    query, emptied the core cohort, and left a portfolio of nothing but the two
+    mandatory brand-diagnostic prompts. A token the business's own confirmed
+    category uses is category language first and brand language second: it is
+    dropped from the token bans. The full name and the aliases are always
+    banned, so "Red Dress" itself still cannot appear in an organic prompt.
     """
     generic = {
         _singular(word)
         for phrase in PROVIDER_DESCRIPTION_PHRASES
         for word in phrase.split()
     } | TOPICAL_BINDING_STOPWORDS
+    category = {
+        _stem(token) for phrase in category_vocabulary or [] for token in words(phrase)
+    }
     tokens = [
         token
         for token in words(brand_name)
-        if len(token) >= 4 and token not in generic and _singular(token) not in generic
+        if len(token) >= 4
+        and token not in generic
+        and _singular(token) not in generic
+        and _stem(token) not in category
     ]
     return list(dict.fromkeys([brand_name, *aliases, *tokens]))
 
 
 def _singular(token: str) -> str:
     return token[:-1] if len(token) > 3 and token.endswith("s") else token
+
+
+def _stem(token: str) -> str:
+    """Fold a word to a form that matches its own plural.
+
+    `_singular` strips a single trailing "s", which is enough for the generic
+    provider vocabulary but cannot match "dress" to "dresses" -- it produces
+    "dres" and the comparison silently fails, which is exactly the bug this
+    guards. "-es" is stripped only when what remains still ends in a sibilant,
+    so "dresses" folds to "dress" while "shoes" folds to "shoe".
+    """
+    if (
+        len(token) > 4
+        and token.endswith("es")
+        and (token[-3] in "sxz" or token[-4:-2] in {"ch", "sh"})
+    ):
+        return token[:-2]
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
 
 
 def market_terms(market: str, service_areas: list[str]) -> tuple[str, ...]:

@@ -109,7 +109,10 @@ class DefaultAgentClient:
     ) -> ModelResult:
         schema_payload = dict(schema)
         response_format: Mapping[str, Any]
-        if self._settings.structured_output_mode == STRUCTURED_OUTPUT_JSON_SCHEMA:
+        if (
+            self._settings.resolved_structured_output_mode
+            == STRUCTURED_OUTPUT_JSON_SCHEMA
+        ):
             response_format = {
                 "type": "json_schema",
                 "json_schema": {
@@ -156,7 +159,10 @@ class DefaultAgentClient:
         """
         schema_payload = dict(schema)
         response_format: Mapping[str, Any]
-        if self._settings.structured_output_mode == STRUCTURED_OUTPUT_JSON_SCHEMA:
+        if (
+            self._settings.resolved_structured_output_mode
+            == STRUCTURED_OUTPUT_JSON_SCHEMA
+        ):
             response_format = {
                 "type": "json_schema",
                 "json_schema": {

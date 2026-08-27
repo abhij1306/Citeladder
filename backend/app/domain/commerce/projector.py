@@ -47,9 +47,9 @@ _VISIBLE_PRICE = re.compile(
 )
 
 
-def _visible_price(value: Any) -> tuple[Decimal | None, str]:
+def _visible_price(value: Any, context: Any = "") -> tuple[Decimal | None, str]:
     text = value.strip() if isinstance(value, str) else ""
-    match = _single_visible_price(text)
+    match = _single_visible_price(text, context)
     if match is None:
         return None, ""
     observed_marker = str(match.group("prefix") or match.group("suffix") or "").upper()
@@ -71,9 +71,14 @@ def _visible_price(value: Any) -> tuple[Decimal | None, str]:
     return price, currency
 
 
-def _single_visible_price(text: str) -> re.Match[str] | None:
+def _single_visible_price(text: str, context: Any = "") -> re.Match[str] | None:
+    # The guard reads the surrounding words when they are available: "over",
+    # "from" and "up to" live next to the amount, never inside it, so checking
+    # the bare match alone could never reject a shipping-threshold banner.
+    surrounding = context.casefold() if isinstance(context, str) else ""
     if any(
-        token in text.casefold() for token in COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS
+        token in text.casefold() or token in surrounding
+        for token in COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS
     ):
         return None
     matches = list(_VISIBLE_PRICE.finditer(text))
@@ -92,7 +97,9 @@ def _projected_price(
     product: dict[str, Any], commerce: dict[str, Any]
 ) -> tuple[Decimal | None, str, dict[str, str]]:
     price = _decimal(product.get("price"))
-    visible_price, visible_currency = _visible_price(commerce.get("visible_price"))
+    visible_price, visible_currency = _visible_price(
+        commerce.get("visible_price"), commerce.get("visible_price_context")
+    )
     price_path = "structured_data.product.price"
     if price is None and visible_price is not None:
         price = visible_price
@@ -138,6 +145,19 @@ def _crawl_projection(
         "attributes": {"availability": availability} if availability else {},
     }
     return values, evidence_paths
+
+
+def _has_product_identity(values: dict[str, Any]) -> bool:
+    """Whether the page identified a specific product, rather than listing some.
+
+    A merchant identifier is proof on its own. Failing that, a product needs a
+    name AND a price the page stated for it -- a collection page has a name
+    (its title) but no price of its own once the shipping-banner amount is
+    rejected.
+    """
+    if any(values.get(key) for key in ("sku", "gtin", "mpn")):
+        return True
+    return bool(values.get("name")) and values.get("price") is not None
 
 
 def _crawl_values(facts: dict[str, Any], canonical_url: str) -> dict[str, Any]:
@@ -204,6 +224,56 @@ async def _projection_source(
     return row[0], row[1], row[2]
 
 
+_TITLE_SEPARATORS = ("|", "–", "—", "·", "»", " - ")
+
+
+def _category_title(facts: dict[str, Any], fallback: str) -> str:
+    """A category's own name, not the page's title tag.
+
+    The raw title was stored verbatim, which produced names like "ASTR The
+    Label Elevated Women's Clothing | Red Dress" -- unreadable in the catalog,
+    and interpolated straight into the competitor search query, where it
+    returned marketplace listings instead of competing brands. It also meant a
+    breadcrumb-derived category ("Dresses") could never match the crawled page,
+    so crawled categories kept a product count of zero.
+
+    The breadcrumb leaf and `h1` are the page's own claim about what it is, so
+    they win over the title. A title is used only after its site-name segment
+    is dropped.
+    """
+    commerce = _dict_value(facts.get("commerce"))
+    breadcrumbs = [
+        str(value).strip() for value in _list_value(commerce.get("breadcrumbs"))
+    ]
+    leaf = next((value for value in reversed(breadcrumbs) if value), "")
+    if leaf:
+        return leaf
+    headings = _dict_value(facts.get("headings"))
+    h1 = next(
+        (
+            str(value).strip()
+            for value in _list_value(headings.get("h1_texts"))
+            if str(value).strip()
+        ),
+        "",
+    )
+    if h1:
+        return h1
+    return _title_segment(str(facts.get("title") or fallback))
+
+
+def _title_segment(title: str) -> str:
+    """The most specific segment of a separator-joined page title."""
+    parts = [title]
+    for separator in _TITLE_SEPARATORS:
+        parts = [piece for part in parts for piece in part.split(separator)]
+    cleaned = [" ".join(part.split()) for part in parts]
+    named = [part for part in cleaned if part]
+    # Titles are conventionally "<page> <sep> <site>", so the leading segment
+    # is the page. Falling back to the whole title keeps a separator-free name.
+    return named[0] if named else " ".join(title.split())
+
+
 async def _project_category_source(
     session: AsyncSession,
     *,
@@ -217,7 +287,7 @@ async def _project_category_source(
         session,
         analysis=analysis,
         canonical_url=site_url.normalized_url,
-        title=str(facts.get("title") or site_url.latest_title or "Uncategorized"),
+        title=_category_title(facts, str(site_url.latest_title or "Uncategorized")),
         role=str(commerce.get("category_role") or "unknown"),
     )
 
@@ -240,6 +310,13 @@ async def _project_product_source(
     values, evidence_paths = _crawl_projection(
         _dict_value(artifact.normalized_facts), site_url.normalized_url
     )
+    if not _has_product_identity(values):
+        # The classifier promotes a collection page to a product on nothing
+        # more than a price regex plus a cart marker, which every Shopify
+        # collection satisfies -- so "Back in Stock" and "Brands We Love"
+        # entered the catalog as products. A product the page cannot identify
+        # is not a product; leaving it out keeps the catalog answerable.
+        return
     product = await session.scalar(
         select(CommerceProduct).where(
             CommerceProduct.project_id == analysis.project_id,

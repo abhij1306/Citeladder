@@ -481,6 +481,13 @@ class PostgresTaskQueue[
             for task in tasks:
                 task.lease_owner = None
                 task.lease_expires_at = None
+                # A reclaim IS a consumed attempt. `attempt_count` was only
+                # ever incremented by a worker's finalize, so a task whose
+                # executor died mid-run (crash, OOM, container stop) came back
+                # with the count still at zero and cycled
+                # running -> retry_wait -> running forever, never reaching a
+                # terminal status and never clearing the UI's "is running".
+                task.attempt_count += 1
                 if task.attempt_count >= task.max_attempts:
                     task.status = TASK_STATUS_FAILED
                     task.completed_at = now

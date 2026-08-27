@@ -11,6 +11,7 @@ _PRICE = re.compile(
     r"(?:[$£€₹]|AUD|USD|CAD|NZD|GBP|EUR|INR)\s*\d[\d,.]*(?:\.\d{1,2})?",
     re.IGNORECASE,
 )
+_PRICE_CONTEXT_CHARS = 48
 _PRODUCT_TOKENS = ("product-card", "product_card", "productgrid", "product-tile")
 _CATEGORY_TOKENS = ("subcategory", "category-card", "department", "collection-card")
 
@@ -77,7 +78,8 @@ def extract_commerce_facts(
     """Return structural taxonomy/card facts without assigning a page kind."""
     breadcrumbs = _breadcrumbs(root, text_of)
     product_cards, category_links = _cards(root, final_url=final_url, text_of=text_of)
-    match = _PRICE.search(text_of(root))
+    page_text = text_of(root)
+    match = _PRICE.search(page_text)
     return {
         "breadcrumbs": breadcrumbs,
         "product_cards": product_cards,
@@ -86,4 +88,17 @@ def extract_commerce_facts(
             "leaf" if product_cards else "hub" if category_links else "unknown"
         ),
         "visible_price": match.group(0)[:64] if match else "",
+        # The words AROUND the price decide whether it is a price at all.
+        # Only the bare match was carried forward, so the projector's
+        # "from"/"over"/"up to" guard was checking a string that could not
+        # contain them, and a "Free shipping over $100" banner became the
+        # product's price on every page that had no real one.
+        "visible_price_context": _price_context(page_text, match),
     }
+
+
+def _price_context(text: str, match: re.Match[str] | None) -> str:
+    if match is None:
+        return ""
+    start = max(0, match.start() - _PRICE_CONTEXT_CHARS)
+    return " ".join(text[start : match.end() + _PRICE_CONTEXT_CHARS].split())

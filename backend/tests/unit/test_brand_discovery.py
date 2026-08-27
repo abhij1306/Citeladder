@@ -641,3 +641,64 @@ async def test_https_to_http_redirect_is_not_used_as_research(monkeypatch) -> No
     site = await resolve_site("acme.com", "https://acme.com/")
     assert site.page is None
     assert site.warning == "research_degraded"
+
+
+def test_brand_named_after_its_category_keeps_the_category_word_usable() -> None:
+    """Red Dress banned "dress" and shipped a portfolio of two branded prompts.
+
+    Every organic dress query was rejected as `tracked_name`, the core cohort
+    emptied, and the only survivors were the two mandatory brand-diagnostic
+    prompts -- which are required to name the brand.
+    """
+    terms = brand_terms("Red Dress", [], ["Dresses", "Women's clothing"])
+    assert "Red Dress" in terms
+    assert "dress" not in terms
+    validator = _validator(brand_terms=terms)
+    assert _offer(validator, "best summer dresses for a beach wedding") == ""
+    # The full name is still the brand and still cannot appear organically.
+    assert _offer(validator, "is Red Dress good for petite sizing") == "tracked_name"
+
+
+def test_category_vocabulary_never_unbans_a_real_brand_token() -> None:
+    terms = brand_terms("Apollo Hospitals", [], ["Cardiac care", "Hospitals"])
+    assert "apollo" in terms
+    validator = _validator(brand_terms=terms)
+    assert (
+        _offer(validator, "Best Apollo hospital for kidney stone treatment")
+        == "tracked_name"
+    )
+
+
+def test_one_unreadable_row_no_longer_voids_its_whole_batch() -> None:
+    """A single bad topic_id used to discard all four prompts in the call."""
+    import json
+
+    from app.domain.projects.onboarding.portfolio_generation import _salvaged_rows
+
+    raw = json.dumps(
+        {
+            "prompts": [
+                {
+                    "topic_id": "t1",
+                    "text": "best linen midi dresses",
+                    "intent": "discovery",
+                },
+                {
+                    "topic_id": "Sustainable fabrics",
+                    "text": "where to buy linen",
+                    "intent": "made_up",
+                },
+                {"topic_id": "t2", "text": "", "intent": "discovery"},
+                "not an object",
+            ]
+        }
+    )
+    rows = _salvaged_rows(raw)
+    # The good row survives; the empty row and the non-object are dropped, and
+    # the row with a bad id/intent is left for the deterministic validator.
+    assert [row["text"] for row in rows] == [
+        "best linen midi dresses",
+        "where to buy linen",
+    ]
+    assert _salvaged_rows("not json") == []
+    assert _salvaged_rows("{}") == []

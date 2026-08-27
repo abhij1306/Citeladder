@@ -2,39 +2,39 @@
 
 from __future__ import annotations
 
+import json
 import re
 import uuid
-from collections import defaultdict
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlsplit
 
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.connectors.agent.client import AgentNotConfiguredError
+from app.connectors.agent.factory import create_model_gateway
+from app.connectors.agent.gateway import ModelGateway
 from app.core.config.commerce_catalog import (
+    COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS,
+    COMMERCE_COMPETITOR_NON_PDP_HOST_SUFFIXES,
     COMMERCE_DOLLAR_CURRENCY_BY_COUNTRY,
     COMMERCE_RECOMMENDATION_MATCHER_VERSION,
     COMMERCE_RECOMMENDATION_PARSER_VERSION,
-    COMMERCE_SHELF_FORMULA_VERSION,
+    COMMERCE_RECOMMENDATION_RESOLVER_RESULT_LIMIT,
+    COMMERCE_RECOMMENDATION_RESOLVER_SPAN_CHARS,
+    COMMERCE_RECOMMENDATION_RESOLVER_SPAN_LIMIT,
 )
-from app.core.config.task_queue import TASK_STATUS_SUCCEEDED
 from app.domain.commerce.price import normalized_price_value
-from app.domain.commerce.schemas import (
-    RecommendationObservationResponse,
-    ShelfMetricResponse,
-    ShelfResponse,
-)
-from app.domain.commerce.service import require_project
+from app.domain.site_health.normalization import canonical_identity
 from app.models.analysis import Citation, ResponseAnalysis
 from app.models.audit import Audit, AuditPromptSnapshot, AuditTask
 from app.models.commerce import (
     CommerceCompetitorCandidate,
     CommerceObservationCitation,
-    CommerceProduct,
-    CommerceProductCategory,
     CommercePromptTarget,
     CommerceRecommendationObservation,
-    CommerceShelfSnapshot,
 )
 
 _ORDERED = re.compile(r"^\s*(\d{1,2})[.)]\s+(.+)$")
@@ -51,6 +51,45 @@ class _Span:
     text: str
     rank: int | None
     order_observable: bool
+
+
+@dataclass(frozen=True)
+class _FrozenProduct:
+    id: uuid.UUID
+    canonical_url: str
+    name: str
+    brand: str
+    gtin: str | None
+    sku: str | None
+    mpn: str | None
+    attributes: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _FrozenCandidate:
+    id: uuid.UUID
+    canonical_url: str
+    product_name: str
+    brand_name: str
+    state: str = "approved"
+
+
+class _ResolvedRecommendation(BaseModel):
+    title: str = Field(min_length=1, max_length=512)
+    brand: str = Field(default="", max_length=255)
+    product_url: str = Field(default="", max_length=2048)
+    merchant_url: str = Field(default="", max_length=2048)
+    price: float | None = Field(default=None, ge=0)
+    currency: str = Field(default="", max_length=3)
+    surface_kind: str = Field(
+        default="recommendation", pattern="^(recommendation|shopping_result)$"
+    )
+
+
+class _ResolvedBatch(BaseModel):
+    recommendations: list[_ResolvedRecommendation] = Field(
+        max_length=COMMERCE_RECOMMENDATION_RESOLVER_RESULT_LIMIT
+    )
 
 
 def _spans(answer: str) -> list[_Span]:
@@ -82,7 +121,21 @@ def _spans(answer: str) -> list[_Span]:
                 rank=previous.rank,
                 order_observable=previous.order_observable,
             )
-    return spans or [_Span(text=answer.strip(), rank=None, order_observable=False)]
+    if spans:
+        return spans
+    unresolved = [
+        value.strip()
+        for value in re.split(r"(?<=[.!?])\s+|\s*;\s*", answer.strip())
+        if value.strip()
+    ]
+    return [
+        _Span(
+            text=value[:COMMERCE_RECOMMENDATION_RESOLVER_SPAN_CHARS],
+            rank=None,
+            order_observable=False,
+        )
+        for value in unresolved[:COMMERCE_RECOMMENDATION_RESOLVER_SPAN_LIMIT]
+    ] or [_Span(text="", rank=None, order_observable=False)]
 
 
 def _normalize(value: str) -> str:
@@ -130,14 +183,14 @@ def _merchant(span: str) -> tuple[str, str]:
 
 async def _task_target(
     session: AsyncSession, *, task: AuditTask
-) -> tuple[CommercePromptTarget | None, str]:
+) -> tuple[CommercePromptTarget | None, str, dict[str, Any] | None]:
     audit = await session.get(Audit, task.audit_id)
     if audit is None or audit.audit_scope != "commerce":
-        return None, ""
+        return None, "", None
     frozen = dict((audit.configuration or {}).get("commerce_measurement") or {})
     target_ids = _frozen_target_ids(frozen)
     if not target_ids:
-        return None, ""
+        return None, "", None
     target = await session.scalar(
         select(CommercePromptTarget)
         .join(
@@ -160,7 +213,21 @@ async def _task_target(
         )
         if value
     )
-    return target, locale
+    return target, locale, _frozen_target(frozen, target=target)
+
+
+def _frozen_target(
+    frozen: dict[str, Any], *, target: CommercePromptTarget | None
+) -> dict[str, Any] | None:
+    if target is None:
+        return None
+    for row in frozen.get("targets") or []:
+        if not isinstance(row, dict):
+            continue
+        identity = (str(row.get("kind")), str(row.get("id")))
+        if identity == (target.target_kind, str(target.target_id)):
+            return row
+    return None
 
 
 def _frozen_target_ids(frozen: dict) -> list[uuid.UUID]:
@@ -173,45 +240,71 @@ def _frozen_target_ids(frozen: dict) -> list[uuid.UUID]:
     return values
 
 
-async def _catalog(
-    session: AsyncSession, *, target: CommercePromptTarget
-) -> tuple[list[CommerceProduct], list[CommerceCompetitorCandidate]]:
-    products_stmt = select(CommerceProduct).where(
-        CommerceProduct.workspace_id == target.workspace_id,
-        CommerceProduct.project_id == target.project_id,
-        CommerceProduct.lifecycle_state == "active",
+def _frozen_catalog(
+    frozen_target: dict[str, Any],
+) -> tuple[list[_FrozenProduct], list[_FrozenCandidate]]:
+    products = [_frozen_product(row) for row in frozen_target.get("products") or []]
+    candidates = [
+        _frozen_candidate(row)
+        for row in frozen_target.get("approved_competitors") or []
+    ]
+    return (
+        [row for row in products if row is not None],
+        [row for row in candidates if row is not None],
     )
-    if target.target_kind == "product":
-        products_stmt = products_stmt.where(CommerceProduct.id == target.target_id)
-    else:
-        products_stmt = products_stmt.join(
-            CommerceProductCategory,
-            CommerceProductCategory.product_id == CommerceProduct.id,
-        ).where(
-            CommerceProductCategory.category_id == target.target_id,
-            CommerceProductCategory.workspace_id == target.workspace_id,
-            CommerceProductCategory.project_id == target.project_id,
+
+
+@dataclass(frozen=True)
+class _AnalysisContext:
+    task: AuditTask
+    target: CommercePromptTarget
+    products: list[_FrozenProduct]
+    candidates: list[_FrozenCandidate]
+    locale: str
+    citations: list[Citation]
+    gateway: ModelGateway | None
+
+
+def _frozen_product(row: Any) -> _FrozenProduct | None:
+    if not isinstance(row, dict):
+        return None
+    try:
+        return _FrozenProduct(
+            id=uuid.UUID(str(row["id"])),
+            canonical_url=str(row.get("canonical_url") or ""),
+            name=str(row.get("name") or ""),
+            brand=str(row.get("brand") or ""),
+            gtin=_optional_text(row.get("gtin")),
+            sku=_optional_text(row.get("sku")),
+            mpn=_optional_text(row.get("mpn")),
+            attributes=dict(row.get("attributes") or {}),
         )
-    products = list((await session.scalars(products_stmt)).all())
-    candidates = list(
-        (
-            await session.scalars(
-                select(CommerceCompetitorCandidate).where(
-                    CommerceCompetitorCandidate.workspace_id == target.workspace_id,
-                    CommerceCompetitorCandidate.project_id == target.project_id,
-                    CommerceCompetitorCandidate.target_kind == target.target_kind,
-                    CommerceCompetitorCandidate.target_id == target.target_id,
-                    CommerceCompetitorCandidate.state == "approved",
-                )
-            )
-        ).all()
-    )
-    return products, candidates
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _frozen_candidate(row: Any) -> _FrozenCandidate | None:
+    if not isinstance(row, dict):
+        return None
+    try:
+        return _FrozenCandidate(
+            id=uuid.UUID(str(row["id"])),
+            canonical_url=str(row.get("canonical_url") or ""),
+            product_name=str(row.get("product_name") or ""),
+            brand_name=str(row.get("brand_name") or ""),
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _optional_text(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
 
 
 def _match_product(
-    text: str, products: list[CommerceProduct]
-) -> tuple[CommerceProduct | None, float]:
+    text: str, products: list[_FrozenProduct]
+) -> tuple[_FrozenProduct | None, float]:
     normalized = _normalize(text)
     for product in products:
         if _product_identity_matches(product, normalized):
@@ -221,7 +314,7 @@ def _match_product(
     return None, 0.0
 
 
-def _product_identity_matches(product: CommerceProduct, normalized: str) -> bool:
+def _product_identity_matches(product: _FrozenProduct, normalized: str) -> bool:
     identities = (
         product.canonical_url,
         product.gtin,
@@ -233,7 +326,7 @@ def _product_identity_matches(product: CommerceProduct, normalized: str) -> bool
     return any(token and token in normalized for token in tokens)
 
 
-def _product_attributes_match(product: CommerceProduct, normalized: str) -> bool:
+def _product_attributes_match(product: _FrozenProduct, normalized: str) -> bool:
     if not product.brand or _normalize(str(product.brand or "")) not in normalized:
         return False
     values = (
@@ -245,8 +338,8 @@ def _product_attributes_match(product: CommerceProduct, normalized: str) -> bool
 
 
 def _match_candidate(
-    text: str, candidates: list[CommerceCompetitorCandidate]
-) -> tuple[CommerceCompetitorCandidate | None, float]:
+    text: str, candidates: list[_FrozenCandidate]
+) -> tuple[_FrozenCandidate | None, float]:
     normalized = _normalize(text)
     for candidate in candidates:
         for identity in (
@@ -264,8 +357,8 @@ async def analyze_commerce_task(session: AsyncSession, *, task: AuditTask) -> No
     """Append deterministic observations for one successful target execution."""
     if task.result_artifact_id is None:
         return
-    target, locale = await _task_target(session, task=task)
-    if target is None:
+    target, locale, frozen_target = await _task_target(session, task=task)
+    if target is None or frozen_target is None:
         return
     existing = await session.scalar(
         select(CommerceRecommendationObservation.id).where(
@@ -280,7 +373,7 @@ async def analyze_commerce_task(session: AsyncSession, *, task: AuditTask) -> No
     )
     if existing is not None:
         return
-    products, candidates = await _catalog(session, target=target)
+    products, candidates = _frozen_catalog(frozen_target)
     citations = list(
         (
             await session.scalars(
@@ -290,40 +383,125 @@ async def analyze_commerce_task(session: AsyncSession, *, task: AuditTask) -> No
             )
         ).all()
     )
-    for span in _spans(task.answer_text):
+    context = _AnalysisContext(
+        task=task,
+        target=target,
+        products=products,
+        candidates=candidates,
+        locale=locale,
+        citations=citations,
+        gateway=_model_gateway(),
+    )
+    for span in _spans(task.answer_text)[:COMMERCE_RECOMMENDATION_RESOLVER_SPAN_LIMIT]:
+        await _analyze_span(session, context=context, span=span)
+
+
+async def _analyze_span(
+    session: AsyncSession, *, context: _AnalysisContext, span: _Span
+) -> None:
+    product, product_confidence = _match_product(span.text, context.products)
+    candidate, candidate_confidence = _match_candidate(span.text, context.candidates)
+    if product is not None or candidate is not None:
+        await _persist_observation(
+            session,
+            context=context,
+            span=span,
+            product=product,
+            product_confidence=product_confidence,
+            candidate=candidate,
+            candidate_confidence=candidate_confidence,
+        )
+        return
+    resolved_rows = await _resolve_span(span, gateway=context.gateway)
+    if not resolved_rows:
+        await _persist_observation(session, context=context, span=span)
+        return
+    for resolved in resolved_rows:
+        await _persist_resolved(session, context=context, span=span, resolved=resolved)
+
+
+async def _persist_resolved(
+    session: AsyncSession,
+    *,
+    context: _AnalysisContext,
+    span: _Span,
+    resolved: _ResolvedRecommendation,
+) -> None:
+    identity_text = " ".join(
+        value
+        for value in (resolved.title, resolved.brand, resolved.product_url)
+        if value
+    )
+    product, product_confidence = _match_product(identity_text, context.products)
+    candidate, candidate_confidence = _match_candidate(
+        identity_text, context.candidates
+    )
+    observed_candidate = None
+    if product is None and candidate is None:
         observed_candidate = await _ai_observed_candidate(
             session,
-            target=target,
+            target=context.target,
+            resolved=resolved,
             span=span,
-            approved_candidates=candidates,
+            citations=context.citations,
         )
-        span_candidates = candidates + (
-            [observed_candidate] if observed_candidate is not None else []
+    await _persist_observation(
+        session,
+        context=context,
+        span=span,
+        product=product,
+        product_confidence=product_confidence,
+        candidate=candidate,
+        candidate_confidence=candidate_confidence,
+        observed_candidate=observed_candidate,
+        resolved=resolved,
+        model_version=context.gateway.model if context.gateway is not None else "",
+    )
+
+
+def _model_gateway() -> ModelGateway | None:
+    try:
+        return create_model_gateway()
+    except AgentNotConfiguredError:
+        return None
+
+
+async def _resolve_span(
+    span: _Span, *, gateway: ModelGateway | None
+) -> list[_ResolvedRecommendation] | None:
+    if gateway is None or not span.text.strip():
+        return None
+    try:
+        raw = await gateway.complete_structured_json(
+            system=(
+                "Extract only recommended products from this bounded answer span. "
+                "Keep product identity separate from merchant and citation URLs. "
+                "Set product_url only when the URL identifies the recommended PDP; "
+                "set merchant_url only for a seller link. Return an empty list "
+                "when uncertain."
+            ),
+            user=json.dumps(
+                {"span": span.text[:COMMERCE_RECOMMENDATION_RESOLVER_SPAN_CHARS]}
+            ),
+            schema_name="commerce_recommendation_resolution",
+            schema=_ResolvedBatch.model_json_schema(),
         )
-        observation = _observation_for_span(
-            task=task,
-            target=target,
-            span=span,
-            products=products,
-            candidates=span_candidates,
-            locale=locale,
-        )
-        session.add(observation)
-        await session.flush()
-        _link_observation_citations(
-            session, observation=observation, citations=citations, text=span.text
-        )
+        batch = _ResolvedBatch.model_validate_json(raw)
+    except Exception:
+        return None
+    return batch.recommendations or None
 
 
 async def _ai_observed_candidate(
     session: AsyncSession,
     *,
     target: CommercePromptTarget,
+    resolved: _ResolvedRecommendation,
     span: _Span,
-    approved_candidates: list[CommerceCompetitorCandidate],
+    citations: list[Citation],
 ) -> CommerceCompetitorCandidate | None:
-    url, domain = _merchant(span.text)
-    if not url or _match_candidate(span.text, approved_candidates)[0] is not None:
+    url = _resolved_product_url(resolved.product_url, citations=citations)
+    if url is None:
         return None
     existing = await session.scalar(
         select(CommerceCompetitorCandidate).where(
@@ -342,9 +520,13 @@ async def _ai_observed_candidate(
         target_kind=target.target_kind,
         target_id=target.target_id,
         canonical_url=url,
-        product_name=span.text[:512],
-        brand_name=domain,
-        evidence={"observation_text": span.text[:2000]},
+        product_name=resolved.title,
+        brand_name=resolved.brand,
+        evidence={
+            "observation_text": span.text[:COMMERCE_RECOMMENDATION_RESOLVER_SPAN_CHARS],
+            "resolved_product_url": url,
+            "merchant_url": resolved.merchant_url,
+        },
         source_kind="ai_observed",
         state="pending",
     )
@@ -353,29 +535,46 @@ async def _ai_observed_candidate(
     return candidate
 
 
-def _observation_for_span(
+def _resolved_product_url(raw_url: str, *, citations: list[Citation]) -> str | None:
+    try:
+        url = canonical_identity(raw_url.strip())[0]
+    except (TypeError, ValueError):
+        return None
+    host = (urlsplit(url).hostname or "").casefold().removeprefix("www.")
+    lowered = url.casefold()
+    if not host or any(
+        host == suffix or host.endswith(f".{suffix}")
+        for suffix in COMMERCE_COMPETITOR_NON_PDP_HOST_SUFFIXES
+    ):
+        return None
+    if any(token in lowered for token in COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS):
+        return None
+    citation_urls = {citation.url for citation in citations if citation.url}
+    return None if url in citation_urls else url
+
+
+async def _persist_observation(
+    session: AsyncSession,
     *,
-    task: AuditTask,
-    target: CommercePromptTarget,
+    context: _AnalysisContext,
     span: _Span,
-    products: list[CommerceProduct],
-    candidates: list[CommerceCompetitorCandidate],
-    locale: str,
-) -> CommerceRecommendationObservation:
-    product, confidence = _match_product(span.text, products)
-    candidate, competitor_confidence = _match_candidate(span.text, candidates)
-    price, currency = _price(span.text, locale=locale)
-    merchant_url, merchant_domain = _merchant(span.text)
-    classification = "unresolved"
-    if product is not None:
-        classification = "owned"
-    elif candidate is not None:
-        classification = (
-            "approved_competitor"
-            if candidate.state == "approved"
-            else "observed_competitor"
-        )
-    return CommerceRecommendationObservation(
+    product: _FrozenProduct | None = None,
+    product_confidence: float = 0.0,
+    candidate: _FrozenCandidate | None = None,
+    candidate_confidence: float = 0.0,
+    observed_candidate: CommerceCompetitorCandidate | None = None,
+    resolved: _ResolvedRecommendation | None = None,
+    model_version: str = "",
+) -> None:
+    task = context.task
+    target = context.target
+    price, currency = (
+        (resolved.price, resolved.currency.upper())
+        if resolved is not None and resolved.price is not None
+        else _price(span.text, locale=context.locale)
+    )
+    merchant_url, merchant_domain = _observation_merchant(span, resolved=resolved)
+    observation = CommerceRecommendationObservation(
         workspace_id=task.workspace_id,
         project_id=target.project_id,
         audit_id=task.audit_id,
@@ -384,28 +583,92 @@ def _observation_for_span(
         target_kind=target.target_kind,
         target_id=target.target_id,
         product_id=product.id if product else None,
-        competitor_candidate_id=candidate.id if candidate else None,
-        observed_product=(
-            product.name
-            if product
-            else candidate.product_name
-            if candidate
-            else span.text[:512]
+        competitor_candidate_id=_candidate_id(candidate, observed_candidate),
+        observed_product=_observed_product(
+            span, product, candidate, observed_candidate, resolved
         ),
-        observed_brand=(
-            product.brand if product else candidate.brand_name if candidate else ""
+        observed_brand=_observed_brand(
+            product, candidate, observed_candidate, resolved
         ),
-        classification=classification,
-        observed_title=span.text[:512],
+        classification=_observation_class(product, candidate, observed_candidate),
+        observed_title=resolved.title if resolved else span.text[:512],
         observed_price=price,
         observed_currency=currency,
         merchant_url=merchant_url,
         merchant_domain=merchant_domain,
-        surface_kind="recommendation",
+        surface_kind=resolved.surface_kind if resolved else "recommendation",
         rank=span.rank,
         order_observable=span.order_observable,
-        match_confidence=max(confidence, competitor_confidence),
+        match_confidence=max(product_confidence, candidate_confidence),
+        model_version=model_version,
     )
+    session.add(observation)
+    await session.flush()
+    _link_observation_citations(
+        session,
+        observation=observation,
+        citations=context.citations,
+        text=span.text,
+    )
+
+
+def _observation_merchant(
+    span: _Span, *, resolved: _ResolvedRecommendation | None
+) -> tuple[str, str]:
+    extracted_url, extracted_domain = _merchant(span.text)
+    resolved_url = resolved.merchant_url.strip() if resolved is not None else ""
+    url = resolved_url or extracted_url
+    domain = (urlsplit(url).hostname or "").casefold() if url else extracted_domain
+    return url, domain
+
+
+def _candidate_id(
+    candidate: _FrozenCandidate | None,
+    observed_candidate: CommerceCompetitorCandidate | None,
+) -> uuid.UUID | None:
+    row = candidate or observed_candidate
+    return row.id if row is not None else None
+
+
+def _observation_class(
+    product: _FrozenProduct | None,
+    candidate: _FrozenCandidate | None,
+    observed_candidate: CommerceCompetitorCandidate | None,
+) -> str:
+    if product is not None:
+        return "owned"
+    if candidate is not None:
+        return "approved_competitor"
+    return "ai_observed_competitor" if observed_candidate is not None else "unresolved"
+
+
+def _observed_product(
+    span: _Span,
+    product: _FrozenProduct | None,
+    candidate: _FrozenCandidate | None,
+    observed_candidate: CommerceCompetitorCandidate | None,
+    resolved: _ResolvedRecommendation | None,
+) -> str:
+    rows = (product, candidate, observed_candidate)
+    names = ("name", "product_name", "product_name")
+    for row, field in zip(rows, names, strict=True):
+        if row is not None:
+            return str(getattr(row, field))
+    return resolved.title if resolved is not None else span.text[:512]
+
+
+def _observed_brand(
+    product: _FrozenProduct | None,
+    candidate: _FrozenCandidate | None,
+    observed_candidate: CommerceCompetitorCandidate | None,
+    resolved: _ResolvedRecommendation | None,
+) -> str:
+    rows = (product, candidate, observed_candidate)
+    fields = ("brand", "brand_name", "brand_name")
+    for row, field in zip(rows, fields, strict=True):
+        if row is not None:
+            return str(getattr(row, field))
+    return resolved.brand if resolved is not None else ""
 
 
 def _link_observation_citations(
@@ -422,235 +685,3 @@ def _link_observation_citations(
                     observation_id=observation.id, citation_id=citation.id
                 )
             )
-
-
-async def finalize_commerce_shelf(session: AsyncSession, *, audit: Audit) -> None:
-    if audit.audit_scope != "commerce":
-        return
-    frozen = dict((audit.configuration or {}).get("commerce_measurement") or {})
-    target_ids = _frozen_target_ids(frozen)
-    if not target_ids:
-        return
-    targets = list(
-        (
-            await session.scalars(
-                select(CommercePromptTarget).where(
-                    CommercePromptTarget.workspace_id == audit.workspace_id,
-                    CommercePromptTarget.project_id == audit.project_id,
-                    CommercePromptTarget.id.in_(target_ids),
-                )
-            )
-        ).all()
-    )
-    for target in targets:
-        if await _snapshot_exists(session, audit=audit, target=target):
-            continue
-        tasks = await _target_tasks(session, audit=audit, target=target)
-        observations = await _target_observations(session, audit=audit, target=target)
-        session.add(
-            _build_shelf_snapshot(
-                audit=audit,
-                target=target,
-                tasks=tasks,
-                observations=observations,
-            )
-        )
-
-
-async def _snapshot_exists(
-    session: AsyncSession, *, audit: Audit, target: CommercePromptTarget
-) -> bool:
-    return (
-        await session.scalar(
-            select(CommerceShelfSnapshot.id).where(
-                CommerceShelfSnapshot.workspace_id == audit.workspace_id,
-                CommerceShelfSnapshot.project_id == audit.project_id,
-                CommerceShelfSnapshot.audit_id == audit.id,
-                CommerceShelfSnapshot.target_kind == target.target_kind,
-                CommerceShelfSnapshot.target_id == target.target_id,
-                CommerceShelfSnapshot.formula_version == COMMERCE_SHELF_FORMULA_VERSION,
-            )
-        )
-        is not None
-    )
-
-
-async def _target_tasks(
-    session: AsyncSession, *, audit: Audit, target: CommercePromptTarget
-) -> list[AuditTask]:
-    return list(
-        (
-            await session.scalars(
-                select(AuditTask)
-                .join(
-                    AuditPromptSnapshot,
-                    AuditPromptSnapshot.id == AuditTask.prompt_snapshot_id,
-                )
-                .join(
-                    CommercePromptTarget,
-                    CommercePromptTarget.prompt_id == AuditPromptSnapshot.prompt_id,
-                )
-                .where(
-                    AuditTask.audit_id == audit.id,
-                    AuditTask.status == TASK_STATUS_SUCCEEDED,
-                    CommercePromptTarget.target_kind == target.target_kind,
-                    CommercePromptTarget.target_id == target.target_id,
-                    CommercePromptTarget.workspace_id == audit.workspace_id,
-                    CommercePromptTarget.project_id == audit.project_id,
-                )
-                .distinct()
-            )
-        ).all()
-    )
-
-
-async def _target_observations(
-    session: AsyncSession, *, audit: Audit, target: CommercePromptTarget
-) -> list[CommerceRecommendationObservation]:
-    return list(
-        (
-            await session.scalars(
-                select(CommerceRecommendationObservation).where(
-                    CommerceRecommendationObservation.workspace_id
-                    == audit.workspace_id,
-                    CommerceRecommendationObservation.project_id == audit.project_id,
-                    CommerceRecommendationObservation.audit_id == audit.id,
-                    CommerceRecommendationObservation.target_kind == target.target_kind,
-                    CommerceRecommendationObservation.target_id == target.target_id,
-                )
-            )
-        ).all()
-    )
-
-
-def _build_shelf_snapshot(
-    *,
-    audit: Audit,
-    target: CommercePromptTarget,
-    tasks: list[AuditTask],
-    observations: list[CommerceRecommendationObservation],
-) -> CommerceShelfSnapshot:
-    by_task: dict[uuid.UUID, list[CommerceRecommendationObservation]] = defaultdict(
-        list
-    )
-    for observation in observations:
-        by_task[observation.task_id].append(observation)
-    recognized = [row for row in observations if row.classification != "unresolved"]
-    owned = [row for row in recognized if row.classification == "owned"]
-    ranked_owned = _ranked(owned)
-    eligible_ranked = [_ranked(by_task[task.id]) for task in tasks]
-    eligible_ranked = [rows for rows in eligible_ranked if rows]
-    owned_tasks = _owned_task_count(tasks, by_task)
-    return CommerceShelfSnapshot(
-        workspace_id=audit.workspace_id,
-        project_id=audit.project_id,
-        audit_id=audit.id,
-        target_kind=target.target_kind,
-        target_id=target.target_id,
-        product_visibility=owned_tasks / len(tasks) if tasks else 0.0,
-        share_of_shelf=len(owned) / len(recognized) if recognized else None,
-        average_shelf_position=_mean_rank(ranked_owned),
-        first_position_win_rate=_first_position_rate(eligible_ranked),
-        successful_execution_count=len(tasks),
-        recognized_slot_count=len(recognized),
-        ranked_execution_count=len(eligible_ranked),
-        source_observation_ids=[str(row.id) for row in observations],
-        context_snapshot={
-            "target": {"kind": target.target_kind, "id": str(target.target_id)},
-            "parser_version": COMMERCE_RECOMMENDATION_PARSER_VERSION,
-            "matcher_version": COMMERCE_RECOMMENDATION_MATCHER_VERSION,
-        },
-    )
-
-
-def _ranked(
-    rows: list[CommerceRecommendationObservation],
-) -> list[CommerceRecommendationObservation]:
-    return sorted(
-        (row for row in rows if row.order_observable and row.rank is not None),
-        key=lambda row: row.rank or 0,
-    )
-
-
-def _owned_task_count(
-    tasks: list[AuditTask],
-    by_task: dict[uuid.UUID, list[CommerceRecommendationObservation]],
-) -> int:
-    return sum(
-        any(row.classification == "owned" for row in by_task[task.id]) for task in tasks
-    )
-
-
-def _mean_rank(rows: list[CommerceRecommendationObservation]) -> float | None:
-    return sum(row.rank or 0 for row in rows) / len(rows) if rows else None
-
-
-def _first_position_rate(
-    rows_by_task: list[list[CommerceRecommendationObservation]],
-) -> float | None:
-    if not rows_by_task:
-        return None
-    wins = sum(
-        rows[0].rank == 1 and rows[0].classification == "owned" for rows in rows_by_task
-    )
-    return wins / len(rows_by_task)
-
-
-async def get_shelf(
-    session: AsyncSession,
-    *,
-    workspace_id: uuid.UUID,
-    project_id: uuid.UUID,
-    audit_id: uuid.UUID | None = None,
-) -> ShelfResponse:
-    await require_project(session, workspace_id=workspace_id, project_id=project_id)
-    selected_audit_id = audit_id
-    if selected_audit_id is None:
-        selected_audit_id = await session.scalar(
-            select(CommerceShelfSnapshot.audit_id)
-            .where(
-                CommerceShelfSnapshot.workspace_id == workspace_id,
-                CommerceShelfSnapshot.project_id == project_id,
-            )
-            .order_by(CommerceShelfSnapshot.created_at.desc())
-            .limit(1)
-        )
-    if selected_audit_id is None:
-        return ShelfResponse()
-    snapshots_stmt = select(CommerceShelfSnapshot).where(
-        CommerceShelfSnapshot.workspace_id == workspace_id,
-        CommerceShelfSnapshot.project_id == project_id,
-    )
-    observations_stmt = select(CommerceRecommendationObservation).where(
-        CommerceRecommendationObservation.workspace_id == workspace_id,
-        CommerceRecommendationObservation.project_id == project_id,
-    )
-    snapshots_stmt = snapshots_stmt.where(
-        CommerceShelfSnapshot.audit_id == selected_audit_id
-    )
-    observations_stmt = observations_stmt.where(
-        CommerceRecommendationObservation.audit_id == selected_audit_id
-    )
-    snapshots = list(
-        (
-            await session.scalars(
-                snapshots_stmt.order_by(CommerceShelfSnapshot.created_at.desc())
-            )
-        ).all()
-    )
-    observations = list(
-        (
-            await session.scalars(
-                observations_stmt.order_by(
-                    CommerceRecommendationObservation.created_at.desc()
-                )
-            )
-        ).all()
-    )
-    return ShelfResponse(
-        snapshots=[ShelfMetricResponse.model_validate(row) for row in snapshots],
-        observations=[
-            RecommendationObservationResponse.model_validate(row)
-            for row in observations
-        ],
-    )

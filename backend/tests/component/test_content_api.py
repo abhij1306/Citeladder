@@ -53,12 +53,12 @@ _CONTEXT = {
 def _configured_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     # Tests disable dotenv globally. This additionally pins an unresolvable
     # endpoint and an in-memory MockTransport, so no provider can be contacted.
-    monkeypatch.setattr(content_settings, "provider", "gmi")
-    monkeypatch.setattr(content_settings, "gmicloud_api_key", SecretStr(_CANARY_SECRET))
+    monkeypatch.setattr(content_settings, "provider", "mistral")
+    monkeypatch.setattr(content_settings, "mistral_api_key", SecretStr(_CANARY_SECRET))
     monkeypatch.setattr(
-        content_settings, "gmicloud_base_url", "https://provider.invalid/v1"
+        content_settings, "endpoint", "https://provider.invalid/v1/chat/completions"
     )
-    monkeypatch.setattr(content_settings, "gmicloud_model", _FIXTURE_MODEL)
+    monkeypatch.setattr(content_settings, "model", _FIXTURE_MODEL)
 
 
 async def _register(client: httpx.AsyncClient, email: str) -> None:
@@ -108,7 +108,7 @@ async def _seed_generation(
             grounding_envelope=_CONTEXT,
             request_fingerprint="a" * 64,
             idempotency_key=str(uuid.uuid4()),
-            provider="gmi",
+            provider="mistral",
             requested_model=content_settings.resolved_model,
             generator_version="content-v1",
         )

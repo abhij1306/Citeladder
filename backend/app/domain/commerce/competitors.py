@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -11,6 +12,8 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analysis.site_health.page_kinds import classify
+from app.analysis.site_health.parser import extract_page_facts
 from app.connectors.commerce_competitors import (
     CompetitorProviderUnavailable,
     tavily_search,
@@ -19,17 +22,24 @@ from app.connectors.web_evidence.contracts import FetchError, FetchRequest
 from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.resolver import SystemDnsResolver
 from app.core.config.commerce_catalog import (
+    COMMERCE_COMPETITOR_EXCLUDED_HOST_SUFFIXES,
     COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS,
+    COMMERCE_COMPETITOR_PRICE_BANDS,
     COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT,
+    COMMERCE_COMPETITOR_QUERY_ATTRIBUTE_LIMIT,
     COMMERCE_COMPETITOR_RESULT_LIMIT,
+    COMMERCE_COMPETITOR_TARGET_NAME_MAX_WORDS,
+    COMMERCE_COMPETITOR_VERIFY_CONCURRENCY,
+    COMMERCE_COMPETITOR_VERIFY_TIMEOUT_SECONDS,
     COMMERCE_SECOND_HAND_TOKENS,
 )
 from app.core.config.site_health_acquisition import FETCH_PURPOSE_ANALYZE
-from app.core.config.task_queue import TASK_STATUS_QUEUED
+from app.core.config.task_queue import TASK_STATUS_QUEUED, TASK_TERMINAL_STATUSES
 from app.domain.commerce.schemas import (
     CommerceTarget,
     CompetitorCandidateResponse,
     DiscoveryResponse,
+    DiscoveryTaskResponse,
 )
 from app.domain.commerce.service import CommerceNotFoundError, require_project
 from app.domain.site_health.normalization import canonical_identity
@@ -42,6 +52,7 @@ from app.models.commerce import (
     CommerceProduct,
 )
 from app.models.project import Project
+from app.orchestration.executor_errors import TerminalExecutorError
 
 
 def _utcnow() -> datetime:
@@ -54,34 +65,76 @@ async def _target_names(
     workspace_id: uuid.UUID,
     project_id: uuid.UUID,
     targets: list[CommerceTarget],
-) -> dict[tuple[str, uuid.UUID], str]:
-    names: dict[tuple[str, uuid.UUID], str] = {}
+) -> dict[tuple[str, uuid.UUID], dict[str, Any]]:
     category_ids = {target.id for target in targets if target.kind == "category"}
     product_ids = {target.id for target in targets if target.kind == "product"}
-    if category_ids:
-        categories = await session.scalars(
-            select(CommerceCategory).where(
-                CommerceCategory.id.in_(category_ids),
-                CommerceCategory.workspace_id == workspace_id,
-                CommerceCategory.project_id == project_id,
-            )
+    contexts = await _category_contexts(
+        session,
+        workspace_id=workspace_id,
+        project_id=project_id,
+        category_ids=category_ids,
+    )
+    contexts.update(
+        await _product_contexts(
+            session,
+            workspace_id=workspace_id,
+            project_id=project_id,
+            product_ids=product_ids,
         )
-        for category in categories:
-            names[("category", category.id)] = str(category.name)
-    if product_ids:
-        products = await session.scalars(
-            select(CommerceProduct).where(
-                CommerceProduct.id.in_(product_ids),
-                CommerceProduct.workspace_id == workspace_id,
-                CommerceProduct.project_id == project_id,
-            )
+    )
+    missing = next(
+        (target for target in targets if (target.kind, target.id) not in contexts),
+        None,
+    )
+    if missing is not None:
+        raise CommerceNotFoundError(f"Commerce {missing.kind} not found")
+    return contexts
+
+
+async def _category_contexts(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    category_ids: set[uuid.UUID],
+) -> dict[tuple[str, uuid.UUID], dict[str, Any]]:
+    if not category_ids:
+        return {}
+    rows = await session.scalars(
+        select(CommerceCategory).where(
+            CommerceCategory.id.in_(category_ids),
+            CommerceCategory.workspace_id == workspace_id,
+            CommerceCategory.project_id == project_id,
         )
-        for product in products:
-            names[("product", product.id)] = str(product.name)
-    for target in targets:
-        if (target.kind, target.id) not in names:
-            raise CommerceNotFoundError(f"Commerce {target.kind} not found")
-    return names
+    )
+    return {("category", row.id): {"name": str(row.name)} for row in rows}
+
+
+async def _product_contexts(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    product_ids: set[uuid.UUID],
+) -> dict[tuple[str, uuid.UUID], dict[str, Any]]:
+    if not product_ids:
+        return {}
+    rows = await session.scalars(
+        select(CommerceProduct).where(
+            CommerceProduct.id.in_(product_ids),
+            CommerceProduct.workspace_id == workspace_id,
+            CommerceProduct.project_id == project_id,
+        )
+    )
+    return {
+        ("product", row.id): {
+            "name": str(row.name),
+            "attributes": dict(row.attributes or {}),
+            "price": float(row.price) if row.price is not None else None,
+            "currency": str(row.currency or ""),
+        }
+        for row in rows
+    }
 
 
 async def enqueue_discoveries(
@@ -94,7 +147,7 @@ async def enqueue_discoveries(
     project = await require_project(
         session, workspace_id=workspace_id, project_id=project_id
     )
-    names = await _target_names(
+    contexts = await _target_names(
         session,
         workspace_id=workspace_id,
         project_id=project_id,
@@ -106,7 +159,7 @@ async def enqueue_discoveries(
         value for value in (project.language_code, project.country_code) if value
     )
     for target in targets:
-        name = names[(target.kind, target.id)]
+        context = contexts[(target.kind, target.id)]
         key = f"commerce:competitors:{run_id}:{target.kind}:{target.id}"
         task_id = await session.scalar(
             insert(AnalyticsTask)
@@ -117,7 +170,7 @@ async def enqueue_discoveries(
                 task_kind="commerce_competitor_discovery",
                 payload={
                     "target": target.model_dump(mode="json"),
-                    "target_name": name,
+                    "target_context": context,
                     "locale": locale,
                     "run_id": str(run_id),
                 },
@@ -136,6 +189,75 @@ async def enqueue_discoveries(
         task_ids.append(task_id)
     await session.commit()
     return DiscoveryResponse(task_ids=task_ids)
+
+
+async def list_discovery_tasks(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+    task_ids: list[uuid.UUID],
+) -> list[DiscoveryTaskResponse]:
+    await require_project(session, workspace_id=workspace_id, project_id=project_id)
+    if not task_ids:
+        return []
+    rows = list(
+        (
+            await session.scalars(
+                select(AnalyticsTask).where(
+                    AnalyticsTask.id.in_(task_ids),
+                    AnalyticsTask.workspace_id == workspace_id,
+                    AnalyticsTask.project_id == project_id,
+                    AnalyticsTask.task_kind == "commerce_competitor_discovery",
+                )
+            )
+        ).all()
+    )
+    by_id = {row.id: row for row in rows}
+    responses: list[DiscoveryTaskResponse] = []
+    for task_id in dict.fromkeys(task_ids):
+        row = by_id.get(task_id)
+        if row is None:
+            raise CommerceNotFoundError("Competitor discovery task not found")
+        responses.append(_discovery_response(row))
+    return responses
+
+
+def _discovery_response(row: AnalyticsTask) -> DiscoveryTaskResponse:
+    return DiscoveryTaskResponse(
+        id=row.id,
+        target=CommerceTarget.model_validate(dict(row.payload or {}).get("target")),
+        status=row.status,
+        error_code=row.error_code,
+        terminal=row.status in TASK_TERMINAL_STATUSES,
+    )
+
+
+async def list_active_discovery_tasks(
+    session: AsyncSession,
+    *,
+    workspace_id: uuid.UUID,
+    project_id: uuid.UUID,
+) -> list[DiscoveryTaskResponse]:
+    """Every discovery still in flight for the project.
+
+    Task ids lived only in React state, so a tab switch or a reload dropped
+    the running banner and the poll with it -- a discovery could finish with
+    nobody watching, and a stuck one was invisible. Server-held state is the
+    only thing a reload can recover from.
+    """
+    await require_project(session, workspace_id=workspace_id, project_id=project_id)
+    rows = await session.scalars(
+        select(AnalyticsTask)
+        .where(
+            AnalyticsTask.workspace_id == workspace_id,
+            AnalyticsTask.project_id == project_id,
+            AnalyticsTask.task_kind == "commerce_competitor_discovery",
+            AnalyticsTask.status.not_in(tuple(TASK_TERMINAL_STATUSES)),
+        )
+        .order_by(AnalyticsTask.created_at.asc())
+    )
+    return [_discovery_response(row) for row in rows]
 
 
 async def list_candidates(
@@ -189,6 +311,14 @@ def _host(value: str) -> str:
     return (parsed.hostname or "").casefold().removeprefix("www.")
 
 
+def _marketplace(host: str) -> bool:
+    """True for a marketplace/aggregator host, which is never a competitor."""
+    return any(
+        host == suffix or host.endswith(f".{suffix}")
+        for suffix in COMMERCE_COMPETITOR_EXCLUDED_HOST_SUFFIXES
+    )
+
+
 def _owned(host: str, owned_hosts: set[str]) -> bool:
     return any(host == value or host.endswith(f".{value}") for value in owned_hosts)
 
@@ -204,10 +334,66 @@ async def _owned_hosts(session: AsyncSession, *, project: Project) -> set[str]:
     return {value for value in values if value}
 
 
-def _discovery_query(target: CommerceTarget, name: str) -> str:
+def _usable_target_name(name: str) -> bool:
+    """Whether a target name can carry a search query.
+
+    A leftover page title -- separator-joined, or a whole sentence of
+    marketing copy -- is not a category anyone searches for, and putting it in
+    the query is what returned marketplace listings for unrelated products.
+    """
+    cleaned = " ".join(name.split())
+    if len(cleaned) < 2:
+        return False
+    if any(separator in cleaned for separator in ("|", "–", "—", "»")):
+        return False
+    return len(cleaned.split()) <= COMMERCE_COMPETITOR_TARGET_NAME_MAX_WORDS
+
+
+def _discovery_query(
+    target: CommerceTarget, name: str, context: dict[str, Any] | None = None
+) -> str:
     if target.kind == "category":
         return f"leading {name} brands and representative products"
-    return f"products similar to {name}"
+    context = context or {}
+    attributes = dict(context.get("attributes") or {})
+    details = [
+        _product_type(attributes),
+        *_query_attributes(attributes),
+        _price_band(context),
+    ]
+    qualifiers = " ".join(value for value in details if value)
+    return f"products similar to {name}{f' {qualifiers}' if qualifiers else ''}"
+
+
+def _product_type(attributes: dict[str, Any]) -> str:
+    values = (
+        str(attributes.get(key) or "").strip()
+        for key in ("product_type", "type", "category")
+    )
+    return next((value for value in values if value), "")
+
+
+def _query_attributes(attributes: dict[str, Any]) -> list[str]:
+    excluded = {"product_type", "type", "category", "availability"}
+    values = [
+        str(value).strip()
+        for key, value in attributes.items()
+        if key not in excluded and isinstance(value, (str, int, float))
+    ]
+    return [value for value in values if value][
+        :COMMERCE_COMPETITOR_QUERY_ATTRIBUTE_LIMIT
+    ]
+
+
+def _price_band(context: dict[str, Any]) -> str:
+    raw = context.get("price")
+    if not isinstance(raw, (int, float)) or raw < 0:
+        return ""
+    label = next(
+        label for ceiling, label in COMMERCE_COMPETITOR_PRICE_BANDS if raw < ceiling
+    )
+    currency = str(context.get("currency") or "").strip().upper()
+    return f"price {currency + ' ' if currency else ''}{label}"
 
 
 def _precheck(
@@ -228,25 +414,54 @@ def _precheck_result(
         canonical = canonical_identity(raw_url)[0]
     except (TypeError, ValueError):
         return None, "excluded_invalid_url"
-    lowered = f"{canonical} {title}".casefold()
-    if _owned(_host(canonical), owned_hosts):
-        return None, "excluded_owned_domain"
-    if any(token in lowered for token in COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS):
-        return None, "excluded_editorial"
-    if any(token in lowered for token in COMMERCE_SECOND_HAND_TOKENS):
-        return None, "excluded_incompatible"
+    excluded = _exclusion_reason(canonical, title, owned_hosts=owned_hosts)
+    if excluded:
+        return None, excluded
     return (canonical, title, str(item.get("content") or "")[:1000]), "eligible"
 
 
-async def _verify_url(url: str) -> bool:
+def _exclusion_reason(canonical: str, title: str, *, owned_hosts: set[str]) -> str:
+    """Why this result is not a competitor, or an empty string if it may be."""
+    host = _host(canonical)
+    lowered = f"{canonical} {title}".casefold()
+    if _owned(host, owned_hosts):
+        return "excluded_owned_domain"
+    if _marketplace(host):
+        return "excluded_marketplace"
+    if any(token in lowered for token in COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS):
+        return "excluded_editorial"
+    if any(token in lowered for token in COMMERCE_SECOND_HAND_TOKENS):
+        return "excluded_incompatible"
+    return ""
+
+
+async def _verify_url(url: str, fetcher: SecureFetcher) -> bool:
     request = FetchRequest(url=url, purpose=FETCH_PURPOSE_ANALYZE)
     try:
-        async with SecureFetcher(resolver=SystemDnsResolver()) as fetcher:
-            result = await fetcher.fetch(request, enforce_scope=False)
+        result = await fetcher.fetch(request, enforce_scope=False)
     except FetchError:
         return False
-    return 200 <= result.status_code < 400 and bool(
-        result.content_type.startswith("text/html")
+    if not (
+        200 <= result.status_code < 400 and result.content_type.startswith("text/html")
+    ):
+        return False
+    facts = extract_page_facts(
+        result.body,
+        final_url=result.final_url,
+        content_type=result.content_type,
+        charset=result.charset,
+        status_code=result.status_code,
+    )
+    assessment = classify(result.final_url, facts)
+    product = dict((facts.get("structured_data") or {}).get("product") or {})
+    has_product_identity = any(
+        product.get(key) for key in ("name", "sku", "gtin", "mpn")
+    )
+    has_visible_identity = bool(facts.get("title")) and bool(
+        (facts.get("commerce") or {}).get("visible_price")
+    )
+    return assessment.page_kind == "product" and (
+        has_product_identity or has_visible_identity
     )
 
 
@@ -255,7 +470,17 @@ async def run_competitor_discovery(session_factory, task: AnalyticsTask) -> None
         raise ValueError("Commerce discovery task has no project")
     payload = dict(task.payload or {})
     target = CommerceTarget.model_validate(payload.get("target"))
-    query = _discovery_query(target, str(payload.get("target_name") or ""))
+    context = dict(payload.get("target_context") or {})
+    name = str(context.get("name") or payload.get("target_name") or "")
+    if not _usable_target_name(name):
+        # A category whose name is still a raw page title produces a query like
+        # "leading Daydreamer Oversized Tops ... | Red Dress brands", which
+        # returns other retailers' listings. Refuse it instead of persisting
+        # candidates nobody can act on.
+        raise TerminalExecutorError(
+            "unusable_target", f"Target name is not searchable: {name!r}"
+        )
+    query = _discovery_query(target, name, context)
     locale = str(payload.get("locale") or "")
     status, error_code, results, should_retry = await _provider_results(
         query, locale=locale
@@ -273,6 +498,10 @@ async def run_competitor_discovery(session_factory, task: AnalyticsTask) -> None
         )
     if should_retry:
         raise RuntimeError("Competitor discovery provider failed")
+    if status == "unavailable":
+        # Reported as `succeeded` with zero candidates before, so an
+        # unconfigured provider looked like a brand with no competitors.
+        raise TerminalExecutorError(error_code or "provider_unavailable")
 
 
 async def _provider_results(
@@ -341,22 +570,81 @@ async def _persist_discovery(
 async def _validated_results(
     results: list[dict[str, Any]], *, owned_hosts: set[str]
 ) -> tuple[list[dict[str, Any]], list[tuple[str, str, str]]]:
-    outcomes: list[dict[str, Any]] = []
-    survivors: list[tuple[str, str, str]] = []
+    """Pre-check every result deterministically, then verify the survivors.
+
+    Verification used to run inside this loop, one `await` at a time, each with
+    its own `SecureFetcher` and DNS resolver: ten candidates meant ten
+    sequential full page downloads, which is why a discovery took minutes and
+    held its queue lease open the whole time. The pre-check is pure, so the
+    only network work is the verification of the candidates that survive it,
+    and those run concurrently over one shared fetcher.
+    """
+    prechecked = _prechecked_results(results, owned_hosts=owned_hosts)
+    verified = await _verified_urls(
+        [checked for _, checked, _ in prechecked if checked is not None]
+    )
+    return _admitted_results(prechecked, verified)
+
+
+_Prechecked = list[tuple[dict[str, Any], tuple[str, str, str] | None, str]]
+
+
+def _prechecked_results(
+    results: list[dict[str, Any]], *, owned_hosts: set[str]
+) -> _Prechecked:
+    """Each bounded result with its pure verdict, distinct canonicals only."""
+    prechecked: _Prechecked = []
+    seen: set[str] = set()
     for item in results[:COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT]:
         checked, outcome = _precheck_result(item, owned_hosts=owned_hosts)
-        duplicate = checked is not None and any(
-            checked[0] == row[0] for row in survivors
+        if checked is not None:
+            if checked[0] in seen:
+                checked, outcome = None, "excluded_duplicate"
+            else:
+                seen.add(checked[0])
+        prechecked.append((item, checked, outcome))
+    return prechecked
+
+
+async def _verified_urls(candidates: list[tuple[str, str, str]]) -> dict[str, bool]:
+    """Fetch the surviving candidates concurrently over one shared fetcher."""
+    if not candidates:
+        return {}
+    semaphore = asyncio.Semaphore(COMMERCE_COMPETITOR_VERIFY_CONCURRENCY)
+
+    async def verify(url: str, fetcher: SecureFetcher) -> tuple[str, bool]:
+        async with semaphore:
+            try:
+                async with asyncio.timeout(COMMERCE_COMPETITOR_VERIFY_TIMEOUT_SECONDS):
+                    return url, await _verify_url(url, fetcher)
+            except Exception:  # noqa: BLE001 - one bad page never fails a run
+                return url, False
+
+    async with SecureFetcher(resolver=SystemDnsResolver()) as fetcher:
+        return dict(
+            await asyncio.gather(
+                *(verify(checked[0], fetcher) for checked in candidates)
+            )
         )
-        if duplicate:
-            outcome = "excluded_duplicate"
-        elif checked is not None and len(survivors) >= COMMERCE_COMPETITOR_RESULT_LIMIT:
-            outcome = "excluded_limit"
-        elif checked is not None and not await _verify_url(checked[0]):
-            outcome = "excluded_unavailable"
-        elif checked is not None:
-            outcome = "accepted"
-            survivors.append(checked)
+
+
+def _admitted_results(
+    prechecked: _Prechecked, verified: dict[str, bool]
+) -> tuple[list[dict[str, Any]], list[tuple[str, str, str]]]:
+    outcomes: list[dict[str, Any]] = []
+    survivors: list[tuple[str, str, str]] = []
+    for item, checked, outcome in prechecked:
+        if checked is not None:
+            if not verified.get(checked[0]):
+                outcome = "excluded_unavailable"
+            elif len(survivors) >= COMMERCE_COMPETITOR_RESULT_LIMIT:
+                # The limit applies to what is ACCEPTED, as it did when this
+                # ran sequentially -- a candidate that fails verification must
+                # not consume a slot.
+                outcome = "excluded_limit"
+            else:
+                outcome = "accepted"
+                survivors.append(checked)
         outcomes.append(_result_outcome(item, outcome=outcome))
     return outcomes, survivors
 

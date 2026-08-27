@@ -29,6 +29,7 @@ export function AuditSchedules({
 }: Readonly<{ projectId: string; promptSets: PromptSet[] }>) {
   const queryClient = useQueryClient();
   const [promptSetId, setPromptSetId] = useState(promptSets[0]?.id ?? '');
+  const [auditScope, setAuditScope] = useState<'brand' | 'commerce'>('brand');
   const [cadence, setCadence] = useState<AuditScheduleCadence>('weekly');
   const [intervalMinutes, setIntervalMinutes] = useState('60');
   const [engines, setEngines] = useState<LogicalEngine[]>(['chatgpt']);
@@ -40,6 +41,7 @@ export function AuditSchedules({
     mutationFn: () =>
       runsApi.createSchedule(projectId, {
         prompt_set_id: promptSetId,
+        audit_scope: auditScope,
         cadence,
         interval_minutes: cadence === 'every_n_minutes' ? Number(intervalMinutes) : undefined,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -78,6 +80,8 @@ export function AuditSchedules({
                 <span className="text-secondary">
                   {schedule.engines.join(', ')} · next{' '}
                   {schedule.next_run_at ? formatUtcTimestamp(schedule.next_run_at) : '—'}
+                  {' · '}
+                  {schedule.audit_scope === 'commerce' ? 'Commerce' : 'Brand'}
                 </span>
               </li>
             ))}
@@ -102,6 +106,17 @@ export function AuditSchedules({
                     {set.name}
                   </option>
                 ))}
+              </select>
+            </label>
+            <label className="text-secondary grid gap-1 text-xs font-medium">
+              <span>Measurement scope</span>
+              <select
+                className={inputClasses}
+                value={auditScope}
+                onChange={(event) => setAuditScope(event.target.value as 'brand' | 'commerce')}
+              >
+                <option value="brand">Brand visibility</option>
+                <option value="commerce">Commerce AI Shelf</option>
               </select>
             </label>
             <label className="text-secondary grid gap-1 text-xs font-medium">

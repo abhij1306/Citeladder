@@ -53,6 +53,7 @@ class AuditSchedule(Base):
         ForeignKey("prompt_sets.id", ondelete="CASCADE"),
         index=True,
     )
+    audit_scope: Mapped[str] = mapped_column(String(16), default="brand")
     cadence: Mapped[str] = mapped_column(String(32), default=CADENCE_ONE_TIME)
     interval_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     timezone: Mapped[str] = mapped_column(

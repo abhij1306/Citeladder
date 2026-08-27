@@ -23,6 +23,68 @@ type Estimate = {
   estimated_total_cost_microusd: number | null;
 };
 
+/**
+ * The prompt selection: a locked, named one, or the project's prompt sets.
+ *
+ * "Locked" is one contract with the launch payload — whenever the caller fixes
+ * the prompts (a prompt set OR an explicit id list), the field states what will
+ * run instead of offering a control whose value the payload would ignore. A
+ * locked field never reads the prompt-set list, so an empty list is not the
+ * caller's problem and "add prompts first" would be the wrong advice.
+ */
+function PromptSetField({
+  promptSets,
+  promptSetsLoading,
+  promptSetId,
+  setPromptSetId,
+  promptSetLocked,
+  promptSelectionLabel,
+}: Readonly<{
+  promptSets: PromptSet[];
+  promptSetsLoading: boolean;
+  promptSetId: string | null;
+  setPromptSetId: (id: string) => void;
+  promptSetLocked?: boolean;
+  promptSelectionLabel?: string;
+}>) {
+  const locked = Boolean(promptSetLocked) || Boolean(promptSelectionLabel);
+  const label =
+    promptSelectionLabel ??
+    promptSets.find((set) => set.id === promptSetId)?.name ??
+    'Commerce Product Visibility';
+  return (
+    <Field label="Prompt set" required>
+      {(props) => {
+        if (locked) {
+          return <p className="text-foreground text-sm font-medium">{label}</p>;
+        }
+        if (!promptSetsLoading && !promptSets.length) {
+          return (
+            <p className="text-muted text-sm">
+              No prompt set yet. Add prompts on the Prompts screen first.
+            </p>
+          );
+        }
+        return (
+          <select
+            {...props}
+            className={inputClasses}
+            value={promptSetId ?? ''}
+            onChange={(event) => setPromptSetId(event.target.value)}
+          >
+            {promptSets.map((set) => (
+              <option key={set.id} value={set.id}>
+                {set.name}
+                {typeof set.prompt_count === 'number' ? ` (${set.prompt_count})` : ''}
+              </option>
+            ))}
+          </select>
+        );
+      }}
+    </Field>
+  );
+}
+
 export function LaunchDialogView({
   open,
   onOpenChange,
@@ -43,6 +105,8 @@ export function LaunchDialogView({
   connectOpen,
   setConnectOpen,
   promptSetLocked,
+  promptSelectionLabel,
+  selectionReady,
 }: Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -63,8 +127,9 @@ export function LaunchDialogView({
   connectOpen: boolean;
   setConnectOpen: (open: boolean) => void;
   promptSetLocked?: boolean;
+  promptSelectionLabel?: string;
+  selectionReady: boolean;
 }>) {
-  const noPromptSets = !promptSetsLoading && !promptSets.length;
   const noEngines = !configuredEngines.length;
   const selected = new Set(engines);
   return (
@@ -78,7 +143,7 @@ export function LaunchDialogView({
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={onLaunch} disabled={!promptSetId || !engines.length || launchPending}>
+            <Button onClick={onLaunch} disabled={!selectionReady || launchPending}>
               {launchPending ? 'Launching…' : 'Launch audit'}
             </Button>
           </>
@@ -86,34 +151,14 @@ export function LaunchDialogView({
       >
         <div className="grid gap-5">
           {launchNotice ? <MutationNotice notice={launchNotice} onRetry={onLaunch} /> : null}
-          <Field label="Prompt set" required>
-            {(props) =>
-              noPromptSets ? (
-                <p className="text-muted text-sm">
-                  No prompt set yet. Add prompts on the Prompts screen first.
-                </p>
-              ) : promptSetLocked ? (
-                <p className="text-foreground text-sm font-medium">
-                  {promptSets.find((set) => set.id === promptSetId)?.name ??
-                    'Commerce Product Visibility'}
-                </p>
-              ) : (
-                <select
-                  {...props}
-                  className={inputClasses}
-                  value={promptSetId ?? ''}
-                  onChange={(event) => setPromptSetId(event.target.value)}
-                >
-                  {promptSets.map((set) => (
-                    <option key={set.id} value={set.id}>
-                      {set.name}
-                      {typeof set.prompt_count === 'number' ? ` (${set.prompt_count})` : ''}
-                    </option>
-                  ))}
-                </select>
-              )
-            }
-          </Field>
+          <PromptSetField
+            promptSets={promptSets}
+            promptSetsLoading={promptSetsLoading}
+            promptSetId={promptSetId}
+            setPromptSetId={setPromptSetId}
+            promptSetLocked={promptSetLocked}
+            promptSelectionLabel={promptSelectionLabel}
+          />
           <fieldset className="grid gap-2">
             <legend className="text-secondary text-xs font-medium">
               Engines <span className="text-danger">*</span>

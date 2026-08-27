@@ -173,6 +173,24 @@ describe('OnboardingScreen', () => {
     );
   });
 
+  it('explains unavailable topic selection without a generic warning', async () => {
+    discoveryState = {
+      ...discovery('ready', 'preparing_review'),
+      warnings: ['topic_selection_unavailable'],
+    };
+    mswServer.use(catalogHandler());
+    renderWithProviders(<OnboardingScreen />);
+
+    await enterBrand();
+
+    expect(
+      screen.getByText(
+        'Topic suggestions are temporarily unavailable. You can configure them after setup.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Some research could not be confirmed/i)).toBeNull();
+  });
+
   it('submits one confirmed ICP completion and redirects to the command center', async () => {
     discoveryState = discovery('ready', 'preparing_review');
     let completionBody: unknown;

@@ -101,6 +101,34 @@ async def test_competitor_discovery_deduplicates_only_within_one_request(
     assert second.status_code == 202
     assert first.json()["task_ids"][0] == first.json()["task_ids"][1]
     assert second.json()["task_ids"][0] != first.json()["task_ids"][0]
+    status_response = await client.get(
+        f"/api/v1/projects/{project['id']}/commerce/competitors/discoveries",
+        params=[("task_ids", first.json()["task_ids"][0])],
+    )
+    assert status_response.status_code == 200
+    assert status_response.json() == [
+        {
+            "id": first.json()["task_ids"][0],
+            "target": target,
+            "status": "queued",
+            "error_code": "",
+            "terminal": False,
+        }
+    ]
+
+    # Omitting task_ids asks for whatever is in flight for the project. The
+    # client used to hold the ids in component state alone, so a reload lost
+    # track of a running discovery entirely.
+    active_response = await client.get(
+        f"/api/v1/projects/{project['id']}/commerce/competitors/discoveries",
+    )
+    assert active_response.status_code == 200
+    active_ids = {row["id"] for row in active_response.json()}
+    assert active_ids == {
+        first.json()["task_ids"][0],
+        second.json()["task_ids"][0],
+    }
+    assert all(row["terminal"] is False for row in active_response.json())
 
 
 @pytest.mark.asyncio
@@ -172,3 +200,15 @@ async def test_category_correction_is_persisted_and_workspace_isolated(
         f"{catalog_url}/categories/{category_id}", json={"name": "Stolen"}
     )
     assert outsider.status_code == 404
+
+
+async def test_ai_shelf_requires_an_explicit_target(
+    client: httpx.AsyncClient,
+) -> None:
+    await _register(client, "commerce-shelf-target@example.com")
+    project = await _project(client)
+
+    response = await client.get(f"/api/v1/projects/{project['id']}/commerce/ai-shelf")
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "commerce_target_required"

@@ -18,7 +18,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.connectors.agent.client import AgentNotConfiguredError
 from app.connectors.agent.factory import create_model_gateway
-from app.connectors.answer_engines.errors import ProviderError
 from app.core.config.visibility_prompts import (
     TOPIC_SELECTION_MODEL_PRIOR_CLAUSE,
     TOPIC_SELECTION_SYSTEM_PROMPT,
@@ -26,6 +25,9 @@ from app.core.config.visibility_prompts import (
 )
 from app.domain.projects.discovery_schemas import DiscoveryTopic
 from app.domain.projects.offering_harvest import OfferingHarvest
+from app.domain.projects.onboarding.structured_repair import (
+    complete_validated_envelope,
+)
 from app.domain.projects.onboarding.topic_admission import admit_topics
 
 HARVEST_READY = "ready"
@@ -128,19 +130,25 @@ async def select_topics(
         page_evidence=page_evidence,
     )
     try:
-        raw = await client.complete_structured_json(
+        # Shares the bounded repair/backoff loop the other onboarding model
+        # calls use, so one transient provider blip no longer costs the whole
+        # topic portfolio.
+        envelope = await complete_validated_envelope(
+            client,
             system=(
                 TOPIC_SELECTION_SYSTEM_PROMPT
                 + (TOPIC_SELECTION_MODEL_PRIOR_CLAUSE if allow_model_prior else "")
             ),
             user=request,
             schema_name="visibility_topic_selection",
-            schema=TopicSelectionEnvelope.model_json_schema(),
+            envelope_type=TopicSelectionEnvelope,
+            validate=lambda _envelope: None,
         )
-        envelope = TopicSelectionEnvelope.model_validate_json(raw)
     except (
-        AgentNotConfiguredError,
-        ProviderError,
+        # RuntimeError covers ProviderError, AgentNotConfiguredError, and the
+        # "attempts exhausted" error the repair loop raises once its budget is
+        # spent. Selection never raises: it degrades to an empty portfolio.
+        RuntimeError,
         TimeoutError,
         ValidationError,
         ValueError,

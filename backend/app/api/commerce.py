@@ -17,7 +17,9 @@ from app.core.http_errors import raise_not_found
 from app.domain.commerce.competitors import (
     decide_candidate,
     enqueue_discoveries,
+    list_active_discovery_tasks,
     list_candidates,
+    list_discovery_tasks,
 )
 from app.domain.commerce.prompts import (
     BuyerPromptGenerationUnavailable,
@@ -41,6 +43,7 @@ from app.domain.commerce.schemas import (
     CompetitorDecisionRequest,
     DiscoveryRequest,
     DiscoveryResponse,
+    DiscoveryTaskResponse,
     ProductResponse,
     ShelfResponse,
 )
@@ -53,7 +56,7 @@ from app.domain.commerce.service import (
     get_catalog,
     import_catalog,
 )
-from app.domain.commerce.shelf import get_shelf
+from app.domain.commerce.shelf_metrics import get_shelf
 
 router = APIRouter(prefix="/projects", tags=["commerce"])
 
@@ -190,6 +193,35 @@ async def competitors_endpoint(
         raise _map_error(exc) from exc
 
 
+@router.get(
+    "/{project_id}/commerce/competitors/discoveries",
+    response_model=list[DiscoveryTaskResponse],
+)
+async def competitor_discovery_status_endpoint(
+    project_id: uuid.UUID,
+    ctx: _WorkspaceDep,
+    session: _SessionDep,
+    task_ids: Annotated[list[uuid.UUID] | None, Query()] = None,
+) -> list[DiscoveryTaskResponse]:
+    # Omitting `task_ids` asks for whatever is still in flight for the
+    # project. The client used to hold the ids in component state alone, so
+    # switching tab or reloading lost track of a running discovery and the
+    # workspace had no way to see it finish.
+    try:
+        if task_ids is None:
+            return await list_active_discovery_tasks(
+                session, workspace_id=ctx.workspace_id, project_id=project_id
+            )
+        return await list_discovery_tasks(
+            session,
+            workspace_id=ctx.workspace_id,
+            project_id=project_id,
+            task_ids=task_ids,
+        )
+    except CommerceNotFoundError as exc:
+        raise _map_error(exc) from exc
+
+
 @router.patch(
     "/{project_id}/commerce/competitors/{candidate_id}",
     response_model=CompetitorCandidateResponse,
@@ -317,13 +349,23 @@ async def ai_shelf_endpoint(
     ctx: _WorkspaceDep,
     session: _SessionDep,
     audit_id: Annotated[uuid.UUID | None, Query()] = None,
+    target_kind: Annotated[str | None, Query(pattern="^(category|product)$")] = None,
+    target_id: Annotated[uuid.UUID | None, Query()] = None,
 ) -> ShelfResponse:
+    if target_kind is None or target_id is None:
+        raise ApiException.coded(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "commerce_target_required",
+            "AI Shelf requires an explicit product or category target.",
+        )
     try:
         return await get_shelf(
             session,
             workspace_id=ctx.workspace_id,
             project_id=project_id,
             audit_id=audit_id,
+            target_kind=target_kind,
+            target_id=target_id,
         )
     except CommerceNotFoundError as exc:
         raise _map_error(exc) from exc

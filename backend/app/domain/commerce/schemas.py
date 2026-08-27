@@ -124,6 +124,14 @@ class DiscoveryResponse(BaseModel):
     task_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
+class DiscoveryTaskResponse(BaseModel):
+    id: uuid.UUID
+    target: CommerceTarget
+    status: str
+    error_code: str = ""
+    terminal: bool
+
+
 class CompetitorCandidateResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -159,6 +167,7 @@ class BuyerPromptManualRequest(BaseModel):
 
 class BuyerPromptResponse(BaseModel):
     id: uuid.UUID
+    prompt_set_id: uuid.UUID
     target: CommerceTarget
     text: str
     enabled: bool
@@ -212,6 +221,8 @@ class ShelfMetricResponse(BaseModel):
 
 
 class ShelfResponse(BaseModel):
+    target: CommerceTarget | None = None
+    selected_audit_id: uuid.UUID | None = None
     snapshots: list[ShelfMetricResponse] = Field(default_factory=list)
     observations: list[RecommendationObservationResponse] = Field(default_factory=list)
 

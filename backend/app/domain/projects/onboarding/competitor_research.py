@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Literal
+from typing import Final
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, field_validator
 
 from app.connectors.agent.gateway import ModelGateway
 from app.connectors.keenable import (
@@ -39,62 +39,72 @@ from app.domain.projects.onboarding.research_evidence import (
     ResearchCallBudget,
     ResearchEvidenceItem,
 )
+from app.domain.projects.onboarding.structured_repair import (
+    complete_validated_envelope,
+)
 
 
-class CompetitorCandidate(BaseModel):
-    candidate_id: str
-    name: str
-    domain: str
-    source_url: str
-    evidence: list[ResearchEvidenceItem] = Field(default_factory=list)
+class NamedCompetitor(BaseModel):
+    """One competitor the model read out of the research evidence."""
 
-
-class CandidateVerdict(BaseModel):
-    candidate_id: str
-    decision: Literal["direct", "adjacent", "exclude"]
-    same_core_problem: bool
-    same_buyer: bool
-    credible_substitute: bool
-    geography: Literal["match", "partial", "irrelevant", "unknown"]
-    delivery_overlap: Literal["match", "partial", "mismatch", "unknown"]
-    positioning_overlap: Literal["high", "medium", "low", "unknown"]
-    product_substitutability: float = Field(ge=0, le=1)
-    customer_use_case_overlap: float = Field(ge=0, le=1)
-    geographic_relevance: float = Field(ge=0, le=1)
-    question_visibility: float = Field(ge=0, le=1)
-    confidence: float = Field(ge=0, le=1)
+    name: str = Field(min_length=1, max_length=255)
+    domain: str = Field(min_length=1, max_length=255)
     business_model: BusinessModel | None = None
+    same_buyer: bool = True
+    same_market: bool = True
+    confidence: float = Field(default=0.5, ge=0, le=1)
     evidence_refs: list[str] = Field(default_factory=list)
-    reasoning: str = Field(default="", max_length=2000)
+    # Bounded in the schema so a long batch of rationales cannot overrun the
+    # agent's output cap, and truncated rather than rejected so a slightly long
+    # one never costs a whole regeneration.
+    reasoning: str = Field(default="", json_schema_extra={"maxLength": 240})
+
+    @field_validator("reasoning", mode="before")
+    @classmethod
+    def _bound_reasoning(cls, value: object) -> object:
+        return value[:240] if isinstance(value, str) else value
 
 
 class CompetitorQualificationEnvelope(BaseModel):
-    verdicts: list[CandidateVerdict] = Field(default_factory=list)
+    competitors: list[NamedCompetitor] = Field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
 class CompetitorResearchResult:
-    candidates: tuple[CompetitorCandidate, ...]
     evidence: tuple[ResearchEvidenceItem, ...]
     state: str
 
 
+# Signature fields are model-written prose ("budget-conscious parents and
+# caregivers in Australia"). Pasted into a search engine whole they produce
+# sentence-length queries that match documents ABOUT the words rather than the
+# competitors themselves - which is how "X alternatives" returned SaaS listing
+# sites. Queries are therefore built from a few bounded keywords, the way a
+# person actually searches.
+QUERY_TERM_MAX_WORDS: Final = 6
+
+
+def _terms(value: str, *, limit: int = QUERY_TERM_MAX_WORDS) -> str:
+    return " ".join(value.split()[:limit]).strip(" ,.;:-")
+
+
 def competitor_queries(
-    *, brand_name: str, signature: CompetitiveSignature
+    *, brand_name: str, signature: CompetitiveSignature, market: str = ""
 ) -> tuple[str, ...]:
-    qualifiers = " ".join(signature.qualifiers[:2])
-    return (
-        f"{signature.category} providers for {signature.buyer} "
-        f"{signature.core_job} {signature.market_context} official sites",
-        (
-            f"{signature.delivery_model} {signature.category} for "
-            f"{signature.buyer} companies"
-        ),
-        (
-            f"{signature.category} {qualifiers} "
-            f"{signature.market_context} brands providers"
-        ),
-        f"{brand_name} alternatives competitors official sites",
+    category = _terms(signature.category)
+    place = _terms(market or signature.market_context, limit=3)
+    scoped = f"{category} {place}".strip()
+    return tuple(
+        dict.fromkeys(
+            query
+            for query in (
+                f"best {scoped} brands",
+                f"{scoped} stores list",
+                f"{brand_name} competitors",
+                f"{brand_name} alternatives",
+            )
+            if query.strip()
+        )
     )
 
 
@@ -105,15 +115,24 @@ async def discover_competitor_candidates(
     owned_domain: str,
     signature: CompetitiveSignature,
     budget: ResearchCallBudget,
+    market: str = "",
 ) -> CompetitorResearchResult:
-    queries = competitor_queries(brand_name=brand_name, signature=signature)
+    """Gather the research text competitors will be read out of.
+
+    Search results are pages ABOUT the brand, so they are evidence, not
+    candidates. The most promising ones are additionally fetched so the model
+    reads the full list of names rather than a truncated snippet.
+    """
+    queries = competitor_queries(
+        brand_name=brand_name, signature=signature, market=market
+    )
     admitted = budget.take(
         min(len(queries), brand_discovery_settings.competitor_search_count)
     )
     results = await _search_queries(client, queries[:admitted])
-    candidates, evidence = _candidate_pool(results, owned_domain=owned_domain)
-    if len(candidates) < brand_discovery_settings.competitor_candidate_cap:
-        reformulations = _reformulations(signature)
+    evidence = _search_evidence(results, owned_domain=owned_domain)
+    if len(evidence) < brand_discovery_settings.competitor_candidate_cap:
+        reformulations = _reformulations(signature, market=market)
         extra_count = budget.take(
             min(
                 len(reformulations),
@@ -121,59 +140,58 @@ async def discover_competitor_candidates(
             )
         )
         extra = await _search_queries(client, reformulations[:extra_count])
-        candidates, evidence = _candidate_pool(
-            [*results, *extra], owned_domain=owned_domain
-        )
-    if not candidates:
-        return CompetitorResearchResult(candidates=(), evidence=(), state="no_results")
+        evidence = _search_evidence([*results, *extra], owned_domain=owned_domain)
+    if not evidence:
+        return CompetitorResearchResult(evidence=(), state="no_results")
 
     fetch_count = budget.take(
-        min(len(candidates), brand_discovery_settings.competitor_fetch_max_pages)
+        min(len(evidence), brand_discovery_settings.competitor_fetch_max_pages)
     )
+    fetched = await _fetch_pages(client, evidence[:fetch_count])
+    # Fetched pages first: ``_bounded_evidence`` spends a fixed character
+    # budget in order, and the search rows are snippets of the same pages.
+    # Putting the snippets first let them consume the budget and truncate the
+    # full-text listicle the competitor names are actually written in.
+    return CompetitorResearchResult(
+        evidence=tuple([*fetched, *evidence]), state="ready"
+    )
+
+
+async def _fetch_pages(
+    client: KeenableClient, targets: list[ResearchEvidenceItem]
+) -> list[ResearchEvidenceItem]:
     semaphore = asyncio.Semaphore(brand_discovery_settings.keenable_concurrency)
 
-    async def fetch_candidate(
-        candidate: CompetitorCandidate,
-    ) -> KeenableFetchResponse:
+    async def fetch(item: ResearchEvidenceItem) -> KeenableFetchResponse:
         async with semaphore:
             return await client.fetch(
-                candidate.source_url,
+                item.source_url,
                 live=True,
                 max_chars=brand_discovery_settings.keenable_fetch_max_chars,
             )
 
-    fetched = await asyncio.gather(
-        *(fetch_candidate(candidate) for candidate in candidates[:fetch_count]),
-        return_exceptions=True,
+    responses = await asyncio.gather(
+        *(fetch(item) for item in targets), return_exceptions=True
     )
-    enriched: list[CompetitorCandidate] = []
-    all_evidence = list(evidence)
-    for index, candidate in enumerate(candidates):
-        additions: list[ResearchEvidenceItem] = []
-        if index < fetch_count:
-            response = fetched[index]
-            if not isinstance(response, BaseException) and response.content.strip():
-                item = ResearchEvidenceItem(
-                    evidence_ref=f"kc-fetch-{index + 1}",
-                    source_url=response.url,
-                    title=response.title,
-                    text=response.content,
-                    source_kind="external_fetch",
-                    provider="keenable",
-                    query_ref=candidate.candidate_id,
-                    published_at=response.published_at,
-                    acquired_at=response.acquired_at,
-                    live=response.live,
-                    supports=["competitors"],
-                )
-                additions.append(item)
-                all_evidence.append(item)
-        enriched.append(
-            candidate.model_copy(update={"evidence": [*candidate.evidence, *additions]})
+    fetched: list[ResearchEvidenceItem] = []
+    for index, response in enumerate(responses, start=1):
+        if isinstance(response, BaseException) or not response.content.strip():
+            continue
+        fetched.append(
+            ResearchEvidenceItem(
+                evidence_ref=f"kc-fetch-{index}",
+                source_url=response.url,
+                title=response.title,
+                text=response.content,
+                source_kind="external_fetch",
+                provider="keenable",
+                published_at=response.published_at,
+                acquired_at=response.acquired_at,
+                live=response.live,
+                supports=["competitors"],
+            )
         )
-    return CompetitorResearchResult(
-        candidates=tuple(enriched), evidence=tuple(all_evidence), state="ready"
-    )
+    return fetched
 
 
 async def qualify_competitors(
@@ -181,45 +199,96 @@ async def qualify_competitors(
     *,
     profile: DiscoveryProfile,
     signature: CompetitiveSignature,
-    candidates: tuple[CompetitorCandidate, ...],
+    evidence: tuple[ResearchEvidenceItem, ...],
 ) -> tuple[list[DiscoveryCompetitorSuggestion], list[dict]]:
-    candidates = _bounded_qualification_candidates(candidates)
+    """Read competitor names out of the gathered research evidence.
+
+    Search returns pages ABOUT the brand - listicles, directories, coupon and
+    analytics sites - so a result's own domain is almost never a competitor.
+    The competitors are the companies named inside that text, which is what the
+    model is asked for here. Every returned domain is resolved downstream, so a
+    name the model invents cannot reach the customer.
+    """
+    bounded = _bounded_evidence(evidence)
+    known_refs = {item.evidence_ref for item in bounded}
     request = json.dumps(
         {
             "prompt_version": BRAND_COMPETITOR_QUALIFICATION_VERSION,
-            "profile": profile.model_dump(mode="json"),
+            "brand_profile": profile.model_dump(mode="json"),
             "competitive_signature": signature.model_dump(mode="json"),
             "allowed_business_models": list(BUSINESS_MODELS),
-            "candidates": [item.model_dump(mode="json") for item in candidates],
+            "allowed_evidence_refs": sorted(known_refs),
+            "target_competitors": brand_discovery_settings.target_competitors,
+            "maximum_competitors": brand_discovery_settings.maximum_competitors,
+            "research_evidence": [item.model_dump(mode="json") for item in bounded],
         },
         ensure_ascii=False,
     )
-    by_id = {item.candidate_id: item for item in candidates}
-    known_refs = {
-        item.candidate_id: {evidence.evidence_ref for evidence in item.evidence}
-        for item in candidates
-    }
-    for attempt in range(brand_discovery_settings.synthesis_max_attempts):
-        raw = await client.complete_structured_json(
-            system=COMPETITOR_QUALIFICATION_SYSTEM_PROMPT,
-            user=request,
-            schema_name="competitor_qualification",
-            schema=CompetitorQualificationEnvelope.model_json_schema(),
-        )
-        try:
-            envelope = CompetitorQualificationEnvelope.model_validate_json(raw)
-            _validate_verdicts(envelope.verdicts, by_id=by_id, known_refs=known_refs)
-            break
-        except (ValidationError, ValueError):
-            if attempt + 1 >= brand_discovery_settings.synthesis_max_attempts:
-                raise
-    else:  # pragma: no cover - loop either breaks or raises
-        raise RuntimeError("competitor qualification attempts exhausted")
 
-    direct = [verdict for verdict in envelope.verdicts if _is_direct(verdict)]
-    direct.sort(key=_ranking_key)
-    suggestions = [_suggestion(by_id[item.candidate_id], item) for item in direct]
-    return suggestions, [item.model_dump(mode="json") for item in envelope.verdicts]
+    def validate(envelope: CompetitorQualificationEnvelope) -> None:
+        unknown = {
+            ref for item in envelope.competitors for ref in item.evidence_refs
+        } - known_refs
+        if unknown:
+            raise ValueError(
+                f"competitor response cited unknown evidence refs {sorted(unknown)}; "
+                f"allowed refs are {sorted(known_refs)}"
+            )
+
+    envelope = await complete_validated_envelope(
+        client,
+        system=COMPETITOR_QUALIFICATION_SYSTEM_PROMPT,
+        user=request,
+        schema_name="competitor_qualification",
+        envelope_type=CompetitorQualificationEnvelope,
+        validate=validate,
+    )
+    admitted = _admitted_competitors(envelope.competitors)
+    return (
+        [_suggestion(item) for item in admitted],
+        [item.model_dump(mode="json") for item in envelope.competitors],
+    )
+
+
+def _admitted_competitors(
+    competitors: list[NamedCompetitor],
+) -> list[NamedCompetitor]:
+    """Keep same-buyer, same-market names on a usable domain, best first."""
+    seen: set[str] = set()
+    admitted: list[NamedCompetitor] = []
+    for item in competitors:
+        if not (item.same_buyer and item.same_market):
+            continue
+        domain = _bare_domain(item.domain)
+        if not domain or _excluded_domain(domain) or domain in seen:
+            continue
+        seen.add(domain)
+        admitted.append(item.model_copy(update={"domain": domain}))
+    admitted.sort(key=lambda item: (-item.confidence, item.name.casefold()))
+    return admitted
+
+
+def _bare_domain(value: str) -> str:
+    try:
+        _, domain = normalize_website_url(value)
+    except InvalidWebsiteUrl:
+        return ""
+    return domain
+
+
+def _bounded_evidence(
+    evidence: tuple[ResearchEvidenceItem, ...],
+) -> tuple[ResearchEvidenceItem, ...]:
+    """Trim evidence text to the configured qualification character budget."""
+    remaining = brand_discovery_settings.competitor_qualification_evidence_max_chars
+    bounded: list[ResearchEvidenceItem] = []
+    for item in evidence:
+        if remaining <= 0:
+            break
+        text = item.text[:remaining]
+        remaining -= len(text)
+        bounded.append(item.model_copy(update={"text": text}))
+    return tuple(bounded)
 
 
 async def _search_queries(
@@ -246,150 +315,79 @@ async def _search_queries(
     return flattened
 
 
-def _candidate_pool(
+def _search_evidence(
     results: list[tuple[str, KeenableSearchResult]], *, owned_domain: str
-) -> tuple[list[CompetitorCandidate], list[ResearchEvidenceItem]]:
-    candidates: list[CompetitorCandidate] = []
+) -> list[ResearchEvidenceItem]:
+    """One evidence row per distinct source page, best-ranked pages first."""
     evidence: list[ResearchEvidenceItem] = []
-    by_domain: dict[str, int] = {}
-    ordered_results = sorted(results, key=_candidate_source_rank)
-    for query_ref, result in ordered_results:
+    seen: set[str] = set()
+    for query_ref, result in sorted(results, key=_candidate_source_rank):
+        if len(evidence) >= brand_discovery_settings.competitor_candidate_cap:
+            break
         try:
             _, domain = normalize_website_url(result.url)
         except InvalidWebsiteUrl:
             continue
-        if domain == owned_domain or _excluded_domain(domain):
+        if domain == owned_domain or domain in seen:
             continue
-        if domain in by_domain:
-            continue
-        if len(candidates) >= brand_discovery_settings.competitor_candidate_cap:
-            continue
-        search_item = ResearchEvidenceItem(
-            evidence_ref=f"kc-search-{len(evidence) + 1}",
-            source_url=result.url,
-            title=result.title,
-            text=(result.snippet or result.description)[
-                : brand_discovery_settings.keenable_snippet_max_chars
-            ],
-            source_kind="external_search",
-            provider="keenable",
-            query_ref=query_ref,
-            published_at=result.published_at,
-            acquired_at=result.acquired_at,
-            supports=["competitors"],
-        )
-        evidence.append(search_item)
-        candidate = CompetitorCandidate(
-            candidate_id=f"cand-{len(candidates) + 1}",
-            name=_display_name(result, domain),
-            domain=domain,
-            source_url=result.url,
-            evidence=[search_item],
-        )
-        by_domain[domain] = len(candidates)
-        candidates.append(candidate)
-    return candidates, evidence
-
-
-def _bounded_qualification_candidates(
-    candidates: tuple[CompetitorCandidate, ...],
-) -> tuple[CompetitorCandidate, ...]:
-    remaining = brand_discovery_settings.competitor_qualification_evidence_max_chars
-    bounded: list[CompetitorCandidate] = []
-    for candidate in candidates:
-        evidence: list[ResearchEvidenceItem] = []
-        for item in candidate.evidence:
-            text = item.text[:remaining]
-            remaining -= len(text)
-            evidence.append(item.model_copy(update={"text": text}))
-        bounded.append(candidate.model_copy(update={"evidence": evidence}))
-    return tuple(bounded)
-
-
-def _validate_verdicts(verdicts, *, by_id, known_refs) -> None:
-    seen: set[str] = set()
-    for verdict in verdicts:
-        if verdict.candidate_id not in by_id or verdict.candidate_id in seen:
-            raise ValueError(
-                "qualification response used an unknown/duplicate candidate"
+        seen.add(domain)
+        evidence.append(
+            ResearchEvidenceItem(
+                evidence_ref=f"kc-search-{len(evidence) + 1}",
+                source_url=result.url,
+                title=result.title,
+                text=(result.snippet or result.description)[
+                    : brand_discovery_settings.keenable_snippet_max_chars
+                ],
+                source_kind="external_search",
+                provider="keenable",
+                query_ref=query_ref,
+                published_at=result.published_at,
+                acquired_at=result.acquired_at,
+                supports=["competitors"],
             )
-        seen.add(verdict.candidate_id)
-        if not set(verdict.evidence_refs).issubset(known_refs[verdict.candidate_id]):
-            raise ValueError("qualification response cited unknown evidence")
-        if verdict.decision == "direct" and not _is_direct(verdict):
-            raise ValueError("direct verdict failed hard admission gates")
+        )
+    return evidence
 
 
-def _is_direct(verdict: CandidateVerdict) -> bool:
-    return (
-        verdict.decision == "direct"
-        and verdict.same_core_problem
-        and verdict.same_buyer
-        and verdict.credible_substitute
-        and verdict.geography != "irrelevant"
-    )
-
-
-def _ranking_key(verdict: CandidateVerdict) -> tuple:
-    geography = {"match": 0, "partial": 1, "unknown": 2, "irrelevant": 3}
-    positioning = {"high": 0, "medium": 1, "low": 2, "unknown": 3}
-    delivery = {"match": 0, "partial": 1, "mismatch": 2, "unknown": 3}
-    scores = (
-        verdict.product_substitutability,
-        verdict.customer_use_case_overlap,
-        verdict.geographic_relevance,
-        verdict.question_visibility,
-    )
-    return (
-        geography[verdict.geography],
-        positioning[verdict.positioning_overlap],
-        delivery[verdict.delivery_overlap],
-        -verdict.confidence,
-        -sum(scores),
-        verdict.candidate_id,
-    )
-
-
-def _suggestion(
-    candidate: CompetitorCandidate, verdict: CandidateVerdict
-) -> DiscoveryCompetitorSuggestion:
+def _suggestion(item: NamedCompetitor) -> DiscoveryCompetitorSuggestion:
     return DiscoveryCompetitorSuggestion(
-        name=candidate.name,
-        domains=[candidate.domain],
+        name=item.name,
+        domains=[item.domain],
         qualification=CompetitorQualification(
-            product_substitutability=verdict.product_substitutability,
-            customer_use_case_overlap=verdict.customer_use_case_overlap,
-            geographic_relevance=verdict.geographic_relevance,
-            question_visibility=verdict.question_visibility,
+            product_substitutability=item.confidence,
+            customer_use_case_overlap=item.confidence,
+            geographic_relevance=1.0 if item.same_market else 0.0,
+            question_visibility=item.confidence,
         ),
-        business_model=verdict.business_model,
-        reasoning=verdict.reasoning,
-        evidence_urls=list(
-            dict.fromkeys(item.source_url for item in candidate.evidence)
-        ),
-        confidence=verdict.confidence,
+        business_model=item.business_model,
+        reasoning=item.reasoning,
+        evidence_urls=[],
+        confidence=item.confidence,
     )
 
 
-def _reformulations(signature: CompetitiveSignature) -> tuple[str, ...]:
-    adjacent = " ".join(signature.adjacent_categories[:2])
-    terms = " ".join(signature.search_terms[:4])
-    return (
-        f"{signature.category} {adjacent} alternatives for {signature.buyer}",
-        f"{terms} providers {signature.market_context} official sites",
+def _reformulations(
+    signature: CompetitiveSignature, *, market: str = ""
+) -> tuple[str, ...]:
+    place = _terms(market or signature.market_context, limit=3)
+    adjacent = _terms(next(iter(signature.adjacent_categories), ""))
+    terms = _terms(" ".join(signature.search_terms[:3]), limit=5)
+    return tuple(
+        dict.fromkeys(
+            query
+            for query in (
+                f"{adjacent} brands {place}".strip(),
+                f"{terms} {place}".strip(),
+            )
+            if query.strip()
+        )
     )
 
 
 def _excluded_domain(domain: str) -> bool:
     excluded = {*COMPETITOR_EXCLUDED_DOMAINS, *EXCLUDED_RESEARCH_DOMAINS}
     return any(domain == item or domain.endswith(f".{item}") for item in excluded)
-
-
-def _display_name(result: KeenableSearchResult, domain: str) -> str:
-    title = result.title.split("|")[0].split("—")[0].strip()
-    if title and len(title) <= 255:
-        return title
-    return domain.split(".")[0].replace("-", " ").title()
 
 
 def _candidate_source_rank(

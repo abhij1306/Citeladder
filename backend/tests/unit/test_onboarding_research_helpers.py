@@ -212,9 +212,15 @@ def test_both_degraded_outcomes_are_reported_together() -> None:
 
 
 def test_the_fallback_profile_keeps_the_known_industry_confident() -> None:
-    profile = _fallback_profile(brand_name="Acme", industry="Software")
+    profile = _fallback_profile(
+        brand_name="Acme", industry="Software", subindustry="Workflow tools"
+    )
 
     assert profile.industry == "Software"
+    # The declared subindustry becomes a usable category so competitor
+    # discovery still runs when identity synthesis fails.
+    assert profile.category == "Workflow tools"
+    assert "Workflow tools" in profile.category_terms
     # Industry came from the user, so it is certain; the description is a
     # placeholder and must not claim to be researched.
     assert profile.field_confidence["industry"] == 1.0

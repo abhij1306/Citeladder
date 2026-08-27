@@ -36,6 +36,7 @@ assert {
 
 class AuditScheduleCreate(BaseModel):
     prompt_set_id: uuid.UUID
+    audit_scope: Literal["brand", "commerce"] = "brand"
     cadence: AuditScheduleCadence
     interval_minutes: int | None = None
     timezone: str = DEFAULT_AUDIT_SCHEDULE_TIMEZONE
@@ -88,6 +89,7 @@ class AuditScheduleCreate(BaseModel):
 
 class AuditScheduleUpdate(BaseModel):
     prompt_set_id: uuid.UUID | None = None
+    audit_scope: Literal["brand", "commerce"] = "brand"
     cadence: AuditScheduleCadence | None = None
     interval_minutes: int | None = None
     timezone: str | None = None
@@ -136,6 +138,7 @@ class AuditScheduleResponse(BaseModel):
     workspace_id: uuid.UUID
     project_id: uuid.UUID
     prompt_set_id: uuid.UUID
+    audit_scope: Literal["brand", "commerce"]
     cadence: AuditScheduleCadence
     interval_minutes: int | None
     timezone: str

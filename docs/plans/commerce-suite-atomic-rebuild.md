@@ -9,37 +9,37 @@ claim. PR 1's automated and manual catalog gates must pass before PR 1 is
 finished; PR 2 through PR 4 retain their own credentialed/manual gates and any
 remaining UX requirements below.
 
-## Pending work after implementation review
+## Implementation review closure
 
 The current implementation closes the supplied 100-product reference-corpus
 gap, category prompt leakage, refreshable discovery-run identity, locale-aware
-dollar interpretation, and the buyer-prompt loading-state defect. The following
-review findings remain valid and are release work, not completion claims:
+dollar interpretation, the buyer-prompt loading-state defect, and the seven
+implementation-review findings below. These are shipped behavior, not claims
+that the credentialed/manual release gates have passed:
 
-1. **Hybrid recommendation resolution:** split unresolved prose into bounded
-   recommendation spans and call a mocked structured-model resolver only for
-   spans deterministic matching cannot resolve. Malformed/unavailable model
-   output must preserve unresolved observations.
-2. **Recommendation identity separation:** do not create an AI-observed
-   competitor from the first URL in a span. Resolve the recommended product
-   independently; persist merchant and Citation associations separately so a
+1. **Hybrid recommendation resolution:** unresolved prose is split into bounded
+   recommendation spans; only spans deterministic matching cannot resolve are
+   sent to the structured-model resolver. Malformed/unavailable output
+   preserves unresolved observations, and automated coverage uses a mock.
+2. **Recommendation identity separation:** the parser does not create an AI-observed
+   competitor from the first URL in a span. It resolves the recommended product
+   independently and persists merchant and Citation associations separately so a
    retailer, Reddit post, or article cannot become the competitor identity.
-3. **Frozen-audit interpretation:** match observations against the catalog and
+3. **Frozen-audit interpretation:** observations match against the catalog and
    approved-competitor evidence frozen in `commerce_measurement`, not current
    mutable Commerce rows. Editing the live catalog after launch must not change
    interpretation of an older audit.
-4. **Target-bound AI Shelf:** require an explicit product/category selection and
-   bind the four headline metrics, evidence, and history to that target. Never
-   display `snapshots[0]` without identifying its target.
-5. **Async discovery lifecycle:** expose task status and poll or stream until
+4. **Target-bound AI Shelf:** an explicit product/category selection is required and
+   the four headline metrics, evidence, and history are bound to that target.
+5. **Async discovery lifecycle:** task status is exposed and the workspace polls until
    competitor-discovery tasks reach a terminal state before refreshing
    candidates. A successful enqueue must not look like an empty discovery.
-6. **Competitor query and PDP validation:** enrich product queries with product
-   type, attributes, and price band; retain category-specific queries; and
-   verify candidate evidence is a competing PDP rather than merely safe HTML.
-7. **Visible audit launch:** add the provider, repetition, estimate, approval,
-   and launch step that connects approved Commerce prompts to the existing
-   audit runner from the Buyer Prompts workspace.
+6. **Competitor query and PDP validation:** product queries include product
+   type, attributes, and price band; category-specific queries remain distinct;
+   candidate evidence must classify as a PDP rather than merely safe HTML.
+7. **Visible audit launch:** the provider, repetition, estimate, approval,
+   and launch step connects approved Commerce prompts to the existing audit
+   runner from the Buyer Prompts workspace.
 
 Still-open manual gates are the disposable-database migration/crawl/CSV and
 100-product reference-eval run, one bounded credentialed Tavily contract check
