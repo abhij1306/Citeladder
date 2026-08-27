@@ -2,6 +2,22 @@
    authenticated product. The --text-* remap keeps legacy/supporting UI usable,
    while the named website roles below own the exact editorial hierarchy. */
 .website-type {
+  /* Keep public/auth surfaces on their established Proof palette and geometry.
+     The authenticated app overrides these shared roles at the root. */
+  --color-background: #f8fafc;
+  --color-background-alt: #f1f5f9;
+  --color-well: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-subtle: #f1f5f9;
+  --radius-control: var(--radius-sm);
+  --radius-card: var(--radius-sm);
+  --radius-overlay: var(--radius-md);
+  --shadow-card:
+    0 0 0 1px rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03),
+    0 6px 16px -4px rgb(15 23 42 / 0.05);
+  --shadow-card-hover:
+    0 0 0 1px rgb(15 23 42 / 0.08), 0 4px 12px 0 rgb(15 23 42 / 0.05),
+    0 16px 32px -6px rgb(15 23 42 / 0.09);
   --text-2xs: 0.875rem;
   --text-xs: 0.875rem;
   --text-sm: 1rem;
