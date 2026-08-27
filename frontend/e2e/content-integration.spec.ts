@@ -92,10 +92,10 @@ test('enqueue → worker → sanitised markdown result, persisted across reload'
   const badHref = await badLink.getAttribute('href');
   expect(badHref ?? '').not.toContain('javascript:');
 
-  // Provenance from the real round trip.
-  await expect(
-    page.getByText(new RegExp(`returned model: ${MOCK_RETURNED_MODEL}`, 'i')),
-  ).toBeVisible();
+  // Provenance from the real round trip. Model ids moved off the page (they
+  // stay on the row), so assert the grounding line the footer now shows and
+  // verify the returned model through the API projection below.
+  await expect(page.getByText(/grounded with:/i)).toBeVisible();
 
   // The env-held key reached the provider (and only the provider): the real
   // connector sent it, and no DTO ever carries it.
@@ -104,7 +104,11 @@ test('enqueue → worker → sanitised markdown result, persisted across reload'
   const listResponse = await page.request.get(
     '/api/v1/content/generations?project_id=' + (await activeProjectId(page)),
   );
-  expect(await listResponse.text()).not.toContain(MOCK_API_KEY);
+  const listBody = await listResponse.text();
+  expect(listBody).not.toContain(MOCK_API_KEY);
+  // The real provider's model still reaches the row, just as provenance
+  // rather than as page copy.
+  expect(listBody).toContain(MOCK_RETURNED_MODEL);
 
   // Reload: the record persists in the disposable DB, reappears in history,
   // and reopens from there (nothing is auto-selected after a fresh load).

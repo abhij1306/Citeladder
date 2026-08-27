@@ -151,8 +151,10 @@ test('content nav link is live and the enqueue → output flow renders sanitised
 
   // The queued state may resolve before the browser paints; assert the durable result.
   await expect(page.getByRole('heading', { name: 'About Acme' })).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/returned model: mistral-small-2506/i)).toBeVisible();
-  await expect(page.getByText(/Grounding: 2 confirmed facts · 1 crawl fragments/i)).toBeVisible();
+  // Model ids are provenance on the row, not something the writer needs on the
+  // page; the footer now says only what the draft was grounded with.
+  await expect(page.getByText(/returned model/i)).toHaveCount(0);
+  await expect(page.getByText(/grounded with: website crawl · 3 pages/i)).toBeVisible();
 });
 
 test('cancel during generation returns the screen to a non-generating state', async ({ page }) => {
