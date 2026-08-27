@@ -28,6 +28,7 @@ from app.core.config.site_health_contracts import (
     RULE_OUTCOME_FAIL,
 )
 from app.core.config.site_health_link_metrics import LINK_METRIC_FORMULA_VERSION
+from app.core.config.site_health_taxonomy import PAGE_KIND_HOMEPAGE
 from app.domain.projects.shim import project_business_context
 from app.domain.site_health.normalization import canonical_or_empty
 from app.models.brand import Brand
@@ -166,9 +167,9 @@ async def _architecture_pages(
 
 
 def _root_page(pages: list[ArchitecturePage]) -> ArchitecturePage | None:
-    return next((page for page in pages if page.page_kind == "homepage"), None) or (
-        pages[0] if pages else None
-    )
+    return next(
+        (page for page in pages if page.page_kind == PAGE_KIND_HOMEPAGE), None
+    ) or (pages[0] if pages else None)
 
 
 async def _persist_rule_evaluations(
@@ -202,13 +203,7 @@ async def _persist_rule_evaluations(
                 analyzer_version=crawl.analyzer_version or ANALYZER_VERSION,
                 rule_version=evaluation.rule_version,
             )
-            .on_conflict_do_nothing(
-                index_elements=[
-                    "analysis_id",
-                    "rule_id",
-                    "source_architecture_id",
-                ]
-            )
+            .on_conflict_do_nothing(constraint="uq_site_rule_evaluation")
             .returning(SiteRuleEvaluation.id)
         )
         if evaluation_id is None or evaluation.outcome != RULE_OUTCOME_FAIL:

@@ -59,7 +59,7 @@ inventory found no external caller.
 | Site Health extractor | `sh-extractor-8` | `sh-extractor-12` |
 | Site Health analyzer | `sh-analyzer-4` | `sh-analyzer-7` |
 | Page classifier | `sh-classifier-3` | `sh-classifier-7` |
-| Site Health rules | `sh-rules-4` | unchanged |
+| Site Health rules | `sh-rules-4` | `sh-rules-6` |
 | Site Health scoring | `sh-scoring-2` | unchanged |
 | Legacy Commerce importer | `commerce-importer-1` | retired |
 | Legacy product analyzer | `product-analysis-3` | retired |

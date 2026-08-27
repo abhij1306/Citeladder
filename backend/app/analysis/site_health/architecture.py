@@ -212,12 +212,16 @@ def _break_parent_cycles(rows: list[dict]) -> list[dict]:
     parent_by_id = {row["site_url_id"]: row["parent_site_url_id"] for row in rows}
     for row in rows:
         current = row["site_url_id"]
-        seen = {current}
         parent = parent_by_id.get(current)
+        seen: set[str] = set()
+        in_cycle = False
         while parent is not None and parent not in seen:
+            if parent == current:
+                in_cycle = True
+                break
             seen.add(parent)
             parent = parent_by_id.get(parent)
-        row["cycle_suppressed"] = parent in seen if parent is not None else False
+        row["cycle_suppressed"] = in_cycle
         if not row["cycle_suppressed"]:
             continue
         row["parent_site_url_id"] = None

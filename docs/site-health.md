@@ -167,8 +167,8 @@ artifact IDs, and formula/extractor versions. Raw edges, PageRank, and authority
 scores are not persisted.
 
 After link metrics commit, a second idempotent post-terminal task derives one
-immutable `SiteObservedArchitecture` for the crawl. It performs no acquisition
-and no model call. The projection freezes exact analysis, artifact,
+immutable `SiteObservedArchitecture` per crawl and processing-version tuple. It
+performs no acquisition and no model call. The projection freezes exact analysis, artifact,
 indexability-evaluation, and link-metric IDs plus extractor, analyzer, rule,
 architecture-formula, and archetype-policy versions.
 Each structural rule evaluation references that exact architecture projection,

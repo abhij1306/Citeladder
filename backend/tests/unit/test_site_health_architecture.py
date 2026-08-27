@@ -155,6 +155,34 @@ def test_hierarchy_suppresses_explicit_parent_cycles() -> None:
     assert not all(row["parent_site_url_id"] for row in model.pages)
 
 
+def test_hierarchy_preserves_page_that_only_points_into_parent_cycle() -> None:
+    outside = _page(
+        "/a",
+        PAGE_KIND_PRODUCT,
+        facts={"structured_data": [{"is_part_of_url": "https://example.com/b"}]},
+    )
+    first = _page(
+        "/b",
+        PAGE_KIND_PRODUCT,
+        facts={"structured_data": [{"is_part_of_url": "https://example.com/c"}]},
+    )
+    second = _page(
+        "/c",
+        PAGE_KIND_PRODUCT,
+        facts={"structured_data": [{"is_part_of_url": "https://example.com/b"}]},
+    )
+    model = build_observed_architecture(
+        pages=[outside, first, second],
+        coverage_state=COVERAGE_STATE_COMPLETE,
+        business_context=_context(),
+    )
+    by_url = {row["url"]: row for row in model.pages}
+
+    assert by_url[outside.url]["parent_site_url_id"] == str(first.site_url_id)
+    assert not by_url[outside.url]["cycle_suppressed"]
+    assert sum(bool(row["cycle_suppressed"]) for row in model.pages) == 1
+
+
 def test_archetype_resolution_abstains_on_every_unsafe_profile_path() -> None:
     commerce_pages = [_page("/products/widget", PAGE_KIND_PRODUCT)]
     cases = (
