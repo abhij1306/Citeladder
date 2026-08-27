@@ -245,6 +245,7 @@
         "tests/unit/test_branded_query_classifier.py",
         "tests/unit/test_topical_binding.py",
         "tests/component/test_prompt_*.py",
+        "tests/component/test_entitlement_occupancy.py",
         "tests/component/test_projects_prompts_api.py",
         "tests/component/test_branded_query_overrides.py",
         "tests/component/test_topical_binding.py"

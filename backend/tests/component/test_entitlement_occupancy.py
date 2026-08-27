@@ -306,19 +306,17 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
         json={"products_services": ["running shoes"]},
     )
     assert profile.status_code == 200
-    topic = (
-        await client.post(
-            f"/api/v1/projects/{project['id']}/topics",
-            json={"name": "Running Shoes"},
-        )
-    ).json()
-    topic_id = topic["id"]
+    topic_response = await client.post(
+        f"/api/v1/projects/{project['id']}/topics",
+        json={"name": "Running Shoes"},
+    )
+    assert topic_response.status_code == 201
     workspace_id = uuid.UUID(project["workspace_id"])
     async with session_factory() as session:
         await seed_occupancy_grants(
             session,
             workspace_id=workspace_id,
-            grants=(GrantSpec(key=KEY_PROMPT_SLOTS, value=5),),
+            grants=(GrantSpec(key=KEY_PROMPT_SLOTS, value=4),),
         )
         await session.commit()
 
@@ -326,22 +324,28 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
     # phase together; the account lock serializes them at the mutation.
     barrier = asyncio.Barrier(2)
 
-    def _agent_payload(topic: str) -> str:
+    def _agent_payload(run_label: str, user: str) -> str:
         # Each prompt opens with a different token. Generation caps how many
         # prompts may share their first three words, so a stub that repeats one
         # opening is rejected as templated and this test would never reach the
         # grant at all.
+        marker = "Buyer-query slots (return one row per slot): "
+        slot_line = next(line for line in user.splitlines() if line.startswith(marker))
+        slots = json.loads(slot_line.removeprefix(marker))
+
+        def _text(slot: dict[str, object]) -> str:
+            topic = str(slot["topic"])
+            return {
+                "what_is": f"What is {topic} for {run_label} buyers?",
+                "best_for": f"Best {topic} for {run_label} buyers",
+                "how_to": f"How to choose {topic} for {run_label} buyers",
+                "pricing": f"{topic} pricing for {run_label} buyers",
+            }[str(slot["pattern"])]
+
         return json.dumps(
             {
                 "prompts": [
-                    {
-                        "topic_id": topic_id,
-                        "text": (
-                            f"{chr(97 + idx) * 20} {topic} running shoes for buyers"
-                        ),
-                        "intent": "discovery",
-                    }
-                    for idx in range(5)
+                    {"slot_id": slot["slot_id"], "text": _text(slot)} for slot in slots
                 ]
             }
         )
@@ -351,7 +355,7 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
         base_url_host = "agent.test"
 
         def __init__(self, topic: str) -> None:
-            self._response = _agent_payload(topic)
+            self._topic = topic
 
         async def complete_structured_json(
             self,
@@ -362,7 +366,7 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
             schema: dict[str, object],
         ) -> str:
             await barrier.wait()
-            return self._response
+            return _agent_payload(self._topic, user)
 
     async def _run(topic: str) -> str:
         async with session_factory() as session:
@@ -371,7 +375,7 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
                     session,
                     workspace_id=workspace_id,
                     prompt_set_id=uuid.UUID(prompt_set_id),
-                    payload=PromptGenerateRequest(count=5, confirm_send_evidence=True),
+                    payload=PromptGenerateRequest(count=4, confirm_send_evidence=True),
                     agent=cast(DefaultAgentClient, _BarrierAgent(topic)),
                 )
                 return "ok"
@@ -383,7 +387,7 @@ async def test_concurrent_generation_inserts_never_exceed_grant(
     assert sorted(results) == ["denied", "ok"]
 
     async with session_factory() as session:
-        assert await _prompt_count(session, uuid.UUID(prompt_set_id)) == 5
+        assert await _prompt_count(session, uuid.UUID(prompt_set_id)) == 4
 
 
 # =========================================================================
