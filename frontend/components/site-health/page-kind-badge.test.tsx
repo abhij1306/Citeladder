@@ -14,13 +14,13 @@ describe('PageKindBadge', () => {
     expect(screen.getByText('FAQ')).toBeInTheDocument();
   });
 
-  it('renders the — placeholder for an unclassified page (null) — never a guessed type', () => {
+  it('renders the not-measured state for an unclassified page (null) — never a guessed type', () => {
     render(<PageKindBadge pageKind={null} />);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('Not measured')).toBeInTheDocument();
   });
 
-  it('renders the — placeholder when the projection does not carry the field', () => {
+  it('renders the not-measured state when the projection does not carry the field', () => {
     render(<PageKindBadge pageKind={undefined} />);
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('Not measured')).toBeInTheDocument();
   });
 });

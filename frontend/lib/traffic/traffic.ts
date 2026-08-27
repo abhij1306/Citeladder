@@ -6,7 +6,7 @@
  * stat cards, sort ids, and display strings. The read endpoints are the single
  * source of truth; nothing here recomputes a metric — it only projects
  * persisted values for display (invariant 7). Null metrics stay null and
- * render as the em-dash placeholder / chart gaps, never invented zeros.
+ * render as explicit not-measured labels / chart gaps, never invented zeros.
  *
  * Mirrors `lib/visibility/trends.ts` (range presets, `rangeToWindow`, series
  * projections, headline stats) against the traffic contract
@@ -14,7 +14,7 @@
  */
 import type { TrendPoint } from '@/components/ui/trend-chart';
 import type { SnapshotGranularity, TrafficDashboard } from '@/lib/api/traffic';
-import { formatCount, formatShortDate } from '@/lib/format';
+import { availabilityLabel, formatCount, formatShortDate } from '@/lib/format';
 
 // The shared display-format vocabulary (granularity options, bucket-date /
 // window / timestamp formats, grouped counts, URL splitting) is OWNED by
@@ -163,7 +163,7 @@ export function formatPosition(value: number): string {
 }
 
 /** The not-measured placeholder (null metrics — never a fabricated zero). */
-export const NULL_PLACEHOLDER = '—';
+export const NULL_PLACEHOLDER = availabilityLabel('not_measured');
 
 // ---------------------------------------------------------------------------
 // Headline stat cards

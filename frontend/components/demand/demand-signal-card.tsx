@@ -28,6 +28,7 @@ import {
   signalTarget,
   signalTargetKind,
 } from '@/lib/demand/signals';
+import { availabilityLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const SIGNAL_METAS: Record<
@@ -87,12 +88,13 @@ function formatCtr(signal: DemandSignal): string {
   if (persistedCtr !== null) return `${(persistedCtr * 100).toFixed(1)}%`;
   const impressions = numericMetric(signal, 'impressions');
   const clicks = numericMetric(signal, 'clicks');
-  if (impressions === null || clicks === null || impressions === 0) return '—';
+  if (impressions === null || clicks === null || impressions === 0)
+    return availabilityLabel('not_measured');
   return `${((clicks / impressions) * 100).toFixed(1)}%`;
 }
 
 function formatCount(value: number | null): string {
-  return value === null ? '—' : value.toLocaleString('en-US');
+  return value === null ? availabilityLabel('not_measured') : value.toLocaleString('en-US');
 }
 
 type DiagnosticInsight = {
@@ -362,7 +364,7 @@ export function DemandSignalCard({
             <div>
               <dt className="text-muted text-xs">Avg Position</dt>
               <dd className="text-foreground mt-0.5 text-sm font-semibold tabular-nums">
-                {numericMetric(signal, 'position')?.toFixed(1) ?? '—'}
+                {numericMetric(signal, 'position')?.toFixed(1) ?? availabilityLabel('not_measured')}
               </dd>
             </div>
           </dl>

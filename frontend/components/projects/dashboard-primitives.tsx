@@ -5,12 +5,16 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { eyebrowClasses } from '@/components/ui/eyebrow';
 import type { CommandCenter, Opportunity } from '@/lib/api/types';
+import { availabilityLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 export function metricValue(value: number | null, suffix = '') {
-  return value === null ? '—' : `${Number.isInteger(value) ? value : value.toFixed(1)}${suffix}`;
+  return value === null
+    ? availabilityLabel('not_measured')
+    : `${Number.isInteger(value) ? value : value.toFixed(1)}${suffix}`;
 }
 
 export function deltaLabel(delta: number | null, inverse = false) {
@@ -52,9 +56,13 @@ export function StateMetric({
     <div className="flex min-h-[112px] flex-col justify-between p-5">
       <p className={eyebrowClasses}>{label}</p>
       <div className="my-2">
-        <p className="font-display text-foreground text-3xl leading-none font-semibold tracking-[-0.03em] tabular-nums">
-          {metricValue(value, suffix)}
-        </p>
+        {value === null ? (
+          <UnavailableValue state="not_measured" className="text-sm" />
+        ) : (
+          <p className="font-display text-foreground text-3xl leading-none font-semibold tracking-[-0.03em] tabular-nums">
+            {metricValue(value, suffix)}
+          </p>
+        )}
       </div>
       <p
         className={cn(
@@ -71,7 +79,7 @@ export function StateMetric({
 export function MovementChart({ movements }: Readonly<{ movements: CommandCenter['movements'] }>) {
   if (movements.length === 0)
     return (
-      <div className="border-border-subtle bg-background-alt grid min-h-36 place-items-center rounded-lg border border-dashed p-5 text-center">
+      <div className="border-border-subtle bg-background-alt grid min-h-36 place-items-center rounded-[var(--radius-card)] border p-5 text-center">
         <p className="text-muted max-w-md text-xs">
           Movement appears after a run with the same prompts, engines, and measurement mode.
         </p>
@@ -83,7 +91,7 @@ export function MovementChart({ movements }: Readonly<{ movements: CommandCenter
       {movements.map((row) => (
         <div
           key={row.label}
-          className="bg-background-alt border-border-subtle rounded-lg border p-3.5 shadow-xs"
+          className="bg-background-alt border-border-subtle rounded-[var(--radius-card)] border p-3.5 shadow-xs"
         >
           <div className="flex items-center justify-between gap-2">
             <span className="text-foreground text-xs font-semibold capitalize">{row.label}</span>
@@ -93,8 +101,14 @@ export function MovementChart({ movements }: Readonly<{ movements: CommandCenter
                 row.direction === 'positive' ? 'text-success' : 'text-danger',
               )}
             >
-              {row.delta !== null && row.delta > 0 ? '+' : ''}
-              {row.delta ?? '—'}
+              {row.delta !== null ? (
+                <>
+                  {row.delta > 0 ? '+' : ''}
+                  {row.delta}
+                </>
+              ) : (
+                <UnavailableValue state="not_measured" />
+              )}
             </span>
           </div>
           <div className="mt-3.5 flex h-14 items-end justify-center gap-2.5" aria-hidden>

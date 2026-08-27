@@ -5,7 +5,7 @@ import { cva } from 'class-variance-authority';
  * tokens only (no raw hex). Sizes use the control-height tokens via bridged
  * `h-*` utilities defined in globals.css (--control-height*).
  *
- * App buttons are `rounded-sm` (6px), not pills. Website/auth primary buttons
+ * App buttons use the semantic 6px control radius, not pills. Website/auth primary buttons
  * add their inset edge and 12px corners through the scoped `.website-type`
  * contract in globals.css; behaviour and semantics remain shared here.
  * Primary is an accent fill (`bg-accent` + `text-accent-fg`), replacing the
@@ -26,7 +26,7 @@ import { cva } from 'class-variance-authority';
  * that reads as the raised option without needing a shadow.
  */
 export const buttonVariants = cva(
-  'focus-ring inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm border font-sans font-medium no-underline transition-[transform,background-color,color,border-color,box-shadow] duration-[160ms] ease-out active:scale-[0.98] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-75',
+  'focus-ring inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)] border font-sans font-medium no-underline transition-[transform,background-color,color,border-color,box-shadow] duration-[160ms] ease-out active:scale-[0.98] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-75',
   {
     variants: {
       variant: {

@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import type { InventoryRow } from '@/lib/api/types';
 import { PageKindBadge } from '@/components/site-health/page-kind-badge';
 import { pageDisplayTitle } from '@/lib/site-health/status';
@@ -66,7 +67,9 @@ export function InventoryTable({
             <TableCell>
               <PageKindBadge pageKind={row.page_kind} />
             </TableCell>
-            <TableCell className="text-secondary text-xs">{row.content_type ?? '—'}</TableCell>
+            <TableCell className="text-secondary text-xs">
+              {row.content_type ?? <UnavailableValue state="unknown" />}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

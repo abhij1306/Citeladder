@@ -152,7 +152,7 @@ describe('PageKindScores', () => {
     ).toBeTruthy();
   });
 
-  it('renders — for a missing mean score, never a fabricated zero', () => {
+  it('renders not measured for a missing mean score, never a fabricated zero', () => {
     render(
       <PageKindScores
         crawl={null}
@@ -172,7 +172,7 @@ describe('PageKindScores', () => {
     );
     expect(screen.getByText('Docs')).toBeInTheDocument();
     expect(screen.queryByText('0')).not.toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
   it('falls back to the crawl score summary when the dashboard has none', () => {

@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { engineLabel, transportLabel } from '@/lib/providers/catalog';
 import type { Execution } from '@/lib/api/types';
 import { executionBadgeValue, executionStatusLabel } from '@/lib/runs/status';
@@ -63,7 +64,11 @@ export function ExecutionsTable({
               </Badge>
             </TableCell>
             <TableCell numeric className="mono py-3">
-              {execution.latency_ms == null ? '—' : `${execution.latency_ms} ms`}
+              {execution.latency_ms == null ? (
+                <UnavailableValue state="not_measured" />
+              ) : (
+                `${execution.latency_ms} ms`
+              )}
             </TableCell>
             <TableCell className="py-3 text-right">
               {execution.status === 'succeeded' ? (
@@ -75,7 +80,7 @@ export function ExecutionsTable({
                   Evidence
                 </button>
               ) : (
-                <span className="text-subtle text-sm">—</span>
+                <UnavailableValue state="unavailable" />
               )}
             </TableCell>
           </TableRow>

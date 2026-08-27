@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Label } from '@/components/ui/typography';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { PageKindSelect } from '@/components/site-health/page-kind-select';
 import { PagesTable } from '@/components/site-health/pages-table';
 import { RootErrorsBlock } from '@/components/site-health/root-errors-block';
@@ -123,7 +124,7 @@ function DiscoveringInventory({ crawl }: Readonly<{ crawl: SiteCrawl }>) {
                 </span>
               </TableCell>
               <TableCell className="text-secondary text-xs">
-                {row.source ? statusLabel(row.source) : '—'}
+                {row.source ? statusLabel(row.source) : <UnavailableValue state="unknown" />}
               </TableCell>
             </TableRow>
           ))}

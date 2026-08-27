@@ -75,7 +75,10 @@ export function ProjectControls({
   );
 }
 
-export function FactsDrawer({ projectId }: Readonly<{ projectId: string }>) {
+export function FactsDrawer({
+  projectId,
+  competitors,
+}: Readonly<{ projectId: string; competitors: Project['competitors'] }>) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const profile = useQuery({
@@ -105,12 +108,16 @@ export function FactsDrawer({ projectId }: Readonly<{ projectId: string }>) {
         description="Review the canonical facts and competitors used across CiteLadder."
         closeLabel="Close company facts"
       >
-        <div className="flex flex-col gap-5 p-5">
+        <div className="flex flex-col gap-5">
           {profile.isError ? <Alert tone="danger">Company facts could not be loaded.</Alert> : null}
           {profile.data ? (
             <BrandProfilePanel
               projectId={projectId}
               profile={profile.data}
+              competitors={competitors}
+              competitorSuggestions={
+                <CompetitorSuggestions projectId={projectId} suggestionsQuery={suggestions} />
+              }
               onSaved={() =>
                 void queryClient.invalidateQueries({
                   queryKey: queryKeys.projects.commandCenter(projectId),
@@ -118,7 +125,6 @@ export function FactsDrawer({ projectId }: Readonly<{ projectId: string }>) {
               }
             />
           ) : null}
-          <CompetitorSuggestions projectId={projectId} suggestionsQuery={suggestions} />
         </div>
       </Drawer>
     </>

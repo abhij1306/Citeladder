@@ -2,16 +2,28 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Save } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { Alert } from '@/components/ui/alert';
+import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Textarea } from '@/components/ui/input';
+import { NestedTabs } from '@/components/ui/nested-tabs';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { projectsApi } from '@/lib/api/projects';
 import { queryKeys } from '@/lib/api/query-keys';
-import type { BrandProfile, BrandProfileDraft } from '@/lib/api/types';
+import type { BrandProfile, BrandProfileDraft, Project } from '@/lib/api/types';
 import { formErrorMessage } from '@/lib/forms/error-message';
+
+const PROFILE_TABS = [
+  { id: 'facts', label: 'Facts & Positioning' },
+  { id: 'audience', label: 'Audience & Offerings' },
+  { id: 'competitors', label: 'Competitors' },
+] as const;
+
+type ProfileTab = (typeof PROFILE_TABS)[number]['id'];
+type TrackedCompetitor = Pick<Project['competitors'][number], 'name' | 'logo_url' | 'domains'>;
 
 function profileDraft(profile: BrandProfile): BrandProfileDraft {
   return {
@@ -32,16 +44,21 @@ function parseProductsInput(value: string): string[] {
 export function BrandProfilePanel({
   projectId,
   profile,
+  competitors = [],
+  competitorSuggestions,
   onSaved,
 }: Readonly<{
   projectId: string;
   profile: BrandProfile;
+  competitors?: readonly TrackedCompetitor[];
+  competitorSuggestions?: ReactNode;
   onSaved?: () => void;
 }>) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(() => profileDraft(profile));
   const [productsInput, setProductsInput] = useState(() => profile.products_services.join(', '));
   const [notice, setNotice] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ProfileTab>('facts');
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -60,14 +77,15 @@ export function BrandProfilePanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h3 id="brand-knowledge-title" className="text-foreground text-sm font-semibold">
-          Facts & positioning
-        </h3>
-        <p className="text-muted mt-0.5 text-xs">
-          Curated context used by competitor and prompt generation. Generated prose never becomes
-          knowledge.
-        </p>
+      <div className="flex justify-end">
+        <Button
+          variant="primary"
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending}
+        >
+          <Save className="size-4" aria-hidden />
+          {saveMutation.isPending ? 'Saving…' : 'Save brand knowledge'}
+        </Button>
       </div>
 
       {saveMutation.error ? (
@@ -75,16 +93,59 @@ export function BrandProfilePanel({
       ) : null}
       {notice ? <Alert tone="success">{notice}</Alert> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <NestedTabs
+        tabs={PROFILE_TABS}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        ariaLabel="Company facts sections"
+        idPrefix="company-facts"
+        panel={
+          <ProfileTabPanel
+            activeTab={activeTab}
+            draft={draft}
+            productsInput={productsInput}
+            disabled={saveMutation.isPending}
+            competitors={competitors}
+            competitorSuggestions={competitorSuggestions}
+            onDraftChange={setDraft}
+            onProductsChange={setProductsInput}
+          />
+        }
+      />
+    </div>
+  );
+}
+
+function ProfileTabPanel({
+  activeTab,
+  draft,
+  productsInput,
+  disabled,
+  competitors,
+  competitorSuggestions,
+  onDraftChange,
+  onProductsChange,
+}: Readonly<{
+  activeTab: ProfileTab;
+  draft: BrandProfileDraft;
+  productsInput: string;
+  disabled: boolean;
+  competitors: readonly TrackedCompetitor[];
+  competitorSuggestions?: ReactNode;
+  onDraftChange: (draft: BrandProfileDraft) => void;
+  onProductsChange: (value: string) => void;
+}>) {
+  if (activeTab === 'facts') {
+    return (
+      <div className="grid gap-5">
         <Field label="Description" hint="Core mission, value proposition, and brand summary.">
           {(field) => (
             <Textarea
               {...field}
-              rows={3}
-              disabled={saveMutation.isPending}
+              rows={6}
+              disabled={disabled}
               value={draft.description}
-              onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-              className="resize-y"
+              onChange={(event) => onDraftChange({ ...draft, description: event.target.value })}
             />
           )}
         </Field>
@@ -95,14 +156,20 @@ export function BrandProfilePanel({
           {(field) => (
             <Textarea
               {...field}
-              rows={3}
-              disabled={saveMutation.isPending}
+              rows={6}
+              disabled={disabled}
               value={draft.positioning}
-              onChange={(event) => setDraft({ ...draft, positioning: event.target.value })}
-              className="resize-y"
+              onChange={(event) => onDraftChange({ ...draft, positioning: event.target.value })}
             />
           )}
         </Field>
+      </div>
+    );
+  }
+
+  if (activeTab === 'audience') {
+    return (
+      <div className="grid gap-5">
         <Field
           label="Target audience"
           hint="Key demographics, customer personas, and ideal buyers."
@@ -110,11 +177,10 @@ export function BrandProfilePanel({
           {(field) => (
             <Textarea
               {...field}
-              rows={3}
-              disabled={saveMutation.isPending}
+              rows={6}
+              disabled={disabled}
               value={draft.target_audience}
-              onChange={(event) => setDraft({ ...draft, target_audience: event.target.value })}
-              className="resize-y"
+              onChange={(event) => onDraftChange({ ...draft, target_audience: event.target.value })}
             />
           )}
         </Field>
@@ -122,26 +188,45 @@ export function BrandProfilePanel({
           {(field) => (
             <Textarea
               {...field}
-              rows={3}
-              disabled={saveMutation.isPending}
+              rows={6}
+              disabled={disabled}
               value={productsInput}
-              onChange={(event) => setProductsInput(event.target.value)}
-              className="resize-y"
+              onChange={(event) => onProductsChange(event.target.value)}
             />
           )}
         </Field>
       </div>
+    );
+  }
 
-      <div className="flex justify-end pt-1">
-        <Button
-          variant="primary"
-          onClick={() => saveMutation.mutate()}
-          disabled={saveMutation.isPending}
-        >
-          <Save className="size-4" aria-hidden />
-          {saveMutation.isPending ? 'Saving…' : 'Save brand knowledge'}
-        </Button>
-      </div>
+  return (
+    <div className="grid gap-5">
+      <section aria-labelledby="tracked-competitors" className="grid gap-2">
+        <h3 id="tracked-competitors" className="text-foreground text-sm font-semibold">
+          Tracked competitors
+        </h3>
+        {competitors.length ? (
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {competitors.map((competitor) => (
+              <li
+                key={`${competitor.name}:${competitor.domains[0] ?? ''}`}
+                className="bg-background text-secondary flex min-w-0 items-center gap-2 rounded-[var(--radius-control)] px-3 py-2 text-xs font-medium"
+              >
+                <BrandLogo
+                  name={competitor.name}
+                  logoUrl={competitor.logo_url}
+                  websiteUrl={competitor.domains[0]}
+                  size="sm"
+                />
+                <span className="truncate">{competitor.name}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <UnavailableValue state="not_set" />
+        )}
+      </section>
+      {competitorSuggestions}
     </div>
   );
 }

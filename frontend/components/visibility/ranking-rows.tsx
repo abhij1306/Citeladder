@@ -22,7 +22,7 @@ export const NO_RANKINGS_MESSAGE = 'No brand or competitor mentions were recorde
  *
  * Columns are `#`, Brand (logo + name + a "You" chip on the own brand),
  * Visibility% (mono + score-band colour), Share%, Sentiment and
- * Position — the last two render the "—" not-yet-computed placeholder
+ * Position — the last two render the explicit not-measured state
  * (decision B-2). The user's own row is `highlight`ed.
  *
  * `history` is optional real per-brand visibility series (see

@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { scoreBand, scoreBandText } from '@/components/ui/score-band';
 import { Skeleton } from '@/components/ui/skeleton';
 import { displayHeadingLgClasses } from '@/components/ui/typography';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import {
   Table,
   TableBody,
@@ -37,7 +38,7 @@ import { groupByTopic } from './topic-groups';
  * prompt where the brand was mentioned (design.md §9.4 Visibility Score
  * column). Derived read-only from the evidence projection — no provider call.
  * Prompts with no completed executions yet score `null` (rendered as an
- * em-dash), never 0.
+ * explicit not-measured state), never 0.
  */
 function promptScores(items: VisibilityExecutionEvidence[]): Map<string, number> {
   const totals = new Map<string, { runs: number; mentioned: number }>();
@@ -56,7 +57,7 @@ function promptScores(items: VisibilityExecutionEvidence[]): Map<string, number>
 }
 
 function ScoreCell({ score }: Readonly<{ score: number | null }>) {
-  if (score === null) return <span className="text-subtle">—</span>;
+  if (score === null) return <UnavailableValue state="not_measured" />;
   return (
     <span
       className={cn('font-mono text-sm font-medium tabular-nums', scoreBandText[scoreBand(score)])}
@@ -258,10 +259,10 @@ export function YourPrompts() {
                         <ScoreCell score={group.score} />
                       </TableCell>
                       <TableCell numeric>
-                        <span className="text-subtle">—</span>
+                        <UnavailableValue state="not_measured" />
                       </TableCell>
                       <TableCell numeric>
-                        <span className="text-subtle">—</span>
+                        <UnavailableValue state="not_measured" />
                       </TableCell>
                       <TableCell />
                       <TableCell />
@@ -279,16 +280,16 @@ export function YourPrompts() {
                               <ScoreCell score={scores.get(prompt.id) ?? null} />
                             </TableCell>
                             <TableCell numeric>
-                              <span className="text-subtle">—</span>
+                              <UnavailableValue state="not_measured" />
                             </TableCell>
                             <TableCell numeric>
-                              <span className="text-subtle">—</span>
+                              <UnavailableValue state="not_measured" />
                             </TableCell>
                             <TableCell>
                               {group.topic ? (
                                 <Badge variant="neutral">{group.topic.name}</Badge>
                               ) : (
-                                <span className="text-subtle">—</span>
+                                <UnavailableValue state="not_set" />
                               )}
                             </TableCell>
                             <TableCell>
@@ -297,7 +298,7 @@ export function YourPrompts() {
                                   Branded
                                 </Badge>
                               ) : (
-                                <span className="text-subtle">—</span>
+                                <span className="text-subtle text-xs font-medium">Not branded</span>
                               )}
                             </TableCell>
                           </TableRow>

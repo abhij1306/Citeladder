@@ -15,7 +15,7 @@ import {
   signalTarget,
   signalTargetKind,
 } from '@/lib/demand/signals';
-import { formatWindowDate } from '@/lib/format';
+import { availabilityLabel, formatWindowDate } from '@/lib/format';
 
 export function DemandEvidenceDrawer({
   signal,
@@ -123,7 +123,7 @@ function DemandEvidenceContent({
               <p className="text-foreground text-sm font-semibold tabular-nums">
                 {typeof details.metrics.impressions === 'number'
                   ? details.metrics.impressions.toLocaleString()
-                  : '—'}
+                  : availabilityLabel('not_measured')}
               </p>
             </div>
             <div>
@@ -131,7 +131,7 @@ function DemandEvidenceContent({
               <p className="text-foreground text-sm font-semibold tabular-nums">
                 {typeof details.metrics.clicks === 'number'
                   ? details.metrics.clicks.toLocaleString()
-                  : '—'}
+                  : availabilityLabel('not_measured')}
               </p>
             </div>
             <div>
@@ -139,7 +139,7 @@ function DemandEvidenceContent({
               <p className="text-foreground text-sm font-semibold tabular-nums">
                 {typeof details.metrics.ctr === 'number'
                   ? `${(details.metrics.ctr * 100).toFixed(1)}%`
-                  : '—'}
+                  : availabilityLabel('not_measured')}
               </p>
             </div>
             <div>
@@ -147,7 +147,7 @@ function DemandEvidenceContent({
               <p className="text-foreground text-sm font-semibold tabular-nums">
                 {typeof details.metrics.position === 'number'
                   ? details.metrics.position.toFixed(1)
-                  : '—'}
+                  : availabilityLabel('not_measured')}
               </p>
             </div>
           </div>
@@ -188,7 +188,7 @@ function DemandEvidenceContent({
                 <span className="text-foreground font-medium">
                   {details.positionBand !== null
                     ? `Positions ${details.positionBand}.0 – ${details.positionBand}.9`
-                    : '—'}
+                    : availabilityLabel('not_measured')}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -200,10 +200,10 @@ function DemandEvidenceContent({
               <div className="flex justify-between">
                 <span className="text-muted">Observed Actual CTR:</span>
                 <span className="text-danger font-semibold tabular-nums">
-                  {/* An unobserved CTR is "—", never a fabricated 0.0%. */}
+                  {/* An unobserved CTR is explicit, never a fabricated 0.0%. */}
                   {numericMetric(signal, 'ctr') !== null
                     ? `${(numericMetric(signal, 'ctr')! * 100).toFixed(1)}%`
-                    : '—'}
+                    : availabilityLabel('not_measured')}
                 </span>
               </div>
             </div>

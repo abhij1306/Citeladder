@@ -39,7 +39,7 @@ import {
  *   - side-by-side start-of-range vs latest ranking-history tables.
  * It also covers the loading skeleton, request-error, no-history, filtered-empty
  * and single-point ("add another run") states. Sentiment / average position are
- * never computed (decision B-2 / invariant 9) and are disclosed as "—" in the
+ * never computed (decision B-2 / invariant 9) and are disclosed as not measured in the
  * rankings table rather than as blank stat cards.
  * Partial-run points are shown without hiding them. The toolbar (engine / date
  * / granularity controls) lives in `visibility-toolbar.tsx`; this component owns

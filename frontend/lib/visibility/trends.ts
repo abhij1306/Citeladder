@@ -14,6 +14,7 @@ import type {
   VisibilityTrendPoint,
   VisibilityTrendRankingRow,
 } from '@/lib/api/types';
+import { availabilityLabel } from '@/lib/format';
 import { ENGINE_ORDER } from '@/lib/providers/catalog';
 
 /** Trend granularity — mirrors the backend `granularity=run|week|month`. */
@@ -166,11 +167,11 @@ export type TrendStat = {
 };
 
 function formatPct(value: number | null): string {
-  return value === null ? '—' : `${Math.round(value)}%`;
+  return value === null ? availabilityLabel('not_measured') : `${Math.round(value)}%`;
 }
 
 function formatScoreValue(value: number | null): string {
-  return value === null ? '—' : `${Math.round(value)}`;
+  return value === null ? availabilityLabel('not_measured') : `${Math.round(value)}`;
 }
 
 /**
@@ -251,7 +252,7 @@ export function trendStats(points: readonly VisibilityTrendPoint[]): TrendStat[]
     {
       key: 'brand_mention_count',
       label: 'Brand mentions',
-      value: bmc === null ? '—' : `${bmc}`,
+      value: bmc === null ? availabilityLabel('not_measured') : `${bmc}`,
       delta: bmcDelta.text,
       direction: bmcDelta.direction,
       placeholder: false,

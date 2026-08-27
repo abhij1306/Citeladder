@@ -10,6 +10,7 @@
  * control is offered.
  */
 import { ENGINE_ORDER } from '@/lib/providers/catalog';
+import { availabilityLabel } from '@/lib/format';
 import { shouldPollAudit } from '@/lib/runs/status';
 import type {
   AuditStatus,
@@ -182,7 +183,7 @@ export function formatScore(score: number | null): string {
 }
 
 /** The not-yet-computed placeholder for sentiment + avg-position (B-2). */
-export const PLACEHOLDER = '—';
+export const PLACEHOLDER = availabilityLabel('not_measured');
 
 /**
  * A prompt option for the Query Fanout evidence prompt selector. This is

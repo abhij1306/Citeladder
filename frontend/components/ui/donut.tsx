@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { cn } from '@/lib/utils';
 
 export type DonutSegment = {
@@ -142,7 +143,11 @@ export function Donut({
               </svg>
               <span className="text-secondary flex-1 truncate">{segment.label}</span>
               <span className="mono text-foreground font-medium">
-                {total > 0 ? `${Math.round((segment.value / total) * 100)}%` : '—'}
+                {total > 0 ? (
+                  `${Math.round((segment.value / total) * 100)}%`
+                ) : (
+                  <UnavailableValue state="not_applicable" />
+                )}
               </span>
             </li>
           ))}

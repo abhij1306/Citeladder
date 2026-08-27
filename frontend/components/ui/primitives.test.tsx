@@ -13,17 +13,18 @@ import { ScoreRing } from './score-ring';
 import { Skeleton } from './skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table';
 import { TrendChart } from './trend-chart';
+import { UnavailableValue } from './unavailable-value';
 import { scoreBand } from './score-band';
 
 describe('Button', () => {
   it('renders default variant/size classes', () => {
     render(<Button>Save</Button>);
     const btn = screen.getByRole('button', { name: 'Save' });
-    // primary variant → accent fill with its verified foreground, and the ADS
-    // rounded-sm shape (radius.small; the pill is retired for buttons)
+    // Primary variant → accent fill with its verified foreground and the
+    // semantic app control radius; the pill is retired for buttons.
     expect(btn.className).toContain('bg-accent');
     expect(btn.className).toContain('text-accent-fg');
-    expect(btn.className).toContain('rounded-sm');
+    expect(btn.className).toContain('rounded-[var(--radius-control)]');
     expect(btn.className).not.toContain('rounded-full');
     expect(btn.className).toContain('h-[var(--control-height)]');
     // real <button> defaults to type=button (no accidental submit)
@@ -146,6 +147,7 @@ describe('Card', () => {
       </Card>,
     );
     expect(screen.getByTestId('card').className).toContain('bg-panel');
+    expect(screen.getByTestId('card').className).toContain('rounded-[var(--radius-card)]');
     expect(screen.getByText('Visibility').tagName).toBe('H3');
     expect(screen.getByText('Body')).toBeInTheDocument();
   });
@@ -162,6 +164,14 @@ describe('Card', () => {
     expect(eyebrow.className).toContain('uppercase');
     expect(eyebrow.className).toContain('tracking-');
     expect(eyebrow.className).not.toContain('font-mono');
+  });
+});
+
+describe('UnavailableValue', () => {
+  it('renders the explicit semantic state with the shared placeholder treatment', () => {
+    render(<UnavailableValue state="not_measured" />);
+    const value = screen.getByText('Not measured');
+    expect(value).toHaveClass('value-placeholder', 'text-xs', 'font-medium');
   });
 });
 

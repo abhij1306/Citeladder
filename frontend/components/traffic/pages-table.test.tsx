@@ -73,7 +73,7 @@ describe('PagesTable', () => {
 
     const table = await screen.findByTestId('pages-table');
     await within(table).findByText('1,204');
-    expect(within(table).getAllByText('—')).toHaveLength(2);
+    expect(within(table).getAllByText('Not measured')).toHaveLength(2);
     expect(within(table).queryByText('0')).not.toBeInTheDocument();
   });
 

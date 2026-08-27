@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { inputClasses } from '@/components/ui/input';
 import { MutationNotice } from '@/components/ui/mutation-notice';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import { queryKeys } from '@/lib/api/query-keys';
 import { runsApi } from '@/lib/api/runs';
 import type { AuditScheduleCadence, LogicalEngine, PromptSet } from '@/lib/api/types';
@@ -79,7 +80,11 @@ export function AuditSchedules({
                 </span>
                 <span className="text-secondary">
                   {schedule.engines.join(', ')} · next{' '}
-                  {schedule.next_run_at ? formatUtcTimestamp(schedule.next_run_at) : '—'}
+                  {schedule.next_run_at ? (
+                    formatUtcTimestamp(schedule.next_run_at)
+                  ) : (
+                    <UnavailableValue state="not_set" />
+                  )}
                   {' · '}
                   {schedule.audit_scope === 'commerce' ? 'Commerce' : 'Brand'}
                 </span>

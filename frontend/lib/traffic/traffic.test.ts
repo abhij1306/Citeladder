@@ -184,10 +184,10 @@ describe('trafficStats', () => {
       }),
     );
     const byKey = Object.fromEntries(stats.map((s) => [s.key, s]));
-    expect(byKey.sessions.value).toBe('—');
+    expect(byKey.sessions.value).toBe('Not measured');
     expect(byKey.sessions.placeholder).toBe(true);
     expect(byKey.sessions.delta).toBe('No GA4 data in window');
-    expect(byKey.conversions.value).toBe('—');
+    expect(byKey.conversions.value).toBe('Not measured');
   });
 
   it('renders null ctr/position as placeholders (zero-impression window)', () => {
@@ -204,8 +204,8 @@ describe('trafficStats', () => {
       }),
     );
     const byKey = Object.fromEntries(stats.map((s) => [s.key, s]));
-    expect(byKey.ctr.value).toBe('—');
-    expect(byKey.position.value).toBe('—');
+    expect(byKey.ctr.value).toBe('Not measured');
+    expect(byKey.position.value).toBe('Not measured');
   });
 
   it('notes the missing baseline when a series has fewer than two available points', () => {

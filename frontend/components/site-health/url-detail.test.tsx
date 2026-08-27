@@ -229,7 +229,7 @@ describe('UrlDetail', () => {
     expect(screen.queryByRole('button', { name: /why this page kind/i })).not.toBeInTheDocument();
   });
 
-  it('renders the "—" placeholder for a missing score, never a zero', async () => {
+  it('renders the not-measured state for a missing score, never a zero', async () => {
     mswServer.use(
       ...handlers(detail({ technical_score: null, aeo_score: null, overall_score: null })),
     );
@@ -237,7 +237,7 @@ describe('UrlDetail', () => {
     renderWithProviders(<UrlDetail crawlId={CRAWL} siteUrlId={URL_ID} />);
 
     await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
   it('renders the placeholder (not "no-cache") for a missing Cache-Control header', async () => {
@@ -264,7 +264,7 @@ describe('UrlDetail', () => {
 
     await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
     expect(screen.queryByText('no-cache')).not.toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
   it('renders the placeholder (not "0ms") for an unmeasured TTFB (B6)', async () => {
@@ -292,7 +292,7 @@ describe('UrlDetail', () => {
     await screen.findByRole('heading', { name: 'Best&Less Online', level: 1 });
     // A 0 ms reading is an unmeasured hop, never an instant response.
     expect(screen.queryByText('0ms')).not.toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
     // Byte counts do NOT share the zero rule — they still render normally.
     expect(screen.getByText('39.1 KB')).toBeInTheDocument();
   });

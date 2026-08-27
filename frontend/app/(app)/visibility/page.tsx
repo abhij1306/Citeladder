@@ -20,7 +20,7 @@ import { VisibilityDashboard } from '@/components/visibility/visibility-dashboar
  *     search-count / text-availability states.
  * The two evidence tabs share the persisted
  * `GET /projects/{id}/visibility/evidence` dataset. Sentiment + Avg Position
- * stay the "—" not-yet-computed placeholder (decision B-2). There are no
+ * stay explicitly not measured (decision B-2). There are no
  * Sources, Topics, or Sentiment tabs. All endpoints go through `visibility.ts`,
  * scoped to the active project from the F5 context. The page title renders in
  * the top bar (F5), so there is no in-page header block.

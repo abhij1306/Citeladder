@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { TablePagination, useTablePage } from '@/components/ui/table-pagination';
 import { Tooltip } from '@/components/ui/tooltip';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import type { Prompt, PromptStatus } from '@/lib/api/types';
 import { intentLabels } from '@/lib/prompts/forms';
 
@@ -82,7 +83,7 @@ export function PromptTable({
                     </Badge>
                   </Tooltip>
                 ) : (
-                  <span className="text-subtle">—</span>
+                  <UnavailableValue state="not_set" />
                 )}
               </TableCell>
               <TableCell className="text-secondary">{intentLabels[prompt.intent]}</TableCell>
@@ -92,7 +93,7 @@ export function PromptTable({
                     Branded
                   </Badge>
                 ) : (
-                  <span className="text-subtle">—</span>
+                  <span className="text-subtle text-xs font-medium">Not branded</span>
                 )}
               </TableCell>
               <TableCell>

@@ -6,7 +6,7 @@ describe('AI referral display helpers', () => {
   it('preserves unavailable points and formats persisted fractions', () => {
     expect(toCountChartPoints([{ date: '2026-08-01', value: null }])[0]?.value).toBeNull();
     expect(formatPercent(0.125, 1)).toBe('12.5%');
-    expect(formatPercent(null)).toBe('—');
+    expect(formatPercent(null)).toBe('Not measured');
   });
 
   it('uses a readable count scale and honest empty state', () => {

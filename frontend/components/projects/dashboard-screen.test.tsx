@@ -10,6 +10,7 @@ const { project, downloadExecutiveReport, queryResult } = vi.hoisted(() => ({
     brand_name: 'Acme',
     website_url: 'https://acme.com',
     brand: { aliases: [], logo_url: null },
+    competitors: [],
   },
   downloadExecutiveReport: vi.fn().mockResolvedValue(new Blob(['pdf'])),
   queryResult: {
@@ -154,6 +155,23 @@ describe('DashboardScreen', () => {
     expect(screen.getByRole('heading', { name: 'Movement' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Ranked actions' })).toBeInTheDocument();
     expect(screen.getByText(/2 action\(s\) resolved/i)).toBeInTheDocument();
+    expect(screen.getByText('Evidence-first analytics')).toBeVisible();
+    expect(screen.getByText('Growth leaders')).toBeVisible();
+    expect(screen.getByText('Analytics')).toBeVisible();
+    expect(screen.getByText('32.5%')).toHaveClass('text-3xl');
+    expect(screen.getByText('Citation share')).toHaveClass('font-display', 'text-base');
+
+    const facts = screen.getByRole('heading', { name: 'Company facts' });
+    const nextAction = screen.getByText('Monitor — no required action');
+    const state = screen.getByRole('heading', { name: 'Project state' });
+    const movement = screen.getByRole('heading', { name: 'Movement' });
+    expect(
+      facts.compareDocumentPosition(nextAction) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      nextAction.compareDocumentPosition(state) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(state.compareDocumentPosition(movement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('downloads the authenticated executive PDF', async () => {
@@ -234,7 +252,23 @@ describe('DashboardScreen', () => {
     // arrives on the projection but no longer has a station-tile surface.
     expect(screen.queryByRole('heading', { name: 'Product loop' })).not.toBeInTheDocument();
     expect(screen.getByText('Run the first visibility audit')).toBeVisible();
-    expect(screen.getByText('Citation share —')).toBeVisible();
+    expect(screen.getByText('Citation share')).toBeVisible();
+    expect(screen.getAllByText('Not run').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /executive pdf/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps observed zero distinct from an unavailable value', () => {
+    queryResult.data = {
+      ...commandCenter,
+      track: {
+        ...commandCenter.track,
+        citation_share: { value: 0, delta: 0 },
+      },
+    };
+
+    render(<DashboardScreen />);
+
+    expect(screen.getByText('0%')).toBeVisible();
+    expect(screen.queryByText('Not measured')).not.toBeInTheDocument();
   });
 });

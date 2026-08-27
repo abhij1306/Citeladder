@@ -16,21 +16,21 @@
   --font-mono: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-display: var(--font-plus-jakarta-sans), var(--font-inter), -apple-system, sans-serif;
 
-  /* Surfaces — Luminous pearl paper canvas with crisp white panels and frosted tones. */
-  --color-background: #f8fafc;
-  --color-background-alt: #f1f5f9;
+  /* Surfaces — Pearl-slate canvas with crisp white panels and distinct tonal wells. */
+  --color-background: #f1f5f9;
+  --color-background-alt: #e8eef6;
   --color-panel: #ffffff;
   --color-panel-tonal: #f8fafc;
   --color-elevated: #ffffff;
-  --color-well: #f1f5f9;
+  --color-well: #e8eef6;
   --color-active: #e2e8f0;
   --color-input: #ffffff;
   --color-sidebar: #ffffff;
   --color-surface-inverse: #0f172a;
 
   /* Borders — Refined slate hairlines and precise ledger rules. */
-  --color-border: #e2e8f0;
-  --color-border-subtle: #f1f5f9;
+  --color-border: #d5deea;
+  --color-border-subtle: #e2e8f0;
   --color-border-strong: #cbd5e1;
   --color-border-bold: #94a3b8;
 
@@ -195,9 +195,9 @@
   --shadow-xs: 0 1px 2px rgb(15 23 42 / 0.04);
   --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 4px -1px rgb(15 23 42 / 0.06);
   --shadow-card:
-    0 0 0 1px rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03), 0 6px 16px -4px rgb(15 23 42 / 0.05);
+    0 1px 2px rgb(15 23 42 / 0.06), 0 8px 22px -10px rgb(15 23 42 / 0.18);
   --shadow-card-hover:
-    0 0 0 1px rgb(15 23 42 / 0.08), 0 4px 12px 0 rgb(15 23 42 / 0.05), 0 16px 32px -6px rgb(15 23 42 / 0.09);
+    0 2px 5px rgb(15 23 42 / 0.08), 0 16px 34px -12px rgb(15 23 42 / 0.24);
   --shadow-elevated:
     0 0 0 1px rgb(15 23 42 / 0.06), 0 6px 18px -2px rgb(15 23 42 / 0.07), 0 20px 40px -8px rgb(15 23 42 / 0.11);
   --shadow-lg: 0 0 0 1px rgb(15 23 42 / 0.07), 0 10px 28px -4px rgb(15 23 42 / 0.09), 0 28px 64px -12px rgb(15 23 42 / 0.15);
@@ -250,6 +250,10 @@
   --table-cell-padding-y: 8px;
   --dialog-scroll: 60vh;
   --score-ring: 72px;
+  /* Authenticated-app geometry roles. Components consume the role, never a route-local radius. */
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-overlay: 10px;
   /* Section rhythm — whitespace as a luxury signal (marketing consumes these). */
   --section-y-desktop: 120px;
   --section-y-tablet: 72px;

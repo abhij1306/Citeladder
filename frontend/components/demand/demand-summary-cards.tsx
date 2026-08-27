@@ -2,6 +2,7 @@ import { Activity, AlertTriangle, ArrowUpRight, Split, Zap, type LucideIcon } fr
 
 import type { DemandSnapshot } from '@/lib/api/demand';
 import { countByTab, detectorStates, isActionableGap, numericMetric } from '@/lib/demand/signals';
+import { availabilityLabel } from '@/lib/format';
 
 function KpiSegment({
   label,
@@ -40,7 +41,7 @@ function detectorHealth(summary: Record<string, unknown>): { value: string; capt
   if (entries.length === 0) {
     // No detector block at all — say so rather than claiming full coverage,
     // which `0 === 0` would otherwise do.
-    return { value: '—', caption: 'No detector status reported' };
+    return { value: availabilityLabel('unknown'), caption: 'No detector status reported' };
   }
   const active = entries.filter(
     (detector) => detector?.state === 'available' || detector?.state === 'partial',

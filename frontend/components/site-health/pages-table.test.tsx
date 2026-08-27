@@ -49,13 +49,13 @@ describe('PagesTable', () => {
     expect(screen.getByText('Article')).toBeInTheDocument();
   });
 
-  it('renders the "—" placeholder for an unclassified page (null page_kind)', () => {
+  it('renders the not-measured state for an unclassified page (null page_kind)', () => {
     render(<PagesTable pages={[page({ page_kind: null })]} crawlId={CRAWL} />);
     expect(screen.queryByText('Article')).not.toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
-  it('renders the "—" placeholder for a blocked page — never a fabricated zero', () => {
+  it('renders the not-measured state for a blocked page — never a fabricated zero', () => {
     render(
       <PagesTable
         crawlId={CRAWL}
@@ -79,7 +79,7 @@ describe('PagesTable', () => {
     // Blocked status badge is shown.
     expect(screen.getByText('Blocked')).toBeInTheDocument();
     // Placeholder appears for the missing score/issue cells.
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Not measured').length).toBeGreaterThan(0);
   });
 
   it('links View to the per-URL detail route', () => {

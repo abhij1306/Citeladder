@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import type { PromptInput } from '@/lib/api/prompts';
 import { parsePromptCsv, validRows, type ParsedCsv } from '@/lib/prompts/csv';
 import { intentLabels } from '@/lib/prompts/forms';
@@ -116,8 +117,12 @@ export function CsvImportDialog({
                       <TableCell numeric className="text-muted">
                         {row.line}
                       </TableCell>
-                      <TableCell className="max-w-70 truncate">{row.input.text || '—'}</TableCell>
-                      <TableCell>{row.input.theme || '—'}</TableCell>
+                      <TableCell className="max-w-70 truncate">
+                        {row.input.text || <UnavailableValue state="not_set" />}
+                      </TableCell>
+                      <TableCell>
+                        {row.input.theme || <UnavailableValue state="not_set" />}
+                      </TableCell>
                       <TableCell>{intentLabels[row.input.intent]}</TableCell>
                       <TableCell>
                         {row.input.cohort === 'comparison' ? 'Comparison' : 'Core'}

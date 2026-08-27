@@ -8,6 +8,7 @@
  */
 import type { AuditStatus, CitationClassification, ExecutionStatus } from '@/lib/api/types';
 import type { ClassificationValue, RunStatusValue } from '@/components/ui/badge-variants';
+import { availabilityLabel } from '@/lib/format';
 import { titleCaseStatus } from '@/lib/utils';
 
 /**
@@ -126,7 +127,7 @@ export function classificationBadgeValue(
 
 /** Short, stable date/time label for a timestamp (falls back to the raw value). */
 export function formatDateTime(timestamp: string | null): string {
-  if (!timestamp) return '—';
+  if (!timestamp) return availabilityLabel('unknown');
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return timestamp;
   return date.toLocaleString(undefined, {

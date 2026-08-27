@@ -1,7 +1,7 @@
 /** Display-only helpers for the persisted AI-referral projection. */
 import type { TrendPoint } from '@/components/ui/trend-chart';
 import type { AiReferrals, AiSource } from '@/lib/api/ai-referrals';
-import { formatShortDate } from '@/lib/format';
+import { availabilityLabel, formatShortDate } from '@/lib/format';
 
 export { formatCount as formatInt } from '@/lib/format';
 
@@ -33,7 +33,7 @@ export function countYLabels(domainMax: number): string[] {
 }
 
 export function formatPercent(fraction: number | null, decimals = 0): string {
-  if (fraction === null) return '—';
+  if (fraction === null) return availabilityLabel('not_measured');
   return `${(fraction * 100).toFixed(decimals)}%`;
 }
 

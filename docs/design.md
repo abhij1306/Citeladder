@@ -64,16 +64,16 @@ Tokens are semantic; components use the role, not a colour value.
 
 | Role                | Token family                                                                                                                                       | Use                                                                                                      |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Canvas and surfaces | `background` (`#f8fafc`), `panel` / `elevated` (`#ffffff`), `panel-tonal` (`#f8fafc`), `background-alt` / `well` (`#f1f5f9`), `active` (`#e2e8f0`) | Luminous pearl paper canvas; crisp white panels and floating cards; subtle grey wells and frosted chrome |
+| Canvas and surfaces | `background` (`#f1f5f9`), `panel` / `elevated` (`#ffffff`), `panel-tonal` (`#f8fafc`), `background-alt` / `well` (`#e8eef6`), `active` (`#e2e8f0`) | Pearl-slate canvas; crisp white panels and floating cards; distinct grey wells and frosted chrome |
 | Text                | `foreground` (`#0f172a`), `secondary` (`#334155`), `muted` (`#526173`), `subtle` (`#596777`), `inverse` (`#ffffff`)                                | Token-driven slate reading ramp; every neutral role remains AA-safe on every shared light surface        |
-| Borders             | `border` (`#e2e8f0`), `border-subtle` (`#f1f5f9`), `border-strong` (`#cbd5e1`), `border-bold` (`#94a3b8`)                                          | Crisp ledger hairlines for structured separation                                                         |
+| Borders             | `border` (`#d5deea`), `border-subtle` (`#e2e8f0`), `border-strong` (`#cbd5e1`), `border-bold` (`#94a3b8`)                                          | Crisp ledger hairlines for structured separation                                                         |
 | Primary action      | `accent-*`                                                                                                                                         | Growth Cobalt (`#315CFF`) CTAs, active indicators, explicit selection, links, and focus rings            |
 | Status              | `success-*` (`#31a57a`), `warning-*` (`#d9822b`), `danger-*` (`#d96b55`), `info-*`, `neutral-bg`                                                   | App only; always paired with text or an icon                                                             |
 | Evidence and scores | `citation-*`, `run-*`, `score-*`, `series-*`, `chart-*`                                                                                            | Persisted evidence, audit status, score bands, and charts                                                |
 
 The accent is Growth Cobalt: `#315CFF` at rest, `#2347D9` on hover, and `#1A38B5` on press.
-`accent-text` (`#1E40AF`) is the accessible cobalt for text on white or tinted backgrounds. Page canvas is a luminous pearl paper (`#f8fafc`), while panel, card,
-dialog, and drawer surfaces are crisp white (`#ffffff`). `#f1f5f9` provides alternate surfaces and neutral wells; `#e2e8f0` is the active treatment.
+`accent-text` (`#1E40AF`) is the accessible cobalt for text on white or tinted backgrounds. Page canvas is pearl slate (`#f1f5f9`), while panel, card,
+dialog, and drawer surfaces are crisp white (`#ffffff`). `#e8eef6` provides alternate surfaces and neutral wells; `#e2e8f0` is the active treatment. The darker canvas, defined card edge, and offset ambient shadow keep white surfaces visibly separated without relying on colour alone.
 
 Text hierarchy is semantic rather than route-specific: `foreground` owns headings,
 primary values, and actions; `secondary` owns body copy and row values; `muted`
@@ -154,6 +154,8 @@ and crisp semantic hairlines to maintain clear structure without visual clutter:
 - **Drawer and Sheet Composition**: Modals, slide-out drawers, and sheets already provide an
   elevated surface. They must **never** contain nested `<Card>` components. Field groups and
   lists inside drawers use clean structural section divisions (`space-y-4` / borderless rows).
+  Multi-category editors use the shared underline tabs; the selected panel owns one linear
+  field flow rather than a dashboard-like field grid.
 - **Tab & Action Alignment**: Section headers with tabs and actions place controls on the same
   row (`flex items-center justify-between`) rather than wasting vertical canvas on an empty
   header row.
@@ -172,10 +174,27 @@ and crisp semantic hairlines to maintain clear structure without visual clutter:
 | Table row                |        40px |     labelled record |
 
 The content area caps at 1360px. Standard cards use 24px internal padding and gap.
-The radius scale uses crisp micro-radii: 2px (`xs`, `sm`, controls/buttons/cards), 4px (`md`, `lg`, dialogs/popovers),
-and 6px (`xl`, `2xl`); rounded-full (`rounded-full`) is retained for chips, badges, status dots, count pills, and filter toggles.
-Elevation uses soft diffuse shadows (`shadow-card` and up), with semantic hairlines for crisp ledger definition.
+Authenticated-app geometry is role-driven: controls and fields use 6px corners, cards use
+8px, and drawers, dialogs, menus, and popovers use 10px. Marketing and authentication retain
+their documented website treatment. Fully rounded geometry is reserved for chips, badges,
+status dots, count pills, and filter toggles. Components consume the semantic geometry role;
+they do not select a route-local radius.
+
+Elevation uses the existing shared rungs. `shadow-card` separates a true card from the pearl
+canvas, `shadow-card-hover` is reserved for interactive lift, `shadow-elevated` owns floating
+menus and popovers, and `shadow-modal-value` owns drawers and dialogs. An elevated surface uses
+one crisp semantic hairline plus one shadow rung; tonal inset groups inside it do not receive a
+second elevation layer.
 Marketing sections breathe on a generous rhythm (`--section-y-*`, 120px desktop).
+
+### Availability vocabulary
+
+Product data never uses punctuation as its only empty-state explanation. Render the state that
+is actually known: **Not measured** when no measurement exists, **Not run** when the workflow
+has not started, **Not set** for missing user-configurable facts, **Unavailable** when evidence
+or a provider cannot supply a value, **Not applicable** when the field does not apply, and
+**Unknown** when the system cannot determine the state. An observed zero remains `0`; chart
+series retain visual gaps for unavailable points and explain those gaps accessibly.
 
 ## Layout and content composition
 
@@ -278,11 +297,21 @@ workspace carries no page chrome of its own: the drawer owns the one title and
 description, the result region owns the one scroll container, the composer pins
 below it, and task history is a collapsed disclosure rather than a sidebar rail.
 
-Overview stays useful without an audit. Its order is canonical Facts and edit
-drawer, one next action, and Track. There is no Product loop station strip:
-four tiles restating pipeline state told the reader nothing they could act on.
-Unavailable Track values use text and an em dash rather than fabricated zeroes;
-report actions do not render until a persisted audit/report exists.
+Overview stays useful without an audit. Its canonical reading order is project identity plus
+Facts, one next action plus Track, Project State, Movement, ranked actions, report proof, and Top
+Insights. The top card places the project identity and actions first, followed by three
+simultaneously visible tonal summaries: Positioning, Target Audience, and Offerings &
+Competitors. These summaries stack on compact screens; the editor opens in the shared drawer
+with **Facts & Positioning**, **Audience & Offerings**, and **Competitors** tabs. Its single save
+action sits above the tablist, editable facts use the drawer's available vertical space, and
+tracked competitors pair their names with the shared brand-logo treatment. There is no
+Product loop station strip: four tiles restating pipeline state told the reader nothing they
+could act on. Unavailable Track values use the explicit availability vocabulary rather than a
+dash or fabricated zero; report actions do not render until a persisted audit/report exists.
+
+Overview metric labels and values are separate roles. **Citation share** uses the shared surface
+heading treatment and KPI value ladder as the other persisted Overview metrics; it never creates
+a route-local display scale by styling the label and value as one oversized sentence.
 
 AI Visibility uses three tabs—Trends, Mentions & Citations, and Query Fanout—with
 Trends as the default and no parallel Overview surface. It carries no project
@@ -380,7 +409,7 @@ focused grid, then an optional CTA.
 
 ### Controls
 
-App buttons are `rounded-sm` (6px) rectangles with no decorative inset border.
+App buttons use the 6px control-radius role with no decorative inset border.
 Website and auth primary buttons use the same shared Button behaviour and blue
 fill, but add the reference treatment: 12px corners, a subtle light inset edge,
 a defined outer blue edge, and quiet elevation. Secondary, neutral, ghost, and
@@ -405,7 +434,8 @@ one sanctioned lift. Badges
 pair a text label with their state mark; a colour, dot, or icon is never the sole
 signal. Evidence rows identify source, measurement context, and the action that
 opens the persisted record. Empty and loading states preserve layout and explain
-what is missing.
+what is missing with the explicit availability vocabulary; a standalone dash is
+never an empty-state label.
 
 ### Navigation and overlays
 
@@ -415,8 +445,8 @@ blue fill, a leading blue rail, and a Carbon-Dark label — not through weight.
 Menus and custom listboxes use `shadow-elevated`, `rounded-md`, the shared menu
 panel/item recipes, and a short system-curve entrance. Single-select filters use
 radio menu items so the current value is visible without relying on colour.
-Tooltips use the elevated rung and `rounded-md`; dialogs and drawers use
-`shadow-modal-value` with `rounded-lg`. Drawers are right-side modal contextual
+Tooltips use the elevated rung and the 10px overlay-radius role; dialogs and drawers use
+`shadow-modal-value` with the same overlay-radius role. Drawers are right-side modal contextual
 sheets owned by `components/ui/drawer.tsx`. Their scrim dims and locks the page;
 outside click, Escape, or the close control dismisses them, and focus returns to
 the trigger. Feature components never import Radix directly.
@@ -460,13 +490,20 @@ Before merging a visual change, verify:
 - Website/auth type uses a documented content role with a 16px body baseline;
   app type keeps its compact scale. Both stay within weights 400–600.
 - Marketing stays monochrome-plus-blue; functional colour appears only in the app.
-- The default canvas is `#f8f9fc`, quiet tonal panels use `#f1f4f9`, and elevation
+- The default canvas is `#f1f5f9`, quiet tonal panels use `#f8fafc`, and elevation
   does not force card backgrounds onto structural regions.
-- Elevation uses the shared shadow tokens; radius uses the 4 / 6 / 8 / 12 / 16 / 20
-  scale.
+- Elevation uses the shared shadow tokens; app controls use 6px, cards use 8px, and overlays use
+  10px through semantic geometry roles.
 - Any new motion is calm and stops under `prefers-reduced-motion`.
 - Text, focus, status, loading, error, empty, keyboard, touch, reduced-motion,
   forced-colours, and mobile states remain usable.
-- No website or app copy, data, claims, or workflow behaviour changed.
+- No website or app factual copy, data, claims, or workflow behaviour changes without explicit approval.
+- App data absence uses an explicit semantic label; observed zero remains distinct and authored
+  prose punctuation is unaffected.
+
+This authenticated-app refinement does not introduce new colour families, gradients,
+decorative glows, nested cards, or unsupported reference concepts such as AI-context rules or
+new competitor mutations. Marketing, authentication, and onboarding composition remain outside
+its scope.
 - Focused tests, `pnpm check:policy`, and the appropriate build or visual checks
   pass. React Doctor is the final verification command.

@@ -390,20 +390,20 @@ describe('badge mapping', () => {
 });
 
 describe('score / count / date placeholders', () => {
-  it('renders — for a null or NaN score (never 0 for missing)', () => {
+  it('renders not measured for a null or NaN score (never 0 for missing)', () => {
     expect(formatScore(null)).toBe(PLACEHOLDER);
     expect(formatScore(Number.NaN)).toBe(PLACEHOLDER);
     expect(formatScore(0)).toBe('0');
     expect(formatScore(88.25)).toBe('88.3');
   });
 
-  it('renders — for a null issue count', () => {
+  it('renders not measured for a null issue count', () => {
     expect(formatIssueCount(null)).toBe(PLACEHOLDER);
     expect(formatIssueCount(0)).toBe('0');
     expect(formatIssueCount(4)).toBe('4');
   });
 
-  it('renders — for a null last-audited', () => {
+  it('renders not measured for a null last-audited', () => {
     expect(formatAudited(null)).toBe(PLACEHOLDER);
     expect(formatAudited('not-a-date')).toBe('not-a-date');
   });

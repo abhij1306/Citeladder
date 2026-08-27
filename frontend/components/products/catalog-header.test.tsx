@@ -88,6 +88,6 @@ describe('CatalogHeader', () => {
       expect(screen.getByRole('button', { name: 'Run Site Health crawl' })).toBeInTheDocument(),
     );
     expect(screen.getByText('No crawl yet')).toBeInTheDocument();
-    expect(screen.getByText('Pages analyzed').nextSibling).toHaveTextContent('—');
+    expect(screen.getByText('Pages analyzed').nextSibling).toHaveTextContent('Not measured');
   });
 });

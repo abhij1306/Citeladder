@@ -210,7 +210,7 @@ describe('SiteFactsPanel', () => {
     render(<SiteFactsPanel crawl={crawl(robotsUnfetched)} dashboard={undefined} />);
 
     expect(screen.getByText('Stance unknown')).toBeInTheDocument();
-    expect(screen.getAllByText('Unknown')).toHaveLength(4);
+    expect(screen.getAllByText('Unknown')).toHaveLength(6);
     expect(screen.queryByText('Block')).not.toBeInTheDocument();
     expect(screen.queryByText('Allow')).not.toBeInTheDocument();
     expect(screen.getByText(/robots\.txt could not be fetched/)).toBeInTheDocument();
@@ -219,7 +219,7 @@ describe('SiteFactsPanel', () => {
     expect(within(files).getByText('Not fetched')).toBeInTheDocument();
     expect(within(files).getByText('Absent')).toBeInTheDocument();
     expect(within(files).getByText('404')).toBeInTheDocument();
-    expect(within(files).getByText('—')).toBeInTheDocument(); // no robots status
+    expect(within(files).getByText('Unknown')).toBeInTheDocument(); // no robots status
   });
 
   it('shows a definitive all-allowed stance when the site has NO robots.txt (B2 not_found)', () => {

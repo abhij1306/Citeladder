@@ -70,7 +70,7 @@ describe('QueriesTable', () => {
 
     const table = await screen.findByTestId('queries-table');
     await within(table).findByText('acme velocity 2 vs apex');
-    expect(within(table).getByText('—')).toBeInTheDocument();
+    expect(within(table).getByText('Not measured')).toBeInTheDocument();
   });
 
   it('sends the default -clicks sort and toggles columns on header click', async () => {

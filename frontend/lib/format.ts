@@ -18,6 +18,23 @@ import type { snapshotGranularitySchema } from '@/lib/api/schemas';
 /** Snapshot bucket granularity — mirrors the backend contract vocabulary. */
 type BucketGranularity = z.infer<typeof snapshotGranularitySchema>;
 
+export type DataAvailabilityState =
+  'not_measured' | 'not_run' | 'not_set' | 'unavailable' | 'not_applicable' | 'unknown';
+
+const availabilityLabels: Readonly<Record<DataAvailabilityState, string>> = {
+  not_measured: 'Not measured',
+  not_run: 'Not run',
+  not_set: 'Not set',
+  unavailable: 'Unavailable',
+  not_applicable: 'Not applicable',
+  unknown: 'Unknown',
+};
+
+/** Human-readable product vocabulary for explicit missing-data states. */
+export function availabilityLabel(state: DataAvailabilityState): string {
+  return availabilityLabels[state];
+}
+
 export const GRANULARITY_OPTIONS: readonly { value: BucketGranularity; label: string }[] = [
   { value: 'day', label: 'Day' },
   { value: 'week', label: 'Week' },

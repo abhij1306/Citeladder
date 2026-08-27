@@ -150,7 +150,10 @@ describe('Dropdown', () => {
         </DropdownContent>
       </Dropdown>,
     );
-    expect(screen.getByRole('menu')).toHaveClass('shadow-elevated', 'rounded-md');
+    expect(screen.getByRole('menu')).toHaveClass(
+      'shadow-elevated',
+      'rounded-[var(--radius-overlay)]',
+    );
     expect(screen.getByRole('menuitemradio', { name: 'Month' })).toHaveAttribute(
       'data-state',
       'checked',
@@ -183,6 +186,6 @@ describe('Tooltip', () => {
     expect(tip.className).toContain('bg-surface-inverse');
     expect(tip.className).toContain('text-on-inverse');
     expect(tip.className).toContain('shadow-elevated');
-    expect(tip.className).toContain('rounded-md');
+    expect(tip.className).toContain('rounded-[var(--radius-overlay)]');
   });
 });

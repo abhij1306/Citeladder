@@ -88,7 +88,7 @@ describe('classificationBadgeValue', () => {
 
 describe('formatDateTime', () => {
   it('renders a placeholder for null and echoes an unparseable value', () => {
-    expect(formatDateTime(null)).toBe('—');
+    expect(formatDateTime(null)).toBe('Unknown');
     expect(formatDateTime('not-a-date')).toBe('not-a-date');
   });
 });

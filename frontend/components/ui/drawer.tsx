@@ -59,7 +59,7 @@ export function Drawer({
             returnFocusRef.current = null;
           }}
           className={cn(
-            'drawer-panel border-border-subtle bg-elevated shadow-modal-value z-modal fixed inset-y-0 right-0 flex w-full max-w-180 flex-col rounded-l-lg border-l focus:outline-none',
+            'drawer-panel border-border-subtle bg-elevated shadow-modal-value z-modal fixed inset-y-0 right-0 flex w-full max-w-180 flex-col rounded-l-[var(--radius-overlay)] border-l focus:outline-none',
             className,
           )}
         >

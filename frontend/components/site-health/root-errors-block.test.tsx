@@ -57,11 +57,11 @@ describe('RootErrorsBlock (B3)', () => {
     );
 
     const row = screen.getByTestId('root-error-row');
-    expect(within(row).getAllByText('—')).toHaveLength(2);
+    expect(within(row).getAllByText('Not measured')).toHaveLength(2);
     expect(within(row).queryByText('http_5xx')).not.toBeInTheDocument();
   });
 
-  it('renders a dash for a 0 ms latency — an unmeasured hop, not an instant one (B6)', () => {
+  it('renders not measured for a 0 ms latency — an unmeasured hop, not an instant one (B6)', () => {
     render(
       <RootErrorsBlock
         errors={[
@@ -79,7 +79,7 @@ describe('RootErrorsBlock (B3)', () => {
 
     const row = screen.getByTestId('root-error-row');
     expect(within(row).queryByText('0 ms')).not.toBeInTheDocument();
-    expect(within(row).getAllByText('—')).toHaveLength(2);
+    expect(within(row).getAllByText('Not measured')).toHaveLength(2);
   });
 
   it('renders nothing for an empty list', () => {

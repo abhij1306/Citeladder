@@ -4,6 +4,7 @@ import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/typography';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 import type { SiteCrawl, SiteHealthDashboard } from '@/lib/api/types';
 import {
   AI_CRAWLER_ENGINE_LABELS,
@@ -101,7 +102,7 @@ function BlockedBotsAlert({ blocked }: Readonly<{ blocked: SiteFactsView['bots']
 /** Mono status code for one well-known file, `—` when no fetch answered. */
 function StatusValue({ status }: Readonly<{ status: number | null }>) {
   if (status === null) {
-    return <span className="mono text-muted text-sm font-medium">—</span>;
+    return <UnavailableValue state="unknown" className="text-sm" />;
   }
   return <span className="mono text-foreground text-sm font-medium">{status}</span>;
 }
@@ -219,7 +220,7 @@ function SiteFactsViewPanel({ view }: Readonly<{ view: SiteFactsView }>) {
               <div className="grid min-w-0 gap-0.5 sm:justify-self-end">
                 <Label>Checked</Label>
                 <span className="mono text-muted truncate text-xs font-medium">
-                  {view.robotsUrl ?? '—'}
+                  {view.robotsUrl ?? <UnavailableValue state="unavailable" />}
                 </span>
                 {view.llmsTxtUrl !== null ? (
                   <span className="mono text-muted truncate text-xs font-medium">

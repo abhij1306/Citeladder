@@ -3,11 +3,12 @@
 import { Alert } from '@/components/ui/alert';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UnavailableValue } from '@/components/ui/unavailable-value';
 
 import type { CommerceQueries } from './commerce-queries';
 
 const percentage = (value: number | null | undefined) =>
-  value == null ? 'Not measured' : `${(value * 100).toFixed(1)}%`;
+  value == null ? null : `${(value * 100).toFixed(1)}%`;
 
 /**
  * The measured outcome for the selected target, at the top of its detail.
@@ -24,10 +25,10 @@ export function TargetShelfBand({ query }: Readonly<{ query: CommerceQueries['sh
   // which is exactly the unknown/zero collapse the repo forbids.
   if (query.isError) return <Alert tone="danger">AI Shelf metrics could not be loaded.</Alert>;
   const latest = query.data?.snapshots[0];
-  const metrics: Array<[string, string]> = [
+  const metrics: Array<[string, string | null]> = [
     ['Product visibility', percentage(latest?.product_visibility)],
     ['Share of shelf', percentage(latest?.share_of_shelf)],
-    ['Average position', latest?.average_shelf_position?.toFixed(2) ?? 'Not measured'],
+    ['Average position', latest?.average_shelf_position?.toFixed(2) ?? null],
     ['First-position rate', percentage(latest?.first_position_win_rate)],
   ];
   return (
@@ -36,7 +37,11 @@ export function TargetShelfBand({ query }: Readonly<{ query: CommerceQueries['sh
         <Card key={label}>
           <CardHeader>
             <CardDescription>{label}</CardDescription>
-            <CardTitle className="tabular-nums">{value}</CardTitle>
+            {value === null ? (
+              <UnavailableValue state="not_measured" className="mt-1 inline-flex" />
+            ) : (
+              <CardTitle className="tabular-nums">{value}</CardTitle>
+            )}
           </CardHeader>
         </Card>
       ))}

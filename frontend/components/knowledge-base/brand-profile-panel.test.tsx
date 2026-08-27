@@ -68,6 +68,7 @@ describe('BrandProfilePanel', () => {
       <BrandProfilePanel projectId={projectId} profile={profile} onSaved={onSaved} />,
     );
     await user.type(screen.getByLabelText('Description'), 'A value-focused family retailer.');
+    await user.click(screen.getByRole('tab', { name: 'Audience & Offerings' }));
     await user.type(screen.getByLabelText('Products and services'), 'Clothing,');
     expect(screen.getByLabelText('Products and services')).toHaveValue('Clothing,');
     await user.click(screen.getByRole('button', { name: /save brand knowledge/i }));
@@ -99,8 +100,45 @@ describe('BrandProfilePanel', () => {
 
     await waitFor(() => expect(description).toBeDisabled());
     expect(screen.getByLabelText('Positioning')).toBeDisabled();
-    expect(screen.getByLabelText('Products and services')).toBeDisabled();
     finishSave?.();
     expect(await screen.findByText(/brand knowledge saved/i)).toBeInTheDocument();
+  });
+
+  it('uses accessible tabs, preserves the draft, and shows tracked competitors', async () => {
+    const user = userEvent.setup({ delay: null });
+    renderWithProviders(
+      <BrandProfilePanel
+        projectId={projectId}
+        profile={profile}
+        competitors={[
+          { name: 'Northstar', logo_url: 'https://assets.test/northstar.png', domains: [] },
+          { name: 'Contoso', logo_url: null, domains: ['contoso.test'] },
+        ]}
+        competitorSuggestions={<p>Observed candidate</p>}
+      />,
+    );
+
+    const save = screen.getByRole('button', { name: /save brand knowledge/i });
+    const factsTab = screen.getByRole('tab', { name: 'Facts & Positioning' });
+    expect(save.compareDocumentPosition(factsTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(factsTab).toHaveAttribute('aria-selected', 'true');
+    await user.type(screen.getByLabelText('Description'), 'Draft description');
+
+    factsTab.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: 'Audience & Offerings' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await user.type(screen.getByLabelText('Target audience'), 'Growth teams');
+
+    await user.click(screen.getByRole('tab', { name: 'Facts & Positioning' }));
+    expect(screen.getByLabelText('Description')).toHaveValue('Draft description');
+
+    await user.click(screen.getByRole('tab', { name: 'Competitors' }));
+    expect(screen.getByText('Northstar')).toBeVisible();
+    expect(screen.getByText('Northstar').parentElement?.querySelector('img')).toBeInTheDocument();
+    expect(screen.getByText('Contoso')).toBeVisible();
+    expect(screen.getByText('Observed candidate')).toBeVisible();
   });
 });
