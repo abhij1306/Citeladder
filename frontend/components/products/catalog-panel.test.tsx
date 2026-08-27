@@ -64,11 +64,22 @@ describe('Catalog panel', () => {
 
     renderWithProviders(<CatalogPanel projectId={PROJECT_ID} query={query() as never} />);
 
-    expect(await screen.findByText('3 succeeded · 1 queued', { exact: false })).toBeInTheDocument();
+    // One status line, not a stack of them: crawl state and projection counts
+    // read as a single sentence in the header.
+    expect(
+      await screen.findByText(/No Site Health crawl yet · 3 succeeded · 1 queued/),
+    ).toBeInTheDocument();
     expect(screen.getAllByText('Running shoes')).toHaveLength(2);
-    expect(screen.getByText('leaf')).toBeInTheDocument();
-    await screen.findByText('No Site Health crawl is available yet.');
-    fireEvent.click(screen.getByRole('button', { name: 'Discover from Site Health' }));
+    // "Role" is not a column any more: it could only read "unknown" for a
+    // category derived from a product breadcrumb.
+    expect(screen.queryByText('leaf')).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Role' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Brand' })).not.toBeInTheDocument();
+    // The action is disabled while the dashboard query is in flight, so wait
+    // for it to settle rather than clicking a disabled button.
+    const discover = screen.getByRole('button', { name: 'Discover from Site Health' });
+    await waitFor(() => expect(discover).toBeEnabled());
+    fireEvent.click(discover);
 
     await waitFor(() => expect(create).toHaveBeenCalledWith({ project_id: PROJECT_ID }));
   });

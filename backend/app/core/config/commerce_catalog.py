@@ -13,7 +13,7 @@ COMMERCE_EDIT_VERSION: Final = "commerce-catalog-edit-2"
 COMMERCE_CATEGORY_EDIT_VERSION: Final = "commerce-category-edit-1"
 COMMERCE_COMPETITOR_PROVIDER_VERSION: Final = "tavily-commerce-1"
 COMMERCE_COMPETITOR_VALIDATOR_VERSION: Final = "commerce-competitor-validator-4"
-COMMERCE_PROMPT_TEMPLATE_VERSION: Final = "commerce-buyer-prompts-2"
+COMMERCE_PROMPT_TEMPLATE_VERSION: Final = "commerce-buyer-prompts-3"
 COMMERCE_RECOMMENDATION_PARSER_VERSION: Final = "commerce-recommendation-parser-3"
 COMMERCE_RECOMMENDATION_MATCHER_VERSION: Final = "commerce-recommendation-matcher-3"
 COMMERCE_SHELF_FORMULA_VERSION: Final = "commerce-shelf-formulas-2"
@@ -37,6 +37,9 @@ COMMERCE_COMPETITOR_QUERY_ATTRIBUTE_LIMIT: Final = 4
 # A category or product name longer than this is a page title or a sentence of
 # marketing copy, not something a buyer searches for.
 COMMERCE_COMPETITOR_TARGET_NAME_MAX_WORDS: Final = 8
+# Snippet budget for the Keenable fallback search, matching the Tavily result
+# shape closely enough that admission reads one contract either way.
+COMMERCE_COMPETITOR_KEENABLE_SNIPPET_CHARS: Final = 1_000
 COMMERCE_COMPETITOR_VERIFY_CONCURRENCY: Final = 5
 COMMERCE_COMPETITOR_VERIFY_TIMEOUT_SECONDS: Final = 10.0
 COMMERCE_COMPETITOR_PRICE_BANDS: Final[tuple[tuple[float, str], ...]] = (
@@ -100,6 +103,28 @@ COMMERCE_COMPETITOR_EXCLUDED_HOST_SUFFIXES: Final = (
     "instagram.com",
     "tiktok.com",
 )
+# Editorial giveaways in a result's TITLE or URL slug. A competitor is a shop;
+# "The 5 Best Stainless Steel Cookware Sets of 2026, Tested & Reviewed" is a
+# magazine, and Serious Eats was admitted as a cookware competitor because the
+# only editorial gate was four path tokens (`/blog/`, `/news/`, `/article/`,
+# `/search`) that a review URL does not have to contain. Host blocklists never
+# scale to every publisher; the way a listicle is TITLED does generalize.
+#
+# Deliberately phrase-level, not word-level: a bare "best" would reject a
+# merchant's own "Best Sellers" page, so the ranking patterns require the
+# counting shape ("5 best", "best ... of 2026") that only a listicle has.
+COMMERCE_EDITORIAL_TITLE_PATTERNS: Final = (
+    r"\b\d+\s+best\b",
+    r"\bbest\b.{0,40}\bof\s+20\d{2}\b",
+    r"\btop\s+\d+\b",
+    r"\b(tested|reviewed|review|reviews)\b",
+    r"\bbuy(?:er|ing)'?s?\s+guide\b",
+    r"\bwe\s+(tested|tried|reviewed)\b",
+    r"\branked\b",
+    r"\bvs\.?\s",
+    r"\bcomparison\b",
+    r"\brecommendations?\b",
+)
 COMMERCE_SECOND_HAND_TOKENS: Final = ("used", "pre-owned", "second hand", "refurbished")
 COMMERCE_DOLLAR_CURRENCY_BY_COUNTRY: Final = {
     "AU": "AUD",
@@ -126,6 +151,73 @@ COMMERCE_VISIBLE_PRICE_AMBIGUOUS_TOKENS: Final = (
     "up to ",
     " over ",
     " under ",
+)
+
+
+# --- Buyer prompts ----------------------------------------------------------
+# A buyer prompt is what a SHOPPER TYPES INTO AN AI ASSISTANT. It is not a
+# question put TO the shopper. The old system prompt was two lines -- "generate
+# buyer discovery/comparison questions" -- and the model read "questions" the
+# only other way it can be read, shipping a market-research survey: "What
+# features do you prioritize when comparing different hygrometers for home
+# use?", "What's your budget range?". Asking an answer engine that measures
+# nothing, because no buyer ever types it.
+#
+# Same lesson the visibility portfolio already learned: a small model follows
+# examples far more reliably than prohibitions, so the register is set by
+# exemplars here and the known failure modes are rejected deterministically in
+# `domain/commerce/buyer_prompt_validation.py`.
+COMMERCE_BUYER_PROMPT_MIN_WORDS: Final = 4
+COMMERCE_BUYER_PROMPT_MAX_WORDS: Final = 24
+
+COMMERCE_BUYER_PROMPT_EXEMPLARS: Final = """\
+  GOOD  best instant read thermometer for grilling under $50
+  BAD   What features do you prioritize when comparing thermometers?
+  GOOD  which hygrometer is most accurate for a humidor
+  BAD   How important is accuracy to you when selecting a hygrometer?
+  GOOD  wireless meat thermometer that works with an iPhone
+  BAD   Do you prefer a built-in display or a minimalist design?
+  GOOD  cheapest stainless steel cookware set that is oven safe
+  BAD   What's your budget range, and does it depend on features?\
+"""
+
+COMMERCE_BUYER_PROMPT_SYSTEM: Final = f"""\
+You write the search prompts a SHOPPER TYPES INTO AN AI ASSISTANT when they are
+looking to buy. Each prompt is the shopper speaking, in their own words, about
+what they want.
+
+Never write a question addressed to the shopper. You are not running a survey,
+an interview, or a market-research panel. "What do you prefer", "how important
+is", "what is your budget", "have you encountered" are all wrong: nobody types
+those into a shopping assistant.
+
+Write the way people actually type: lowercase is fine, fragments are fine, a
+concrete constraint (a price, a use case, a compatibility, a material) is
+better than a general one. Vary the shape across the batch -- do not apply one
+sentence frame to every prompt.
+
+{COMMERCE_BUYER_PROMPT_EXEMPLARS}
+
+Never name the owned brand or the exact owned product: the prompt has to be one
+a buyer would type BEFORE they know about it. Return only the schema.\
+"""
+
+# Survey framing, rejected deterministically. Each marker is second-person
+# addressed-to-the-shopper phrasing that no buyer types into an assistant.
+COMMERCE_BUYER_PROMPT_SURVEY_MARKERS: Final = (
+    "do you ",
+    "are you ",
+    "have you ",
+    "would you ",
+    "did you ",
+    "your budget",
+    "to you when",
+    "important is",
+    "do you prioritize",
+    "how satisfied",
+    "in your experience",
+    "tell us",
+    "which of the following",
 )
 
 

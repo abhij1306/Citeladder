@@ -40,13 +40,15 @@ describe('Commerce panels', () => {
     const first = renderWithProviders(
       <CompetitorsPanel projectId={PROJECT_ID} queries={queryState as never} />,
     );
+    // Both panels take MANY targets now, so the control is a checkbox menu
+    // rather than a single-choice select.
     expect(
-      screen.getByRole('combobox', { name: 'Competitor discovery target' }),
+      screen.getByRole('button', { name: 'Competitor discovery targets' }),
     ).toBeInTheDocument();
     first.unmount();
 
     renderWithProviders(<BuyerPromptsPanel projectId={PROJECT_ID} queries={queryState as never} />);
-    expect(screen.getByRole('combobox', { name: 'Buyer prompt target' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Buyer prompt targets' })).toBeInTheDocument();
   });
 
   it('shows a buyer-prompt read error instead of an unexplained empty table', () => {

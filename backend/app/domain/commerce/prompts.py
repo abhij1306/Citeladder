@@ -12,7 +12,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connectors.agent.gateway import ModelGateway
-from app.core.config.commerce_catalog import COMMERCE_PROMPT_TEMPLATE_VERSION
+from app.core.config.commerce_catalog import (
+    COMMERCE_BUYER_PROMPT_SYSTEM,
+    COMMERCE_PROMPT_TEMPLATE_VERSION,
+)
+from app.domain.commerce.buyer_prompt_validation import admitted_buyer_prompts
 from app.domain.commerce.schemas import (
     BuyerPromptResponse,
     CommerceTarget,
@@ -140,10 +144,7 @@ async def generate_buyer_prompts(
         )
         try:
             raw = await gateway.complete_structured_json(
-                system=(
-                    "Generate buyer discovery/comparison questions. Never name the "
-                    "owned brand or intended product. Return only the schema."
-                ),
+                system=COMMERCE_BUYER_PROMPT_SYSTEM,
                 user=json.dumps({"count": count, "context": context}, default=str),
                 schema_name="commerce_buyer_prompts",
                 schema=_GeneratedBatch.model_json_schema(),
@@ -153,13 +154,17 @@ async def generate_buyer_prompts(
             raise BuyerPromptGenerationUnavailable(
                 "The configured model returned unusable buyer prompts"
             ) from exc
-        texts = [item.text.strip() for item in batch.prompts[:count]]
-        if len(texts) != count or any(
-            _leaks_owned_identity(text, context) for text in texts
-        ):
+        # Style admission BEFORE the identity gate: a survey question that also
+        # happens to avoid the brand name is still not a buyer prompt, and the
+        # count check below must count only prompts that survived both.
+        texts, _rejected = admitted_buyer_prompts([item.text for item in batch.prompts])
+        texts = [text for text in texts if not _leaks_owned_identity(text, context)][
+            :count
+        ]
+        if len(texts) != count:
             raise BuyerPromptGenerationUnavailable(
                 "Buyer prompts were unavailable because identity leakage or "
-                "count validation failed"
+                "style validation left too few usable prompts"
             )
         prompt_set, topic = await _prompt_owner(
             session, project_id=project_id, target=target

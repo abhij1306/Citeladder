@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -18,12 +19,15 @@ from app.connectors.commerce_competitors import (
     CompetitorProviderUnavailable,
     tavily_search,
 )
+from app.connectors.keenable import KeenableClient
 from app.connectors.web_evidence.contracts import FetchError, FetchRequest
 from app.connectors.web_evidence.fetcher import SecureFetcher
 from app.connectors.web_evidence.resolver import SystemDnsResolver
+from app.core.config.brand_discovery import brand_discovery_settings
 from app.core.config.commerce_catalog import (
     COMMERCE_COMPETITOR_EXCLUDED_HOST_SUFFIXES,
     COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS,
+    COMMERCE_COMPETITOR_KEENABLE_SNIPPET_CHARS,
     COMMERCE_COMPETITOR_PRICE_BANDS,
     COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT,
     COMMERCE_COMPETITOR_QUERY_ATTRIBUTE_LIMIT,
@@ -31,6 +35,7 @@ from app.core.config.commerce_catalog import (
     COMMERCE_COMPETITOR_TARGET_NAME_MAX_WORDS,
     COMMERCE_COMPETITOR_VERIFY_CONCURRENCY,
     COMMERCE_COMPETITOR_VERIFY_TIMEOUT_SECONDS,
+    COMMERCE_EDITORIAL_TITLE_PATTERNS,
     COMMERCE_SECOND_HAND_TOKENS,
 )
 from app.core.config.site_health_acquisition import FETCH_PURPOSE_ANALYZE
@@ -353,7 +358,11 @@ def _discovery_query(
     target: CommerceTarget, name: str, context: dict[str, Any] | None = None
 ) -> str:
     if target.kind == "category":
-        return f"leading {name} brands and representative products"
+        # Merchant intent, not ranking intent. "leading {name} brands" is the
+        # phrasing a search engine answers with listicles -- it returned
+        # "The 5 Best Stainless Steel Cookware Sets of 2026, Tested & Reviewed"
+        # as a cookware competitor. Asking where to BUY returns shops.
+        return f"buy {name} online store"
     context = context or {}
     attributes = dict(context.get("attributes") or {})
     details = [
@@ -362,7 +371,7 @@ def _discovery_query(
         _price_band(context),
     ]
     qualifiers = " ".join(value for value in details if value)
-    return f"products similar to {name}{f' {qualifiers}' if qualifiers else ''}"
+    return f"buy {name}{f' {qualifiers}' if qualifiers else ''} online store"
 
 
 def _product_type(attributes: dict[str, Any]) -> str:
@@ -430,9 +439,19 @@ def _exclusion_reason(canonical: str, title: str, *, owned_hosts: set[str]) -> s
         return "excluded_marketplace"
     if any(token in lowered for token in COMMERCE_COMPETITOR_EXCLUDED_PATH_TOKENS):
         return "excluded_editorial"
+    if _editorial(lowered):
+        return "excluded_editorial"
     if any(token in lowered for token in COMMERCE_SECOND_HAND_TOKENS):
         return "excluded_incompatible"
     return ""
+
+
+_EDITORIAL = tuple(re.compile(pattern) for pattern in COMMERCE_EDITORIAL_TITLE_PATTERNS)
+
+
+def _editorial(lowered: str) -> bool:
+    """A ranked listicle or review, which is a publisher and not a shop."""
+    return any(pattern.search(lowered) for pattern in _EDITORIAL)
 
 
 async def _verify_url(url: str, fetcher: SecureFetcher) -> bool:
@@ -507,12 +526,60 @@ async def run_competitor_discovery(session_factory, task: AnalyticsTask) -> None
 async def _provider_results(
     query: str, *, locale: str
 ) -> tuple[str, str, list[dict[str, Any]], bool]:
+    """Tavily first, Keenable second. Only both failing is a discovery failure.
+
+    Keenable is already a configured search transport for onboarding research,
+    so an unconfigured or failing Tavily no longer means "this project cannot
+    discover competitors" -- it means try the other one.
+    """
     try:
         return "succeeded", "", await tavily_search(query, locale=locale), False
     except CompetitorProviderUnavailable:
-        return "unavailable", "provider_unavailable", [], False
+        return await _keenable_results(query, unavailable_code="provider_unavailable")
+    except Exception:
+        return await _keenable_results(
+            query, unavailable_code="provider_failed", retry_when_unavailable=True
+        )
+
+
+async def _keenable_results(
+    query: str, *, unavailable_code: str, retry_when_unavailable: bool = False
+) -> tuple[str, str, list[dict[str, Any]], bool]:
+    client = _keenable_client()
+    if client is None:
+        return "unavailable", unavailable_code, [], retry_when_unavailable
+    try:
+        response = await client.search(
+            query,
+            max_results=COMMERCE_COMPETITOR_PROVIDER_RESULT_LIMIT,
+            snippet_max_length=COMMERCE_COMPETITOR_KEENABLE_SNIPPET_CHARS,
+        )
     except Exception:
         return "failed", "provider_failed", [], True
+    return (
+        "succeeded",
+        "",
+        [
+            {
+                "url": result.url,
+                "title": result.title,
+                "content": result.snippet or result.description,
+            }
+            for result in response.results
+        ],
+        False,
+    )
+
+
+def _keenable_client() -> KeenableClient | None:
+    key = brand_discovery_settings.keenable_api_key.get_secret_value()
+    if not key:
+        return None
+    return KeenableClient(
+        api_key=key,
+        base_url=brand_discovery_settings.keenable_base_url,
+        timeout_seconds=brand_discovery_settings.keenable_request_timeout_seconds,
+    )
 
 
 async def _persist_discovery(

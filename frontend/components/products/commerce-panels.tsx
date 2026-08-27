@@ -24,6 +24,7 @@ import { queryKeys } from '@/lib/api/query-keys';
 import type { CommerceTarget } from '@/lib/api/schemas/commerce-suite';
 import { LaunchDialog } from '@/components/runs/launch-dialog';
 import { useCompetitorDiscovery } from '@/lib/products/competitor-discovery';
+import { TargetMultiSelect, targetKey } from './target-multi-select';
 import type { useCommerceQueries } from '@/lib/products/use-products-screen';
 
 export type CommerceQueries = ReturnType<typeof useCommerceQueries>;
@@ -145,9 +146,8 @@ function renderCompetitors(
 export function CompetitorsPanel({ projectId, queries }: { projectId: string; queries: Queries }) {
   const client = useQueryClient();
   const targets = availableTargets(queries.catalog);
-  const [selected, setSelected] = useState('');
-  const current =
-    targets.find((row) => `${row.target.kind}:${row.target.id}` === selected) ?? targets[0];
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const chosen = targets.filter((row) => selectedKeys.includes(targetKey(row.target)));
   const refresh = () =>
     client.invalidateQueries({ queryKey: queryKeys.commerce.competitors(projectId) });
   const { tasks, discover } = useCompetitorDiscovery(projectId);
@@ -164,16 +164,20 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
           Discovery is optional and evidence-backed. Candidates do not enter measurement until
           approved.
         </CardDescription>
-        {current ? (
-          <div className="flex gap-2">
-            <TargetSelect
-              label="Competitor discovery target"
-              targets={targets}
-              value={`${current.target.kind}:${current.target.id}`}
-              onChange={setSelected}
+        {targets.length ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <TargetMultiSelect
+              label="Competitor discovery targets"
+              options={targets}
+              selectedKeys={selectedKeys}
+              onChange={setSelectedKeys}
+              placeholder="Select categories or products"
             />
-            <Button onClick={() => discover.mutate([current.target])} disabled={discover.isPending}>
-              Discover
+            <Button
+              onClick={() => discover.mutate(chosen.map((row) => row.target))}
+              disabled={!chosen.length || discover.isPending}
+            >
+              {chosen.length > 1 ? `Discover for ${chosen.length} targets` : 'Discover'}
             </Button>
           </div>
         ) : (
@@ -203,7 +207,12 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
               {rows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell>
-                    <a className="text-link font-medium" href={row.canonical_url}>
+                    <a
+                      className="text-link font-medium"
+                      href={row.canonical_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       {competitorHost(row.canonical_url)}
                     </a>
                     {row.product_name ? (
@@ -248,11 +257,11 @@ export function CompetitorsPanel({ projectId, queries }: { projectId: string; qu
 export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; queries: Queries }) {
   const client = useQueryClient();
   const targets = availableTargets(queries.catalog);
-  const [selected, setSelected] = useState('');
+  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [text, setText] = useState('');
   const [launchOpen, setLaunchOpen] = useState(false);
-  const current =
-    targets.find((row) => `${row.target.kind}:${row.target.id}` === selected) ?? targets[0];
+  const chosen = targets.filter((row) => selectedKeys.includes(targetKey(row.target)));
+  const current = chosen[0];
   const refresh = () =>
     client.invalidateQueries({ queryKey: queryKeys.commerce.buyerPrompts(projectId) });
   const manual = useMutation({
@@ -263,7 +272,12 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
     },
   });
   const generate = useMutation({
-    mutationFn: () => commerceApi.generateBuyerPrompts(projectId, [current.target], 5),
+    mutationFn: () =>
+      commerceApi.generateBuyerPrompts(
+        projectId,
+        chosen.map((row) => row.target),
+        5,
+      ),
     onSuccess: refresh,
   });
   const decide = useMutation({
@@ -286,40 +300,59 @@ export function BuyerPromptsPanel({ projectId, queries }: { projectId: string; q
           Generated prompts are disabled until explicit approval. Manual entry remains available
           when no model is configured.
         </CardDescription>
-        {current ? (
+        {targets.length ? (
           <>
-            <TargetSelect
-              label="Buyer prompt target"
-              targets={targets}
-              value={`${current.target.kind}:${current.target.id}`}
-              onChange={setSelected}
-            />
-            <Textarea
-              aria-label="Manual buyer prompt"
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="What would a buyer ask?"
-            />
-            <div className="flex gap-2">
-              <Button disabled={!text.trim() || writePending} onClick={() => manual.mutate()}>
-                Add manually
-              </Button>
-              <Button variant="secondary" disabled={writePending} onClick={() => generate.mutate()}>
-                Generate 5
+            {/* Generate is the primary path and sits with the target picker;
+                manual entry is the fallback for an unconfigured model, so it
+                is folded away rather than given equal billing in a row of
+                three same-weight buttons. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <TargetMultiSelect
+                label="Buyer prompt targets"
+                options={targets}
+                selectedKeys={selectedKeys}
+                onChange={setSelectedKeys}
+                placeholder="Select categories or products"
+              />
+              <Button disabled={!chosen.length || writePending} onClick={() => generate.mutate()}>
+                {generate.isPending
+                  ? 'Generating…'
+                  : `Generate 5${chosen.length > 1 ? ` × ${chosen.length}` : ''}`}
               </Button>
               <Button
+                variant="secondary"
                 disabled={!approvedPromptIds.length || writePending}
                 onClick={() => setLaunchOpen(true)}
               >
                 Review estimate and launch
               </Button>
             </div>
+            <details className="text-sm">
+              <summary className="text-secondary cursor-pointer">Add a prompt manually</summary>
+              <div className="grid gap-2 pt-2">
+                <Textarea
+                  aria-label="Manual buyer prompt"
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  placeholder="best instant read thermometer for grilling under $50"
+                />
+                <div>
+                  <Button
+                    size="sm"
+                    disabled={!current || !text.trim() || writePending}
+                    onClick={() => manual.mutate()}
+                  >
+                    Add prompt
+                  </Button>
+                </div>
+              </div>
+            </details>
             <LaunchDialog
               open={launchOpen}
               onOpenChange={setLaunchOpen}
               projectId={projectId}
               fixedPromptIds={approvedPromptIds}
-              promptSelectionLabel={`${approvedPromptIds.length} approved prompts for ${current.label}`}
+              promptSelectionLabel={`${approvedPromptIds.length} approved prompts for ${current?.label ?? 'the selected target'}`}
               auditScope="commerce"
             />
           </>

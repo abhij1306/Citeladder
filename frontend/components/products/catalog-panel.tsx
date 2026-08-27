@@ -70,6 +70,18 @@ function CatalogHeader({
           Site Health observations project automatically. CSV and explicit edits retain field-level
           authority.
         </CardDescription>
+        {/* One status line, not three. The header stacked crawl progress,
+            projection counts and the import result as separate full-width
+            paragraphs under a button row, so five cramped rows said less than
+            one sentence does. */}
+        <p className="text-secondary text-sm">
+          {crawl
+            ? `Crawl ${crawl.analyzed_count}/${crawl.total_url_count ?? crawl.visible_url_count} analyzed · ${crawl.status}`
+            : 'No Site Health crawl yet'}
+          {' · '}
+          {projectionSummary(tasks)}
+          {result ? ` · ${result}` : ''}
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button disabled={discoverPending || dashboardPending} onClick={onSiteHealthAction}>
             {crawl ? 'Refresh from Site Health' : 'Discover from Site Health'}
@@ -85,19 +97,10 @@ function CatalogHeader({
           >
             {importPending ? 'Importing…' : 'Import CSV'}
           </Button>
-          <a className="text-link text-sm" href="/site">
+          <a className="text-link text-sm" href="/site" target="_blank" rel="noreferrer">
             Open Site Health
           </a>
         </div>
-        {crawl ? (
-          <p className="text-secondary text-sm">
-            Site Health crawl: {crawl.analyzed_count} /{' '}
-            {crawl.total_url_count ?? crawl.visible_url_count} analyzed · {crawl.status}
-          </p>
-        ) : (
-          <p className="text-secondary text-sm">No Site Health crawl is available yet.</p>
-        )}
-        <p className="text-secondary text-sm">Commerce projection: {projectionSummary(tasks)}</p>
         <input
           ref={fileInputRef}
           aria-label="Import catalog CSV"
@@ -111,7 +114,6 @@ function CatalogHeader({
             if (file) onImport(file);
           }}
         />
-        {result ? <p className="text-secondary text-sm">{result}</p> : null}
         {importError ? <Alert tone="danger">The catalog import failed.</Alert> : null}
         {siteHealthError ? (
           <Alert tone="danger">Site Health progress could not be refreshed.</Alert>
@@ -344,10 +346,13 @@ export function CatalogPanel({ projectId, query }: { projectId: string; query: C
           <Table>
             <TableHeader>
               <TableRow>
+                {/* "Role" (hub/leaf/unknown) is dropped: it is derived from
+                    cards on the category's OWN page, and a category created
+                    from a product breadcrumb has no such page — so the column
+                    could only ever read "unknown" for most of the catalog. */}
                 <TableHead>Category</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Products</TableHead>
-                <TableHead>Correction</TableHead>
+                <TableHead className="w-24 text-right">Products</TableHead>
+                <TableHead className="w-28" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -363,10 +368,15 @@ export function CatalogPanel({ projectId, query }: { projectId: string; query: C
                       />
                     ) : null}
                   </TableCell>
-                  <TableCell>{category.role}</TableCell>
-                  <TableCell>{category.product_count}</TableCell>
-                  <TableCell>
-                    <Button size="sm" onClick={() => setEditingCategoryId(category.id)}>
+                  <TableCell className="text-right tabular-nums">
+                    {category.product_count}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setEditingCategoryId(category.id)}
+                    >
                       Rename
                     </Button>
                   </TableCell>
@@ -386,17 +396,21 @@ export function CatalogPanel({ projectId, query }: { projectId: string; query: C
             <TableHeader>
               <TableRow>
                 <TableHead>Product</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Price</TableHead>
-                <TableHead>Correction</TableHead>
+                <TableHead className="w-64">Category</TableHead>
+                <TableHead className="w-32 text-right">Price</TableHead>
+                <TableHead className="w-24" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {query.data.products.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell>
-                    <a className="text-link" href={product.canonical_url}>
+                    <a
+                      className="text-link"
+                      href={product.canonical_url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       {product.name || product.canonical_url}
                     </a>
                     {editingId === product.id ? (
@@ -408,11 +422,10 @@ export function CatalogPanel({ projectId, query }: { projectId: string; query: C
                       />
                     ) : null}
                   </TableCell>
-                  <TableCell>{categoryNames(product, query.data)}</TableCell>
-                  <TableCell>
-                    {product.brand || <span className="text-muted">&mdash;</span>}
+                  <TableCell className="text-secondary">
+                    {categoryNames(product, query.data)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right tabular-nums">
                     {/* Never invent a value: a bare "100" next to real prices
                         read as a price the merchant had set. */}
                     {product.price == null ? (
@@ -421,8 +434,8 @@ export function CatalogPanel({ projectId, query }: { projectId: string; query: C
                       formatPrice(product.currency, product.price)
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Button size="sm" onClick={() => setEditingId(product.id)}>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="secondary" onClick={() => setEditingId(product.id)}>
                       Edit
                     </Button>
                   </TableCell>

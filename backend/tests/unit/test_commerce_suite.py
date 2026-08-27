@@ -456,11 +456,11 @@ def test_discovery_queries_distinguish_product_and_category_targets() -> None:
     target_id = uuid.uuid4()
     product = CommerceTarget(kind="product", id=target_id)
     category = CommerceTarget(kind="category", id=target_id)
-    assert (
-        _discovery_query(product, "Trail Runner") == "products similar to Trail Runner"
-    )
+    # Merchant intent, not ranking intent: "leading X brands" is the phrasing
+    # that returned "The 5 Best ... Tested & Reviewed" as a competitor.
+    assert _discovery_query(product, "Trail Runner") == "buy Trail Runner online store"
     assert _discovery_query(category, "Running shoes") == (
-        "leading Running shoes brands and representative products"
+        "buy Running shoes online store"
     )
     assert (
         _discovery_query(
@@ -472,7 +472,7 @@ def test_discovery_queries_distinguish_product_and_category_targets() -> None:
                 "currency": "AUD",
             },
         )
-        == "products similar to Trail Runner trail shoe blue price AUD 75 to 200"
+        == "buy Trail Runner trail shoe blue price AUD 75 to 200 online store"
     )
 
 
@@ -734,3 +734,35 @@ def test_a_shipping_banner_is_not_a_product_price() -> None:
     assert not _has_product_identity({"name": "Back in Stock", "price": None})
     assert _has_product_identity({"name": "Midi Dress", "price": 82})
     assert _has_product_identity({"name": "", "sku": "ABC-1", "price": None})
+
+
+def test_a_review_listicle_is_never_a_competitor_candidate() -> None:
+    """The exact result that shipped Serious Eats as a cookware competitor.
+
+    The only editorial gate was four path tokens (`/blog/`, `/news/`,
+    `/article/`, `/search`), and a review URL need contain none of them.
+    """
+    from app.domain.commerce.competitors import _precheck_result
+
+    listicle = {
+        "url": "https://www.seriouseats.com/best-stainless-steel-cookware-sets-11800000",
+        "title": "The 5 Best Stainless Steel Cookware Sets of 2026, Tested & Reviewed",
+        "content": "We tested 21 sets.",
+    }
+    checked, outcome = _precheck_result(listicle, owned_hosts=set())
+    assert checked is None
+    assert outcome == "excluded_editorial"
+
+
+def test_a_merchant_page_survives_the_editorial_gate() -> None:
+    """The pattern must not swallow a shop that happens to say "best sellers"."""
+    from app.domain.commerce.competitors import _precheck_result
+
+    merchant = {
+        "url": "https://www.all-clad.com/cookware-sets",
+        "title": "Best Sellers | Premium Pot & Pan Sets by All-Clad",
+        "content": "Shop cookware sets.",
+    }
+    checked, outcome = _precheck_result(merchant, owned_hosts=set())
+    assert outcome == "eligible"
+    assert checked is not None
