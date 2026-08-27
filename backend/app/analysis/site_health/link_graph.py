@@ -7,7 +7,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.connectors.web_evidence.url_policy import UrlPolicyError, canonicalize
+from app.connectors.web_evidence.url_policy import canonicalize
 from app.domain.site_health.normalization import canonical_identity
 
 
@@ -55,7 +55,7 @@ def _canonical(raw: str, *, base_url: str | None = None) -> str | None:
     try:
         absolute = canonicalize(raw, base_url=base_url)
         return canonical_identity(absolute)[0]
-    except (TypeError, ValueError, UrlPolicyError):
+    except (TypeError, ValueError):
         return None
 
 
