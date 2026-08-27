@@ -8,7 +8,7 @@
 
   The page's own buy box is the only product evidence that describes THIS page.
 -->
-<html>
+<html lang="en">
   <head>
     <title>Dillen Letter Carrier | Example Store</title>
     <meta property="og:type" content="product" />
@@ -46,7 +46,8 @@
       <div class="price">$195.00</div>
       <p>Sold out</p>
       <form action="/cart/add" method="post">
-        <select name="color">
+        <label for="product-color">Color</label>
+        <select id="product-color" name="color">
           <option value="tan">Caramel</option>
           <option value="navy">Navy</option>
         </select>

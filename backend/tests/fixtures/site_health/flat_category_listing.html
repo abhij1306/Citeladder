@@ -8,7 +8,7 @@
   Note the sort dropdown is a multi-option <select>, the same shape as a variant
   picker; it must not corroborate a product reading of this page.
 -->
-<html>
+<html lang="en">
   <head>
     <title>Women's Dresses</title>
     <script>
@@ -30,7 +30,8 @@
       <div class="toolbar">
         <button class="filter-toggle">Filters</button>
         <span class="result-count">56 results</span>
-        <select name="sort_by">
+        <label for="sort-by">Sort</label>
+        <select id="sort-by" name="sort_by">
           <option value="recommended">Recommended</option>
           <option value="price-asc">Price: Low to High</option>
         </select>
