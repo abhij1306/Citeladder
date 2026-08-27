@@ -21,6 +21,7 @@ the same blocks, so ``message_digest`` stays stable for provenance.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -91,7 +92,7 @@ class ContentContext:
         )
 
 
-def _labelled(lines: list[tuple[str, object]]) -> list[str]:
+def _labelled(lines: Sequence[tuple[str, object]]) -> list[str]:
     """Render ``Label: value`` lines, dropping every empty value."""
     rendered = []
     for label, value in lines:
@@ -112,7 +113,13 @@ def _render_brand(
     the model use the right terminology and market, not a set of claims it is
     licensed to assert. The system prompt handles what may be asserted.
     """
-    lines = [("Name", brand_name), ("Website", website), ("Market", locale)]
+    # Annotated: profile values below are Any|None, and an inferred
+    # list[tuple[str, str]] from these three literals would reject them.
+    lines: list[tuple[str, object]] = [
+        ("Name", brand_name),
+        ("Website", website),
+        ("Market", locale),
+    ]
     fields: list[str] = []
     if profile is not None:
         for label, attribute in (
@@ -169,6 +176,42 @@ def _render_pages(pages: list[dict]) -> str:
     return "RELEVANT WEBSITE CONTENT\n\n" + "\n\n".join(blocks)
 
 
+def _selection_inputs(prompt: str, opportunity: Opportunity | None) -> tuple[str, str]:
+    """``(target_url, query_text)`` for crawl-page ranking.
+
+    The opportunity's theme widens the query so a rewrite finds topically
+    adjacent pages, not just the target itself.
+    """
+    if opportunity is None:
+        return "", prompt
+    target_url = opportunity.target_url or ""
+    theme = opportunity.target_theme or ""
+    return target_url, " ".join(part for part in (prompt, theme) if part)
+
+
+def _render_summary(
+    selection,
+    *,
+    brand_fields: list[str],
+    opportunity: Opportunity | None,
+) -> dict[str, Any]:
+    """Bounded provenance for the UI and the persisted snapshot."""
+    crawl = selection.summary or {}
+    return {
+        "crawl_page_count": len(selection.pages),
+        "crawl_urls": [str(page.get("final_url") or "") for page in selection.pages],
+        "crawl_id": str(crawl.get("crawl_id") or ""),
+        "crawl_completed_at": crawl.get("crawl_completed_at"),
+        "brand_fields": brand_fields,
+        "opportunity_id": str(opportunity.id) if opportunity else None,
+        # GSC is not wired yet; the block stays empty and the flag stays False
+        # so the UI can render "not connected" as a neutral state, not a fault.
+        "search_connected": False,
+        "selection_policy_version": str(crawl.get("selection_policy_version") or ""),
+        "omissions": list(crawl.get("omissions") or []),
+    }
+
+
 async def build_content_context(
     session: AsyncSession,
     *,
@@ -198,12 +241,7 @@ async def build_content_context(
 
     # The opportunity's theme sharpens page ranking, and its target URL pins
     # the page being rewritten to the front of the context.
-    target_url = (opportunity.target_url or "") if opportunity else ""
-    query_text = " ".join(
-        part
-        for part in (prompt, (opportunity.target_theme or "") if opportunity else "")
-        if part
-    )
+    target_url, query_text = _selection_inputs(prompt, opportunity)
     selection = await select_crawl_fragments(
         session,
         workspace_id=workspace_id,
@@ -211,30 +249,14 @@ async def build_content_context(
         query_text=query_text,
         target_url=target_url,
     )
-    website_block = _render_pages(selection.pages)
-    crawl_summary = selection.summary or {}
-
-    summary = {
-        "crawl_page_count": len(selection.pages),
-        "crawl_urls": [str(page.get("final_url") or "") for page in selection.pages],
-        "crawl_id": str(crawl_summary.get("crawl_id") or ""),
-        "crawl_completed_at": crawl_summary.get("crawl_completed_at"),
-        "brand_fields": brand_fields,
-        "opportunity_id": str(opportunity.id) if opportunity else None,
-        # GSC is not wired yet; the block stays empty and the flag stays False
-        # so the UI can render "not connected" as a neutral state, not a fault.
-        "search_connected": False,
-        "selection_policy_version": str(
-            crawl_summary.get("selection_policy_version") or ""
-        ),
-        "omissions": list(crawl_summary.get("omissions") or []),
-    }
     return ContentContext(
         brand_block=brand_block,
         task_block=task_block,
-        website_block=website_block,
+        website_block=_render_pages(selection.pages),
         search_block="",
-        summary=summary,
+        summary=_render_summary(
+            selection, brand_fields=brand_fields, opportunity=opportunity
+        ),
     )
 
 

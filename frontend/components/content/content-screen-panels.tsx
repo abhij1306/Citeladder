@@ -106,9 +106,7 @@ export function ContentComposer({
  * without Search Console is not in a degraded state, it simply has one fewer
  * optional source. Hence muted text and a hollow marker rather than a tone.
  */
-function ContextIndicator({
-  preview,
-}: Readonly<{ preview?: ContentContextPreview | null }>) {
+function ContextIndicator({ preview }: Readonly<{ preview?: ContentContextPreview | null }>) {
   const crawlLabel = (() => {
     if (!preview) return 'Checking available context…';
     if (!preview.crawl_available) return 'Website crawl · run a crawl to ground drafts';
@@ -124,7 +122,9 @@ function ContextIndicator({
       <ContextLine
         available={Boolean(preview?.search_connected)}
         label={
-          preview?.search_connected ? 'Search Console · connected' : 'Search Console · not connected'
+          preview?.search_connected
+            ? 'Search Console · connected'
+            : 'Search Console · not connected'
         }
       />
     </div>
@@ -150,9 +150,7 @@ function ContextLine({ available, label }: Readonly<{ available: boolean; label:
  * being asked to write — and the backend never sent the text to the model
  * either. Both halves are fixed together.
  */
-function OpportunityContext({
-  opportunity,
-}: Readonly<{ opportunity: ContentOpportunityContext }>) {
+function OpportunityContext({ opportunity }: Readonly<{ opportunity: ContentOpportunityContext }>) {
   return (
     <div
       data-component-id="content-opportunity-context"
@@ -297,7 +295,11 @@ export function GenerationResult({
   onCopy: () => void;
   onExport: () => void;
   onRegenerate: (generationId: string) => void;
-  onFeedback: (generationId: string, feedback: 'accepted' | 'rejected', reason?: ContentFeedbackReason) => void;
+  onFeedback: (
+    generationId: string,
+    feedback: 'accepted' | 'rejected',
+    reason?: ContentFeedbackReason,
+  ) => void;
   onRejectClick: () => void;
 }>) {
   return (
@@ -390,7 +392,11 @@ function ResultActions({
   onCopy: () => void;
   onExport: () => void;
   onRegenerate: (id: string) => void;
-  onFeedback: (id: string, feedback: 'accepted' | 'rejected', reason?: ContentFeedbackReason) => void;
+  onFeedback: (
+    id: string,
+    feedback: 'accepted' | 'rejected',
+    reason?: ContentFeedbackReason,
+  ) => void;
   onRejectClick: () => void;
 }>) {
   return (

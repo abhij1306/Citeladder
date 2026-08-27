@@ -137,9 +137,12 @@ test('content nav link is live and the enqueue → output flow renders sanitised
   await expect(page).toHaveURL(/\/content$/);
 
   const promptBox = page.getByRole('textbox', { name: /describe the website content/i });
-  await expect(
-    page.getByText('Uses confirmed facts and crawl evidence when available'),
-  ).toBeVisible();
+  // The indicator is live, so the page count depends on this environment's
+  // crawl state; assert the surface exists and names both sources instead.
+  const contextIndicator = page.locator('[data-component-id="content-context-indicator"]');
+  await expect(contextIndicator).toBeVisible();
+  await expect(contextIndicator).toContainText(/website crawl/i);
+  await expect(contextIndicator).toContainText(/search console/i);
   await promptBox.fill('Write an about page for Acme.');
   await page.getByRole('button', { name: 'Generate' }).click();
 

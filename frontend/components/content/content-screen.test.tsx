@@ -443,9 +443,7 @@ describe('ContentScreen — generate flow', () => {
     // Model ids are provenance on the row, not something the writer needs on
     // the page; the footer says only what the draft was grounded with.
     expect(screen.queryByText(/requested model/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/grounded with: website crawl · 3 pages/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/grounded with: website crawl · 3 pages/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /regenerate/i })).toBeInTheDocument();
     expect(screen.queryByText(/hit the length limit/i)).not.toBeInTheDocument();
   });
@@ -576,7 +574,9 @@ describe('ContentScreen — error state', () => {
       'My prompt text',
     );
     await userEvent.click(screen.getByRole('button', { name: 'Generate' }));
-    expect(await screen.findByText(/grounded with: no site evidence available/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/grounded with: no site evidence available/i),
+    ).toBeInTheDocument();
   });
 
   it('a failed generation offers Try again, which enqueues a new record', async () => {
