@@ -79,3 +79,20 @@ async def test_visibility_leg_is_unavailable_when_either_score_is_missing(
     assert result["baseline_source_ids"] == [str(baseline_metric_id)]
     assert result["post_source_ids"] == [str(post_metric_id)]
     assert result["limitations"] == ["Visibility metric is unavailable."]
+
+
+def test_gap_changes_stay_empty_until_a_post_action_snapshot_exists() -> None:
+    before = {"gap-a", "gap-b"}
+
+    assert verification_result._gap_changes(before, set(), None) == {
+        "no_longer_observed": [],
+        "persistent": [],
+        "new": [],
+        "state": "not_run",
+    }
+    assert verification_result._gap_changes(before, {"gap-b", "gap-c"}, object()) == {
+        "no_longer_observed": ["gap-a"],
+        "persistent": ["gap-b"],
+        "new": ["gap-c"],
+        "state": "available",
+    }

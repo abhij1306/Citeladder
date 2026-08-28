@@ -71,11 +71,16 @@ def gap_factor_visibility(
 ) -> float:
     """Bounded visibility gap factor (always >= 1.0).
 
-    Grows with the number of distinct competitors present (capped at
-    ``GAP_COMPETITOR_CAP``), scales with the strongest explicit competitor
-    recommendation observed, and shrinks as the owned-citation rate approaches
-    full coverage: at an owned rate of 1.0 the gap is the neutral 1.0 no
-    matter how many competitors appear (there is no citation gap to close).
+    Two independent kinds of evidence, multiplied:
+
+    * the citation gap — grows with the number of distinct competitors
+      present (capped at ``GAP_COMPETITOR_CAP``) and shrinks as the
+      owned-citation rate approaches full coverage, reaching the neutral
+      1.0 at an owned rate of 1.0 no matter how many competitors appear
+      (there is no citation gap left to close);
+    * ``recommendation_strength`` — how explicitly an answer named a
+      competitor as the pick, which is a gap even where the citation term
+      is neutral, so it scales the whole factor rather than the gap term.
     """
     competitors = min(max(int(competitor_count), 0), GAP_COMPETITOR_CAP)
     owned_rate = min(max(float(owned_citation_rate), 0.0), 1.0)

@@ -26,6 +26,8 @@ def _earned_hit(rule_id: str, row: dict) -> DetectorHit:
     source_class = str(row["source_class"])
     domain = str(row["canonical_domain"])
     citations = list(row.get("representative_citations") or [])
+    representative = next(iter(citations), {})
+    themes = list(row.get("themes") or [])
     content_handoff = {
         "pathway": ACTION_PATH_EARNED,
         "source_class": source_class,
@@ -33,11 +35,11 @@ def _earned_hit(rule_id: str, row: dict) -> DetectorHit:
         "suggested_role": row.get("suggested_role"),
         "suggested_skill_id": row.get("suggested_skill_id"),
         "task_seed": f"Prepare a transparent, human-led contribution for {domain}.",
-        "target_url": citations[0].get("url") if citations else None,
-        "target_theme": (row.get("themes") or [None])[0],
+        "target_url": representative.get("url"),
+        "target_theme": next(iter(themes), None),
         "representative_citations": citations,
         "affected_prompt_indices": row.get("prompt_indices") or [],
-        "affected_themes": row.get("themes") or [],
+        "affected_themes": themes,
         "observed_competitors": row.get("competitors") or [],
         "coverage": {
             "numerator": row.get("usage_numerator"),

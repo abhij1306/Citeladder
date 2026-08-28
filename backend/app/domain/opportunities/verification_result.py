@@ -291,6 +291,28 @@ async def _demand_leg(
     return result
 
 
+def _gap_changes(before_keys: set, after_keys: set, latest) -> dict:
+    """Before/after gap comparison, empty until a post-action snapshot exists.
+
+    With no later snapshot there is no observation of the gaps at all, so
+    the arrays stay empty rather than reporting every baseline gap as
+    resolved against an absent "after" set.
+    """
+    if latest is None:
+        return {
+            "no_longer_observed": [],
+            "persistent": [],
+            "new": [],
+            "state": "not_run",
+        }
+    return {
+        "no_longer_observed": sorted(before_keys - after_keys),
+        "persistent": sorted(before_keys & after_keys),
+        "new": sorted(after_keys - before_keys),
+        "state": "available",
+    }
+
+
 async def build_verification_result(
     session: AsyncSession,
     *,
@@ -348,12 +370,7 @@ async def build_verification_result(
     return {
         "state": "available",
         "legs": legs,
-        "gap_changes": {
-            "no_longer_observed": sorted(before_keys - after_keys),
-            "persistent": sorted(before_keys & after_keys),
-            "new": sorted(after_keys - before_keys),
-            "state": "available" if latest else "not_run",
-        },
+        "gap_changes": _gap_changes(before_keys, after_keys, latest),
         "overlapping_action_ids": [str(item) for item in overlaps],
         "causality_notice": (
             "Later observations are not proof that this implementation caused the "
