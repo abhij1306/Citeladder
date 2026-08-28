@@ -56,10 +56,9 @@ and **Opportunities**. Do not recreate the removed Site Intelligence workspace,
 industry-pack catalog, knowledge tables, corrections, or comparison system.
 The single persisted observed-architecture projection is part of Site Health,
 not a second workspace: it is the **Architecture** tab of the existing Website
-tablist. Its broad onboarding-derived archetype expects common structures; it
-does not classify the site and cannot produce a defect. The one correction
-surface is the archetype field, applied at read time — it is not a corrections
-ledger and never rewrites evidence.
+tablist. The read surface exposes observed families and hierarchy only. It has
+no archetype correction endpoint, mutable archetype field, or advisory response
+block.
 
 Page analysis separates acquisition truth from structural classification:
 

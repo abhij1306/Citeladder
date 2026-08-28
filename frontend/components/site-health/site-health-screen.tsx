@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,8 @@ function LoadedSiteHealthScreen({
   projectId,
   screen,
 }: Readonly<{ projectId: string; screen: ReturnType<typeof useSiteHealthScreen> }>) {
-  const [tab, setTab] = useState<AnalysisTab>('pages');
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<AnalysisTab>(() => analysisTabFrom(searchParams.get('tab')));
   const {
     entitlementQuery,
     dashboardQuery,
@@ -110,6 +112,10 @@ const ANALYSIS_TABS: ReadonlyArray<{ value: AnalysisTab; label: string }> = [
   { value: 'aeo-readiness', label: 'AEO Readiness' },
   { value: 'changes', label: 'Changes' },
 ];
+
+function analysisTabFrom(value: string | null): AnalysisTab {
+  return ANALYSIS_TABS.some((tab) => tab.value === value) ? (value as AnalysisTab) : 'pages';
+}
 
 function AnalysisTabs({
   tab,

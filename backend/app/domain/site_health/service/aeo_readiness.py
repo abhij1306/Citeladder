@@ -78,6 +78,7 @@ def _dimension(item) -> dict:
                 "pass_count": check.pass_count,
                 "fail_count": check.fail_count,
                 "not_applicable_count": check.not_applicable_count,
+                "error_count": check.error_count,
                 "failing_page_count": check.failing_page_count,
             }
             for check in item.checks
@@ -169,8 +170,7 @@ async def get_aeo_readiness(
     truncated = len(evaluation_rows) > AEO_READINESS_MAX_EVALUATIONS
     evaluation_rows = evaluation_rows[:AEO_READINESS_MAX_EVALUATIONS]
     rule_copy = {
-        rule_id: _rule_copy(rule_id)
-        for rule_id in {row.rule_id for row in evaluation_rows}
+        rule_id: _rule_copy(rule_id) for rule_id in AEO_READINESS_RULE_DIMENSIONS
     }
     result = project_aeo_readiness(
         [
@@ -187,6 +187,7 @@ async def get_aeo_readiness(
             for row in evaluation_rows
         ],
         analysis_count=len(analyses),
+        rule_copy=rule_copy,
     )
     limitations = list(result.limitations)
     if truncated:

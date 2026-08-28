@@ -145,6 +145,7 @@ async function stubWebsite(page: Page) {
               pass_count: index ? 2 : 1,
               fail_count: index ? 0 : 1,
               not_applicable_count: index === 1 ? 1 : 0,
+              error_count: 0,
               failing_page_count: index ? 0 : 1,
             },
           ],
@@ -171,15 +172,6 @@ async function stubWebsite(page: Page) {
         coverage_state: 'complete',
         page_count: 2,
         page_kind_counts: { article: 2 },
-        archetype: {
-          archetype: 'commerce',
-          source: 'onboarding_profile',
-          reason: 'profile_supported',
-          business_model: 'retail',
-          market_scope: 'national',
-          observed: [],
-          not_observed: [],
-        },
         families: [
           {
             family: '/pages/*',
@@ -214,7 +206,6 @@ async function stubWebsite(page: Page) {
           },
         ],
         architecture_formula_version: 'sh-architecture-1',
-        archetype_policy_version: 'sh-archetypes-1',
         limitations: [],
       },
     ],

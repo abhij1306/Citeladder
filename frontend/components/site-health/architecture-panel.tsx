@@ -74,7 +74,9 @@ export function ArchitecturePanel({
 function pagesByFamily(nodes: ArchitectureNode[]): Map<string, ArchitectureNode[]> {
   const grouped = new Map<string, ArchitectureNode[]>();
   for (const node of nodes) {
-    grouped.set(node.family, [...(grouped.get(node.family) ?? []), node]);
+    const pages = grouped.get(node.family);
+    if (pages) pages.push(node);
+    else grouped.set(node.family, [node]);
   }
   for (const pages of grouped.values()) {
     pages.sort((left, right) => left.url.localeCompare(right.url));

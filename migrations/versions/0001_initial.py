@@ -1007,7 +1007,6 @@ def upgrade() -> None:
         sa.Column("include_globs", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("exclude_globs", postgresql.JSONB(astext_type=Text()), nullable=True),
         sa.Column("selection_version", sa.Integer(), nullable=False),
-        sa.Column("archetype_override", sa.String(length=16), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),

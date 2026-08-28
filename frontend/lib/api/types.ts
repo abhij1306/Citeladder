@@ -9,9 +9,6 @@ import type { z } from 'zod';
 
 import type {
   aeoReadinessSchema,
-  archetypeAssessmentSchema,
-  archetypeOverrideSchema,
-  archetypeSchema,
   architectureFamilySchema,
   architectureNodeSchema,
   architectureSchema,
@@ -214,12 +211,9 @@ export type SiteHealthDashboard = z.infer<typeof siteHealthDashboardSchema>;
 export type AeoReadiness = z.infer<typeof aeoReadinessSchema>;
 export type InternalLinks = z.infer<typeof internalLinksSchema>;
 export type CoverageState = z.infer<typeof coverageStateSchema>;
-export type Archetype = z.infer<typeof archetypeSchema>;
-export type ArchetypeAssessment = z.infer<typeof archetypeAssessmentSchema>;
 export type ArchitectureFamily = z.infer<typeof architectureFamilySchema>;
 export type ArchitectureNode = z.infer<typeof architectureNodeSchema>;
 export type SiteArchitecture = z.infer<typeof architectureSchema>;
-export type ArchetypeOverride = z.infer<typeof archetypeOverrideSchema>;
 export type ReadinessDimension = z.infer<typeof readinessDimensionSchema>;
 export type ReadinessCheck = z.infer<typeof readinessCheckSchema>;
 export type ReadinessEvidencePage = z.infer<typeof readinessEvidencePageSchema>;

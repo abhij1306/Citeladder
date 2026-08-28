@@ -720,6 +720,7 @@ class ReadinessCheckResponse(_Model):
     pass_count: int
     fail_count: int
     not_applicable_count: int
+    error_count: int
     failing_page_count: int
 
 

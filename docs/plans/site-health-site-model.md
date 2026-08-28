@@ -18,9 +18,8 @@ PR3 ships extractor `sh-extractor-12`, analyzer `sh-analyzer-7`, rule catalog
 `sh-archetypes-1`. Classifier and scoring semantics remain unchanged.
 
 PR4 bumps nothing: it is a read/presentation layer over the same persisted
-evidence. The archetype correction is applied at read time under the SAME
-`sh-archetypes-1` policy and never rewrites a persisted row, so no replay token
-moves.
+evidence. It exposes observed families and hierarchy without an archetype
+advisory block or correction mutation.
 
 ---
 
@@ -381,8 +380,8 @@ cannot prove.
 abstain to `other` when the profile is absent, `knowledge_strength == "none"`, or
 `field_confidence["business_model"]` is below a config floor; and abstain when the crawl's own
 `page_kind` distribution materially contradicts the archetype. The crawl can veto the archetype; it
-can never assign one. The Architecture tab shows the archetype with its source and lets the user
-change it — that single field is the entire correction surface.
+can never assign one. This internal persisted assessment is not exposed as a read block or
+correction surface.
 
 ### 3.4 Structural findings — crawl-finalize rules
 
@@ -417,12 +416,11 @@ paths.
 `api_schemas.py` → `lib/api/schemas/site-health/*.ts` → `types.ts` → component.
 
 **Architecture tab**
-- *Site profile*: archetype with its source ("from your onboarding profile") and an edit control;
-  pages analyzed; **coverage state stated plainly** whenever it is not `complete`
-- *Observed architecture tree*: expandable, families collapsed to counts, unknown-parent pages shown
-  under their family, click a node → existing URL detail
-- *Common structures not observed*: the archetype advisory block, hidden unless coverage is complete
-- *Page families* table: family, URL count, depth, indexable rate
+- page families ordered by observed URL count, expandable to the URLs assigned
+  by the backend
+- pages analyzed and **coverage state stated plainly** whenever it is not
+  `complete`
+- no hierarchy tree, site-profile/archetype block, or correction control
 
 **Pages table** ([pages-table.tsx](../../frontend/components/site-health/pages-table.tsx)): add Inbound,
 Main-content inbound, and Depth columns, sortable. Backend adds a `sort` param with keyset over

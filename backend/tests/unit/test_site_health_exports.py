@@ -248,22 +248,24 @@ def test_csv_does_not_prefix_safe_leading_characters() -> None:
 def _architecture_model(nodes: list[dict], **overrides) -> dict:
     return {
         "coverage_state": "complete",
-        "archetype": {
-            "archetype": "commerce",
-            "source": "onboarding_profile",
-            "observed": [{"key": "products", "label": "Product pages"}],
-            "not_observed": [{"key": "help_hub", "label": "Help / FAQ hub"}],
-        },
         "nodes": nodes,
         **overrides,
     }
 
 
-def _node(node_id: str, url: str, *, parent: str | None, kind: str = "product") -> dict:
+def _node(
+    node_id: str,
+    url: str,
+    *,
+    parent: str | None,
+    kind: str = "product",
+    family: str = "",
+) -> dict:
     return {
         "site_url_id": node_id,
         "url": url,
         "page_kind": kind,
+        "family": family,
         "parent_site_url_id": parent,
     }
 
@@ -284,19 +286,56 @@ def test_architecture_markdown_nests_resolved_parents() -> None:
     assert tree[2] == "    `-- https://x.test/shoes  [category]"
     assert tree[3] == "        `-- https://x.test/shoes/boot  [product]"
     assert "Coverage: complete" in body
-    assert "- Help / FAQ hub" in body
 
 
 def test_architecture_markdown_collapses_a_large_family_to_a_count() -> None:
     """A 142-product family is a count, not 142 lines of URLs."""
     nodes = [_node("root", "https://x.test/", parent=None, kind="homepage")]
     nodes += [
-        _node(str(index), f"https://x.test/p/{index}", parent="root")
+        _node(
+            str(index),
+            f"https://x.test/p/{index}",
+            parent="root",
+            family="/p/*",
+        )
         for index in range(ARCHITECTURE_FAMILY_COLLAPSE_MIN)
     ]
     tree = architecture_to_markdown(_architecture_model(nodes)).splitlines()
     assert f"    `-- [{ARCHITECTURE_FAMILY_COLLAPSE_MIN} product]" in tree
     assert not any("https://x.test/p/" in line for line in tree)
+
+
+def test_architecture_markdown_does_not_collapse_unrelated_large_sibling_set() -> None:
+    """A busy root is not one family and must keep its individual URLs."""
+    nodes = [
+        _node(
+            str(index),
+            f"https://x.test/section-{index}",
+            parent=None,
+            kind="article",
+            family=f"/section-{index}/*",
+        )
+        for index in range(ARCHITECTURE_FAMILY_COLLAPSE_MIN)
+    ]
+    body = architecture_to_markdown(_architecture_model(nodes))
+    assert "https://x.test/section-0" in body
+    assert f"https://x.test/section-{ARCHITECTURE_FAMILY_COLLAPSE_MIN - 1}" in body
+    assert f"[{ARCHITECTURE_FAMILY_COLLAPSE_MIN} article]" not in body
+
+
+def test_architecture_markdown_never_collapses_root_group() -> None:
+    nodes = [
+        _node(
+            str(index),
+            f"https://x.test/root-{index}",
+            parent=None,
+            family="/root/*",
+        )
+        for index in range(ARCHITECTURE_FAMILY_COLLAPSE_MIN)
+    ]
+    body = architecture_to_markdown(_architecture_model(nodes))
+    assert "https://x.test/root-0" in body
+    assert f"[{ARCHITECTURE_FAMILY_COLLAPSE_MIN} product]" not in body
 
 
 def test_architecture_markdown_reparents_nodes_whose_parent_is_absent() -> None:
@@ -314,12 +353,6 @@ def test_architecture_markdown_states_unknown_coverage_and_omits_absence() -> No
         _architecture_model(
             [_node("1", "https://x.test/", parent=None)],
             coverage_state="unknown",
-            archetype={
-                "archetype": "other",
-                "source": "abstained",
-                "observed": [],
-                "not_observed": [],
-            },
         )
     )
     assert "Coverage: unknown" in body
@@ -345,5 +378,5 @@ def test_architecture_markdown_keeps_nodes_trapped_in_a_parent_cycle() -> None:
             ]
         )
     )
-    assert "https://x.test/a" in body
-    assert "https://x.test/b" in body
+    assert body.count("https://x.test/a") == 1
+    assert body.count("https://x.test/b") == 1

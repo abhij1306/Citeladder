@@ -181,16 +181,16 @@ def _tree_lines(
     seen: set[str],
 ) -> list[str]:
     group = children.get(node_id, [])
-    if len(group) >= ARCHITECTURE_FAMILY_COLLAPSE_MIN:
+    if node_id is not None and _is_large_family(group):
         return _collapsed_lines(group, prefix)
     lines: list[str] = []
     for index, node in enumerate(group):
         last = index == len(group) - 1
-        lines.append(f"{prefix}{'`-- ' if last else '|-- '}{_node_label(node)}")
         child_id = str(node.get("site_url_id") or "")
         if not child_id or child_id in seen:
             continue
         seen.add(child_id)
+        lines.append(f"{prefix}{'`-- ' if last else '|-- '}{_node_label(node)}")
         lines.extend(
             _tree_lines(
                 child_id,
@@ -202,15 +202,14 @@ def _tree_lines(
     return lines
 
 
-def _structure_section(heading: str, rows: object) -> list[str]:
-    labels = [
-        str(row.get("label") or "")
-        for row in (rows if isinstance(rows, list) else [])
-        if isinstance(row, dict)
-    ]
-    if not labels:
-        return []
-    return [f"## {heading}", "", *(f"- {label}" for label in labels), ""]
+def _is_large_family(group: list[dict]) -> bool:
+    """Only one real architecture family may collapse into count rows."""
+    families = {str(node.get("family") or "") for node in group}
+    return (
+        len(group) >= ARCHITECTURE_FAMILY_COLLAPSE_MIN
+        and len(families) == 1
+        and "" not in families
+    )
 
 
 def _initial_roots(
@@ -267,12 +266,9 @@ def _rooted_tree(nodes: list[dict]) -> dict[str | None, list[dict]]:
 def architecture_to_markdown(model: dict) -> str:
     """Render the observed-architecture projection as Markdown + an ASCII tree.
 
-    Renders exactly what the API projected — coverage state included, always,
-    and never a structure the model reported as merely not observed under a
-    coverage it could not prove.
+    Renders exactly what the API projected, always including coverage state.
     """
     coverage = str(model.get("coverage_state") or "unknown")
-    archetype = dict(model.get("archetype") or {})
     nodes = [node for node in model.get("nodes") or [] if isinstance(node, dict)]
     lines = [
         "# Site Health — Observed architecture",
@@ -280,13 +276,6 @@ def architecture_to_markdown(model: dict) -> str:
         f"{len(nodes)} pages sampled · "
         f"{_COVERAGE_NOTE.get(coverage, _COVERAGE_NOTE['unknown'])}",
         "",
-        f"Site profile: {md_cell(archetype.get('archetype'))} "
-        f"(source: {md_cell(archetype.get('source'))})",
-        "",
-        *_structure_section("Observed", archetype.get("observed")),
-        *_structure_section(
-            "Common structures not observed", archetype.get("not_observed")
-        ),
         "## Tree",
         "",
         "```",

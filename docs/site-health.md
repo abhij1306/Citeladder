@@ -25,10 +25,9 @@ The user-facing area has three pages:
 3. **Opportunities** — persisted prioritized actions.
 
 The removed Site Intelligence workspace and industry-pack/knowledge subsystems
-must not be reintroduced as parallel owners. Site Health does own one persisted
-observed-architecture projection. Its broad onboarding-derived archetype is an
-advisory expectation layer: it does not classify the site and cannot produce a
-defect or alter a score.
+must not be reintroduced as parallel owners. Site Health owns one persisted
+observed-architecture projection whose read surface exposes observed families
+and hierarchy only.
 
 ## Pipeline
 
@@ -198,25 +197,13 @@ belongs.
 persisted model for the selected (or latest usable) crawl. It never re-derives
 the model, crawls, or scores. The response carries `coverage_state` alongside
 every site-level number, the page-family rows, the hierarchy nodes with their
-`parent_source`, the archetype assessment, the formula/policy versions of the
-row it actually read, and a plain-language `limitations` line whenever coverage
-is not `complete`. A crawl with no persisted model returns `state:
+`parent_source`, the architecture formula version of the row it actually read,
+and a plain-language `limitations` line whenever coverage is not `complete`. A
+crawl with no persisted model returns `state:
 "unavailable"` with a reason rather than an empty tree.
 
-`PUT /api/v1/projects/{project_id}/site-health/architecture/archetype` is the
-entire correction surface: one field, or `null` to clear. It writes only
-`SiteHealthProfile.archetype_override` — a mutable project setting, not
-evidence. A correction is applied at READ time by re-running the same versioned
-common-structure policy over the same persisted hierarchy: it rewrites no
-evidence row, re-evaluates no rule, moves no score, and cannot resurrect an
-absence advisory on a crawl that did not prove completeness.
-
-**No shipped screen calls that route today.** The Architecture tab was reduced
-to page families, and the archetype/common-structure block was removed with it:
-it described the analysis rather than the site. The endpoint and its advisory
-projection remain because the archetype is still the documented correction
-surface if that presentation returns; nothing in the product currently depends
-on it, and the `archetype` block of the read response is therefore unrendered.
+There is no archetype correction endpoint, mutable archetype override, or
+archetype advisory block in the response.
 
 `GET /api/v1/site-crawls/{crawl_id}/export.md?view=architecture` renders the
 observed tree as Markdown with an ASCII tree; large sibling sets collapse to one
@@ -255,7 +242,9 @@ capped list never reads as the whole set. A rule ID stays provenance and is
 never display copy.
 Unmapped Site Health rules remain outside this view; there is no fallback
 bucket. Each dimension exposes pass, fail, not-applicable, error, expected and
-observed counts, coverage, and at most 25 stable page/evaluation links.
+observed counts, coverage, and at most 25 failing pages in `evidence_pages`.
+The true failing-page total is reported separately even when that page list is
+bounded.
 Not-applicable remains disclosed and never becomes a failure. This adds no AEO
 Readiness score and does not reinterpret Site Health scoring.
 

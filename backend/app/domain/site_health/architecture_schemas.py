@@ -23,30 +23,6 @@ class _Model(BaseModel):
 
 ArchitectureState = Literal["available", "unavailable"]
 CoverageState = Literal["complete", "partial", "unknown"]
-Archetype = Literal["commerce", "software", "services", "other"]
-
-
-class CommonStructureRow(_Model):
-    key: str
-    label: str
-
-
-class ArchetypeAssessmentResponse(_Model):
-    """The archetype, where it came from, and what was/was not observed.
-
-    ``source`` is ``onboarding_profile``, ``abstained``, or ``user_override``.
-    This layer EXPECTS, it does not classify: it can never produce a defect and
-    never affects a score. ``not_observed`` is empty unless the crawl proved
-    complete coverage — a partial crawl cannot prove absence.
-    """
-
-    archetype: Archetype
-    source: Literal["onboarding_profile", "abstained", "user_override"]
-    reason: str
-    business_model: str
-    market_scope: str
-    observed: list[CommonStructureRow]
-    not_observed: list[CommonStructureRow]
 
 
 class ArchitectureFamilyResponse(_Model):
@@ -79,20 +55,7 @@ class ArchitectureResponse(_Model):
     coverage_state: CoverageState
     page_count: int
     page_kind_counts: dict[str, int]
-    archetype: ArchetypeAssessmentResponse
     families: list[ArchitectureFamilyResponse]
     nodes: list[ArchitectureNodeResponse]
     architecture_formula_version: str
-    archetype_policy_version: str
     limitations: list[str]
-
-
-class SetArchetypeRequest(_Model):
-    """The entire architecture correction surface: one field, or null to clear."""
-
-    archetype: Archetype | None = None
-
-
-class ArchetypeOverrideResponse(_Model):
-    project_id: uuid.UUID
-    archetype_override: Archetype | None

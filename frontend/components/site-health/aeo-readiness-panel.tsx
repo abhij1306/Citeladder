@@ -47,23 +47,32 @@ function pageLabel(url: string) {
 
 /** Share of applicable checks that passed. Presentation only — never persisted. */
 function passShare(dimension: ReadinessDimension): number | null {
+  if (dimension.error_count > 0) return null;
   const applicable = dimension.pass_count + dimension.fail_count;
   return applicable === 0 ? null : dimension.pass_count / applicable;
 }
 
 function meterSentence(dimension: ReadinessDimension): string {
+  if (dimension.error_count > 0) {
+    return `${dimension.error_count} check${dimension.error_count === 1 ? '' : 's'} could not be evaluated — results are incomplete.`;
+  }
   const pages = `${dimension.checked_page_count} checked page${dimension.checked_page_count === 1 ? '' : 's'}`;
+  if (dimension.pass_count + dimension.fail_count === 0) {
+    return 'Not measured on any analyzed page — these checks did not apply.';
+  }
   return dimension.fail_count === 0
     ? `All ${pages} pass`
-    : `${dimension.failing_page_count} of ${pages} need work`;
+    : `${dimension.failing_page_count} of ${pages} ${dimension.checked_page_count === 1 ? 'needs' : 'need'} work`;
 }
 
 function DimensionMeter({ dimension }: Readonly<{ dimension: ReadinessDimension }>) {
   const share = passShare(dimension);
   if (share === null) {
     return (
-      <span className="text-muted text-xs">
-        Not measured on any analyzed page — these checks did not apply.
+      <span
+        className={cn('text-xs', dimension.error_count > 0 ? 'text-warning-text' : 'text-muted')}
+      >
+        {meterSentence(dimension)}
       </span>
     );
   }
@@ -92,6 +101,7 @@ function DimensionMeter({ dimension }: Readonly<{ dimension: ReadinessDimension 
 function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
   const [open, setOpen] = useState(false);
   const failing = check.fail_count > 0;
+  const errored = check.error_count > 0;
   const applicable = check.pass_count + check.fail_count;
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
@@ -103,10 +113,16 @@ function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
         className="hover:bg-background-alt flex w-full items-center gap-2.5 rounded-sm py-2 pr-2 text-left transition-colors"
       >
         <Chevron className="text-muted size-3.5 shrink-0" aria-hidden />
-        <span className={cn('min-w-0 flex-1 truncate text-sm', failing && 'font-medium')}>
+        <span
+          className={cn('min-w-0 flex-1 truncate text-sm', (failing || errored) && 'font-medium')}
+        >
           {check.title}
         </span>
-        {applicable === 0 ? (
+        {errored ? (
+          <span className="text-warning-text shrink-0 text-xs font-medium">
+            {check.error_count} error{check.error_count === 1 ? '' : 's'}
+          </span>
+        ) : applicable === 0 ? (
           <span className="text-muted shrink-0 text-xs">Did not apply</span>
         ) : failing ? (
           <span className="text-danger-text shrink-0 text-xs font-medium">
@@ -121,7 +137,7 @@ function CheckRow({ check }: Readonly<{ check: ReadinessCheck }>) {
           {check.remediation || 'No remediation guidance is recorded for this check.'}
           <span className="text-subtle mt-1 block text-xs">
             {check.pass_count} passed · {check.fail_count} failed · {check.not_applicable_count} did
-            not apply
+            not apply · {check.error_count} errors
           </span>
         </div>
       ) : null}
@@ -220,6 +236,19 @@ function DimensionCard({
 
 function ReadinessHeader({ data }: Readonly<{ data: AeoReadiness }>) {
   const failing = data.dimensions.filter((dimension) => dimension.fail_count > 0);
+  const incomplete = data.dimensions.filter((dimension) => dimension.error_count > 0);
+  const status = [
+    failing.length
+      ? `${failing.length} of ${data.dimensions.length} need work: ${failing
+          .map((dimension) => dimension.label)
+          .join(', ')}.`
+      : '',
+    incomplete.length
+      ? `${incomplete.length} ${incomplete.length === 1 ? 'has' : 'have'} incomplete checks: ${incomplete
+          .map((dimension) => dimension.label)
+          .join(', ')}.`
+      : '',
+  ].filter(Boolean);
   return (
     <Card>
       <CardHeader>
@@ -227,11 +256,9 @@ function ReadinessHeader({ data }: Readonly<{ data: AeoReadiness }>) {
         <CardDescription className="max-w-3xl">
           Seven things an answer engine needs from a page, checked across {data.analysis_count}{' '}
           analyzed page{data.analysis_count === 1 ? '' : 's'}.{' '}
-          {failing.length === 0
+          {status.length === 0
             ? 'Every dimension is passing on the pages where its checks applied.'
-            : `${failing.length} of ${data.dimensions.length} need work: ${failing
-                .map((dimension) => dimension.label)
-                .join(', ')}.`}{' '}
+            : status.join(' ')}{' '}
           These are recorded check results, not a score.
         </CardDescription>
       </CardHeader>

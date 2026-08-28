@@ -29,16 +29,12 @@ ARCHETYPE_COMMERCE: Final = "commerce"
 ARCHETYPE_SOFTWARE: Final = "software"
 ARCHETYPE_SERVICES: Final = "services"
 ARCHETYPE_OTHER: Final = "other"
-ARCHETYPES: Final[frozenset[str]] = frozenset(
-    {ARCHETYPE_COMMERCE, ARCHETYPE_SOFTWARE, ARCHETYPE_SERVICES, ARCHETYPE_OTHER}
-)
 
 ARCHETYPE_SOURCE_ONBOARDING: Final = "onboarding_profile"
 ARCHETYPE_SOURCE_ABSTAINED: Final = "abstained"
 # A user correction is a PRESENTATION-layer override: it re-reads the same
 # persisted evidence under a different archetype and never rewrites, re-scores,
 # or re-derives the immutable model row.
-ARCHETYPE_SOURCE_USER: Final = "user_override"
 ARCHETYPE_BUSINESS_MODEL_CONFIDENCE_FLOOR: Final = 0.65
 ARCHETYPE_CONTRADICTION_MIN_PAGES: Final = 5
 ARCHETYPE_CONTRADICTION_SHARE: Final = 0.6

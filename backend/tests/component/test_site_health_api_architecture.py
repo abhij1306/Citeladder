@@ -22,7 +22,6 @@ from app.core.config.site_health_link_metrics import (
 from app.models.site_health.architecture import SiteObservedArchitecture
 from app.models.site_health.crawl import SiteCrawl
 from app.models.site_health.links import SitePageLinkMetric
-from app.models.site_health.runtime import SiteHealthProfile
 from app.models.site_health.snapshot import SiteHealthSnapshot
 from app.models.site_health.urls import SiteUrl
 from tests.component.site_health_api_helpers import _register, _seed_scenario
@@ -195,12 +194,7 @@ async def test_architecture_projects_persisted_model_and_coverage(
     assert body["crawl_id"] == str(scn.crawl_id)
     assert body["coverage_state"] == COVERAGE_STATE_COMPLETE
     assert body["page_count"] == 3
-    assert body["archetype"]["archetype"] == "commerce"
-    assert body["archetype"]["source"] == "onboarding_profile"
-    assert body["archetype"]["market_scope"] == "national"
-    assert [row["label"] for row in body["archetype"]["not_observed"]] == [
-        "Help / FAQ hub"
-    ]
+    assert "archetype" not in body
     assert body["families"][0]["orphan_count"] == 0
     assert {node["site_url_id"] for node in body["nodes"]} == {
         str(row.id) for row in urls
@@ -233,102 +227,8 @@ async def test_partial_coverage_states_the_limit_and_withholds_absence(
         )
     ).json()
     assert body["coverage_state"] == COVERAGE_STATE_PARTIAL
-    assert body["archetype"]["not_observed"] == []
     assert body["families"][0]["orphan_count"] is None
     assert body["limitations"] and "page budget" in body["limitations"][0]
-
-    # The correction surface still works, and still cannot resurrect absence.
-    put = await client.put(
-        f"/api/v1/projects/{scn.project_id}/site-health/architecture/archetype",
-        json={"archetype": "software"},
-        headers=headers,
-    )
-    assert put.status_code == 200
-    assert put.json()["archetype_override"] == "software"
-    corrected = (
-        await client.get(
-            f"/api/v1/projects/{scn.project_id}/site-health/architecture",
-            headers=headers,
-        )
-    ).json()["archetype"]
-    assert corrected["archetype"] == "software"
-    assert corrected["source"] == "user_override"
-    assert corrected["not_observed"] == []
-    # The persisted evidence row is untouched by a correction.
-    async with session_factory() as session:
-        model = await session.scalar(
-            select(SiteObservedArchitecture).where(
-                SiteObservedArchitecture.crawl_id == scn.crawl_id
-            )
-        )
-        assert model is not None
-        assert (model.archetype or {})["archetype"] == "commerce"
-
-
-async def test_archetype_override_recomputes_structures_and_clears(
-    client: httpx.AsyncClient,
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    await _register(client, "arch-override@example.com")
-    async with session_factory() as session:
-        scn = await _seed_scenario(session, email="arch-override@example.com")
-        await _seed_architecture(
-            session,
-            scn=scn,
-            coverage_state=COVERAGE_STATE_COMPLETE,
-            archetype=_COMMERCE_ARCHETYPE,
-        )
-    headers = {"X-Workspace-Id": str(scn.workspace_id)}
-    path = f"/api/v1/projects/{scn.project_id}/site-health/architecture"
-
-    await client.put(
-        f"{path}/archetype", json={"archetype": "services"}, headers=headers
-    )
-    corrected = (await client.get(path, headers=headers)).json()["archetype"]
-    assert corrected["archetype"] == "services"
-    # The services archetype expects different structures, evaluated over the
-    # SAME persisted hierarchy: none of its own were observed here.
-    assert [row["key"] for row in corrected["not_observed"]] == [
-        "services",
-        "contact",
-        "trust",
-        "guides",
-    ]
-    assert corrected["observed"] == []
-
-    cleared = await client.put(
-        f"{path}/archetype", json={"archetype": None}, headers=headers
-    )
-    assert cleared.status_code == 200
-    assert cleared.json()["archetype_override"] is None
-    restored = (await client.get(path, headers=headers)).json()["archetype"]
-    assert restored["archetype"] == "commerce"
-    assert restored["source"] == "onboarding_profile"
-
-    async with session_factory() as session:
-        profile = await session.scalar(
-            select(SiteHealthProfile).where(
-                SiteHealthProfile.project_id == scn.project_id
-            )
-        )
-        assert profile is not None
-        assert profile.archetype_override is None
-
-
-async def test_unknown_archetype_is_rejected(
-    client: httpx.AsyncClient,
-    session_factory: async_sessionmaker[AsyncSession],
-) -> None:
-    await _register(client, "arch-invalid@example.com")
-    async with session_factory() as session:
-        scn = await _seed_scenario(session, email="arch-invalid@example.com")
-    headers = {"X-Workspace-Id": str(scn.workspace_id)}
-    resp = await client.put(
-        f"/api/v1/projects/{scn.project_id}/site-health/architecture/archetype",
-        json={"archetype": "ecommerce"},
-        headers=headers,
-    )
-    assert resp.status_code == 422
 
 
 async def test_architecture_is_unavailable_without_a_persisted_model(
@@ -347,7 +247,6 @@ async def test_architecture_is_unavailable_without_a_persisted_model(
     ).json()
     assert body["state"] == "unavailable"
     assert body["nodes"] == []
-    assert body["archetype"]["archetype"] == "other"
     assert body["limitations"]
 
 
@@ -487,13 +386,6 @@ async def test_architecture_is_workspace_isolated(
     assert (
         await client.get(
             f"/api/v1/projects/{scn.project_id}/site-health/architecture",
-            headers=foreign,
-        )
-    ).status_code in {403, 404}
-    assert (
-        await client.put(
-            f"/api/v1/projects/{scn.project_id}/site-health/architecture/archetype",
-            json={"archetype": "software"},
             headers=foreign,
         )
     ).status_code in {403, 404}

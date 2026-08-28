@@ -129,6 +129,7 @@ export const readinessCheckSchema = responseObject({
   pass_count: z.number().int(),
   fail_count: z.number().int(),
   not_applicable_count: z.number().int(),
+  error_count: z.number().int(),
   failing_page_count: z.number().int(),
 });
 

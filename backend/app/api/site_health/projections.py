@@ -19,18 +19,13 @@ from app.domain.site_health.api_schemas import (
     AeoReadinessResponse,
     DashboardResponse,
 )
-from app.domain.site_health.architecture_schemas import (
-    ArchetypeOverrideResponse,
-    ArchitectureResponse,
-    SetArchetypeRequest,
-)
+from app.domain.site_health.architecture_schemas import ArchitectureResponse
 from app.domain.site_health.change_schemas import (
     ChangeObservationResponse,
     ChangesPage,
     ChangeSummaryResponse,
 )
 from app.domain.site_health.service import (
-    InvalidArchetypeError,
     InvalidChangeSelectionError,
     InvalidCursorError,
     SiteHealthNotFoundError,
@@ -187,37 +182,3 @@ async def get_architecture_endpoint(
     except SiteHealthNotFoundError as exc:
         raise _not_found(str(exc)) from exc
     return ArchitectureResponse.model_validate(result)
-
-
-@router.put(
-    "/projects/{project_id}/site-health/architecture/archetype",
-    response_model=ArchetypeOverrideResponse,
-)
-async def set_archetype_endpoint(
-    project_id: uuid.UUID,
-    payload: SetArchetypeRequest,
-    ctx: _WorkspaceDep,
-    session: _SessionDep,
-) -> ArchetypeOverrideResponse:
-    """Correct (or clear) the project's archetype.
-
-    A presentation-layer correction only: it rewrites no evidence, re-evaluates
-    no rule, and moves no score.
-    """
-    try:
-        result = await service.set_archetype_override(
-            session,
-            workspace_id=ctx.workspace_id,
-            project_id=project_id,
-            archetype=payload.archetype,
-        )
-        await session.commit()
-    except SiteHealthNotFoundError as exc:
-        await session.rollback()
-        raise _not_found(str(exc)) from exc
-    except InvalidArchetypeError as exc:
-        await session.rollback()
-        raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, CODE_VALIDATION_ERROR, str(exc)
-        ) from exc
-    return ArchetypeOverrideResponse.model_validate(result)

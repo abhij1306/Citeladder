@@ -60,6 +60,12 @@ def test_projection_reconciles_states_and_never_guesses_unmapped_rules() -> None
         answerability.error_count,
     ) == (1, 1, 1, 1)
     assert answerability.coverage == 1.0
+    errored = next(
+        check
+        for check in answerability.checks
+        if check.rule_id == "technical.thin_content"
+    )
+    assert errored.error_count == 1
     assert result.observed_evaluation_count == 4
     assert result.expected_evaluation_count == 20
     assert all(
@@ -139,7 +145,14 @@ def test_checks_carry_catalog_copy_and_never_fall_back_to_a_rule_id() -> None:
         _row("aeo.answer_first", "pass", title="Answer not stated first"),
     ]
 
-    answerability = project_aeo_readiness(rows, analysis_count=2).dimensions[0]
+    answerability = project_aeo_readiness(
+        rows,
+        analysis_count=2,
+        rule_copy={
+            "aeo.answer_first": ("Answer not stated first", "Lead with the answer."),
+            "aeo.question_headings": ("Question headings", "Use question headings."),
+        },
+    ).dimensions[0]
     answer_first = next(
         check for check in answerability.checks if check.rule_id == "aeo.answer_first"
     )
@@ -147,6 +160,9 @@ def test_checks_carry_catalog_copy_and_never_fall_back_to_a_rule_id() -> None:
     assert answer_first.title == "Answer not stated first"
     assert answer_first.fail_count == 1
     assert answer_first.failing_page_count == 1
+    assert all(
+        check.rule_id != "aeo.question_headings" for check in answerability.checks
+    )
     # Worst-first ordering puts the only failing check at the top.
     assert answerability.checks[0].rule_id == "aeo.answer_first"
 

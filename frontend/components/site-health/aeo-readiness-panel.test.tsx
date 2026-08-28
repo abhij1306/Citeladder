@@ -50,6 +50,7 @@ function dimension(key: string, label: string, failing: boolean) {
         pass_count: failing ? 3 : 4,
         fail_count: failing ? 2 : 0,
         not_applicable_count: 1,
+        error_count: 0,
         failing_page_count: failing ? 2 : 0,
       },
     ],
@@ -117,6 +118,18 @@ describe('AEO Readiness', () => {
     expect(screen.queryByText(/evidence link/i)).toBeNull();
   });
 
+  it('uses singular grammar when one checked page needs work', async () => {
+    stubReadiness({
+      dimensions: DIMENSIONS.map(([key, label], index) => {
+        const base = dimension(key, label, index === 0);
+        return index === 0 ? { ...base, checked_page_count: 1, failing_page_count: 1 } : base;
+      }),
+    });
+    renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
+
+    expect(await screen.findByText('1 of 1 checked page needs work')).toBeInTheDocument();
+  });
+
   it('names checks by their catalog title and never by a rule id', async () => {
     stubReadiness();
     renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
@@ -124,6 +137,26 @@ describe('AEO Readiness', () => {
     expect(await screen.findByText('Answer is not stated first')).toBeInTheDocument();
     expect(screen.queryByText(/rule\.answerability\.0/)).toBeNull();
     expect(screen.queryByText(/^aeo\./)).toBeNull();
+  });
+
+  it('labels errored dimensions and checks as incomplete, never passing', async () => {
+    const dimensions = DIMENSIONS.map(([key, label], index) => {
+      const base = dimension(key, label, false);
+      return index === 0
+        ? {
+            ...base,
+            error_count: 1,
+            checks: [{ ...base.checks[0], error_count: 1 }],
+          }
+        : base;
+    });
+    stubReadiness({ dimensions });
+    renderWithProviders(<AeoReadinessPanel projectId={PROJECT} crawlId={CRAWL} />);
+
+    expect(await screen.findByText(/1 check could not be evaluated/)).toBeInTheDocument();
+    expect(screen.getByText(/1 has incomplete checks: Answerability/)).toBeInTheDocument();
+    expect(screen.getByText('1 error')).toBeInTheDocument();
+    expect(screen.queryByText(/Every dimension is passing/)).toBeNull();
   });
 
   it('reveals the remediation for a check on demand', async () => {

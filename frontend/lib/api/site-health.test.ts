@@ -722,6 +722,7 @@ describe('AEO Readiness contract', () => {
                 pass_count: 0,
                 fail_count: 0,
                 not_applicable_count: 1,
+                error_count: 0,
                 failing_page_count: 0,
               },
             ],

@@ -12,10 +12,11 @@ import type { SiteHealthDashboard } from '@/lib/api/types';
 // The analyzing/scored inventory modes render PagesTable (clickable rows) and
 // the Site Intelligence workspace (panel state mirrored to the URL); stub
 // next/navigation, which is unavailable in jsdom.
+let search = '';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   usePathname: () => '/site',
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(search),
 }));
 
 const WORKSPACE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -203,6 +204,7 @@ function renderScreen() {
 
 beforeAll(() => mswServer.listen({ onUnhandledRequest: 'error' }));
 beforeEach(() => {
+  search = '';
   // ProjectProvider backfills a logo for fixtures without one. Keep the
   // production refresh behavior enabled and satisfy it with the shared MSW
   // pattern used by other project-screen tests.
@@ -210,6 +212,48 @@ beforeEach(() => {
 });
 afterEach(() => mswServer.resetHandlers());
 afterAll(() => mswServer.close());
+
+describe('SiteHealthScreen — Website tab deep links', () => {
+  it('preserves Architecture from the URL on initial load', async () => {
+    search = 'tab=architecture';
+    mockRoutes();
+    mswServer.use(
+      http.get(`/api/v1/projects/${PROJECT}/site-health/architecture`, () =>
+        HttpResponse.json({
+          state: 'unavailable',
+          crawl_id: CRAWL,
+          coverage_state: 'unknown',
+          page_count: 0,
+          page_kind_counts: {},
+          families: [],
+          nodes: [],
+          architecture_formula_version: 'sh-architecture-1',
+          limitations: ['Architecture is not available yet.'],
+        }),
+      ),
+    );
+
+    renderScreen();
+
+    expect(await screen.findByRole('tab', { name: 'Architecture' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(await screen.findByText('Architecture is not available yet.')).toBeVisible();
+  });
+
+  it('falls back to Pages for an unknown URL tab', async () => {
+    search = 'tab=unknown';
+    mockRoutes();
+
+    renderScreen();
+
+    expect(await screen.findByRole('tab', { name: 'Pages' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+});
 
 describe('SiteHealthScreen — loading failures', () => {
   it('shows an error instead of an endless skeleton when entitlement loading fails', async () => {

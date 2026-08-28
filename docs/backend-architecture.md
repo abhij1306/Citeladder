@@ -285,12 +285,9 @@ coverage is complete. The task is retryable and cannot fail crawl
 terminalization.
 
 Those projections have one read surface each and no second writer. The
-architecture route returns the newest persisted model for a crawl with its own
-formula/policy versions, so moving a version token cannot blank the tab. The
-project's `SiteHealthProfile.archetype_override` is the single correction
-surface: a mutable project setting applied at read time by re-running the same
-versioned common-structure policy over the same persisted hierarchy. It rewrites
-no evidence row, re-evaluates no rule, and moves no score. The pages list
+architecture route returns the newest persisted model for a crawl with its
+architecture formula version, observed families, and hierarchy. It exposes no
+archetype advisory block or correction mutation. The pages list
 keyset-pages over `(link_metric_value, site_url_id)` when a link sort is
 requested, with the sort inside the cursor fingerprint so a cursor cannot be
 replayed under a different ordering. An unmeasured page reports `null`, never
@@ -326,9 +323,7 @@ artifact -> normalized region/entity facts -> tiered page_kind assessment
 ```
 
 The former industry-role, knowledge, correction, and comparison columns/tables
-were removed. The broad observed-architecture archetype is an advisory
-expectation layer only: it cannot classify a site, create a defect, or alter a
-score. `page_kind` remains the generic structural classifier and drives
+were removed. `page_kind` remains the generic structural classifier and drives
 schema/property contracts and rule applicability. Primary-region facts exclude
 chrome, non-rendered subtrees, and repeated-card contamination. Structured data
 is retained as a suggestion/corroborator and never decides the kind alone. See

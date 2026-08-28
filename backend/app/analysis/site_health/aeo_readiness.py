@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import uuid
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from app.core.config.site_health_contracts import (
@@ -55,6 +56,7 @@ class ReadinessCheck:
     pass_count: int
     fail_count: int
     not_applicable_count: int
+    error_count: int
     failing_page_count: int
 
 
@@ -102,8 +104,14 @@ class ReadinessResult:
     limitations: tuple[str, ...]
 
 
-def _title_of(rows: list[ReadinessEvaluationInput], rule_id: str) -> tuple[str, str]:
+def _title_of(
+    rows: list[ReadinessEvaluationInput],
+    rule_id: str,
+    rule_copy: Mapping[str, tuple[str, str]],
+) -> tuple[str, str]:
     """Catalog copy for a rule, falling back to its id only if nothing carried it."""
+    if rule_id in rule_copy:
+        return rule_copy[rule_id]
     for row in rows:
         if row.rule_id == rule_id and row.title:
             return row.title, row.remediation
@@ -111,14 +119,18 @@ def _title_of(rows: list[ReadinessEvaluationInput], rule_id: str) -> tuple[str, 
 
 
 def _checks(
-    rows: list[ReadinessEvaluationInput], rules: tuple[str, ...]
+    rows: list[ReadinessEvaluationInput],
+    rules: tuple[str, ...],
+    rule_copy: Mapping[str, tuple[str, str]],
 ) -> tuple[ReadinessCheck, ...]:
     """Per-rule rollups, worst first, so the row itself says what to fix."""
     checks: list[ReadinessCheck] = []
     for rule_id in rules:
         rule_rows = [row for row in rows if row.rule_id == rule_id]
+        if not rule_rows:
+            continue
         counts = Counter(row.outcome for row in rule_rows)
-        title, remediation = _title_of(rule_rows, rule_id)
+        title, remediation = _title_of(rule_rows, rule_id, rule_copy)
         checks.append(
             ReadinessCheck(
                 rule_id=rule_id,
@@ -127,6 +139,7 @@ def _checks(
                 pass_count=counts[RULE_OUTCOME_PASS],
                 fail_count=counts[RULE_OUTCOME_FAIL],
                 not_applicable_count=counts[RULE_OUTCOME_NOT_APPLICABLE],
+                error_count=counts[RULE_OUTCOME_ERROR],
                 failing_page_count=len(
                     {
                         row.site_url_id
@@ -185,6 +198,7 @@ def _dimension(
     *,
     analysis_count: int,
     evaluations: list[ReadinessEvaluationInput],
+    rule_copy: Mapping[str, tuple[str, str]],
 ) -> ReadinessDimension:
     rules = tuple(
         rule_id
@@ -220,7 +234,7 @@ def _dimension(
             }
         ),
         failing_page_count=failing_page_count,
-        checks=_checks(rows, rules),
+        checks=_checks(rows, rules, rule_copy),
         evidence_pages=evidence_pages,
         evidence_truncated=(
             failing_page_count > AEO_READINESS_MAX_EVIDENCE_PAGES_PER_DIMENSION
@@ -229,14 +243,22 @@ def _dimension(
 
 
 def project_aeo_readiness(
-    evaluations: list[ReadinessEvaluationInput], *, analysis_count: int
+    evaluations: list[ReadinessEvaluationInput],
+    *,
+    analysis_count: int,
+    rule_copy: Mapping[str, tuple[str, str]] | None = None,
 ) -> ReadinessResult:
     """Group only explicitly mapped persisted evaluations; never guess."""
     mapped = [
         row for row in evaluations if row.rule_id in AEO_READINESS_RULE_DIMENSIONS
     ]
     dimensions = tuple(
-        _dimension(key, analysis_count=analysis_count, evaluations=mapped)
+        _dimension(
+            key,
+            analysis_count=analysis_count,
+            evaluations=mapped,
+            rule_copy=rule_copy or {},
+        )
         for key in AEO_READINESS_DIMENSIONS
     )
     observed = sum(item.observed_evaluation_count for item in dimensions)
